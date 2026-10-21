@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -406,6 +406,64 @@ $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
 
+-- A record page's header and tab badges in one call: the subject's title and
+-- path, how many rows each named section has and whether any is newer than
+-- seen_at. Runs as the caller, so each count is what the caller can read;
+-- null when the caller can't read the subject. An unknown section is left out.
+create or replace function "better_supabase"."record_summary"(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_counts jsonb := '{}'::jsonb;
+  v_unread jsonb := '{}'::jsonb;
+  v_count bigint;
+  v_latest timestamptz;
+begin
+  if coalesce(cardinality(record_summary.sections), 0) > 20 then
+    raise exception 'record_summary takes at most 20 sections'
+      using errcode = '22023', hint = 'RECORD_SECTIONS_TOO_MANY';
+  end if;
+  if not "better_supabase"."can_subject"(record_summary.subject_type, record_summary.subject_id, 'read') then
+    return null;
+  end if;
+  if 'comments' = any (record_summary.sections) then
+    select count(*), max(x."created_at")
+      into v_count, v_latest
+      from "better_supabase"."comments" x
+      where x."subject_type"::text = record_summary.subject_type
+        and x."subject_id"::text = record_summary.subject_id
+        and x."deleted_at" is null;
+    v_counts := v_counts || jsonb_build_object('comments', v_count);
+    v_unread := v_unread || jsonb_build_object('comments',
+      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+  end if;
+  if 'attachments' = any (record_summary.sections) then
+    select count(*), max(x."uploaded_at")
+      into v_count, v_latest
+      from "better_supabase"."attachments" x
+      where x."subject_type"::text = record_summary.subject_type
+        and x."subject_id"::text = record_summary.subject_id
+        and x."uploaded_at" is not null and x."status" <> 'infected';
+    v_counts := v_counts || jsonb_build_object('attachments', v_count);
+    v_unread := v_unread || jsonb_build_object('attachments',
+      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+  end if;
+  return jsonb_build_object(
+    'type', record_summary.subject_type,
+    'id', record_summary.subject_id,
+    'title', "better_supabase"."subject_title"(record_summary.subject_type, record_summary.subject_id),
+    'url', "better_supabase"."subject_url"(record_summary.subject_type, record_summary.subject_id),
+    'counts', v_counts,
+    'unread', v_unread);
+end;
+$$;
+revoke execute on function "better_supabase"."record_summary"(text, text, text[], timestamptz) from public, anon;
+grant execute on function "better_supabase"."record_summary"(text, text, text[], timestamptz) to authenticated, service_role;
+
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
 -- action's key in config.subjects.<type>.permissions, so an action without
@@ -633,6 +691,15 @@ set search_path = ''
 as $$ select "better_supabase"."can_subject"($1, $2, $3) $$;
 revoke execute on function "api"."can_subject"(text, text, text) from public, anon;
 grant execute on function "api"."can_subject"(text, text, text) to authenticated, service_role;
+
+create or replace function "api"."record_summary"(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_summary"($1, $2, $3, $4) $$;
+revoke execute on function "api"."record_summary"(text, text, text[], timestamptz) from public, anon;
+grant execute on function "api"."record_summary"(text, text, text[], timestamptz) to authenticated, service_role;
 
 create or replace function "api"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
 returns boolean
