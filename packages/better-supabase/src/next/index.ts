@@ -3,6 +3,13 @@ export { createNext } from "./create.ts";
 export { nextCache, sessionStale, sessionTag, supportTag } from "./cache.ts";
 
 export {
+  invalidateSection,
+  recordTag,
+  sectionTag,
+  type RecordTagOptions,
+} from "./records.ts";
+
+export {
   requireAal,
   shouldCheckSession,
   shouldRefresh,

@@ -12,7 +12,7 @@ import type { ReadSet } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
-import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { AnyFunctions, AnyModels, SubjectRef } from "../schema/types.ts";
 import type { AuthOutageHook } from "../server/entries/session.ts";
 import type {
   ActionInput,
@@ -157,6 +157,14 @@ export interface ActionOptions<
 export type BlockActionArgs<S, A, Ctx> = [ActionParsed<S>] extends A
   ? { readonly args?: (input: ActionParsed<S>, ctx: Ctx) => A }
   : { readonly args: (input: ActionParsed<S>, ctx: Ctx) => A };
+
+/** The record and section a `sectionAction` writes to. */
+export interface SectionActionTarget<S, Ctx> {
+  /** The section to invalidate after the write, such as `"comments"`. */
+  readonly section: string;
+  /** The record the write is on, from the validated input. */
+  readonly subject: (input: ActionParsed<S>, ctx: Ctx) => SubjectRef;
+}
 
 export interface RouteOptions<
   C = unknown,
@@ -335,6 +343,51 @@ export interface BetterNext<
       BlockActionArgs<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
+        ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
+      >,
+  ): (
+    input: ActionInput<S>,
+  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
+  /**
+   * A `blockAction` on one record's section: after the write succeeds it
+   * invalidates the section's and the record's cache tags in the caller's
+   * tenant (`invalidateSection`).
+   *
+   * ```ts
+   * export const addComment = bs.sectionAction(
+   *   ({ supabase, tenant }) => blocks(supabase, tenant).comments,
+   *   "create",
+   *   {
+   *     input: v.object({ customerId: v.string(), body: v.string() }),
+   *     section: "comments",
+   *     subject: ({ customerId }) => ({
+   *       type: "customer",
+   *       id: customerId,
+   *     }),
+   *     args: ({ customerId, body }) => [
+   *       { type: "customer", id: customerId },
+   *       { body },
+   *     ],
+   *   },
+   * );
+   * ```
+   */
+  sectionAction<
+    Cl extends object,
+    const K extends string,
+    S extends StandardSchemaV1 | undefined = undefined,
+    R extends boolean = false,
+  >(
+    client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
+    method: K & BlockMethodName<Cl>,
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
+      BlockActionArgs<
+        S,
+        BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
+        ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
+      > &
+      SectionActionTarget<
+        S,
         ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
       >,
   ): (
