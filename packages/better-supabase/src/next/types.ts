@@ -355,7 +355,7 @@ export interface BetterNext<
    *
    * ```ts
    * export const addComment = bs.sectionAction(
-   *   ({ supabase, tenant }) => blocks(supabase, tenant).comments,
+   *   ({ db }) => blockSet.client(db, "comments"),
    *   "create",
    *   {
    *     input: v.object({ customerId: v.string(), body: v.string() }),
