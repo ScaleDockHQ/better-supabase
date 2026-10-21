@@ -47,7 +47,10 @@ describe("bs.blockRouter", () => {
     auth: { jwks: signer.jwks },
   });
 
-  const block = bs.blockRouter(() => invoices, {
+  const invoicesFor = (_supabase: unknown) => invoices;
+
+  // A callback that reads the context, so TypeScript infers the client late.
+  const block = bs.blockRouter(({ supabase }) => invoicesFor(supabase), {
     name: "invoices",
     methods: ["create", "issue"],
     schemas: { create: v.object({ total: v.number() }) },

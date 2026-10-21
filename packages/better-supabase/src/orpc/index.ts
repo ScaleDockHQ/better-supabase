@@ -186,10 +186,12 @@ export interface BlockRouterOptions<
   readonly name: string;
   /** The methods to expose; the client is only built per request. */
   readonly methods: readonly K[];
-  /** Input schemas by method, such as the generated block input schemas. */
-  readonly schemas?: {
-    readonly [Name in K]?: StandardSchemaV1<unknown, BlockInputOf<Cl, Name>>;
-  };
+  /**
+   * Input schemas by method, such as the generated block input schemas. They
+   * aren't typed against the method: a type that names the client fixes it
+   * before a `client` callback that destructures its context is inferred.
+   */
+  readonly schemas?: { readonly [Name in K]?: StandardSchemaV1 };
   /** Guard and authorize options every procedure runs behind. */
   readonly guard?: G;
   /** Tags for the documented routes. */
@@ -337,18 +339,20 @@ export interface BetterOrpc<
    * export const router = os.router({ invoices: invoices.procedures });
    * ```
    */
-  blockRouter<Cl extends object, const K extends BlockMethodName<Cl>>(
+  // `K` stays unconstrained by `Cl`: checking a constraint that names `Cl`
+  // fixes `Cl` before a destructuring `client` callback is inferred.
+  blockRouter<Cl extends object, const K extends string>(
     client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
     options: BlockRouterOptions<
       Cl,
-      K,
+      K & BlockMethodName<Cl>,
       OrpcGuardOptions<
         C,
         P,
         ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
       >
     >,
-  ): BlockRouter<M, F, E, C, P, B, Cl, K>;
+  ): BlockRouter<M, F, E, C, P, B, Cl, K & BlockMethodName<Cl>>;
 }
 
 const CODES = /* @__PURE__ */ new Map<number, string>(

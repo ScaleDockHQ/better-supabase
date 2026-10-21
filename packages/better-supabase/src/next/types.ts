@@ -321,21 +321,25 @@ export interface BetterNext<
    * );
    * ```
    */
+  // `K` stays unconstrained by `Cl`: checking a constraint that names `Cl`
+  // fixes `Cl` before a destructuring `client` callback is inferred.
   blockAction<
     Cl extends object,
-    const K extends BlockMethodName<Cl>,
+    const K extends string,
     S extends StandardSchemaV1 | undefined = undefined,
     R extends boolean = false,
   >(
     client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
-    method: K,
+    method: K & BlockMethodName<Cl>,
     options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
       BlockActionArgs<
         S,
-        BlockArgsOf<Cl, K>,
+        BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
       >,
-  ): (input: ActionInput<S>) => Promise<ActionResult<BlockDataOf<Cl, K>>>;
+  ): (
+    input: ActionInput<S>,
+  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
   /**
    * For Server Components: the caller's context, or the Next.js interrupt for a
    * refused caller. `unauthorized` calls `unauthorized()`, `forbidden` calls

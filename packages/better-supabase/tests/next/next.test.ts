@@ -817,15 +817,25 @@ describe("createNext", () => {
       input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
     });
 
-    const issue = bs.blockAction(() => invoices, "issue", {
-      input: v.object({ invoiceId: v.string() }),
-      args: ({ invoiceId }) => [invoiceId, "today"],
-    });
+    const invoicesFor = (_supabase: unknown) => invoices;
+
+    // A callback that reads the context, so TypeScript infers the client late.
+    const issue = bs.blockAction(
+      ({ supabase }) => invoicesFor(supabase),
+      "issue",
+      {
+        input: v.object({ invoiceId: v.string() }),
+        args: ({ invoiceId }) => [invoiceId, "today"],
+      },
+    );
 
     // @ts-expect-error: issue takes two arguments, so `args` is required
     bs.blockAction(() => invoices, "issue", {
       input: v.object({ invoiceId: v.string() }),
     });
+
+    // @ts-expect-error: not a method of the client
+    bs.blockAction(({ supabase }) => invoicesFor(supabase), "refund", {});
 
     const created = await create({ title: "Ship" });
 
