@@ -26,6 +26,15 @@ export { useAction, useActionForm } from "./actions.ts";
 
 export { createRecordProvider } from "./record.ts";
 
+export { useRecordListState } from "./record-list.ts";
+
+export type {
+  RecordListQueryStates,
+  RecordListState,
+  RecordListUrl,
+  RecordListUrlState,
+} from "./record-list.ts";
+
 export type {
   RecordActionsOf,
   RecordContextValue,
