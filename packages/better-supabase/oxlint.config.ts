@@ -59,7 +59,7 @@ export default defineConfig({
         "tests/client/index.test.ts",
         "tests/expo/expo.test.ts",
         "tests/next/{bearer,client,next,resources,scopes,support}.test.ts",
-        "tests/react/{block-hooks,hooks}.test.ts",
+        "tests/react/{block-hooks,hooks,record}.test.ts",
         "tests/standards/w3c-server-timing.test.ts",
         "tests/stripe/stripe.test.ts",
         "tests/workflow-sdk/{approval-waiter,builder,workflow-sdk}.test.ts",

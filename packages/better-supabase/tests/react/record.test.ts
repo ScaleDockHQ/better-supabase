@@ -17,7 +17,7 @@ import { renderHook } from "../fixtures/hook-runtime.ts";
 import { flush, resolved } from "../fixtures/ports.ts";
 
 // vi.mock factories run before the imports above, so they load modules themselves.
-vi.mock(import("react"), async (importOriginal) => ({
+vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof ReactModule>()),
   ...(await import("../fixtures/hook-runtime.ts")).reactHooks,
 }));

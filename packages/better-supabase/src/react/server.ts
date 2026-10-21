@@ -20,6 +20,7 @@ import type {
   UseActionOptions,
 } from "./index.ts";
 import type { usePresence as clientUsePresence } from "./presence.ts";
+import type { createRecordProvider as clientCreateRecordProvider } from "./record.ts";
 import type { useDebouncedSearch as clientUseDebouncedSearch } from "./search.ts";
 import type {
   useSignIn as clientUseSignIn,
@@ -71,6 +72,16 @@ export type {
 } from "./index.ts";
 
 export type { SessionProviderProps } from "./session.ts";
+
+export type {
+  RecordActionsOf,
+  RecordContextValue,
+  RecordInitial,
+  RecordProviderKit,
+  RecordProviderProps,
+  RecordState,
+  RecordWriteHandlers,
+} from "./record.ts";
 
 export type {
   AuthHookOptions,
@@ -186,6 +197,13 @@ export const useBlockMutation: typeof clientUseBlockMutation =
 /** The `react-server` build of `useBlockEvent`: listen from a Client Component. */
 export const useBlockEvent: typeof clientUseBlockEvent =
   clientOnly("useBlockEvent");
+
+/**
+ * The `react-server` build of `createRecordProvider`: call it in a `"use
+ * client"` module, such as the generated `-provider.tsx`.
+ */
+export const createRecordProvider: typeof clientCreateRecordProvider =
+  clientOnly("createRecordProvider");
 
 /**
  * The `react-server` build of `useDebouncedSearch`: read the term from

@@ -54,7 +54,7 @@ export interface ReactHooks {
     ...children: unknown[]
   ): unknown;
   useContext(context: object): unknown;
-  use(context: object): unknown;
+  use<T>(context: object): T;
   useState(initial: unknown): [unknown, (next: unknown) => void];
   useMemo(factory: () => unknown, deps: Deps): unknown;
   useCallback(fn: unknown, deps: Deps): unknown;
@@ -76,7 +76,8 @@ export const reactHooks: ReactHooks = {
     return { type, props, children };
   },
   useContext: (context) => state.provided.get(context) ?? null,
-  use: (context) => state.provided.get(context) ?? null,
+  // SAFETY: the runtime reads contexts only, whose value the provider set.
+  use: <T>(context: object) => (state.provided.get(context) ?? null) as T,
   useState(initial) {
     const cell = slot();
 
