@@ -1,4 +1,4 @@
-import type { EntityRename } from "../core/entity-naming.ts";
+import type { EntityNoun, EntityRename } from "../core/entity-naming.ts";
 import type { ModuleNames } from "../sql/context.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
@@ -68,6 +68,57 @@ export function blockEntityRenames(
           entity.to.plural !== entity.from.plural),
     )
     .map((entity) => ({ from: entity.from, to: entity.to }));
+}
+
+/** One installed block's entity under the name the config gives it. */
+export interface BlockEntity {
+  /** The entity's key in the block's manifest: its default singular noun. */
+  readonly key: string;
+  readonly from: EntityNoun;
+  readonly to: EntityNoun;
+  readonly primary: boolean;
+  /**
+   * The table that holds it as the SQL writes it (`tasks`, or the
+   * `blocks.<name>.tables` mapping), or undefined when it has none.
+   */
+  readonly table: string | undefined;
+  /** `blocks.<name>.entities.<entity>.url`, with column placeholders. */
+  readonly url: string | undefined;
+}
+
+/** The entities one installed block declares, with their final names. */
+export function blockEntities(
+  module: string,
+  blocks: AnyBlocksConfig,
+): readonly BlockEntity[] {
+  const names = catalogNames(module);
+
+  if (names === undefined) {
+    return [];
+  }
+
+  const resolved = resolveNames(module, names, blocks);
+  const mapped = resolveModule(blocks[module]).tables;
+
+  return Object.values(resolved.entities).map((entity) => {
+    const logical = entity.table;
+    const spec = logical === undefined ? undefined : names.tables[logical];
+    const target = logical === undefined ? undefined : mapped[logical];
+
+    const table =
+      spec === undefined || target === null
+        ? undefined
+        : (target ?? resolved.naming.rename(spec.name));
+
+    return {
+      key: entity.key,
+      from: entity.from,
+      to: entity.to,
+      primary: entity.primary,
+      table,
+      url: entity.url,
+    };
+  });
 }
 
 /** The subjects one installed block registers, keyed by renamed entity. */

@@ -1,10 +1,18 @@
 import { posix } from "node:path";
 
 import type { BlockNaming, GeneratedBlock } from "../../blocks/index.ts";
-import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type {
+  GeneratedFile,
+  GeneratorBlock,
+  ResolvedConfig,
+} from "../../config/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
-import { blockEntityRenames, tenantNameOf } from "../../config/index.ts";
+import {
+  blockEntities,
+  blockEntityRenames,
+  tenantNameOf,
+} from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
@@ -195,6 +203,44 @@ interface RenamedLines {
   readonly specifiers: readonly string[];
   readonly imports: readonly string[];
   readonly lines: readonly string[];
+}
+
+const CATALOG_BLOCKS = new Map(
+  PRESET_CATALOG.blocks.map((block) => [block.name, block]),
+);
+
+const MANIFESTS = new Map(
+  PRESET_CATALOG.manifests.map((manifest) => [manifest.name, manifest]),
+);
+
+/** The installed blocks with their final names, for `GeneratorModel.blocks`. */
+export function generatorBlocks(
+  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
+): GeneratorBlock[] {
+  return Object.entries(blockConfigEntries(config)).map(([name, entry]) => {
+    const manifest = MANIFESTS.get(CATALOG_BLOCKS.get(name)?.manifest ?? "");
+    const owned = manifest?.name === name ? manifest : undefined;
+    const client = owned?.client ?? undefined;
+    const renames = entityNames(entry.names?.entities ?? []);
+
+    return {
+      name,
+      schema: entry.schema,
+      client:
+        client === undefined
+          ? undefined
+          : { export: renames.rename(client.export), subpath: client.subpath },
+      entities: blockEntities(name, config.blocks).map((entity) => ({
+        key: entity.key,
+        from: { ...entity.from },
+        to: { ...entity.to },
+        primary: entity.primary,
+        table: entity.table,
+        url: entity.url,
+        schemas: owned?.entitySchemas?.[entity.key] ?? {},
+      })),
+    };
+  });
 }
 
 /**

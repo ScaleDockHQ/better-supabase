@@ -196,6 +196,7 @@ export function buildFunctions(
           name: arg.name,
           tsType: typeOf(arg.isArray ? `_${arg.udt}` : arg.udt, arg.typeSchema),
           optional: arg.hasDefault,
+          values: enumsByName.get(`${arg.typeSchema ?? fn.schema}.${arg.udt}`),
         })),
         returns,
       };

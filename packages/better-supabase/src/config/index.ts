@@ -30,9 +30,16 @@ export type {
   CodecsConfig,
   GeneratedFile,
   Generator,
+  GeneratorBlock,
+  GeneratorBlockEntity,
   GeneratorColumn,
+  GeneratorEntitySchemas,
+  GeneratorFunction,
+  GeneratorFunctionArg,
   GeneratorInput,
+  GeneratorJsonSchema,
   GeneratorModel,
+  GeneratorNoun,
   GeneratorTable,
   JsonSchemaSource,
   JsonTypeConfig,
@@ -156,7 +163,9 @@ export type {
   EntityConfig,
 } from "./blocks.ts";
 
-export { blockEntityRenames } from "./block-subjects.ts";
+export { blockEntities, blockEntityRenames } from "./block-subjects.ts";
+
+export type { BlockEntity } from "./block-subjects.ts";
 
 export { DEFAULT_ACTIVE_TENANT, tenantNameOf } from "./blocks.ts";
 

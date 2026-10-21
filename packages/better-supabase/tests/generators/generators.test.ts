@@ -298,7 +298,7 @@ const input: GeneratorInput = {
   config,
   output: resolve(root, config.output),
   importPath: (from, to) => importPath(resolve(root, from), resolve(root, to)),
-  model: { tables: [], enums: [] },
+  model: { tables: [], enums: [], functions: [], blocks: [] },
 };
 
 const json = {

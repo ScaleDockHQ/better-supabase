@@ -62,6 +62,18 @@ export interface PresetCatalogManifest {
    * `gen` aliases under the renamed names.
    */
   readonly entityTypes?: readonly PresetCatalogEntityType[];
+  /**
+   * JSON Schemas of the inputs its client takes, by entity key, from the
+   * Standard Schemas the block exports.
+   */
+  readonly entitySchemas?: Readonly<Record<string, PresetCatalogEntitySchemas>>;
+}
+
+/** One entity's input schemas, in the block's default names. */
+export interface PresetCatalogEntitySchemas {
+  readonly input?: Readonly<Record<string, unknown>>;
+  readonly change?: Readonly<Record<string, unknown>>;
+  readonly listFilter?: Readonly<Record<string, unknown>>;
 }
 
 /** A block type named after one of its entities, such as `WorkItem`. */

@@ -14,7 +14,7 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
-import { emitBlockConfig } from "./blocks.ts";
+import { emitBlockConfig, generatorBlocks } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { buildModel, generatorModel } from "./model.ts";
 
@@ -121,7 +121,7 @@ export async function render(
         output,
         importPath: (from, to) =>
           importPath(resolve(config.root, from), resolve(config.root, to)),
-        model: (view ??= generatorModel(model)),
+        model: (view ??= generatorModel(model, generatorBlocks(config))),
         ...runtime,
       });
     } catch (cause) {

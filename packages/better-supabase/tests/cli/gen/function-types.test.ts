@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 
-import { buildModel } from "../../../src/cli/gen/model.ts";
+import { generatorBlocks } from "../../../src/cli/gen/blocks.ts";
+import { buildModel, generatorModel } from "../../../src/cli/gen/model.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { libraryFixture } from "../fixtures/library.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
@@ -113,5 +114,71 @@ describe("function types", () => {
 
     expect(fn?.args[0]?.tsType).toBe('"calm" | "busy"');
     expect(fn?.returns).toBe('"calm" | "busy" | null');
+
+    const view = generatorModel(buildModel(snapshot, config)).functions.find(
+      (entry) => entry.key === "next_mood",
+    );
+
+    expect(view).toEqual({
+      key: "next_mood",
+      schema: "public",
+      args: [
+        {
+          name: "current",
+          tsType: '"calm" | "busy"',
+          optional: false,
+          values: ["calm", "busy"],
+        },
+      ],
+      returns: '"calm" | "busy" | null',
+      returnsSet: false,
+      volatility: view?.volatility,
+    });
+  });
+});
+
+describe("generator model blocks", () => {
+  it("lists the installed blocks with their final names", async () => {
+    const snapshot = await loadFixtureSnapshot();
+
+    const blockConfig = resolveConfig(
+      {
+        casing: "camel",
+        blocks: {
+          tenant: {},
+          access: {},
+          "work-items": {
+            entities: { work_item: { name: "task", url: "/tasks/{id}" } },
+          },
+        },
+      },
+      fixtures,
+    );
+
+    const model = generatorModel(
+      buildModel(snapshot, blockConfig),
+      generatorBlocks(blockConfig),
+    );
+
+    const block = model.blocks.find((entry) => entry.name === "work-items");
+
+    expect(block?.client).toEqual({
+      export: "tasksBlock",
+      subpath: "better-supabase/blocks/work-items",
+    });
+    expect(
+      block?.entities.find((entity) => entity.key === "work_item"),
+    ).toEqual({
+      key: "work_item",
+      from: { singular: "work_item", plural: "work_items" },
+      to: { singular: "task", plural: "tasks" },
+      primary: true,
+      table: "tasks",
+      url: "/tasks/{id}",
+      schemas: {},
+    });
+    expect(
+      model.blocks.find((entry) => entry.name === "tenant")?.client,
+    ).toBeUndefined();
   });
 });

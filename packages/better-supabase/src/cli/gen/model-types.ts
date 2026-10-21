@@ -79,7 +79,12 @@ export interface EnumModel {
 export interface FunctionModel {
   readonly key: string;
   readonly meta: FunctionMeta;
-  readonly args: readonly { name: string; tsType: string; optional: boolean }[];
+  readonly args: readonly {
+    name: string;
+    tsType: string;
+    optional: boolean;
+    values: readonly string[] | undefined;
+  }[];
   readonly returns: string;
 }
 
