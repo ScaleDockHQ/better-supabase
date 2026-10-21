@@ -24,6 +24,7 @@ import {
   transportQueueBackend,
   withLease,
 } from "../../src/blocks/jobs/index.ts";
+import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
 import {
   rpcTransport,
@@ -5356,5 +5357,117 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`drop function if exists public.${probe}()`);
       await pool.query(`drop function if exists public.${probe}_read()`);
     }
+  });
+
+  it("seals the Marketplace token, tracks tenants and reports usage as a delta per period", async () => {
+    const configurationId = `icfg_${RUN}`;
+    const transport = sqlTransport(postgres.admin);
+    const sent: { auth: string | null; body: Record<string, unknown> }[] = [];
+    let refuse = false;
+
+    const marketplace = createVercelMarketplace({
+      transport,
+      clientId: "oac_1",
+      clientSecret: "secret",
+      fetch: (_input, init) => {
+        if (refuse) {
+          return Promise.resolve(new Response("no", { status: 500 }));
+        }
+
+        sent.push({
+          auth: new Headers(init?.headers).get("authorization"),
+          body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+        });
+
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      },
+    });
+
+    await marketplace.upsertInstallation({ configurationId }).orThrow();
+    await marketplace.sealAccessToken(configurationId, "vat_1").orThrow();
+    await marketplace.sealAccessToken(configurationId, "vat_2").orThrow();
+
+    const linked = await marketplace
+      .linkTenant({ configurationId, tenant: "org_1", created: true })
+      .orThrow();
+
+    expect(linked).toMatchObject({ tenant: "org_1", tenantCreated: true });
+
+    await marketplace
+      .upsertResource({ configurationId, externalId: "res_1", name: "db" })
+      .orThrow();
+    await transport.call("better_supabase", "set_marketplace_resource_state", {
+      configuration_id: configurationId,
+      external_id: "res_1",
+      tenant: "org_2",
+      tenant_created: true,
+      secret_refs: ["key_1"],
+    });
+
+    expect(
+      await marketplace.resource(configurationId, "res_1").orThrow(),
+    ).toMatchObject({
+      tenant: "org_2",
+      tenantCreated: true,
+      secretRefs: ["key_1"],
+    });
+
+    const period = {
+      configurationId,
+      periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+      periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+    };
+
+    const usage = (index: number) =>
+      // SAFETY: the test sends every usage body itself.
+      (sent[index]!.body["usage"] as Record<string, unknown>[])[0];
+
+    await marketplace
+      .reportUsage({ ...period, meters: [{ meterId: "calls", quantity: 10 }] })
+      .orThrow();
+    await marketplace
+      .reportUsage({ ...period, meters: [{ meterId: "calls", quantity: 15 }] })
+      .orThrow();
+
+    refuse = true;
+
+    expect(
+      (
+        await marketplace.reportUsage({
+          ...period,
+          meters: [{ meterId: "calls", quantity: 20 }],
+        })
+      ).ok,
+    ).toBe(false);
+
+    refuse = false;
+
+    const [last] = await marketplace
+      .reportUsage({ ...period, meters: [{ meterId: "calls", quantity: 21 }] })
+      .orThrow();
+
+    expect(sent.map(({ auth }) => auth)).toEqual([
+      "Bearer vat_2",
+      "Bearer vat_2",
+      "Bearer vat_2",
+    ]);
+    expect([usage(0), usage(1), usage(2)]).toMatchObject([
+      { dayValue: 10, periodValue: 10 },
+      { dayValue: 5, periodValue: 15 },
+      { dayValue: 6, periodValue: 21 },
+    ]);
+    expect(last).toMatchObject({ reported: true, reportedQuantity: 21 });
+
+    await marketplace.deleteResource(configurationId, "res_1").orThrow();
+
+    expect(await marketplace.resources(configurationId).orThrow()).toEqual([]);
+
+    await marketplace.removeInstallation(configurationId).orThrow();
+
+    expect(
+      await transport.call("better_supabase", "marketplace_access_token", {
+        configuration_id: configurationId,
+      }),
+    ).toBeNull();
   });
 });

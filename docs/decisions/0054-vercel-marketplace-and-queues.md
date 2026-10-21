@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-20
+- Amended 2026-10-21: the Partner API, a sealed access token and usage per period.
 
 ## Context
 
@@ -38,3 +39,32 @@ entry point for a few hundred bytes.
 The Marketplace API shapes (billing, invoices, SSO) follow Vercel's documentation
 and are covered by unit tests with a fake `fetch`, not by a live integration.
 A new `@vercel/queue` minor needs a range bump and a conformance run.
+
+## Amendment: the Partner API and usage per period
+
+An app that sells through the Marketplace also serves the Partner API, and
+each one rebuilt the routes, the OIDC check and the secret handling. The block
+now serves them through `partnerApi(options)`, one `Request` to `Response`
+handler. It verifies Vercel's OIDC token against
+`https://marketplace.vercel.com/.well-known/jwks` (the path the discovery
+document names), checks the issuer, the audience (the client id) and the
+expiry, and requires the `installation_id` claim to match the path. The SSO
+exchange uses the same check.
+
+The installation's access token is sealed in Vault
+(`access_token_secret_id`), so `accessToken` became optional. Tenants are kept
+per installation and per resource with whether the integration created them,
+so removing a resource or an installation can delete an empty tenant it made.
+Secrets go to Vercel only; the block keeps the app's refs for them so a
+rotation can revoke the old keys, and it calls `revoke` only after `rotate`
+resolved and the new refs are stored.
+
+`reportUsage` used to send one number as `dayValue`, `periodValue` and
+`planValue` and stamp every pending row with the current period. It now sends
+one request per billing period, with the total as `periodValue` and the total
+minus `reported_quantity` as `dayValue`, and moves `reported_quantity` only
+after a 2xx answer. `usageRoute` runs it from a cron caller.
+
+The module is version 2. Its upgrade adds columns and functions and sets
+`reported_quantity` to the quantity of every row already reported, so the
+next report sends only what was added since.

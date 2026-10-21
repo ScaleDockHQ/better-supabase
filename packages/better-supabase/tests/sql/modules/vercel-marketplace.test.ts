@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleBody } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = () => moduleBody("vercel-marketplace", { modules: {} })!;
 const fn = (name: string) => `"better_supabase"."${name}"`;
@@ -33,5 +34,19 @@ describe("vercel-marketplace module", () => {
       `grant execute on function ${fn("record_marketplace_invoice")}(text, text, text, timestamptz, timestamptz, numeric, text, jsonb, timestamptz) to service_role;`,
     );
     expect(sql).not.toMatch(/grant execute[^;]*to [^;]*authenticated/);
+  });
+
+  it("backfills reported_quantity for rows reported before version 2", () => {
+    const [plan] = upgradePlan([{ module: "vercel-marketplace", version: 1 }]);
+    expect(plan).toMatchObject({ from: 1, to: 2 });
+    const sql = plan!.steps[0]!.sql;
+    const table = `"better_supabase"."marketplace_meter_reports"`;
+
+    expect(sql).toContain(
+      `alter table ${table} add column if not exists "reported_quantity" numeric not null default 0;`,
+    );
+    expect(sql).toContain(
+      `update ${table} set "reported_quantity" = "quantity" where "reported_at" is not null;`,
+    );
   });
 });

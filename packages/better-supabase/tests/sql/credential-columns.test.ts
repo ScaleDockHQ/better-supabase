@@ -37,6 +37,9 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
     '"better_supabase"."oauth_clients".token_endpoint_auth_method',
   ],
   push: ['"better_supabase"."push_devices".token'],
+  // The installation's token is sealed in Vault; the column holds the Vault
+  // secret id. Secret refs are the app's ids for the keys it handed out.
+  "vercel-marketplace": ["?.access_token_secret_id", "?.secret_refs"],
   // A SET is a signed, public security event the transmitter mints, not a credential.
   "shared-signals": ['"better_supabase"."ssf_events".token'],
 };
