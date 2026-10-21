@@ -67,8 +67,8 @@ describe("BS700", () => {
 });
 
 describe("BS701", () => {
-  it("flags a stack that keeps its shared buffers in System V memory", () => {
-    const [finding] = check("BS701", {
+  it("flags a stack that keeps its shared buffers in System V memory", async () => {
+    const [finding] = await check("BS701", {
       memory: {
         supported: true,
         limit: 32,

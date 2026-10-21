@@ -444,6 +444,7 @@ Runs SQL files against the database: the local stack by default, or the one in t
 
 Commands
   query  Runs each file as one multi-statement script, in order, optionally in a single transaction
+  diff   Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
 
 Global options
   --cwd <dir>            Project directory
@@ -458,6 +459,39 @@ Global options
   -h, --help             Show help
 
 Docs: https://bettersupabase.com/docs/cli/db
+"
+`;
+
+exports[`help > documents db diff 1`] = `
+"Usage: better-supabase db diff [options]
+
+Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
+
+Options
+  -f, --file <name>  Save the diff as supabase/migrations/<timestamp>_<name>.sql instead of printing it
+  --in-stack         Diff inside the running stack with pg-delta, without the Supabase CLI's shadow database
+  --stack <name>     Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Save the diff as a migration, falling back to the running stack
+  $ better-supabase db diff -f add_invoices
+  # Print the diff without starting a shadow database
+  $ better-supabase db diff --in-stack
+
+Side effects: Writes to the database, writes files with --file.
+Docs: https://bettersupabase.com/docs/cli/db#diff
 "
 `;
 

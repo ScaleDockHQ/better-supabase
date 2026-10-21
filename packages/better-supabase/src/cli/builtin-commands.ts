@@ -71,6 +71,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   ],
   ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
   ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
+  ["db diff", () => import("./commands/db.ts").then((m) => m.dbDiffCommand)],
   [
     "stack ls",
     () => import("./commands/stack.ts").then((m) => m.stackLsCommand),

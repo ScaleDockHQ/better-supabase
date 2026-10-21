@@ -403,6 +403,27 @@ export const COMMANDS: readonly CommandSpec[] = [
         ],
         effects: [{ kind: "database", access: "write" }],
       },
+      {
+        name: "diff",
+        description:
+          "Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start",
+        docs: "/docs/cli/db#diff",
+        examples: [
+          {
+            command: "better-supabase db diff -f add_invoices",
+            description:
+              "Save the diff as a migration, falling back to the running stack",
+          },
+          {
+            command: "better-supabase db diff --in-stack",
+            description: "Print the diff without starting a shadow database",
+          },
+        ],
+        effects: [
+          { kind: "database", access: "write" },
+          { kind: "files", when: "--file" },
+        ],
+      },
     ],
   },
   {
