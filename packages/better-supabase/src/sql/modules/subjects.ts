@@ -151,6 +151,78 @@ function titlesBranch(subject: RegisteredSubject): string {
     where ${match}${live}), '[]'::jsonb);`;
 }
 
+/** The most sections one `record_summary` call counts. */
+const MAX_SUMMARY_SECTIONS = 20;
+
+interface SummarySection {
+  readonly name: string;
+  readonly table: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** The column whose newest value marks the section unread. */
+  readonly latest: string;
+  /** Extra conditions a counted row meets, such as not being deleted. */
+  readonly live?: string;
+}
+
+/**
+ * The sections `record_summary` counts: each installed managed module whose
+ * rows the caller reads through policies. Taggings have no read policy (tags
+ * are read through `subject_tags`), so tags aren't counted.
+ */
+function summarySections(ctx: ModuleContext): readonly SummarySection[] {
+  const of = (module: string): ModuleContext | undefined =>
+    ctx.installed(module) && ctx.of(module).mode !== "custom"
+      ? ctx.of(module)
+      : undefined;
+
+  const comments = of("comments");
+  const attachments = of("attachments");
+
+  return [
+    ...(comments === undefined
+      ? []
+      : [
+          {
+            name: "comments",
+            table: comments.table("comments"),
+            subjectType: comments.col("comments", "subjectType"),
+            subjectId: comments.col("comments", "subjectId"),
+            latest: comments.col("comments", "createdAt"),
+            live: `x.${comments.col("comments", "deletedAt")} is null`,
+          },
+        ]),
+    ...(attachments === undefined
+      ? []
+      : [
+          {
+            name: "attachments",
+            table: attachments.table("attachments"),
+            subjectType: attachments.col("attachments", "subjectType"),
+            subjectId: attachments.col("attachments", "subjectId"),
+            latest: attachments.col("attachments", "uploadedAt"),
+            live: `x.${attachments.col("attachments", "uploadedAt")} is not null and x.${attachments.col("attachments", "status")} <> 'infected'`,
+          },
+        ]),
+  ];
+}
+
+/** The `record_summary` step that counts one section. */
+function summaryBranch(section: SummarySection): string {
+  return `  if ${sqlString(section.name)} = any (record_summary.sections) then
+    select count(*), max(x.${section.latest})
+      into v_count, v_latest
+      from ${section.table} x
+      where x.${section.subjectType}::text = record_summary.subject_type
+        and x.${section.subjectId}::text = record_summary.subject_id${
+          section.live === undefined ? "" : `\n        and ${section.live}`
+        };
+    v_counts := v_counts || jsonb_build_object(${sqlString(section.name)}, v_count);
+    v_unread := v_unread || jsonb_build_object(${sqlString(section.name)},
+      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+  end if;`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -276,6 +348,44 @@ end;
 $$;
 ${userGrant(`${fn("can_subject")}(text, text, text)`)}
 
+-- A record page's header and tab badges in one call: the subject's title and
+-- path, how many rows each named section has and whether any is newer than
+-- seen_at. Runs as the caller, so each count is what the caller can read;
+-- null when the caller can't read the subject. An unknown section is left out.
+create or replace function ${fn("record_summary")}(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_counts jsonb := '{}'::jsonb;
+  v_unread jsonb := '{}'::jsonb;
+  v_count bigint;
+  v_latest timestamptz;
+begin
+  if coalesce(cardinality(record_summary.sections), 0) > ${MAX_SUMMARY_SECTIONS} then
+    raise exception 'record_summary takes at most ${MAX_SUMMARY_SECTIONS} sections'
+      using errcode = '22023', hint = 'RECORD_SECTIONS_TOO_MANY';
+  end if;
+  if not ${fn("can_subject")}(record_summary.subject_type, record_summary.subject_id, 'read') then
+    return null;
+  end if;
+${summarySections(ctx)
+  .map((section) => summaryBranch(section))
+  .join("\n")}
+  return jsonb_build_object(
+    'type', record_summary.subject_type,
+    'id', record_summary.subject_id,
+    'title', ${fn("subject_title")}(record_summary.subject_type, record_summary.subject_id),
+    'url', ${fn("subject_url")}(record_summary.subject_type, record_summary.subject_id),
+    'counts', v_counts,
+    'unread', v_unread);
+end;
+$$;
+${userGrant(`${fn("record_summary")}(text, text, text[], timestamptz)`)}
+
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
 -- action's key in config.subjects.<type>.permissions, so an action without
@@ -320,6 +430,11 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "subject_titles", args: ["jsonb"], returns: "jsonb" },
     { name: "can_subject", args: ["text", "text", "text"], returns: "boolean" },
     {
+      name: "record_summary",
+      args: ["text", "text", "text[]", "timestamptz"],
+      returns: "jsonb",
+    },
+    {
       name: "can_subject_for",
       args: ["uuid", "text", "text", "text"],
       returns: "boolean",
@@ -332,8 +447,9 @@ export const SUBJECTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type.",
   requires: ["access"],
+  integrates: ["comments", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

@@ -1053,7 +1053,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "access"
       ],
-      "integrates": [],
+      "integrates": [
+        "comments",
+        "attachments"
+      ],
       "manifest": "subjects",
       "scopes": [
         "tenant"
@@ -2817,6 +2820,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentsEvents"
         },
         {
+          "name": "AttachmentsOptimisticAction"
+        },
+        {
           "name": "AttachmentsOptions"
         },
         {
@@ -3550,6 +3556,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CommentsEvents"
+        },
+        {
+          "name": "CommentsOptimisticAction"
         },
         {
           "name": "CommentsOptions"

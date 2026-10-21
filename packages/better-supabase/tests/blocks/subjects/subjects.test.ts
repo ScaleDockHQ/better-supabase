@@ -103,3 +103,91 @@ describe("createSubjects", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("createSubjects summary", () => {
+  const summaryTransport = (reply: unknown) => {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
+    return {
+      calls,
+      transport: {
+        call(
+          _schema: string,
+          fn: string,
+          args: Readonly<Record<string, unknown>>,
+        ) {
+          calls.push({ fn, args: { ...args } });
+
+          return Promise.resolve(reply);
+        },
+      },
+    };
+  };
+
+  it("reads the title, counts and unread state in one call", async () => {
+    const fake = summaryTransport({
+      type: "customer",
+      id: "1",
+      title: "Acme",
+      url: "/customers/1",
+      counts: { comments: 3, attachments: 0, bad: "x" },
+      unread: { comments: true, attachments: false, bad: 1 },
+    });
+
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const summary = await subjects
+      .summary({ type: "customer", id: "1" }, ["comments", "attachments"], {
+        seenAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+      })
+      .orThrow();
+
+    expect(summary).toEqual({
+      type: "customer",
+      id: "1",
+      title: "Acme",
+      url: "/customers/1",
+      counts: { comments: 3, attachments: 0 },
+      unread: { comments: true, attachments: false },
+    });
+    expect(fake.calls).toEqual([
+      {
+        fn: "record_summary",
+        args: {
+          subject_type: "customer",
+          subject_id: "1",
+          sections: ["comments", "attachments"],
+          seen_at: "2026-01-01T00:00:00Z",
+        },
+      },
+    ]);
+  });
+
+  it("is undefined when the caller can't read the subject", async () => {
+    const fake = summaryTransport(null);
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const summary = await subjects
+      .summary({ type: "customer", id: "1" }, ["comments"])
+      .orThrow();
+
+    expect(summary).toBeUndefined();
+    expect(fake.calls[0]?.args["seen_at"]).toBeNull();
+  });
+
+  it("keeps empty counts when the reply has none", async () => {
+    const fake = summaryTransport({ type: "customer", id: "1" });
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const summary = await subjects
+      .summary({ type: "customer", id: "1" }, [])
+      .orThrow();
+
+    expect(summary).toEqual({
+      type: "customer",
+      id: "1",
+      counts: {},
+      unread: {},
+    });
+  });
+});
