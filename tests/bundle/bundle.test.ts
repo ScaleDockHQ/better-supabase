@@ -427,20 +427,26 @@ describe("bundle", () => {
     "answers root --help about as fast as --version",
     { timeout: 60_000 },
     async () => {
-      const median = async (argv: readonly string[]): Promise<number> => {
-        const times: number[] = [];
+      const time = async (argv: readonly string[]): Promise<number> => {
+        const start = performance.now();
+        await promisify(execFile)(process.execPath, [SHIM, ...argv]);
 
-        for (let index = 0; index < 7; index += 1) {
-          const start = performance.now();
-          await promisify(execFile)(process.execPath, [SHIM, ...argv]);
-          times.push(performance.now() - start);
-        }
-
-        return times.toSorted((a, b) => a - b)[3]!;
+        return performance.now() - start;
       };
 
-      const version = await median(["--version"]);
-      const help = await median(["--help"]);
+      // Turbo runs this next to other test suites, so the runner's load
+      // changes during the test: alternate the two commands so both see the
+      // same load, and compare the least disturbed run of each.
+      const versionTimes: number[] = [];
+      const helpTimes: number[] = [];
+
+      for (let index = 0; index < 9; index += 1) {
+        versionTimes.push(await time(["--version"]));
+        helpTimes.push(await time(["--help"]));
+      }
+
+      const version = Math.min(...versionTimes);
+      const help = Math.min(...helpTimes);
 
       expect(help).toBeLessThan(Math.max(version * 2, version + 50));
     },

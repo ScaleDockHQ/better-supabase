@@ -30,8 +30,10 @@ the SQL context, `gen`, doctor and the subject registry read.
   event types and payload keys, permission keys (and the default roles),
   hook targets and number sequence keys follow the rename. Function
   parameter names, error hints and messages keep the default nouns. Files
-  carry an `@bs-entities` line, and `sql upgrade` refuses a changed rename on
-  an installed block.
+  carry an `@bs-entities` line. `sql upgrade` first refused a changed rename
+  on an installed block; it now renders the module under the old and new
+  names and writes guarded renames for its objects, permission keys and
+  stored subject types (amended for the collaboration track, see the roadmap).
 - **Tenant:** `sql.naming` is removed. The tenant name is the tenant block's
   `organization` entity (`blocks.tenant.entities.organization`). It renames
   SQL identifiers, while events, permission keys, hooks and JSON keys keep

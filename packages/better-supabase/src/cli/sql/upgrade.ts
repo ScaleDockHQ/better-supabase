@@ -13,7 +13,7 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
-  entityRenameChanges,
+  entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
   renderModules,
@@ -65,20 +65,27 @@ export async function upgrade(
     ? await installedFromMigration(config, sqlLayout, files, paint)
     : await installedFromFiles(config, files, paint);
 
-  const renamed = entityRenameChanges(
+  const renames = entityRenamePlan(
+    config.blockNames,
     installed.map((entry) => entry.module),
     text,
-    files.map((file) => file.contents).join("\n"),
+    sqlLayout,
   );
 
-  if (renamed.length > 0) {
-    return { code: 1, errorCode: "config_invalid", error: renamed.join("\n") };
+  if (renames.refused.length > 0) {
+    return {
+      code: 1,
+      errorCode: "config_invalid",
+      error: renames.refused.join("\n"),
+    };
   }
 
   const plan = upgradePlan(installed, sqlLayout);
+  const renamed = [...new Set(renames.steps.map((step) => step.module))];
 
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
+    ...(renamed.length > 0 ? { renames: renamed } : {}),
     stale,
   };
 
@@ -88,7 +95,7 @@ export async function upgrade(
   );
 
   if (args.check === true) {
-    if (plan.length === 0 && stale.length === 0) {
+    if (plan.length === 0 && stale.length === 0 && renamed.length === 0) {
       return {
         code: 0,
         output: "SQL modules are at their current versions.",
@@ -103,13 +110,16 @@ export async function upgrade(
       output: diffs.join("\n\n"),
       error: [
         ...behind,
+        ...renamed.map(
+          (module) => `${module} has entity renames to apply to its tables`,
+        ),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
         "Run `better-supabase sql upgrade`.",
       ].join("\n"),
     };
   }
 
-  if (plan.length === 0 && stale.length === 0) {
+  if (plan.length === 0 && stale.length === 0 && renamed.length === 0) {
     return {
       code: 0,
       output: "SQL modules are at their current versions.",
@@ -119,14 +129,24 @@ export async function upgrade(
 
   const lines: string[] = [];
 
-  const steps = plan.flatMap((entry) =>
-    entry.steps
-      .filter((step) => step.sql !== "")
-      .map(
-        (step) =>
-          `-- ${entry.module}: version ${String(step.from)} to ${String(step.from + 1)}. ${step.description}\n${step.sql}`,
-      ),
-  );
+  const renameSteps =
+    renames.steps.length === 0
+      ? []
+      : [
+          `-- Entity renames (blocks.<name>.entities) of ${renamed.join(", ")}.\n${renames.steps.map((step) => step.sql).join("\n")}`,
+        ];
+
+  const steps = [
+    ...renameSteps,
+    ...plan.flatMap((entry) =>
+      entry.steps
+        .filter((step) => step.sql !== "")
+        .map(
+          (step) =>
+            `-- ${entry.module}: version ${String(step.from)} to ${String(step.from + 1)}. ${step.description}\n${step.sql}`,
+        ),
+    ),
+  ];
 
   const dryRun = args["dry-run"] === true;
 
@@ -143,6 +163,10 @@ export async function upgrade(
     );
 
     lines.push(...changeLines(applied));
+  }
+
+  for (const module of renamed) {
+    lines.push(`${module}: renamed after blocks.<name>.entities`);
   }
 
   for (const entry of plan) {

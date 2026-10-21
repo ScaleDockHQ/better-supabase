@@ -393,6 +393,20 @@ An entity rename reaches the TypeScript side too: method names, argument and
 result keys, event types and the generated types. See
 [Typed blocks](/docs/blocks/typed-blocks).
 
+You can rename the entities of a block you already installed. Change
+`blocks.<name>.entities`, then run `better-supabase sql upgrade`. It reads the
+names from each file's `@bs-entities` line, compares the old and new module
+SQL and writes guarded `alter ... rename` statements for the tables, columns,
+indexes, policies, triggers and functions, so the rows stay where they are.
+It also moves the permission keys in a role and permission catalog and the
+stored `subject_type` values (comments, attachments, activity) to the new
+names. Each statement checks that the old name still exists, so running it
+twice changes nothing. Three things don't move: number sequence keys, outbox
+events already recorded and your own hook functions (`before_work_item_create`),
+so rename those yourself. When the two versions of a module don't pair up
+object by object, `sql upgrade` stops with `config_invalid` and names the
+module.
+
 Some names stay as they are, so the TypeScript clients and event consumers
 work under any tenant name:
 
@@ -1404,7 +1418,10 @@ A renamed function, table or claim keeps working for at least one minor
 version. The module file keeps a wrapper under the old name (a view for a
 table), marked `-- Deprecated since`, and doctor reports code that still uses
 it (BS309). A renamed column has no wrapper: `sql upgrade` renames it, and
-doctor reports the old name in your SQL before you upgrade. The
+doctor reports the old name in your SQL before you upgrade. A module declares
+these moves in `NAMES.migrations` (the version, the table, its old name and
+the old column names), and `sql upgrade` renders them after your table and
+entity renames, so the step renames the right table under any config. The
 [stability page](/docs/extending/stability#sql-module-objects-and-claims) lists
 what each module guarantees.
 

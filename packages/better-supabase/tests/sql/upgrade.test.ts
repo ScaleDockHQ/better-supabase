@@ -159,6 +159,58 @@ describe("upgradePlan", () => {
   });
 });
 
+describe("NAMES.migrations", () => {
+  const comments = SQL_MODULES["comments"]!;
+
+  const moved: SqlModule = {
+    ...comments,
+    names: {
+      ...comments.names!,
+      migrations: [
+        {
+          from: comments.version! - 1,
+          description: "Renames notes to comments and text to body.",
+          table: "comments",
+          was: "notes",
+          columns: { body: "text" },
+        },
+      ],
+    },
+  };
+
+  const steps = (layout: object): string[] =>
+    upgradePlan(
+      [{ module: "comments", version: comments.version! - 1 }],
+      layout,
+      { comments: moved },
+    )[0]!.steps.map((step) => step.sql);
+
+  it("renames the declared table and columns before the module's own steps", () => {
+    const [first] = steps({});
+
+    expect(first).toContain(
+      'alter table "better_supabase"."notes" rename to "comments"',
+    );
+    expect(first).toContain('rename column "text" to "body"');
+  });
+
+  it("follows the config's table rename", () => {
+    expect(
+      steps({ modules: { comments: { tables: { comments: "remarks" } } } })[0],
+    ).toContain('alter table "better_supabase"."notes" rename to "remarks"');
+  });
+
+  it("skips installs at or past the move", () => {
+    expect(
+      upgradePlan(
+        [{ module: "comments", version: comments.version! }],
+        {},
+        { comments: moved },
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("deprecations", () => {
   it("writes wrappers only for symbols not removed yet", () => {
     const ctx = createModuleContext("widget", () => undefined);
