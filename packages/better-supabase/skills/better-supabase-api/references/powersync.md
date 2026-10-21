@@ -32,5 +32,12 @@ Decide by `error.kind`, with an exhaustive `switch` ending in a `never` check:
 
 Never throw for a kind that can't succeed: it blocks the upload queue.
 
+`createUploadConnector({ endpoint, supabase, tables })` from
+`better-supabase/powersync` does this replay and the outcome mapping for you:
+
+- `tables: { customers: bs.db.customers }` takes a repository; every generated repository fits `UploadRepository<Insert, Key>` without a cast.
+- `uploadRoute(bs.db.attachments, { put: "create" })` for write-once tables: a `PUT` calls `create` and a `conflict` counts as applied (the row is already on the server); a `PATCH` is discarded as `unsupported`.
+- `onError: (error, { phase }) => ...` logs a failed `getSession` (`phase: "credentials"`, kind `unauthorized` or `network`; `fetchCredentials` returns `null`) and uploads that stay queued for a retry (`phase: "upload"`).
+
 Docs: https://bettersupabase.com/docs/repository/powersync.md and
 https://bettersupabase.com/docs/guides/offline-first.md.

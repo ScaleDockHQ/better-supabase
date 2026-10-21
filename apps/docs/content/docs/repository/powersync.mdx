@@ -213,9 +213,13 @@ schema renames a table. PowerSync tables key on a text `id` that the client
 creates: an insert without one gets `crypto.randomUUID()` (or `newId` when you
 pass it).
 
-Writes go to the local database and PowerSync uploads them. See
-[Offline-first](/docs/guides/offline-first) for replaying them through the
-repositories on the server side.
+Writes go to the local database and PowerSync uploads them.
+`createUploadConnector` replays them through the repositories, and
+`uploadRoute(bs.db.attachments, { put: "create" })` inserts the rows of a
+write-once table, counting a conflict as already applied. `onError` reports a
+failed session read and retried uploads. See
+[Offline-first](/docs/guides/offline-first) for the routes, outcomes and
+conflicts.
 
 ## Uploaded columns
 

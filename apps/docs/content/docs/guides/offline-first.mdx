@@ -50,6 +50,28 @@ tables: {
 with `casing: 'camel'`, use a function route that renames them to the app
 keys.
 
+`uploadRoute(repository, options)` builds the same function from a
+repository, typed by the repository's insert and key types, so wrapping one
+needs no cast. By default a `PUT` upserts, a `PATCH` updates and a `DELETE`
+deletes. For a table whose rows are written once, such as attachments, pass
+`put: "create"`: a `PUT` inserts with `create`, and a `conflict` counts as
+applied, because the row is already on the server from an earlier upload of
+the same change. A `PATCH` on that route fails with `unsupported` and is
+discarded; a `DELETE` still deletes.
+
+```ts
+import { uploadRoute } from "better-supabase/powersync";
+
+tables: {
+  customers: bs.db.customers,
+  attachments: uploadRoute(bs.db.attachments, { put: "create" }),
+},
+```
+
+To compose a route yourself, call the route `uploadRoute` returns inside your
+own function, or type a helper with `UploadRepository<Insert, Key>`; every
+generated repository fits it.
+
 To sync only while someone is signed in, pass the connector to
 `syncWithAuth`. It connects on sign-in, and on sign-out or a change of user it
 disconnects and clears the local database, so one user never reads another's
