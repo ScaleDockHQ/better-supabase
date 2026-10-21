@@ -119,17 +119,12 @@ mentions as nodes instead of `@[Name](<user id>)` markup:
 ```ts
 const comments = createComments({
   transport,
+  tenant: organizationId,
   mentionsOf: ({ document }) =>
     mentionNodes(document).map((node) => node.userId),
 });
 
-await comments.create({
-  organizationId,
-  subjectType,
-  subjectId,
-  body,
-  document,
-});
+await comments.create(subject, { body, document });
 await comments.edit(id, { body, document: null }); // null removes the document
 ```
 
@@ -140,7 +135,7 @@ check on the column.
 ## Copying a thread
 
 When the app duplicates a record (a quote into an invoice, say),
-`comments.copy(organizationId, { type, id }, { type, id })` copies the
+`comments.copy({ type, id }, { type, id })` copies the
 thread to the new subject with its authors, times and replies, and returns
 the number of comments copied. `copy_comments` is for the service role only:
 call it from the code that duplicates the record, after that code checked the
@@ -152,26 +147,37 @@ creates no temporary table, so `supabase db lint` checks it like any other.
 
 ## Comments
 
-```ts title="app/projects/[id]/actions.ts"
-import { createComments, sqlTransport } from "better-supabase/blocks/comments";
+Every method that names a record takes it as a `SubjectRef`, `{ type, id }`,
+and acts in the block's tenant. On the server, `createBlockClient` builds the
+client for the request: it calls through `ctx.db` and reads the tenant from
+`db.$context.tenant`, so you pass no organization id
+(see [createBlocks](/docs/blocks/create-blocks#one-block-per-request)).
 
-const comments = createComments({
-  transport: sqlTransport(postgres.asUser(claims)),
+```ts title="app/projects/[id]/actions.ts"
+import { createBlockClient } from "better-supabase/blocks";
+import { commentsBlock } from "better-supabase/blocks/comments";
+
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { bs } from "@/lib/supabase/server";
+
+const ctx = await bs.context();
+const comments = createBlockClient(ctx.db, commentsBlock, {
+  config: blockConfig,
 });
+const project = { type: "project", id: projectId };
 
 await comments
-  .create({
-    organizationId,
-    subjectType: "project",
-    subjectId: projectId,
-    body: "Ready for review @[Ada](8c5a3d3e-...)",
-  })
+  .create(project, { body: "Ready for review @[Ada](8c5a3d3e-...)" })
   .orThrow();
 
-const thread = await comments
-  .list(organizationId, "project", projectId)
-  .orThrow();
+const thread = await comments.list(project).orThrow();
 ```
+
+`createComments({ transport, tenant })` builds the same client by hand.
+`tenant` is an organization id or a function that returns the current one;
+a call without a tenant fails with `invalid_request` and the hint
+`TENANT_REQUIRED`. Rows carry `subject` (a `SubjectRef`) and keep
+`organizationId`.
 
 `create` and `edit` read the mentions from the body when you pass none:
 `mentionsIn(body)` returns the user ids written as `@[Name](<user id>)`, the
@@ -179,12 +185,41 @@ markup most mention inputs produce. The module drops the author and repeats,
 and notifies only mentioned members who hold `comments.read`. `list` returns
 the thread oldest first; `cursor` (an instant) polls for new comments, and `offset` with
 `limit` pages by number. Pass the last comment's id as `cursorId` next to `cursor`
-so comments created in the same instant as it aren't skipped. `counts(organizationId, subjectType, subjectIds)`
+so comments created in the same instant as it aren't skipped. `counts(subjects)`
 returns how many comments each subject has that the caller can read
 (`comment_counts`), deleted ones left out and 0 for a subject without any,
-for a counter on each row of a list. `edit` returns
+for a counter on each row of a list. The result is keyed `type:id`
+(`subjectKey(subject)` from `better-supabase/blocks`). `edit` returns
 `not_found` for a comment the caller can't see, and `forbidden` with the hint
 `COMMENT_NOT_AUTHOR` for someone else's comment.
+
+```ts
+const counts = await comments
+  .counts(rows.map((row) => ({ type: "project", id: row.id })))
+  .orThrow();
+counts[`project:${projectId}`]; // 3
+```
+
+### Authors
+
+With the [profiles](/docs/blocks/profiles) module installed, each comment
+that `list` returns carries `author` (type `Author`): the author's `id`,
+`name` and `avatarUrl`. `list_comments` reads them through
+`comment_authors(uuid[])`, a security definer function that returns only the
+authors of comments the caller may read, because a profile's own policy may
+hide it from other members. `author` is `undefined` without the profiles
+module and once the account is deleted. `create` and `edit` don't return
+it; `authorId` is always there.
+
+```tsx
+{
+  thread.map((comment) => (
+    <p key={comment.id}>
+      {comment.author?.name ?? "Deleted user"}: {comment.body}
+    </p>
+  ));
+}
+```
 
 With the notifications module installed, each new mention sends a
 `comment.mentioned` notification with the subject, the first 140 characters
@@ -285,24 +320,24 @@ everyone's.
 import { useComments } from "better-supabase/blocks/comments/react";
 
 const { comments, error, add, remove } = useComments({
-  organizationId,
-  subjectType: "project",
-  subjectId: projectId,
-  schema: "api",
+  subject: { type: "project", id: projectId },
 });
 
 await add("Ready for review");
 ```
 
 `add`, `edit` and `remove` return a `Result` and keep a failure in `error`.
-`schema` names the schema the calls go to: the module schema by default, or
-the API schema from `blocks.comments.api`. The thread waits while
-`organizationId` is `null`. `createCommentsController` from
+The hook calls the schema and function names in the `blocks` config you pass
+to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`),
+so it takes no `schema`. It acts in the client's tenant: the client's
+`tenant` option, then the session's tenant claim. The thread waits while
+there is no tenant, or while `subject` is `null`. `createCommentsController` from
 `better-supabase/blocks/comments` is the same logic without React, and
 `better-supabase/blocks/comments/vue`, `/svelte` and `/solid` export
-`useComments` over it, taking the controller's options with `auth` and
-`ports` from the provider. The [comment thread recipe](/docs/registry/ui-recipes)
-shows it in the Next.js and Expo examples.
+`useComments` over it, taking the controller's options (a client built with
+its `tenant`, and `subject`) with `auth` and `ports` from the provider. The
+[comment thread recipe](/docs/registry/ui-recipes) shows it in the Next.js and
+Expo examples.
 
 ```vue title="CommentCount.vue"
 <script setup lang="ts">
@@ -316,10 +351,11 @@ const { organizationId, projectId } = defineProps<{
 }>();
 const supabase = useSupabase();
 const { state, actions } = useComments({
-  client: createComments({ transport: rpcTransport(supabase) }),
-  organizationId,
-  subjectType: "project",
-  subjectId: projectId,
+  client: createComments({
+    transport: rpcTransport(supabase),
+    tenant: organizationId,
+  }),
+  subject: { type: "project", id: projectId },
 });
 </script>
 
@@ -338,10 +374,11 @@ const { state, actions } = useComments({
   let { organizationId, projectId }: { organizationId: string; projectId: string } = $props();
   const { supabase } = getBetterSupabase();
   const thread = useComments({
-    client: createComments({ transport: rpcTransport(supabase) }),
-    organizationId,
-    subjectType: "project",
-    subjectId: projectId,
+    client: createComments({
+      transport: rpcTransport(supabase),
+      tenant: organizationId,
+    }),
+    subject: { type: "project", id: projectId },
   });
 </script>
 
@@ -359,10 +396,11 @@ export function CommentCount(props: {
 }) {
   const supabase = useSupabase();
   const { state } = useComments({
-    client: createComments({ transport: rpcTransport(supabase) }),
-    organizationId: props.organizationId,
-    subjectType: "project",
-    subjectId: props.projectId,
+    client: createComments({
+      transport: rpcTransport(supabase),
+      tenant: props.organizationId,
+    }),
+    subject: { type: "project", id: props.projectId },
   });
   return <p>{state().comments?.length ?? 0} comments</p>;
 }
@@ -371,10 +409,10 @@ export function CommentCount(props: {
 ## Reactions
 
 With the [reactions](/docs/blocks/reactions) module installed, a comment is
-the subject type `comment`: `reactions.react(organizationId, "comment",
-comment.id, emoji)` reacts to a comment the caller can read, and
-`reactions.summary(organizationId, "comment", ids)` counts a thread's
-reactions in one call.
+the subject type `comment`: `reactions.react({ type: "comment", id:
+comment.id }, emoji)` reacts to a comment the caller can read, and
+`reactions.summary(thread.map((comment) => ({ type: "comment", id: comment.id })))`
+counts a thread's reactions in one call.
 
 ## Your own columns
 
@@ -404,17 +442,15 @@ import { z } from "zod";
 
 const comments = createComments({
   transport: rpcTransport(supabase),
+  tenant: organizationId,
   fields: z.object({ visibility: z.enum(["internal", "customer"]) }),
 });
 
 const comment = await comments
-  .create({
-    organizationId,
-    subjectType: "project",
-    subjectId: projectId,
-    body: "Shipped",
-    fields: { visibility: "customer" },
-  })
+  .create(
+    { type: "project", id: projectId },
+    { body: "Shipped", fields: { visibility: "customer" } },
+  )
   .orThrow();
 comment.fields.visibility; // "internal" | "customer"
 ```
@@ -459,14 +495,16 @@ replayed batch writes nothing twice. The actor is the event's `actorId`,
 (or the CloudEvents `subject`). `describe` can set the summary, actor,
 subject and data, or return `null` to skip an event.
 
-`comments.history(organizationId, subject?, { before, limit, sources })` reads the
+`comments.history(subject?, { cursor, limit, sources })` reads the
 feed through `list_activity`, which runs as the caller: the tenant's entries
-newest first, or one subject's timeline when you pass `{ type, id }`. It works
-over `rpcTransport` too, without exposing the module schema.
+newest first, or one subject's timeline when you pass `{ type, id }`. Pass
+`null` or nothing for the tenant feed. It works over `rpcTransport` too,
+without exposing the module schema. Each entry's `subject` is a `SubjectRef`,
+or `undefined` for an entry without one.
 
 ```ts
 const timeline = await comments
-  .history(organizationId, { type: "quote", id: quoteId }, { limit: 20 })
+  .history({ type: "quote", id: quoteId }, { limit: 20 })
   .orThrow();
 ```
 
@@ -476,11 +514,7 @@ Each entry carries a `source`: `event` for a row of `activity_entries`,
 
 ```ts
 const sent = await comments
-  .history(
-    organizationId,
-    { type: "quote", id: quoteId },
-    { sources: ["delivery"] },
-  )
+  .history({ type: "quote", id: quoteId }, { sources: ["delivery"] })
   .orThrow();
 ```
 

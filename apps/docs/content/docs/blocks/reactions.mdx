@@ -14,13 +14,18 @@ The block's entity is `reaction` (the `reactions` table). It isn't registered as
 ```ts
 import { createReactions } from "better-supabase/blocks/reactions";
 
-const reactions = createReactions({ transport });
-await reactions.react(organizationId, "doc", docId, "👍").orThrow();
-const byDoc = await reactions.summary(organizationId, "doc", docIds).orThrow();
-await reactions
-  .react(organizationId, "doc", docId, "👍", { present: false })
+const reactions = createReactions({ transport, tenant: organizationId });
+const doc = { type: "doc", id: docId };
+
+await reactions.react(doc, "👍").orThrow();
+const byDoc = await reactions
+  .summary(docIds.map((id) => ({ type: "doc", id })))
   .orThrow();
+byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
+await reactions.react(doc, "👍", { present: false }).orThrow();
 ```
+
+Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A subject is a `SubjectRef`, `{ type, id }`. `summary(subjects)` takes up to 200 subjects of each type and returns their reactions keyed `type:id` (`subjectKey(subject)` from `better-supabase/blocks`); a subject without reactions may be left out.
 
 `react` returns the subject's reactions, most used first:
 
@@ -39,13 +44,13 @@ The service role reacts for anyone and passes the actor's name:
 
 ```ts
 await reactions
-  .react(organizationId, "comment", commentId, "✅", { actor: "deploy-bot" })
+  .react({ type: "comment", id: commentId }, "✅", { actor: "deploy-bot" })
   .orThrow();
 ```
 
 ## Inbox messages
 
-With the inbox installed, `react_to_message` writes to the `reactions` table and keeps the message's `reactions` column as a copy, so `inbox.messages.react()` and the inbox client keep working. `react(organizationId, "inbox_message", messageId, emoji)` goes through `react_to_message`, with the inbox's own rules. Installing the module copies the reactions messages already had.
+With the inbox installed, `react_to_message` writes to the `reactions` table and keeps the message's `reactions` column as a copy, so `inbox.messages.react()` and the inbox client keep working. `react({ type: "inbox_message", id: messageId }, emoji)` goes through `react_to_message`, with the inbox's own rules. Installing the module copies the reactions messages already had.
 
 ## Custom emoji
 
@@ -53,32 +58,35 @@ An organization's custom emoji are shortcodes with an image: an attachment id fr
 
 ```ts
 await reactions
-  .saveCustomEmoji(organizationId, {
+  .saveCustomEmoji({
     shortcode: "ship-it",
     url: "https://cdn.example.com/ship-it.png",
   })
   .orThrow();
-const emoji = await reactions.customEmoji(organizationId).orThrow();
+const emoji = await reactions.customEmoji().orThrow();
 ```
 
 ## Realtime
 
-Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` from `better-supabase/blocks/reactions/react` loads the subjects on screen and loads them again when one of them changes:
+Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` from `better-supabase/blocks/reactions/react` loads the subjects on screen and loads them again when one of them changes. It reads the schema and the topic from the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so `topic` is only needed to override it (`null` loads without listening), and it acts in the client's tenant: the client's `tenant` option, then the session's tenant claim. It waits while there is no tenant.
 
 ```tsx
 import { useReactions } from "better-supabase/blocks/reactions/react";
 
 const { reactions, toggle } = useReactions({
-  organizationId,
-  subjectType: "comment",
-  subjectIds,
+  subjects: comments.map((comment) => ({ type: "comment", id: comment.id })),
 });
+
+await toggle({ type: "comment", id: commentId }, "🎉");
 ```
+
+`reactions` is keyed `type:id`, like `summary`. When the subjects on screen change, the hook loads the new ones without building a new controller.
 
 ## Vue
 
 `better-supabase/blocks/reactions/vue` exports `useReactions`. It takes the
-options of `createReactionsController`; `auth` and `ports` come from
+options of `createReactionsController`: a client built with its `tenant`, the
+same `tenant` for the topic, `subjects` and an optional `topic`; `auth` and `ports` come from
 `app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref
 of the snapshot and `actions` are the controller's actions. The work starts
 on mount, and the controller is disposed with the component.
@@ -92,16 +100,18 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/reactions";
 
-const { organizationId, subjectIds } = defineProps<{
+const { organizationId, commentIds } = defineProps<{
   organizationId: string;
-  subjectIds: string[];
+  commentIds: string[];
 }>();
 const supabase = useSupabase();
 const { state, actions } = useReactions({
-  client: createReactions({ transport: rpcTransport(supabase) }),
-  organizationId,
-  subjectType: "comment",
-  subjectIds,
+  client: createReactions({
+    transport: rpcTransport(supabase),
+    tenant: organizationId,
+  }),
+  tenant: organizationId,
+  subjects: commentIds.map((id) => ({ type: "comment", id })),
 });
 </script>
 
@@ -125,13 +135,15 @@ work starts on mount, and the controller is disposed with the component.
   import { useReactions } from "better-supabase/blocks/reactions/svelte";
   import { createReactions, rpcTransport } from "better-supabase/blocks/reactions";
 
-  let { organizationId, subjectIds }: { organizationId: string; subjectIds: string[] } = $props();
+  let { organizationId, commentIds }: { organizationId: string; commentIds: string[] } = $props();
   const { supabase } = getBetterSupabase();
   const reactions = useReactions({
-    client: createReactions({ transport: rpcTransport(supabase) }),
-    organizationId,
-    subjectType: "comment",
-    subjectIds,
+    client: createReactions({
+      transport: rpcTransport(supabase),
+      tenant: organizationId,
+    }),
+    tenant: organizationId,
+    subjects: commentIds.map((id) => ({ type: "comment", id })),
   });
 </script>
 
@@ -157,14 +169,16 @@ import {
 
 export function Component(props: {
   organizationId: string;
-  subjectIds: string[];
+  commentIds: string[];
 }) {
   const supabase = useSupabase();
   const { state, actions } = useReactions({
-    client: createReactions({ transport: rpcTransport(supabase) }),
-    organizationId: props.organizationId,
-    subjectType: "comment",
-    subjectIds: props.subjectIds,
+    client: createReactions({
+      transport: rpcTransport(supabase),
+      tenant: props.organizationId,
+    }),
+    tenant: props.organizationId,
+    subjects: props.commentIds.map((id) => ({ type: "comment", id })),
   });
   return (
     <>
@@ -186,4 +200,4 @@ The module records `reaction.added` and `reaction.removed` with `organizationId`
 
 ## With ReUI
 
-Render the ReUI Emoji Picker for new reactions and one Bubble per `ReactionCount`, highlighted when `reacted` is true. `toggle(subjectId, emoji)` adds the emoji, or removes it when the user already reacted with it.
+Render the ReUI Emoji Picker for new reactions and one Bubble per `ReactionCount`, highlighted when `reacted` is true. `toggle(subject, emoji)` adds the emoji, or removes it when the user already reacted with it.

@@ -29,6 +29,27 @@ const customers = await bs.db.customers
 - `bs.supabase` is the supabase-js client, for auth flows, storage and
   anything else.
 
+## Block hooks
+
+The block hooks, such as `useComments`, `useReactions` and `useTagInput`,
+read each block's schema, function names and realtime topic from the
+`blocks` option, and act in the tenant from the `tenant` option:
+
+```ts title="src/lib/supabase/client.ts"
+import { blockConfig } from "./blocks.generated";
+
+export const bs = createClient(betterSupabase, {
+  env,
+  blocks: blockConfig,
+  tenant: () => currentOrganizationId(),
+});
+```
+
+Without `tenant`, the hooks use the session's tenant claim
+(`config.claims.tenant`). Pass a function for a tenant the user picks in the
+UI; it runs on every call. While there is no tenant, the hooks wait instead
+of calling the database.
+
 ## Storage
 
 | `storage`           | Use it for                                                                                    |

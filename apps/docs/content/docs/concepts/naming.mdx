@@ -91,3 +91,21 @@ compiler points out anything left.
 and profile types from `.claims()` and `.userMetadata()`, so `auth.claims`
 is typed in those adapters too. Code that parsed the claims again to read a
 role can drop the parse.
+
+## Block subjects and tenants (0.14)
+
+From 0.14, a block method names the record it works on with one
+`SubjectRef`, `{ type, id }`, and reads the organization from the block's
+`tenant` option. Rows name the record `subject`. The full list of calls is in
+the [0.13 to 0.14 guide](/docs/migration/0.13-to-0.14).
+
+| Old                                                         | New                                         |
+| ----------------------------------------------------------- | ------------------------------------------- |
+| `organizationId, subjectType, subjectId` method arguments   | `subject` (`{ type, id }`), first           |
+| `organizationId` method argument                            | the block's `tenant` option                 |
+| `row.subjectType`, `row.subjectId`                          | `row.subject.type`, `row.subject.id`        |
+| `subjectIds` in batch methods, results keyed by id          | `subjects`, results keyed `type:id`         |
+| `useComments({ organizationId, subjectType, subjectId })`   | `useComments({ subject })`                  |
+| `useReactions({ organizationId, subjectType, subjectIds })` | `useReactions({ subjects })`                |
+| `useTagInput({ organizationId, subjectType, subjectId })`   | `useTagInput({ subject, kind })`            |
+| a `lib/blocks.ts` wrapper per block                         | `createBlockClient(ctx.db, block, options)` |

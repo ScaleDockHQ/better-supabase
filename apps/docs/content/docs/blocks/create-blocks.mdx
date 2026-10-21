@@ -120,6 +120,56 @@ notifications topic is a template, which `fillTopic` fills in:
 | `events`      | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)             |
 | `audit`       | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`            |
 | `hooks`       | Hooks around each block's methods, keyed like the blocks (see [Hooks](#hooks))                       |
+| `tenant`      | The organization the subject methods act in: an id, or a function that returns the current one       |
+
+## Tenants
+
+The blocks whose methods work on a subject (comments, attachments, tags,
+reactions, relations, versions, sla, share links, custom fields, reminders,
+time tracking and approvals) act in one organization, which they read from
+the `tenant` option instead of taking an `organizationId` argument. Pass an
+id, or a function that returns the current one, such as
+`() => ctx.tenant`; the function runs on every call. A call without a tenant
+fails with `invalid_request` and the hint `TENANT_REQUIRED` before it reaches
+the database. The SQL functions still check that the caller belongs to that
+organization.
+
+Each of these methods takes the record it works on as a `SubjectRef`,
+`{ type, id }`, and its rows carry it as `subject`. Batch methods such as
+`comments.counts(subjects)` and `reactions.summary(subjects)` return a record
+keyed `type:id`, which `subjectKey(subject)` from `better-supabase/blocks`
+builds.
+
+## One block per request
+
+`createBlockClient(db, block, options?)` builds one block for a request. It
+calls through `dbTransport(db)` and acts in the `Db`'s tenant
+(`db.$context.tenant`), so a server action or route handler needs no wrapper
+that passes the organization:
+
+```ts
+import { createBlockClient } from "better-supabase/blocks";
+import { commentsBlock } from "better-supabase/blocks/comments";
+
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { bs } from "@/lib/supabase/server";
+
+const ctx = await bs.context();
+const comments = createBlockClient(ctx.db, commentsBlock, {
+  config: blockConfig,
+});
+const thread = await comments
+  .list({ type: "customer", id: customerId })
+  .orThrow();
+```
+
+`blockSet.client(db, key, options?)` does the same for a block of a set
+built with `defineBlocks`, with the set's config, so
+`blockSet.client(ctx.db, "comments")` returns the same client typed from the
+set. The options are those of `createBlocks` without `audit`, plus `hooks`
+for the one block: `transport` replaces `dbTransport(db)`, and `tenant`
+replaces the `Db`'s tenant, for a job that works in an organization other
+than the caller's.
 
 ## A block's own options
 

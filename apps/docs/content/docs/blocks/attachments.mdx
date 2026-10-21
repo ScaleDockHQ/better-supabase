@@ -120,15 +120,31 @@ subject table lets only some members see the row. Doctor reports that case as
 tenant membership.
 
 A subject without a tenant, such as a user's own notes, takes `tenant: false`:
-its files have no `organization_id` (pass `organizationId: null` to `upload`),
-their path starts with `-`, and the subject table's own policies alone decide
-who reads and uploads them, without tenant permissions. Other files still need
-a tenant.
+its files have no `organization_id`, their path starts with `-`, and the
+subject table's own policies alone decide who reads and uploads them, without
+tenant permissions. Other files still need a tenant. List those types in the
+client's `tenantless` option, so `upload`, `put` and `list` on such a subject
+send no tenant and need none:
 
 ```ts
 subjects: {
   note: { table: "notes", tenant: false },
 },
+```
+
+```ts
+const attachments = createAttachments({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+  tenantless: ["note"],
+});
+
+await attachments
+  .upload(
+    { type: "note", id: noteId },
+    { name: file.name, mimeType: file.type, size: file.size },
+  )
+  .orThrow();
 ```
 
 `path` sets the object path, from `{organization_id}` (required first),
@@ -155,19 +171,25 @@ export async function startUpload(projectId: string, file: FileMeta) {
   const attachments = createAttachments({
     transport: rpcTransport(supabase),
     storage: supabase.storage,
+    tenant: organizationId,
   });
   return attachments
-    .upload({
-      organizationId,
-      subjectType: "project",
-      subjectId: projectId,
-      name: file.name,
-      mimeType: file.type,
-      size: file.size,
-    })
+    .upload(
+      { type: "project", id: projectId },
+      { name: file.name, mimeType: file.type, size: file.size },
+    )
     .orThrow();
 }
 ```
+
+The first argument is the record as a `SubjectRef` (`{ type, id }`), or
+`null` for a file without one. The tenant comes from the block's `tenant`
+option, an organization id or a function that returns the current one;
+`createBlocks` and `createBlockClient` pass the request's tenant (see
+[createBlocks](/docs/blocks/create-blocks#one-block-per-request)). A call
+that needs a tenant and has none fails with `invalid_request` and the hint
+`TENANT_REQUIRED`. Each attachment carries `subject` (a `SubjectRef`, or
+`undefined` without one) and `organizationId`.
 
 The browser uploads with the token,
 `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)`, or a
@@ -183,11 +205,20 @@ every attachment returns it as `metadata` (`{}` without any).
 `download(id)` returns a signed URL (300 seconds by default, `downloadTtl`
 changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
 passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
-`list(organizationId, { type, id })` lists a record's files oldest first,
-and `remove(id)` deletes the object and then the row.
+`list({ type, id })` lists a record's files oldest first (`list()` lists
+every file of the tenant), and `remove(id)` deletes the object and then the
+row.
+
+With the [profiles](/docs/blocks/profiles) module installed, each file that
+`list` returns carries `author` (type `Author`): the uploader's `id`, `name`
+and `avatarUrl`. `list_attachments` reads them through
+`attachment_authors(uuid[])`, a security definer function that returns only
+the uploaders of files the caller may read. `author` is `undefined` without
+the profiles module and once the account is deleted, and the other methods
+leave it out; `uploadedBy` is always there.
 
 Files the server makes or fetches (an export, a generated PDF, an import
-from a URL) go through `put(attachment, file)`, which creates the record,
+from a URL) go through `put(subject, attachment, file)`, which creates the record,
 uploads the bytes with the storage client and confirms it in one call,
 without a signed upload URL. Both work in a writable
 [support session](/docs/auth/impersonation#storage-in-a-support-session):
@@ -204,14 +235,8 @@ passes):
 ```ts
 const report = await attachments
   .put(
-    {
-      organizationId,
-      subjectType: "project",
-      subjectId,
-      name: "report.pdf",
-      mimeType: "application/pdf",
-      size: pdf.byteLength,
-    },
+    { type: "project", id: projectId },
+    { name: "report.pdf", mimeType: "application/pdf", size: pdf.byteLength },
     pdf,
   )
   .orThrow();
