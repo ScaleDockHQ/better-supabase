@@ -12,3 +12,9 @@ b4279c83e9a320e8654118afe910bc744b7f1e95
 
 # style(lint): enforce require-readable-spacing
 e17ac822c5cb730788e6fe7f970915bd76a86018
+
+# style: format Markdown with oxfmt 0.74
+8265bc9cf4aed6fa9c1ca90231cba42d95e7aee0
+
+# style: format JSDoc and collapse short objects with oxfmt
+334982abeccfa9f9ac88c600665a7e201d5eaf7c
