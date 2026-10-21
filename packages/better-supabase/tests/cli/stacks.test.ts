@@ -4,6 +4,7 @@ import type { RunProcess } from "../../src/cli/exec.ts";
 
 import { parseEnv } from "../../src/cli/env.ts";
 import {
+  branchName,
   type ManagedStack,
   parseStackList,
   prunePlan,
@@ -73,6 +74,34 @@ describe("parseStackList", () => {
 
   it("rejects output without a stacks array", () => {
     expect(() => parseStackList("{}")).toThrow(/no stacks array/);
+    expect(() => parseStackList("No stacks.")).toThrow(/no stacks array/);
+    expect(() => parseStackList('{"stacks":{}}')).toThrow(/no stacks array/);
+  });
+
+  it("skips entries without an id and reads fields that aren't text as empty", () => {
+    expect(
+      parseStackList(
+        JSON.stringify({
+          stacks: [null, "aaa", { name: "no id" }, { id: "ccc", name: 7 }],
+        }),
+      ),
+    ).toEqual([
+      {
+        id: "ccc",
+        projectRoot: "",
+        name: "",
+        branch: "",
+        runtime: "",
+        running: false,
+      },
+    ]);
+  });
+});
+
+describe("branchName", () => {
+  it("strips refs/heads/ and keeps anything else", () => {
+    expect(branchName("refs/heads/feat/a")).toBe("feat/a");
+    expect(branchName("detached")).toBe("detached");
   });
 });
 

@@ -131,5 +131,9 @@ describe("readSharedMemory", () => {
       supported: false,
       segments: [],
     });
+    expect(await readSharedMemory("/repo", env, run, "linux")).toEqual({
+      supported: false,
+      segments: [],
+    });
   });
 });

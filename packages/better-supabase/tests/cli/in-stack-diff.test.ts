@@ -58,6 +58,8 @@ describe("in-stack diff helpers", () => {
       "create table a ();",
     );
     expect(diffSql("create table a ();")).toBe("create table a ();");
+    expect(diffSql('{"other":1}')).toBe('{"other":1}');
+    expect(diffSql("do $$ begin { end $$")).toBe("do $$ begin { end $$");
   });
 
   it("finds the postmaster's bin directory from its data directory", () => {
@@ -308,6 +310,160 @@ describe("inStackDiff", () => {
       /has not applied 1 migration\(s\) \(supabase\/migrations\/20260101000000_init\.sql\)/,
     );
     expect(sent.some((text) => text.startsWith("create database"))).toBe(false);
+  });
+
+  const exitWith =
+    (code: number, failing: string, stderr = "") =>
+    (command: string): Promise<ExecResult> =>
+      Promise.resolve({
+        code: command.endsWith(failing) ? code : 0,
+        stdout: "",
+        stderr: command.endsWith(failing) ? stderr : "",
+      });
+
+  const failingDiff = (
+    run: (command: string) => Promise<ExecResult>,
+    open: ReturnType<typeof fakeConnect>,
+  ): Promise<string> =>
+    inStackDiff({
+      url: STACK_URL,
+      root,
+      env: { BSB_PG_BIN: "/pg/bin" },
+      files,
+      schemasDir: "supabase/schemas",
+      migrations: [],
+      open: open.connect,
+      run,
+      supabase: () => Promise.resolve({ code: 0, stdout: "", stderr: "" }),
+    });
+
+  it("asks for BSB_PG_BIN when pg_dump is missing", async () => {
+    const { sent, open } = harness();
+
+    await expect(
+      failingDiff(exitWith(127, "pg_dump"), open),
+    ).rejects.toMatchObject({
+      code: "dependency_missing",
+      message: expect.stringContaining("needs pg_dump and psql"),
+    });
+    expect(sent.some((text) => text.startsWith("create database"))).toBe(false);
+  });
+
+  it("reports a pg_dump that fails", async () => {
+    const { open } = harness();
+
+    await expect(
+      failingDiff(exitWith(1, "pg_dump", "permission denied\n"), open),
+    ).rejects.toMatchObject({
+      code: "failed",
+      message: "pg_dump failed: permission denied",
+    });
+  });
+
+  it("asks for BSB_PG_BIN when psql is missing and drops the copy", async () => {
+    const { sent, open } = harness();
+
+    await expect(
+      failingDiff(exitWith(127, "psql"), open),
+    ).rejects.toMatchObject({
+      code: "dependency_missing",
+      message: expect.stringContaining("psql"),
+    });
+    expect(sent.at(-1)).toMatch(/^drop database if exists "bsb_diff_/);
+  });
+
+  it("reports a failed supabase db diff with its output", async () => {
+    const { open, run } = harness();
+
+    await expect(
+      inStackDiff({
+        url: `${STACK_URL}?application_name=bsb`,
+        root,
+        env: {},
+        files,
+        schemasDir: "supabase/schemas",
+        migrations: [],
+        open: open.connect,
+        run,
+        supabase: (args) => {
+          expect(args.find((arg) => arg.includes("bsb_diff_"))).toMatch(
+            /\?application_name=bsb&sslmode=disable$/,
+          );
+
+          return Promise.resolve({
+            code: 1,
+            stdout: "connection refused\n",
+            stderr: "",
+          });
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "supabase_cli_failed",
+      message: "supabase db diff failed: connection refused",
+    });
+  });
+
+  it("names the first three lagging migrations and treats a missing table as none applied", async () => {
+    const { open, run } = harness();
+    const base = await open.connect(STACK_URL);
+
+    const migrations = [1, 2, 3, 4].map(
+      (day) => `supabase/migrations/2026010${String(day)}000000_m.sql`,
+    );
+
+    const client: PgQueryable = {
+      query: <R>(text: string, values?: readonly unknown[]) =>
+        text.includes("schema_migrations")
+          ? Promise.reject(new Error("relation does not exist"))
+          : base.client.query<R>(text, values),
+    };
+
+    await expect(
+      inStackDiff({
+        url: STACK_URL,
+        root,
+        env: {},
+        files,
+        schemasDir: "supabase/schemas",
+        migrations,
+        open: fakeConnect(client).connect,
+        run,
+      }),
+    ).rejects.toThrow(
+      /has not applied 4 migration\(s\) \(.+20260101000000_m\.sql, .+20260102000000_m\.sql, .+20260103000000_m\.sql, \.\.\.\)/,
+    );
+  });
+
+  it("runs pg_dump from the PATH when the data directory is unknown", async () => {
+    const { open } = harness();
+    const base = await open.connect(STACK_URL);
+    const commands: string[] = [];
+
+    const client: PgQueryable = {
+      query: <R>(text: string, values?: readonly unknown[]) =>
+        text === "show data_directory"
+          ? Promise.resolve({ rows: [] as R[] })
+          : base.client.query<R>(text, values),
+    };
+
+    await inStackDiff({
+      url: STACK_URL,
+      root,
+      env: { BSB_PG_BIN: "" },
+      files,
+      schemasDir: "supabase/schemas",
+      migrations: [],
+      open: fakeConnect(client).connect,
+      run: (command) => {
+        commands.push(command);
+
+        return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+      },
+      supabase: () =>
+        Promise.resolve({ code: 0, stdout: "select 1;", stderr: "" }),
+    });
+
+    expect(commands).toEqual(["ps", "pg_dump", "psql"]);
   });
 
   it("lists the migration files in order", async () => {
