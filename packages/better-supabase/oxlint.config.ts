@@ -28,8 +28,8 @@ export default defineConfig({
     // decoders take `unknown`, branch on `typeof` and build rows as
     // dictionaries. Findings when measured in `src` (core plus CLI):
     // no-runtime-typeof 1,152, no-unsafe-dictionary-type 908,
-    // no-unknown-parameters 871, no-unknown-returns 277,
-    // no-known-value-widening 447 and no-object-parameters 72.
+    // no-unknown-parameters 871. With the tests: no-known-value-widening 645,
+    // no-unknown-returns 466 and no-object-parameters 147.
     // Backlog in docs/decisions/0002.
     "anti-slop/no-runtime-typeof": "off",
     "anti-slop/no-unsafe-dictionary-type": "off",

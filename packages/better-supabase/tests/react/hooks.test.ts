@@ -289,7 +289,7 @@ function renderHook<P, R>(
 
       try {
         if (provider) {
-          BetterSupabaseProvider(provider);
+          void BetterSupabaseProvider(provider);
         }
 
         out.result = hook(props);

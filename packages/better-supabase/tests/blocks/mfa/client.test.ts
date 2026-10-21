@@ -250,7 +250,7 @@ describe("MFA read failures", () => {
       data: null,
       error: failing,
     } as never);
-    view().refresh();
+    void view().refresh();
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
     unmount();

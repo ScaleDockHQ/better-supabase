@@ -39,7 +39,7 @@ vi.mock("react", async (importOriginal) => ({
 const client = { supabase: rpc.client } as unknown as ClientLike;
 
 const provide = (): void => {
-  BetterSupabaseProvider({ client });
+  void BetterSupabaseProvider({ client });
 };
 
 const SLOT = {

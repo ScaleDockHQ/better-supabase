@@ -163,9 +163,10 @@ export async function layoutFor(
   const entitlementsProvider = entitlementsProviderFor(config, names);
 
   const resolved = new Set(
-    resolveModules(names, {
-      ...(entitlementsProvider ? { entitlementsProvider } : {}),
-    }).map((module) => module.name),
+    resolveModules(
+      names,
+      entitlementsProvider ? { entitlementsProvider } : {},
+    ).map((module) => module.name),
   );
 
   const accessProvider = accessProviderFor(config, names);

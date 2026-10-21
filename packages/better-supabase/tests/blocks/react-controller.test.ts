@@ -38,7 +38,7 @@ describe("useBlockEnv", () => {
     const own = client({ topic: topic.port });
 
     const view = renderHook(useBlockEnv, undefined, () => {
-      BetterSupabaseProvider({ client: own });
+      void BetterSupabaseProvider({ client: own });
     });
 
     expect(view.result.ports.topic).toBe(topic.port);
@@ -46,7 +46,7 @@ describe("useBlockEnv", () => {
     view.unmount();
 
     const bare = renderHook(useBlockEnv, undefined, () => {
-      BetterSupabaseProvider({ client: client() });
+      void BetterSupabaseProvider({ client: client() });
     });
 
     expect(typeof bare.result.ports.topic).toBe("function");

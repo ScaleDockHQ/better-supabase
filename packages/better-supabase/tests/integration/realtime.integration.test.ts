@@ -107,8 +107,8 @@ describe.skipIf(!live)("Realtime module", async () => {
     await pool.query("delete from public.customers where kvk like $1", [
       `${kvk}%`,
     ]);
-    acme.removeAllChannels();
-    other.removeAllChannels();
+    await acme.removeAllChannels();
+    await other.removeAllChannels();
     await pool.end();
   });
 

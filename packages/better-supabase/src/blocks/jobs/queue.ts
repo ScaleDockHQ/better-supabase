@@ -641,11 +641,13 @@ export function createJobs<const Q extends QueueSchemas>(
       return delay;
     }
 
-    const message = wrapPayload(valid.data, enqueueOptions.context, {
-      ...(enqueueOptions.ticket === undefined
+    const message = wrapPayload(
+      valid.data,
+      enqueueOptions.context,
+      enqueueOptions.ticket === undefined
         ? {}
-        : { ticket: enqueueOptions.ticket }),
-    });
+        : { ticket: enqueueOptions.ticket },
+    );
 
     if (!message.ok) {
       return message;

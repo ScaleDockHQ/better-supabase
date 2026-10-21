@@ -111,11 +111,12 @@ export async function moduleLayoutFor(
   input: LayoutInput,
 ): Promise<ModuleLayout> {
   const resolved = new Set(
-    resolveModules(input.names, {
-      ...(input.entitlementsProvider
+    resolveModules(
+      input.names,
+      input.entitlementsProvider
         ? { entitlementsProvider: input.entitlementsProvider }
-        : {}),
-    }).map((module) => module.name),
+        : {},
+    ).map((module) => module.name),
   );
 
   const adopted = adoptedColumnProblems(

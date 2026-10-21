@@ -114,9 +114,11 @@ const STEPS: Readonly<
     runSql(config, { _: ["sync"], check, "dry-run": dryRun }, paint),
   spec: ({ config, check, dryRun }) =>
     runSpec(
-      specOptionsFromConfig(config, check ? "check" : "emit", {
-        ...(dryRun === true ? { dryRun } : {}),
-      }),
+      specOptionsFromConfig(
+        config,
+        check ? "check" : "emit",
+        dryRun === true ? { dryRun } : {},
+      ),
     ),
   seed: ({ config, check, dryRun, env }) =>
     runSeed(config, { check, "dry-run": dryRun }, env),

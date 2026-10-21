@@ -46,7 +46,7 @@ const client = {
 } as unknown as ClientLike;
 
 const provide = (): void => {
-  BetterSupabaseProvider({ client });
+  void BetterSupabaseProvider({ client });
 };
 
 afterEach(() => {

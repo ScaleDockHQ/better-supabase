@@ -42,7 +42,7 @@ const client = {
 
 const renderHook = <R>(hook: () => R) =>
   render(hook, undefined, () => {
-    BetterSupabaseProvider({ client });
+    void BetterSupabaseProvider({ client });
   });
 
 const hit = (subjectType: string, subjectId: string) => ({

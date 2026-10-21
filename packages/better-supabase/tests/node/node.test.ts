@@ -35,7 +35,7 @@ afterEach(async () => {
 });
 
 async function listen(
-  listener: (req: IncomingMessage, res: ServerResponse) => void,
+  listener: (req: IncomingMessage, res: ServerResponse) => unknown,
 ): Promise<string> {
   const http = createServer(listener);
   await new Promise<void>((resolve) => {

@@ -204,9 +204,11 @@ async function writeAll(files: readonly Staged[]): Promise<void> {
   try {
     for (const [index, file] of files.entries()) {
       await mkdir(dirname(file.path), { recursive: true });
-      await writeFile(temporary[index] ?? file.path, file.contents, {
-        ...(file.mode === undefined ? {} : { mode: file.mode }),
-      });
+      await writeFile(
+        temporary[index] ?? file.path,
+        file.contents,
+        file.mode === undefined ? {} : { mode: file.mode },
+      );
     }
   } catch (error) {
     await Promise.all(

@@ -17,7 +17,25 @@ type Outcome =
 const sent: FakeXhr[] = [];
 let outcome: Outcome = { status: 200 };
 
-class FakeXhr {
+interface Progress {
+  readonly loaded: number;
+  readonly total: number;
+  readonly lengthComputable: boolean;
+}
+
+class FakeUpload {
+  readonly listeners: ((event: Progress) => void)[] = [];
+  addEventListener(_type: "progress", listener: (event: Progress) => void) {
+    this.listeners.push(listener);
+  }
+  progress(loaded: number, total: number) {
+    for (const listener of this.listeners) {
+      listener({ loaded, total, lengthComputable: total > 0 });
+    }
+  }
+}
+
+class FakeXhr extends EventTarget {
   method = "";
   url = "";
   headers: Record<string, string> = {};
@@ -25,18 +43,7 @@ class FakeXhr {
   status = 0;
   responseText = "";
   aborted = false;
-  onload: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  upload: {
-    onprogress:
-      | ((event: {
-          loaded: number;
-          total: number;
-          lengthComputable: boolean;
-        }) => void)
-      | null;
-  } = { onprogress: null };
+  upload = new FakeUpload();
   open(method: string, url: string) {
     this.method = method;
     this.url = url;
@@ -46,7 +53,7 @@ class FakeXhr {
   }
   abort() {
     this.aborted = true;
-    this.onabort?.();
+    this.dispatchEvent(new Event("abort"));
   }
   send(body: unknown) {
     this.body = body;
@@ -58,24 +65,16 @@ class FakeXhr {
       }
 
       if (current === "error") {
-        this.onerror?.();
+        this.dispatchEvent(new Event("error"));
 
         return;
       }
 
-      this.upload.onprogress?.({
-        loaded: 0,
-        total: 0,
-        lengthComputable: false,
-      });
-      this.upload.onprogress?.({
-        loaded: 5,
-        total: 10,
-        lengthComputable: true,
-      });
+      this.upload.progress(0, 0);
+      this.upload.progress(5, 10);
       this.status = current.status;
       this.responseText = current.text ?? "";
-      this.onload?.();
+      this.dispatchEvent(new Event("load"));
     });
   }
 }
