@@ -92,6 +92,41 @@ const projects = await client.projects();
 
 Pass your own `fetch` to trace or stub the calls in tests.
 
+## OAuth for other providers
+
+`better-supabase/create/oauth` holds the parts of the Supabase sign-in that
+don't depend on Supabase, so a second provider (a deploy target or a Git host)
+can reuse them. It runs on WebCrypto only, on every runtime.
+
+| Export                                | What it does                                                         |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| `OAuthSession`, `isOAuthSession`      | An access token, an optional refresh token and `expiresAt` in ms     |
+| `OAuthFlow`, `isFlow`                 | The state, PKCE verifier and return path kept between redirects      |
+| `pkcePair()`, `randomToken()`         | A PKCE verifier with its S256 challenge, and random base64url tokens |
+| `seal(value, secret, info?)`          | Encrypts a value with AES-GCM under a key derived through HKDF       |
+| `unseal(sealed, secret, guard, info)` | Opens a sealed value, or returns `undefined` when it doesn't verify  |
+| `needsRefresh(session, now)`          | Whether the access token expires within a minute                     |
+| `OAuthError`, `DEFAULT_SEAL_INFO`     | The error the flows throw, and the HKDF info used when none is given |
+
+Give each cookie its own `info`, so a cookie sealed for one provider can't be
+replayed as another:
+
+```ts
+import { isOAuthSession, seal, unseal } from "better-supabase/create/oauth";
+
+const cookie = await seal(session, secret, "my-app vercel session");
+const back = await unseal(
+  cookie,
+  secret,
+  isOAuthSession,
+  "my-app vercel session",
+);
+```
+
+`better-supabase/create/supabase` re-exports these helpers. `SupabaseSession`
+and `isSession` stay as aliases of `OAuthSession` and `isOAuthSession`, and
+cookies sealed before this subpath existed open with the default `info`.
+
 ## Migrate between versions
 
 `migrationBetween(code, base, next)` writes the migration that takes a project

@@ -1,4 +1,23 @@
+import {
+  isOAuthSession,
+  type OAuthSession,
+  OAuthError,
+} from "../oauth/index.ts";
 import { isRecord } from "./guards.ts";
+
+export {
+  DEFAULT_SEAL_INFO,
+  isFlow,
+  isOAuthSession,
+  needsRefresh,
+  OAuthError,
+  pkcePair,
+  randomToken,
+  seal,
+  unseal,
+} from "../oauth/index.ts";
+
+export type { OAuthFlow, OAuthSession } from "../oauth/index.ts";
 
 export const SUPABASE_API: string = "https://api.supabase.com";
 
@@ -19,151 +38,12 @@ export interface OAuthConfig {
   readonly cookieSecret: string;
 }
 
-export interface SupabaseSession {
-  readonly accessToken: string;
-  readonly refreshToken?: string | undefined;
-  /** Epoch milliseconds. */
-  readonly expiresAt: number;
-}
+/** A Supabase OAuth session; the same shape as `OAuthSession`. */
+export type SupabaseSession = OAuthSession;
 
-export function isSession(value: unknown): value is SupabaseSession {
-  return (
-    isRecord(value) &&
-    typeof value["accessToken"] === "string" &&
-    (value["refreshToken"] === undefined ||
-      typeof value["refreshToken"] === "string") &&
-    typeof value["expiresAt"] === "number"
-  );
-}
-
-export interface OAuthFlow {
-  readonly state: string;
-  readonly verifier: string;
-  readonly returnTo: string;
-}
-
-export function isFlow(value: unknown): value is OAuthFlow {
-  return (
-    isRecord(value) &&
-    typeof value["state"] === "string" &&
-    typeof value["verifier"] === "string" &&
-    typeof value["returnTo"] === "string"
-  );
-}
-
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-function base64url(bytes: Uint8Array): string {
-  let binary = "";
-
-  for (const byte of bytes) {
-    binary += String.fromCodePoint(byte);
-  }
-
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/u, "");
-}
-
-function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-  const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.codePointAt(index) ?? 0;
-  }
-
-  return bytes;
-}
-
-/** `length` random bytes as base64url. */
-export function randomToken(length = 32): string {
-  return base64url(crypto.getRandomValues(new Uint8Array(length)));
-}
-
-/** A PKCE verifier and its S256 challenge (RFC 7636). */
-export async function pkcePair(): Promise<{
-  verifier: string;
-  challenge: string;
-}> {
-  const verifier = randomToken(32);
-
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    encoder.encode(verifier),
-  );
-
-  return { verifier, challenge: base64url(new Uint8Array(digest)) };
-}
-
-async function cookieKey(secret: string): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    "HKDF",
-    false,
-    ["deriveKey"],
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "HKDF",
-      hash: "SHA-256",
-      salt: new Uint8Array(0),
-      info: encoder.encode("better-supabase create session"),
-    },
-    material,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
-}
-
-/** Encrypts `value` as JSON with AES-GCM: base64url of the IV, then the ciphertext. */
-export async function seal(value: object, secret: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-
-  const cipher = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    await cookieKey(secret),
-    encoder.encode(JSON.stringify(value)),
-  );
-
-  const sealed = new Uint8Array(iv.length + cipher.byteLength);
-  sealed.set(iv);
-  sealed.set(new Uint8Array(cipher), iv.length);
-
-  return base64url(sealed);
-}
-
-/** The value `seal` wrote, or `undefined` when it is missing, tampered with or another shape. */
-export async function unseal<TValue>(
-  sealed: string | undefined,
-  secret: string,
-  guard: (value: unknown) => value is TValue,
-): Promise<TValue | undefined> {
-  if (sealed === undefined || sealed === "") {
-    return undefined;
-  }
-
-  try {
-    const bytes = fromBase64url(sealed);
-
-    const plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: bytes.slice(0, 12) },
-      await cookieKey(secret),
-      bytes.slice(12),
-    );
-
-    const parsed: unknown = JSON.parse(decoder.decode(plain));
-
-    return guard(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
+/** `isOAuthSession`, under its Supabase name. */
+export const isSession: (value: unknown) => value is SupabaseSession =
+  isOAuthSession;
 
 /**
  * A same-site path under `/create` to return to after the consent screen,
@@ -220,10 +100,6 @@ export function authorizeUrl({
   }).toString();
 
   return url.toString();
-}
-
-export class OAuthError extends Error {
-  override readonly name = "OAuthError";
 }
 
 async function tokenRequest(
@@ -289,11 +165,6 @@ export function exchangeCode(
     fetchImpl,
     now,
   );
-}
-
-/** Whether the access token expires within a minute. */
-export function needsRefresh(session: SupabaseSession, now: number): boolean {
-  return session.expiresAt - 60_000 <= now;
 }
 
 /** A new session from the refresh token; it keeps the old refresh token when Supabase sends none. */
