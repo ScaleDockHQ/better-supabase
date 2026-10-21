@@ -41,6 +41,8 @@ const NO_BLOCK_CALL: readonly string[] = [];
 
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
+  // Role and catalog rows are the access model; the client reads permission keys.
+  "access",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.

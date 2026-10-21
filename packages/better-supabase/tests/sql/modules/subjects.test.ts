@@ -39,6 +39,38 @@ describe("subjects module", () => {
     expect(sql).toContain("security invoker");
   });
 
+  it("writes subject_titles with one query per type, cast to the id type", () => {
+    const sql = sqlOf(["subjects"]);
+    expect(sql).toContain(
+      `create or replace function "better_supabase"."subject_titles"(refs jsonb)`,
+    );
+    expect(sql).toContain(
+      `where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::bigint[])), '[]'::jsonb);`,
+    );
+    expect(sql).toContain(
+      `'type', 'note', 'id', s."id"::text,\n      'title', null::text, 'url', null::text))`,
+    );
+    expect(sql).toContain("hint = 'SUBJECT_REFS_TOO_MANY'");
+    expect(sql).toContain("hint = 'SUBJECT_ID_INVALID'");
+    expect(sql).toContain(
+      `grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;`,
+    );
+  });
+
+  it("skips soft-deleted rows in subject_titles", () => {
+    const sql = renderModules(["subjects"], {
+      subjects: {
+        doc: { table: "docs", title: "name", deletedAt: "trashed_at" },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toMatch(
+      /r ->> 'type' = 'doc'\)\) and s\."trashed_at" is null\), '\[\]'::jsonb\);/,
+    );
+  });
+
   it("writes can_subject_for through can_user, false for an action without a key", () => {
     const sql = sqlOf(["subjects"]);
     expect(sql).toContain(

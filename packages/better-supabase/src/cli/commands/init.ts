@@ -427,7 +427,11 @@ export async function runInit(
     generated = inPackage ? (await loadConfig(root)).output : config.output;
   }
 
-  const templateContext = templateContextFor(project, generated);
+  const templateContext = templateContextFor(
+    project,
+    generated,
+    chosen !== null || keys.blocks !== undefined,
+  );
 
   const migrationSince =
     (await latestMigrationVersion(root)) ??

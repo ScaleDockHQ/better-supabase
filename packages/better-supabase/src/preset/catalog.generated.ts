@@ -2563,7 +2563,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "category": "identity",
-      "client": null,
+      "client": {
+        "export": "accessBlock",
+        "subpath": "better-supabase/blocks/access"
+      },
       "consumes": {},
       "provides": []
     },
@@ -6222,7 +6225,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subjects"
       ],
       "category": "identity",
-      "client": null,
+      "client": {
+        "export": "subjectsBlock",
+        "subpath": "better-supabase/blocks/subjects"
+      },
       "consumes": {},
       "provides": []
     },

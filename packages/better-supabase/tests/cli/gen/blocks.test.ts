@@ -186,6 +186,40 @@ describe("blocks.generated.ts", () => {
     expect(contents).toContain('export type MeterName = "seats";');
   });
 
+  it("writes a url for every subject type with a template", () => {
+    const config = resolveConfig(
+      {
+        casing: "camel",
+        subjects: {
+          customer: {
+            table: "public.customers",
+            tenant: "organization_id",
+            url: "/customers/{id}",
+          },
+          note: { table: "public.notes", tenant: false },
+        },
+        appTables: {
+          projects: {
+            columns: { name: { type: "text" } },
+            subject: {
+              type: "project",
+              url: "/projects/{id}/{organization_id}",
+            },
+          },
+        },
+        blocks: { tenant: {}, access: {}, subjects: {} },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toContain("export const urls = {");
+    expect(contents).toMatch(/ {2}customer: .*\/customers\//u);
+    expect(contents).toMatch(/ {2}project: .*organizationId/u);
+    expect(contents).not.toMatch(/ {2}note: /u);
+  });
+
   it("leaves out tenant and access in user scope", () => {
     const entries = blockConfigEntries(
       resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),

@@ -361,6 +361,58 @@
       "types": "./dist/blocks/entitlements/solid/index.d.ts",
       "default": "./dist/blocks/entitlements/solid/index.js"
     },
+    "./blocks/access": {
+      "@better-supabase/source": "./src/blocks/access/index.ts",
+      "types": "./dist/blocks/access/index.d.ts",
+      "default": "./dist/blocks/access/index.js"
+    },
+    "./blocks/access/react": {
+      "@better-supabase/source": "./src/blocks/access/react/index.ts",
+      "types": "./dist/blocks/access/react/index.d.ts",
+      "react-server": "./dist/blocks/access/react/server.js",
+      "default": "./dist/blocks/access/react/index.js"
+    },
+    "./blocks/access/vue": {
+      "@better-supabase/source": "./src/blocks/access/vue/index.ts",
+      "types": "./dist/blocks/access/vue/index.d.ts",
+      "default": "./dist/blocks/access/vue/index.js"
+    },
+    "./blocks/access/svelte": {
+      "@better-supabase/source": "./src/blocks/access/svelte/index.ts",
+      "types": "./dist/blocks/access/svelte/index.d.ts",
+      "default": "./dist/blocks/access/svelte/index.js"
+    },
+    "./blocks/access/solid": {
+      "@better-supabase/source": "./src/blocks/access/solid/index.ts",
+      "types": "./dist/blocks/access/solid/index.d.ts",
+      "default": "./dist/blocks/access/solid/index.js"
+    },
+    "./blocks/subjects": {
+      "@better-supabase/source": "./src/blocks/subjects/index.ts",
+      "types": "./dist/blocks/subjects/index.d.ts",
+      "default": "./dist/blocks/subjects/index.js"
+    },
+    "./blocks/subjects/react": {
+      "@better-supabase/source": "./src/blocks/subjects/react/index.ts",
+      "types": "./dist/blocks/subjects/react/index.d.ts",
+      "react-server": "./dist/blocks/subjects/react/server.js",
+      "default": "./dist/blocks/subjects/react/index.js"
+    },
+    "./blocks/subjects/vue": {
+      "@better-supabase/source": "./src/blocks/subjects/vue/index.ts",
+      "types": "./dist/blocks/subjects/vue/index.d.ts",
+      "default": "./dist/blocks/subjects/vue/index.js"
+    },
+    "./blocks/subjects/svelte": {
+      "@better-supabase/source": "./src/blocks/subjects/svelte/index.ts",
+      "types": "./dist/blocks/subjects/svelte/index.d.ts",
+      "default": "./dist/blocks/subjects/svelte/index.js"
+    },
+    "./blocks/subjects/solid": {
+      "@better-supabase/source": "./src/blocks/subjects/solid/index.ts",
+      "types": "./dist/blocks/subjects/solid/index.d.ts",
+      "default": "./dist/blocks/subjects/solid/index.js"
+    },
     "./blocks/api-keys": {
       "@better-supabase/source": "./src/blocks/api-keys/index.ts",
       "types": "./dist/blocks/api-keys/index.d.ts",
@@ -1753,6 +1805,48 @@
       "./blocks/entitlements/solid": {
         "types": "./dist/blocks/entitlements/solid/index.d.ts",
         "default": "./dist/blocks/entitlements/solid/index.js"
+      },
+      "./blocks/access": {
+        "types": "./dist/blocks/access/index.d.ts",
+        "default": "./dist/blocks/access/index.js"
+      },
+      "./blocks/access/react": {
+        "types": "./dist/blocks/access/react/index.d.ts",
+        "react-server": "./dist/blocks/access/react/server.js",
+        "default": "./dist/blocks/access/react/index.js"
+      },
+      "./blocks/access/vue": {
+        "types": "./dist/blocks/access/vue/index.d.ts",
+        "default": "./dist/blocks/access/vue/index.js"
+      },
+      "./blocks/access/svelte": {
+        "types": "./dist/blocks/access/svelte/index.d.ts",
+        "default": "./dist/blocks/access/svelte/index.js"
+      },
+      "./blocks/access/solid": {
+        "types": "./dist/blocks/access/solid/index.d.ts",
+        "default": "./dist/blocks/access/solid/index.js"
+      },
+      "./blocks/subjects": {
+        "types": "./dist/blocks/subjects/index.d.ts",
+        "default": "./dist/blocks/subjects/index.js"
+      },
+      "./blocks/subjects/react": {
+        "types": "./dist/blocks/subjects/react/index.d.ts",
+        "react-server": "./dist/blocks/subjects/react/server.js",
+        "default": "./dist/blocks/subjects/react/index.js"
+      },
+      "./blocks/subjects/vue": {
+        "types": "./dist/blocks/subjects/vue/index.d.ts",
+        "default": "./dist/blocks/subjects/vue/index.js"
+      },
+      "./blocks/subjects/svelte": {
+        "types": "./dist/blocks/subjects/svelte/index.d.ts",
+        "default": "./dist/blocks/subjects/svelte/index.js"
+      },
+      "./blocks/subjects/solid": {
+        "types": "./dist/blocks/subjects/solid/index.d.ts",
+        "default": "./dist/blocks/subjects/solid/index.js"
       },
       "./blocks/api-keys": {
         "types": "./dist/blocks/api-keys/index.d.ts",

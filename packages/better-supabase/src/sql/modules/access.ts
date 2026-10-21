@@ -25,6 +25,7 @@ import {
   tenantScope,
 } from "./access-model.ts";
 import { operationsSql } from "./access-operations.ts";
+import { myPermissionsSql } from "./access-permissions.ts";
 import { roleNameOf } from "./tenant.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
@@ -1053,6 +1054,8 @@ as $$
   select coalesce(better_supabase.platform_can(auth.uid(), is_platform.permission), false)
 $$;
 
+${myPermissionsSql(id)}
+
 ${[
   "permission_matches(text, text)",
   "scope_permissions(text)",
@@ -1062,6 +1065,7 @@ ${[
   "tenant_ids_with(text)",
   "is_platform(text)",
   `can_assign(${id}, text)`,
+  `my_permissions(${id}, text[])`,
 ]
   .flatMap((fn) => [
     `revoke execute on function better_supabase.${fn} from public;`,

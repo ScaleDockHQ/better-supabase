@@ -81,6 +81,7 @@ export function templatePlan(
 export function templateContextFor(
   project: Project,
   generated: string,
+  blocks = false,
 ): TemplateContext {
   return {
     srcDir: project.srcDir,
@@ -88,6 +89,7 @@ export function templateContextFor(
     tsExtensions: project.tsExtensions,
     frameworks: project.frameworks,
     version: VERSION,
+    blocks,
   };
 }
 

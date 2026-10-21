@@ -262,25 +262,43 @@ function urlLines(
   config: NamesConfig,
   entries: Readonly<Record<string, GeneratedBlock>>,
 ): string[] {
-  const urls = Object.keys(entries).flatMap((name) =>
-    blockEntities(name, config.blocks).flatMap((entity) =>
-      entity.url === undefined
-        ? []
-        : [
-            `  ${prop(camel(entity.to.singular))}: ${templateFunction(
-              entity.url,
-              (column) => applyCasing(column, config.casing),
-              "string | number",
-            )},`,
-          ],
-    ),
+  const templates = new Map<string, string>();
+
+  for (const name of Object.keys(entries)) {
+    for (const entity of blockEntities(name, config.blocks)) {
+      if (entity.url !== undefined) {
+        templates.set(camel(entity.to.singular), entity.url);
+      }
+    }
+  }
+
+  // `config.subjects` holds the app's types, the app tables' and the blocks'.
+  for (const [type, subject] of Object.entries(config.subjects)) {
+    const key = camel(type);
+
+    if (subject.url !== undefined && !templates.has(key)) {
+      templates.set(key, subject.url);
+    }
+  }
+
+  const urls = [...templates].map(
+    ([key, template]) =>
+      `  ${prop(key)}: ${templateFunction(
+        template,
+        (column) => applyCasing(column, config.casing),
+        "string | number",
+      )},`,
   );
 
   return urls.length === 0
     ? []
     : [
         "",
-        "/** The path of each block entity, from `blocks.<name>.entities.<entity>.url`. @public */",
+        "/**",
+        " * The path of each subject type with a `url`: block entities, `subjects`",
+        " * and app table subjects.",
+        " * @public",
+        " */",
         "export const urls = {",
         ...urls,
         "} as const;",

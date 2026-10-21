@@ -12,6 +12,8 @@ const PURE_BARRELS = [
   "blocks",
   "blocks/audit",
   "blocks/entitlements",
+  "blocks/access",
+  "blocks/subjects",
   "blocks/ai-chat",
   "blocks/ai-files",
   "blocks/knowledge",

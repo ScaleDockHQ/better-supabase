@@ -115,6 +115,42 @@ function cases(
   return whens.length === 0 ? "    when '' then null;" : whens.join("\n");
 }
 
+/** The most refs one `subject_titles` call resolves. */
+export const MAX_TITLE_REFS = 500;
+
+/** The `subject_titles` step that adds the refs of `subject`'s type. */
+function titlesBranch(subject: RegisteredSubject): string {
+  const ids = `select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = ${sqlString(subject.type)}`;
+  const idType = subject.config.idType;
+
+  const match =
+    idType === undefined
+      ? `s.${subject.id}::text = any(array(${ids}))`
+      : `s.${subject.id} = any(array(${ids})::${idType}[])`;
+
+  const live =
+    subject.config.deletedAt === undefined
+      ? ""
+      : ` and s.${sqlIdent(subject.config.deletedAt)} is null`;
+
+  const title =
+    subject.config.title === undefined
+      ? "null::text"
+      : `s.${sqlIdent(subject.config.title)}::text`;
+
+  const url =
+    subject.config.url === undefined
+      ? "null::text"
+      : urlExpression(subject.config.url);
+
+  return `  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', ${sqlString(subject.type)}, 'id', s.${subject.id}::text,
+      'title', ${title}, 'url', ${url}))
+    from ${subject.qualified} s
+    where ${match}${live}), '[]'::jsonb);`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -179,6 +215,37 @@ ${cases(subjects, (subject) =>
 end;
 $$;
 ${userGrant(`${fn("subject_url")}(text, text)`)}
+
+-- Titles and paths for many subjects in one call: refs is a JSON array of
+-- { "type", "id" }, the result one of { type, id, title, url }. A row the
+-- caller can't see, an unknown type or a soft-deleted row returns nothing.
+create or replace function ${fn("subject_titles")}(refs jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  found jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(subject_titles.refs) is distinct from 'array' then
+    raise exception 'refs must be a JSON array of { type, id }'
+      using errcode = '22023', hint = 'SUBJECT_REFS_INVALID';
+  end if;
+  if jsonb_array_length(subject_titles.refs) > ${MAX_TITLE_REFS} then
+    raise exception 'subject_titles takes at most ${MAX_TITLE_REFS} refs'
+      using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
+  end if;
+${subjects.map((subject) => titlesBranch(subject)).join("\n")}
+  return found;
+exception
+  when invalid_text_representation then
+    raise exception 'a subject id does not match its type''s id column'
+      using errcode = '22023', hint = 'SUBJECT_ID_INVALID';
+end;
+$$;
+${userGrant(`${fn("subject_titles")}(jsonb)`)}
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
@@ -250,6 +317,7 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "subject_types", args: [], returns: "text[]" },
     { name: "subject_title", args: ["text", "text"], returns: "text" },
     { name: "subject_url", args: ["text", "text"], returns: "text" },
+    { name: "subject_titles", args: ["jsonb"], returns: "jsonb" },
     { name: "can_subject", args: ["text", "text", "text"], returns: "boolean" },
     {
       name: "can_subject_for",
@@ -264,7 +332,7 @@ export const SUBJECTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, can_subject and can_subject_for for every registered type.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject and can_subject_for for every registered type.",
   requires: ["access"],
   target: "schema",
   modes: ["managed", "custom"],
