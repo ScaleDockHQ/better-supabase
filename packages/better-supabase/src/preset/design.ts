@@ -1,3 +1,5 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
 import type { AccessBlockConfig, BlockConfig } from "../config/blocks.ts";
 import type {
   AppTableConfig,
@@ -425,6 +427,40 @@ export function safeParseDesign(
     return { ok: false, issues: issuesOf(error) };
   }
 }
+
+/** The keys of a JSON Pointer, unescaped. */
+const pointerKeys = (path: string): readonly string[] =>
+  path === ""
+    ? []
+    : path
+        .slice(1)
+        .split("/")
+        .map((key) => key.replaceAll("~1", "/").replaceAll("~0", "~"));
+
+/**
+ * A Standard Schema (v1) for a design, so a form library, a router or an
+ * AI SDK tool can validate one with the same rules as `parseDesign`. The
+ * output drops the empty parts; each issue's `path` lists the keys of its
+ * JSON Pointer. `schemas/design-v1.json` is the JSON Schema of its shape.
+ */
+export const designSchema: StandardSchemaV1<unknown, CreateDesign> = {
+  "~standard": {
+    version: 1,
+    vendor: "better-supabase",
+    validate(value) {
+      const result = safeParseDesign(value);
+
+      return result.ok
+        ? { value: result.design }
+        : {
+            issues: result.issues.map((issue) => ({
+              message: issue.message,
+              path: pointerKeys(issue.path),
+            })),
+          };
+    },
+  },
+};
 
 const SEGMENT_CHAR = /[A-Za-z0-9_]/;
 const INDEX_SEGMENT = /^\[(\d+)\]/;

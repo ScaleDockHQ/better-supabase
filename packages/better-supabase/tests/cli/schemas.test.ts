@@ -177,6 +177,7 @@ describe("shipped JSON Schemas", () => {
       "cli-commands-v1.json",
       "cli-result-v1.json",
       "config-v1.json",
+      "design-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
       "spec-manifest-v1.json",

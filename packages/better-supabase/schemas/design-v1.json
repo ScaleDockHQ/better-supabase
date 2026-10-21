@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/design-v1.json",
+  "title": "better-supabase design",
+  "description": "A design from app.bettersupabase.com/create: app tables, extra columns on block tables and canvas positions, up to format 5. This schema checks the shape; designSchema and parseDesign in better-supabase/preset also check names, defaults and limits.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "appTables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "enum": [
+                    "text",
+                    "uuid",
+                    "integer",
+                    "bigint",
+                    "numeric",
+                    "boolean",
+                    "timestamptz",
+                    "date",
+                    "jsonb",
+                    "text[]"
+                  ],
+                  "type": "string"
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "default": {
+                  "type": "string"
+                },
+                "unique": {
+                  "type": "boolean"
+                },
+                "references": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "type": "string"
+                        },
+                        "onDelete": {
+                          "enum": [
+                            "cascade",
+                            "restrict",
+                            "set null",
+                            "no action"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": ["table"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "block": {
+                          "type": "string"
+                        },
+                        "table": {
+                          "type": "string"
+                        },
+                        "onDelete": {
+                          "enum": [
+                            "cascade",
+                            "restrict",
+                            "set null",
+                            "no action"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": ["block", "table"],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "format": {
+                  "enum": [
+                    "email",
+                    "url",
+                    "phone",
+                    "long_text",
+                    "color",
+                    "rating",
+                    "percent",
+                    "currency"
+                  ],
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "identity": {
+                  "type": "boolean"
+                },
+                "access": {
+                  "enum": ["read", "server"],
+                  "type": "string"
+                }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            }
+          },
+          "scope": {
+            "enum": ["inherit", "user", "none"],
+            "type": "string"
+          },
+          "timestamps": {
+            "type": "boolean"
+          },
+          "id": {
+            "enum": ["uuid", "bigint"],
+            "type": "string"
+          },
+          "unique": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "comment": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "search": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "permissions": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "rank": {
+                "anyOf": [
+                  {
+                    "const": true
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "group": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "softDelete": {
+                "type": "boolean"
+              },
+              "versions": {
+                "anyOf": [
+                  {
+                    "const": true
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "auto": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false
+          },
+          "rollups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "via": {
+                  "type": "string"
+                },
+                "aggregate": {
+                  "enum": ["count", "sum", "min", "max", "avg"],
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "where": {
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "equals": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["column", "equals"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["table", "via", "aggregate"],
+              "additionalProperties": false
+            }
+          },
+          "lookups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "via": {
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string"
+                }
+              },
+              "required": ["via", "column"],
+              "additionalProperties": false
+            }
+          },
+          "events": {
+            "anyOf": [
+              {
+                "const": true
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "on": {
+                    "type": "array",
+                    "items": {
+                      "enum": ["created", "updated", "deleted"],
+                      "type": "string"
+                    }
+                  },
+                  "include": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "extraColumns": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    },
+    "positions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      }
+    }
+  },
+  "additionalProperties": false
+}

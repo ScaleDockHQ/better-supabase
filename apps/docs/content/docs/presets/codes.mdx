@@ -133,6 +133,23 @@ if (!result.ok) {
 // result.design is the checked design
 ```
 
+`designSchema` is the same check as a [Standard Schema](https://standardschema.dev)
+(v1), for a library that takes one, such as a form library, a router or an AI
+SDK tool. Its output is the design with its empty parts dropped, and each
+issue's `path` lists the keys of the JSON Pointer below:
+
+```ts
+import { designSchema } from "better-supabase/preset";
+
+const result = await designSchema["~standard"].validate(body);
+// { value: { appTables: { ... } } } or { issues: [{ message, path: ["appTables", "tasks"] }] }
+```
+
+[`schemas/design-v1.json`](https://unpkg.com/better-supabase/schemas/design-v1.json)
+is the JSON Schema of a design's shape, for an editor or a tool outside
+TypeScript. It accepts what `designSchema` accepts for the shape; the names,
+defaults and limits are checked only by `designSchema` and `parseDesign`.
+
 A `DesignParseError` is a `TypeError` with a `code` and a `path`, and each
 issue in `issues` is the same three keys as plain JSON. `path` is a
 [JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the key at fault,
@@ -229,6 +246,7 @@ The AI instructions for a design are at
 | `designInstallCommand` | `init --preset` with the quoted URL; the preset command when the code is empty                        |
 | `designApplyCommand`   | `apply --preset` with the quoted URL                                                                  |
 | `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `DesignParseError`            |
+| `designSchema`         | `parseDesign` as a Standard Schema (v1)                                                               |
 | `safeParseDesign`      | `parseDesign` without the throw: `{ ok: true, design }` or `{ ok: false, issues }`                    |
 | `designFileSource`     | the design file: the preset code and the design as JSON                                               |
 | `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`               |

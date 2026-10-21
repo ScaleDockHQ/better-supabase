@@ -44,6 +44,7 @@ export {
   DESIGN_FILE,
   DESIGN_FORMAT,
   DesignParseError,
+  designSchema,
   DesignTooLongError,
   designFileSource,
   designFormat,

@@ -137,7 +137,7 @@ function blocksSchema(description: unknown): {
 }
 
 /** Drops what toJsonSchema writes that says nothing: `required: []` and string `propertyNames`. */
-function tidy(node: unknown): unknown {
+export function tidy(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(tidy);
   }
