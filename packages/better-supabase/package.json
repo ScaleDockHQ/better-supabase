@@ -114,6 +114,11 @@
       "types": "./dist/records/index.d.ts",
       "default": "./dist/records/index.js"
     },
+    "./flows": {
+      "@better-supabase/source": "./src/flows/index.ts",
+      "types": "./dist/flows/index.d.ts",
+      "default": "./dist/flows/index.js"
+    },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
@@ -1612,6 +1617,10 @@
       "./records": {
         "types": "./dist/records/index.d.ts",
         "default": "./dist/records/index.js"
+      },
+      "./flows": {
+        "types": "./dist/flows/index.d.ts",
+        "default": "./dist/flows/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",

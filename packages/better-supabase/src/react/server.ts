@@ -7,6 +7,7 @@ import type {
   useBlockMutation as clientUseBlockMutation,
   useBlockQuery as clientUseBlockQuery,
 } from "./block-hooks.ts";
+import type { useEntityForm as clientUseEntityForm } from "./entity-form.ts";
 import type {
   ActionForm,
   ActionHandle,
@@ -80,6 +81,8 @@ export type {
   RecordListUrl,
   RecordListUrlState,
 } from "./record-list.ts";
+
+export type { EntityFormState, UseEntityFormOptions } from "./entity-form.ts";
 
 export type {
   RecordActionsOf,
@@ -253,3 +256,10 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
  */
 export const useRecordListState: typeof clientUseRecordListState =
   clientOnly("useRecordListState");
+
+/**
+ * The `react-server` build of `useEntityForm`: render the form in a client
+ * component.
+ */
+export const useEntityForm: typeof clientUseEntityForm =
+  clientOnly("useEntityForm");
