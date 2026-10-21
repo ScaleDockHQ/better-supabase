@@ -7903,8 +7903,8 @@ import { Link } from "@/i18n/navigation";
 
 /**
  * A link to any subject in `config.subjects`, titled and routed by
- * `subject_titles`. The links rendered in one pass share one round trip, and
- * a subject the caller can't read shows as plain text.
+ * `subject_titles`. The links rendered in one pass share one round trip, and a
+ * subject the caller can't read shows as plain text.
  */
 export function SubjectLink({ subject }: { subject: SubjectRef }) {
   const t = useExtracted("subjects");
@@ -7978,8 +7978,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
 /**
- * A compact badge for a subject: its type and title, linking to its page.
- * Rows that each render a chip share one `subject_titles` call.
+ * A compact badge for a subject: its type and title, linking to its page. Rows
+ * that each render a chip share one `subject_titles` call.
  */
 export function SubjectChip({ subject }: { subject: SubjectRef }) {
   const t = useExtracted("subjects");
