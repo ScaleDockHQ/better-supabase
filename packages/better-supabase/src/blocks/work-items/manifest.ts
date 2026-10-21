@@ -23,7 +23,7 @@ export const workItemsBlock: BlockOf<
   events: workItemsEvents,
   create: createWorkItems,
   category: "work",
-  recipes: ["work-item-board", "work-item-grid"],
+  recipes: ["work-item-board", "work-item-grid", "my-work"],
   schemas: {
     work_item: {
       input: workItemInputSchema,

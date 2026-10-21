@@ -217,6 +217,33 @@ describe("defineRecordList", () => {
     });
     expect(defineRecordList(feature, customers).columns).toEqual({});
   });
+
+  it("keys rows by a numeric id and leaves a missing cell empty", async () => {
+    const rows = {
+      parse: () => ({ ok: true as const, value: {} }),
+      run: () => resolved({ items: [{ id: 7 }, "loose"] }),
+      filterFields: () => [],
+    };
+
+    const sparse = {
+      ...labelsBlock,
+      sections: {
+        ...labelsBlock.sections,
+        stars: { ...labelsBlock.sections.stars, column: () => resolved({}) },
+      },
+    };
+
+    const page = await defineRecordList(
+      defineRecordFeature({ type: "customer", blocks: { labels: sparse } }),
+      rows,
+      { columns: { stars: "data" } },
+    )
+      .load({ db: {}, clients: { labels } }, undefined)
+      .orThrow();
+
+    expect(page.rows.map((row) => row.subject.id)).toEqual(["7", ""]);
+    expect(page.rows[0]?.cells.stars).toEqual({ kind: "ok", data: undefined });
+  });
 });
 
 describe("loadTimeline", () => {
@@ -281,5 +308,21 @@ describe("loadTimeline", () => {
     );
 
     expect(timeline.entries.map((entry) => entry.id)).toEqual(["a", "b"]);
+  });
+
+  it("adds nothing for a section without a timeline", async () => {
+    const bare = defineBlock({
+      name: "bare",
+      sql: ["bare"],
+      category: "collaboration",
+    });
+
+    expect(timelineSections({ bare, ...feature.blocks })).toEqual(["notes"]);
+
+    const timeline = await loadTimeline(source, subject, {
+      sections: ["labels"],
+    });
+
+    expect(timeline).toEqual({ entries: [], skipped: {} });
   });
 });

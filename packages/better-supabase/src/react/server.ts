@@ -20,6 +20,7 @@ import type {
   UseActionOptions,
 } from "./index.ts";
 import type { usePresence as clientUsePresence } from "./presence.ts";
+import type { useRecordListState as clientUseRecordListState } from "./record-list.ts";
 import type { createRecordProvider as clientCreateRecordProvider } from "./record.ts";
 import type { useDebouncedSearch as clientUseDebouncedSearch } from "./search.ts";
 import type {
@@ -72,6 +73,13 @@ export type {
 } from "./index.ts";
 
 export type { SessionProviderProps } from "./session.ts";
+
+export type {
+  RecordListQueryStates,
+  RecordListState,
+  RecordListUrl,
+  RecordListUrlState,
+} from "./record-list.ts";
 
 export type {
   RecordActionsOf,
@@ -238,3 +246,10 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
     useSession: clientOnly("useSession"),
   };
 }
+
+/**
+ * The `react-server` build of `useRecordListState`: parse the search params
+ * with the list's `parse` instead.
+ */
+export const useRecordListState: typeof clientUseRecordListState =
+  clientOnly("useRecordListState");

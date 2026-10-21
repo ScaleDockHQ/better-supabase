@@ -23,5 +23,5 @@ export const versionsBlock: BlockOf<
   create: createVersions,
   sections: { versions: versionsSection },
   category: "content",
-  recipes: ["version-history", "record-history"],
+  recipes: ["version-history", "record-history", "subject-timeline"],
 });

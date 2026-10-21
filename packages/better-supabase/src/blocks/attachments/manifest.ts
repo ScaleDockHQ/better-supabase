@@ -26,5 +26,5 @@ export const attachmentsBlock: BlockOf<
   create: createAttachments,
   sections: { attachments: attachmentsSection },
   category: "collaboration",
-  recipes: ["attachments-uploader"],
+  recipes: ["attachments-uploader", "subject-timeline"],
 });

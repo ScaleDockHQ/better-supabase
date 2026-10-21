@@ -27,5 +27,5 @@ export const commentsBlock: BlockOf<
   create: createComments,
   sections: { comments: commentsSection },
   category: "collaboration",
-  recipes: ["comment-thread", "record-page"],
+  recipes: ["comment-thread", "record-page", "my-work", "subject-timeline"],
 });
