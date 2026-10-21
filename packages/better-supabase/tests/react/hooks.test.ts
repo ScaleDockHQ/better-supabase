@@ -91,7 +91,7 @@ import { usePresence } from "../../src/react/presence.ts";
 import { useDebouncedSearch } from "../../src/react/search.ts";
 import { useSession } from "../../src/react/session.ts";
 import { useSignIn, useSignOut } from "../../src/react/sign-in.ts";
-import { useSignedUrl, useUpload } from "../../src/react/storage.ts";
+import { useImage, useSignedUrl, useUpload } from "../../src/react/storage.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -3642,6 +3642,138 @@ describe("useSignedUrl", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useImage", () => {
+  const variants = { md: { width: 96, height: 96, resize: "cover" } } as const;
+
+  it("builds public variant URLs during render, with a srcSet", () => {
+    const signedUrl = vi.fn();
+
+    const source = {
+      bucket: { id: "avatars", public: true, variants },
+      publicUrl: vi.fn(
+        (
+          target: { id: string },
+          options?: { transform?: { width?: number; height?: number } },
+        ) =>
+          ok(
+            `${target.id}@${String(options?.transform?.width)}x${String(options?.transform?.height)}`,
+          ),
+      ),
+      signedUrl,
+    };
+
+    const initial: { id: string | null } = { id: "u1" };
+
+    const view = renderHook(
+      (props: { id: string | null }) =>
+        useImage(source, props.id ? { id: props.id } : null, "md"),
+      initial,
+      null,
+    );
+
+    expect(view.result).toEqual({
+      src: "u1@96x96",
+      srcSet: "u1@96x96 1x, u1@192x192 2x",
+      width: 96,
+      height: 96,
+      error: undefined,
+      loading: false,
+    });
+    expect(signedUrl).not.toHaveBeenCalled();
+
+    view.rerender({ id: null });
+    expect(view.result).toMatchObject({ src: undefined, loading: false });
+    view.unmount();
+  });
+
+  it("signs each density for private buckets and re-signs before expiry", async () => {
+    vi.useFakeTimers();
+
+    try {
+      let n = 0;
+
+      const source = {
+        bucket: { id: "photos", public: false, variants },
+        publicUrl: vi.fn(),
+        signedUrl: vi.fn(
+          (
+            _target: { id: string },
+            options?: { transform?: { width?: number } },
+          ) =>
+            AsyncResult.from(async () =>
+              ok(
+                `signed-${String((n += 1))}-${String(options?.transform?.width)}`,
+              ),
+            ),
+        ),
+      };
+
+      const view = renderHook(
+        () => useImage(source, { id: "a" }, "md", { ttl: 10 }),
+        undefined,
+        null,
+      );
+
+      expect(view.result).toMatchObject({ src: undefined, loading: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(view.result).toMatchObject({
+        src: "signed-1-96",
+        srcSet: "signed-1-96 1x, signed-2-192 2x",
+        loading: false,
+      });
+      expect(source.signedUrl).toHaveBeenCalledWith(
+        { id: "a" },
+        { ttl: 10, transform: { width: 192, height: 192, resize: "cover" } },
+      );
+      expect(source.publicUrl).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(9000);
+      expect(view.result.src).toBe("signed-3-96");
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports an unknown variant and signing errors", async () => {
+    const source = {
+      bucket: { id: "photos", public: false, variants },
+      publicUrl: vi.fn(),
+      signedUrl: vi.fn(() => AsyncResult.err(dbError("forbidden", "no"))),
+    };
+
+    const unknown = renderHook(
+      // @ts-expect-error "xl" is not a variant
+      () => useImage(source, { id: "a" }, "xl"),
+      undefined,
+      null,
+    );
+
+    expect(unknown.result.error).toMatchObject({ kind: "invalid_input" });
+    expect(source.signedUrl).not.toHaveBeenCalled();
+    unknown.unmount();
+
+    const denied = renderHook(
+      () => useImage(source, { id: "a" }, { width: 50 }, { densities: [1] }),
+      undefined,
+      null,
+    );
+
+    await Promise.resolve();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(denied.result).toMatchObject({
+      src: undefined,
+      srcSet: undefined,
+      width: 50,
+      error: { kind: "forbidden" },
+      loading: false,
+    });
+    denied.unmount();
   });
 });
 

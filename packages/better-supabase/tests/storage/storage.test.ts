@@ -385,6 +385,92 @@ describe("renderUrl", () => {
       `${URL_BASE}/storage/v1/render/image/sign/customer-logos/o1/c1/logo/3.webp?token=t0k`,
     );
   });
+
+  const photos = defineBucket({
+    id: "photos",
+    path: "{userId}/{file}",
+    public: true,
+    variants: {
+      thumb: { width: 96, height: 96, resize: "cover" },
+      wide: { width: 1200, height: 630 },
+    },
+  });
+
+  it("renders a named variant and serves a resized download", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const storage = photos.connect(client(fetch));
+
+    const thumb = new URL(
+      await storage
+        .renderUrl({ userId: "u1", file: "a.png" }, "thumb")
+        .orThrow(),
+    );
+
+    expect(thumb.pathname).toBe(
+      "/storage/v1/render/image/public/photos/u1/a.png",
+    );
+    expect(Object.fromEntries(thumb.searchParams)).toEqual({
+      width: "96",
+      height: "96",
+      resize: "cover",
+    });
+
+    const wide = new URL(
+      await storage
+        .renderUrl("u1/a.png", "wide", { download: "share.png" })
+        .orThrow(),
+    );
+
+    expect(wide.searchParams.get("download")).toBe("share.png");
+    expect(wide.searchParams.get("height")).toBe("630");
+
+    const viaPublicUrl = storage.publicUrl("u1/a.png", { transform: "thumb" });
+    expect(viaPublicUrl.data).toBe(thumb.toString());
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("signs a variant for private buckets and rejects unknown names", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        signedURL: "/render/image/sign/private/u1/a.png?token=t",
+      }),
+    );
+
+    const storage = defineBucket({
+      id: "private",
+      path: "{userId}/{file}",
+      variants: { thumb: { width: 64, height: 64 } },
+    }).connect(client(fetch));
+
+    await storage.signedUrl("u1/a.png", { transform: "thumb" }).orThrow();
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toMatchObject({
+      transform: { width: 64, height: 64 },
+    });
+
+    // @ts-expect-error -- "huge" is not a variant of the bucket
+    const unknown = await storage.renderUrl("u1/a.png", "huge");
+    expect(unknown.error).toMatchObject({
+      kind: "invalid_input",
+      message: 'Bucket "private" has no image variant "huge"',
+    });
+  });
+
+  it("refuses variants Storage would reject", () => {
+    expect(() =>
+      defineBucket({
+        id: "bad",
+        path: "{file}",
+        variants: { big: { width: 4000 } },
+      }),
+    ).toThrow('variant "big" needs a width and height from 1 to 2500');
+    expect(() =>
+      defineBucket({
+        id: "bad",
+        path: "{file}",
+        variants: { blurry: { width: 10, quality: 5 } },
+      }),
+    ).toThrow('variant "blurry" needs a quality from 20 to 100');
+  });
 });
 
 describe("StoragePath", () => {

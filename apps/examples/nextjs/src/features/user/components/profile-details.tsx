@@ -42,6 +42,7 @@ export async function ProfileDetails() {
         </CardHeader>
         <CardContent className="space-y-6">
           <AvatarForm
+            avatarPath={profile?.avatarPath ?? null}
             avatarUrl={profile?.avatarUrl ?? null}
             name={profile?.fullName ?? null}
             email={session.user.email ?? null}

@@ -33,7 +33,7 @@ export async function getCustomers() {
     items: page.items.map((customer) => ({
       ...customer,
       logoUrl: customer.logoPath
-        ? storage.publicUrl(customer.logoPath).data
+        ? storage.publicUrl(customer.logoPath, { transform: "square" }).data
         : null,
     })),
   };
@@ -65,7 +65,8 @@ export async function getCustomer(id: string) {
   return {
     ...customer,
     logoUrl: customer.logoPath
-      ? db.$buckets.logos.publicUrl(customer.logoPath).data
+      ? db.$buckets.logos.publicUrl(customer.logoPath, { transform: "square" })
+          .data
       : null,
   };
 }

@@ -1,10 +1,10 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import type { BucketClient } from "../../src/storage/index.ts";
+import type { BucketClient, ImageVariant } from "../../src/storage/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
-import { defineBucket } from "../../src/storage/index.ts";
+import { avatarBucket, defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const logos = defineBucket({
@@ -45,6 +45,15 @@ describe("db.$buckets", () => {
 
     expectTypeOf(db.$buckets.logos).toEqualTypeOf<
       BucketClient<"{organizationId}/{customerId}/logo.webp", "logos">
+    >();
+    const photos = avatarBucket();
+
+    expectTypeOf(
+      defineSupabase(schema)
+        .buckets({ photos })
+        .connect(executor, {}, { storage }).$buckets.photos,
+    ).toEqualTypeOf<
+      BucketClient<"{userId}/avatar-{version}.{ext}", "avatars", ImageVariant>
     >();
     // @ts-expect-error not registered
     void db.$buckets.other;

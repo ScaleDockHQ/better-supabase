@@ -2,7 +2,7 @@ export { defineBucket, parseSize, TTL } from "./bucket.ts";
 
 export { fromStorageError } from "./errors.ts";
 
-export { storageImageUrl } from "./image-url.ts";
+export { storageImageSrcSet, storageImageUrl } from "./image-url.ts";
 
 export type { StorageImageOptions, StorageImageSize } from "./image-url.ts";
 
@@ -25,6 +25,7 @@ export {
   organizationLogoBucket,
   type AvatarBucketOptions,
   type ImageBucketOptions,
+  type ImageVariant,
   type OrganizationLogoBucketOptions,
 } from "./presets.ts";
 
@@ -69,6 +70,7 @@ export type {
   BucketDrift,
   BucketPolicy,
   DownloadOptions,
+  ImageTransform,
   ObjectTarget,
   PathValues,
   PurgeCacheOptions,

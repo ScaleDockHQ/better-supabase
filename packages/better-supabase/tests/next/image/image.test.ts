@@ -18,15 +18,23 @@ describe("createImageLoader", () => {
     );
   });
 
-  it("replaces the size of render URLs and keeps other parameters", () => {
+  it("replaces the size of render URLs, keeps the crop's shape and other parameters", () => {
     expect(
       loader({
-        src: `${URL_BASE}/storage/v1/render/image/public/avatars/u%201.png?width=10&height=300&version=4`,
+        src: `${URL_BASE}/storage/v1/render/image/public/avatars/u%201.png?width=400&height=300&version=4`,
         width: 3840,
         quality: 5,
       }),
     ).toBe(
-      `${URL_BASE}/storage/v1/render/image/public/avatars/u%201.png?width=2500&height=300&version=4&quality=20`,
+      `${URL_BASE}/storage/v1/render/image/public/avatars/u%201.png?width=2500&height=1875&version=4&quality=20`,
+    );
+    expect(
+      loader({
+        src: `${URL_BASE}/storage/v1/render/image/public/a/b.png?width=96&height=96&resize=cover`,
+        width: 640,
+      }),
+    ).toBe(
+      `${URL_BASE}/storage/v1/render/image/public/a/b.png?width=640&height=640&resize=cover`,
     );
   });
 
