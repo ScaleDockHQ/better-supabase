@@ -236,11 +236,17 @@ export async function TypeTable({
   ].join("\n");
 }
 
+/** The transform preview is interactive, so its Markdown form is empty. */
+function ImageTransformPreview(): string {
+  return "";
+}
+
 /** The components `getText("processed")` renders; everything else stays JSX. */
 export const markdownComponents: MDXComponents = {
   Callout,
   Card,
   Cards,
+  ImageTransformPreview,
   Step,
   Steps,
   Tab,

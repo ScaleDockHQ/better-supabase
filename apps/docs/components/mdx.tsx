@@ -6,6 +6,8 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { TypeTable } from "fumadocs-ui/components/type-table";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 
+import { ImageTransformPreview } from "./image-transform-preview";
+
 /** A wide table scrolls, so its wrapper takes keyboard focus to scroll it. */
 function Table(props: ComponentProps<"table">) {
   return (
@@ -23,6 +25,7 @@ function Table(props: ComponentProps<"table">) {
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
+    ImageTransformPreview,
     Step,
     Steps,
     Tab,

@@ -223,6 +223,11 @@ export const logos = organizationLogoBucket({
 });
 ```
 
+Both come with three [image variants](#image-transformations), `sm`, `md`
+and `lg`. Avatars are center-cropped squares of 48, 96 and 256 pixels;
+logos fit inside squares of 64, 128 and 256 without cropping. Pass
+`variants` to replace them.
+
 `organizationLogoBucket` holds connected clients to the `{organizationId}` of their tenant;
 pass `tenant: false` to upload for any organization the policy allows. A new
 `{version}` per upload keeps CDN caches correct; store the path in the
@@ -425,15 +430,115 @@ another tenant's path.
 
 ### Image transformations
 
-`renderUrl(target, { width, height, resize, quality })` returns a
-[Storage image transformation](https://supabase.com/docs/guides/storage/serving/image-transformations)
-URL. For public buckets it builds `/storage/v1/render/image/public/...` without
-a request. For private buckets it signs one, and Storage answers with a
+[Storage image transformations](https://supabase.com/docs/guides/storage/serving/image-transformations)
+resize a stored image when it is served, so you can crop, show and download
+an image at any size without storing copies. Name the sizes your app uses
+as `variants` on the bucket:
+
+```ts title="src/lib/storage.ts"
+import { defineBucket } from "better-supabase/storage";
+
+export const photos = defineBucket({
+  id: "photos",
+  path: "{userId}/{name}.{ext}",
+  public: true,
+  variants: {
+    thumb: { width: 160, height: 160, resize: "cover" },
+    card: { width: 640, height: 360, resize: "cover", quality: 80 },
+    full: { width: 1600, height: 1200, resize: "contain" },
+  },
+});
+```
+
+Each variant takes `width`, `height`, `resize` and `quality`. With both sides
+set, `cover` crops the center of the image to that shape, `contain` fits the
+whole image inside it, and `fill` stretches it. `defineBucket` refuses a side
+outside 1 to 2500 or a quality outside 20 to 100.
+
+`renderUrl(target, transform)` returns the URL for a variant name or an
+inline transform, and the variant names are typed:
+
+```ts
+const card = await db.$buckets.photos.renderUrl(target, "card");
+const custom = await db.$buckets.photos.renderUrl(target, { width: 300 });
+```
+
+For public buckets it builds `/storage/v1/render/image/public/...` without a
+request; `publicUrl(target, { transform: "card" })` returns the same URL as a
+`Result`. For private buckets it signs one, and Storage answers with a
 `/storage/v1/render/image/sign/...` URL whose token covers the transform, so
 sign at the size you render.
 
-With image transformations off (the Free plan, or a local stack without
-`[storage.image_transformation] enabled = true`), Storage signs a plain
+To download a resized copy instead of showing it, pass `download`, with
+`true` or a file name:
+
+```ts
+await db.$buckets.photos.renderUrl(target, "full", {
+  download: "photo-1600.jpg",
+});
+```
+
+#### Show an image in React
+
+`useImage(bucket, target, variant)` from `better-supabase/react` returns the
+`src`, a `srcSet` at 1x and 2x, and the variant's `width` and `height` for an
+`<img>`. For a public bucket it builds the URLs while rendering, without a
+request. For a private bucket it signs each density and signs again before
+the URLs expire; `loading` and `error` report that request.
+
+```tsx title="src/components/avatar.tsx"
+"use client";
+
+import { useImage } from "better-supabase/react";
+import { useMemo } from "react";
+
+import { useSupabase } from "@/lib/hooks";
+import { avatars } from "@/lib/storage";
+
+export function Avatar({ path }: { path: string | null }) {
+  const supabase = useSupabase();
+  const storage = useMemo(() => avatars.connect(supabase), [supabase]);
+  const { src, srcSet, width, height } = useImage(storage, path, "md");
+
+  return src ? (
+    <img alt="" src={src} srcSet={srcSet} width={width} height={height} />
+  ) : null;
+}
+```
+
+The target is a stored path or the path values. Pass `null` to render nothing
+until the path is known, and `{ densities: [1, 2, 3] }` for more densities.
+Server Components await `renderUrl()` instead.
+
+`storageImageSrcSet({ url })` builds the same `srcset` for a public URL you
+already have, outside React:
+
+```ts
+import { storageImageSrcSet } from "better-supabase/storage";
+
+const srcSet = storageImageSrcSet({ url: SUPABASE_URL });
+srcSet(avatarUrl, { width: 96, height: 96 });
+```
+
+#### Try a transform
+
+Paste the URL of an image in one of your public buckets, pick a size, and
+copy the URL or the `variants` entry:
+
+<ImageTransformPreview />
+
+#### Limits
+
+Storage has no region crop: `cover` always crops around the center. Sides
+stop at 2500 pixels and quality runs from 20 to 100. Transformations need a
+paid plan, and a local stack needs them turned on in `supabase/config.toml`:
+
+```toml title="supabase/config.toml"
+[storage.image_transformation]
+enabled = true
+```
+
+With image transformations off, Storage signs a plain
 `/storage/v1/object/sign/...` URL instead, and the original image is served.
 
 ### next/image
@@ -457,8 +562,12 @@ export default {
 ```
 
 The loader rewrites `/object/public/` and `/render/image/public/` URLs of your
-project to `/render/image/public/` with the requested `width` (at most 2500)
-and `quality` (20 to 100), and sets `resize` when you pass one. Signed URLs
+project to `/render/image/public/` with the requested `width` and `quality`
+(20 to 100), and sets `resize` when you pass one. A `src` from a variant
+keeps its shape: when it already carries a `width` and `height`, the height
+scales with each width Next.js asks for, so a 96 by 96 `cover` crop stays
+square in every `srcset` entry. When a side would pass 2500, both sides
+shrink by the same factor. Signed URLs
 pass through unchanged, since changing their parameters would break the
 token. Local and other hosts' images go to `fallback`, which returns `src`
 unchanged by default. Next.js warns in development when a loader ignores
