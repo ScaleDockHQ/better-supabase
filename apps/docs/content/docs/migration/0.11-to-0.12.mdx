@@ -1,0 +1,98 @@
+---
+title: From 0.11 to 0.12
+description: What to check when upgrading to better-supabase 0.12 and 0.13, starting with the audit() signature, the acting_member() grant and the module file headers.
+---
+
+Most of 0.12 needs no change in your code. Check the items below, then run
+`better-supabase sql upgrade`, `better-supabase sql sync` and
+`better-supabase doctor`. Items marked 0.13 arrive in the release after
+0.12.
+
+## `audit()` takes 11 arguments
+
+`better_supabase.audit()` gained two optional arguments in 0.11,
+`tenant_path` and `tenant_function`, so it went from 9 arguments to 11. An app
+that upgrades from 0.10 meets the change on this upgrade. Postgres can't add
+arguments to a function in place, so the schema diff that `sql sync` feeds
+drops the 9-argument function and creates the 11-argument one:
+
+```sql title="supabase/migrations/..._better_supabase.sql"
+drop function if exists better_supabase.audit(
+  regclass, text[], boolean, text[], text, text, text, text, text
+);
+create or replace function better_supabase.audit(
+  target regclass,
+  ignore text[] default '{}',
+  replace_trigger boolean default false,
+  redact text[] default '{}',
+  category text default null,
+  event_prefix text default null,
+  target_type text default null,
+  tenant_column text default null,
+  label_column text default null,
+  tenant_path text default null,
+  tenant_function regprocedure default null
+)
+...
+```
+
+Calls with named arguments keep working, and the triggers on audited tables
+stay in place. Two things in your own migrations break once the old function
+is gone:
+
+- A grant or a `comment on function` that names the old argument list. Name
+  the new one: `better_supabase.audit(regclass, text[], boolean, text[], text,
+text, text, text, text, text, regprocedure)`.
+- A call with positional arguments. Call `audit()` with named arguments, which
+  survive the next added argument too:
+
+```sql
+select better_supabase.audit(
+  'public.projects',
+  redact => array['api_key'],
+  tenant_column => 'workspace_id'
+);
+```
+
+From 0.13, doctor reports a migration that hasn't run and drops a
+`better_supabase` function without creating it again with the same number of
+arguments as [BS235](/docs/cli/doctor#bs235). Read these notes when it fires,
+and update your calls and grants in the same migration.
+
+## `acting_member()` runs only for service_role (0.13)
+
+`better_supabase.acting_member()` reads the member id the server sets for
+`admin({}, { as })`. From 0.13 only `service_role` may execute it; `anon` and
+`authenticated` get `permission denied`. The audit, actor and support
+functions and triggers that record an actor run as their owner, so they keep
+working for every caller. `set_actor()` became `security definer` for this.
+
+If your own SQL calls `acting_member()`, run it as `service_role` or from a
+`security definer` function. See
+[writes the secret key makes for a member](/docs/blocks/sql#writes-the-secret-key-makes-for-a-member).
+
+## Module file headers (0.13)
+
+The first line of a module file used to carry the package version, as in
+`-- better-supabase module: audit (0.12.0)`, so every release rewrote every
+file in `supabase/schemas/better_supabase` and the diff hid the real change.
+From 0.13 the header names only the module, and `sql sync` and `sql upgrade`
+leave a file alone when nothing but that header differs. The version a file
+was written at stays in its `@bs-module name@N` marker. The first sync after
+the upgrade rewrites each header once.
+
+## Create moved to the cloud app
+
+`createUrl()` and the comment `init` writes above a preset link to
+`https://app.bettersupabase.com/create`. Old `bettersupabase.com/create`
+links redirect there with their query string, and `presetOf` and `designOf`
+read both, so a saved link keeps working.
+
+## Environment variables
+
+`better-supabase env` writes `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`
+under their plain names for server code, the same two with the browser
+prefix, and the new `SUPABASE_JWKS_URL`. `--out` still works; `--write <file>`
+is the new name. With `auth.jwks: null`, server auth now verifies against no
+keys instead of falling through to the JWKS URL. Use `undefined` to keep the
+URL.
