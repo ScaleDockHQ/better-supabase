@@ -35,6 +35,14 @@ export type {
 
 export { fillTopic, generatedOptions } from "./block-config.ts";
 
+export { entityNames } from "../core/entity-naming.ts";
+
+export type {
+  EntityNames,
+  EntityNoun,
+  EntityRename,
+} from "../core/entity-naming.ts";
+
 export { renameBlock } from "./rename-block.ts";
 
 export type {

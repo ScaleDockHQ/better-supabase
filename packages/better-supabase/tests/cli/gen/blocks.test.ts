@@ -105,6 +105,47 @@ describe("blocks.generated.ts", () => {
     });
   });
 
+  it("writes the renamed block and its renamed types", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tenant: {},
+          access: {},
+          "work-items": { entities: { work_item: "task" } },
+        },
+      },
+      "/project",
+    );
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+
+    expect(contents).toContain(
+      `import {
+  type GeneratedBlocks,
+  renameBlock,
+  type RenamedEvents,
+  type RenamedType,
+} from "better-supabase/blocks";`,
+    );
+    expect(contents).toContain(
+      '  workItemsBlock,\n} from "better-supabase/blocks/work-items";',
+    );
+    expect(contents).toContain(
+      'export const tasksBlock = renameBlock(workItemsBlock, blockConfig["work-items"].names);',
+    );
+    expect(contents).toContain(
+      "export type Task<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, WorkItemsRenames>;",
+    );
+    expect(contents).toContain(
+      "export type TasksEvents = RenamedEvents<WorkItemsEvents, WorkItemsRenames>;",
+    );
+    expect(contents).toContain("  type Project as DefaultProject,");
+    expect(contents).toContain(
+      "export type Project = RenamedType<DefaultProject, WorkItemsRenames>;",
+    );
+    expect(contents).not.toContain("TasksOptions");
+  });
+
   it("leaves out tenant and access in user scope", () => {
     const entries = blockConfigEntries(
       resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),

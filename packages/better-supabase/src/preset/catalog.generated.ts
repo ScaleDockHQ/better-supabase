@@ -2504,7 +2504,21 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/catalog"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ProductInput"
+        },
+        {
+          "name": "ProductKind"
+        },
+        {
+          "name": "ProductStatus"
+        },
+        {
+          "name": "SavedProduct"
+        }
+      ]
     },
     {
       "name": "collections",
@@ -2592,7 +2606,57 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/deals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Deal",
+          "fields": true
+        },
+        {
+          "name": "DealChange"
+        },
+        {
+          "name": "DealChangeResult"
+        },
+        {
+          "name": "DealContact"
+        },
+        {
+          "name": "DealField"
+        },
+        {
+          "name": "DealForecast"
+        },
+        {
+          "name": "DealHealth"
+        },
+        {
+          "name": "DealInput",
+          "fields": true
+        },
+        {
+          "name": "DealLineInput"
+        },
+        {
+          "name": "DealOutcome"
+        },
+        {
+          "name": "DealParty"
+        },
+        {
+          "name": "Deals",
+          "fields": true
+        },
+        {
+          "name": "DealsEvents"
+        },
+        {
+          "name": "DealsOptions"
+        },
+        {
+          "name": "DealTotals"
+        }
+      ]
     },
     {
       "name": "documents",
@@ -2673,7 +2737,39 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/employees"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Employee",
+          "fields": true
+        },
+        {
+          "name": "EmployeeChange"
+        },
+        {
+          "name": "EmployeeChangeResult"
+        },
+        {
+          "name": "EmployeeField"
+        },
+        {
+          "name": "EmployeeInput",
+          "fields": true
+        },
+        {
+          "name": "Employees",
+          "fields": true
+        },
+        {
+          "name": "EmployeesEvents"
+        },
+        {
+          "name": "EmployeesOptions"
+        },
+        {
+          "name": "EmployeeStatus"
+        }
+      ]
     },
     {
       "name": "engagements",
@@ -3059,7 +3155,26 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/parties"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Company",
+          "fields": true
+        },
+        {
+          "name": "CompanyInput",
+          "fields": true
+        },
+        {
+          "name": "CompanyPerson"
+        },
+        {
+          "name": "Person"
+        },
+        {
+          "name": "PersonInput"
+        }
+      ]
     },
     {
       "name": "pgtap",
@@ -3613,7 +3728,52 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/work-items"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Iteration"
+        },
+        {
+          "name": "Project"
+        },
+        {
+          "name": "WorkItem",
+          "fields": true
+        },
+        {
+          "name": "WorkItemChange",
+          "fields": true
+        },
+        {
+          "name": "WorkItemChangeResult"
+        },
+        {
+          "name": "WorkItemField"
+        },
+        {
+          "name": "WorkItemInput",
+          "fields": true
+        },
+        {
+          "name": "WorkItemListOptions"
+        },
+        {
+          "name": "WorkItemNode"
+        },
+        {
+          "name": "WorkItems",
+          "fields": true
+        },
+        {
+          "name": "WorkItemsEvents"
+        },
+        {
+          "name": "WorkItemsOptions"
+        },
+        {
+          "name": "WorkItemState"
+        }
+      ]
     },
     {
       "name": "workflow-builder",

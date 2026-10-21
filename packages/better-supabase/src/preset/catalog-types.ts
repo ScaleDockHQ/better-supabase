@@ -57,6 +57,18 @@ export interface PresetCatalogManifest {
     Readonly<Record<PortName, "optional" | "required">>
   >;
   readonly provides: readonly PortName[];
+  /**
+   * The types its subpath exports that carry one of its entities' names, which
+   * `gen` aliases under the renamed names.
+   */
+  readonly entityTypes?: readonly PresetCatalogEntityType[];
+}
+
+/** A block type named after one of its entities, such as `WorkItem`. */
+export interface PresetCatalogEntityType {
+  readonly name: string;
+  /** Takes the extra columns as its first type parameter, `F`. */
+  readonly fields?: true;
 }
 
 /**
