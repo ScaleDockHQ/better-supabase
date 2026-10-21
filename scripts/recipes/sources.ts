@@ -664,6 +664,54 @@ export const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "can",
+    title: "Can",
+    blocks: ["access"],
+    kind: "component",
+    description:
+      "Shows an action only to members who hold a permission key; the checks of one render share one round trip.",
+    hook: { name: "Can", entry: "better-supabase/blocks/access/react" },
+    web: {
+      file: `${WEB_APP}/src/features/projects/components/task-import-action.tsx`,
+      components: [],
+      glue: [],
+    },
+  },
+  {
+    slug: "subject-link",
+    title: "Subject link",
+    blocks: ["subjects"],
+    kind: "component",
+    description:
+      "A link to any subject type, titled and routed by subject_titles, with plain text for a record the caller can't read.",
+    hook: {
+      name: "useSubject",
+      entry: "better-supabase/blocks/subjects/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/subjects/components/subject-link.tsx`,
+      components: ["button", "skeleton"],
+      glue: [],
+    },
+  },
+  {
+    slug: "subject-chip",
+    title: "Subject chip",
+    blocks: ["subjects"],
+    kind: "component",
+    description:
+      "A compact badge with a subject's type and title that links to its page.",
+    hook: {
+      name: "useSubject",
+      entry: "better-supabase/blocks/subjects/react",
+    },
+    web: {
+      file: `${WEB_APP}/src/features/subjects/components/subject-chip.tsx`,
+      components: ["skeleton"],
+      glue: [],
+    },
+  },
   ...SAAS_RECIPES,
   ...RECORD_RECIPES,
   ...PLANNED,

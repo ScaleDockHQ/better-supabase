@@ -3766,11 +3766,6 @@ msgid "Link removed"
 msgstr "Link removed"
 
 #: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.fkf6Ps"
-msgid "A record you can't open"
-msgstr "A record you can't open"
-
-#: src/features/customers/components/related-items-panel.tsx
 msgctxt "customers.cr1jN8"
 msgid "Remove link"
 msgstr "Remove link"
@@ -6920,6 +6915,7 @@ msgid "Add its tasks once it exists."
 msgstr "Add its tasks once it exists."
 
 #: src/features/projects/components/project-form-dialog.tsx
+#: src/features/projects/components/project-history.tsx
 #: src/features/projects/components/task-grid.tsx
 msgctxt "projects.HAlOn1"
 msgid "Name"
@@ -6928,6 +6924,7 @@ msgstr "Name"
 #: src/features/projects/components/project-form-dialog.tsx
 #: src/features/projects/components/task-form-dialog.tsx
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.47FYwb"
 msgid "Cancel"
 msgstr "Cancel"
@@ -6937,12 +6934,94 @@ msgctxt "projects.VUN1K7"
 msgid "Create project"
 msgstr "Create project"
 
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.djJp6c"
+msgid "History"
+msgstr "History"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.UdJJHc"
+msgid "Each change to the name, budget or currency."
+msgstr "Each change to the name, budget or currency."
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.2YBfcY"
+msgid "No history yet"
+msgstr "No history yet"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.mjp--f"
+msgid "The next change to this project appears here."
+msgstr "The next change to this project appears here."
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.H1LYPI"
+msgid "Field restored"
+msgstr "Field restored"
+
+#: src/features/projects/components/project-history.tsx
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.0KKXrH"
+msgid "Budget"
+msgstr "Budget"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.55hdQy"
+msgid "Currency"
+msgstr "Currency"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.fsB_4p"
+msgid "Saved"
+msgstr "Saved"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.OhIqLr"
+msgid "Edited"
+msgstr "Edited"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.muh87-"
+msgid "Restored"
+msgstr "Restored"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.-RhnH-"
+msgid "Empty"
+msgstr "Empty"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.oTqwvB"
+msgid "Version {number}"
+msgstr "Version {number}"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.11BIRd"
+msgid "Restore {field} from version {number}"
+msgstr "Restore {field} from version {number}"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.zz6ObK"
+msgid "Restore"
+msgstr "Restore"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.5zn5fC"
+msgid "Version saved"
+msgstr "Version saved"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.4MLaX8"
+msgid "Save a version"
+msgstr "Save a version"
+
 #: src/features/projects/components/project-load-error.tsx
 msgctxt "projects.162kF7"
 msgid "Try again in a moment."
 msgstr "Try again in a moment."
 
 #: src/features/projects/components/project-load-error.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.62nsdy"
 msgid "Retry"
 msgstr "Retry"
@@ -6996,11 +7075,6 @@ msgid "Details"
 msgstr "Details"
 
 #: src/features/projects/components/project-page.tsx
-msgctxt "projects.0KKXrH"
-msgid "Budget"
-msgstr "Budget"
-
-#: src/features/projects/components/project-page.tsx
 msgctxt "projects.bhfSJZ"
 msgid "Lead"
 msgstr "Lead"
@@ -7009,6 +7083,11 @@ msgstr "Lead"
 msgctxt "projects.2cVj2C"
 msgid "Open tasks"
 msgstr "Open tasks"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.Gq7Gyo"
+msgid "The history didn't load"
+msgstr "The history didn't load"
 
 #: src/features/projects/components/project-page.tsx
 msgctxt "projects.1EYCdR"
@@ -7068,6 +7147,7 @@ msgstr "It goes to the end of its status column."
 
 #: src/features/projects/components/task-form-dialog.tsx
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.9a9-ww"
 msgid "Title"
 msgstr "Title"
@@ -7090,6 +7170,7 @@ msgstr "No projects match."
 
 #: src/features/projects/components/task-form-dialog.tsx
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.tzMNF3"
 msgid "Status"
 msgstr "Status"
@@ -7187,6 +7268,37 @@ msgid "{count, plural, one {# task} other {# tasks}} changed"
 msgstr "{count, plural, one {# task} other {# tasks}} changed"
 
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.l3AfOI"
+msgid "Due date"
+msgstr "Due date"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.vZzNOR"
+msgid "Set field"
+msgstr "Set field"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.jV03nZ"
+msgid "Set a field on {count, plural, one {# task} other {# tasks}}"
+msgstr "Set a field on {count, plural, one {# task} other {# tasks}}"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.Qco2Sg"
+msgid "Leave the value empty to clear the field."
+msgstr "Leave the value empty to clear the field."
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.AbvQFb"
+msgid "Field"
+msgstr "Field"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.EWw_tK"
+msgid "Apply"
+msgstr "Apply"
+
+#: src/features/projects/components/task-grid.tsx
 msgctxt "projects.g9pEhE"
 msgid "Due"
 msgstr "Due"
@@ -7205,6 +7317,76 @@ msgstr "Mark {status}"
 msgctxt "projects.K3r6DQ"
 msgid "Delete"
 msgstr "Delete"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.TqS0GP"
+msgid "{count, plural, one {# task} other {# tasks}} imported"
+msgstr "{count, plural, one {# task} other {# tasks}} imported"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.lAzEZA"
+msgid "The file has rows that need fixing."
+msgstr "The file has rows that need fixing."
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects._4tOwT"
+msgid "Skip"
+msgstr "Skip"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.9XUYQt"
+msgid "Import"
+msgstr "Import"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.vPFGqa"
+msgid "Import tasks"
+msgstr "Import tasks"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.E-nvnF"
+msgid "Paste CSV with a title column. A title the project already has updates that task."
+msgstr "Paste CSV with a title column. A title the project already has updates that task."
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.8UzT6d"
+msgid "CSV"
+msgstr "CSV"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.nvkCcf"
+msgid "The preview didn't load"
+msgstr "The preview didn't load"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.-A_7K2"
+msgid "{count, plural, one {# new} other {# new}}"
+msgstr "{count, plural, one {# new} other {# new}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.G2Ksec"
+msgid "{count, plural, one {# changed} other {# changed}}"
+msgstr "{count, plural, one {# changed} other {# changed}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.R7N3-1"
+msgid "{count, plural, one {# unchanged} other {# unchanged}}"
+msgstr "{count, plural, one {# unchanged} other {# unchanged}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.VXgrSB"
+msgid "{count, plural, one {# error} other {# errors}}"
+msgstr "{count, plural, one {# error} other {# errors}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.8AEzNx"
+msgid "Row {row}: {message}"
+msgstr "Row {row}: {message}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.TJo5E6"
+msgid "Preview"
+msgstr "Preview"
 
 #: src/features/projects/components/task-timeline.tsx
 #: src/features/projects/use-task-labels.ts
@@ -9108,6 +9290,31 @@ msgstr "Metadata uploaded as XML"
 msgctxt "sso.jUqYir"
 msgid "Added {date}"
 msgstr "Added {date}"
+
+#: src/features/subjects/components/subject-chip.tsx
+msgctxt "subjects.UpwcFd"
+msgid "Unavailable"
+msgstr "Unavailable"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.UJ-xqJ"
+msgid "The title didn't load"
+msgstr "The title didn't load"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.fkf6Ps"
+msgid "A record you can't open"
+msgstr "A record you can't open"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.3kbIhS"
+msgid "Untitled"
+msgstr "Untitled"
 
 #: src/features/templates/components/create-template-dialog.tsx
 msgctxt "templates.uI5hko"

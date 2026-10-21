@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Link } from "@/i18n/navigation";
+import { SubjectLink } from "@/features/subjects/components/subject-link";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
@@ -139,18 +139,9 @@ function RelatedList({
           className="flex items-center justify-between gap-2 py-2"
         >
           <div className="flex min-w-0 items-center gap-2">
-            {link.subjectType === "customer" && link.name !== null ? (
-              <Link
-                href={`/customers/${link.subjectId}`}
-                className="truncate text-sm font-medium underline-offset-4 transition-colors hover:underline"
-              >
-                {link.name}
-              </Link>
-            ) : (
-              <span className="truncate text-sm text-muted-foreground">
-                {t("A record you can't open")}
-              </span>
-            )}
+            <SubjectLink
+              subject={{ type: link.subjectType, id: link.subjectId }}
+            />
             {link.kind === "relates" ? null : (
               <Badge variant="outline">{link.kind}</Badge>
             )}

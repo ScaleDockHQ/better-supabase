@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SubjectChip } from "@/features/subjects/components/subject-chip";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
@@ -143,8 +144,14 @@ export async function ApprovalsQueue() {
                 return (
                   <TableRow key={request.id}>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col items-start gap-1">
                         <span className="font-medium">{label}</span>
+                        <SubjectChip
+                          subject={{
+                            type: request.subjectType,
+                            id: request.subjectId,
+                          }}
+                        />
                         {request.reason ? (
                           <span className="text-xs text-muted-foreground">
                             {request.reason}
