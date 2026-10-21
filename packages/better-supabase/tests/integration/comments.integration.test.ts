@@ -110,7 +110,7 @@ describe.skipIf(!live)("comments", () => {
 
       expect(first).toMatchObject({
         organizationId: organization,
-        subjectType: "project",
+        subject: { type: "project", id: subject },
         authorId: member.id,
         parentId: undefined,
         editedAt: undefined,
