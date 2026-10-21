@@ -223,7 +223,8 @@ function eventLines(
     return { specifiers: [], imports: [], lines: [] };
   }
 
-  const types = lists.flatMap((list) => list.types).toSorted();
+  // Blocks share some events, such as `organization.member_added`.
+  const types = [...new Set(lists.flatMap((list) => list.types))].toSorted();
 
   return {
     specifiers: ["type Events"],

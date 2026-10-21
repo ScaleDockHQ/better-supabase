@@ -243,6 +243,20 @@ describe("blocks.generated.ts", () => {
     expect(contents).toContain('  "notes.deleted": true,\n} as const;');
   });
 
+  it("lists an event two blocks emit once", () => {
+    const contents =
+      emitBlockConfig(
+        resolveConfig(
+          { blocks: { tenant: {}, organizations: {}, waitlist: {} } },
+          "/project",
+        ),
+      )?.contents ?? "";
+
+    expect(contents.match(/"organization\.member_added": true/g)).toHaveLength(
+      1,
+    );
+  });
+
   it("writes nothing when the config installs no blocks", () => {
     expect(emitBlockConfig(resolveConfig({}, "/project"))).toBeUndefined();
   });
