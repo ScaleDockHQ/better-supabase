@@ -4,7 +4,11 @@ import type { GeneratorInput } from "../../src/config/index.ts";
 import type { InsertOf } from "../fixtures/generated-camel.ts";
 
 import { checkBounds, factories } from "../../src/generators/factories.ts";
-import { defineFactory, factoryPath } from "../../src/testing/factory.ts";
+import {
+  defineFactory,
+  factoryPath,
+  factoryTime,
+} from "../../src/testing/factory.ts";
 import { factories as fixture } from "../fixtures/generated-camel.factories.ts";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -126,6 +130,7 @@ describe("factories generator", () => {
               column("logo", 'StoragePath<"logos">'),
               column("meta", "{ a: 1 }"),
               column("notes", "string", { optional: true }),
+              column("dueOn", "Temporal.PlainDate"),
             ],
           },
         ],
@@ -165,11 +170,17 @@ describe("factories generator", () => {
     expect(file?.contents).not.toContain('"notes":');
     expect(file?.contents).toContain("  task: tasksFactory,");
     expect(file?.contents).toContain(
-      'import { defineFactory, factoryPath } from "better-supabase/testing";',
+      'import { defineFactory, factoryPath, factoryTime } from "better-supabase/testing";',
     );
+    expect(file?.contents).toContain('"dueOn": factoryTime.plainDate()');
     expect(() => factories({ tables: ["nope"] }).generate(input)).toThrow(
       'factories(): no table named "nope"',
     );
+  });
+
+  it("reads the fixed times through the provided Temporal", () => {
+    expect(factoryTime.plainDate().toString()).toBe("2026-01-01");
+    expect(factoryTime.instant().toString()).toBe("2026-01-01T00:00:00Z");
   });
 
   it("defines a factory by hand with typed references", () => {

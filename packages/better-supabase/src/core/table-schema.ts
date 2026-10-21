@@ -11,7 +11,7 @@ import type {
 
 import { isList, isRecord } from "./guards.ts";
 import { tableJsonSchema } from "./table-json-schema.ts";
-import { isInstant, isPlainDateTime } from "./temporal.ts";
+import { isInstant, isPlainDate, isPlainDateTime } from "./temporal.ts";
 
 export type { StandardJSONSchemaV1 };
 
@@ -173,6 +173,10 @@ function scalarIssue(field: FieldSpec, value: unknown): string | undefined {
 
     case "instant": {
       return isInstant(value) ? undefined : "Expected a Temporal.Instant";
+    }
+
+    case "plainDate": {
+      return isPlainDate(value) ? undefined : "Expected a Temporal.PlainDate";
     }
 
     case "plainDateTime": {

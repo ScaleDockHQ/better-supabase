@@ -1,5 +1,7 @@
 import type { StoragePath } from "../storage/path.ts";
 
+import { temporal } from "../core/temporal-required.ts";
+
 /**
  * A foreign key value, or the parent row it points at: the factory reads the
  * referenced column from a row.
@@ -114,3 +116,19 @@ export function factoryPath<B extends string>(
   // SAFETY: a test path names an object in `bucket`; nothing reads the brand.
   return path as StoragePath<B>;
 }
+
+/**
+ * The fixed times the generated factories use (2026-01-01), read through the
+ * Temporal the app provides.
+ */
+export const factoryTime: {
+  readonly instant: () => Temporal.Instant;
+  readonly plainDate: () => Temporal.PlainDate;
+  readonly plainDateTime: () => Temporal.PlainDateTime;
+  readonly plainTime: () => Temporal.PlainTime;
+} = {
+  instant: () => temporal().Instant.from("2026-01-01T00:00:00Z"),
+  plainDate: () => temporal().PlainDate.from("2026-01-01"),
+  plainDateTime: () => temporal().PlainDateTime.from("2026-01-01T00:00:00"),
+  plainTime: () => temporal().PlainTime.from("00:00:00"),
+};

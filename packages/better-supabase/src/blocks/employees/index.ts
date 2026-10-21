@@ -38,3 +38,5 @@ export { employeesBlock } from "./manifest.ts";
 export { employeesEvents } from "./events.ts";
 
 export type { EmployeesEvents } from "./events.ts";
+
+export { employeeChangeSchema, employeeInputSchema } from "./schemas.ts";

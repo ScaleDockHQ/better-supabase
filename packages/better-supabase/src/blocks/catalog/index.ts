@@ -46,3 +46,5 @@ export { catalogBlock } from "./manifest.ts";
 export { catalogEvents } from "./events.ts";
 
 export type { CatalogEvents } from "./events.ts";
+
+export { productInputSchema } from "./schemas.ts";

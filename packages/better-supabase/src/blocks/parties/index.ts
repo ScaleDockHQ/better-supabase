@@ -33,3 +33,9 @@ export { partiesBlock } from "./manifest.ts";
 export { partiesEvents } from "./events.ts";
 
 export type { PartiesEvents } from "./events.ts";
+
+export {
+  companyInputSchema,
+  partyListFilterSchema,
+  personInputSchema,
+} from "./schemas.ts";

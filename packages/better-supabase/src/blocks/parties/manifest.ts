@@ -5,6 +5,11 @@ import { defineBlock } from "../define-block.ts";
 import { partiesEvents } from "./events.ts";
 import { partiesSqlOptions } from "./options.ts";
 import { createParties } from "./parties.ts";
+import {
+  companyInputSchema,
+  partyListFilterSchema,
+  personInputSchema,
+} from "./schemas.ts";
 
 /** The `parties` block's manifest (ADR 0029). */
 export const partiesBlock: BlockOf<
@@ -19,4 +24,8 @@ export const partiesBlock: BlockOf<
   create: createParties,
   category: "crm",
   recipes: ["contact-detail"],
+  schemas: {
+    company: { input: companyInputSchema, listFilter: partyListFilterSchema },
+    person: { input: personInputSchema, listFilter: partyListFilterSchema },
+  },
 });

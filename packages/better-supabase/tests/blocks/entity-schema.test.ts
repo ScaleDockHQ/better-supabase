@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { dealInputSchema } from "../../src/blocks/deals/schemas.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
 import { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
 import {
@@ -20,6 +21,29 @@ const names = {
 const ID = "0f8e2b4c-1d3a-4e5f-8a9b-0c1d2e3f4a5b";
 
 describe("entity schemas", () => {
+  it("checks a deal's close date and amounts as Temporal and Money values", async () => {
+    const closeOn = Temporal.PlainDate.from("2026-12-31");
+    const amount = { amount: 125_000n, currency: "EUR" };
+
+    const valid = await dealInputSchema["~standard"].validate({
+      name: "Acme renewal",
+      closeOn,
+      amount,
+    });
+
+    const invalid = await dealInputSchema["~standard"].validate({
+      name: "Acme renewal",
+      closeOn: "2026-12-31",
+      amount: { amount: 125_000, currency: "EUR" },
+    });
+
+    expect(valid).toEqual({ value: { name: "Acme renewal", closeOn, amount } });
+    expect(invalid.issues?.map((issue) => issue.path)).toEqual([
+      ["closeOn"],
+      ["amount", "amount"],
+    ]);
+  });
+
   it("validates a work item input with the bounds the SQL checks", async () => {
     const valid = await workItemInputSchema["~standard"].validate({
       title: "Ship it",

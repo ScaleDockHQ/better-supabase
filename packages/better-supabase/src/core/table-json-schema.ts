@@ -12,6 +12,7 @@ export type ScalarKind =
   | { readonly kind: "datetime" }
   | { readonly kind: "date" }
   | { readonly kind: "instant" }
+  | { readonly kind: "plainDate" }
   | { readonly kind: "plainDateTime" }
   | { readonly kind: "bigint" }
   | { readonly kind: "json" }
@@ -87,6 +88,10 @@ function scalarJsonSchema(
 
     case "instant": {
       return { type: "string", format: "date-time" };
+    }
+
+    case "plainDate": {
+      return { type: "string", format: "date" };
     }
 
     case "plainDateTime": {

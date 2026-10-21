@@ -83,6 +83,10 @@ function scalar(kind: ScalarKind): string {
       return "v.custom<Temporal.Instant>(isInstant)";
     }
 
+    case "plainDate": {
+      return "v.custom<Temporal.PlainDate>(isPlainDate)";
+    }
+
     case "plainDateTime": {
       return "v.custom<Temporal.PlainDateTime>(isPlainDateTime)";
     }

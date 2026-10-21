@@ -2629,6 +2629,71 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "SavedProduct"
         }
       ],
+      "entitySchemas": {
+        "product": {
+          "input": {
+            "title": "ProductInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "slug": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "description": "Lower-case letters, digits and hyphens."
+              },
+              "description": {
+                "kind": "string",
+                "optional": true
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "physical",
+                  "digital",
+                  "service"
+                ],
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ProductInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "slug": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Lower-case letters, digits and hyphens."
+                },
+                "description": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "physical",
+                    "digital",
+                    "service"
+                  ]
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "CatalogEvents",
         "types": [
@@ -2830,6 +2895,309 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DealTotals"
         }
       ],
+      "entitySchemas": {
+        "deal": {
+          "input": {
+            "title": "DealInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "closeOn": {
+                "kind": "plainDate"
+              },
+              "amount": {
+                "kind": "custom",
+                "optional": true
+              },
+              "currency": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 3
+              },
+              "company": {
+                "kind": "json",
+                "description": "A `{ type, id }` reference.",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "motion": {
+                "kind": "string",
+                "optional": true
+              },
+              "priority": {
+                "kind": "string",
+                "optional": true
+              },
+              "product": {
+                "kind": "string",
+                "optional": true
+              },
+              "seats": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0
+              },
+              "existingAmount": {
+                "kind": "custom",
+                "optional": true
+              },
+              "valuePeriod": {
+                "kind": "enum",
+                "values": [
+                  "one_time",
+                  "monthly",
+                  "annual"
+                ],
+                "optional": true
+              },
+              "pipelineId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "stageId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "probability": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 100
+              },
+              "forecast": {
+                "kind": "enum",
+                "values": [
+                  "commit",
+                  "best_case",
+                  "pipeline",
+                  "omit"
+                ],
+                "optional": true
+              },
+              "nextStep": {
+                "kind": "string",
+                "optional": true
+              },
+              "nextAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "nextKind": {
+                "kind": "string",
+                "optional": true
+              },
+              "flags": {
+                "kind": "string",
+                "optional": true,
+                "array": true
+              },
+              "source": {
+                "kind": "string",
+                "optional": true
+              },
+              "note": {
+                "kind": "string",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DealInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "closeOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3
+                },
+                "company": {
+                  "description": "A `{ type, id }` reference."
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "motion": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string"
+                },
+                "product": {
+                  "type": "string"
+                },
+                "seats": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "existingAmount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "valuePeriod": {
+                  "type": "string",
+                  "enum": [
+                    "one_time",
+                    "monthly",
+                    "annual"
+                  ]
+                },
+                "pipelineId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "stageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "probability": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "forecast": {
+                  "type": "string",
+                  "enum": [
+                    "commit",
+                    "best_case",
+                    "pipeline",
+                    "omit"
+                  ]
+                },
+                "nextStep": {
+                  "type": "string"
+                },
+                "nextAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "nextKind": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "source": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "name",
+                "closeOn"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "DealChange",
+            "fields": {
+              "dealId": {
+                "kind": "uuid"
+              },
+              "field": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "value": {
+                "kind": "unknown",
+                "description": "`null` clears the field."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DealChange",
+              "type": "object",
+              "properties": {
+                "dealId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "`null` clears the field."
+                }
+              },
+              "required": [
+                "dealId",
+                "field",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "DealsEvents",
         "types": [
@@ -2999,6 +3367,174 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "EmployeeStatus"
         }
       ],
+      "entitySchemas": {
+        "employee": {
+          "input": {
+            "title": "EmployeeInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "email": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 320
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "jobTitle": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "teamId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "managerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "employmentType": {
+                "kind": "string",
+                "optional": true
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "preboarding",
+                  "active",
+                  "on_leave"
+                ],
+                "optional": true
+              },
+              "startDate": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endDate": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "origin": {
+                "kind": "json",
+                "optional": true,
+                "description": "A `{ type, id }` reference."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EmployeeInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "email": {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "jobTitle": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "managerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "employmentType": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "preboarding",
+                    "active",
+                    "on_leave"
+                  ]
+                },
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "origin": {
+                  "description": "A `{ type, id }` reference."
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "EmployeeChange",
+            "fields": {
+              "employeeId": {
+                "kind": "uuid"
+              },
+              "field": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "value": {
+                "kind": "unknown",
+                "description": "`null` clears the field."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EmployeeChange",
+              "type": "object",
+              "properties": {
+                "employeeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "`null` clears the field."
+                }
+              },
+              "required": [
+                "employeeId",
+                "field",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "EmployeesEvents",
         "types": [
@@ -3564,6 +4100,322 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "PersonInput"
         }
       ],
+      "entitySchemas": {
+        "company": {
+          "input": {
+            "title": "CompanyInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Required when `id` is left out."
+              },
+              "domain": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "website": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "vatId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "address": {
+                "kind": "json",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CompanyInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Required when `id` is left out."
+                },
+                "domain": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "website": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "vatId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "address": {},
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "listFilter": {
+            "title": "PartyListOptions",
+            "fields": {
+              "search": {
+                "kind": "string",
+                "optional": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "limit": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1
+              },
+              "cursor": {
+                "kind": "json",
+                "optional": true,
+                "description": "The last row's `{ name, id }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PartyListOptions",
+              "type": "object",
+              "properties": {
+                "search": {
+                  "type": "string"
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "cursor": {
+                  "description": "The last row's `{ name, id }`."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "person": {
+          "input": {
+            "title": "PersonInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Required when `id` is left out."
+              },
+              "email": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "phone": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PersonInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Required when `id` is left out."
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "userId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "listFilter": {
+            "title": "PartyListOptions",
+            "fields": {
+              "search": {
+                "kind": "string",
+                "optional": true
+              },
+              "lifecycle": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "limit": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1
+              },
+              "cursor": {
+                "kind": "json",
+                "optional": true,
+                "description": "The last row's `{ name, id }`."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PartyListOptions",
+              "type": "object",
+              "properties": {
+                "search": {
+                  "type": "string"
+                },
+                "lifecycle": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "cursor": {
+                  "description": "The last row's `{ name, id }`."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "PartiesEvents",
         "types": [

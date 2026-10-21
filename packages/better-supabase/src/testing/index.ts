@@ -38,7 +38,7 @@ export type {
   ScopedTenant,
 } from "./scope.ts";
 
-export { defineFactory, factoryPath } from "./factory.ts";
+export { defineFactory, factoryPath, factoryTime } from "./factory.ts";
 
 export type {
   Factory,

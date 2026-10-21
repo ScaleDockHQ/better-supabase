@@ -363,6 +363,10 @@ function scalarType(spec: FieldSpec): string {
       return "Temporal.Instant";
     }
 
+    case "plainDate": {
+      return "Temporal.PlainDate";
+    }
+
     case "plainDateTime": {
       return "Temporal.PlainDateTime";
     }

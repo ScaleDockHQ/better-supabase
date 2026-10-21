@@ -161,6 +161,7 @@ export function fieldsFor(
 
 const TEMPORAL_GUARDS: Partial<Record<ScalarKind["kind"], string>> = {
   instant: "isInstant",
+  plainDate: "isPlainDate",
   plainDateTime: "isPlainDateTime",
 };
 
@@ -659,6 +660,7 @@ function exampleFits(scalar: ScalarKind, value: unknown): boolean {
     }
 
     case "instant":
+    case "plainDate":
     case "plainDateTime":
     case "bigint": {
       return false;

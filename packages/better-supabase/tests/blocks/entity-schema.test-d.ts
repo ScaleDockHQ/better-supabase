@@ -2,6 +2,31 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { ProductInput } from "../../src/blocks/catalog/catalog.ts";
+import type { productInputSchema } from "../../src/blocks/catalog/schemas.ts";
+import type { DealChange, DealInput } from "../../src/blocks/deals/deals.ts";
+import type {
+  dealChangeSchema,
+  dealInputSchema,
+} from "../../src/blocks/deals/schemas.ts";
+import type {
+  EmployeeChange,
+  EmployeeInput,
+} from "../../src/blocks/employees/employees.ts";
+import type {
+  employeeChangeSchema,
+  employeeInputSchema,
+} from "../../src/blocks/employees/schemas.ts";
+import type {
+  CompanyInput,
+  PartyListOptions,
+  PersonInput,
+} from "../../src/blocks/parties/parties.ts";
+import type {
+  companyInputSchema,
+  partyListFilterSchema,
+  personInputSchema,
+} from "../../src/blocks/parties/schemas.ts";
 import type {
   workItemChangeSchema,
   workItemInputSchema,
@@ -14,6 +39,8 @@ import type {
 } from "../../src/blocks/work-items/work-items.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
+
+type Out<S extends StandardSchemaV1> = StandardSchemaV1.InferOutput<S>;
 
 interface Note {
   readonly title: string;
@@ -32,6 +59,27 @@ describe("entitySchema", () => {
     expectTypeOf<
       StandardSchemaV1.InferOutput<typeof workItemListFilterSchema>
     >().toEqualTypeOf<WorkItemListOptions>();
+  });
+
+  it("outputs the other entity blocks' types", () => {
+    expectTypeOf<Out<typeof dealInputSchema>>().toEqualTypeOf<DealInput>();
+    expectTypeOf<Out<typeof dealChangeSchema>>().toEqualTypeOf<DealChange>();
+    expectTypeOf<
+      Out<typeof companyInputSchema>
+    >().toEqualTypeOf<CompanyInput>();
+    expectTypeOf<Out<typeof personInputSchema>>().toEqualTypeOf<PersonInput>();
+    expectTypeOf<
+      Out<typeof partyListFilterSchema>
+    >().toEqualTypeOf<PartyListOptions>();
+    expectTypeOf<
+      Out<typeof productInputSchema>
+    >().toEqualTypeOf<ProductInput>();
+    expectTypeOf<
+      Out<typeof employeeInputSchema>
+    >().toEqualTypeOf<EmployeeInput>();
+    expectTypeOf<
+      Out<typeof employeeChangeSchema>
+    >().toEqualTypeOf<EmployeeChange>();
   });
 
   it("needs every key, with optional and array flags that match the type", () => {

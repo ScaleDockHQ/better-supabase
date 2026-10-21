@@ -162,11 +162,10 @@ function textValue(column: GeneratorColumn, bounds: Bounds): string {
 }
 
 const TEMPORAL: Readonly<Record<string, string>> = {
-  "Temporal.Instant": 'Temporal.Instant.from("2026-01-01T00:00:00Z")',
-  "Temporal.PlainDate": 'Temporal.PlainDate.from("2026-01-01")',
-  "Temporal.PlainDateTime":
-    'Temporal.PlainDateTime.from("2026-01-01T00:00:00")',
-  "Temporal.PlainTime": 'Temporal.PlainTime.from("00:00:00")',
+  "Temporal.Instant": "factoryTime.instant()",
+  "Temporal.PlainDate": "factoryTime.plainDate()",
+  "Temporal.PlainDateTime": "factoryTime.plainDateTime()",
+  "Temporal.PlainTime": "factoryTime.plainTime()",
 };
 
 const STRING_FORMATS: Readonly<Record<string, string>> = {
@@ -427,6 +426,10 @@ export function factories(options: FactoriesGeneratorOptions = {}): Generator {
         line.value.includes("factoryPath("),
       );
 
+      const usesTime = lines.some((line) =>
+        line.value.includes("factoryTime."),
+      );
+
       const local = (key: string): string => `${key}Factory`;
 
       const members = [
@@ -437,7 +440,7 @@ export function factories(options: FactoriesGeneratorOptions = {}): Generator {
       const contents = [
         HEADER,
         `import type { Factory } from ${JSON.stringify(runtime)};`,
-        `import { defineFactory${usesPath ? ", factoryPath" : ""} } from ${JSON.stringify(runtime)};`,
+        `import { ${["defineFactory", ...(usesPath ? ["factoryPath"] : []), ...(usesTime ? ["factoryTime"] : [])].join(", ")} } from ${JSON.stringify(runtime)};`,
         "",
         `import type { InsertOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
         ...lines.flatMap((line) => [

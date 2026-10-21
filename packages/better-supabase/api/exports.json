@@ -6563,11 +6563,14 @@
   },
   "./blocks/parties": {
     "values": [
+      "companyInputSchema",
       "createParties",
       "dbTransport",
       "extendBlock",
       "partiesBlock",
       "partiesEvents",
+      "partyListFilterSchema",
+      "personInputSchema",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -6654,6 +6657,8 @@
     "values": [
       "createDeals",
       "dbTransport",
+      "dealChangeSchema",
+      "dealInputSchema",
       "dealsBlock",
       "dealsEvents",
       "extendBlock",
@@ -6871,6 +6876,8 @@
     "values": [
       "createEmployees",
       "dbTransport",
+      "employeeChangeSchema",
+      "employeeInputSchema",
       "employeesBlock",
       "employeesEvents",
       "extendBlock",
@@ -7355,6 +7362,7 @@
       "extendBlock",
       "PRODUCT_KINDS",
       "PRODUCT_STATUSES",
+      "productInputSchema",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -7951,6 +7959,7 @@
       "expectInstant",
       "expectTenantIsolation",
       "factoryPath",
+      "factoryTime",
       "isSeed",
       "isTenantSeed",
       "liteStack",

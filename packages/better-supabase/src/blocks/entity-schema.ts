@@ -1,3 +1,4 @@
+import type { Money } from "../commerce/money.ts";
 import type {
   FieldSpec,
   TableSchema,
@@ -72,3 +73,17 @@ export type BlockSchemas = Readonly<Record<string, EntitySchemas>>;
 export function entitySchema<T>(spec: EntitySchemaSpec<T>): EntitySchema<T> {
   return { ...tableSchema<T>(spec), spec };
 }
+
+const MONEY: EntitySchema<Money> = entitySchema<Money>({
+  title: "Money",
+  fields: {
+    amount: { kind: "bigint", description: "The amount in minor units." },
+    currency: { kind: "string", minLength: 3, maxLength: 3 },
+  },
+});
+
+/** A `Money` field: an amount in minor units and an ISO 4217 code. */
+export const moneyField: {
+  readonly kind: "custom";
+  readonly schema: EntitySchema<Money>;
+} = { kind: "custom", schema: MONEY };
