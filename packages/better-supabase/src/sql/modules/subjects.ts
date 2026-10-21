@@ -223,6 +223,182 @@ function summaryBranch(section: SummarySection): string {
   end if;`;
 }
 
+/** The most items one `my_work` call returns. */
+const MAX_WORK_ITEMS = 200;
+
+/**
+ * The `my_work` branches, one per installed managed module whose rows wait on
+ * the caller. Each selects `kind, subject_type, subject_id, ref, title, at`; a
+ * null title falls back to `subject_title`.
+ */
+function workBranches(ctx: ModuleContext): readonly string[] {
+  const of = (module: string): ModuleContext | undefined =>
+    ctx.installed(module) && ctx.of(module).mode !== "custom"
+      ? ctx.of(module)
+      : undefined;
+
+  const tenant = (column: string): string =>
+    `(my_work.tenant is null or ${column} = my_work.tenant)`;
+
+  const work = of("work-items");
+  const approvals = of("approvals");
+  const reminders = of("reminders");
+  const comments = of("comments");
+  const sla = of("sla");
+  const branches: string[] = [];
+
+  const workType =
+    work === undefined
+      ? undefined
+      : sqlString(
+          work.resolved.entities["work_item"]?.to.singular ?? "work_item",
+        );
+
+  if (work !== undefined && workType !== undefined) {
+    const w = (column: string): string => `i.${work.col("items", column)}`;
+
+    branches.push(`select 'assigned'::text, ${workType}::text, ${w("id")}::text, ${w("id")}::text, ${w("title")}::text,
+      coalesce(${w("dueAt")}, a.${work.col("assignees", "createdAt")})
+    from ${work.table("assignees")} a
+    join ${work.table("items")} i on ${w("id")} = a.${work.col("assignees", "item")}
+    where a.${work.col("assignees", "user")} = v_me
+      and ${w("state")} not in ('completed', 'canceled')
+      and ${w("archivedAt")} is null
+      and ${tenant(w("tenant"))}`);
+  }
+
+  if (approvals !== undefined) {
+    const r = (column: string): string =>
+      `r.${approvals.col("requests", column)}`;
+
+    branches.push(`select 'approval'::text, ${r("subjectType")}::text, ${r("subjectId")}::text, ${r("id")}::text, null::text,
+      ${r("createdAt")}
+    from ${approvals.table("requests")} r
+    where ${r("status")} = 'pending'
+      and (${r("expiresAt")} is null or ${r("expiresAt")} > now())
+      and ${tenant(r("tenant"))}
+      and ${approvals.fn("approval_eligible")}(${r("id")})`);
+  }
+
+  if (reminders !== undefined) {
+    branches.push(`select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
+    from ${ctx.fn("my_reminders_due")}(my_work.tenant) d
+    where ${ctx.fn("can_subject")}(d.subject_type, d.subject_id, 'read')`);
+  }
+
+  if (comments !== undefined) {
+    const c = (column: string): string =>
+      `c.${comments.col("comments", column)}`;
+
+    branches.push(`select 'mention'::text, ${c("subjectType")}::text, ${c("subjectId")}::text, ${c("id")}::text, null::text,
+      ${c("createdAt")}
+    from ${comments.table("comments")} c
+    where v_me = any (${c("mentions")})
+      and ${c("deletedAt")} is null
+      and ${c("createdAt")} > now() - interval '30 days'
+      and ${tenant(c("tenant"))}`);
+  }
+
+  if (sla !== undefined && work !== undefined && workType !== undefined) {
+    const k = (column: string): string => `k.${sla.col("clocks", column)}`;
+
+    branches.push(`select 'sla'::text, ${k("subjectType")}::text, ${k("subjectId")}::text, ${k("id")}::text, null::text,
+      ${k("dueAt")}
+    from ${sla.table("clocks")} k
+    where ${k("subjectType")} = ${workType}
+      and ${k("warnedAt")} is not null
+      and ${k("metAt")} is null
+      and ${tenant(k("tenant"))}
+      and exists (
+        select 1 from ${work.table("assignees")} a
+        where a.${work.col("assignees", "item")}::text = ${k("subjectId")}::text
+          and a.${work.col("assignees", "user")} = v_me)`);
+  }
+
+  return branches;
+}
+
+/** `my_work` and the reminders it reads through a definer helper. */
+function myWork(ctx: ModuleContext): string {
+  const fn = (name: string): string => ctx.fn(name);
+  const branches = workBranches(ctx);
+
+  const reminders =
+    ctx.installed("reminders") && ctx.of("reminders").mode !== "custom"
+      ? ctx.of("reminders")
+      : undefined;
+
+  const helper =
+    reminders === undefined
+      ? ""
+      : `
+-- The caller's own reminders sent in the last week, for my_work. Reminders
+-- have no read policy, so this reads them past it, keeping only the caller's.
+create or replace function ${fn("my_reminders_due")}(tenant ${ctx.idType} default null)
+returns table (reminder uuid, subject_type text, subject_id text, at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.${reminders.col("reminders", "id")}, r.${reminders.col("reminders", "subjectType")}::text,
+    r.${reminders.col("reminders", "subjectId")}::text, max(d.${reminders.col("deliveries", "occurrenceAt")})
+  from ${reminders.table("reminders")} r
+  join ${reminders.table("deliveries")} d on d.${reminders.col("deliveries", "reminder")} = r.${reminders.col("reminders", "id")}
+  where r.${reminders.col("reminders", "user")} = (select auth.uid())
+    and (my_reminders_due.tenant is null or r.${reminders.col("reminders", "tenant")} = my_reminders_due.tenant)
+    and d.${reminders.col("deliveries", "sentAt")} > now() - interval '7 days'
+  group by 1, 2, 3
+$$;
+${userGrant(`${fn("my_reminders_due")}(${ctx.idType})`)}
+`;
+
+  const body =
+    branches.length === 0
+      ? "  return '[]'::jsonb;"
+      : `  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'kind', w.kind,
+      'subject', jsonb_build_object('type', w.subject_type, 'id', w.subject_id),
+      'ref', w.ref,
+      'title', coalesce(w.title, ${fn("subject_title")}(w.subject_type, w.subject_id)),
+      'url', ${fn("subject_url")}(w.subject_type, w.subject_id),
+      'at', w.at
+    ) order by w.at desc nulls last, w.kind, w.ref), '[]'::jsonb)
+    from (
+      select * from (
+    ${branches.join("\n    union all\n    ")}
+      ) u (kind, subject_type, subject_id, ref, title, at)
+      order by u.at desc nulls last, u.kind, u.ref
+      limit least(greatest(coalesce(my_work.page_size, 50), 1), ${MAX_WORK_ITEMS})
+    ) w
+  );`;
+
+  return `${helper}
+-- What waits on the caller across the installed blocks, newest first: open
+-- work items assigned to them, approvals they can decide, their reminders
+-- sent this week, mentions from the last 30 days and SLA clocks warned on
+-- their work items. Runs as the caller, so each row is one they can read.
+create or replace function ${fn("my_work")}(tenant ${ctx.idType} default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then
+    return '[]'::jsonb;
+  end if;
+${body}
+end;
+$$;
+${userGrant(`${fn("my_work")}(${ctx.idType}, integer)`)}
+`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -419,7 +595,7 @@ exception
 end;
 $$;
 ${serviceGrant(`${fn("can_subject_for")}(uuid, text, text, text)`)}
-`;
+${myWork(ctx)}`;
 }
 
 function contract(): readonly ModuleContractFunction[] {
@@ -439,6 +615,7 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["uuid", "text", "text", "text"],
       returns: "boolean",
     },
+    { name: "my_work", args: ["{id}", "integer"], returns: "jsonb" },
   ];
 }
 
@@ -447,9 +624,16 @@ export const SUBJECTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, and my_work across the installed blocks.",
   requires: ["access"],
-  integrates: ["comments", "attachments"],
+  integrates: [
+    "comments",
+    "attachments",
+    "work-items",
+    "approvals",
+    "reminders",
+    "sla",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

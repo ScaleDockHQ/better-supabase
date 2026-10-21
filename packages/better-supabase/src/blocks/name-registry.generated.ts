@@ -1064,7 +1064,7 @@ export interface BlockNameRegistry {
   };
   readonly "subjects": {
     readonly tables: {};
-    readonly functions: "can_subject" | "can_subject_for" | "record_summary" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "can_subject" | "can_subject_for" | "my_work" | "record_summary" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

@@ -1055,7 +1055,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "comments",
-        "attachments"
+        "attachments",
+        "work-items",
+        "approvals",
+        "reminders",
+        "sla"
       ],
       "manifest": "subjects",
       "scopes": [
