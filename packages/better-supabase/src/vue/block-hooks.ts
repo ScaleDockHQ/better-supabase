@@ -11,7 +11,7 @@ import type {
   BlockQueryOptions,
   BlockQueryState,
 } from "../blocks/block-controller.ts";
-import type { VueController } from "../blocks/vue-controller.ts";
+import type { VueController } from "../blocks/vue-bind.ts";
 import type {
   BlockEvent,
   BlockEventPattern,
@@ -24,7 +24,7 @@ import {
   createBlockQuery,
   listenToBlockEvents,
 } from "../blocks/block-controller.ts";
-import { useBlockController } from "../blocks/vue-controller.ts";
+import { bindVueController } from "../blocks/vue-bind.ts";
 import { onClient } from "./context.ts";
 
 /**
@@ -40,11 +40,7 @@ export function useBlockQuery<
   args: BlockArgsOf<C, K>,
   options: BlockQueryOptions = {},
 ): VueController<BlockQueryState<BlockDataOf<C, K>>, BlockQueryActions> {
-  return useBlockController(
-    () => createBlockQuery(client, method, args, options),
-    {},
-    false,
-  );
+  return bindVueController(createBlockQuery(client, method, args, options));
 }
 
 /** Calls a write method of any block client and tracks its state. */
@@ -58,11 +54,7 @@ export function useBlockMutation<
   BlockMutationState<BlockDataOf<C, K>>,
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
 > {
-  return useBlockController(
-    () => createBlockMutation(client, method),
-    {},
-    false,
-  );
+  return bindVueController(createBlockMutation(client, method));
 }
 
 /**

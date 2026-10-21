@@ -1,23 +1,15 @@
-import type { Readable } from "svelte/store";
-
-import { getContext, onDestroy, onMount } from "svelte";
-import { readable } from "svelte/store";
+import { getContext } from "svelte";
 
 import type { ClientLike } from "../bindings/client.ts";
 import type { BlockOptions } from "./block-env.ts";
 import type { Controller } from "./controller.ts";
+import type { SvelteController } from "./svelte-bind.ts";
 
 import { CLIENT } from "../svelte/context.ts";
 import { blockEnv, withEnv } from "./block-env.ts";
+import { bindSvelteController } from "./svelte-bind.ts";
 
-/**
- * A block controller in a Svelte component: a readable store of its state, with
- * its actions.
- */
-export interface SvelteController<S, A> extends Readable<S> {
-  readonly actions: A;
-  readonly controller: Controller<S, A>;
-}
+export type { SvelteController } from "./svelte-bind.ts";
 
 function contextClient(): ClientLike {
   const bound = getContext<{ readonly client: ClientLike } | undefined>(CLIENT);
@@ -41,47 +33,9 @@ export function useBlockController<O, S, A>(
   options: BlockOptions<O>,
   usesEnv = true,
 ): SvelteController<S, A> {
-  const controller = create(
-    withEnv(options, usesEnv ? () => blockEnv(contextClient()) : undefined),
+  return bindSvelteController(
+    create(
+      withEnv(options, usesEnv ? () => blockEnv(contextClient()) : undefined),
+    ),
   );
-
-  let mounted = false;
-  let pending: (() => void) | undefined;
-
-  const store = readable(controller.getSnapshot(), (set) => {
-    let stop: (() => void) | undefined;
-
-    const start = (): void => {
-      stop = controller.subscribe(() => {
-        set(controller.getSnapshot());
-      });
-      set(controller.getSnapshot());
-    };
-
-    if (mounted) {
-      start();
-    } else {
-      pending = start;
-    }
-
-    return () => {
-      pending = undefined;
-      stop?.();
-    };
-  });
-
-  onMount(() => {
-    mounted = true;
-    pending?.();
-    pending = undefined;
-  });
-  onDestroy(() => {
-    controller.dispose();
-  });
-
-  return {
-    subscribe: store.subscribe,
-    actions: controller.actions,
-    controller,
-  };
 }

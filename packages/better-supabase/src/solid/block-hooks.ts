@@ -11,7 +11,7 @@ import type {
   BlockQueryOptions,
   BlockQueryState,
 } from "../blocks/block-controller.ts";
-import type { SolidController } from "../blocks/solid-controller.ts";
+import type { SolidController } from "../blocks/solid-bind.ts";
 import type {
   BlockEvent,
   BlockEventPattern,
@@ -24,7 +24,7 @@ import {
   createBlockQuery,
   listenToBlockEvents,
 } from "../blocks/block-controller.ts";
-import { useBlockController } from "../blocks/solid-controller.ts";
+import { bindSolidController } from "../blocks/solid-bind.ts";
 
 /**
  * Calls a read method of any block client (`blocks.tasks.list`, renamed or not)
@@ -39,11 +39,7 @@ export function useBlockQuery<
   args: BlockArgsOf<C, K>,
   options: BlockQueryOptions = {},
 ): SolidController<BlockQueryState<BlockDataOf<C, K>>, BlockQueryActions> {
-  return useBlockController(
-    () => createBlockQuery(client, method, args, options),
-    {},
-    false,
-  );
+  return bindSolidController(createBlockQuery(client, method, args, options));
 }
 
 /** Calls a write method of any block client and tracks its state. */
@@ -57,11 +53,7 @@ export function useBlockMutation<
   BlockMutationState<BlockDataOf<C, K>>,
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
 > {
-  return useBlockController(
-    () => createBlockMutation(client, method),
-    {},
-    false,
-  );
+  return bindSolidController(createBlockMutation(client, method));
 }
 
 /**

@@ -17,7 +17,7 @@ import type { GeneratedBlocks } from "./block-config.ts";
 import type { AnyBlock, ClientOf } from "./define-block.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
-import { onBlockEvent } from "../core/block-events.ts";
+import { onBlockEvent } from "../core/block-event-listener.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { withBlockHooks, wrapTransport } from "../core/block-hooks.ts";
 import { blockNames } from "../core/block-names.ts";

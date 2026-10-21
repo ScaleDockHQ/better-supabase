@@ -14,7 +14,7 @@ import type {
 } from "./block-method.ts";
 import type { Controller } from "./controller.ts";
 
-import { onBlockEvent } from "../core/block-events.ts";
+import { onBlockEvent } from "../core/block-event-listener.ts";
 import { methodOf } from "./block-method.ts";
 import { defineController } from "./controller.ts";
 

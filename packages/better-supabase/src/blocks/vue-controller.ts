@@ -1,19 +1,12 @@
-import type { ShallowRef } from "vue";
-
-import { getCurrentScope, onScopeDispose, shallowRef } from "vue";
-
 import type { BlockOptions } from "./block-env.ts";
 import type { Controller } from "./controller.ts";
+import type { VueController } from "./vue-bind.ts";
 
-import { onClient, useContext } from "../vue/context.ts";
+import { useContext } from "../vue/context.ts";
 import { blockEnv, withEnv } from "./block-env.ts";
+import { bindVueController } from "./vue-bind.ts";
 
-/** A block controller in a Vue component: `state` follows the controller. */
-export interface VueController<S, A> {
-  readonly state: Readonly<ShallowRef<S>>;
-  readonly actions: A;
-  readonly controller: Controller<S, A>;
-}
+export type { VueController } from "./vue-bind.ts";
 
 /**
  * Makes a controller once and keeps `state` current. Its work starts on mount
@@ -25,27 +18,12 @@ export function useBlockController<O, S, A>(
   options: BlockOptions<O>,
   usesEnv = true,
 ): VueController<S, A> {
-  const controller = create(
-    withEnv(options, usesEnv ? () => blockEnv(useContext().client) : undefined),
+  return bindVueController(
+    create(
+      withEnv(
+        options,
+        usesEnv ? () => blockEnv(useContext().client) : undefined,
+      ),
+    ),
   );
-
-  const state = shallowRef(controller.getSnapshot());
-  let unsubscribe: (() => void) | undefined;
-  onClient(() => {
-    const sync = (): void => {
-      state.value = controller.getSnapshot();
-    };
-
-    unsubscribe = controller.subscribe(sync);
-    sync();
-  });
-
-  if (getCurrentScope()) {
-    onScopeDispose(() => {
-      unsubscribe?.();
-      controller.dispose();
-    });
-  }
-
-  return { state, actions: controller.actions, controller };
 }
