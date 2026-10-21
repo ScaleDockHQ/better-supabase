@@ -1,8 +1,8 @@
 import type { CommandResult, NextStep } from "./io.ts";
 
 /**
- * `1` for a failure or a failed check, `2` for a usage error the caller can
- * fix by changing the command, `3` when the user has to act (give an input,
+ * `1` for a failure or a failed check, `2` for a usage error the caller can fix
+ * by changing the command, `3` when the user has to act (give an input,
  * consent, log in), `130` when the run was interrupted or a prompt cancelled,
  * `143` when it was terminated (SIGTERM), and `65` when `gen --metadata`
  * rejects its input.
@@ -157,7 +157,7 @@ export class CliError extends Error {
   }
 }
 
-/** citty's own argument errors. */
+/** Citty's own argument errors. */
 function isCittyUsageError(cause: unknown): cause is Error {
   return cause instanceof Error && cause.name === "CLIError";
 }
@@ -204,8 +204,8 @@ export const failedResult = (cause: unknown): CommandResult => ({
 });
 
 /**
- * The `values` that `isValid` accepts, or a usage message naming the ones
- * it rejects and the `available` names.
+ * The `values` that `isValid` accepts, or a usage message naming the ones it
+ * rejects and the `available` names.
  */
 export function parseNames<T extends string>(
   values: readonly string[],

@@ -29,6 +29,7 @@ const admit = (s: BlockSession, email: string, code: string | null = null) =>
 
 describe.skipIf(!live)("waitlist", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("queues, approves and admits addresses", async () => {
@@ -238,10 +239,7 @@ describe.skipIf(!live)("waitlist", () => {
       const joined = await signUp(
         s,
         `joined-${crypto.randomUUID().slice(0, 8)}@example.test`,
-        {
-          invite_code: code,
-          name: "Ada",
-        },
+        { invite_code: code, name: "Ada" },
       );
 
       expect(
@@ -300,9 +298,7 @@ describe.skipIf(!live)("waitlist", () => {
       const failed = await signUp(
         s,
         `bad-${crypto.randomUUID().slice(0, 8)}@example.test`,
-        {
-          invite_code: code,
-        },
+        { invite_code: code },
       );
 
       expect(

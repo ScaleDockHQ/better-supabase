@@ -1,7 +1,8 @@
+import type { Jwks } from "../../core/jws.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { Signer } from "../signing-keys/signing-keys.ts";
 
-import { type Jwks, JwsError, verifyCompact } from "../../core/jws.ts";
+import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { isRecord } from "../shared.ts";
 
 /** The `typ` header of a Security Event Token (RFC 8417 §2.3). */
@@ -68,9 +69,9 @@ export const RISC_EVENTS = {
 } as const;
 
 /**
- * An SSF subject identifier (RFC 9493 and SSF §3): `{ format: "email",
- * email }`, `{ format: "iss_sub", iss, sub }`, `{ format: "opaque", id }`,
- * or a complex subject with `user`, `session`, `tenant` and other members.
+ * An SSF subject identifier (RFC 9493 and SSF §3): `{ format: "email", email
+ * }`, `{ format: "iss_sub", iss, sub }`, `{ format: "opaque", id }`, or a
+ * complex subject with `user`, `session`, `tenant` and other members.
  */
 export type SubjectIdentifier = { readonly format: string } & Readonly<
   Record<string, unknown>
@@ -208,9 +209,9 @@ const jwsFailure = (cause: unknown): SetVerification => {
 };
 
 /**
- * Verifies a SET as an RFC 8935 receiver: the signature against `jwks`,
- * `typ`, `iss`, `aud`, `jti`, `iat`, one event and an SSF `sub_id`. A
- * failure carries the error code to answer the transmitter with.
+ * Verifies a SET as an RFC 8935 receiver: the signature against `jwks`, `typ`,
+ * `iss`, `aud`, `jti`, `iat`, one event and an SSF `sub_id`. A failure carries
+ * the error code to answer the transmitter with.
  */
 export async function verifySet(
   token: string,

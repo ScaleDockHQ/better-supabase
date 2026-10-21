@@ -7,6 +7,8 @@ import { Client, Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { RpcClient } from "../../src/core/block-transport.ts";
+import type { RawDbError } from "../../src/core/errors.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { AnyModels } from "../../src/schema/types.ts";
 
@@ -26,13 +28,9 @@ import {
 } from "../../src/blocks/jobs/index.ts";
 import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
-import {
-  rpcTransport,
-  sqlTransport,
-  type RpcClient,
-} from "../../src/core/block-transport.ts";
+import { rpcTransport, sqlTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { mapDbError, type RawDbError } from "../../src/core/errors.ts";
+import { mapDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
@@ -91,8 +89,8 @@ const quoted = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 
 /**
  * Answers `rpc` the way PostgREST does for the service role: named arguments,
- * JSON for objects, an array for a set-returning function and the value for
- * any other.
+ * JSON for objects, an array for a set-returning function and the value for any
+ * other.
  */
 function postgrestOver(pool: Pool): RpcClient {
   return {
@@ -224,6 +222,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       select better_supabase.audit('${table}', ignore => '{updated_at}');
     `);
   });
+
   afterAll(async () => {
     // The suite shares the local database. Installing `tenant` replaces the
     // fixture helpers, which the other integration tests read the JWT and
@@ -458,7 +457,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `bs_grants_${RUN}`;
 
     const read = async (): Promise<Response> => {
-      for (let attempt = 0; ; attempt++) {
+      for (let attempt = 0; ; attempt += 1) {
         const response = await fetch(`${url}/rest/v1/${name}?select=id`, {
           headers: { apikey: publishableKey },
         });
@@ -1686,7 +1685,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         data: { object: { customer } },
       }).orThrow();
 
-      expect([...invalidate].sort()).toEqual([member, expired].sort());
+      expect(invalidate.toSorted()).toEqual([member, expired].toSorted());
     } finally {
       // Put back the tenant-mode functions the other suites expect.
       await pool.query(
@@ -1868,9 +1867,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const jobs = createJobs({
       sql: postgres.admin,
-      queues: {
-        [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
-      },
+      queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
 
     const invalid = await jobs.enqueue(queue, { to: "nope" });
@@ -1901,9 +1898,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const other = createJobs({
       sql: postgres.admin,
-      queues: {
-        [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
-      },
+      queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
 
     const [mine, theirs] = await Promise.all([
@@ -2011,9 +2006,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const jobs = createJobs({
       sql: postgres.admin,
-      queues: {
-        [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
-      },
+      queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
 
     const context = {
@@ -2047,9 +2040,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const jobs = createJobs({
       sql: postgres.admin,
-      queues: {
-        [queue]: v.object({ kind: v.string() }),
-      },
+      queues: { [queue]: v.object({ kind: v.string() }) },
     });
 
     const name = `bs-module-${RUN}`;
@@ -2072,9 +2063,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const jobs = createJobs({
       sql: postgres.admin,
-      queues: {
-        [queue]: v.object({ n: v.number() }),
-      },
+      queues: { [queue]: v.object({ n: v.number() }) },
     });
 
     for (const n of [1, 2, 3, 4]) {
@@ -2106,9 +2095,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const check = async (queue: string) => {
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ id: v.string() }),
-        },
+        queues: { [queue]: v.object({ id: v.string() }) },
       });
 
       const waiting = { dedupeKey: "p1", dedupe: "waiting" } as const;
@@ -2127,11 +2114,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await jobs.enqueue(queue, { id: "4" }, waiting).orThrow()).toBe(
         followUp,
       );
-      expect(
-        [first, followUp].includes(
-          await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
-        ),
-      ).toBe(true);
+      expect([first, followUp]).toContain(
+        await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
+      );
       await jobs.complete(running!).orThrow();
       const [next] = await jobs.claim(queue).orThrow();
       expect(next!.id).toBe(followUp);
@@ -2169,9 +2154,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const jobs = createJobs({
       sql: postgres.admin,
-      queues: {
-        [queue]: v.object({ n: v.number() }),
-      },
+      queues: { [queue]: v.object({ n: v.number() }) },
     });
 
     const first = await jobs
@@ -2210,17 +2193,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       const transport = rpcTransport(postgrestOver(pool), { schema: api });
       await testQueueBackend(
         transportQueueBackend(transport, { schema: api }),
-        {
-          queue: `block_${RUN}_rpc`,
-        },
+        { queue: `block_${RUN}_rpc` },
       );
       const queue = `block_${RUN}_rpc_jobs`;
 
       const jobs = createJobs({
         transport,
-        queues: {
-          [queue]: v.object({ n: v.number() }),
-        },
+        queues: { [queue]: v.object({ n: v.number() }) },
       });
 
       await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
@@ -2301,9 +2280,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ to: v.string() }),
-        },
+        queues: { [queue]: v.object({ to: v.string() }) },
       });
 
       const first = await jobs
@@ -2317,9 +2294,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       const other = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ to: v.string() }),
-        },
+        queues: { [queue]: v.object({ to: v.string() }) },
       });
 
       const [mine, theirs] = await Promise.all([
@@ -2389,9 +2364,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           "0 9 * * *",
           queue,
           { to: "digest" },
-          {
-            timeZone: "Europe/Amsterdam",
-          },
+          { timeZone: "Europe/Amsterdam" },
         )
         .orThrow();
 
@@ -2462,9 +2435,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     try {
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ report: v.string() }),
-        },
+        queues: { [queue]: v.object({ report: v.string() }) },
       });
 
       await jobs
@@ -2579,9 +2550,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     try {
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ report: v.string() }),
-        },
+        queues: { [queue]: v.object({ report: v.string() }) },
       });
 
       const set = (reports: readonly string[]) =>
@@ -2675,9 +2644,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ n: v.number() }),
-        },
+        queues: { [queue]: v.object({ n: v.number() }) },
       });
 
       expect(await jobs.runSchedules().orThrow()).toBe(0);
@@ -2771,9 +2738,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ id: v.string() }),
-        },
+        queues: { [queue]: v.object({ id: v.string() }) },
       });
 
       const seen: string[] = [];
@@ -2847,9 +2812,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const check = async (queue: string) => {
       const jobs = createJobs({
         sql: postgres.admin,
-        queues: {
-          [queue]: v.object({ n: v.number() }),
-        },
+        queues: { [queue]: v.object({ n: v.number() }) },
       });
 
       expect((await jobs.stats().orThrow())[queue]).toEqual({
@@ -3106,9 +3069,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
           createJobs({
             sql: ctx.postgresAdmin,
-            queues: {
-              [queue]: v.object({ n: v.number() }),
-            },
+            queues: { [queue]: v.object({ n: v.number() }) },
           }),
         ),
         withBlock(
@@ -3219,7 +3180,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     expect(result).toEqual({ succeeded: 1, failed: 1 });
-    expect(types.sort()).toEqual(["invoice.failed", "invoice.paid"]);
+    expect(types.toSorted()).toEqual(["invoice.failed", "invoice.paid"]);
     expect(await inbox.process(() => undefined)).toEqual({
       succeeded: 0,
       failed: 0,
@@ -4248,9 +4209,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }
 
       for (const file of renderModules(["audit", "access"], {
-        modules: {
-          audit: { options: { restricted: true, readPolicy: true } },
-        },
+        modules: { audit: { options: { restricted: true, readPolicy: true } } },
       })) {
         if (file.kind === "schema" && file.module === "audit") {
           await client.query(file.contents);
@@ -4308,12 +4267,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       expect(older.map((item) => item.id)).toEqual([entries[1]!.id]);
       expect(
-        (
-          await list({
-            for_target_types: [name],
-            ascending: true,
-          })
-        ).map((item) => item.id),
+        (await list({ for_target_types: [name], ascending: true })).map(
+          (item) => item.id,
+        ),
       ).toEqual([entries[1]!.id, entries[0]!.id]);
       expect(
         (await list({ for_target_types: [name], search: "fin" })).map(
@@ -5308,7 +5264,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         })
         .toBe(200);
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 3; i += 1) {
         expect((await call("POST", `${probe}_read`)).status).toBe(200);
       }
 

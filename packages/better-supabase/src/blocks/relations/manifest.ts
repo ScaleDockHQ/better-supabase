@@ -14,9 +14,7 @@ export const relationsBlock: BlockOf<
 > = defineBlock({
   name: "relations",
   sql: ["relations"],
-  options: {
-    relations: relationsSqlOptions,
-  },
+  options: { relations: relationsSqlOptions },
   events: relationsEvents,
   create: createRelations,
   category: "work",

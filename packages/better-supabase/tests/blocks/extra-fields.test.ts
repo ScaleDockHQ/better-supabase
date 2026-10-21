@@ -90,10 +90,7 @@ describe("block fields", () => {
       priority: "urgent" as "low",
     });
 
-    expect(refused).toMatchObject({
-      ok: false,
-      error: { kind: "validation" },
-    });
+    expect(refused).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(fake.calls).toHaveLength(1);
   });
 
@@ -393,7 +390,7 @@ describe("block fields", () => {
     const inbox = createWebhookInbox({
       transport: {
         call: (schema, fn, args) =>
-          fn === "claim_webhooks" && claimed++ > 0
+          fn === "claim_webhooks" && (claimed += 1) > 1
             ? Promise.resolve([])
             : fake.transport.call(schema, fn, args),
       },

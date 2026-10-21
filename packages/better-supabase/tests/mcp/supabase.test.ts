@@ -4,6 +4,7 @@ import {
 } from "@modelcontextprotocol/client";
 import { describe, expect, it, vi } from "vitest";
 
+import type { SupabaseMcpModule } from "../../src/core/supabase-mcp.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
@@ -12,7 +13,6 @@ import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
   loadSupabaseMcp,
   loadSupabaseMcpPlatform,
-  type SupabaseMcpModule,
 } from "../../src/core/supabase-mcp.ts";
 import { createMcpAuth, supabaseMcpHandler } from "../../src/mcp/sdk/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -154,11 +154,9 @@ describe("supabaseMcpHandler", () => {
     ]);
     await client.close();
     expect(tokens.every((token) => token === "sbp_test")).toBe(true);
-    expect(getToken).toHaveBeenCalledWith(REF, {
-      subject: { type: "app" },
-    });
+    expect(getToken).toHaveBeenCalledWith(REF, { subject: { type: "app" } });
     await vi.waitFor(() => {
-      expect(closed).toHaveBeenCalled();
+      expect(closed).toHaveBeenCalledWith();
     });
   });
 

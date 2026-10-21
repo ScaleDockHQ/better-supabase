@@ -2,7 +2,9 @@ import type { Item, Root } from "fumadocs-core/page-tree";
 
 import { describe, expect, it } from "vitest";
 
-import { formatLLMIndex, type LLMIndexOptions } from "../../lib/llms";
+import type { LLMIndexOptions } from "../../lib/llms";
+
+import { formatLLMIndex } from "../../lib/llms";
 
 const page = (name: string, url: string): Item => ({ type: "page", name, url });
 
@@ -17,11 +19,7 @@ const tree: Root = {
       index: page("Overview", "/docs/guides"),
       children: [page("Data [API] grants", "/docs/guides/data-api-grants")],
     },
-    {
-      type: "folder",
-      name: "CLI",
-      children: [page("gen", "/docs/cli/gen")],
-    },
+    { type: "folder", name: "CLI", children: [page("gen", "/docs/cli/gen")] },
     {
       type: "page",
       name: "GitHub",

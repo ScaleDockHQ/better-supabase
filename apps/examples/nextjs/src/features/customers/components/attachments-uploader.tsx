@@ -1,9 +1,11 @@
 "use client";
 
+import type { ChangeEvent } from "react";
+
 import { useAction } from "better-supabase/react";
 import { DownloadIcon, PaperclipIcon, UploadIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { type ChangeEvent, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
@@ -88,8 +90,8 @@ const VARIANT = {
 
 /**
  * Files on the customer, in the private `attachments` bucket. The server
- * records each file and signs a one-time upload; the browser sends the
- * bytes. A file downloads once the scanner marked it clean.
+ * records each file and signs a one-time upload; the browser sends the bytes. A
+ * file downloads once the scanner marked it clean.
  */
 export function AttachmentsUploader({
   customerId,

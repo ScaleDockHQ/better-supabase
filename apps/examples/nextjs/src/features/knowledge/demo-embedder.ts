@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- the demo hash folds characters into a 32-bit integer. */
+
 import type { Embedder } from "better-supabase/blocks/knowledge";
 
 /** `blocks["vector-search"]` stores 1536 dimensions by default. */

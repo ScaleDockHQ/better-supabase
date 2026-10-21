@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_SEAL_INFO,
@@ -18,7 +18,7 @@ const SECRET = "a-cookie-secret-of-at-least-32-characters";
 const session = { accessToken: "a", refreshToken: "r", expiresAt: 1000 };
 
 describe("seal and unseal", () => {
-  test("round-trip with a custom info", async () => {
+  it("round-trip with a custom info", async () => {
     const sealed = await seal(session, SECRET, "app vercel session");
 
     await expect(
@@ -26,7 +26,7 @@ describe("seal and unseal", () => {
     ).resolves.toStrictEqual(session);
   });
 
-  test("a value sealed with one info doesn't open with another", async () => {
+  it("a value sealed with one info doesn't open with another", async () => {
     const sealed = await seal(session, SECRET, "app vercel session");
 
     await expect(
@@ -38,7 +38,7 @@ describe("seal and unseal", () => {
     ).resolves.toBeUndefined();
   });
 
-  test("the default info opens cookies the Supabase helpers sealed", async () => {
+  it("the default info opens cookies the Supabase helpers sealed", async () => {
     const sealed = await supabase.seal(session, SECRET);
 
     await expect(
@@ -48,11 +48,11 @@ describe("seal and unseal", () => {
 });
 
 describe("isOAuthSession", () => {
-  test("accepts a session without a refresh token", () => {
+  it("accepts a session without a refresh token", () => {
     expect(isOAuthSession({ accessToken: "a", expiresAt: 1 })).toBe(true);
   });
 
-  test("rejects a wrong shape", () => {
+  it("rejects a wrong shape", () => {
     expect(isOAuthSession({ accessToken: "a" })).toBe(false);
     expect(
       isOAuthSession({ accessToken: "a", expiresAt: 1, refreshToken: 2 }),
@@ -61,7 +61,7 @@ describe("isOAuthSession", () => {
 });
 
 describe("the Supabase aliases", () => {
-  test("re-export the same functions", () => {
+  it("re-export the same functions", () => {
     expect(supabase.isSession).toBe(isOAuthSession);
     expect(supabase.isFlow).toBe(isFlow);
     expect(supabase.needsRefresh).toBe(needsRefresh);

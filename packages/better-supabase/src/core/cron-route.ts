@@ -1,9 +1,7 @@
+import type { ProblemFormat } from "./problem.ts";
+
 import { dbError } from "./errors.ts";
-import {
-  methodNotAllowed,
-  type ProblemFormat,
-  problemResponse,
-} from "./problem.ts";
+import { methodNotAllowed, problemResponse } from "./problem.ts";
 import { verifySharedSecret } from "./signatures.ts";
 
 /** What a cron route needs to guard its handler. */

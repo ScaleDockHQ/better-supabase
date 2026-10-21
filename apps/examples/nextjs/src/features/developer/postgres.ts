@@ -1,27 +1,17 @@
 import "server-only";
+import type { Result } from "better-supabase";
 import type { AuthSession } from "better-supabase/next";
+import type { BetterPostgres, SqlClaims } from "better-supabase/postgres";
 
-import {
-  dbError,
-  err,
-  mapDbError,
-  ok,
-  type Result,
-  toDbError,
-} from "better-supabase";
-import {
-  type BetterPostgres,
-  createPostgres,
-  fromPgError,
-  type SqlClaims,
-} from "better-supabase/postgres";
+import { dbError, err, mapDbError, ok, toDbError } from "better-supabase";
+import { createPostgres, fromPgError } from "better-supabase/postgres";
 
 let pool: BetterPostgres | undefined;
 
 /**
- * A direct Postgres connection for module tables the Data API doesn't
- * expose (`better_supabase.*`, `pgmq.*`). It shares `WORKFLOW_POSTGRES_URL`
- * with the Workflow SDK; `null` when that is unset.
+ * A direct Postgres connection for module tables the Data API doesn't expose
+ * (`better_supabase.*`, `pgmq.*`). It shares `WORKFLOW_POSTGRES_URL` with the
+ * Workflow SDK; `null` when that is unset.
  */
 export function postgres(): BetterPostgres | null {
   const connectionString = process.env["WORKFLOW_POSTGRES_URL"];

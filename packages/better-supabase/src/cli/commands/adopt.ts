@@ -2,32 +2,33 @@ import { readFile } from "node:fs/promises";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
+import type { AdoptProposal, ExistingTable } from "../sql/adopt.ts";
+import type { ConfigEdit } from "../sql/config-edit.ts";
+import type { Paint } from "../style.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { applyPlan, type FilePlan, planResult } from "../core/files.ts";
+import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { latestMigrationVersion } from "../doctor/migration-safety.ts";
 import { toCatalog } from "../introspect/index.ts";
 import {
-  type AdoptProposal,
   describeProposal,
-  type ExistingTable,
   existingTables,
   proposeAdoption,
 } from "../sql/adopt.ts";
 import {
-  type ConfigEdit,
   setBlockInConfig,
   setBlockInJson,
   setPathInConfig,
   setPathInJson,
 } from "../sql/config-edit.ts";
-import { type Paint, plain } from "../style.ts";
+import { plain } from "../style.ts";
 import { blockNames } from "./blocks.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";

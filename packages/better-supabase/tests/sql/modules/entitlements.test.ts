@@ -7,10 +7,9 @@ import { renderModules } from "../../../src/sql/render.ts";
 const entitlements = (
   source: "stripe-sync" | "custom" | EntitlementPlansSource,
 ) =>
-  renderModules(["entitlements"], {
-    entitlements: { key: "id", source },
-  }).find((file) => file.module === "entitlements" && file.kind === "schema")!
-    .contents;
+  renderModules(["entitlements"], { entitlements: { key: "id", source } }).find(
+    (file) => file.module === "entitlements" && file.kind === "schema",
+  )!.contents;
 
 const PLANS: EntitlementPlansSource = {
   plans: {

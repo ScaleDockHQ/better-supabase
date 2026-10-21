@@ -1,46 +1,48 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import {
-  applyTemporal,
-  blockCall,
-  type BlockTemporalOptions,
-  isRecord,
-} from "../shared.ts";
+import { applyTemporal, blockCall, isRecord } from "../shared.ts";
 
 export interface ProfilesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the profile columns the app adds
-   * (`blocks.profiles.options.extraColumns`), keyed by database name.
-   * It types and parses them on `mine()`, and validates them on
-   * `updateMine`, which returns a `validation` error for a bad value. The
-   * parsed fields are merged over the row, so the other columns stay.
+   * (`blocks.profiles.options.extraColumns`), keyed by database name. It types
+   * and parses them on `mine()`, and validates them on `updateMine`, which
+   * returns a `validation` error for a bad value. The parsed fields are merged
+   * over the row, so the other columns stay.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `mine` and `updateMine`. */
   readonly hooks?: NoInfer<BlockHooks<Profiles<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
-  /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
+  /**
+   * Error mappers that run before the built-in ones, as in
+   * `betterSupabase.mapError()`.
+   */
   readonly mappers?: readonly ErrorMapper[];
 }
 
-/** The caller's profile columns, by database name; `F` types the ones `fields` describes. */
+/**
+ * The caller's profile columns, by database name; `F` types the ones `fields`
+ * describes.
+ */
 export type Profile<F extends object = Record<never, never>> = Readonly<
   Record<string, unknown>
 > &

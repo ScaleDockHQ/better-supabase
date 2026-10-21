@@ -5,11 +5,12 @@ import type {
 
 import { describe, expect, it } from "vitest";
 
-import {
-  type FieldSpec,
-  tableSchema,
-  type TableSchemaSpec,
+import type {
+  FieldSpec,
+  TableSchemaSpec,
 } from "../../src/core/table-schema.ts";
+
+import { tableSchema } from "../../src/core/table-schema.ts";
 
 type Row = Record<string, unknown>;
 

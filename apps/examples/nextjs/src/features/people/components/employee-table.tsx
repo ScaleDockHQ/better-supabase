@@ -1,8 +1,9 @@
 "use client";
 
 import type { EmployeeStatus } from "better-supabase/blocks/employees";
+import type { ActionHandle } from "better-supabase/react";
 
-import { type ActionHandle, useAction } from "better-supabase/react";
+import { useAction } from "better-supabase/react";
 import { SearchIcon, SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useDeferredValue, useState } from "react";
@@ -138,8 +139,8 @@ function PrivateDetails({
 }
 
 /**
- * The directory rows, indented under their manager, filtered by name,
- * title or email as you type.
+ * The directory rows, indented under their manager, filtered by name, title or
+ * email as you type.
  */
 export function EmployeeTable({
   employees,

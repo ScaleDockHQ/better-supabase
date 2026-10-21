@@ -40,10 +40,10 @@ type FlagValues =
   | { readonly kind: "no-organization" };
 
 /**
- * Each flag as `flag_enabled` answers it for the active organization, with
- * its rules and overrides. Changing a flag is for platform staff
- * (`flags.manage`), so the list only reads. A failed read throws, so it is
- * never cached and Retry reads again.
+ * Each flag as `flag_enabled` answers it for the active organization, with its
+ * rules and overrides. Changing a flag is for platform staff (`flags.manage`),
+ * so the list only reads. A failed read throws, so it is never cached and Retry
+ * reads again.
  */
 async function loadFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";

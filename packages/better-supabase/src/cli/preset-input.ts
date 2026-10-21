@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { CreateDesign, Preset } from "../preset/index.ts";
+
 import {
-  type CreateDesign,
   designOf,
   isPresetName,
-  type Preset,
   presetOf,
   readDesignFile,
 } from "../preset/index.ts";
@@ -22,9 +22,9 @@ export interface PresetInputValue {
 const isDesignFilePath = (input: string): boolean => input.endsWith(".json");
 
 /**
- * Reads `--preset`: a named preset, a code, a `/create` URL, or the path of
- * a design file Create downloaded (relative to `root`). Throws a usage
- * error naming the problem.
+ * Reads `--preset`: a named preset, a code, a `/create` URL, or the path of a
+ * design file Create downloaded (relative to `root`). Throws a usage error
+ * naming the problem.
  */
 export async function readPresetInput(
   input: string,

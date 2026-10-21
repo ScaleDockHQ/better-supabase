@@ -1,13 +1,15 @@
+import type { PostgrestPlan } from "../compile/postgrest.ts";
 import type {
   Condition,
   Operation,
   SelectColumn,
   SelectOp,
 } from "../ir/types.ts";
+import type { DbError } from "./errors.ts";
 
-import { listItem, type PostgrestPlan } from "../compile/postgrest.ts";
+import { listItem } from "../compile/postgrest.ts";
 import { lookupOf } from "../schema/lookup.ts";
-import { type DbError, dbError } from "./errors.ts";
+import { dbError } from "./errors.ts";
 
 type Row = Record<string, unknown>;
 
@@ -58,7 +60,10 @@ function isInList(condition: Condition): condition is InCondition {
   );
 }
 
-/** Column types whose order JavaScript reproduces without the database's collation. */
+/**
+ * Column types whose order JavaScript reproduces without the database's
+ * collation.
+ */
 const SORTABLE = new Set([
   "int2",
   "int4",
@@ -121,8 +126,8 @@ export interface ChunkedRead {
  * Splits a read whose query string is over `max` into reads that each fit,
  * along its longest top-level `in` list. Only reads without a limit, offset,
  * count or single row qualify, since chunks can't share those; their rows are
- * disjoint, and an order is re-applied in memory on columns that sort the
- * same in JavaScript.
+ * disjoint, and an order is re-applied in memory on columns that sort the same
+ * in JavaScript.
  */
 export function chunkRead(
   op: SelectOp,
@@ -338,7 +343,8 @@ export function chunkRead(
 
   let used = 0;
   const list = longest;
-  list.values.forEach((value, index) => {
+
+  for (const [index, value] of list.values.entries()) {
     const size = list.sizes[index] ?? 0;
 
     if (current.values.length > 0 && used + size > budget) {
@@ -350,7 +356,7 @@ export function chunkRead(
     current.values.push(value);
     current.texts.push(list.texts[index] ?? "");
     used += size;
-  });
+  }
 
   if (current.values.length > 0) {
     chunks.push(current);
@@ -405,9 +411,9 @@ export function chunkRead(
 }
 
 /**
- * A comparable value, or `undefined` for SQL null. Times compare by
- * instant, which text can't do across offsets, with the microseconds
- * `Date.parse` drops appended.
+ * A comparable value, or `undefined` for SQL null. Times compare by instant,
+ * which text can't do across offsets, with the microseconds `Date.parse` drops
+ * appended.
  */
 function sortValue(
   value: unknown,

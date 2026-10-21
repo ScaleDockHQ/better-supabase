@@ -1,9 +1,9 @@
 /**
- * Syncs the workflow builder's step library and the rule fields, then, in
- * `next dev`, seeds each new organization with demo rows and starts the
- * Supabase World's poller, which delivers queued workflow steps to this
- * server. Deployments use pg_net delivery (`WORKFLOW_DELIVERY=pg_net`) or
- * their own worker instead.
+ * Syncs the workflow builder's step library and the rule fields, then, in `next
+ * dev`, seeds each new organization with demo rows and starts the Supabase
+ * World's poller, which delivers queued workflow steps to this server.
+ * Deployments use pg_net delivery (`WORKFLOW_DELIVERY=pg_net`) or their own
+ * worker instead.
  */
 export async function register(): Promise<void> {
   if (process.env["NEXT_RUNTIME"] !== "nodejs") {

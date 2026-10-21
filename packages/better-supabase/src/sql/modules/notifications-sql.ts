@@ -34,7 +34,10 @@ export interface NotifyNames {
   readonly readPermission: string;
   /** Whether `member_can` answers for users other than the caller. */
   readonly answersForOthers: boolean;
-  /** `options.extraColumns` of the events table, written from `notification.fields`. */
+  /**
+   * `options.extraColumns` of the events table, written from
+   * `notification.fields`.
+   */
   readonly extras: readonly ExtraColumn[];
 }
 
@@ -59,8 +62,8 @@ export function notifyNames(
 const NAME = /^[a-z][a-z0-9_]*$/;
 
 /**
- * The (member, channel) pairs that want this notification, in one query:
- * each pair's most specific preference, or the channel default.
+ * The (member, channel) pairs that want this notification, in one query: each
+ * pair's most specific preference, or the channel default.
  */
 function wanted(ctx: ModuleContext, n: NotifyNames): string {
   const defaults = channelDefaults(ctx, "c");

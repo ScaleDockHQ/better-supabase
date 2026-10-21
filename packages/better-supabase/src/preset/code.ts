@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- a design code packs its fields into one bigint bit field. */
+
 import type { Preset, PresetCodeField, PresetFieldKey } from "./fields.ts";
 
 import { PRESET_BLOCKS } from "./blocks.ts";
@@ -145,9 +147,9 @@ function encodeWith(
 }
 
 /**
- * The preset with one convention set to `value`, checked against the field:
- * a value the field doesn't list throws. For a field that takes several
- * values (`integrations`), `value` switches that one on or off.
+ * The preset with one convention set to `value`, checked against the field: a
+ * value the field doesn't list throws. For a field that takes several values
+ * (`integrations`), `value` switches that one on or off.
  */
 export function withPresetField(
   preset: Preset,
@@ -175,9 +177,9 @@ export function withPresetField(
 }
 
 /**
- * Reads a code from `encodePreset`. A code from an older version decodes
- * with the fields it predates at their defaults, listed in `derived`. A
- * code from a newer release throws, naming the upgrade.
+ * Reads a code from `encodePreset`. A code from an older version decodes with
+ * the fields it predates at their defaults, listed in `derived`. A code from a
+ * newer release throws, naming the upgrade.
  */
 export function decodePreset(
   code: string,
@@ -215,11 +217,12 @@ export function decodePreset(
 
     if (field.multi === true) {
       const list: string[] = [];
-      field.values.forEach((each, index) => {
+
+      for (const [index, each] of field.values.entries()) {
         if ((bits >> BigInt(index)) & 1n) {
           list.push(each);
         }
-      });
+      }
 
       if (bits >> BigInt(field.values.length) !== 0n) {
         newer(code, field.key);
@@ -271,8 +274,8 @@ function newer(code: string, key: string): never {
 }
 
 /**
- * Whether `value` reads as a preset code rather than a preset name: a
- * version character (`1` to `9`, then `A` to `Z`) and base62 digits.
+ * Whether `value` reads as a preset code rather than a preset name: a version
+ * character (`1` to `9`, then `A` to `Z`) and base62 digits.
  */
 export function isPresetCode(value: string): boolean {
   return /^[1-9A-Z][0-9A-Za-z]+$/.test(value);

@@ -42,6 +42,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("Postgres executor", async () => {
   const postgres = createPostgres({ connectionString: dbUrl, max: 4 });
+
   afterAll(() => postgres.end());
 
   const claims = { sub: USER, role: "authenticated", tenant_id: ACME };
@@ -439,11 +440,9 @@ describe.skipIf(!live)("Postgres executor", async () => {
     }
   });
 
-  for (const [name, run] of queries) {
-    it(`matches PostgREST: ${name}`, async () => {
-      expect(await run(sql)).toEqual(await run(rest));
-    });
-  }
+  it.each(queries)("matches PostgREST: %s", async (_name, run) => {
+    expect(await run(sql)).toEqual(await run(rest));
+  });
 
   it("hides other tenants through RLS", async () => {
     const other = betterSupabase.connect(
@@ -454,9 +453,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
           tenant_id: "00000000-0000-4000-8000-000000000002",
         }),
       ),
-      {
-        tenant: "00000000-0000-4000-8000-000000000002",
-      },
+      { tenant: "00000000-0000-4000-8000-000000000002" },
     );
 
     const rows = await other.customers.findMany({ select: ["name"] }).orThrow();

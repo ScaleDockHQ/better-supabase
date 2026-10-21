@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -19,10 +20,8 @@ import type {
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraOf,
-  type FieldsOf,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
@@ -45,10 +44,9 @@ export interface CalendarOptions<
 > {
   /**
    * A Standard Schema for the event columns the app adds
-   * (`blocks.calendar.options.extraColumns`), keyed by column name. It
-   * types and parses them on `events`, and validates them on `save` and
-   * the occurrence edits, which return a `validation` error for a bad
-   * value.
+   * (`blocks.calendar.options.extraColumns`), keyed by column name. It types
+   * and parses them on `events`, and validates them on `save` and the
+   * occurrence edits, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -116,8 +114,8 @@ export interface Calendar<F extends object = Record<never, never>> {
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
   /**
-   * Inserts an event, or updates the one with `id`. Keys besides the
-   * input's own are the event's extra columns.
+   * Inserts an event, or updates the one with `id`. Keys besides the input's
+   * own are the event's extra columns.
    */
   save(
     calendarId: string,
@@ -496,9 +494,7 @@ export function createCalendar<
           dbError(
             "invalid_input",
             cause instanceof Error ? cause.message : String(cause),
-            {
-              hint: "CALENDAR_SPLIT_INVALID",
-            },
+            { hint: "CALENDAR_SPLIT_INVALID" },
           ),
         );
       }
@@ -605,10 +601,7 @@ export function createCalendar<
 
         return toIcs(
           recordsOf(row["events"], "calendar_feed").map(calendarEventOf),
-          {
-            name: textOf(info["name"]),
-            tz: optionalText(info["tz"]) ?? "UTC",
-          },
+          { name: textOf(info["name"]), tz: optionalText(info["tz"]) ?? "UTC" },
         );
       }),
   };

@@ -9,7 +9,10 @@ import type {
 } from "../../credentials/provider.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
-/** A tenant's own key for a provider. The key itself stays in the credential provider. */
+/**
+ * A tenant's own key for a provider. The key itself stays in the credential
+ * provider.
+ */
 export interface AiProviderKey {
   readonly id: string;
   readonly organizationId: string;
@@ -28,7 +31,10 @@ export interface AiProviderKey {
 
 export interface AiProviderKeyInput {
   readonly provider: string;
-  /** Store the key first, for example with `vaultCredentials().set(ref, apiKey)`. */
+  /**
+   * Store the key first, for example with `vaultCredentials().set(ref,
+   * apiKey)`.
+   */
   readonly credentialRef: CredentialRef;
   readonly name?: string;
   readonly settings?: Readonly<Record<string, unknown>>;
@@ -137,7 +143,10 @@ export interface AiProvidersOptions extends BlockTemporalOptions {
   readonly service?: BlockTransport;
   /** Resolves and revokes the keys' credential refs. */
   readonly credentials?: CredentialProvider;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -145,7 +154,10 @@ export interface AiProvidersOptions extends BlockTemporalOptions {
 export interface AiProviders {
   readonly keys: {
     list(organizationId: string): AsyncResult<readonly AiProviderKey[]>;
-    /** Adds or replaces a key (`ai.admin`), and revokes the credential it replaced. */
+    /**
+     * Adds or replaces a key (`ai.admin`), and revokes the credential it
+     * replaced.
+     */
     save(
       organizationId: string,
       key: AiProviderKeyInput,
@@ -153,11 +165,14 @@ export interface AiProviders {
     /** Deletes a key and revokes its credential. `false` when there was none. */
     remove(keyId: string): AsyncResult<boolean>;
     /**
-     * Deletes every key of a tenant and revokes each credential (service
-     * role): the step to run when a tenant is deleted. Returns how many.
+     * Deletes every key of a tenant and revokes each credential (service role):
+     * the step to run when a tenant is deleted. Returns how many.
      */
     removeAll(organizationId: string): AsyncResult<number>;
-    /** The tenant's enabled keys with their tokens, for one request (service role). */
+    /**
+     * The tenant's enabled keys with their tokens, for one request (service
+     * role).
+     */
     resolve(
       organizationId: string,
       options?: {

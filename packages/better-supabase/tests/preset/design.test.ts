@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { CreateDesign } from "../../src/preset/index.ts";
+
 import {
-  type CreateDesign,
   decodeDesign,
   DESIGN_FORMAT,
   designApplyCommand,
@@ -65,7 +66,7 @@ async function deflated(text: string): Promise<string> {
     binary += String.fromCodePoint(byte);
   }
 
-  return `0${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")}`;
+  return `0${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/[=]+$/, "")}`;
 }
 
 describe("design codes", () => {
@@ -418,10 +419,10 @@ describe("designOf", () => {
   });
 
   it("reads nothing from a URL or string without a design", async () => {
-    expect(await designOf("https://bettersupabase.com/create?preset=crm")).toBe(
-      undefined,
-    );
-    expect(await designOf("crm")).toBe(undefined);
+    expect(
+      await designOf("https://bettersupabase.com/create?preset=crm"),
+    ).toBeUndefined();
+    expect(await designOf("crm")).toBeUndefined();
     expect(
       await designOf("https://bettersupabase.com/create?preset=crm&design="),
     ).toEqual({});

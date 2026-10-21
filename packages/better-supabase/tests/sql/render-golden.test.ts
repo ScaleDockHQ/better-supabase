@@ -47,9 +47,7 @@ const VARIANTS: readonly Variant[] = [
     applies: (module) => SQL_MODULES[module]?.modes?.includes("adopt") ?? false,
     modules: (module) => [module],
     layout: (module) => ({
-      modules: {
-        [module]: { mode: "adopt", ...ADOPT_OPTIONS[module] },
-      },
+      modules: { [module]: { mode: "adopt", ...ADOPT_OPTIONS[module] } },
     }),
   },
 ];

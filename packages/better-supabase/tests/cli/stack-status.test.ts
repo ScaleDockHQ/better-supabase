@@ -13,9 +13,7 @@ describe("parseStackStatus", () => {
   it("reads the object after the progress lines", () => {
     expect(
       parseStackStatus('Starting...\n{"API_URL":"http://127.0.0.1:1"}'),
-    ).toEqual({
-      API_URL: "http://127.0.0.1:1",
-    });
+    ).toEqual({ API_URL: "http://127.0.0.1:1" });
   });
 
   it("returns nothing without a JSON object", () => {

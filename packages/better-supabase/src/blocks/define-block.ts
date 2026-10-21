@@ -25,7 +25,10 @@ export const BLOCK_CATEGORIES = [
 
 export type BlockCategory = (typeof BLOCK_CATEGORIES)[number];
 
-/** The ports a block consumes: `required` fails `createBlocks` without a provider. */
+/**
+ * The ports a block consumes: `required` fails `createBlocks` without a
+ * provider.
+ */
 export type BlockConsumes = {
   readonly [P in PortName]?: "optional" | "required";
 };
@@ -44,8 +47,8 @@ export type BlockProvides<Client, Options> = {
 };
 
 /**
- * The ports a built block provides, by name. `createBlocks` calls each with
- * the block's client and options.
+ * The ports a built block provides, by name. `createBlocks` calls each with the
+ * block's client and options.
  */
 export type ProvidedPorts<P extends PortName> = {
   readonly [K in P]: (
@@ -86,14 +89,17 @@ export interface BlockDefinition<
   readonly recipes?: readonly string[];
 }
 
-/** What `using` passes its creator: the shared block options and the consumed ports. */
+/**
+ * What `using` passes its creator: the shared block options and the consumed
+ * ports.
+ */
 export type UsingOptions<C extends BlockConsumes> = BlockContext &
   ConsumedPorts<C>;
 
 /**
- * One block (ADR 0029): its SQL modules, options, events, the ports it
- * provides and consumes, and its creator. `createBlocks` wires blocks on
- * their ports, never on their names.
+ * One block (ADR 0029): its SQL modules, options, events, the ports it provides
+ * and consumes, and its creator. `createBlocks` wires blocks on their ports,
+ * never on their names.
  */
 export interface Block<
   Name extends string = string,
@@ -114,18 +120,23 @@ export interface Block<
   readonly client: string | undefined;
   readonly category: BlockCategory;
   readonly recipes: readonly string[];
-  /** The options `with` set, passed to `create` and the providers over the shared ones. */
+  /**
+   * The options `with` set, passed to `create` and the providers over the
+   * shared ones.
+   */
   readonly settings: object;
-  /** This block with `settings` merged into the options `createBlocks` passes it. */
+  /**
+   * This block with `settings` merged into the options `createBlocks` passes
+   * it.
+   */
   with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P>;
   /**
    * This block built by `create` instead, keeping its SQL, events and ports:
    * for a creator's type parameters (`notificationsBlock.using((options) =>
-   * createNotifications({ ...options, types }))`) or a definition the
-   * creator needs (`settingsBlock.using((options) =>
-   * createSettings({ ...options, settings }))`).
-   * The ports it provides receive the new client. Settings from an earlier
-   * `with` still reach `create` and the providers.
+   * createNotifications({ ...options, types }))`) or a definition the creator
+   * needs (`settingsBlock.using((options) => createSettings({ ...options,
+   * settings }))`). The ports it provides receive the new client. Settings from
+   * an earlier `with` still reach `create` and the providers.
    */
   using<Next>(
     create: (options: UsingOptions<C>) => Next,
@@ -150,7 +161,10 @@ export interface AnyBlock {
   using(create: never): AnyBlock;
 }
 
-/** The block a creator makes, with its event map, consumed ports and provided ports. */
+/**
+ * The block a creator makes, with its event map, consumed ports and provided
+ * ports.
+ */
 export type BlockOf<
   Name extends string,
   Create extends (options: never) => unknown,

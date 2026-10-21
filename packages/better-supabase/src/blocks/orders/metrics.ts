@@ -1,8 +1,7 @@
+import type { MetricDefinition } from "../../core/metric-definition.ts";
+
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
-import {
-  defineMetric,
-  type MetricDefinition,
-} from "../../core/metric-definition.ts";
+import { defineMetric } from "../../core/metric-definition.ts";
 
 export interface OrderMetricsOptions {
   /** The orders module's schema. Default `better_supabase`. */
@@ -21,8 +20,8 @@ export type OrderMetrics = readonly [
 
 /**
  * Metric definitions over the orders table: orders placed, and revenue and
- * average order value from paid orders, in minor units of `currency`. Pass
- * them to `blocks.metrics.options.metrics` and `createMetrics`.
+ * average order value from paid orders, in minor units of `currency`. Pass them
+ * to `blocks.metrics.options.metrics` and `createMetrics`.
  */
 export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   const shared = {
@@ -61,7 +60,10 @@ export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
   ];
 }
 
-/** The events that add rows to `orderMetrics`, for `metricsSink` or `createBlocks({ metricEvents })`. */
+/**
+ * The events that add rows to `orderMetrics`, for `metricsSink` or
+ * `createBlocks({ metricEvents })`.
+ */
 export const ORDER_METRIC_EVENTS: {
   readonly "order.placed": readonly ["orders"];
   readonly "order.paid": readonly ["revenue", "average_order_value"];

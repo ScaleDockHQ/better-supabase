@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- FNV-1a works on 32-bit integers. */
+
 import { base64ToText, toBase64Url } from "./base64.ts";
 import { isList } from "./guards.ts";
 
@@ -46,7 +48,7 @@ export function decodeCursor(cursor: string): unknown[] | undefined {
 export function sortKey(text: string): string {
   let hash = 0x81_1c_9d_c5;
 
-  for (let index = 0; index < text.length; index++) {
+  for (let index = 0; index < text.length; index += 1) {
     hash ^= text.codePointAt(index) ?? 0;
     hash = Math.imul(hash, 0x01_00_01_93);
   }
@@ -63,8 +65,8 @@ export function encodeBoundCursor(
 }
 
 /**
- * The values of a `paginate()` cursor made for the sort `key`. `sort` means
- * the cursor is valid but continues another sort or table.
+ * The values of a `paginate()` cursor made for the sort `key`. `sort` means the
+ * cursor is valid but continues another sort or table.
  */
 export function decodeBoundCursor(
   cursor: string,

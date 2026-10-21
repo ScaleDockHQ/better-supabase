@@ -2,16 +2,15 @@ import { createClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { HonoEnv } from "../../src/hono/index.ts";
+import type { Functions, Models } from "../fixtures/generated-camel.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
-import { type HonoEnv, createHono } from "../../src/hono/index.ts";
+import { createHono } from "../../src/hono/index.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
-import {
-  type Functions,
-  type Models,
-  schema,
-} from "../fixtures/generated-camel.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
@@ -51,9 +50,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
 
-  const bs = createHono(betterSupabase, {
-    env,
-  });
+  const bs = createHono(betterSupabase, { env });
 
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
@@ -78,6 +75,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
   );
 
   const created: string[] = [];
+
   afterAll(async () => {
     if (created.length > 0) {
       await admin.customers.deleteMany({ where: { id: { in: created } } });
@@ -121,9 +119,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
       `/api/customers?q=${encodeURIComponent(name)}`,
     );
 
-    expect(await found.json()).toMatchObject({
-      items: [{ id: row.id, name }],
-    });
+    expect(await found.json()).toMatchObject({ items: [{ id: row.id, name }] });
 
     const hidden = await call(OTHER, `/api/customers/${row.id}`);
     expect(hidden.status).toBe(404);

@@ -6,8 +6,8 @@ import { ActivityIndicator, Text, View } from "react-native";
 
 /**
  * Renders `children` only when the active organization's plan includes
- * `feature`, read from the session's `features` claim. UX only: RLS checks
- * the feature too.
+ * `feature`, read from the session's `features` claim. UX only: RLS checks the
+ * feature too.
  */
 export function FeatureGate({
   feature,

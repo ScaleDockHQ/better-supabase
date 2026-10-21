@@ -107,6 +107,7 @@ interface Deal {
 
 describe.skipIf(!live)("pipelines", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("runs a deal through its default pipeline", async () => {

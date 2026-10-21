@@ -11,7 +11,10 @@ import type { Session, User } from "./stack.ts";
 
 import { NOTIFICATION_TYPES } from "./notification-types.ts";
 
-/** The notification types the outbox events become, as each recipe's docs page maps them. */
+/**
+ * The notification types the outbox events become, as each recipe's docs page
+ * maps them.
+ */
 export const WATCHED = {
   "comment.created": "subject.commented",
   "subject.tagged": "subject.tagged",
@@ -20,7 +23,10 @@ export const WATCHED = {
   "field_value.set": "subject.field_changed",
 } as const;
 
-/** Notifications as the app builds them: the caller's transport and the recipe's types. */
+/**
+ * Notifications as the app builds them: the caller's transport and the recipe's
+ * types.
+ */
 export function notificationsFor(s: Session) {
   return createNotifications({
     transport: sqlTransport(s.sql),
@@ -30,8 +36,8 @@ export function notificationsFor(s: Session) {
 
 /**
  * `outbox.consume` only claims committed events, and each test rolls back.
- * `watching` hands the watcher handler the rows written after it was called,
- * as `consume` would.
+ * `watching` hands the watcher handler the rows written after it was called, as
+ * `consume` would.
  */
 export async function watching(
   s: Session,
@@ -71,7 +77,10 @@ export async function watching(
   };
 
   return {
-    /** Sends the new events through the watcher handler, as the relay route does. */
+    /**
+     * Sends the new events through the watcher handler, as the relay route
+     * does.
+     */
     async relay(): Promise<number> {
       const events = await read();
       await s.service();
@@ -79,7 +88,10 @@ export async function watching(
 
       return events.length;
     },
-    /** Sends the new events to an outbox sink as CloudEvents, as `outbox.relay` does. */
+    /**
+     * Sends the new events to an outbox sink as CloudEvents, as `outbox.relay`
+     * does.
+     */
     async send(sink: EventSink): Promise<void> {
       const events = await read();
       await s.service();
@@ -102,7 +114,10 @@ interface OutboxRow {
   readonly created_at: string;
 }
 
-/** An organization with an owner and a member, one subject row, and the member watching it. */
+/**
+ * An organization with an owner and a member, one subject row, and the member
+ * watching it.
+ */
 export async function workspace(
   s: Session,
   subjectType: string,

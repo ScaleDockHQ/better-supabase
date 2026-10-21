@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import {
   withExtraFields,
 } from "../shared.ts";
 import {
-  type Subject,
   subjectAccess,
   subjectCascades,
   subjectReadable,
@@ -29,10 +29,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<AttachmentsEvents> = {
-  "object.uploaded": {
-    subject: "objects",
-    payload: ["bucket", "path"],
-  },
+  "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
   "attachment.uploaded": {
     subject: "attachments",
     payload: [
@@ -182,7 +179,10 @@ interface SubjectBucket {
   readonly mimeTypes: readonly string[];
 }
 
-/** The subjects with their own bucket or MIME types (`options.subjects.<type>.bucket`, `.allowedMimeTypes`). */
+/**
+ * The subjects with their own bucket or MIME types
+ * (`options.subjects.<type>.bucket`, `.allowedMimeTypes`).
+ */
 function subjectBuckets(
   subjects: readonly (readonly [string, Subject])[],
   fallback: string,
@@ -252,9 +252,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const subjects = subjectsOption(
     ctx,
     ["bucket", "allowedMimeTypes", "permissions", "scope"],
-    {
-      tenantless: true,
-    },
+    { tenantless: true },
   );
 
   // Subject types without a tenant: their files have no organization_id, and

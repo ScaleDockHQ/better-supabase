@@ -1,6 +1,8 @@
 import { createTwoFilesPatch } from "diff";
 
-import { type Paint, plain } from "./style.ts";
+import type { Paint } from "./style.ts";
+
+import { plain } from "./style.ts";
 
 /** Diff lines shown per file; the rest are counted. */
 export const DIFF_LINES = 40;
@@ -25,7 +27,10 @@ function paintLine(line: string, paint: Paint): string {
   return line;
 }
 
-/** A unified diff from the file on disk (`current`, missing when `undefined`) to `next`, capped at `DIFF_LINES`. */
+/**
+ * A unified diff from the file on disk (`current`, missing when `undefined`) to
+ * `next`, capped at `DIFF_LINES`.
+ */
 export function fileDiff(
   path: string,
   current: string | undefined,

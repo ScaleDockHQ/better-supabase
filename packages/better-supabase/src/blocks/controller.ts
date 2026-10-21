@@ -2,8 +2,8 @@ import type { ClientAuth } from "../client/bind.ts";
 
 /**
  * A block's client state, framework-agnostic. `subscribe` and `getSnapshot`
- * follow the external-store contract, so React's `useSyncExternalStore`,
- * a Vue `shallowRef` or a Svelte store wrap it in a few lines.
+ * follow the external-store contract, so React's `useSyncExternalStore`, a Vue
+ * `shallowRef` or a Svelte store wrap it in a few lines.
  */
 export interface Controller<S, A> {
   /**
@@ -14,7 +14,10 @@ export interface Controller<S, A> {
   /** The current state; the same object until it changes. */
   readonly getSnapshot: () => S;
   readonly actions: A;
-  /** Stops the work and drops every listener; the controller stays idle after it. */
+  /**
+   * Stops the work and drops every listener; the controller stays idle after
+   * it.
+   */
   readonly dispose: () => void;
 }
 
@@ -23,7 +26,10 @@ export type AuthPort = Pick<ClientAuth, "current" | "subscribe">;
 
 export interface ControllerState<S> {
   readonly get: () => S;
-  /** Merges `patch` into the state; listeners hear of it only when a value changed. */
+  /**
+   * Merges `patch` into the state; listeners hear of it only when a value
+   * changed.
+   */
   readonly set: (patch: Partial<S> | ((current: S) => Partial<S>)) => void;
   /**
    * The current run: it changes when the controller starts or stops, so an
@@ -118,8 +124,8 @@ export function defineController<S extends object, A>(
 
 /**
  * Runs `effect` for the signed-in user, and again after its cleanup when
- * another user signs in. Nothing runs while the session loads or is signed
- * out. Returns the function that stops following the session.
+ * another user signs in. Nothing runs while the session loads or is signed out.
+ * Returns the function that stops following the session.
  */
 export function whileSignedIn(
   auth: AuthPort,

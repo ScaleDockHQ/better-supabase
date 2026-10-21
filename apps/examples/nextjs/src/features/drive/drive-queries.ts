@@ -34,8 +34,8 @@ export type DriveFolderView =
   | { readonly kind: "no-organization" };
 
 /**
- * A folder's children (the root for `null`) and the folders above it. A
- * failed read throws, so it is never cached and Retry reads again.
+ * A folder's children (the root for `null`) and the folders above it. A failed
+ * read throws, so it is never cached and Retry reads again.
  */
 async function loadFolder(folderId: string | null) {
   "use cache: private";

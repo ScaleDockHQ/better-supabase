@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { CreateDesign } from "../../../src/preset/index.ts";
+
 import { runApply } from "../../../src/cli/commands/apply.ts";
 import {
   listBlocks,
@@ -17,7 +19,6 @@ import {
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
-  type CreateDesign,
   DESIGN_FILE,
   DesignTooLongError,
   designFileSource,
@@ -50,9 +51,7 @@ const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 const now = () => new Date("2026-10-15T12:00:00Z");
 
 const design: CreateDesign = {
-  appTables: {
-    notes: { scope: "user", columns: { body: { type: "text" } } },
-  },
+  appTables: { notes: { scope: "user", columns: { body: { type: "text" } } } },
   extraColumns: { profiles: { nickname: "text" } },
   positions: { "public.notes": [120, 40] },
 };

@@ -1,5 +1,7 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
+
 import {
   ActivityIcon,
   IdCardIcon,
@@ -34,7 +36,6 @@ import {
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
-  type LucideIcon,
   ScrollTextIcon,
   SettingsIcon,
   UsersIcon,
@@ -56,7 +57,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, usePathname } from "@/i18n/navigation";
 
-import { type NavId, activeNavId, navItems } from "../nav-items";
+import type { NavId } from "../nav-items";
+
+import { activeNavId, navItems } from "../nav-items";
 
 const ICONS = {
   dashboard: LayoutDashboardIcon,

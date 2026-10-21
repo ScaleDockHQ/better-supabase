@@ -8,9 +8,7 @@ import { createUsage } from "./usage.ts";
 export const usageBlock: BlockOf<"usage", typeof createUsage> = defineBlock({
   name: "usage",
   sql: ["usage"],
-  options: {
-    usage: usageSqlOptions,
-  },
+  options: { usage: usageSqlOptions },
   create: createUsage,
   category: "commerce",
   recipes: ["usage-meter"],

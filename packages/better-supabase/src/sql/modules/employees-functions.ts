@@ -29,7 +29,10 @@ interface Field {
   readonly value: (v: string) => string;
 }
 
-/** Every field `create_employee` and `update_employees` write, by its camelCase name. */
+/**
+ * Every field `create_employee` and `update_employees` write, by its camelCase
+ * name.
+ */
 function fields(ctx: ModuleContext): readonly Field[] {
   const text = (v: string): string => `nullif(trim(${v} #>> '{}'), '')`;
 
@@ -465,8 +468,8 @@ ${fromApplication(ctx, n)}`;
 }
 
 /**
- * `employee_from_application`, with the hiring module and the origin
- * columns: the employee for a hired application, made once.
+ * `employee_from_application`, with the hiring module and the origin columns:
+ * the employee for a hired application, made once.
  */
 function fromApplication(ctx: ModuleContext, n: EmployeeNames): string {
   if (

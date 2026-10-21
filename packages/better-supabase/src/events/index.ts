@@ -58,9 +58,9 @@ function subjectOf(
 /**
  * One CloudEvent per mutated row: `dev.better-supabase.row.created` with the
  * app-cased row and the actor in `data`, the primary key as `subject` and the
- * tenant as `partitionkey`. Writes that return no rows (soft
- * deletes, `returning: false`) send one event per known primary key, with the
- * key as `row`.
+ * tenant as `partitionkey`. Writes that return no rows (soft deletes,
+ * `returning: false`) send one event per known primary key, with the key as
+ * `row`.
  */
 export function toCloudEvents(
   notice: MutationNotice,
@@ -106,8 +106,8 @@ export interface ForwardOptions extends CloudEventOptions {
 /**
  * Sends a CloudEvent for every mutation to `sink`. Returns a function that
  * stops forwarding. Sends in flight are tracked on `betterSupabase.events`
- * (`settled()`), which the Next adapter hands to `after()` and the edge
- * entry to `waitUntil`. Use an outbox (SQL modules) when events must not be lost.
+ * (`settled()`), which the Next adapter hands to `after()` and the edge entry
+ * to `waitUntil`. Use an outbox (SQL modules) when events must not be lost.
  */
 export function forwardMutations(
   betterSupabase: { readonly events: EventHub; readonly meta: SchemaMeta },

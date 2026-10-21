@@ -215,12 +215,7 @@ describe("organizations module", () => {
 
   it("soft-deletes, renders without the owner guard and checks its options", () => {
     const soft = body({
-      organizations: {
-        options: {
-          deleteMode: "soft",
-          ownerInvariant: false,
-        },
-      },
+      organizations: { options: { deleteMode: "soft", ownerInvariant: false } },
     });
 
     expect(soft).toContain('set "deleted_at" = now()');
@@ -288,10 +283,7 @@ describe("organizations module", () => {
 
   it("leaves role checks to an external guard on request", () => {
     const adopted: AnyBlocksConfig = {
-      tenant: {
-        mode: "adopt",
-        tables: { memberships: "public.team_members" },
-      },
+      tenant: { mode: "adopt", tables: { memberships: "public.team_members" } },
     };
 
     const external = body({
@@ -356,9 +348,7 @@ describe("organizations module", () => {
 
 describe("roles through a lookup table", () => {
   const THROUGH: AnyBlocksConfig = {
-    access: {
-      model: "provider",
-    },
+    access: { model: "provider" },
     tenant: {
       mode: "adopt",
       tables: { memberships: "public.team_members" },

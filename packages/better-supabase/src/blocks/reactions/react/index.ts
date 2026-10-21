@@ -15,9 +15,15 @@ export interface UseReactionsOptions {
   readonly subjectType: string;
   /** The subjects on screen, at most 200. */
   readonly subjectIds: readonly string[];
-  /** `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null` loads without listening. */
+  /**
+   * `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null`
+   * loads without listening.
+   */
   readonly topic?: string | null;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
 }
 
@@ -29,7 +35,11 @@ export interface ReactionsState
  * organization reacts to one of them. `toggle` feeds an emoji picker.
  *
  * ```tsx
- * const { reactions, toggle } = useReactions({ organizationId, subjectType: "comment", subjectIds });
+ * const { reactions, toggle } = useReactions({
+ *   organizationId,
+ *   subjectType: "comment",
+ *   subjectIds,
+ * });
  * ```
  */
 export function useReactions(options: UseReactionsOptions): ReactionsState {

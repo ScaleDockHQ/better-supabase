@@ -1,5 +1,7 @@
+import type { SQLInputValue } from "node:sqlite";
+
 import { randomUUID } from "node:crypto";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 
 import type {
   PowerSyncDatabaseLike,
@@ -192,10 +194,7 @@ export function createSqlite(meta: SchemaMeta): {
       }
     },
     onChange(handler, options) {
-      const listener = {
-        tables: options?.tables,
-        onChange: handler.onChange,
-      };
+      const listener = { tables: options?.tables, onChange: handler.onChange };
 
       listeners.add(listener);
 

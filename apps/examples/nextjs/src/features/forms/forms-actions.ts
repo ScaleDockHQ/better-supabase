@@ -108,10 +108,7 @@ const Answer = v.union([
 /** Postgres validates the answers against the current version's schema. */
 export const submitForm = bs.action(
   {
-    input: v.object({
-      formId: Id,
-      answers: v.record(v.string(), Answer),
-    }),
+    input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
     requireTenant: true,
     authorize: (session) => can(session, "forms.submit"),
   },

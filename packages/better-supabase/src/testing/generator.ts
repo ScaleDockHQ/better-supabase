@@ -1,20 +1,15 @@
-import type { SchemaMeta } from "../schema/types.ts";
-
-import {
-  type Generator,
-  type GeneratorInput,
-  type GeneratorModel,
-  type ResolvedConfig,
-  resolveConfig,
+import type {
+  Generator,
+  GeneratorInput,
+  GeneratorModel,
+  ResolvedConfig,
 } from "../config/index.ts";
+import type { SchemaMeta } from "../schema/types.ts";
+import type { ConformanceReport } from "./conformance.ts";
+
+import { resolveConfig } from "../config/index.ts";
 import { isList } from "../core/guards.ts";
-import {
-  type ConformanceReport,
-  conform,
-  expect,
-  frozenCopy,
-  same,
-} from "./conformance.ts";
+import { conform, expect, frozenCopy, same } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 function relativeImport(from: string, to: string): string {
@@ -41,11 +36,17 @@ export interface TestGeneratorOptions {
   readonly introspection?: GeneratorInput["introspection"];
   readonly extras?: GeneratorInput["extras"];
   readonly config?: ResolvedConfig;
-  /** Defaults to one built from `meta`, with `unknown` for column types it can't name. */
+  /**
+   * Defaults to one built from `meta`, with `unknown` for column types it can't
+   * name.
+   */
   readonly model?: GeneratorModel;
 }
 
-/** A `GeneratorModel` from schema metadata, for generators tested without a database. */
+/**
+ * A `GeneratorModel` from schema metadata, for generators tested without a
+ * database.
+ */
 function modelFromMeta(meta: SchemaMeta): GeneratorModel {
   return {
     tables: Object.values(meta.tables).map((table) => ({
@@ -89,7 +90,10 @@ const EMPTY_INTROSPECTION: GeneratorInput["introspection"] = {
   types: [],
 };
 
-/** Proves a `Generator` writes relative, unique paths, is deterministic and doesn't mutate its input. */
+/**
+ * Proves a `Generator` writes relative, unique paths, is deterministic and
+ * doesn't mutate its input.
+ */
 export function testGenerator(
   generator: Generator,
   options: TestGeneratorOptions,

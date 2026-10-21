@@ -4,9 +4,8 @@ import * as v from "valibot";
 
 /**
  * The keys the settings SQL module stores, each checked before it writes.
- * `toStandardJsonSchema` adds Standard JSON Schema to each Valibot schema,
- * so `useSettings` reads its kind, choices and title for the preferences
- * page.
+ * `toStandardJsonSchema` adds Standard JSON Schema to each Valibot schema, so
+ * `useSettings` reads its kind, choices and title for the preferences page.
  */
 export const settings = defineSettings({
   user: {

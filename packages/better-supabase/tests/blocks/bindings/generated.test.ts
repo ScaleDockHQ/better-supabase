@@ -8,19 +8,22 @@ import { fakeAuth, SIGNED_OUT } from "../../fixtures/ports.ts";
 import { readBlocks } from "./render.ts";
 
 // Node resolves these to their server builds, where effects never run.
-vi.mock("svelte", () => {
+vi.mock(import("svelte"), () => {
   const clientBuild = "../../../node_modules/svelte/src/index-client.js";
 
   return import(clientBuild);
 });
 
-vi.mock("solid-js", () => {
+vi.mock(import("solid-js"), () => {
   const browserBuild = "../../../node_modules/solid-js/dist/solid.js";
 
   return import(browserBuild);
 });
 
-/** Any property, call or await of it gives itself back, and an await never settles. */
+/**
+ * Any property, call or await of it gives itself back, and an await never
+ * settles.
+ */
 const stub: unknown = new Proxy(() => {}, {
   get: (_target, key) =>
     key === "then"
@@ -31,7 +34,10 @@ const stub: unknown = new Proxy(() => {}, {
   apply: () => stub,
 });
 
-/** Controller options: a signed-out session, fake ports, and the stub for the rest. */
+/**
+ * Controller options: a signed-out session, fake ports, and the stub for the
+ * rest.
+ */
 const options = (): object => {
   const env = { ...fakeEnv(), auth: fakeAuth(SIGNED_OUT) };
   const known = new Map<PropertyKey, unknown>(Object.entries(env));

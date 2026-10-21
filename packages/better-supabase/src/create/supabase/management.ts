@@ -1,4 +1,6 @@
-import { arrayOf, isRecord, type Reader } from "./guards.ts";
+import type { Reader } from "./guards.ts";
+
+import { arrayOf, isRecord } from "./guards.ts";
 import { SUPABASE_API } from "./oauth.ts";
 
 export const SMART_REGIONS = ["americas", "emea", "apac"] as const;
@@ -136,7 +138,10 @@ const readTableCount: Reader<number> = (value) => {
 
 const readAny: Reader<true> = () => true;
 
-/** A Management API call that failed; `status` is the HTTP status, 0 for a bad response. */
+/**
+ * A Management API call that failed; `status` is the HTTP status, 0 for a bad
+ * response.
+ */
 export class ManagementError extends Error {
   override readonly name = "ManagementError";
   readonly status: number;
@@ -170,7 +175,8 @@ where schemaname = 'public'`;
 
 /**
  * The Management API calls the deploy dialog makes, with the user's OAuth
- * access token. Responses are parsed, and every failure is a `ManagementError`.
+ * access token. Responses are parsed, and every failure is a
+ * `ManagementError`.
  */
 export function managementClient(
   accessToken: string,

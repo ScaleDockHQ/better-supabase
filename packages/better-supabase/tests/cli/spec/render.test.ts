@@ -60,12 +60,7 @@ describe("renderTarget", () => {
 
     const rendered = await renderTarget(
       target(["title.yaml", "summary.json"]),
-      {
-        root,
-        entry,
-        cache: false,
-        validate: false,
-      },
+      { root, entry, cache: false, validate: false },
     );
 
     expect(JSON.parse(rendered.text)).toMatchObject({

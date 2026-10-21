@@ -1,16 +1,16 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { KnowledgeScope } from "../knowledge/knowledge.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraOf,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -27,7 +27,6 @@ import {
   stringsOf,
   textOf,
   instantOf,
-  type BlockTemporalOptions,
 } from "../shared.ts";
 
 export type AgentVisibility = "private" | "organization" | "public";
@@ -101,9 +100,9 @@ export interface AgentsOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the agent columns the app adds
-   * (`blocks.agents.options.extraColumns`), keyed by column name. It types
-   * and parses them on every read, and validates them on `create` and
-   * `update`, which return a `validation` error for a bad value.
+   * (`blocks.agents.options.extraColumns`), keyed by column name. It types and
+   * parses them on every read, and validates them on `create` and `update`,
+   * which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -112,7 +111,10 @@ export interface AgentsOptions<
   readonly logger?: Logger;
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
@@ -131,7 +133,10 @@ export interface Agents<F extends object = Record<never, never>> {
   ): AsyncResult<Agent & F>;
   get(agentId: string): AsyncResult<Agent & F>;
   bySlug(organizationId: string, slug: string): AsyncResult<Agent & F>;
-  /** The store (published to the tenant or public), the caller's own, or the installed ones. */
+  /**
+   * The store (published to the tenant or public), the caller's own, or the
+   * installed ones.
+   */
   list(
     organizationId: string,
     options?: {
@@ -191,11 +196,13 @@ function skillsOf(value: unknown): readonly AgentSkill[] {
     return [];
   }
 
-  return value.filter(isRecord).map((item) => ({
-    id: textOf(item["id"]),
-    provider: textOf(item["provider"]),
-    reference: isRecord(item["reference"]) ? item["reference"] : {},
-  }));
+  return value
+    .filter(isRecord)
+    .map((item) => ({
+      id: textOf(item["id"]),
+      provider: textOf(item["provider"]),
+      reference: isRecord(item["reference"]) ? item["reference"] : {},
+    }));
 }
 
 function agentOf(value: unknown): Agent {

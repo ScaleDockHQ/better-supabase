@@ -5,6 +5,13 @@ import type { ReactNode } from "react";
 import { FilterXIcon } from "lucide-react";
 import { useId, useState } from "react";
 
+import type {
+  RecipeFilter,
+  RecipeKind,
+  RecipeSummary,
+} from "@/lib/recipe-filter";
+import type { RecipePlatform } from "@/lib/recipe-platform";
+
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -27,12 +34,9 @@ import {
   filterRecipes,
   isFiltering,
   NO_FILTER,
-  type RecipeFilter,
-  type RecipeKind,
   recipeKinds,
-  type RecipeSummary,
 } from "@/lib/recipe-filter";
-import { type RecipePlatform, recipePlatforms } from "@/lib/recipe-platform";
+import { recipePlatforms } from "@/lib/recipe-platform";
 
 import { RecipeTile } from "./recipe-tile";
 
@@ -53,8 +57,8 @@ const isKind = (value: unknown): value is RecipeKind =>
   recipeKinds.some((kind) => kind === value);
 
 /**
- * Filters the available recipes by category, platform and kind. With no
- * filter it shows `children`, the category sections rendered on the server.
+ * Filters the available recipes by category, platform and kind. With no filter
+ * it shows `children`, the category sections rendered on the server.
  */
 export function RecipeFilters({
   recipes,

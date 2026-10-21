@@ -3,19 +3,18 @@ import type {
   AppColumnType,
   AppOnDeleteAction as OnDeleteAction,
 } from "../config/index.ts";
+import type { AppColumnFormat, Preset } from "../preset/index.ts";
+import type { AppLookup, AppRollup } from "./design-computed.ts";
+import type { AppEvents, AppSubject } from "./design-subject.ts";
 import type { SchemaColumn, SchemaData, SchemaTable } from "./schema.ts";
 
 import {
-  type AppColumnFormat,
   appDefaultError,
   appIdentifierError,
   appReservedColumns,
-  type Preset,
 } from "../preset/index.ts";
 import { columnLabel, fitted } from "./column-keys.ts";
 import {
-  type AppLookup,
-  type AppRollup,
   computedColumnRenamed,
   computedRows,
   computedTableRenamed,
@@ -23,8 +22,6 @@ import {
 } from "./design-computed.ts";
 import { AUTH_USERS, scopeColumnOf } from "./design-scope.ts";
 import {
-  type AppEvents,
-  type AppSubject,
   eventsColumnsEdited,
   subjectColumns,
   subjectColumnsEdited,
@@ -34,7 +31,10 @@ export { APP_ON_DELETE_ACTIONS as ON_DELETE_ACTIONS } from "../config/index.ts";
 
 export type { AppColumnAccess, AppColumnType, OnDeleteAction };
 
-/** Another app table or `auth.users` (`{ table }`), or a block module's logical table (`{ block, table }`). */
+/**
+ * Another app table or `auth.users` (`{ table }`), or a block module's logical
+ * table (`{ block, table }`).
+ */
 export interface AppReference {
   readonly table: string;
   readonly block?: string;
@@ -53,7 +53,10 @@ export interface AppColumn {
   readonly max?: number;
   readonly comment?: string;
   readonly identity?: boolean;
-  /** Who reads and writes the column: everyone by default, `read`, or `server` (ADR 0051). */
+  /**
+   * Who reads and writes the column: everyone by default, `read`, or `server`
+   * (ADR 0051).
+   */
   readonly access?: AppColumnAccess;
 }
 
@@ -77,9 +80,9 @@ export interface AppTable {
 }
 
 /**
- * What the canvas adds to a preset: app tables, extra columns on block
- * tables (by module) and the positions of moved tables (by table id). It has
- * the shape of `CreateDesign` from `better-supabase/preset`.
+ * What the canvas adds to a preset: app tables, extra columns on block tables
+ * (by module) and the positions of moved tables (by table id). It has the shape
+ * of `CreateDesign` from `better-supabase/preset`.
  */
 export interface Design {
   readonly appTables?: Readonly<Record<string, AppTable>>;
@@ -164,8 +167,8 @@ export function columnError(
 }
 
 /**
- * Why `value` can't be the default of `column` (its type, options and
- * bounds), or `undefined` when it can or is empty.
+ * Why `value` can't be the default of `column` (its type, options and bounds),
+ * or `undefined` when it can or is empty.
  */
 export function defaultError(
   column: Pick<AppColumn, "type" | "options" | "min" | "max" | "format">,
@@ -243,15 +246,12 @@ export function addTable(
 
   return position === undefined
     ? next
-    : withPositions(next, {
-        ...next.positions,
-        [appTableId(name)]: position,
-      });
+    : withPositions(next, { ...next.positions, [appTableId(name)]: position });
 }
 
 /**
- * Removes an app table, every app table column that references it (and
- * those columns from key sets), and the rollups and lookups that read it.
+ * Removes an app table, every app table column that references it (and those
+ * columns from key sets), and the rollups and lookups that read it.
  */
 export function deleteTable(design: Design, name: string): Design {
   const rest = omitKey(design.appTables, name);
@@ -396,8 +396,8 @@ export function updateTable(
 }
 
 /**
- * Sets an app table's id type and retypes the app table columns that
- * reference it, since a key has the type of the id it points at.
+ * Sets an app table's id type and retypes the app table columns that reference
+ * it, since a key has the type of the id it points at.
  */
 export function setTableId(
   design: Design,
@@ -430,7 +430,10 @@ export function setTableId(
   );
 }
 
-/** A table's composite key sets with `edit` applied to each, dropping empty sets and an empty list. */
+/**
+ * A table's composite key sets with `edit` applied to each, dropping empty sets
+ * and an empty list.
+ */
 function withKeySets(
   table: AppTable,
   edit: (columns: readonly string[]) => readonly string[],
@@ -558,7 +561,10 @@ export function deleteColumn(
       });
 }
 
-/** Sets an extra column on a block table (`blocks.<module>.options.extraColumns`). */
+/**
+ * Sets an extra column on a block table
+ * (`blocks.<module>.options.extraColumns`).
+ */
 export function setExtraColumn(
   design: Design,
   module: string,
@@ -678,7 +684,10 @@ export function singular(name: string): string {
   return name;
 }
 
-/** The column types a foreign key can point at, from the target's primary key type. */
+/**
+ * The column types a foreign key can point at, from the target's primary key
+ * type.
+ */
 function referenceType(type: string): AppColumnType | undefined {
   const normal = type.toLowerCase();
 
@@ -719,12 +728,11 @@ export type ConnectResult =
   | { readonly ok: false; readonly error: string };
 
 /**
- * Adds a foreign key column from an app table to `target`. Only app tables
- * get new columns. A self reference gets `parent_id`, and a second
- * reference to the same table gets a role name (`owner_id`, `<target>_2_id`)
- * the user can rename. A target without a single-column primary key, and
- * the tenant table the scope column already references, are refused with a
- * message.
+ * Adds a foreign key column from an app table to `target`. Only app tables get
+ * new columns. A self reference gets `parent_id`, and a second reference to the
+ * same table gets a role name (`owner_id`, `<target>_2_id`) the user can
+ * rename. A target without a single-column primary key, and the tenant table
+ * the scope column already references, are refused with a message.
  */
 export function connect(
   design: Design,
@@ -779,9 +787,9 @@ function referenceColumn(
 }
 
 /**
- * Adds a key to `targetId` on the app table `name` in the design, which can
- * be a table the schema doesn't have yet: `<target>_id`, `parent_id` for a
- * self reference, or a free role name when that column is taken.
+ * Adds a key to `targetId` on the app table `name` in the design, which can be
+ * a table the schema doesn't have yet: `<target>_id`, `parent_id` for a self
+ * reference, or a free role name when that column is taken.
  */
 export function referenceFrom(
   design: Design,
@@ -887,7 +895,10 @@ const TIMESTAMP: Omit<SchemaColumn, "name"> = {
   unique: false,
 };
 
-/** The id of the table a reference points at, or `undefined` when it is not in the schema. */
+/**
+ * The id of the table a reference points at, or `undefined` when it is not in
+ * the schema.
+ */
 function referencedId(
   reference: AppReference,
   data: SchemaData,
@@ -1010,8 +1021,8 @@ function extraColumnsOf(
 }
 
 /**
- * The schema with the design applied: app tables added, extra columns
- * appended to the block tables that accept them.
+ * The schema with the design applied: app tables added, extra columns appended
+ * to the block tables that accept them.
  */
 export function withDesign(
   data: SchemaData,

@@ -12,7 +12,10 @@ export type CommandGroup =
   | "maintain"
   | "account";
 
-/** Root help prints the groups in this order and skips empty ones; `account` is kept for login and other cloud commands. */
+/**
+ * Root help prints the groups in this order and skips empty ones; `account` is
+ * kept for login and other cloud commands.
+ */
 export const GROUPS: readonly (readonly [CommandGroup, string])[] = [
   ["setup", "Set up"],
   ["generate", "Generate"],
@@ -49,7 +52,10 @@ export interface CommandSpec {
   /** Path under https://bettersupabase.com, with its anchor. */
   readonly docs?: string;
   readonly examples?: readonly CommandExample[];
-  /** What the command changes or contacts; unset for commands from outside the manifest. */
+  /**
+   * What the command changes or contacts; unset for commands from outside the
+   * manifest.
+   */
   readonly effects?: readonly CommandEffect[];
   readonly subcommands?: readonly CommandSpec[];
 }
@@ -606,7 +612,10 @@ export function specPaths(
   });
 }
 
-/** The meta a built-in command's `defineCliCommand` takes, read from the manifest. */
+/**
+ * The meta a built-in command's `defineCliCommand` takes, read from the
+ * manifest.
+ */
 export function commandMeta(path: string): {
   readonly name: string;
   readonly description: string;

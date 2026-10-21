@@ -1,12 +1,9 @@
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CreateDesign } from "../../preset/index.ts";
+import type { ConfigEdit } from "./config-edit.ts";
 
 import { isRecord } from "../guards.ts";
-import {
-  type ConfigEdit,
-  setPathInConfig,
-  setPathInJson,
-} from "./config-edit.ts";
+import { setPathInConfig, setPathInJson } from "./config-edit.ts";
 
 /** The `extraColumns` a block already has in the config, as plain strings. */
 function currentExtraColumns(
@@ -29,8 +26,8 @@ function currentExtraColumns(
 /**
  * `source` with a `/create` design written into it: each block's
  * `options.extraColumns` (merged over the columns `config` already gives it)
- * and each table in `appTables`, replacing a table of the same name and
- * keeping the others. Positions only matter to the canvas and stay out.
+ * and each table in `appTables`, replacing a table of the same name and keeping
+ * the others. Positions only matter to the canvas and stay out.
  */
 export function writeDesign(
   file: string,

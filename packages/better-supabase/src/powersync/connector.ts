@@ -15,15 +15,17 @@ export interface CrudEntryLike {
 
 /** The part of a PowerSync database the connector reads the queue from. */
 export interface CrudQueueLike {
-  getCrudBatch(limit?: number): Promise<{
+  getCrudBatch(
+    limit?: number,
+  ): Promise<{
     readonly crud: readonly CrudEntryLike[];
     complete(): Promise<void>;
   } | null>;
 }
 
 /**
- * A repository a table's changes replay through (`bs.db.customers`), so
- * RLS, plugins and validation run as they do online.
+ * A repository a table's changes replay through (`bs.db.customers`), so RLS,
+ * plugins and validation run as they do online.
  */
 export interface UploadRepository {
   upsert(data: never): PromiseLike<Result<unknown>>;
@@ -125,9 +127,9 @@ const OUTCOMES: { readonly [K in DbErrorKind]: UploadOutcome } = {
 };
 
 /**
- * The default for a failed upload: transient errors retry, a newer server
- * row is a conflict, and a change the server will never accept is
- * discarded so it doesn't block the queue.
+ * The default for a failed upload: transient errors retry, a newer server row
+ * is a conflict, and a change the server will never accept is discarded so it
+ * doesn't block the queue.
  */
 export function uploadOutcome(kind: DbErrorKind): UploadOutcome {
   return OUTCOMES[kind];
@@ -207,12 +209,12 @@ function replay(
 
 /**
  * A PowerSync connector that authenticates with the Supabase session and
- * replays queued changes through repositories. Changes upload in batches;
- * a transient error keeps the batch queued for PowerSync's retry, and
- * refused changes land in `rejected` instead of blocking the queue. A table
- * without a route stops the upload with an error, so no change is dropped
- * silently. When the session is gone (the refresh token was revoked), the
- * upload stops until the user signs in again.
+ * replays queued changes through repositories. Changes upload in batches; a
+ * transient error keeps the batch queued for PowerSync's retry, and refused
+ * changes land in `rejected` instead of blocking the queue. A table without a
+ * route stops the upload with an error, so no change is dropped silently. When
+ * the session is gone (the refresh token was revoked), the upload stops until
+ * the user signs in again.
  *
  * ```ts
  * const connector = createUploadConnector({

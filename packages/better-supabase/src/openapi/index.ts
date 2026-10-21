@@ -1,3 +1,4 @@
+import type { DefineApiOptions, OverlayEngine } from "../spec/api.ts";
 import type { SpecDiagnostic } from "../spec/format.ts";
 import type { ApiSource } from "../spec/options.ts";
 import type { ResourceDescription } from "../spec/resource.ts";
@@ -7,11 +8,7 @@ import type {
   RenderedOpenApi,
 } from "./types.ts";
 
-import {
-  type DefineApiOptions,
-  defineApi,
-  type OverlayEngine,
-} from "../spec/api.ts";
+import { defineApi } from "../spec/api.ts";
 
 export type { ResourceOperation } from "../spec/model.ts";
 
@@ -57,15 +54,18 @@ export interface OpenApiOptions<
 }
 
 /**
- * An OpenAPI document for REST resources over your tables, with schemas
- * from the generated metadata, list-query parameters, Supabase security
- * schemes and Problem Details errors. Throws when building or checking the
- * document finds an error; use `defineApi` to read every finding instead.
+ * An OpenAPI document for REST resources over your tables, with schemas from
+ * the generated metadata, list-query parameters, Supabase security schemes and
+ * Problem Details errors. Throws when building or checking the document finds
+ * an error; use `defineApi` to read every finding instead.
  *
  * ```ts
  * const doc = createOpenApi(betterSupabase, {
  *   info: { title: "CRM API", version: "1.0.0" },
- *   resources: { customers: { list: customerList }, notes: { operations: ["list", "get"] } },
+ *   resources: {
+ *     customers: { list: customerList },
+ *     notes: { operations: ["list", "get"] },
+ *   },
  * });
  * ```
  */

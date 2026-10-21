@@ -45,7 +45,8 @@ export type CascaderNavProps = useRender.ComponentProps<"div">;
 
 /**
  * Header: back control, search input, and the separator under them. The
- * breadcrumb belongs with the list below: it describes the rows, not the field.
+ * breadcrumb belongs with the list below: it describes the rows, not the
+ * field.
  */
 function CascaderNav({ className, ...props }: CascaderNavProps) {
   const defaultProps = {

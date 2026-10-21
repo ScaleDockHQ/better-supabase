@@ -8,9 +8,9 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 /**
- * A button that copies `text` and announces "Copied" to screen readers: an
- * icon by default, or an icon and `children` as visible text, which `label`
- * must contain so the accessible name includes it.
+ * A button that copies `text` and announces "Copied" to screen readers: an icon
+ * by default, or an icon and `children` as visible text, which `label` must
+ * contain so the accessible name includes it.
  */
 export function CopyButton({
   text,

@@ -1,14 +1,14 @@
-import {
-  lineOf,
-  type Location,
-  type SqlObject,
-  type TextFile,
-} from "../doctor/rules.ts";
+import type { Location, SqlObject, TextFile } from "../doctor/rules.ts";
+
+import { lineOf } from "../doctor/rules.ts";
 
 const escape = (name: string): string =>
   name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Where a table, function or policy is declared: declarative schemas first, then the newest migration. */
+/**
+ * Where a table, function or policy is declared: declarative schemas first,
+ * then the newest migration.
+ */
 export function locate(
   files: readonly TextFile[],
   object: SqlObject,

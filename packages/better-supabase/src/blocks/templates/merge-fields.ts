@@ -22,13 +22,15 @@ export type MergeValues<K extends string = string> = {
 export interface RenderMergeFieldsOptions {
   /** Default `text`. `{{{ name }}}` is never escaped. */
   readonly escape?: MergeEscape;
-  /** What a field without a value renders as: `empty` (default) or the `{{ name }}` it was. */
+  /**
+   * What a field without a value renders as: `empty` (default) or the `{{ name
+   * }}` it was.
+   */
   readonly missing?: "empty" | "keep";
   /**
-   * Turns a value into text. The default prints strings, numbers and
-   * booleans as they are, Temporal values and other objects with their own
-   * `toString`, a `Date` as ISO 8601, arrays joined by `, `, and plain
-   * objects as JSON.
+   * Turns a value into text. The default prints strings, numbers and booleans
+   * as they are, Temporal values and other objects with their own `toString`, a
+   * `Date` as ISO 8601, arrays joined by `, `, and plain objects as JSON.
    */
   readonly format?: (value: unknown, name: string) => string;
 }
@@ -38,7 +40,10 @@ export interface MergeFieldCatalog<K extends string = string> {
   readonly subjectType: string;
   readonly fields: Readonly<Record<K, MergeFieldSpec>>;
   readonly names: readonly K[];
-  /** The fields `text` uses that the catalog doesn't define, in order of first use. */
+  /**
+   * The fields `text` uses that the catalog doesn't define, in order of first
+   * use.
+   */
   unknown(text: string): readonly string[];
   /** `renderMergeFields` with values typed by the catalog. */
   render(
@@ -152,8 +157,8 @@ export function mergeFieldsIn(text: string): readonly string[] {
 
 /**
  * Replaces each `{{ name }}` in `text` with its value, escaped for HTML with
- * `escape: "html"`, and each `{{{ name }}}` with its value unescaped. It
- * has no dependencies and runs on every WinterTC runtime.
+ * `escape: "html"`, and each `{{{ name }}}` with its value unescaped. It has no
+ * dependencies and runs on every WinterTC runtime.
  */
 export function renderMergeFields(
   text: string,
@@ -181,9 +186,9 @@ export function renderMergeFields(
 }
 
 /**
- * The merge fields a record type offers, such as an invoice's
- * `customer.name` and `total`. The catalog types `render` and lists the
- * fields a template uses that it doesn't define.
+ * The merge fields a record type offers, such as an invoice's `customer.name`
+ * and `total`. The catalog types `render` and lists the fields a template uses
+ * that it doesn't define.
  */
 export function defineMergeFields<const K extends string>(
   subjectType: string,
@@ -239,8 +244,8 @@ export interface TemplateEmailOptions
 }
 
 /**
- * Renders an email template for the notifications email channel's
- * `compose`: the subject and text as text, the HTML escaped for HTML.
+ * Renders an email template for the notifications email channel's `compose`:
+ * the subject and text as text, the HTML escaped for HTML.
  */
 export function composeTemplateEmail(
   body: EmailTemplateBody,

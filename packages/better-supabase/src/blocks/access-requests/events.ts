@@ -10,7 +10,10 @@ export type AccessRequestsEvents = {
   readonly "access.ended": AccessRequestEventData;
 };
 
-/** The `access-requests` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `access-requests` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const accessRequestsEvents: Events<AccessRequestsEvents> = defineEvents({
   "access.requested": event<AccessRequestEventData>(),
   "access.request_approved": event<AccessRequestEventData>(),

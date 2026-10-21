@@ -206,7 +206,7 @@ describe("createUsage", () => {
     });
     expect(status.resetsAt.toString()).toBe("2026-10-12T00:00:00Z");
     limit = null;
-    expect(await usage.remaining("org", "api_calls").orThrow()).toBe(undefined);
+    expect(await usage.remaining("org", "api_calls").orThrow()).toBeUndefined();
     expect(await usage.current("org", "api_calls").orThrow()).toMatchObject({
       limit: undefined,
       unlimited: true,
@@ -569,10 +569,7 @@ describe("purge", () => {
         {} as never,
         new AbortController().signal,
       ),
-    ).toEqual({
-      history: 5,
-      events: 2,
-    });
+    ).toEqual({ history: 5, events: 2 });
     expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
       ["purge_usage_history", { older_than: "90 days", batch: 10 }],
       ["purge_usage_events", {}],

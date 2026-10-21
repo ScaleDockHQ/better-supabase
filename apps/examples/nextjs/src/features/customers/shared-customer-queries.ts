@@ -15,8 +15,8 @@ export interface SharedCustomer {
 
 /**
  * The customer a share link points to, for a visitor without a session.
- * `resolve` checks the token's hash, revocation and expiry; only then does
- * the service role read the two columns the page shows.
+ * `resolve` checks the token's hash, revocation and expiry; only then does the
+ * service role read the two columns the page shows.
  */
 export async function getSharedCustomer(
   token: string,

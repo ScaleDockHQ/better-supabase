@@ -1,7 +1,9 @@
+import type { DbError } from "../core/errors.ts";
+import type { Result } from "../core/result.ts";
 import type { StorageAdminClient } from "./bucket.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../core/result.ts";
+import { dbError } from "../core/errors.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
 
 export type VectorDistance = "cosine" | "euclidean" | "dotproduct";
@@ -42,7 +44,10 @@ export interface VectorHit<M extends VectorMetadata = VectorMetadata> {
 export interface VectorQueryOptions {
   /** Number of matches, defaults to 10. */
   readonly topK?: number;
-  /** A metadata filter, e.g. `{ organizationId: "o1" }` or `{ year: { $gte: 2024 } }`. */
+  /**
+   * A metadata filter, e.g. `{ organizationId: "o1" }` or `{ year: { $gte: 2024
+   * } }`.
+   */
   readonly filter?: VectorMetadata;
   /** Return each match's metadata. Defaults to `true`. */
   readonly metadata?: boolean;
@@ -67,7 +72,10 @@ export interface VectorIndexClient<M extends VectorMetadata = VectorMetadata> {
 }
 
 export interface VectorBucketClient<I extends string> {
-  /** Creates the bucket and any missing index. An index with another dimension or metric is a `conflict`. */
+  /**
+   * Creates the bucket and any missing index. An index with another dimension
+   * or metric is a `conflict`.
+   */
   apply(): AsyncResult<{ readonly created: readonly string[] }>;
   index<M extends VectorMetadata = VectorMetadata>(
     name: I,
@@ -99,7 +107,10 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
 /** Batches in flight at once for one `put`, `get` or `remove`. */
 const CHUNK_CONCURRENCY = 4;
 
-/** Runs `run` per item over a few lanes; stops starting items after the first error. */
+/**
+ * Runs `run` per item over a few lanes; stops starting items after the first
+ * error.
+ */
 async function inLanes<T, R>(
   items: readonly T[],
   run: (item: T) => Promise<Result<R>>,
@@ -110,7 +121,8 @@ async function inLanes<T, R>(
 
   const lane = async (): Promise<void> => {
     while (!failed && next < items.length) {
-      const index = next++;
+      const index = next;
+      next += 1;
       const result = await run(items[index]!);
 
       if (!result.ok) {
@@ -134,8 +146,8 @@ const metricOf = (config: VectorIndexConfig): VectorDistance =>
   config.distanceMetric ?? "cosine";
 
 /**
- * A Storage vector bucket with typed indexes. Storage keeps the vectors
- * outside Postgres; use the `vector-search` module for pgvector in a table.
+ * A Storage vector bucket with typed indexes. Storage keeps the vectors outside
+ * Postgres; use the `vector-search` module for pgvector in a table.
  *
  * ```ts
  * export const embeddings = defineVectorBucket({

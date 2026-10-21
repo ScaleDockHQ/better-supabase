@@ -193,7 +193,8 @@ interface Surface {
 
 /**
  * The nearest scroller, THIS ONE INCLUDED: the panel is exactly what a consumer
- * caps with `overflow-y: auto`, and a walk from the parent answered null for it.
+ * caps with `overflow-y: auto`, and a walk from the parent answered null for
+ * it.
  */
 function findScrollParent(el: HTMLElement | null): HTMLElement | null {
   let node = el ?? null;
@@ -528,10 +529,10 @@ function startDrag(
 
   /**
    * A still pointer fires no `pointermove`, so a wheel mid-drag would leave the
-   * last answer painted while the rows slid out from under it. The overlap
-   * with the autoScroll tick is deliberate: this is arithmetic over boxes
-   * already measured, and one redundant pass per frame is cheaper than a rule
-   * about who owns the repaint.
+   * last answer painted while the rows slid out from under it. The overlap with
+   * the autoScroll tick is deliberate: this is arithmetic over boxes already
+   * measured, and one redundant pass per frame is cheaper than a rule about who
+   * owns the repaint.
    */
   const onViewportScroll = () => {
     if (!active || !lastEvent) return;
@@ -673,9 +674,9 @@ function startDrag(
 }
 
 /**
- * Only `onPointerDown`: the handle is a real button that Tab reaches, so it must
- * not also be `draggable` and race the browser's HTML5 drag, with its ghost, no
- * copy affordance and no way to report a drop into a nested target.
+ * Only `onPointerDown`: the handle is a real button that Tab reaches, so it
+ * must not also be `draggable` and race the browser's HTML5 drag, with its
+ * ghost, no copy affordance and no way to report a drop into a nested target.
  */
 export function useFilterRowDrag(options: FilterRowDragOptions) {
   // Read at gesture time, not captured at wiring time, so the handler identity

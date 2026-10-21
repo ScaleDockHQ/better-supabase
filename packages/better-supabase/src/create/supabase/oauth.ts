@@ -1,8 +1,6 @@
-import {
-  isOAuthSession,
-  type OAuthSession,
-  OAuthError,
-} from "../oauth/index.ts";
+import type { OAuthSession } from "../oauth/index.ts";
+
+import { isOAuthSession, OAuthError } from "../oauth/index.ts";
 import { isRecord } from "./guards.ts";
 
 export {
@@ -46,8 +44,8 @@ export const isSession: (value: unknown) => value is SupabaseSession =
   isOAuthSession;
 
 /**
- * A same-site path under `/create` to return to after the consent screen,
- * or `/create` for anything else, so the callback never redirects off site.
+ * A same-site path under `/create` to return to after the consent screen, or
+ * `/create` for anything else, so the callback never redirects off site.
  */
 export function returnPath(value: string | null): string {
   if (value === null) {
@@ -167,7 +165,10 @@ export function exchangeCode(
   );
 }
 
-/** A new session from the refresh token; it keeps the old refresh token when Supabase sends none. */
+/**
+ * A new session from the refresh token; it keeps the old refresh token when
+ * Supabase sends none.
+ */
 export async function refreshSession(
   config: OAuthConfig,
   session: SupabaseSession,

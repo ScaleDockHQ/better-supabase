@@ -6,6 +6,7 @@ import type {
   Executor,
 } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
+import type { Result } from "../../src/core/result.ts";
 import type {
   Condition,
   InsertOp,
@@ -22,7 +23,7 @@ import {
 } from "../../src/core/cursor.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
-import { err, ok, type Result } from "../../src/core/result.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -87,7 +88,10 @@ const col = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value });
 
-/** A `paginate()` cursor for `customers` sorted by `order` (`column.direction.nulls` terms). */
+/**
+ * A `paginate()` cursor for `customers` sorted by `order`
+ * (`column.direction.nulls` terms).
+ */
 const cursor = (values: readonly unknown[], order: string) =>
   encodeBoundCursor(values, sortKey(`customers|${order}`));
 
@@ -1303,10 +1307,7 @@ describe("cursor pagination", () => {
     ) as never as {
       ledger: {
         paginate(args: object): {
-          orThrow(): Promise<{
-            items: unknown[];
-            nextCursor: string | null;
-          }>;
+          orThrow(): Promise<{ items: unknown[]; nextCursor: string | null }>;
         };
       };
     };

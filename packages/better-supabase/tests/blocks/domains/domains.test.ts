@@ -48,10 +48,7 @@ const hostnameRow = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const verified = {
-  verified_at: "2026-10-19T12:05:00Z",
-  record: undefined,
-};
+const verified = { verified_at: "2026-10-19T12:05:00Z", record: undefined };
 
 describe("normalizeHostname", () => {
   it("drops the port and the trailing dot, and lowercases", () => {

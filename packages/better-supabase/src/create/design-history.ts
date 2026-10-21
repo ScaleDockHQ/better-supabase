@@ -5,7 +5,10 @@ export interface History<T> {
   readonly past: readonly T[];
   readonly present: T;
   readonly future: readonly T[];
-  /** The value before the drag in progress, which `commitDrag` records as one step. */
+  /**
+   * The value before the drag in progress, which `commitDrag` records as one
+   * step.
+   */
   readonly dragStart: T | null;
 }
 
@@ -32,11 +35,11 @@ function record<T>(history: History<T>, previous: T, next: T): History<T> {
 }
 
 /**
- * An undo history. `drag` updates the value without a step while the
- * pointer moves; `commitDrag` records the whole drag as one step. `amend`
- * replaces the value in the current step, so a follow-up such as placing a
- * dropped block stays part of the step that added it. `reset` replaces the
- * value and clears the history, as loading a link does.
+ * An undo history. `drag` updates the value without a step while the pointer
+ * moves; `commitDrag` records the whole drag as one step. `amend` replaces the
+ * value in the current step, so a follow-up such as placing a dropped block
+ * stays part of the step that added it. `reset` replaces the value and clears
+ * the history, as loading a link does.
  */
 export function undoHistory<T>(
   current: History<T>,

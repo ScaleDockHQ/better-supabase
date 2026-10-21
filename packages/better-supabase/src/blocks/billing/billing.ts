@@ -1,3 +1,9 @@
+import type {
+  BillingEventData,
+  BlockEventType,
+} from "../../core/block-events.ts";
+import type { Result } from "../../core/result.ts";
+import type { StripeClient } from "../stripe.ts";
 import type { BillingEvents } from "./events.ts";
 import type {
   Billing,
@@ -12,14 +18,10 @@ import type {
   TenantStripeRow,
 } from "./types.ts";
 
-import {
-  blockEmitter,
-  type BillingEventData,
-  type BlockEventType,
-} from "../../core/block-events.ts";
+import { blockEmitter } from "../../core/block-events.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { entitlementMembers } from "../entitlements/entitlements.ts";
 import {
   applyTemporal,
@@ -31,7 +33,7 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
-import { lazyStripe, type StripeClient } from "../stripe.ts";
+import { lazyStripe } from "../stripe.ts";
 import {
   ORGANIZATION_KEY,
   SEAT_EVENT,
@@ -46,7 +48,10 @@ import {
   subscriptionRecord,
 } from "./stripe-helpers.ts";
 
-/** Stripe customers, checkout, the portal and seat sync over the `billing` module. */
+/**
+ * Stripe customers, checkout, the portal and seat sync over the `billing`
+ * module.
+ */
 export function createBilling(options: BillingOptions): Billing {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -750,13 +755,15 @@ export function createBilling(options: BillingOptions): Billing {
       call("billing_all_invoices", platformArgs(list), tenantRows("invoice")),
     allCustomers: () =>
       call("billing_all_customers", {}, (value) =>
-        (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
-          organizationId: textOf(row["tenant"]),
-          customerId: textOf(row["customer"]),
-          email: optionalText(row["email"]),
-          name: optionalText(row["name"]),
-          created: optionalInstant(row["created"]),
-        })),
+        (Array.isArray(value) ? value : [])
+          .filter(isRecord)
+          .map((row) => ({
+            organizationId: textOf(row["tenant"]),
+            customerId: textOf(row["customer"]),
+            email: optionalText(row["email"]),
+            name: optionalText(row["name"]),
+            created: optionalInstant(row["created"]),
+          })),
       ),
     allSubscriptions: (list) =>
       call(

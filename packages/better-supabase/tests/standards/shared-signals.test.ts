@@ -47,8 +47,8 @@ describe(`Security Event Tokens (RFC 8417, ${SPEC_PINS.rfc8417})`, () => {
     const [header, payload] = token.split(".").slice(0, 2).map(decode);
     // §2.3: explicit typing with the secevent+jwt media type, without the application/ prefix.
     expect(header!["typ"]).toBe("secevent+jwt");
-    expect(Object.keys(payload!).sort()).toEqual(
-      ["aud", "events", "iat", "iss", "jti", "sub_id"].sort(),
+    expect(Object.keys(payload!).toSorted()).toEqual(
+      ["aud", "events", "iat", "iss", "jti", "sub_id"].toSorted(),
     );
     // §2.2: events is a JSON object of event type URI to event payload.
     expect(payload!["events"]).toEqual({ [CAEP_EVENTS.sessionRevoked]: {} });
@@ -86,7 +86,7 @@ describe(`Push delivery (RFC 8935, ${SPEC_PINS.rfc8935})`, () => {
     const wrongType = await send(token, "application/jwt");
     expect(wrongType.status).toBe(400);
     const body = await wrongType.json();
-    expect(Object.keys(body).sort()).toEqual(["description", "err"]);
+    expect(Object.keys(body).toSorted()).toEqual(["description", "err"]);
     expect([
       "invalid_request",
       "invalid_key",
@@ -130,7 +130,7 @@ describe(`Poll delivery (RFC 8936, ${SPEC_PINS.rfc8936})`, () => {
       ).json();
 
     const first = await poll({ maxEvents: 10, returnImmediately: true });
-    expect(Object.keys(first).sort()).toEqual(["moreAvailable", "sets"]);
+    expect(Object.keys(first).toSorted()).toEqual(["moreAvailable", "sets"]);
     const [jti] = Object.keys(first.sets);
     expect(typeof first.sets[jti!]).toBe("string");
     await poll({ maxEvents: 0, ack: [jti] });
@@ -167,7 +167,7 @@ describe(`CAEP (${SPEC_PINS.caep}) and RISC (${SPEC_PINS.risc}) event types`, ()
       uri.replace("https://schemas.openid.net/secevent/caep/event-type/", ""),
     );
 
-    expect(names.sort()).toEqual(
+    expect(names.toSorted()).toEqual(
       [
         "assurance-level-change",
         "credential-change",
@@ -177,7 +177,7 @@ describe(`CAEP (${SPEC_PINS.caep}) and RISC (${SPEC_PINS.risc}) event types`, ()
         "session-presented",
         "session-revoked",
         "token-claims-change",
-      ].sort(),
+      ].toSorted(),
     );
   });
 
@@ -186,7 +186,7 @@ describe(`CAEP (${SPEC_PINS.caep}) and RISC (${SPEC_PINS.risc}) event types`, ()
       uri.replace("https://schemas.openid.net/secevent/risc/event-type/", ""),
     );
 
-    expect(names.sort()).toEqual(
+    expect(names.toSorted()).toEqual(
       [
         "account-credential-change-required",
         "account-disabled",
@@ -201,7 +201,7 @@ describe(`CAEP (${SPEC_PINS.caep}) and RISC (${SPEC_PINS.risc}) event types`, ()
         "opt-out-initiated",
         "recovery-activated",
         "recovery-information-changed",
-      ].sort(),
+      ].toSorted(),
     );
   });
 });

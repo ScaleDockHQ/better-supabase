@@ -91,20 +91,14 @@ const api = defineApi(betterSupabase, {
         description: "Per-user notifications",
       },
       lobby: { template: "lobby", send: true, private: false, name: "Lobby" },
-      cursors: {
-        template: "cursors",
-        events: { moved: opaque(), sent: true },
-      },
+      cursors: { template: "cursors", events: { moved: opaque(), sent: true } },
     },
     cloudEvents: {
       source: "/crm",
       rows: ["customers", "contacts"],
       intents: ["insert"],
       dataschema: ({ type }) => `https://schemas.test/${type}.json`,
-      blocks: {
-        "support.started": supportStarted,
-        "support.ended": true,
-      },
+      blocks: { "support.started": supportStarted, "support.ended": true },
     },
   },
   webhooks: [

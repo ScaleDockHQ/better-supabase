@@ -1,21 +1,24 @@
-import {
-  auth,
-  type OAuthClientInformation,
-  type OAuthClientMetadata,
-  type OAuthClientProvider,
-  type OAuthTokens,
+import type {
+  OAuthClientInformation,
+  OAuthClientMetadata,
+  OAuthClientProvider,
+  OAuthTokens,
 } from "@ai-sdk/mcp";
+
+import { auth } from "@ai-sdk/mcp";
 
 import type {
   ConnectorServer,
   Connectors,
 } from "../../blocks/connectors/connectors.ts";
+import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 
 import { errorText, isRecord } from "../../core/block-helpers.ts";
-import { DbException, dbError, type DbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { DbException, dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { nowInstant } from "../../core/temporal.ts";
 
 /** What the Vault keeps for one user's OAuth connection to one server. */
@@ -60,8 +63,8 @@ export interface VaultOAuthProvider extends OAuthClientProvider {
 
 /**
  * An `OAuthClientProvider` that keeps the user's tokens, PKCE verifier and
- * state in one per-user Vault secret, and the dynamically registered client
- * in one secret per server.
+ * state in one per-user Vault secret, and the dynamically registered client in
+ * one secret per server.
  */
 export function vaultOAuthProvider(
   options: VaultOAuthProviderOptions,
@@ -213,11 +216,7 @@ async function recordGrant(
       scopes: options.server.scopes,
       ...(expiresIn === undefined
         ? {}
-        : {
-            expiresAt: nowInstant().add({
-              seconds: Math.floor(expiresIn),
-            }),
-          }),
+        : { expiresAt: nowInstant().add({ seconds: Math.floor(expiresIn) }) }),
     },
   );
 
@@ -230,9 +229,9 @@ const authFailed = (cause: unknown): DbError =>
   });
 
 /**
- * Starts the user's OAuth connection to a server: `{ url }` to send them
- * to, or `{ url: undefined }` when stored tokens still work and the grant
- * is recorded.
+ * Starts the user's OAuth connection to a server: `{ url }` to send them to, or
+ * `{ url: undefined }` when stored tokens still work and the grant is
+ * recorded.
  */
 export function authorizeConnector(
   options: AuthorizeConnectorOptions,
@@ -262,8 +261,8 @@ export function authorizeConnector(
 }
 
 /**
- * Finishes the connection from the OAuth callback: checks the state,
- * exchanges the code, keeps the tokens in Vault and records the grant.
+ * Finishes the connection from the OAuth callback: checks the state, exchanges
+ * the code, keeps the tokens in Vault and records the grant.
  */
 export function completeConnector(
   options: AuthorizeConnectorOptions & { readonly callback: URL | string },

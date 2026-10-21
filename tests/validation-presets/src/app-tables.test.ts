@@ -20,9 +20,7 @@ const config = resolveConfig(
   {
     blocks: ["tenant", "organizations"],
     appTables: {
-      boards: {
-        columns: { name: { type: "text", nullable: false } },
-      },
+      boards: { columns: { name: { type: "text", nullable: false } } },
       cards: {
         columns: {
           board_id: {
@@ -66,6 +64,7 @@ async function asUser(client: PoolClient, sub: string): Promise<void> {
 
 describe.skipIf(!live)("appTables on the local stack", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("passes the generated pgTAP checks", async () => {
@@ -80,7 +79,7 @@ describe.skipIf(!live)("appTables on the local stack", () => {
         .filter((value): value is string => typeof value === "string");
 
       expect(lines.filter((line) => line.startsWith("not ok"))).toEqual([]);
-      expect(lines.filter((line) => line.startsWith("ok ")).length).toBe(
+      expect(lines.filter((line) => line.startsWith("ok "))).toHaveLength(
         Number(/plan\((\d+)\)/.exec(appTest)?.[1]),
       );
     });

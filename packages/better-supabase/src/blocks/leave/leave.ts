@@ -1,22 +1,22 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   enumOrThrow,
   isRecord,
   optionalInstant,
@@ -31,12 +31,15 @@ export interface LeaveOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the request's extra columns
-   * (`blocks.leave.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `request`.
+   * (`blocks.leave.options.extraColumns`), keyed by database name. It types and
+   * parses them on reads, and validates them on `request`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -217,14 +220,20 @@ export interface Leave<F extends object = Record<never, never>> {
     organizationId: string,
     input: LeaveRequestInput<F>,
   ): AsyncResult<LeaveRequest<F>>;
-  /** The requester while it's pending or before approved leave starts, or `leave.manage` any time. */
+  /**
+   * The requester while it's pending or before approved leave starts, or
+   * `leave.manage` any time.
+   */
   cancel(requestId: string): AsyncResult<LeaveRequest<F>>;
   /** Earliest first. */
   list(
     organizationId: string,
     options?: LeaveRequestListOptions,
   ): AsyncResult<readonly LeaveRequest<F>[]>;
-  /** A member's balance of each tracked type (the caller's, this year by default). */
+  /**
+   * A member's balance of each tracked type (the caller's, this year by
+   * default).
+   */
   balances(
     organizationId: string,
     options?: { readonly userId?: string; readonly period?: number },
@@ -243,9 +252,15 @@ export interface Leave<F extends object = Record<never, never>> {
     organizationId: string,
     adjustment: LeaveAdjustment,
   ): AsyncResult<LeaveLedgerEntry>;
-  /** Grants an accrual to every member, or `userIds`; returns the entries written. Needs `leave.manage`. */
+  /**
+   * Grants an accrual to every member, or `userIds`; returns the entries
+   * written. Needs `leave.manage`.
+   */
   accrue(organizationId: string, accrual: LeaveAccrual): AsyncResult<number>;
-  /** Carries balances into the next period and expires the rest; returns the entries written. Needs `leave.manage`. */
+  /**
+   * Carries balances into the next period and expires the rest; returns the
+   * entries written. Needs `leave.manage`.
+   */
   closePeriod(organizationId: string, period: number): AsyncResult<number>;
 }
 
@@ -417,22 +432,24 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           ),
       ),
     request: (organizationId, input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "request_leave",
-          {
-            tenant: organizationId,
-            type_id: input.typeId,
-            starts_on: input.startsOn.toString(),
-            ends_on: (input.endsOn ?? input.startsOn).toString(),
-            partial: input.partial ?? "full",
-            hours: input.hours ?? null,
-            note: input.note ?? null,
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          (value) => requestOf(value, "request_leave"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "request_leave",
+            {
+              tenant: organizationId,
+              type_id: input.typeId,
+              starts_on: input.startsOn.toString(),
+              ends_on: (input.endsOn ?? input.startsOn).toString(),
+              partial: input.partial ?? "full",
+              hours: input.hours ?? null,
+              note: input.note ?? null,
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            (value) => requestOf(value, "request_leave"),
+          ).andThen(fields.row),
+        ),
     cancel: (requestId) =>
       call("cancel_leave_request", { request_id: requestId }, (value) =>
         requestOf(value, "cancel_leave_request"),

@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+
 import {
   loadSnapshot,
   managementTarget,
@@ -11,10 +13,7 @@ import {
   serializeSnapshot,
   snapshotFile,
 } from "../../../src/cli/commands/snapshot.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
@@ -247,9 +246,7 @@ describe("loadSnapshot", () => {
     const loaded = await loadSnapshot(
       config({}, root),
       {},
-      {
-        snapshotPath: "snap.json",
-      },
+      { snapshotPath: "snap.json" },
     );
 
     expect(loaded.extras.tables).toHaveLength(fixture.extras.tables.length);
@@ -361,7 +358,7 @@ describe("parseSnapshot", () => {
 
     expect(older.extras).toEqual({ tables: [], buckets: [], realtime: [] });
     const full = await parseSnapshot(fixture);
-    expect(Object.keys(full.extras).sort()).toEqual(
+    expect(Object.keys(full.extras).toSorted()).toEqual(
       [
         "buckets",
         "functions",

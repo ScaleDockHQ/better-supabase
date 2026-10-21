@@ -88,9 +88,7 @@ export const loadThread = bs.action(
 
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bs.action(
-  {
-    input: v.object({ conversationId: Id, body: Body, note: v.boolean() }),
-  },
+  { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
   async ({ conversationId, body, note }, { supabase }) => {
     const { messages } = blocks(supabase).inbox;
 
@@ -128,12 +126,7 @@ export const takeOver = bs.action(
 );
 
 export const setStatus = bs.action(
-  {
-    input: v.object({
-      conversationId: Id,
-      resolved: v.boolean(),
-    }),
-  },
+  { input: v.object({ conversationId: Id, resolved: v.boolean() }) },
   async ({ conversationId, resolved }, { supabase }) => {
     const { conversations } = blocks(supabase).inbox;
 
@@ -146,8 +139,8 @@ export const setStatus = bs.action(
 );
 
 /**
- * The Help sheet's first message: opens a conversation as the visitor, with
- * the `/assistant` bot answering until staff take over.
+ * The Help sheet's first message: opens a conversation as the visitor, with the
+ * `/assistant` bot answering until staff take over.
  */
 export const askForHelp = bs.action(
   { input: v.object({ message: Body }) },

@@ -3,10 +3,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { x } from "tinyexec";
 
+import type { ExecEvent } from "./core/trace.ts";
 import type { CliEnv } from "./env.ts";
 
 import { CliError, errorText } from "./core/errors.ts";
-import { EXEC_CHANNEL, type ExecEvent } from "./core/trace.ts";
+import { EXEC_CHANNEL } from "./core/trace.ts";
 import { PROCESS_ENV } from "./env.ts";
 import { findUp } from "./supabase-toml.ts";
 
@@ -66,11 +67,7 @@ async function exec(
       stderr: result.stderr,
     });
   } catch (error) {
-    return publish({
-      code: NOT_FOUND,
-      stdout: "",
-      stderr: errorText(error),
-    });
+    return publish({ code: NOT_FOUND, stdout: "", stderr: errorText(error) });
   }
 }
 
@@ -149,7 +146,10 @@ export async function spawnInherited(
   }
 }
 
-/** `node_modules/.bin/supabase` in `cwd` or a parent, when the project installs the CLI. */
+/**
+ * `node_modules/.bin/supabase` in `cwd` or a parent, when the project installs
+ * the CLI.
+ */
 function localSupabase(cwd: string): string | undefined {
   const bin = join(
     "node_modules",
@@ -164,8 +164,8 @@ function localSupabase(cwd: string): string | undefined {
 
 /**
  * Runs the Supabase CLI: `$SUPABASE_BIN`, then the project's
- * `node_modules/.bin/supabase`, then `supabase` on the PATH. It never
- * downloads one; without any it fails with `supabase_cli_missing`.
+ * `node_modules/.bin/supabase`, then `supabase` on the PATH. It never downloads
+ * one; without any it fails with `supabase_cli_missing`.
  */
 export async function supabaseCli(
   args: readonly string[],

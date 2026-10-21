@@ -47,7 +47,9 @@ function keysFromWhere(
 
   const flatten = (condition: Condition): void => {
     if (condition.kind === "and") {
-      condition.items.forEach(flatten);
+      for (const item of condition.items) {
+        flatten(item);
+      }
     } else {
       items.push(condition);
     }
@@ -99,8 +101,8 @@ function keysFromWhere(
 }
 
 /**
- * Rows in conflict-key order, so concurrent upserts lock the same rows in
- * the same order instead of deadlocking.
+ * Rows in conflict-key order, so concurrent upserts lock the same rows in the
+ * same order instead of deadlocking.
  */
 export function byKey(
   rows: readonly Readonly<Record<string, unknown>>[],
@@ -146,7 +148,7 @@ export function byKey(
   }));
 
   keyed.sort((left, right) => {
-    for (let index = 0; index < columns.length; index++) {
+    for (let index = 0; index < columns.length; index += 1) {
       const order = compare(left.key[index], right.key[index]);
 
       if (order !== 0) {

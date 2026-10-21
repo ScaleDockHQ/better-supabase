@@ -158,6 +158,6 @@ describe("Supabase SDK diagnostic logging", () => {
     }).mapError((error) => new Error(error.message));
 
     derived.events.emit("refresh", { ok: false, shared: true, durationMs: 1 });
-    expect(logger.debug).toHaveBeenCalledTimes(1);
+    expect(logger.debug).toHaveBeenCalledOnce();
   });
 });

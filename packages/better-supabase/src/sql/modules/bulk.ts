@@ -28,7 +28,10 @@ export const BULK_ACTIONS = {
   "appTables.set": "app-tables",
 } as const;
 
-/** The app-tables function `appTables.set` calls, created with the app tables in `public`. */
+/**
+ * The app-tables function `appTables.set` calls, created with the app tables in
+ * `public`.
+ */
 export const APP_TABLE_SET = "app_table_set";
 
 const ACTION_NAME: RegExp = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*$/;
@@ -71,7 +74,10 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** `options.actions`: an app's own actions, each a `schema.function(tenant, subject_type, id, args)`. */
+/**
+ * `options.actions`: an app's own actions, each a `schema.function(tenant,
+ * subject_type, id, args)`.
+ */
 function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
   const where = "blocks.bulk.options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
@@ -165,7 +171,10 @@ ${arms.join("\n")}
   end case;`;
 }
 
-/** The PL/pgSQL loop that runs `v_chunk` row by row into `v_results`, `v_ok` and `v_failed`. */
+/**
+ * The PL/pgSQL loop that runs `v_chunk` row by row into `v_results`, `v_ok` and
+ * `v_failed`.
+ */
 function rowLoop(
   ctx: ModuleContext,
   tenant: string,

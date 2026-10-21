@@ -1,9 +1,11 @@
 import { channel } from "node:diagnostics_channel";
 
+import type { HttpEvent } from "./trace.ts";
+
 import { VERSION } from "../version.ts";
 import { CliError } from "./errors.ts";
 import { redactUrl } from "./redact.ts";
-import { HTTP_CHANNEL, type HttpEvent } from "./trace.ts";
+import { HTTP_CHANNEL } from "./trace.ts";
 
 const httpChannel = channel(HTTP_CHANNEL);
 
@@ -13,7 +15,10 @@ const REQUEST_TIMEOUT_MS = 30_000;
 export const USER_AGENT: string = `better-supabase/${VERSION}`;
 
 export interface HttpOptions {
-  /** What the request does, for messages: `Management API query for project abc`. */
+  /**
+   * What the request does, for messages: `Management API query for project
+   * abc`.
+   */
   readonly what: string;
   readonly method?: string;
   readonly headers?: Readonly<Record<string, string>>;
@@ -25,10 +30,10 @@ export interface HttpOptions {
 }
 
 /**
- * The response body of a request, with the CLI's user agent, the run's
- * signal and a timeout. A request that gets no response is `network_error`,
- * 401 and 403 are `auth_required`, and any other failed status is
- * `request_failed`. Each request is published on `HTTP_CHANNEL` for `--debug`.
+ * The response body of a request, with the CLI's user agent, the run's signal
+ * and a timeout. A request that gets no response is `network_error`, 401 and
+ * 403 are `auth_required`, and any other failed status is `request_failed`.
+ * Each request is published on `HTTP_CHANNEL` for `--debug`.
  */
 export async function request(
   url: string,

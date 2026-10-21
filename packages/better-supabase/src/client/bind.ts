@@ -3,13 +3,14 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { BetterQueries } from "../query/index.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ClientPorts } from "./ports.ts";
 
 import { userContext } from "../auth/impersonation.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
-import { createQueries, type BetterQueries } from "../query/index.ts";
+import { createQueries } from "../query/index.ts";
 import { identityKey } from "../query/user-change.ts";
 
 export interface AuthUser {
@@ -20,8 +21,8 @@ export interface AuthUser {
 
 /**
  * What the UI needs to know. Claims are decoded, not verified: RLS enforces
- * access. A token refresh that changes only `exp`, `iat`, `nbf` or `jti`
- * keeps the previous snapshot, so read expiry from the session, not here.
+ * access. A token refresh that changes only `exp`, `iat`, `nbf` or `jti` keeps
+ * the previous snapshot, so read expiry from the session, not here.
  */
 export type AuthSnapshot =
   | { readonly status: "loading"; readonly user: null; readonly claims: null }
@@ -49,7 +50,10 @@ export interface BetterClient<
   C = unknown,
   P = unknown,
 > {
-  /** The definition the client was created from (schema metadata, specs, live queries). */
+  /**
+   * The definition the client was created from (schema metadata, specs, live
+   * queries).
+   */
   readonly betterSupabase: BetterSupabase<M, unknown, F, E, C, P>;
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
@@ -57,7 +61,10 @@ export interface BetterClient<
   /** TanStack Query option factories over `db`. */
   readonly queries: BetterQueries<M, E, F>;
   readonly auth: ClientAuth;
-  /** The platform services block controllers use: storage, shortcuts, files, push, links. */
+  /**
+   * The platform services block controllers use: storage, shortcuts, files,
+   * push, links.
+   */
   readonly ports: ClientPorts;
   /**
    * Stops following `supabase`'s session. Call it when the client goes away
@@ -68,8 +75,8 @@ export interface BetterClient<
 
 export interface BindClientOptions {
   /**
-   * `staleTime` for every query option in `queries`. Above zero, a remount
-   * or a window focus reuses cached rows instead of refetching them.
+   * `staleTime` for every query option in `queries`. Above zero, a remount or a
+   * window focus reuses cached rows instead of refetching them.
    */
   readonly staleTime?: number;
   /**
@@ -120,11 +127,7 @@ function snapshotOf(session: Session | null): AuthSnapshot {
 
   return {
     status: "signed-in",
-    user: {
-      id,
-      ...(email ? { email } : {}),
-      ...(role ? { role } : {}),
-    },
+    user: { id, ...(email ? { email } : {}), ...(role ? { role } : {}) },
     claims,
   };
 }
@@ -141,8 +144,8 @@ function contextOf(snapshot: AuthSnapshot): RequestContext {
 }
 
 /**
- * Repositories that follow `supabase`'s session, TanStack Query options and
- * an auth store, for a supabase-js client you created yourself.
+ * Repositories that follow `supabase`'s session, TanStack Query options and an
+ * auth store, for a supabase-js client you created yourself.
  */
 export function bindClient<
   M extends AnyModels,

@@ -107,7 +107,7 @@ describe("postgresStreamStore", () => {
     expect(realtime.channel).toHaveBeenCalledWith("stream:s2", {
       config: { private: true },
     });
-    expect(realtime.removeChannel).toHaveBeenCalledTimes(1);
+    expect(realtime.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("errors the read with the DbError", async () => {
@@ -263,7 +263,7 @@ describe("teeToStore", () => {
 
     await text(stream);
     expect(await persisted.orThrow()).toBe(3);
-    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 
   it("keeps storing after the live client disconnects", async () => {

@@ -10,6 +10,7 @@ import {
 
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
 import type { OperationTable } from "../core/operations.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
@@ -17,14 +18,23 @@ import type {
   ResourceHandler,
   ResourceRouteOptions,
 } from "../server/resource-types.ts";
+import type { GuardOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { ToolSchemaTarget } from "./dialect.ts";
 import type { Json, JsonRpcRequest } from "./json-rpc.ts";
+import type { RequiredRoles } from "./permissions.ts";
+import type {
+  ServerDescription,
+  ToolAnnotations,
+  ToolInfo,
+  ToolResult,
+} from "./protocol.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { jsonResponse } from "../core/json.ts";
 import {
   methodNotAllowed,
@@ -37,19 +47,10 @@ import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
 import { defineResource } from "../server/resource.ts";
-import {
-  defaultExpose,
-  guard,
-  type GuardOptions,
-  settle,
-} from "../server/respond.ts";
+import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import { pageInputSchema, pageSchema } from "../spec/resource-schemas.ts";
-import {
-  schemaTargetFor,
-  type ToolSchemaTarget,
-  toolDialects,
-} from "./dialect.ts";
+import { schemaTargetFor, toolDialects } from "./dialect.ts";
 import {
   discovery,
   endpointPreflight,
@@ -77,7 +78,6 @@ import {
   contextOf,
   missingRole,
   permittedTools,
-  type RequiredRoles,
   toolPermission,
 } from "./permissions.ts";
 import {
@@ -87,12 +87,8 @@ import {
   LIST_TTL_MS,
   MCP_PROTOCOL_VERSION,
   modernResult,
-  type ServerDescription,
   SUPPORTED_VERSIONS,
   textResult,
-  type ToolAnnotations,
-  type ToolInfo,
-  type ToolResult,
 } from "./protocol.ts";
 
 export { MCP_PROTOCOL_VERSION } from "./protocol.ts";
@@ -142,7 +138,10 @@ export interface McpTool<
   readonly input?: StandardSchemaV1;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
-  /** Checked by the authorizer on every call; callers it denies don't see the tool. */
+  /**
+   * Checked by the authorizer on every call; callers it denies don't see the
+   * tool.
+   */
   readonly permission?: unknown;
   /** The provider operation the tool checks, in place of `mcp.tool.<name>`. */
   readonly operation?: string;
@@ -152,7 +151,10 @@ export interface McpTool<
 /** What the `authorize` and `visible` hooks see of a tool. */
 export interface ToolRef {
   readonly info: ToolInfo;
-  /** The tool's `meta`, e.g. a permission. For table tools, the resource's `meta` for that operation. */
+  /**
+   * The tool's `meta`, e.g. a permission. For table tools, the resource's
+   * `meta` for that operation.
+   */
   readonly meta: unknown;
 }
 
@@ -196,9 +198,9 @@ export interface ToolDefinition<
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
   /**
-   * Checked by the authorizer after the arguments are validated, with the
-   * tool as the resource (`mcp_tool`). `tools/list` hides the tool from
-   * callers it denies.
+   * Checked by the authorizer after the arguments are validated, with the tool
+   * as the resource (`mcp_tool`). `tools/list` hides the tool from callers it
+   * denies.
    */
   readonly permission?: Ref;
   /**
@@ -209,16 +211,19 @@ export interface ToolDefinition<
   run(args: I, ctx: ToolContext<M, F, E, C, P, B>): unknown;
 }
 
-/** A table's tools: the REST resource options, plus `meta` per operation for `authorize` and `visible`. */
+/**
+ * A table's tools: the REST resource options, plus `meta` per operation for
+ * `authorize` and `visible`.
+ */
 export type ToolResourceOptions<
   M extends AnyModels,
   T extends TableKey<M>,
   Ref = string,
 > = ResourceRouteOptions<M, T, Ref> & {
   /**
-   * Opaque data per operation, e.g. a permission, passed to
-   * `authorize` and `visible` as the table tool's `meta`. Never sent to
-   * clients. An operation without an entry gets `undefined`.
+   * Opaque data per operation, e.g. a permission, passed to `authorize` and
+   * `visible` as the table tool's `meta`. Never sent to clients. An operation
+   * without an entry gets `undefined`.
    */
   readonly meta?: { readonly [K in ResourceOperation]?: unknown };
 };
@@ -242,13 +247,16 @@ export interface McpOptions<
   readonly title?: string;
   /** Sent to clients on `initialize`, e.g. how the tools fit together. */
   readonly instructions?: string;
-  /** Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`, `_delete`. */
+  /**
+   * Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`,
+   * `_delete`.
+   */
   readonly resources?: ToolResources<M, Ref>;
   readonly tools?: readonly McpTool<M, F, E, C, P, B>[];
   /**
-   * The authorization provider's operations (`authorization.operations` in
-   * the config). A tool's `mcp.tool.<name>` entry replaces its `permission`,
-   * so the provider decides what each tool needs.
+   * The authorization provider's operations (`authorization.operations` in the
+   * config). A tool's `mcp.tool.<name>` entry replaces its `permission`, so the
+   * provider decides what each tool needs.
    */
   readonly operations?: OperationTable;
   /**
@@ -274,33 +282,43 @@ export interface McpOptions<
    */
   readonly requiredScopes?: readonly string[];
   /**
-   * Roles a signed-in user needs to call the server at all, read from a
-   * claim (`app_metadata.role` by default; a string or an array of
-   * strings). Users without one get 403; service-role callers pass.
+   * Roles a signed-in user needs to call the server at all, read from a claim
+   * (`app_metadata.role` by default; a string or an array of strings). Users
+   * without one get 403; service-role callers pass.
    *
    * ```ts
    * requiredRoles: { roles: ['admin', 'support'], claim: 'app_metadata.roles' }
    * ```
    */
   readonly requiredRoles?: RequiredRoles;
-  /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
+  /**
+   * Origins allowed to call the server (DNS rebinding protection). Defaults to
+   * any.
+   */
   readonly allowedOrigins?: readonly string[];
   /**
-   * Answers CORS preflights and adds `Access-Control-*` headers, so browser
-   * MCP clients can call the server. The allowed origin is `allowedOrigins`
-   * when set, any origin otherwise. Defaults to true.
+   * Answers CORS preflights and adds `Access-Control-*` headers, so browser MCP
+   * clients can call the server. The allowed origin is `allowedOrigins` when
+   * set, any origin otherwise. Defaults to true.
    */
   readonly cors?: boolean;
   /**
    * Hostnames the `Host` header may name, without the port (DNS rebinding
-   * protection). List the production, preview and local hosts. Defaults to any.
+   * protection). List the production, preview and local hosts. Defaults to
+   * any.
    */
   readonly allowedHosts?: readonly string[];
-  /** A page that explains how to connect, published as RFC 9728 `resource_documentation`. */
+  /**
+   * A page that explains how to connect, published as RFC 9728
+   * `resource_documentation`.
+   */
   readonly resourceDocumentation?: string;
   /** Custom jsonb types, as in `createOpenApi`. */
   readonly json?: Readonly<Record<string, unknown>>;
-  /** Include internal error messages in tool results. Defaults to `NODE_ENV === 'development'`. */
+  /**
+   * Include internal error messages in tool results. Defaults to `NODE_ENV ===
+   * 'development'`.
+   */
   readonly exposeErrors?: boolean;
   /**
    * Keeps the invocation alive for event sink sends a tool started, e.g.
@@ -337,7 +355,10 @@ export interface BetterMcp<
   Ref = string,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
-  /** Everything in one handler: the MCP endpoint and `/.well-known/oauth-protected-resource`. */
+  /**
+   * Everything in one handler: the MCP endpoint and
+   * `/.well-known/oauth-protected-resource`.
+   */
   readonly fetch: (request: Request) => Promise<Response>;
   /** The Streamable HTTP endpoint (POST JSON-RPC). */
   readonly endpoint: (request: Request) => Promise<Response>;
@@ -575,10 +596,10 @@ function tableTools(
 const VISIBLE_LISTS_MAX = 1000;
 
 /**
- * An MCP server (Streamable HTTP, stateless) whose tools run as the caller:
- * the Bearer token from the MCP client is verified and every query goes
- * through RLS. Answers 401 with RFC 9728 metadata so clients can sign in with
- * Supabase Auth's OAuth server.
+ * An MCP server (Streamable HTTP, stateless) whose tools run as the caller: the
+ * Bearer token from the MCP client is verified and every query goes through
+ * RLS. Answers 401 with RFC 9728 metadata so clients can sign in with Supabase
+ * Auth's OAuth server.
  */
 export function createMcp<
   M extends AnyModels,
@@ -614,7 +635,10 @@ export function createMcp<
 
   interface Entry extends ToolRef {
     readonly permission?: unknown;
-    /** The listed tool with its schemas in `target`'s dialect, built once per target. */
+    /**
+     * The listed tool with its schemas in `target`'s dialect, built once per
+     * target.
+     */
     infoFor(target: ToolSchemaTarget): ToolInfo;
     call(
       args: unknown,
@@ -636,7 +660,7 @@ export function createMcp<
     registry.set(entry.info.name, entry);
     allTools = undefined;
     listed.clear();
-    generation++;
+    generation += 1;
   };
 
   const failure = (error: DbError): ToolResult =>
@@ -804,7 +828,10 @@ export function createMcp<
 
   let warned = false;
 
-  /** A tool with a permission and no authorizer to check it is never listed, which is easy to miss. */
+  /**
+   * A tool with a permission and no authorizer to check it is never listed,
+   * which is easy to miss.
+   */
   const warnHidden = (all: readonly Entry[]): void => {
     if (warned || options.authorizer) {
       return;
@@ -822,7 +849,10 @@ export function createMcp<
     }
   };
 
-  /** Without a `visible` hook or permissions every caller sees the same list, built once. */
+  /**
+   * Without a `visible` hook or permissions every caller sees the same list,
+   * built once.
+   */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P, B>,
     target: ToolSchemaTarget,
@@ -956,7 +986,10 @@ export function createMcp<
     return response;
   };
 
-  /** A missing second factor is no scope problem, and an outage is not the caller's fault. */
+  /**
+   * A missing second factor is no scope problem, and an outage is not the
+   * caller's fault.
+   */
   const refuse = (request: Request, denied: DbError): Response => {
     if (denied.kind === "unauthorized") {
       return unauthorized(request);
@@ -983,7 +1016,10 @@ export function createMcp<
       { supported: [...SUPPORTED_VERSIONS], requested },
     );
 
-  /** 2026-07-28 requests carry their version and capabilities, mirrored in headers. */
+  /**
+   * 2026-07-28 requests carry their version and capabilities, mirrored in
+   * headers.
+   */
   const checkModern = (
     message: JsonRpcRequest,
     header: string | null,

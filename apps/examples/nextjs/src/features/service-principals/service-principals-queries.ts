@@ -15,8 +15,8 @@ export interface ServicePrincipalRow {
 
 /**
  * The organization's service principals through the block's read policy
- * (`service_principals.read`). A failed read throws, so it is never cached
- * and Retry reads again. `null` without an organization.
+ * (`service_principals.read`). A failed read throws, so it is never cached and
+ * Retry reads again. `null` without an organization.
  */
 export async function loadServicePrincipals(): Promise<
   readonly ServicePrincipalRow[] | null

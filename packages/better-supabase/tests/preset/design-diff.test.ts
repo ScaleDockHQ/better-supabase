@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { AppTablesConfig } from "../../src/config/types/app-tables.ts";
 
@@ -21,7 +21,7 @@ const kinds = (before: AppTablesConfig, after: AppTablesConfig): string[] =>
   );
 
 describe("diffAppTables", () => {
-  test("finds nothing between equal designs, whatever the key order", () => {
+  it("finds nothing between equal designs, whatever the key order", () => {
     expect(
       diffAppTables(projects, {
         projects: {
@@ -35,7 +35,7 @@ describe("diffAppTables", () => {
     ).toEqual([]);
   });
 
-  test("marks added tables and optional columns as safe", () => {
+  it("marks added tables and optional columns as safe", () => {
     expect(
       kinds(projects, {
         projects: {
@@ -54,7 +54,7 @@ describe("diffAppTables", () => {
     ]);
   });
 
-  test("marks drops, renames, type changes and new required columns as breaking", () => {
+  it("marks drops, renames, type changes and new required columns as breaking", () => {
     const changes = kinds(projects, {
       items: {
         columns: {
@@ -87,7 +87,7 @@ describe("diffAppTables", () => {
     ]);
   });
 
-  test("names a table with the same definition a rename", () => {
+  it("names a table with the same definition a rename", () => {
     const [change] = diffAppTables(projects, {
       boards: projects["projects"] ?? {},
     });
@@ -101,7 +101,7 @@ describe("diffAppTables", () => {
     expect(change?.steps).toHaveLength(3);
   });
 
-  test("a required column with a default or an identity is safe", () => {
+  it("a required column with a default or an identity is safe", () => {
     expect(
       kinds(projects, {
         projects: {
@@ -118,7 +118,7 @@ describe("diffAppTables", () => {
     ]);
   });
 
-  test("an id type change and other table settings", () => {
+  it("an id type change and other table settings", () => {
     expect(
       kinds(projects, {
         projects: { ...projects["projects"], id: "bigint", comment: "Work." },
@@ -126,7 +126,7 @@ describe("diffAppTables", () => {
     ).toEqual(["table.id projects !", "table.changed projects"]);
   });
 
-  test("adding or dropping a rollup or lookup is safe", () => {
+  it("adding or dropping a rollup or lookup is safe", () => {
     const counted: AppTablesConfig = {
       projects: {
         ...projects["projects"],
@@ -140,7 +140,7 @@ describe("diffAppTables", () => {
     expect(kinds(counted, projects)).toEqual(["table.computed projects"]);
   });
 
-  test("turning events on or off is safe", () => {
+  it("turning events on or off is safe", () => {
     const emitting: AppTablesConfig = {
       projects: { ...projects["projects"], events: true },
     };
@@ -149,7 +149,7 @@ describe("diffAppTables", () => {
     expect(kinds(emitting, projects)).toEqual(["table.events projects"]);
   });
 
-  test("keeping versions or changing their columns is safe", () => {
+  it("keeping versions or changing their columns is safe", () => {
     const versioned: AppTablesConfig = {
       projects: {
         ...projects["projects"],
@@ -165,7 +165,7 @@ describe("diffAppTables", () => {
     expect(kinds(versioned, subject)).toEqual(["table.versions projects"]);
   });
 
-  test("a new or tighter column constraint is breaking", () => {
+  it("a new or tighter column constraint is breaking", () => {
     const status: AppTablesConfig = {
       tasks: {
         columns: {
@@ -197,7 +197,7 @@ describe("diffAppTables", () => {
     ]);
   });
 
-  test("tighter column access is breaking and looser access is safe", () => {
+  it("tighter column access is breaking and looser access is safe", () => {
     const columns = (
       notes: "read" | "server" | undefined,
       title: "read" | "server" | undefined,
@@ -218,7 +218,7 @@ describe("diffAppTables", () => {
     ).toEqual(["column.changed tasks.notes"]);
   });
 
-  test("a looser constraint, a display format and onDelete are safe", () => {
+  it("a looser constraint, a display format and onDelete are safe", () => {
     const before: AppTablesConfig = {
       tasks: {
         columns: {
@@ -252,7 +252,7 @@ describe("diffAppTables", () => {
     ]);
   });
 
-  test("a new scope, unique set or removed generated columns is breaking", () => {
+  it("a new scope, unique set or removed generated columns is breaking", () => {
     const before: AppTablesConfig = {
       tasks: {
         columns: { title: { type: "text" } },
@@ -277,7 +277,7 @@ describe("diffAppTables", () => {
     ]);
   });
 
-  test("indexes, the comment and the subject title are safe", () => {
+  it("indexes, the comment and the subject title are safe", () => {
     expect(
       kinds(projects, {
         projects: {
@@ -289,7 +289,7 @@ describe("diffAppTables", () => {
     ).toEqual(["table.changed projects"]);
   });
 
-  test("keepMissing leaves out the tables the new design doesn't name", () => {
+  it("keepMissing leaves out the tables the new design doesn't name", () => {
     expect(
       diffAppTables(
         { ...projects, tasks: {} },
@@ -299,7 +299,7 @@ describe("diffAppTables", () => {
     ).toEqual(["column.added"]);
   });
 
-  test("every breaking change has steps and every safe one has none", () => {
+  it("every breaking change has steps and every safe one has none", () => {
     const changes = diffDesigns(
       { appTables: projects },
       { appTables: { other: { columns: { x: { type: "text" } } } } },

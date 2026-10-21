@@ -9,17 +9,13 @@ import type {
 } from "../../src/blocks/notifications/index.ts";
 import type { SubscriberPolicy } from "../../src/core/contracts/authorization-hooks.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import {
   createNotifications,
   sqlTransport,
 } from "../../src/blocks/notifications/index.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 const DENIED = /permission denied|Grant the required privileges/;
@@ -46,7 +42,6 @@ const anything: StandardSchemaV1<{ title: string }> = {
 
 describe.skipIf(!live)("notification email delivery", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
-  afterAll(() => pool.end());
 
   let s: BlockSession;
   let owner: TestUser;
@@ -59,12 +54,11 @@ describe.skipIf(!live)("notification email delivery", () => {
     owner = await s.user("owner");
     member = await s.user("member");
     bounced = await s.user("bounced");
-    organization = await s.organization(owner, {
-      member,
-      member2: bounced,
-    });
+    organization = await s.organization(owner, { member, member2: bounced });
   });
   afterEach(() => s.close());
+
+  afterAll(() => pool.end());
 
   const mailer = (audience?: SubscriberPolicy) => {
     const sent: { message: EmailMessage; idempotencyKey: string }[] = [];

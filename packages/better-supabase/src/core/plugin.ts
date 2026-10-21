@@ -43,7 +43,10 @@ export interface HookArgs {
   readonly context: RequestContext;
   readonly options: CallOptions;
   readonly now: () => Temporal.Instant;
-  /** The caller's `signal`, when it passed one. Hooks that do I/O should honor it. */
+  /**
+   * The caller's `signal`, when it passed one. Hooks that do I/O should honor
+   * it.
+   */
   readonly signal?: AbortSignal;
 }
 
@@ -53,17 +56,26 @@ export interface MutationEvent {
   readonly table: TableMeta;
   /** The statement that ran. */
   readonly kind: MutationKind;
-  /** What the caller asked for; differs from `kind` when a plugin rewrote the mutation. */
+  /**
+   * What the caller asked for; differs from `kind` when a plugin rewrote the
+   * mutation.
+   */
   readonly intent?: MutationIntent;
-  /** App-cased rows returned by the mutation. A copy: changing it never changes the result. */
+  /**
+   * App-cased rows returned by the mutation. A copy: changing it never changes
+   * the result.
+   */
   readonly rows: readonly Readonly<Record<string, unknown>>[];
   /**
-   * App-cased primary keys of the changed rows, when they are known: from
-   * the returned rows, or from a `where` on the primary key when nothing is
+   * App-cased primary keys of the changed rows, when they are known: from the
+   * returned rows, or from a `where` on the primary key when nothing is
    * returned (soft deletes, `returning: false`).
    */
   readonly keys?: readonly Readonly<Record<string, unknown>>[];
-  /** The tenant of the write: `context.tenant`, which `tenant()` fills from the claims. */
+  /**
+   * The tenant of the write: `context.tenant`, which `tenant()` fills from the
+   * claims.
+   */
   readonly tenant?: string;
   readonly context: RequestContext;
 }
@@ -80,7 +92,11 @@ export interface RepositoryApi {
  *
  * ```ts
  * interface RestoreExtension extends RepositoryExtension {
- *   readonly methods: HasFlag<this['M'], this['T'], 'softDelete'> extends true
+ *   readonly methods: HasFlag<
+ *     this["M"],
+ *     this["T"],
+ *     "softDelete"
+ *   > extends true
  *     ? { restore(id: string): AsyncResult<unknown> }
  *     : unknown;
  * }
@@ -142,8 +158,8 @@ export interface DescribeParameter {
 }
 
 /**
- * What `Plugin.describe` can change in the API model `defineApi` builds.
- * Every method ignores tables and columns the API does not serve.
+ * What `Plugin.describe` can change in the API model `defineApi` builds. Every
+ * method ignores tables and columns the API does not serve.
  */
 export interface PluginDescribeApi {
   readonly schema: SchemaMeta;
@@ -162,8 +178,8 @@ export interface PluginDescribeApi {
   ): void;
   /**
    * Marks a column `readOnly` in the table's schemas and drops it from the
-   * required fields of request bodies. `description` is used when the
-   * column has none.
+   * required fields of request bodies. `description` is used when the column
+   * has none.
    */
   markReadOnly(table: string, column: string, description?: string): void;
   /** Deep-merges JSON Schema fields into the column's schemas. */
@@ -176,9 +192,7 @@ export interface PluginDescribeApi {
 
 export const PLUGIN_API_VERSION = 1;
 
-/**
- * Plugin API v1. Every hook is optional. Hooks run in `use()` order.
- */
+/** Plugin API v1. Every hook is optional. Hooks run in `use()` order. */
 export interface Plugin<
   Name extends string = string,
   Ext extends RepositoryExtension = NoExtension,
@@ -187,25 +201,24 @@ export interface Plugin<
   readonly name: Name;
   /**
    * Hook order: `first`, then `pre`, then unmarked plugins, then `post`;
-   * plugins at the same level keep `use()` order. `first` is for plugins
-   * that check the query as the caller wrote it, before a `pre` plugin
-   * rewrites it (`rules()`). Validation is `post` so it sees columns other
-   * plugins fill.
+   * plugins at the same level keep `use()` order. `first` is for plugins that
+   * check the query as the caller wrote it, before a `pre` plugin rewrites it
+   * (`rules()`). Validation is `post` so it sees columns other plugins fill.
    */
   readonly enforce?: "first" | "pre" | "post";
   /**
    * The table flags whose tables this plugin's `transformQuery` filters
    * (`tenant()` declares `['tenant']`). Read sets warn when they read such a
-   * table, because their generated SQL function runs without the plugin.
-   * `[]` means the plugin only inspects queries. A plugin with
-   * `transformQuery` that leaves this out is assumed to filter every table.
+   * table, because their generated SQL function runs without the plugin. `[]`
+   * means the plugin only inspects queries. A plugin with `transformQuery` that
+   * leaves this out is assumed to filter every table.
    */
   readonly scopes?: readonly (keyof TableFlags)[];
   /**
-   * `context`: derive values from the connection's context once per
-   * `connect()` and `$with()`, so `db.$context` carries them (`tenant()`
-   * adds the tenant it resolved). Runs in hook order on the context the
-   * caller passed. A throw is logged and leaves the context unchanged.
+   * `context`: derive values from the connection's context once per `connect()`
+   * and `$with()`, so `db.$context` carries them (`tenant()` adds the tenant it
+   * resolved). Runs in hook order on the context the caller passed. A throw is
+   * logged and leaves the context unchanged.
    */
   readonly context?: (
     context: RequestContext,
@@ -229,9 +242,9 @@ export interface Plugin<
     api: RepositoryApi,
   ) => Readonly<Record<string, (...args: never[]) => unknown>> | undefined;
   /**
-   * `spec`: describe what the plugin does to the served tables in the API
-   * model (`defineApi`, `createOpenApi`): parameters it reads, columns it
-   * manages. A throw is reported as `plugin-describe-failed`.
+   * `spec`: describe what the plugin does to the served tables in the API model
+   * (`defineApi`, `createOpenApi`): parameters it reads, columns it manages. A
+   * throw is reported as `plugin-describe-failed`.
    */
   readonly describe?: (api: PluginDescribeApi) => void;
   /** Phantom carrying the repository extension type. */
@@ -265,13 +278,15 @@ function rankOf(plugin: AnyPlugin): number {
 }
 
 /**
- * Plugins in hook order: `first`, `pre`, unmarked, then `post`, each level
- * in `use()` order.
+ * Plugins in hook order: `first`, `pre`, unmarked, then `post`, each level in
+ * `use()` order.
  */
 export function orderPlugins(plugins: readonly AnyPlugin[]): AnyPlugin[] {
   return plugins
     .map((plugin, index) => ({ plugin, index }))
-    .sort((a, b) => rankOf(a.plugin) - rankOf(b.plugin) || a.index - b.index)
+    .toSorted(
+      (a, b) => rankOf(a.plugin) - rankOf(b.plugin) || a.index - b.index,
+    )
     .map(({ plugin }) => plugin);
 }
 

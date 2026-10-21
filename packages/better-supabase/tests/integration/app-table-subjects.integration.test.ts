@@ -3,14 +3,10 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AppTablesConfig } from "../../src/config/types/app-tables.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { withAppTableSubjects } from "../../src/config/app-tables.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 

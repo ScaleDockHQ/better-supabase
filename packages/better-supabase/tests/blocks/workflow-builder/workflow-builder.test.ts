@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { BuilderStartCall } from "../../../src/blocks/workflow-builder/workflow-builder.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import type { Result } from "../../../src/core/result.ts";
 import type { CredentialProvider } from "../../../src/credentials/provider.ts";
@@ -11,10 +12,7 @@ import {
   triggerOf,
   versionOf,
 } from "../../../src/blocks/workflow-builder/rows.ts";
-import {
-  type BuilderStartCall,
-  createWorkflowBuilder,
-} from "../../../src/blocks/workflow-builder/workflow-builder.ts";
+import { createWorkflowBuilder } from "../../../src/blocks/workflow-builder/workflow-builder.ts";
 import { createWorkflows } from "../../../src/blocks/workflows/workflows.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 import { GRAPH } from "./fixture.ts";
@@ -132,11 +130,7 @@ describe("row mappers", () => {
   it("reads rows and rejects unknown values", () => {
     expect(
       definitionOf({ ...DEFINITION, published: 2, draft: true }),
-    ).toMatchObject({
-      published: 2,
-      draft: true,
-      description: undefined,
-    });
+    ).toMatchObject({ published: 2, draft: true, description: undefined });
     expect(definitionOf({ ...DEFINITION, published: null })).toMatchObject({
       published: undefined,
     });
@@ -173,10 +167,7 @@ describe("row mappers", () => {
     );
     expect(
       triggerOf({ ...TRIGGER, config: null, enabled: null }),
-    ).toMatchObject({
-      config: {},
-      enabled: true,
-    });
+    ).toMatchObject({ config: {}, enabled: true });
     expect(credentialOf({ ...CREDENTIAL, scopes: null }).scopes).toEqual([]);
     expect(() => credentialOf({ ...CREDENTIAL, ref: {} })).toThrow(
       "has no provider",
@@ -334,7 +325,7 @@ describe("createWorkflowBuilder", () => {
     ]);
     status = "published";
     await builder.versions.publish("v1").orThrow();
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledOnce();
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
     expect(service.calls).toHaveLength(1);
 
@@ -730,11 +721,7 @@ describe("createWorkflowBuilder", () => {
       actor: undefined,
       input: { a: 1 },
       subject: { type: "deal", id: "x" },
-      stubs: {
-        lookup: { plan: "pro" },
-        welcome: "sent",
-        nudge: "sent",
-      },
+      stubs: { lookup: { plan: "pro" }, welcome: "sent", nudge: "sent" },
     });
     expect(starts[0]?.idempotencyKey).toMatch(/^test:/);
 
@@ -1065,7 +1052,7 @@ describe("createWorkflowBuilder", () => {
 
     const builder = createWorkflowBuilder({
       transport,
-      start: async () => `wrun_${String(++n)}`,
+      start: async () => `wrun_${String((n += 1))}`,
     });
 
     expect(
@@ -1075,10 +1062,7 @@ describe("createWorkflowBuilder", () => {
     ).toEqual(["wrun_1", "wrun_2"]);
 
     const failing = await createWorkflowBuilder({ transport }).triggers.onEvent(
-      {
-        id: "e1",
-        type: "x",
-      },
+      { id: "e1", type: "x" },
     );
 
     expect(failing.ok).toBe(false);
@@ -1090,7 +1074,7 @@ describe("createWorkflowBuilder", () => {
       start: async () => {
         started.push("run");
 
-        return `wrun_${String(++n)}`;
+        return `wrun_${String((n += 1))}`;
       },
     });
 

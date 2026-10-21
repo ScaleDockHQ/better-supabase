@@ -23,10 +23,9 @@ function dependencyType(value: unknown): GanttDependencyType {
 }
 
 /**
- * Adds each task's dependencies from `blocks` edges: when A blocks B, B
- * depends on A. The edge's `data.type` and `data.lag` set the dependency
- * type (default `FS`) and lag (default 0). Edges to tasks outside the list
- * are left out.
+ * Adds each task's dependencies from `blocks` edges: when A blocks B, B depends
+ * on A. The edge's `data.type` and `data.lag` set the dependency type (default
+ * `FS`) and lag (default 0). Edges to tasks outside the list are left out.
  */
 export function toGanttTasks<T extends { readonly id: string }>(
   tasks: readonly T[],

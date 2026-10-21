@@ -35,7 +35,10 @@ export type ScopedTenant<M extends AnyModels> = {
 }[TableKey<M>];
 
 export interface ScopedSeedOptions<M extends AnyModels> {
-  /** The table and row for the tenant; leave it out when the tenant is only an id. */
+  /**
+   * The table and row for the tenant; leave it out when the tenant is only an
+   * id.
+   */
   readonly tenant?: ScopedTenant<M>;
   /** Defaults to `$SUPABASE_URL` and `$SUPABASE_SECRET_KEY`. */
   readonly stack?: LocalStack;
@@ -59,12 +62,11 @@ export interface ScopedSeed<M extends AnyModels, S> {
 type Rows = Readonly<Record<string, unknown>>;
 
 interface Repository {
-  create(row: unknown): PromiseLike<
+  create(
+    row: unknown,
+  ): PromiseLike<
     | { readonly ok: true; readonly data: unknown }
-    | {
-        readonly ok: false;
-        readonly error: { readonly message: string };
-      }
+    | { readonly ok: false; readonly error: { readonly message: string } }
   >;
   deleteMany(args: object): PromiseLike<unknown>;
 }
@@ -86,21 +88,31 @@ function env(names: readonly string[]): string | undefined {
 }
 
 /**
- * Fresh rows for one test, so tests that run at the same time never share
- * data. It creates a new tenant id, inserts the fixtures that `build` returns
- * through the service role (RLS and plugins don't apply), and hands back the
- * inserted rows. Call `cleanup()` in `afterEach` (or `await using`) to delete
- * them. A user from `asUser` then reads them over PostgREST like any other.
+ * Fresh rows for one test, so tests that run at the same time never share data.
+ * It creates a new tenant id, inserts the fixtures that `build` returns through
+ * the service role (RLS and plugins don't apply), and hands back the inserted
+ * rows. Call `cleanup()` in `afterEach` (or `await using`) to delete them. A
+ * user from `asUser` then reads them over PostgREST like any other.
  *
  * ```ts
  * const scope = await scopedSeed(
  *   betterSupabase,
  *   ({ tenant, id }) => ({
- *     customers: { first: { organizationId: tenant, name: `first-${id()}` } },
+ *     customers: {
+ *       first: { organizationId: tenant, name: `first-${id()}` },
+ *     },
  *   }),
- *   { tenant: { table: 'organizations', row: (id) => ({ id, name: id, slug: id }) } },
+ *   {
+ *     tenant: {
+ *       table: "organizations",
+ *       row: (id) => ({ id, name: id, slug: id }),
+ *     },
+ *   },
  * );
- * const alice = await asUser(betterSupabase, { sub: aliceId, tenant_id: scope.tenant });
+ * const alice = await asUser(betterSupabase, {
+ *   sub: aliceId,
+ *   tenant_id: scope.tenant,
+ * });
  * expect(await alice.db.customers.count().orThrow()).toBe(1);
  * await scope.cleanup();
  * ```
@@ -169,7 +181,7 @@ export async function scopedSeed<
   };
 
   const remove = async (): Promise<void> => {
-    const pending = cleanup.splice(0).reverse();
+    const pending = cleanup.splice(0).toReversed();
     let failure: unknown;
 
     for (const run of pending) {
@@ -221,19 +233,22 @@ export async function scopedSeed<
   };
 }
 
-/** The error `withRollback` throws to end its transaction; never reaches callers. */
+/**
+ * The error `withRollback` throws to end its transaction; never reaches
+ * callers.
+ */
 class Rollback extends Error {}
 
 /**
- * Runs `fn` as the user over direct Postgres inside one transaction and
- * always rolls it back, so the test leaves no rows behind. `fn` gets the same
+ * Runs `fn` as the user over direct Postgres inside one transaction and always
+ * rolls it back, so the test leaves no rows behind. `fn` gets the same
  * repositories as `user.sql`. Only the `sql` path rolls back: `user.db` talks
  * to PostgREST over HTTP and commits on its own.
  *
  * ```ts
  * const alice = await asUser(betterSupabase, claims, { postgres });
  * await withRollback(alice, async (db) => {
- *   await db.customers.create({ organizationId, name: 'Temp' }).orThrow();
+ *   await db.customers.create({ organizationId, name: "Temp" }).orThrow();
  *   expect(await db.customers.count().orThrow()).toBe(1);
  * });
  * ```
@@ -264,17 +279,23 @@ export async function withRollback<
 }
 
 /**
- * Runs `fn` over direct Postgres as the user that `claims` describe, inside
- * one transaction that always rolls back. The transaction sets `role` (from
+ * Runs `fn` over direct Postgres as the user that `claims` describe, inside one
+ * transaction that always rolls back. The transaction sets `role` (from
  * `claims.role`, else `authenticated`) and `request.jwt.claims`, so
  * `auth.uid()`, `auth.jwt()` and RLS answer as they would for that user's
  * request. Use it for raw SQL; `withRollback` gives repositories instead.
  *
  * ```ts
- * await withClaims(postgres, { sub: aliceId, tenant_id: orgId }, async (sql) => {
- *   const [row] = await sql.queryRaw<{ id: string }>('select auth.uid() as id');
- *   expect(row?.id).toBe(aliceId);
- * });
+ * await withClaims(
+ *   postgres,
+ *   { sub: aliceId, tenant_id: orgId },
+ *   async (sql) => {
+ *     const [row] = await sql.queryRaw<{ id: string }>(
+ *       "select auth.uid() as id",
+ *     );
+ *     expect(row?.id).toBe(aliceId);
+ *   },
+ * );
  * ```
  */
 export function withClaims<T>(

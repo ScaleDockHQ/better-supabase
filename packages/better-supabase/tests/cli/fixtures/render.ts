@@ -3,11 +3,11 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import {
-  type BetterSupabaseConfig,
   jsonSchema,
   resolveConfig,
   standardSchema,

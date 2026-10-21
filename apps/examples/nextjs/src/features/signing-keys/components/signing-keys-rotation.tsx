@@ -39,10 +39,9 @@ import {
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import {
-  loadSigningKeys,
-  type SigningKeysOverview,
-} from "../signing-keys-queries";
+import type { SigningKeysOverview } from "../signing-keys-queries";
+
+import { loadSigningKeys } from "../signing-keys-queries";
 import { SIGNING_KEYS_PERMISSION } from "../signing-keys-server";
 import { RotateSigningKeyButton } from "./rotate-signing-key-button";
 
@@ -71,9 +70,9 @@ async function retry() {
 }
 
 /**
- * Render inside `<Suspense>`: the organization's active signing key and
- * the retired ones still published, with a rotate button. The keys are
- * service-role only, so this checks `organization.update` before it reads.
+ * Render inside `<Suspense>`: the organization's active signing key and the
+ * retired ones still published, with a rotate button. The keys are service-role
+ * only, so this checks `organization.update` before it reads.
  */
 export async function SigningKeysRotation() {
   const [session, t] = await Promise.all([

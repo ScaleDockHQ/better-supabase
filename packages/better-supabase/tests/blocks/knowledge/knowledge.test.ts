@@ -173,12 +173,7 @@ describe("createKnowledge", () => {
     ]);
     expect(
       calls.find((c) => c.fn === "list_knowledge_documents")?.args,
-    ).toEqual({
-      tenant: "o1",
-      scope: "user",
-      scope_id: "u1",
-      max_rows: 5,
-    });
+    ).toEqual({ tenant: "o1", scope: "user", scope_id: "u1", max_rows: 5 });
     expect(await knowledge.documents.remove("d1").orThrow()).toBe(true);
   });
 
@@ -190,11 +185,7 @@ describe("createKnowledge", () => {
     });
 
     const file = (mediaType: string): AiFile =>
-      ({
-        id: "f1",
-        filename: "notes.md",
-        mediaType,
-      }) as AiFile;
+      ({ id: "f1", filename: "notes.md", mediaType }) as AiFile;
 
     const read = vi.fn((fileId: string) =>
       AsyncResult.ok({
@@ -376,10 +367,7 @@ describe("createKnowledge", () => {
     expect(await knowledge.drain({ batch: 5 }).orThrow()).toBe(1);
     expect(embed).toHaveBeenCalledTimes(3);
     expect(calls.find((c) => c.fn === "fail_knowledge_document")?.args).toEqual(
-      {
-        document_id: "d2",
-        error: "down",
-      },
+      { document_id: "d2", error: "down" },
     );
 
     const flaky = vi

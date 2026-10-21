@@ -15,7 +15,7 @@ describe("importOptionalPeer", () => {
 describe("memoized", () => {
   it("loads once and shares the promise", async () => {
     let calls = 0;
-    const load = memoized(async () => ++calls);
+    const load = memoized(async () => (calls += 1));
     expect(await Promise.all([load(), load()])).toEqual([1, 1]);
     expect(calls).toBe(1);
   });
@@ -24,7 +24,7 @@ describe("memoized", () => {
     let calls = 0;
 
     const load = memoized(async () => {
-      if (++calls === 1) {
+      if ((calls += 1) === 1) {
         throw new Error("first");
       }
 

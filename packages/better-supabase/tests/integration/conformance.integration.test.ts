@@ -39,6 +39,7 @@ const live = await reachable();
 describe.skipIf(!live)("built-in executors conform", () => {
   const betterSupabase = defineSupabase(schema);
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => postgres.end());
 
   const create = (name: string) => ({
@@ -52,11 +53,7 @@ describe.skipIf(!live)("built-in executors conform", () => {
       postgrestExecutor(
         createClient(url, secretKey, { auth: { persistSession: false } }),
       ),
-      {
-        betterSupabase,
-        table: "tags",
-        create: create("postgrest"),
-      },
+      { betterSupabase, table: "tags", create: create("postgrest") },
     ));
 
   it("postgres", () =>

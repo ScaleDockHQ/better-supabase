@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
+import type { EveSessionAuth } from "../../src/eve/index.ts";
 
 import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
 import { createMemory, sqlTransport } from "../../src/blocks/memory/index.ts";
@@ -10,7 +11,6 @@ import {
   chatIdOf,
   ConnectionAuthorizationRequiredError,
   credentialAuth,
-  type EveSessionAuth,
   persistSessions,
   supabaseDocumentBackend,
   supabaseMemory,
@@ -35,6 +35,7 @@ function serviceTransport(s: BlockSession): BlockTransport {
 
 describe.skipIf(!live)("better-supabase/eve", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("stores each redelivered eve event once", async () => {
@@ -109,12 +110,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         ),
       ).toEqual([
         { id: "t1:1", role: "user", format: "canonical", parent_id: null },
-        {
-          id: "t1:0:2",
-          role: "assistant",
-          format: "eve",
-          parent_id: "t1:1",
-        },
+        { id: "t1:0:2", role: "assistant", format: "eve", parent_id: "t1:1" },
       ]);
       expect(
         await s.rows(

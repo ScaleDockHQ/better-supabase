@@ -17,8 +17,10 @@ import {
 } from "@/components/ui/select";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { ReminderOffset } from "../calendar-subjects";
+
 import { addEventReminder, removeEventReminder } from "../calendar-actions";
-import { REMINDER_OFFSETS, type ReminderOffset } from "../calendar-subjects";
+import { REMINDER_OFFSETS } from "../calendar-subjects";
 
 const isOffset = (value: unknown): value is ReminderOffset =>
   REMINDER_OFFSETS.some((offset) => offset === value);

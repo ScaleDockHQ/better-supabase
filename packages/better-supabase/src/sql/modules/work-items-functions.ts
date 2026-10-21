@@ -18,15 +18,17 @@ export interface WorkItemNames {
   /** The most assignees an item takes; 0 for no limit. */
   readonly maxAssignees: number;
   readonly service: string;
-  /** `options.extraColumns`: create writes them from attrs.fields, update by name. */
+  /**
+   * `options.extraColumns`: create writes them from attrs.fields, update by
+   * name.
+   */
   readonly extras: readonly ExtraColumn[];
 }
 
 /** The fields `update_work_items` writes, by camelCase name. */
-function fields(w: (column: string) => string): readonly {
-  readonly field: string;
-  readonly set: (v: string) => string;
-}[] {
+function fields(
+  w: (column: string) => string,
+): readonly { readonly field: string; readonly set: (v: string) => string }[] {
   const text = (column: string) => (v: string) =>
     `${w(column)} = nullif(trim(${v} #>> '{}'), '')`;
 

@@ -4,6 +4,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type {
   FilterEvaluation,
   FilterRecordField,
@@ -14,17 +15,17 @@ import type {
   FilterQuery,
   FilterRule,
 } from "../../list/filter-query.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { RuleField, RuleFieldCatalog } from "./fields.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { evaluateFilterQuery } from "../../list/filter-evaluate.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   instantArg,
   isRecord,
@@ -124,7 +125,10 @@ export interface RuleListOptions {
 export interface RuleSubject {
   readonly subjectType: string;
   readonly trigger: string;
-  /** The record the field catalog's columns read, such as the expense row with its submitter. */
+  /**
+   * The record the field catalog's columns read, such as the expense row with
+   * its submitter.
+   */
   readonly subject: Readonly<Record<string, unknown>>;
   /** The IANA zone relative dates ("today") resolve in. Default `UTC`. */
   readonly timeZone?: string;
@@ -153,15 +157,18 @@ export interface Rules {
   /** `undefined` when the caller can't read a rule with this id. */
   get(id: string): AsyncResult<Rule | undefined>;
   /**
-   * Creates or changes a rule. `rules.edit` covers disabled rules;
-   * enabling a rule or changing an enabled one takes `rules.publish`.
+   * Creates or changes a rule. `rules.edit` covers disabled rules; enabling a
+   * rule or changing an enabled one takes `rules.publish`.
    */
   save(organizationId: string, input: RuleInput): AsyncResult<Rule>;
   /** Turns a rule on or off (needs `rules.publish`). */
   setEnabled(id: string, enabled: boolean): AsyncResult<Rule>;
   /** Moves a rule to a rank key from `rankBetween` over its neighbours. */
   move(id: string, rank: string): AsyncResult<Rule>;
-  /** Removes a rule with its history (needs `rules.admin`); `false` when there is none to remove. */
+  /**
+   * Removes a rule with its history (needs `rules.admin`); `false` when there
+   * is none to remove.
+   */
   remove(id: string): AsyncResult<boolean>;
   /** Saved versions, newest first. */
   versions(id: string): AsyncResult<readonly RuleVersion[]>;
@@ -231,10 +238,12 @@ function actionsOf(value: unknown): readonly RuleAction[] {
     return [];
   }
 
-  return value.filter(isRecord).map((action) => ({
-    kind: textOf(action["kind"]),
-    ...(isRecord(action["config"]) ? { config: action["config"] } : {}),
-  }));
+  return value
+    .filter(isRecord)
+    .map((action) => ({
+      kind: textOf(action["kind"]),
+      ...(isRecord(action["config"]) ? { config: action["config"] } : {}),
+    }));
 }
 
 function resultsOf(value: unknown): Readonly<Record<string, boolean | null>> {
@@ -294,10 +303,12 @@ function fieldOf(value: Record<string, unknown>): RuleField {
     columnType: textOf(value["columnType"]),
     nullable: value["nullable"] !== false,
     options: Array.isArray(options)
-      ? options.filter(isRecord).map((option) => ({
-          value: textOf(option["value"]),
-          label: textOf(option["label"] ?? option["value"]),
-        }))
+      ? options
+          .filter(isRecord)
+          .map((option) => ({
+            value: textOf(option["value"]),
+            label: textOf(option["label"] ?? option["value"]),
+          }))
       : undefined,
     operators: Array.isArray(operators) ? operators.map(textOf) : undefined,
   };
@@ -480,7 +491,10 @@ export function createRules(options: RulesOptions): Rules {
 }
 
 export interface RulesAdminOptions extends BlockTemporalOptions {
-  /** A service-role transport: `sync_rule_fields` and `run_rules` are granted to `service_role` only. */
+  /**
+   * A service-role transport: `sync_rule_fields` and `run_rules` are granted to
+   * `service_role` only.
+   */
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
@@ -489,7 +503,10 @@ export interface RulesAdminOptions extends BlockTemporalOptions {
 export interface RulesAdmin {
   /** Replaces the subject type's field catalog; returns how many fields it has. */
   syncFields(catalog: RuleFieldCatalog): AsyncResult<number>;
-  /** Evaluates the enabled rules for the trigger, logs each one live and returns the matches. */
+  /**
+   * Evaluates the enabled rules for the trigger, logs each one live and returns
+   * the matches.
+   */
   run(
     organizationId: string,
     input: RuleSubject & { readonly subjectId?: string },
@@ -541,7 +558,10 @@ export function createRulesAdmin(options: RulesAdminOptions): RulesAdmin {
   };
 }
 
-/** What a handler receives: the action, the rule it belongs to and the dispatch context. */
+/**
+ * What a handler receives: the action, the rule it belongs to and the dispatch
+ * context.
+ */
 export interface RuleActionCall<C = unknown> {
   readonly action: RuleAction;
   readonly rule: Rule;
@@ -549,7 +569,10 @@ export interface RuleActionCall<C = unknown> {
   readonly context: C;
 }
 
-/** Runs one action kind. Return a `Result`; a throw becomes an `unexpected` error. */
+/**
+ * Runs one action kind. Return a `Result`; a throw becomes an `unexpected`
+ * error.
+ */
 export type RuleActionHandler<C = unknown> = (
   call: RuleActionCall<C>,
 ) => Result<unknown> | PromiseLike<Result<unknown>>;
@@ -654,7 +677,10 @@ export interface RuleSinkEvent {
   readonly tenant?: string | null;
 }
 
-/** What `load` returns for an event the rules should see: the subject and the dispatch context. */
+/**
+ * What `load` returns for an event the rules should see: the subject and the
+ * dispatch context.
+ */
 export interface RuleSinkTarget<C> {
   readonly organizationId: string;
   readonly subjectType: string;
@@ -687,12 +713,11 @@ export interface RuleSinkOptions<C> {
 }
 
 /**
- * An outbox consumer handler that tests the rules whose trigger is the
- * event's type and runs the actions of the ones that match, for
- * `outbox.consume("rules", createRuleSink(...))`. It throws
- * when the evaluation fails, so the outbox retries the event; a failed
- * action goes to `onOutcomes` instead, since a retry would run the others
- * again.
+ * An outbox consumer handler that tests the rules whose trigger is the event's
+ * type and runs the actions of the ones that match, for
+ * `outbox.consume("rules", createRuleSink(...))`. It throws when the evaluation
+ * fails, so the outbox retries the event; a failed action goes to `onOutcomes`
+ * instead, since a retry would run the others again.
  */
 export function createRuleSink<C = unknown>(
   options: RuleSinkOptions<C>,

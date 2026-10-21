@@ -1,6 +1,8 @@
 import "server-only";
+import type { RpcClient } from "better-supabase/blocks";
+
 import { DbException, dbError } from "better-supabase";
-import { type RpcClient, rpcTransport } from "better-supabase/blocks";
+import { rpcTransport } from "better-supabase/blocks";
 
 import { blocks } from "@/lib/blocks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -12,8 +14,8 @@ type ImportStatus = "completed" | "failed";
 
 /**
  * The `runImport` hooks that record a run in the imports block. The caller
- * starts the run; `mark_import_running` and `finish_import` are granted to
- * the service role only, so they run as that role after the action checked
+ * starts the run; `mark_import_running` and `finish_import` are granted to the
+ * service role only, so they run as that role after the action checked
  * `imports.manage`.
  */
 export function importRunHooks(

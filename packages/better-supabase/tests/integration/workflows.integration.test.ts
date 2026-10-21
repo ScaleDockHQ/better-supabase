@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { WorkflowStartCall } from "../../src/blocks/workflows/index.ts";
+
 import {
   createWorkflows,
   sqlTransport,
-  type WorkflowStartCall,
 } from "../../src/blocks/workflows/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -12,6 +13,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("workflows module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("records runs that their actor and the tenant read, and cancels them", async () => {

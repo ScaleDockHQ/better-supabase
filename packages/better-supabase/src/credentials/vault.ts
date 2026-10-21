@@ -26,39 +26,51 @@ export type VaultInboundScheme =
   | "shared-secret";
 
 /**
- * A credential in Vault. `scope: 'user'` keeps one secret per user subject.
- * The token goes out as `<header>: <scheme> <token>`, `Authorization: Bearer`
- * by default; `scheme: null` sends it bare (`x-api-key`).
+ * A credential in Vault. `scope: 'user'` keeps one secret per user subject. The
+ * token goes out as `<header>: <scheme> <token>`, `Authorization: Bearer` by
+ * default; `scheme: null` sends it bare (`x-api-key`).
  */
 export interface VaultCredentialRef {
   readonly provider: "vault";
   readonly secret: string;
-  /** Stores the secret as `tenant/<tenant>/<secret>`, apart from every other tenant's. */
+  /**
+   * Stores the secret as `tenant/<tenant>/<secret>`, apart from every other
+   * tenant's.
+   */
   readonly tenant?: string;
   readonly scope?: "app" | "user";
   readonly header?: string;
   readonly scheme?: string | null;
   readonly inbound?: VaultInboundScheme;
-  /** Defaults to `x-hub-signature-256` for `hmac-sha256`, `authorization` for `shared-secret`. */
+  /**
+   * Defaults to `x-hub-signature-256` for `hmac-sha256`, `authorization` for
+   * `shared-secret`.
+   */
   readonly signatureHeader?: string;
 }
 
 export interface VaultCredentialsOptions {
-  /** `sqlTransport(postgres.asService())` or `rpcTransport` with the service role key. */
+  /**
+   * `sqlTransport(postgres.asService())` or `rpcTransport` with the service
+   * role key.
+   */
   readonly transport: BlockTransport;
   /** The schema of the `credentials` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * How long a read secret stays in memory, in milliseconds. Defaults to
-   * 60000; `0` reads Vault on every call. `set` and `revoke` clear it.
+   * How long a read secret stays in memory, in milliseconds. Defaults to 60000;
+   * `0` reads Vault on every call. `set` and `revoke` clear it.
    */
   readonly cacheMs?: number;
 }
 
 export interface VaultCredentials extends CredentialProvider {
   readonly name: "vault";
-  /** Stores or replaces the credential a ref names, for `subject` when the ref is per user. */
+  /**
+   * Stores or replaces the credential a ref names, for `subject` when the ref
+   * is per user.
+   */
   set(
     ref: CredentialRef,
     value: string,
@@ -227,10 +239,10 @@ async function verifyWith(
 }
 
 /**
- * A `CredentialProvider` over the `credentials` SQL module: tokens and API
- * keys in Supabase Vault, read through security definer functions only the
- * service role may call. Static secrets only; OAuth connections come from
- * a provider such as `better-supabase/vercel-connect`.
+ * A `CredentialProvider` over the `credentials` SQL module: tokens and API keys
+ * in Supabase Vault, read through security definer functions only the service
+ * role may call. Static secrets only; OAuth connections come from a provider
+ * such as `better-supabase/vercel-connect`.
  */
 export function vaultCredentials(
   options: VaultCredentialsOptions,
@@ -369,9 +381,7 @@ export function vaultCredentials(
           dbError(
             "invalid_input",
             `"${parsed.data.secret}" has no inbound scheme`,
-            {
-              hint: "CREDENTIAL_REF_INVALID",
-            },
+            { hint: "CREDENTIAL_REF_INVALID" },
           ),
         );
       }

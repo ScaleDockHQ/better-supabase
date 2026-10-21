@@ -7,7 +7,10 @@ export function chainOn(ctx: ModuleContext): boolean {
   return ctx.manages && ctx.flag("chain", false);
 }
 
-/** Whether `blocks.audit.options.partitioned` is on for a log the module manages. */
+/**
+ * Whether `blocks.audit.options.partitioned` is on for a log the module
+ * manages.
+ */
 export function partitionedOn(ctx: ModuleContext): boolean {
   return ctx.manages && ctx.flag("partitioned", false);
 }
@@ -33,14 +36,17 @@ export const CHAIN_CONTRACT: readonly ModuleContractFunction[] = [
 
 const CHECKPOINTS = "better_supabase.audit_checkpoints";
 
-/** A raise with a hint the TypeScript side maps to a code; `42501` maps to `forbidden`. */
+/**
+ * A raise with a hint the TypeScript side maps to a code; `42501` maps to
+ * `forbidden`.
+ */
 const fail = (hint: string, message: string, errcode = "42501"): string =>
   `raise exception '${message}' using errcode = '${errcode}', hint = '${hint}';`;
 
 /**
- * The hash chain: `chain_seq`, `prev_hash` and `row_hash` on every entry,
- * set before insert under a per-tenant advisory lock, `verify_audit_chain`,
- * and `audit_checkpoints` that a signing job fills.
+ * The hash chain: `chain_seq`, `prev_hash` and `row_hash` on every entry, set
+ * before insert under a per-tenant advisory lock, `verify_audit_chain`, and
+ * `audit_checkpoints` that a signing job fills.
  */
 export function chainSql(ctx: ModuleContext): string {
   const log = ctx.table("log");

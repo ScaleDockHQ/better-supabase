@@ -1,12 +1,13 @@
 import type { DbError } from "../core/errors.ts";
 import type { Executor } from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
 
-import { err, type Result } from "../core/result.ts";
+import { err } from "../core/result.ts";
 
 /**
- * An executor for credentials that did not verify: every query, function
- * call and batch answers `error`, so a handler that skips the route guard
- * gets a 401 `Result` and never queries as anon.
+ * An executor for credentials that did not verify: every query, function call
+ * and batch answers `error`, so a handler that skips the route guard gets a 401
+ * `Result` and never queries as anon.
  */
 export function refusingExecutor(error: DbError): Executor {
   const refuse = <T>(): Result<T> => err(error);

@@ -15,22 +15,28 @@ import {
 import { pollingRead } from "./store.ts";
 
 export interface PostgresStreamStoreOptions {
-  /** `sqlTransport(postgres.asService())` for the writer; the owner's transport for reads. */
+  /**
+   * `sqlTransport(postgres.asService())` for the writer; the owner's transport
+   * for reads.
+   */
   readonly transport: BlockTransport;
   /** The schema of the `streams` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * `realtime` (the default) pings the stream's private topic after each
-   * batch; `poll` skips the ping for apps near the Realtime message quota,
-   * and readers poll instead.
+   * `realtime` (the default) pings the stream's private topic after each batch;
+   * `poll` skips the ping for apps near the Realtime message quota, and readers
+   * poll instead.
    */
   readonly wake?: "realtime" | "poll";
   /** A Supabase client a reader joins the topic with, to wake up on the ping. */
   readonly realtime?: Pick<SupabaseClient, "channel" | "removeChannel">;
   /** `blocks.streams.options.topic`. Defaults to `stream`. */
   readonly topic?: string;
-  /** Milliseconds between reads of an idle stream: 250 by default, 2000 with `realtime`. */
+  /**
+   * Milliseconds between reads of an idle stream: 250 by default, 2000 with
+   * `realtime`.
+   */
   readonly pollMs?: number;
   /** Chunks per read. Defaults to 1000. */
   readonly batch?: number;

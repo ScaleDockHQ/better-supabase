@@ -20,8 +20,8 @@ import {
 import { navLinks, site } from "@/lib/site";
 
 /**
- * The main nav below `sm`, in a sheet. It closes when a link is tapped and
- * when the route changes some other way, such as the back button.
+ * The main nav below `sm`, in a sheet. It closes when a link is tapped and when
+ * the route changes some other way, such as the back button.
  */
 export function MobileNav() {
   const pathname = usePathname();

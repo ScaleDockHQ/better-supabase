@@ -15,10 +15,9 @@ export type {
 
 /**
  * What `better-supabase introspect` reads from Postgres. `generator` is the
- * `@supabase/postgrest-typegen` contract (the same metadata behind
- * `supabase gen types`); `extras` holds what that contract leaves out.
- * Codegen and doctor both work from this snapshot, so either can run offline
- * from a saved file.
+ * `@supabase/postgrest-typegen` contract (the same metadata behind `supabase
+ * gen types`); `extras` holds what that contract leaves out. Codegen and doctor
+ * both work from this snapshot, so either can run offline from a saved file.
  */
 export interface Snapshot {
   readonly $schema?: string;
@@ -36,20 +35,20 @@ export interface SnapshotExtras {
   /** Tables in the `supabase_realtime` publication, as `schema.table`. */
   readonly realtime: readonly string[];
   /**
-   * `alter role ... set` values for the Data API roles (`authenticator`),
-   * such as `pgrst.db_aggregates_enabled`. Absent in older snapshots.
+   * `alter role ... set` values for the Data API roles (`authenticator`), such
+   * as `pgrst.db_aggregates_enabled`. Absent in older snapshots.
    */
   readonly roleSettings?: Readonly<
     Record<string, Readonly<Record<string, string>>>
   >;
   /**
-   * Functions that policies in the read schemas call, plus functions in
-   * those schemas with `set` options. Absent in older snapshots.
+   * Functions that policies in the read schemas call, plus functions in those
+   * schemas with `set` options. Absent in older snapshots.
    */
   readonly functions?: readonly ExtrasFunction[];
   /**
-   * The Postgres functions `supabase/config.toml` configures as Auth hooks,
-   * in any schema. Absent in older snapshots and without a `config.toml`.
+   * The Postgres functions `supabase/config.toml` configures as Auth hooks, in
+   * any schema. Absent in older snapshots and without a `config.toml`.
    */
   readonly hooks?: readonly ExtrasHook[];
   /**
@@ -58,10 +57,10 @@ export interface SnapshotExtras {
    */
   readonly functionComments?: Readonly<Record<string, string>>;
   /**
-   * Set when the snapshot comes from a `GeneratorMetadata` document alone
-   * (`gen --metadata`): unique keys, checks and foreign keys are inferred from
-   * the columns and relationships, and the rest is empty, so doctor skips
-   * the rules that read it.
+   * Set when the snapshot comes from a `GeneratorMetadata` document alone (`gen
+   * --metadata`): unique keys, checks and foreign keys are inferred from the
+   * columns and relationships, and the rest is empty, so doctor skips the rules
+   * that read it.
    */
   readonly fromMetadata?: true;
 }
@@ -102,7 +101,10 @@ export interface ExtrasFunction {
   readonly securityDefiner: boolean;
   /** `set` options, e.g. `{ statement_timeout: '5s' }`. */
   readonly settings: Readonly<Record<string, string>>;
-  /** Which of `anon` and `authenticated` may execute it. Absent in older snapshots. */
+  /**
+   * Which of `anon` and `authenticated` may execute it. Absent in older
+   * snapshots.
+   */
   readonly execute?: readonly string[];
 }
 
@@ -126,7 +128,10 @@ export interface ExtrasTable {
   readonly grants: readonly CatalogGrant[];
   /** Absent in snapshots taken before column grants were introspected. */
   readonly columnGrants?: readonly CatalogColumnGrant[];
-  /** Postgres estimates at least `LARGE_TABLE_ROWS` rows; the `unbounded-read` lint reads it. */
+  /**
+   * Postgres estimates at least `LARGE_TABLE_ROWS` rows; the `unbounded-read`
+   * lint reads it.
+   */
   readonly large?: true;
   /** The partitioned parent as `schema.name`, when the table is a partition. */
   readonly partitionOf?: string;
@@ -157,7 +162,10 @@ export interface CatalogIndex {
   readonly partial: boolean;
   /** Access method (`btree`, `gin`, `gist`, ...). Absent in older snapshots. */
   readonly method?: string;
-  /** The `where` of a partial index, as Postgres prints it. Absent in older snapshots. */
+  /**
+   * The `where` of a partial index, as Postgres prints it. Absent in older
+   * snapshots.
+   */
   readonly predicate?: string | null;
 }
 
@@ -169,8 +177,8 @@ export interface CatalogPolicy {
   readonly using: string | null;
   readonly check: string | null;
   /**
-   * Functions the policy expressions call, as `schema.name`, from
-   * `pg_depend`. Absent in older snapshots.
+   * Functions the policy expressions call, as `schema.name`, from `pg_depend`.
+   * Absent in older snapshots.
    */
   readonly functions?: readonly string[];
 }
@@ -197,7 +205,10 @@ export interface CatalogGrant {
   readonly privileges: readonly string[];
 }
 
-/** A column-level `select`, `insert` or `update` grant to `anon` or `authenticated`. */
+/**
+ * A column-level `select`, `insert` or `update` grant to `anon` or
+ * `authenticated`.
+ */
 export interface CatalogColumnGrant {
   readonly column: string;
   readonly role: string;
@@ -216,8 +227,8 @@ export interface SnapshotBucket {
 }
 
 /**
- * The snapshot joined into one record per table, function and enum. Codegen
- * and doctor read this view rather than the raw snapshot.
+ * The snapshot joined into one record per table, function and enum. Codegen and
+ * doctor read this view rather than the raw snapshot.
  */
 export interface Catalog {
   readonly schemas: readonly string[];

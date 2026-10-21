@@ -74,9 +74,7 @@ describe("createOAuthServer", () => {
 
     expect(
       await oauth.verifyClient("bsc_client", "s3cret").orThrow(),
-    ).toMatchObject({
-      clientId: "bsc_client",
-    });
+    ).toMatchObject({ clientId: "bsc_client" });
     expect(
       await oauth.verifyRegistrationToken("bsc_client", "tok").orThrow(),
     ).toBe(true);
@@ -263,6 +261,7 @@ describe("createOAuthServer", () => {
     expect(await oauth.isRevoked("jti-1", undefined).orThrow()).toBe(true);
     expect(call.mock.calls[1]?.[2]).toEqual({ jti: "jti-1", grant_id: null });
   });
+
   it("reads, updates and deletes a client", async () => {
     const { call, transport } = fake({
       oauth_client: CLIENT_ROW,
@@ -347,9 +346,7 @@ describe("createOAuthServer", () => {
 
     expect(
       await oauth.pollDeviceCode("device", "bsc_client").orThrow(),
-    ).toEqual({
-      status: "invalid_grant",
-    });
+    ).toEqual({ status: "invalid_grant" });
   });
 
   it("lists and revokes grants and purges expired rows", async () => {

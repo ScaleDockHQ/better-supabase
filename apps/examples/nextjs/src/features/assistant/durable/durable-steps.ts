@@ -1,14 +1,13 @@
-import { generateText } from "ai";
-import {
-  type DurableStepInput,
-  type DurableStepName,
-  type DurableStepOutput,
-  runDurableStep,
+import type {
+  DurableStepInput,
+  DurableStepName,
+  DurableStepOutput,
 } from "better-supabase/ai-sdk/workflow";
-import {
-  type AiRunStepInput,
-  createAiChat,
-} from "better-supabase/blocks/ai-chat";
+import type { AiRunStepInput } from "better-supabase/blocks/ai-chat";
+
+import { generateText } from "ai";
+import { runDurableStep } from "better-supabase/ai-sdk/workflow";
+import { createAiChat } from "better-supabase/blocks/ai-chat";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
 
@@ -45,7 +44,10 @@ export async function chatStep<K extends DurableStepName>(
   return runDurableStep(createAiChat(serviceOptions()), name, input);
 }
 
-/** Records one step of a research run in `ai_run_steps`, for the activity console. */
+/**
+ * Records one step of a research run in `ai_run_steps`, for the activity
+ * console.
+ */
 export async function recordRunStep(
   runId: string,
   step: AiRunStepInput,

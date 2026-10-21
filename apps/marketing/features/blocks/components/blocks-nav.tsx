@@ -8,8 +8,8 @@ import { BlockGlyph } from "./block-icon";
 import { CategoryIcon } from "./category-icon";
 
 /**
- * The `/blocks` sidebar: the overview, then every block under its category.
- * It renders on the server; only the links read the pathname.
+ * The `/blocks` sidebar: the overview, then every block under its category. It
+ * renders on the server; only the links read the pathname.
  */
 export function BlocksNav() {
   return (

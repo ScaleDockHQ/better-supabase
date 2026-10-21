@@ -1,17 +1,15 @@
 import type { Money } from "../../commerce/money.ts";
 import type { SubjectConfig } from "../../config/types/subjects.ts";
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -30,7 +28,6 @@ import { plainDate } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   enumOrThrow,
   optionalInstant,
   optionalText,
@@ -240,9 +237,7 @@ export interface DealForecast {
   readonly owners: readonly (Omit<
     DealForecast,
     "owners" | "currency" | "target" | "attainment" | "gap"
-  > & {
-    readonly ownerId?: string;
-  })[];
+  > & { readonly ownerId?: string })[];
 }
 
 /** The checks a forecast review runs on an open deal. */
@@ -310,8 +305,8 @@ export interface DealsOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the deals' extra columns
-   * (`blocks.deals.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on reads and validates them on writes.
+   * (`blocks.deals.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on reads and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Deals<FieldsOf<S>>>>;
@@ -557,9 +552,9 @@ function forecastOf(value: unknown): DealForecast {
 }
 
 /**
- * The deals block: deals on pipelines, with batched cell edits that reject
- * per change, won and lost through the pipeline's stages, contacts, a team,
- * line items, the forecast call and the review checks.
+ * The deals block: deals on pipelines, with batched cell edits that reject per
+ * change, won and lost through the pipeline's stages, contacts, a team, line
+ * items, the forecast call and the review checks.
  */
 export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
   options: DealsOptions<S>,

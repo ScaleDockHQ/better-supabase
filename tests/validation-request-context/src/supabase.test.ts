@@ -69,9 +69,7 @@ describe("env", () => {
           SUPABASE_URL: "http://127.0.0.1:54321/",
         })
       ).value,
-    ).toMatchObject({
-      url: "http://127.0.0.1:54321",
-    });
+    ).toMatchObject({ url: "http://127.0.0.1:54321" });
     expect(
       (
         await validate(supabaseClientEnv, {

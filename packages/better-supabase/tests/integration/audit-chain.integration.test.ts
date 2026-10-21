@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { AuditCheckpointSigner } from "../../src/blocks/audit/index.ts";
+
 import {
   createAuditChain,
   sqlTransport,
-  type AuditCheckpointSigner,
 } from "../../src/blocks/audit/index.ts";
 import {
   createRetention,
@@ -27,6 +28,7 @@ const chained = { modules: { audit: { options: { chain: true } } } };
 
 describe.skipIf(!live)("audit hash chain", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("links each tenant's entries, finds an edited one and signs the heads", async () => {

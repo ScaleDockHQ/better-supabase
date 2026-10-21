@@ -1,6 +1,8 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import { around, bufferInPlace, type Validated } from "./shared.ts";
+import type { Validated } from "./shared.ts";
+
+import { around, bufferInPlace } from "./shared.ts";
 
 /** The part of SvelteKit's `RequestEvent` the bridge reads and writes. */
 export interface SvelteKitEvent<Locals extends object> {
@@ -9,7 +11,10 @@ export interface SvelteKitEvent<Locals extends object> {
   readonly platform?: { readonly env?: unknown } | undefined;
 }
 
-/** SvelteKit's `Handle`, typed structurally so the package does not import `@sveltejs/kit`. */
+/**
+ * SvelteKit's `Handle`, typed structurally so the package does not import
+ * `@sveltejs/kit`.
+ */
 export type SvelteKitHandle<Locals extends object> = <
   Event extends SvelteKitEvent<Locals>,
 >(input: {
@@ -18,13 +23,14 @@ export type SvelteKitHandle<Locals extends object> = <
 }) => Promise<Response>;
 
 /**
- * Runs an entry array as a SvelteKit `handle` hook. Every contributed key
- * lands on `event.locals`, so loads, actions and endpoints read
- * `locals.db`; `event.platform.env` (Cloudflare) seeds `getEnv`. Declare
- * the keys in `App.Locals` with `BetterSupabaseContributions`.
+ * Runs an entry array as a SvelteKit `handle` hook. Every contributed key lands
+ * on `event.locals`, so loads, actions and endpoints read `locals.db`;
+ * `event.platform.env` (Cloudflare) seeds `getEnv`. Declare the keys in
+ * `App.Locals` with `BetterSupabaseContributions`.
  *
- * ```ts title="src/hooks.server.ts"
- * export const handle = toSvelteKit([withBetterSupabase(server)])
+ * ```ts
+ * // src/hooks.server.ts
+ * export const handle = toSvelteKit([withBetterSupabase(server)]);
  * ```
  *
  * Compose it with other hooks through SvelteKit's `sequence`.

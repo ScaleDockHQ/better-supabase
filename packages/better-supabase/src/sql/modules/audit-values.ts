@@ -23,8 +23,8 @@ export const isAuditValueColumn = (key: string): key is AuditValueColumn =>
   COLUMNS.some((column) => column === key);
 
 /**
- * `blocks.audit.options.values`: the module's value to the adopted
- * log's, per column, such as `{ scope: { tenant: "organization" } }`.
+ * `blocks.audit.options.values`: the module's value to the adopted log's, per
+ * column, such as `{ scope: { tenant: "organization" } }`.
  */
 function valueMaps(
   ctx: ModuleContext,
@@ -116,8 +116,8 @@ export function auditRead(
 
 /**
  * The tenant's name as it was: `blocks.audit.options.tenantLabel`
- * (`schema.table.column`, matched on `tenantLabelKey`, `id` by default),
- * else the organizations module's name column, else null.
+ * (`schema.table.column`, matched on `tenantLabelKey`, `id` by default), else
+ * the organizations module's name column, else null.
  */
 export function tenantLabel(ctx: ModuleContext, tenant: string): string {
   const configured = ctx.option("tenantLabel");

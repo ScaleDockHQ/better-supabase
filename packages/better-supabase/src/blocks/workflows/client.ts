@@ -11,7 +11,11 @@ export interface WorkflowRunsControllerOptions {
   readonly client: { readonly runs: Pick<Workflows["runs"], "list"> };
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
-  /** The tenant whose runs to list; it also joins the tenant's `workflow-runs:<tenant>` topic. Without one, the signed-in user's own runs load once. */
+  /**
+   * The tenant whose runs to list; it also joins the tenant's
+   * `workflow-runs:<tenant>` topic. Without one, the signed-in user's own runs
+   * load once.
+   */
   readonly tenant?: string | null;
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
@@ -35,8 +39,8 @@ export type WorkflowRunsController = Controller<
 >;
 
 /**
- * The runs the signed-in user may read, newest first, loaded again when a
- * run in the tenant changes status.
+ * The runs the signed-in user may read, newest first, loaded again when a run
+ * in the tenant changes status.
  */
 export function createWorkflowRunsController(
   options: WorkflowRunsControllerOptions,

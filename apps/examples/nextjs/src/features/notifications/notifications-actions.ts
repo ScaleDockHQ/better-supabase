@@ -65,7 +65,10 @@ export const loadNotificationCounts = bs.action(
     blocks(supabase).notifications.counts({ tenant }),
 );
 
-/** The caller's latest notifications, loaded by `useNotifications` after each broadcast. */
+/**
+ * The caller's latest notifications, loaded by `useNotifications` after each
+ * broadcast.
+ */
 export const loadNotifications = bs.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {

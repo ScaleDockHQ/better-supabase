@@ -6,7 +6,10 @@ export type {
   UseNotificationsOptions,
 } from "./index.ts";
 
-/** The `react-server` build of `useNotifications`: call `notifications.list()` instead. */
+/**
+ * The `react-server` build of `useNotifications`: call `notifications.list()`
+ * instead.
+ */
 export const useNotifications: <T>(
   options: UseNotificationsOptions<T>,
 ) => NotificationsState<T> = () => {

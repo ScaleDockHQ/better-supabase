@@ -272,8 +272,8 @@ describe("createVercelMarketplace", () => {
       expect.not.objectContaining({ planValue: expect.anything() }),
     ]);
     expect(
-      calls.filter(([name]) => name === "mark_marketplace_meter_sent").length,
-    ).toBe(2);
+      calls.filter(([name]) => name === "mark_marketplace_meter_sent"),
+    ).toHaveLength(2);
   });
 
   it("uses the access token sealed at installation when no accessToken is passed", async () => {
@@ -351,12 +351,12 @@ describe("createVercelMarketplace", () => {
       secretRefs: ["key_1"],
     });
     expect((await marketplace.resources("icfg_1")).data).toEqual([]);
-    expect((await marketplace.deleteResource("icfg_1", "res")).data).toBe(
-      undefined,
-    );
-    expect((await marketplace.removeInstallation("icfg_1")).data).toBe(
-      undefined,
-    );
+    expect(
+      (await marketplace.deleteResource("icfg_1", "res")).data,
+    ).toBeUndefined();
+    expect(
+      (await marketplace.removeInstallation("icfg_1")).data,
+    ).toBeUndefined();
     expect((await marketplace.sealAccessToken("icfg_1", "vat")).ok).toBe(true);
     expect(calls.map(([name]) => name)).toEqual([
       "link_marketplace_tenant",
@@ -698,9 +698,7 @@ describe("createVercelMarketplace", () => {
 
     const throwing = make(
       {},
-      {
-        accessToken: () => Promise.reject(new Error("vault down")),
-      },
+      { accessToken: () => Promise.reject(new Error("vault down")) },
     );
 
     expect((await down.submitInvoice(input)).error?.message).toContain(
@@ -893,10 +891,7 @@ describe("createVercelMarketplace", () => {
         { jwks, fetch: respond(token) },
       );
 
-      const result = await marketplace.exchangeSso({
-        code: "c",
-        state: "s",
-      });
+      const result = await marketplace.exchangeSso({ code: "c", state: "s" });
 
       expect(result.data).toMatchObject({
         configurationId: "icfg_1",
@@ -949,9 +944,7 @@ describe("createVercelMarketplace", () => {
     it("retries with refreshed keys for a kid it does not know, then refuses", async () => {
       const { token, jwks } = await idToken(claims());
 
-      const renamed = {
-        keys: jwks.keys.map((key) => ({ ...key, kid: "k2" })),
-      };
+      const renamed = { keys: jwks.keys.map((key) => ({ ...key, kid: "k2" })) };
 
       const { marketplace } = make(
         {},

@@ -14,6 +14,7 @@ const REDIRECT = "https://app.example.com/callback";
 
 describe.skipIf(!live)("oauth-server module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("redeems a PKCE code once and revokes the grant on a replay", async () => {
@@ -36,9 +37,7 @@ describe.skipIf(!live)("oauth-server module", () => {
 
       expect(
         await oauth.verifyClient(client.clientId, clientSecret).orThrow(),
-      ).toMatchObject({
-        clientId: client.clientId,
-      });
+      ).toMatchObject({ clientId: client.clientId });
       expect(
         await oauth.verifyClient(client.clientId, "wrong").orThrow(),
       ).toBeNull();
@@ -170,23 +169,15 @@ describe.skipIf(!live)("oauth-server module", () => {
         await oauth
           .pollDeviceCode(device.deviceCode, client.clientId)
           .orThrow(),
-      ).toEqual({
-        status: "authorization_pending",
-        interval: 5,
-      });
+      ).toEqual({ status: "authorization_pending", interval: 5 });
       expect(
         await oauth
           .pollDeviceCode(device.deviceCode, client.clientId)
           .orThrow(),
-      ).toEqual({
-        status: "slow_down",
-        interval: 10,
-      });
+      ).toEqual({ status: "slow_down", interval: 10 });
       expect(
         await oauth.deviceRequest(device.userCode.toLowerCase()).orThrow(),
-      ).toMatchObject({
-        clientId: client.clientId,
-      });
+      ).toMatchObject({ clientId: client.clientId });
       expect(
         await oauth.approveDeviceCode(device.userCode, user.id).orThrow(),
       ).toBe(true);

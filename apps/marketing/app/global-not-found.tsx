@@ -14,7 +14,10 @@ export const metadata: Metadata = {
   description: site.tagline,
 };
 
-/** URLs that match no route skip the root layout, so this renders the whole document. */
+/**
+ * URLs that match no route skip the root layout, so this renders the whole
+ * document.
+ */
 export default function GlobalNotFound() {
   return (
     <html

@@ -10,9 +10,9 @@ export interface RotateSecretOptions {
 }
 
 /**
- * Where endpoint signing secrets live. `sqlSecretStore` (Vault or a
- * column, set in `blocks.webhooks-out.options.secretStorage`) is the default;
- * implement it for a KMS or a secrets manager.
+ * Where endpoint signing secrets live. `sqlSecretStore` (Vault or a column, set
+ * in `blocks.webhooks-out.options.secretStorage`) is the default; implement it
+ * for a KMS or a secrets manager.
  */
 export interface WebhookSecretStore {
   readonly apiVersion: 1;

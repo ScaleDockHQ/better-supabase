@@ -1,15 +1,19 @@
+import type { ModuleContext } from "./context.ts";
 import type {
   ModuleLayout,
   ModuleDeprecation,
   SqlModule,
 } from "./module-types.ts";
 
-import { createModuleContext, type ModuleContext } from "./context.ts";
+import { createModuleContext } from "./context.ts";
 import { providerIdType, withProviderDefaults } from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
 import { SQL_MODULES, checkModules } from "./registry.ts";
 
-/** The compatibility wrappers of a module's deprecated symbols that are not removed yet. */
+/**
+ * The compatibility wrappers of a module's deprecated symbols that are not
+ * removed yet.
+ */
 export function deprecationWrappers(
   module: SqlModule,
   ctx: ModuleContext,

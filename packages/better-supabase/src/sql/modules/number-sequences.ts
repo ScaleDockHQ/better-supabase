@@ -6,6 +6,10 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type {
+  SequenceEntity,
+  TenantColumn,
+} from "./number-sequences-entities.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -18,11 +22,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
-import {
-  type SequenceEntity,
-  sequences,
-  type TenantColumn,
-} from "./number-sequences-entities.ts";
+import { sequences } from "./number-sequences-entities.ts";
 
 const EVENTS: ModuleEvents<NumberSequencesEvents> = {
   "number.assigned": {

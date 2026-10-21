@@ -4,6 +4,7 @@ import type {
   FunctionContract,
   FunctionDescriptor,
 } from "../core/function-contract.ts";
+import type { Result } from "../core/result.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { MiddlewareOptions } from "../server/respond.ts";
@@ -12,14 +13,17 @@ import type { BetterEdge } from "./index.ts";
 
 import { dbError } from "../core/errors.ts";
 import { FUNCTION_DESCRIPTOR } from "../core/function-contract.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { withExtra } from "../server/extra.ts";
 import { settle } from "../server/respond.ts";
 
 export type { FunctionContract };
 
-/** A fetch handler that carries its contract in its type and its schemas at runtime. */
+/**
+ * A fetch handler that carries its contract in its type and its schemas at
+ * runtime.
+ */
 export type TypedFunction<In, Out> = EdgeHandler &
   DescribedFunction & {
     /** Type-only: never set at runtime. */
@@ -59,7 +63,10 @@ export interface FunctionDefinition<
    * answers 500, so a function never sends data its contract doesn't promise.
    */
   readonly output?: StandardSchemaV1<unknown, Out>;
-  /** A one-line summary for the operation `functionRoute` describes in `better-supabase/spec`. */
+  /**
+   * A one-line summary for the operation `functionRoute` describes in
+   * `better-supabase/spec`.
+   */
   readonly summary?: string;
   /** Runs as the caller with the parsed input. Returns data or a `Result`. */
   readonly handler: (

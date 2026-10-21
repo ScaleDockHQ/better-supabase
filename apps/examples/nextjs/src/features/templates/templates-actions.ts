@@ -56,10 +56,7 @@ export const createTemplate = bs.action(
 /** Creates a customer from the template's newest published version. */
 export const applyTemplate = bs.action(
   {
-    input: v.object({
-      templateId: v.pipe(v.string(), v.uuid()),
-      name: Name,
-    }),
+    input: v.object({ templateId: v.pipe(v.string(), v.uuid()), name: Name }),
     requireTenant: true,
     authorize: (session) =>
       can(session, "templates.apply") && can(session, "customers.write"),

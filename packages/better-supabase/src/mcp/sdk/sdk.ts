@@ -20,6 +20,7 @@ import {
 import type { AuthState } from "../../auth/resolve.ts";
 import type { BetterSupabase } from "../../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
+import type { GuardOptions } from "../../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
@@ -29,7 +30,7 @@ import type {
 import { delegationOf } from "../../auth/actor.ts";
 import { flushEvents, resolveToken } from "../../server/adapter.ts";
 import { withExtra } from "../../server/extra.ts";
-import { guard, type GuardOptions } from "../../server/respond.ts";
+import { guard } from "../../server/respond.ts";
 import { createServer, extendServer } from "../../server/server.ts";
 import {
   discovery,
@@ -48,16 +49,16 @@ export interface McpAuthOptions
   extends ServerOptions, Omit<GuardOptions, "scopes"> {
   /**
    * The MCP endpoint's public URL, the RFC 9728 `resource`. Defaults to the
-   * request URL without a trailing slash, and on Supabase Edge Functions to
-   * the public `<origin>/functions/v1/<slug>`; pass it when a proxy rewrites
-   * the host or path.
+   * request URL without a trailing slash, and on Supabase Edge Functions to the
+   * public `<origin>/functions/v1/<slug>`; pass it when a proxy rewrites the
+   * host or path.
    */
   readonly resource?: string | ((request: Request) => string);
   /** Defaults to the project's Supabase Auth issuer. */
   readonly authorizationServers?: readonly string[];
   /**
-   * Answers CORS preflights in `serve` and adds `Access-Control-*` headers
-   * (any origin), so browser MCP clients can call the server. Defaults to true.
+   * Answers CORS preflights in `serve` and adds `Access-Control-*` headers (any
+   * origin), so browser MCP clients can call the server. Defaults to true.
    */
   readonly cors?: boolean;
   /** Scopes published as `scopes_supported`; `offline_access` is never listed. */
@@ -76,7 +77,10 @@ export interface McpAuthOptions
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
-/** A fetch handler that takes verified auth, like the SDK's `createMcpHandler(...)`. */
+/**
+ * A fetch handler that takes verified auth, like the SDK's
+ * `createMcpHandler(...)`.
+ */
 export interface McpFetchHandler {
   fetch(
     request: Request,
@@ -92,15 +96,18 @@ export interface BetterMcpAuth<
   P = unknown,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
-  /** An `OAuthTokenVerifier` for the SDK's bearer helpers; it verifies the token locally. */
+  /**
+   * An `OAuthTokenVerifier` for the SDK's bearer helpers; it verifies the token
+   * locally.
+   */
   readonly verifier: OAuthTokenVerifier;
   /** The RFC 9728 Protected Resource Metadata document. */
   metadata(request: Request): Response;
   /** Where the metadata is served, for `WWW-Authenticate` challenges. */
   metadataUrl(request: Request): string;
   /**
-   * A fetch handler that serves the metadata, refuses callers without a
-   * valid bearer token (401 or 403 with an RFC 9728 challenge), then calls
+   * A fetch handler that serves the metadata, refuses callers without a valid
+   * bearer token (401 or 403 with an RFC 9728 challenge), then calls
    * `handler.fetch(request, { authInfo })`.
    */
   serve(handler: McpFetchHandler): (request: Request) => Promise<Response>;
@@ -145,7 +152,10 @@ export interface BetterToolConfig<
   readonly icons?: Icon[];
   readonly scopeChallenge?: ScopeChallengeHandler;
   readonly _meta?: Record<string, unknown>;
-  /** Extra keys for wrappers registered in between, such as an authorization library's `permission`. */
+  /**
+   * Extra keys for wrappers registered in between, such as an authorization
+   * library's `permission`.
+   */
   readonly [key: string]: unknown;
 }
 
@@ -184,7 +194,10 @@ export type BetterMcpServer<
   ): RegisteredTool;
 };
 
-/** The structural part of `McpServer` (or a wrapper of it) that `withBetterSupabaseMcp` needs. */
+/**
+ * The structural part of `McpServer` (or a wrapper of it) that
+ * `withBetterSupabaseMcp` needs.
+ */
 export interface ToolRegistrar {
   registerTool(
     name: string,
@@ -218,8 +231,8 @@ function isUserState<C, P>(
 /**
  * Bearer auth for an MCP server built on the official SDK
  * (`@modelcontextprotocol/server` 2.3 or later). Verifies Supabase access
- * tokens locally, serves the RFC 9728 metadata, and binds repositories to
- * the caller. Pair it with `withBetterSupabaseMcp` and `createMcpHandler`.
+ * tokens locally, serves the RFC 9728 metadata, and binds repositories to the
+ * caller. Pair it with `withBetterSupabaseMcp` and `createMcpHandler`.
  */
 export function createMcpAuth<
   M extends AnyModels,
@@ -234,7 +247,10 @@ export function createMcpAuth<
   options: McpAuthOptions = {},
 ): BetterMcpAuth<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
-  /** Auth states this instance verified and guarded; any other `AuthInfo.extra` is ignored. */
+  /**
+   * Auth states this instance verified and guarded; any other `AuthInfo.extra`
+   * is ignored.
+   */
   const verified = new WeakSet<object>();
   const allow = options.allow ?? ["user"];
   const scopes = options.requiredScopes ?? [];
@@ -387,9 +403,9 @@ export function createMcpAuth<
 }
 
 /**
- * Wraps `server.registerTool` so every tool callback gets `db`, `auth` and
- * `bs` for the caller on its context. Wrap after an authorization wrapper
- * so permissions are checked before the context is built.
+ * Wraps `server.registerTool` so every tool callback gets `db`, `auth` and `bs`
+ * for the caller on its context. Wrap after an authorization wrapper so
+ * permissions are checked before the context is built.
  */
 export function withBetterSupabaseMcp<
   S extends ToolRegistrar,

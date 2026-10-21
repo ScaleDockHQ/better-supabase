@@ -1,9 +1,10 @@
-import {
-  APP_COLUMN_ACCESS,
-  type AppColumnAccess,
-  type AppTableConfig,
-  type AppTablesConfig,
+import type {
+  AppColumnAccess,
+  AppTableConfig,
+  AppTablesConfig,
 } from "./types/app-tables.ts";
+
+import { APP_COLUMN_ACCESS } from "./types/app-tables.ts";
 
 const PLACEHOLDER = /\{([^}]*)\}/gu;
 

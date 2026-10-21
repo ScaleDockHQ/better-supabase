@@ -37,7 +37,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { type AnswerCell, getForm } from "../forms-queries";
+import type { AnswerCell } from "../forms-queries";
+
+import { getForm } from "../forms-queries";
 import { FormBuilderWorkspace } from "./form-builder-workspace";
 import { FormStatusBadge } from "./form-status-badge";
 

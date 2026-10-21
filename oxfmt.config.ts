@@ -1,4 +1,6 @@
-import { type OxfmtConfig, defineConfig } from "oxfmt";
+import type { OxfmtConfig } from "oxfmt";
+
+import { defineConfig } from "oxfmt";
 import ultracite from "ultracite/oxfmt";
 
 import { ignorePatterns } from "./oxlint.config.ts";
@@ -8,12 +10,7 @@ function tailwindApp(
   files: string,
   stylesheet: string,
 ): NonNullable<OxfmtConfig["overrides"]>[number] {
-  return {
-    files: [files],
-    options: {
-      sortTailwindcss: { stylesheet },
-    },
-  };
+  return { files: [files], options: { sortTailwindcss: { stylesheet } } };
 }
 
 const config: OxfmtConfig = defineConfig({
@@ -21,6 +18,10 @@ const config: OxfmtConfig = defineConfig({
   trailingComma: "all",
   // Ultracite's "never" would rewrap every Markdown and MDX file.
   proseWrap: "preserve",
+  jsdoc: true,
+  // An object literal that fits on one line goes on one line, whatever the
+  // source wrote.
+  objectWrap: "collapse",
   ignorePatterns: [
     ...ignorePatterns,
     "packages/better-supabase/tests/fixtures/generated*",
@@ -29,6 +30,9 @@ const config: OxfmtConfig = defineConfig({
     "tests/validation-*/src/**/generated.*",
     // `introspect --check` compares the file byte for byte with its own output.
     "supabase/snapshot.json",
+    // `recipes:check` compares it with the example sources, whose Tailwind
+    // classes sort against the app's stylesheet, which this path can't see.
+    "packages/better-supabase/skills/better-supabase/references/ui-recipes.md",
     "packages/better-supabase/api/**",
     "packages/better-supabase/tests/standards/schemas/**",
     "packages/better-supabase/src/cli/spec/schemas/**",
@@ -51,6 +55,12 @@ const config: OxfmtConfig = defineConfig({
   },
   sortPackageJson: { sortScripts: true },
   overrides: [
+    {
+      // Generators write these with JSON.stringify, and their checks compare
+      // the bytes.
+      files: ["**/*.{json,jsonc,json5}"],
+      options: { objectWrap: "preserve" },
+    },
     tailwindApp("apps/docs/**", "./apps/docs/app/global.css"),
     tailwindApp("apps/marketing/**", "./apps/marketing/app/globals.css"),
     tailwindApp(

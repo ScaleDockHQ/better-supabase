@@ -1,4 +1,6 @@
-import { type DbError, dbError } from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "../storage/errors.ts";
 
@@ -37,8 +39,8 @@ function refusal(cause: unknown, hints: UploadClaimHints): DbError {
 
 /**
  * Claims an object a browser uploaded to a signed upload URL, so a support
- * session records it. Succeeds without a request when the storage has no
- * claim step.
+ * session records it. Succeeds without a request when the storage has no claim
+ * step.
  */
 export function claimUpload(
   storage: UploadClaimStorage,

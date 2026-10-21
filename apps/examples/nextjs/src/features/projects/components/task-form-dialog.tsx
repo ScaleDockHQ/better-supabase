@@ -41,13 +41,10 @@ import {
 } from "@/components/ui/select";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { MemberOption, ProjectOption, TaskStatus } from "../project-types";
+
 import { createTask } from "../project-actions";
-import {
-  type MemberOption,
-  type ProjectOption,
-  TASK_STATUSES,
-  type TaskStatus,
-} from "../project-types";
+import { TASK_STATUSES } from "../project-types";
 import { useStatusLabel } from "../use-task-labels";
 
 // #region recipe:record-form

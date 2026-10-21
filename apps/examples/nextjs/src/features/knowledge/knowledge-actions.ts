@@ -11,8 +11,8 @@ import { bs } from "@/lib/supabase/server";
 import { knowledge } from "./knowledge-server";
 
 /**
- * Stores pasted text as one of the caller's documents and embeds it after
- * the response; a queue (`knowledge.embedJob()`) does the same in an app.
+ * Stores pasted text as one of the caller's documents and embeds it after the
+ * response; a queue (`knowledge.embedJob()`) does the same in an app.
  */
 export const addDocument = bs.action(
   {

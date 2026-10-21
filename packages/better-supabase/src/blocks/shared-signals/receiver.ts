@@ -1,39 +1,50 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { Jwks } from "../../core/jws.ts";
+import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
+import type { BlockOptions } from "../shared.ts";
+import type { SetErrorCode, VerifiedSet } from "./set.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { type Jwks, jwksOf } from "../../core/jws.ts";
-import { consoleLogger, type Logger } from "../../core/logger.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { jwksOf } from "../../core/jws.ts";
+import { consoleLogger } from "../../core/logger.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   errorText,
   isRecord,
   readBodyCapped,
 } from "../shared.ts";
 import { SSF_POLL, SSF_PUSH } from "./methods.ts";
-import {
-  SET_CONTENT_TYPE,
-  type SetErrorCode,
-  type VerifiedSet,
-  verifySet,
-} from "./set.ts";
+import { SET_CONTENT_TYPE, verifySet } from "./set.ts";
 
-/** Handles one event type; a throw leaves the SET unprocessed, so the transmitter sends it again. */
+/**
+ * Handles one event type; a throw leaves the SET unprocessed, so the
+ * transmitter sends it again.
+ */
 export type SsfEventHandler = (set: VerifiedSet) => void | Promise<void>;
 
 export interface SsfReceiverOptions extends BlockOptions {
-  /** The transmitter's issuer, compared exactly with its metadata and each `iss`. */
+  /**
+   * The transmitter's issuer, compared exactly with its metadata and each
+   * `iss`.
+   */
   readonly issuer: string;
   /** This receiver's `aud`. */
   readonly audience: string;
   /** The transmitter's keys. Default: its metadata's `jwks_uri`, cached. */
   readonly jwks?: Jwks | (() => Promise<Jwks>);
-  /** Handlers by event type URI; `"*"` takes the rest. Unhandled events are acknowledged. */
+  /**
+   * Handlers by event type URI; `"*"` takes the rest. Unhandled events are
+   * acknowledged.
+   */
   readonly handlers?: Readonly<Record<string, SsfEventHandler>>;
-  /** The `Authorization` header value the transmitter pushes with; checked when set. */
+  /**
+   * The `Authorization` header value the transmitter pushes with; checked when
+   * set.
+   */
   readonly authorization?: string;
   /** The transmitter's `critical_subject_members`. */
   readonly criticalSubjectMembers?: readonly string[];
@@ -42,7 +53,10 @@ export interface SsfReceiverOptions extends BlockOptions {
   /** The largest pushed SET, in bytes. Default: 64 KiB. */
   readonly maxBodyBytes?: number;
   readonly fetch?: typeof fetch;
-  /** Receives handler errors and the errors `after` hooks throw. Default: `consoleLogger`. */
+  /**
+   * Receives handler errors and the errors `after` hooks throw. Default:
+   * `consoleLogger`.
+   */
   readonly logger?: Logger;
   /** `withBlockHooks` hooks around the receiver's methods. */
   readonly hooks?: NoInfer<BlockHooks<SsfReceiver>>;
@@ -114,7 +128,10 @@ export interface SsfReceiver {
   receive(token: string): Promise<SsfReceiveResult>;
   /** The RFC 8935 push endpoint: 202, or 400 with `{ err, description }`. */
   pushHandler(): (request: Request) => Promise<Response>;
-  /** RFC 8936: polls until no more SETs are available, acknowledging what it processed. */
+  /**
+   * RFC 8936: polls until no more SETs are available, acknowledging what it
+   * processed.
+   */
   poll(options: SsfPollOptions): AsyncResult<SsfPollResult>;
   /** The management API with this `Authorization` header value. */
   streams(authorization: string): SsfStreamClient;
@@ -143,9 +160,9 @@ function wellKnown(issuer: string): string {
 }
 
 /**
- * An SSF receiver: verifies pushed or polled SETs with the transmitter's
- * keys, drops replays through the `shared-signals` module's `(iss, jti)`
- * table, and calls the handler for the event type. Service role only.
+ * An SSF receiver: verifies pushed or polled SETs with the transmitter's keys,
+ * drops replays through the `shared-signals` module's `(iss, jti)` table, and
+ * calls the handler for the event type. Service role only.
  */
 export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
   applyTemporal(options);
@@ -227,9 +244,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           dbError(
             "unexpected",
             "The transmitter metadata names another issuer",
-            {
-              hint: "SSF_ISSUER_MISMATCH",
-            },
+            { hint: "SSF_ISSUER_MISMATCH" },
           ),
         );
       }

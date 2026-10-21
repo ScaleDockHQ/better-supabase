@@ -42,11 +42,10 @@ export interface DesignChange {
   /** The new type of a type change. */
   readonly to?: string;
   /**
-   * True when existing rows or app code can break: a dropped or renamed
-   * table or column, a type change, a column made required without a
-   * default, a new or tighter constraint (unique, options, bounds, format,
-   * a reference target), tighter column access, a new scope, or removed
-   * generated columns.
+   * True when existing rows or app code can break: a dropped or renamed table
+   * or column, a type change, a column made required without a default, a new
+   * or tighter constraint (unique, options, bounds, format, a reference
+   * target), tighter column access, a new scope, or removed generated columns.
    */
   readonly breaking: boolean;
   readonly summary: string;
@@ -56,8 +55,8 @@ export interface DesignChange {
 
 export interface DiffOptions {
   /**
-   * Leave out tables that `after` doesn't have, as `apply` does: it writes
-   * the tables of a design and keeps the others.
+   * Leave out tables that `after` doesn't have, as `apply` does: it writes the
+   * tables of a design and keeps the others.
    */
   readonly keepMissing?: boolean;
 }
@@ -116,7 +115,10 @@ const breakingChange = (
   steps,
 });
 
-/** The steps that make a new check or constraint safe on rows that may not pass it. */
+/**
+ * The steps that make a new check or constraint safe on rows that may not pass
+ * it.
+ */
 const checkSteps = (target: string, rule: string): readonly string[] => [
   `Find the rows where ${target} doesn't ${rule}, and fix them in a migration.`,
   `Make the app write only values that ${rule}, then deploy.`,
@@ -138,8 +140,8 @@ const accessRank = (column: AppColumnConfig): number =>
 
 /**
  * The changes to one column whose name and type stay: each new or tighter
- * constraint is breaking, because rows already in the table may not pass
- * it; anything else (a comment, a default, `onDelete`, a looser rule) is safe.
+ * constraint is breaking, because rows already in the table may not pass it;
+ * anything else (a comment, a default, `onDelete`, a looser rule) is safe.
  */
 function constraintChanges(
   table: string,
@@ -386,8 +388,8 @@ const columnsOf = (
 ): Readonly<Record<string, AppColumnConfig>> => table.columns ?? {};
 
 /**
- * Pairs each name only in `before` with a name only in `after` whose value
- * is the same: a rename, as far as a config can tell.
+ * Pairs each name only in `before` with a name only in `after` whose value is
+ * the same: a rename, as far as a config can tell.
  */
 function renames<T>(
   before: Readonly<Record<string, T>>,
@@ -519,8 +521,8 @@ function columnChanges(
 /**
  * What changes from `before` to `after`: each added, dropped, renamed or
  * changed table and column, with the breaking ones marked and their
- * expand-and-contract steps. A rename is a dropped name and an added one
- * with the same definition.
+ * expand-and-contract steps. A rename is a dropped name and an added one with
+ * the same definition.
  */
 export function diffAppTables(
   before: AppTablesConfig,

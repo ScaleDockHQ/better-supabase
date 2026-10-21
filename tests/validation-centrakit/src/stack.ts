@@ -1,17 +1,12 @@
+import type { BlocksConfig, SubjectsConfig } from "better-supabase/config";
 import type { SqlClient } from "better-supabase/postgres";
+import type { ModuleAccessProvider } from "better-supabase/sql";
+import type { PoolClient, QueryResultRow } from "pg";
 
-import {
-  type BlocksConfig,
-  resolveConfig,
-  type SubjectsConfig,
-} from "better-supabase/config";
-import {
-  type ModuleAccessProvider,
-  moduleLayout,
-  renderModules,
-} from "better-supabase/sql";
+import { resolveConfig } from "better-supabase/config";
+import { moduleLayout, renderModules } from "better-supabase/sql";
 import { readdir, readFile } from "node:fs/promises";
-import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
+import { DatabaseError, Pool } from "pg";
 
 import config from "../better-supabase.config.ts";
 import { centrakitProvider } from "./provider.ts";
@@ -199,7 +194,10 @@ export interface Extra {
   readonly subjects?: SubjectsConfig;
 }
 
-/** Runs `body` against CentraKit's tables with the block installed, then rolls back. */
+/**
+ * Runs `body` against CentraKit's tables with the block installed, then rolls
+ * back.
+ */
 export async function withCentraKit(
   pool: Pool,
   body: (session: Session) => Promise<void>,

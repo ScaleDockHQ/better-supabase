@@ -3,13 +3,9 @@ import { defineTopic } from "better-supabase/realtime";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  dbUrl,
-  reachable,
-  type Session,
-  USERS,
-  withCentraKit,
-} from "./stack.ts";
+import type { Session } from "./stack.ts";
+
+import { dbUrl, reachable, USERS, withCentraKit } from "./stack.ts";
 
 const live = await reachable();
 
@@ -23,6 +19,7 @@ const createOrganization = async (s: Session): Promise<string> => {
 
 describe.skipIf(!live)("integrations on CentraKit's tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps credentials in integration_credentials with Vault ids", async () => {

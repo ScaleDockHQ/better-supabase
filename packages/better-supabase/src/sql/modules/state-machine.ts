@@ -30,10 +30,7 @@ const EVENTS: ModuleEvents<StateMachineEvents> = {
     subject: "statuses",
     payload: [...SUBJECT, "until", "reason"],
   },
-  "status.resumed": {
-    subject: "statuses",
-    payload: [...SUBJECT],
-  },
+  "status.resumed": { subject: "statuses", payload: [...SUBJECT] },
   "status.flagged": {
     subject: "statuses",
     payload: [...SUBJECT, "flag", "enabled"],
@@ -100,7 +97,10 @@ const NAMES: ModuleNames = {
 const NAME = /^[a-z][a-z0-9_]*$/;
 const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
 
-/** The setting `pause_lifecycle`, `resume_lifecycle` and `set_lifecycle_flag` pass to the trigger. */
+/**
+ * The setting `pause_lifecycle`, `resume_lifecycle` and `set_lifecycle_flag`
+ * pass to the trigger.
+ */
 const OP_SETTING = "better_supabase.lifecycle_op";
 
 /** Set by the trigger when a lifecycle call changed the row. */
@@ -159,7 +159,10 @@ function machines(ctx: ModuleContext): readonly Machine[] {
   );
 }
 
-/** The table keys of `config.subjects.<name>`, used when the machine names no table. */
+/**
+ * The table keys of `config.subjects.<name>`, used when the machine names no
+ * table.
+ */
 function registered(
   name: string,
   registry: SubjectsConfig,
@@ -425,7 +428,10 @@ function historyOf(
   };
 }
 
-/** `<alias>.<id> = <value>`, on the id column's own type when the machine names it. */
+/**
+ * `<alias>.<id> = <value>`, on the id column's own type when the machine names
+ * it.
+ */
 function idMatches(item: Machine, alias: string, value: string): string {
   const column = `${alias}.${sqlIdent(item.idColumn)}`;
 
@@ -535,8 +541,8 @@ function lifecycleRecord(
 /**
  * The trigger branch that applies a lifecycle call: `pause_lifecycle`,
  * `resume_lifecycle` and `set_lifecycle_flag` update the status column to
- * itself as the caller, so the subject table's policies decide, and pass
- * the change in a transaction setting the trigger reads here.
+ * itself as the caller, so the subject table's policies decide, and pass the
+ * change in a transaction setting the trigger reads here.
  */
 function lifecycleOps(ctx: ModuleContext, item: Machine): string {
   if (!item.lifecycle) {
@@ -729,8 +735,8 @@ const NOT_FOUND = fail(
 );
 
 /**
- * The read policy of a module table: the caller sees a row when they can
- * see the record it belongs to, through the record table's own policies.
+ * The read policy of a module table: the caller sees a row when they can see
+ * the record it belongs to, through the record table's own policies.
  */
 function readPolicy(
   table: string,

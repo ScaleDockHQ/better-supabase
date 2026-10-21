@@ -100,10 +100,7 @@ describe("block hooks", () => {
       }).delete("v1"),
       createServicePrincipals({
         transport,
-        admin: {
-          createUser: vi.fn(),
-          deleteUser: vi.fn(),
-        },
+        admin: { createUser: vi.fn(), deleteUser: vi.fn() },
         hooks: { list: { before: refuse } },
       }).list("o"),
       createOnboarding({

@@ -1,8 +1,10 @@
+import type { Money } from "../../commerce/money.ts";
 import type { Payment } from "../../commerce/payments.ts";
 import type { TaxLine, TaxQuote, TaxTransaction } from "../../commerce/tax.ts";
+import type { RowFields } from "../../core/block-fields.ts";
 
-import { money, type Money } from "../../commerce/money.ts";
-import { type RowFields, rowFields } from "../../core/block-fields.ts";
+import { money } from "../../commerce/money.ts";
+import { rowFields } from "../../core/block-fields.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
 import {
   enumOrThrow,
@@ -67,7 +69,10 @@ export interface Address {
   readonly phone?: string;
 }
 
-/** Something that keeps a cart from checkout, such as `unpriced` or `shipping_required`. */
+/**
+ * Something that keeps a cart from checkout, such as `unpriced` or
+ * `shipping_required`.
+ */
 export interface CartProblem {
   readonly problem: string;
   readonly lineId?: string;
@@ -75,7 +80,10 @@ export interface CartProblem {
   readonly code?: string;
   /** For `promotion_unavailable`: the promotion behind the code. */
   readonly promotionId?: string;
-  /** For `promotion_unavailable`, such as `expired`, `limit_reached` or `not_combinable`. */
+  /**
+   * For `promotion_unavailable`, such as `expired`, `limit_reached` or
+   * `not_combinable`.
+   */
   readonly reason?: string;
 }
 

@@ -4,9 +4,8 @@ import * as v from "valibot";
 
 /**
  * The same keys as the Next.js example's settings definition, which the
- * settings SQL module stores. `toStandardJsonSchema` adds Standard JSON
- * Schema to each Valibot schema, so `useSettings` reads its kind, choices
- * and title.
+ * settings SQL module stores. `toStandardJsonSchema` adds Standard JSON Schema
+ * to each Valibot schema, so `useSettings` reads its kind, choices and title.
  */
 export const settings = defineSettings({
   user: {

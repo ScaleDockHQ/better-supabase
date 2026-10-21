@@ -12,8 +12,8 @@ export type UseUndoStackOptions = UndoStackOptions;
 export interface UndoStack extends UndoSnapshot, UndoActions {}
 
 /**
- * A stack of undo tokens on the client, for a toast's Undo button or a
- * Cmd+Z handler:
+ * A stack of undo tokens on the client, for a toast's Undo button or a Cmd+Z
+ * handler:
  *
  * ```tsx
  * const stack = useUndoStack({ apply: undoAction });

@@ -12,7 +12,10 @@ export interface ScaffoldContext {
   /** `src` or `.`. */
   readonly srcDir: string;
   readonly tsExtensions: boolean;
-  /** The API module's name: `api` writes `lib/api.ts` and `lib/api.generated.ts`. */
+  /**
+   * The API module's name: `api` writes `lib/api.ts` and
+   * `lib/api.generated.ts`.
+   */
   readonly name: string;
   /** Where the resources are served, `/api` by default. */
   readonly basePath: string;

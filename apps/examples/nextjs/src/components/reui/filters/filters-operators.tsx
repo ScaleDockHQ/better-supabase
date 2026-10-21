@@ -41,8 +41,8 @@ export const DEFAULT_FILTER_OPERATOR_LABELS: FilterOperatorLabels = {
 
 /**
  * Operator catalog per value type: value, arity, inverse, labels resolved at
- * build time so translating one operator never restates the catalog. `arity`
- * of "none" drops the chip's value segment and the wizard's value step, in a
+ * build time so translating one operator never restates the catalog. `arity` of
+ * "none" drops the chip's value segment and the wizard's value step, in a
  * consumer's own `operators` array as much as in this catalog.
  */
 const CATALOG: Record<
@@ -203,7 +203,8 @@ export function negateFilterOperator(
 
 /**
  * Reshapes a value when arity changes: widening "is" to "is any of" keeps what
- * the user picked, narrowing keeps the first of them, `"none"` always drops it.
+ * the user picked, narrowing keeps the first of them, `"none"` always drops
+ * it.
  */
 export function coerceFilterValue(
   value: unknown,

@@ -21,9 +21,9 @@ export interface WebhookEncoded {
 }
 
 /**
- * What a response means when the status alone doesn't tell: a collector
- * that answers 200 with an error code, or accepts part of a batch.
- * `retry` tries the delivery again; `dead` dead-letters it.
+ * What a response means when the status alone doesn't tell: a collector that
+ * answers 200 with an error code, or accepts part of a batch. `retry` tries the
+ * delivery again; `dead` dead-letters it.
  */
 export interface WebhookVerdict {
   readonly outcome: "succeeded" | "retry" | "dead";
@@ -32,29 +32,38 @@ export interface WebhookVerdict {
 
 /**
  * Turns claimed deliveries, as CloudEvents, into the request one endpoint
- * `format` expects. Versioned: a breaking change to this contract ships a
- * new `apiVersion`.
+ * `format` expects. Versioned: a breaking change to this contract ships a new
+ * `apiVersion`.
  */
 export interface WebhookEncoder {
   readonly apiVersion: 1;
   /** The endpoint `format` it serves: lowercase letters, digits and dashes. */
   readonly name: string;
   /**
-   * Adds the Standard Webhooks signature headers. Collectors that
-   * authenticate with a token from `credential_ref` don't need them.
+   * Adds the Standard Webhooks signature headers. Collectors that authenticate
+   * with a token from `credential_ref` don't need them.
    */
   readonly signed: boolean;
   encode(
     events: readonly CloudEvent[],
     target: WebhookEncodeTarget,
   ): WebhookEncoded | Promise<WebhookEncoded>;
-  /** The headers a `credential_ref` token becomes. Defaults to the token's own `headers`. */
+  /**
+   * The headers a `credential_ref` token becomes. Defaults to the token's own
+   * `headers`.
+   */
   authorize?(token: CredentialToken): Readonly<Record<string, string>>;
-  /** Reads the response; `undefined` leaves it to the status and the retry policy. */
+  /**
+   * Reads the response; `undefined` leaves it to the status and the retry
+   * policy.
+   */
   classify?(response: WebhookResponse): WebhookVerdict | undefined;
 }
 
-/** The default format: CloudEvents over HTTP, structured or batched per endpoint. */
+/**
+ * The default format: CloudEvents over HTTP, structured or batched per
+ * endpoint.
+ */
 export function cloudEvents(): WebhookEncoder {
   return {
     apiVersion: 1,
@@ -71,8 +80,8 @@ export function cloudEvents(): WebhookEncoder {
 }
 
 /**
- * The 0.8 body, `{ type, timestamp, data }`, with `data` from `transform`;
- * a batch is a JSON array of them. Signed with Standard Webhooks like
+ * The 0.8 body, `{ type, timestamp, data }`, with `data` from `transform`; a
+ * batch is a JSON array of them. Signed with Standard Webhooks like
  * `cloudevents`.
  */
 export function standardEnvelope(): WebhookEncoder {
@@ -172,8 +181,8 @@ const OTLP_RETRYABLE = new Set([429, 502, 503, 504]);
 
 /**
  * OTLP/HTTP logs in the JSON encoding: one `ExportLogsServiceRequest` per
- * request, a log record per event with the CloudEvents attributes. Point
- * the endpoint at a collector's `/v1/logs`.
+ * request, a log record per event with the CloudEvents attributes. Point the
+ * endpoint at a collector's `/v1/logs`.
  */
 export function otlpLogs(options: OtlpLogsOptions = {}): WebhookEncoder {
   const resource = attributes({
@@ -280,9 +289,9 @@ export interface SplunkHecOptions {
 const HEC_RETRYABLE = new Set([8, 9]);
 
 /**
- * The Splunk HTTP Event Collector's event format: one JSON object per
- * event, the CloudEvent as `event`. Point the endpoint at
- * `/services/collector/event` and set `credential_ref` to the HEC token.
+ * The Splunk HTTP Event Collector's event format: one JSON object per event,
+ * the CloudEvent as `event`. Point the endpoint at `/services/collector/event`
+ * and set `credential_ref` to the HEC token.
  */
 export function splunkHec(options: SplunkHecOptions = {}): WebhookEncoder {
   return {
@@ -338,9 +347,9 @@ export function splunkHec(options: SplunkHecOptions = {}): WebhookEncoder {
 const SET_RETRYABLE = new Set(["invalid_key"]);
 
 /**
- * RFC 8935 push delivery of Security Event Tokens: the body is the compact
- * SET from the delivery's `data.set`, one per request. The shared-signals
- * block creates these endpoints (`format: 'set'`) and dispatches to them.
+ * RFC 8935 push delivery of Security Event Tokens: the body is the compact SET
+ * from the delivery's `data.set`, one per request. The shared-signals block
+ * creates these endpoints (`format: 'set'`) and dispatches to them.
  */
 export function securityEvents(): WebhookEncoder {
   return {

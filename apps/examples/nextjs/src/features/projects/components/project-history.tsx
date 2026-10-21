@@ -25,12 +25,10 @@ import {
 } from "@/components/ui/empty";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { ProjectHistoryField, ProjectVersion } from "../project-types";
+
 import { restoreProjectFields, saveProjectVersion } from "../project-actions";
-import {
-  PROJECT_HISTORY_FIELDS,
-  type ProjectHistoryField,
-  type ProjectVersion,
-} from "../project-types";
+import { PROJECT_HISTORY_FIELDS } from "../project-types";
 
 // #region recipe:record-history
 
@@ -40,7 +38,10 @@ interface FieldChange {
   readonly after: string | undefined;
 }
 
-/** The fields a version changed from the one before it; all of them for the first. */
+/**
+ * The fields a version changed from the one before it; all of them for the
+ * first.
+ */
 function changesOf(
   version: ProjectVersion,
   previous: ProjectVersion | undefined,

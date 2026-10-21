@@ -242,10 +242,9 @@ function fromPart(part: UIPart): AiMessagePart[] {
 }
 
 /**
- * The canonical form of an AI SDK `UIMessage`. Tool parts become a
- * `tool-call`, then a `tool-approval` and a `tool-result` as far as the
- * call got; parts with no canonical counterpart become `data` parts named
- * `ui.<type>`.
+ * The canonical form of an AI SDK `UIMessage`. Tool parts become a `tool-call`,
+ * then a `tool-approval` and a `tool-result` as far as the call got; parts with
+ * no canonical counterpart become `data` parts named `ui.<type>`.
  */
 export function fromUIMessage(message: UIMessage): AiMessage {
   return {
@@ -513,9 +512,9 @@ export function toUIMessage(message: AiMessage): UIMessage {
 }
 
 /**
- * Converts a history. Tool results and approvals in later messages, such as
- * the `tool` messages of other SDKs, update the tool part of the assistant
- * message that made the call.
+ * Converts a history. Tool results and approvals in later messages, such as the
+ * `tool` messages of other SDKs, update the tool part of the assistant message
+ * that made the call.
  */
 export function toUIMessages(messages: readonly AiMessage[]): UIMessage[] {
   const out: UIMessage[] = [];

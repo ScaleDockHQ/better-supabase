@@ -92,8 +92,10 @@ import { cn } from "@/lib/utils";
 /** Stable `filteredItems` for a level swap; a fixed identity cannot loop. */
 const EMPTY: CascaderNode<never>[] = [];
 
-/** Stable empty array for the `actions` prop, so a cascader with no footer
- * does not republish the actions context on every render. */
+/**
+ * Stable empty array for the `actions` prop, so a cascader with no footer does
+ * not republish the actions context on every render.
+ */
 const EMPTY_ACTIONS: CascaderActionItem[] = [];
 
 /** The `onSearch` scope of a global search: no path, so the whole tree. */
@@ -235,6 +237,7 @@ export interface CascaderContextValue<T = unknown>
 
 /**
  * The cascader's internals, typed for the caller's own item payload.
+ *
  * @deprecated Reads BOTH halves, so a caller re-renders on every keystroke.
  * Prefer `useCascaderActions()` or `useCascaderState()`. Kept for compat.
  */
@@ -265,8 +268,10 @@ export interface CascaderSelection<T = unknown> {
   clear: () => void;
 }
 
-/** Headless access to the selection, for a trigger that is not
- * `CascaderValue`. Pass the payload explicitly to get `node.data` typed. */
+/**
+ * Headless access to the selection, for a trigger that is not `CascaderValue`.
+ * Pass the payload explicitly to get `node.data` typed.
+ */
 export function useCascaderSelection<T = unknown>(): CascaderSelection<T> {
   const { multiple, setSelection } = useCascaderActions<T>();
   const { index, selectedValues } = useCascaderState<T>();
@@ -299,6 +304,7 @@ export function useCascaderSelection<T = unknown>(): CascaderSelection<T> {
 
 /**
  * Why the navigation path changed.
+ *
  * - `"drill"`: a branch was entered (row press, level arrow, search hit).
  * - `"back"`: one level up (back control, Backspace on an empty query).
  * - `"breadcrumb"`: a jump to an exact depth in the trail.
@@ -320,11 +326,12 @@ export interface CascaderBaseProps<T = unknown> {
   getParent?: (node: CascaderNode<T>) => string | null | undefined;
 
   /**
-   * Fetches one level on demand; `node` is `null` for the root, and only
-   * `{ value, label: value }` for a level on screen whose node has not loaded
-   * (a deep link, or a page-loaded level after a `loadKey` change). Return an
+   * Fetches one level on demand; `node` is `null` for the root, and only `{
+   * value, label: value }` for a level on screen whose node has not loaded (a
+   * deep link, or a page-loaded level after a `loadKey` change). Return an
    * array, or a `CascaderLoadResult` when the level pages. Pages cache apart
-   * from `items`; mark unfetched branches `hasChildren` or they read as leaves.
+   * from `items`; mark unfetched branches `hasChildren` or they read as
+   * leaves.
    */
   getChildren?: CascaderGetChildren<T>;
   /**
@@ -386,8 +393,10 @@ export interface CascaderBaseProps<T = unknown> {
 
   mode?: CascaderMode;
 
-  /** How a branch opens from the pointer in columns mode's ACTIVE column.
-   * `"click"` is the default, and neither value ever commits a selection. */
+  /**
+   * How a branch opens from the pointer in columns mode's ACTIVE column.
+   * `"click"` is the default, and neither value ever commits a selection.
+   */
   expandTrigger?: "click" | "hover";
 
   path?: string[];
@@ -426,8 +435,10 @@ export interface CascaderBaseProps<T = unknown> {
   /** Custom matcher, replacing label + keywords substring matching. */
   filter?: (node: CascaderNode<T>, normalizedQuery: string) => boolean;
 
-  /** On open, navigate to the level holding the selection. Default true.
-   * Not in `mode="tree"`, which has no levels to navigate. */
+  /**
+   * On open, navigate to the level holding the selection. Default true. Not in
+   * `mode="tree"`, which has no levels to navigate.
+   */
   revealSelected?: boolean;
 
   maxHeight?: number | string;
@@ -468,8 +479,10 @@ export interface CascaderBaseProps<T = unknown> {
   required?: boolean;
   /** The value can be read and submitted, but not changed. */
   readOnly?: boolean;
-  /** Marks the field invalid: `aria-invalid` and `data-invalid` on the trigger,
-   * the chips and the input, which every style's error treatment reads. */
+  /**
+   * Marks the field invalid: `aria-invalid` and `data-invalid` on the trigger,
+   * the chips and the input, which every style's error treatment reads.
+   */
   invalid?: boolean;
   /** Ref to the hidden input Base UI submits with, for form-library focus. */
   inputRef?: React.Ref<HTMLInputElement>;
@@ -505,8 +518,10 @@ export type CascaderProps<T = unknown> =
   | CascaderSingleProps<T>
   | CascaderMultipleProps<T>;
 
-/** Normalizes to an array. `""` is "no selection", not a node: it is the
- * uncontrolled default, and resolving it would render a blank chip. */
+/**
+ * Normalizes to an array. `""` is "no selection", not a node: it is the
+ * uncontrolled default, and resolving it would render a blank chip.
+ */
 function toArray(value: string | string[] | undefined): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) return value.filter((entry) => entry !== "");
@@ -679,8 +694,10 @@ function useCascaderDevWarnings<T>(options: CascaderDevOptions<T>) {
   ]);
 }
 
-/** What the `[]`-dep callbacks would otherwise close over. One ref, one
- * effect, so "the last committed render" is defined in exactly one place. */
+/**
+ * What the `[]`-dep callbacks would otherwise close over. One ref, one effect,
+ * so "the last committed render" is defined in exactly one place.
+ */
 interface CascaderLatest<T> {
   index: CascaderIndex<T>;
   state: CascaderStateContextValue<T>;
@@ -701,9 +718,11 @@ interface CascaderLatest<T> {
   expanded: ReadonlySet<string>;
 }
 
-/** A navigation waiting on a fetch. The `kind`s differ: a drill appends, a
+/**
+ * A navigation waiting on a fetch. The `kind`s differ: a drill appends, a
  * columns press replaces the trail from `depth`, a search hit swaps in its own
- * `trail`, a tree press expands. */
+ * `trail`, a tree press expands.
+ */
 type CascaderPendingNavigation =
   | {
       value: string;
@@ -954,9 +973,11 @@ function Cascader<T>({
     [baseIndex, pages, detached, links, paging],
   );
 
-  /** Whether a level needs the paging pseudo-row. A never-fetched level gets
+  /**
+   * Whether a level needs the paging pseudo-row. A never-fetched level gets
    * nothing; that is the empty state's job. Tree has no per-level empty state,
-   * so there the row is also the branch's loading and error surface. */
+   * so there the row is also the branch's loading and error surface.
+   */
   const needsMoreRow = React.useCallback(
     (key: string, childCount: number) => {
       const state = loadStates.get(key);
@@ -1020,9 +1041,11 @@ function Cascader<T>({
     return filterCascaderLevel(level, query, filter);
   }, [index, currentParentValue, query, filter]);
 
-  /** The active level's rows plus the paging pseudo-row, appended HERE because
-   * every index Base UI hands out indexes this array: a DOM row missing from
-   * it shifts the highlight and every windowed row by one. */
+  /**
+   * The active level's rows plus the paging pseudo-row, appended HERE because
+   * every index Base UI hands out indexes this array: a DOM row missing from it
+   * shifts the highlight and every windowed row by one.
+   */
   const levelRendered = React.useMemo(() => {
     if (deepResults) return deepResults;
     if (!needsMoreRow(currentLevelKey, levelItems.length)) return levelItems;
@@ -1128,10 +1151,12 @@ function Cascader<T>({
 
   /* ---------------------------- level swap reset --------------------------- */
 
-  /** Base UI never resets the highlighted index on an `items` change and has
-   * no imperative setter; its one automatic reset is an out-of-range clamp, so
-   * a single empty frame trips it. The frame rides `filteredItems`, so the
-   * `items` identity stays put. */
+  /**
+   * Base UI never resets the highlighted index on an `items` change and has no
+   * imperative setter; its one automatic reset is an out-of-range clamp, so a
+   * single empty frame trips it. The frame rides `filteredItems`, so the
+   * `items` identity stays put.
+   */
   const levelKey = currentParentValue ?? "";
 
   // STATE, not a ref: a replayed render would see a ref advanced and skip it.
@@ -1223,14 +1248,18 @@ function Cascader<T>({
 
   /* ------------------------------ navigation ------------------------------ */
 
-  /** One signal per navigation, feeding the live region, bumped EXACTLY once
-   * per action. `seq` alternates the invisible marker so two identical
-   * announcements are still two mutations; `toggled` names the tree branch. */
+  /**
+   * One signal per navigation, feeding the live region, bumped EXACTLY once per
+   * action. `seq` alternates the invisible marker so two identical
+   * announcements are still two mutations; `toggled` names the tree branch.
+   */
   const [announceSignal, setAnnounceSignal] = React.useState<{
     seq: number;
     toggled: string | null;
-    /** A one-off verbatim message: a `max` refusal, a cascade fan-out. STATE,
-     * so an unrelated render cannot clear it mid-read. */
+    /**
+     * A one-off verbatim message: a `max` refusal, a cascade fan-out. STATE, so
+     * an unrelated render cannot clear it mid-read.
+     */
     notice: string | null;
   }>({ seq: 0, toggled: null, notice: null });
 
@@ -1238,27 +1267,31 @@ function Cascader<T>({
     setAnnounceSignal((prev) => ({ seq: prev.seq + 1, toggled, notice: null }));
   }, []);
 
-  /** Speaks for interactions that change nothing on screen: a refusal returns
+  /**
+   * Speaks for interactions that change nothing on screen: a refusal returns
    * before any state moves, a cascade sweep is invisible from the row pressed.
-   * The seq bump keeps two identical refusals two mutations. */
+   * The seq bump keeps two identical refusals two mutations.
+   */
   const announceNotice = React.useCallback((notice: string) => {
     setAnnounceSignal((prev) => ({ seq: prev.seq + 1, toggled: null, notice }));
   }, []);
 
   /**
    * The navigation a press asked for and a fetch has not answered yet. Load
-   * BEFORE you move: drilling in first threw away the list the user was
-   * reading and, on failure, stranded them on an error screen for a level they
-   * had never seen. Holding here keeps the old rows and puts the progress on
-   * the pressed row, whose chevron `CascaderItem` swaps for a spinner.
+   * BEFORE you move: drilling in first threw away the list the user was reading
+   * and, on failure, stranded them on an error screen for a level they had
+   * never seen. Holding here keeps the old rows and puts the progress on the
+   * pressed row, whose chevron `CascaderItem` swaps for a spinner.
    */
   const [pendingNavigation, setPendingNavigation] =
     React.useState<CascaderPendingNavigation | null>(null);
 
-  /** Asks for a branch's children and parks the navigation until they land.
-   * BOTH entry points are called unconditionally: `retryLevel` no-ops unless
-   * the level errored, `ensureLevel` no-ops if it has state, so a repeat press
-   * is free and the readiness decision stays inside the loader. */
+  /**
+   * Asks for a branch's children and parks the navigation until they land. BOTH
+   * entry points are called unconditionally: `retryLevel` no-ops unless the
+   * level errored, `ensureLevel` no-ops if it has state, so a repeat press is
+   * free and the readiness decision stays inside the loader.
+   */
   const requestChildren = React.useCallback(
     (node: CascaderNode<T>, pending: CascaderPendingNavigation) => {
       setPendingNavigation(pending);
@@ -1370,10 +1403,12 @@ function Cascader<T>({
     [selectedSet],
   );
 
-  /** Selected-descendant counts, walked ONCE per selection change and never
-   * stored, so the flat value array stays the only source of truth. The walk
-   * is `selections x depth`, up from each selection rather than down from each
-   * row, which keeps the count and `isIndeterminate` O(1). */
+  /**
+   * Selected-descendant counts, walked ONCE per selection change and never
+   * stored, so the flat value array stays the only source of truth. The walk is
+   * `selections x depth`, up from each selection rather than down from each
+   * row, which keeps the count and `isIndeterminate` O(1).
+   */
   const selectedDescendants = React.useMemo(
     () => getCascaderSelectedDescendants(index, selectedValues),
     [index, selectedValues],
@@ -1415,10 +1450,12 @@ function Cascader<T>({
   );
   const searchLoadState = loader.searchState;
 
-  /** What the query announcement COUNTS: matches, not rows, since the list
-   * also carries a tree query's ancestor context and the Load-more row. Server
-   * hits count as-is; re-judging them locally would drop what it matched on
-   * data the client cannot see. */
+  /**
+   * What the query announcement COUNTS: matches, not rows, since the list also
+   * carries a tree query's ancestor context and the Load-more row. Server hits
+   * count as-is; re-judging them locally would drop what it matched on data the
+   * client cannot see.
+   */
   const announcedMatches = React.useMemo(() => {
     if (deepResults) return deepResults.length;
     const normalized = normalizeCascaderQuery(query);
@@ -1528,9 +1565,11 @@ function Cascader<T>({
     loadStates,
   ]);
 
-  /** The COMMITTED announcement. Immediate texts commit during render (the
+  /**
+   * The COMMITTED announcement. Immediate texts commit during render (the
    * pattern `swap` uses), so an async settle announces in the very commit that
-   * shows the rows. Only the deferred query count uses the timer below. */
+   * shows the rows. Only the deferred query count uses the timer below.
+   */
   const [announced, setAnnounced] = React.useState(announcementTarget);
 
   if (!announcementTarget.defer && announced.text !== announcementTarget.text) {
@@ -1740,11 +1779,11 @@ function Cascader<T>({
 
   /**
    * The other half of `requestChildren`: the fetch settled, so the held
-   * navigation happens or is dropped. Reads the load STATE, not a promise:
-   * only the loader knows a request was superseded, aborted or retried, and no
-   * entry at all means it has not reached the store yet. On failure nothing
-   * moves and the intent is KEPT, which is what makes the row's retry
-   * affordance mean something; only `popLevel`, `goToDepth` and a close drop it.
+   * navigation happens or is dropped. Reads the load STATE, not a promise: only
+   * the loader knows a request was superseded, aborted or retried, and no entry
+   * at all means it has not reached the store yet. On failure nothing moves and
+   * the intent is KEPT, which is what makes the row's retry affordance mean
+   * something; only `popLevel`, `goToDepth` and a close drop it.
    */
   React.useEffect(() => {
     if (!pendingNavigation) return;
@@ -1949,9 +1988,11 @@ function Cascader<T>({
     [emitSelection, setOpen, setQuery, announceNotice],
   );
 
-  /** Safety net for paths that bypass the row-level veto (the drag-select
+  /**
+   * Safety net for paths that bypass the row-level veto (the drag-select
    * mouseup). `details.cancel()` suppresses the commit and the close together:
-   * Base UI shares one event-details object between them. */
+   * Base UI shares one event-details object between them.
+   */
   const handleComboboxValueChange = React.useCallback(
     (
       next: CascaderNode<T> | CascaderNode<T>[] | null,
@@ -2111,10 +2152,12 @@ function Cascader<T>({
     [renderItem, renderLabel],
   );
 
-  /** The stable half: nothing in these deps moves on a keystroke, a level
-   * change or a highlight, which is what makes `React.memo` on `CascaderItem`
-   * hold while the user types. Destructured off `loader` so the memo depends
-   * on its `[]`-dep callbacks, not the object it republishes per load. */
+  /**
+   * The stable half: nothing in these deps moves on a keystroke, a level change
+   * or a highlight, which is what makes `React.memo` on `CascaderItem` hold
+   * while the user types. Destructured off `loader` so the memo depends on its
+   * `[]`-dep callbacks, not the object it republishes per load.
+   */
   const {
     active: hasLoader,
     loadMore,
@@ -2315,9 +2358,11 @@ function Cascader<T>({
 /*                                   Trigger                                  */
 /* -------------------------------------------------------------------------- */
 
-/** `Trigger.Props` stops short of `ref`, so it is intersected in, as the
- * shadcn combobox wrapper also does: a form library needs a ref here, and
- * `onBlur`, the "touched" signal, lands here too. */
+/**
+ * `Trigger.Props` stops short of `ref`, so it is intersected in, as the shadcn
+ * combobox wrapper also does: a form library needs a ref here, and `onBlur`,
+ * the "touched" signal, lands here too.
+ */
 export interface CascaderTriggerProps
   extends
     ComboboxPrimitive.Trigger.Props,
@@ -2346,9 +2391,11 @@ function CascaderTrigger({
     [ref],
   );
 
-  /** 18 of 19 audited examples shipped an unnamed combobox: the trigger's
+  /**
+   * 18 of 19 audited examples shipped an unnamed combobox: the trigger's
    * contents are the field's VALUE, so a screen reader never hears its NAME.
-   * Checked in the DOM, since the name may arrive as a `<label for>`. */
+   * Checked in the DOM, since the name may arrive as a `<label for>`.
+   */
   React.useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
     const element = triggerRef.current;
@@ -2411,9 +2458,11 @@ const CHIP_CLASS =
 
 const CHIP_REMOVE_CLASS = "opacity-50 hover:opacity-100 -ml-1";
 
-/** The floating panel's surface. The shared popup's `InputGroup` sizing is
- * left out (mirrored in `cascader-nav.tsx`), as are its `max-h-72` and
- * `min-w-*`: `CascaderContent` sets both from the positioner's variables. */
+/**
+ * The floating panel's surface. The shared popup's `InputGroup` sizing is left
+ * out (mirrored in `cascader-nav.tsx`), as are its `max-h-72` and `min-w-*`:
+ * `CascaderContent` sets both from the positioner's variables.
+ */
 const CONTENT_SURFACE_CLASS =
   "bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 overflow-hidden ring-1 duration-100 ring-foreground/10 rounded-md shadow-md data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2";
 
@@ -2424,8 +2473,10 @@ const EMPTY_CLASS =
 /*                                    Chips                                   */
 /* -------------------------------------------------------------------------- */
 
-/** Ref for the chips container: they replace the trigger, so the popup has to
- * be anchored to them. Hand it to `CascaderContent`'s `anchor`. */
+/**
+ * Ref for the chips container: they replace the trigger, so the popup has to be
+ * anchored to them. Hand it to `CascaderContent`'s `anchor`.
+ */
 export function useCascaderAnchor() {
   return React.useRef<HTMLDivElement | null>(null);
 }
@@ -2437,15 +2488,17 @@ export interface CascaderChipsProps
   /** Shown in place of the chips when nothing is selected. */
   placeholder?: React.ReactNode;
   /**
-   * How a `cascade` selection is condensed into chips. DISPLAY ONLY: the
-   * stored value stays the full closure, which keeps a row's checked state an
-   * O(1) lookup. `"all"` (default) is one chip per value, `"parent"` collapses
-   * a fully selected branch, `"child"` chips only the deepest frontier.
-   * Removing a condensed chip removes its whole closure and reconciles.
+   * How a `cascade` selection is condensed into chips. DISPLAY ONLY: the stored
+   * value stays the full closure, which keeps a row's checked state an O(1)
+   * lookup. `"all"` (default) is one chip per value, `"parent"` collapses a
+   * fully selected branch, `"child"` chips only the deepest frontier. Removing
+   * a condensed chip removes its whole closure and reconciles.
    */
   strategy?: CascaderCheckedStrategy;
-  /** Replaces the chip list, receiving the resolved selection IN SELECTION
-   * ORDER. Keep that order: Base UI removes a chip by sibling position. */
+  /**
+   * Replaces the chip list, receiving the resolved selection IN SELECTION
+   * ORDER. Keep that order: Base UI removes a chip by sibling position.
+   */
   children?: React.ReactNode | ((nodes: CascaderNode[]) => React.ReactNode);
 }
 
@@ -2453,8 +2506,8 @@ export interface CascaderChipsProps
  * The multi-select trigger surface: one removable chip per selection, where
  * `CascaderValue` would collapse to "3 selected". A component rather than a
  * recipe because of three easy misses: the popup anchored to the chips, an
- * accessible name on every remove button, and labels that disambiguate when
- * two branches use the same one.
+ * accessible name on every remove button, and labels that disambiguate when two
+ * branches use the same one.
  *
  * ```tsx
  * const anchor = useCascaderAnchor()
@@ -2567,9 +2620,11 @@ export interface CascaderChipProps extends Omit<
   maxSegments?: number;
   /** Hides the remove button, for a read-only chip. */
   showRemove?: boolean;
-  /** Replaces Base UI's positional removal for this chip (remove button and
-   * Backspace/Delete). Supplied for a `strategy`-condensed chip, whose
-   * position no longer maps onto the stored array. */
+  /**
+   * Replaces Base UI's positional removal for this chip (remove button and
+   * Backspace/Delete). Supplied for a `strategy`-condensed chip, whose position
+   * no longer maps onto the stored array.
+   */
   onRemove?: () => void;
   /** Replaces the chip's label. The remove button is still rendered. */
   children?: React.ReactNode;
@@ -2584,9 +2639,11 @@ type CascaderChipRemoveClickEvent = Parameters<
   NonNullable<ComboboxPrimitive.ChipRemove.Props["onClick"]>
 >[0];
 
-/** One chip. Removal goes through Base UI's `ChipRemove`, which reports the
+/**
+ * One chip. Removal goes through Base UI's `ChipRemove`, which reports the
  * shortened selection to the root, so it lands in the same `setSelection` as
- * every other deselection and `cascade` applies to it. */
+ * every other deselection and `cascade` applies to it.
+ */
 function CascaderChip({
   className,
   node,
@@ -2665,9 +2722,10 @@ function CascaderChip({
 export interface CascaderContentProps
   extends
     ComboboxPrimitive.Popup.Props,
-    /** Positioner surface forwarded as-is, so an unusual anchor does not force
-     * a rebuild of the content stack. No `trackAnchor`: Base UI 1.5.0 has
-     * none. */
+    /**
+     * Positioner surface forwarded as-is, so an unusual anchor does not force a
+     * rebuild of the content stack. No `trackAnchor`: Base UI 1.5.0 has none.
+     */
     Pick<
       ComboboxPrimitive.Positioner.Props,
       | "side"
@@ -2683,9 +2741,11 @@ export interface CascaderContentProps
     /** Where the portal mounts, for a shadow root or a scoped stacking context. */
     Pick<ComboboxPrimitive.Portal.Props, "container"> {}
 
-/** Portal + Positioner + floating panel. Unlike shadcn's `ComboboxContent` it
+/**
+ * Portal + Positioner + floating panel. Unlike shadcn's `ComboboxContent` it
  * does NOT clamp the popup to the anchor width (a cascader panel is routinely
- * wider), but it keeps `group/combobox-content`, which `CascaderEmpty` needs. */
+ * wider), but it keeps `group/combobox-content`, which `CascaderEmpty` needs.
+ */
 function CascaderContent({
   className,
   side = "bottom",
@@ -2718,14 +2778,14 @@ function CascaderContent({
   /**
    * Focus goes to the search field, where the level keys and
    * `aria-activedescendant` live. Base UI's own default agrees but is COMPUTED
-   * FROM THE FIRST RENDER, when the field has not mounted, and collapses to
-   * "do not move focus": measured, a KEYBOARD open left focus on the trigger
-   * and cost two Tabs to reach the footer where a pointer open cost one.
+   * FROM THE FIRST RENDER, when the field has not mounted, and collapses to "do
+   * not move focus": measured, a KEYBOARD open left focus on the trigger and
+   * cost two Tabs to reach the footer where a pointer open cost one.
    *
    * `initialFocus` rather than an effect, because anything scheduled alongside
    * Base UI's focus manager is a race; the field is resolved INSIDE the
-   * callback, which runs after the layout effects. Touch is handed back to
-   * Base UI on purpose - focusing the popup keeps the Android keyboard shut.
+   * callback, which runs after the layout effects. Touch is handed back to Base
+   * UI on purpose - focusing the popup keeps the Android keyboard shut.
    */
   const initialFocus = React.useCallback((openType: string) => {
     const popup = popupRef.current;
@@ -2839,9 +2899,11 @@ export interface CascaderListProps extends Omit<
   ComboboxPrimitive.List.Props,
   "style"
 > {
-  /** Applied to the OUTER shell, which owns the height, so an inline
+  /**
+   * Applied to the OUTER shell, which owns the height, so an inline
    * `--cascader-max-height` lands where the bound can read it. Narrowed from
-   * Base UI's `style`: the shell is a plain `<div>` with no list state. */
+   * Base UI's `style`: the shell is a plain `<div>` with no list state.
+   */
   style?: React.CSSProperties;
   /** Caps this level's height; the panel still shrinks to fit. Default 24rem. */
   maxHeight?: number | string;
@@ -2850,11 +2912,11 @@ export interface CascaderListProps extends Omit<
 /**
  * Scroll container for one level: pattern 3 of the house scroll reference,
  * viewport-bounded popup scroll. The height is `min()` of `--available-height`
- * (the positioner's space between anchor and viewport edge) and `maxHeight`,
- * so neither can be ignored; a fixed pixel cap alone still reserved 288px for
- * a panel opened 200px above the fold and spilled off screen, and wasted room
- * in a tall window. The four classes are shared with `CascaderColumns` and
- * live in `cascader-lib.tsx`.
+ * (the positioner's space between anchor and viewport edge) and `maxHeight`, so
+ * neither can be ignored; a fixed pixel cap alone still reserved 288px for a
+ * panel opened 200px above the fold and spilled off screen, and wasted room in
+ * a tall window. The four classes are shared with `CascaderColumns` and live in
+ * `cascader-lib.tsx`.
  */
 function CascaderList({
   className,
@@ -2930,16 +2992,20 @@ function CascaderList({
 /* -------------------------------------------------------------------------- */
 
 export interface CascaderEmptyProps extends ComboboxPrimitive.Empty.Props {
-  /** @deprecated Ignored: the loading surface no longer draws skeletons. They
+  /**
+   * @deprecated Ignored: the loading surface no longer draws skeletons. They
    * promised a shape the level might not have and cost a second layout; the
-   * progress lives on the branch row instead. Kept so call sites compile. */
+   * progress lives on the branch row instead. Kept so call sites compile.
+   */
   skeletonRows?: number;
 }
 
-/** The empty, loading and error surface, in ONE element that never unmounts.
+/**
+ * The empty, loading and error surface, in ONE element that never unmounts.
  * `Combobox.Empty` renders whenever `filteredItems.length === 0`, as true of a
  * fetching level as of an empty one, so swapping siblings would announce "No
- * results found." over every async level. Swap the CHILDREN. */
+ * results found." over every async level. Swap the CHILDREN.
+ */
 function CascaderEmpty({
   className,
   children,
@@ -3017,8 +3083,8 @@ export type CascaderStatusProps = ComboboxPrimitive.Status.Props;
 /**
  * Polite live region for the current level and result count, which drill-down
  * otherwise hides in a visual breadcrumb. Built on `Combobox.Status` for its
- * initial-mutation marker: Safari and VoiceOver need a text change ~200ms
- * after mount before reading a polite region at all.
+ * initial-mutation marker: Safari and VoiceOver need a text change ~200ms after
+ * mount before reading a polite region at all.
  */
 function CascaderStatus({
   className,
@@ -3050,8 +3116,10 @@ export {
   CascaderStatus,
 };
 
-/** Re-exported from `cascader-context.tsx`: existing import paths keep
- * working, and the row component avoids an import cycle through this file. */
+/**
+ * Re-exported from `cascader-context.tsx`: existing import paths keep working,
+ * and the row component avoids an import cycle through this file.
+ */
 export {
   createCascaderHighlightStore,
   useCascaderActions,

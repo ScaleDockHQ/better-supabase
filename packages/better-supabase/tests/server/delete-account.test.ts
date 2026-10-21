@@ -108,10 +108,7 @@ describe("deleteAccount", () => {
 
     expect(result).toEqual({
       ok: true,
-      data: {
-        userId: USER,
-        removed: { documents: 2, shared: 1, avatars: 1 },
-      },
+      data: { userId: USER, removed: { documents: 2, shared: 1, avatars: 1 } },
       error: null,
     });
     expect([...storage.files.keys()].toSorted()).toEqual([

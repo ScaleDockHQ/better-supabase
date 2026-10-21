@@ -1,11 +1,13 @@
-import { type RecipeSource, WEB_APP } from "./types.ts";
+import type { RecipeSource } from "./types.ts";
+
+import { WEB_APP } from "./types.ts";
 
 const PROJECTS = `${WEB_APP}/src/features/projects/components`;
 
 /**
  * Screens over the app's own tables (`appTables`), shown on `projects` and
- * `tasks` in the example. `better-supabase scaffold screens <table>` names
- * the ones that fit a table.
+ * `tasks` in the example. `better-supabase scaffold screens <table>` names the
+ * ones that fit a table.
  */
 export const RECORD_RECIPES: readonly RecipeSource[] = [
   {

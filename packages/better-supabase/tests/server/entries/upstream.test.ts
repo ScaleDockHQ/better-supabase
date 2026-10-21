@@ -4,11 +4,11 @@ import { seedContext } from "@supabase/middleware";
 import { describe, expect, it } from "vitest";
 
 import type { RequestContext } from "../../../src/core/plugin.ts";
+import type { SupabaseAuthContext } from "../../../src/server/entries/upstream.ts";
 
 import { defineSupabase } from "../../../src/core/define.ts";
 import {
   contextFromSupabase,
-  type SupabaseAuthContext,
   withBetterDb,
   withBetterPostgres,
 } from "../../../src/server/entries/upstream.ts";
@@ -38,17 +38,8 @@ function auth(fields: Partial<SupabaseAuthContext>): SupabaseAuthContext {
 describe("contextFromSupabase", () => {
   it("maps a user to a user actor with the verified claims", () => {
     expect(
-      contextFromSupabase(
-        auth({
-          authMode: "user",
-          userClaims,
-          jwtClaims,
-        }),
-      ),
-    ).toEqual({
-      actor: { kind: "user", ...userClaims },
-      claims: jwtClaims,
-    });
+      contextFromSupabase(auth({ authMode: "user", userClaims, jwtClaims })),
+    ).toEqual({ actor: { kind: "user", ...userClaims }, claims: jwtClaims });
   });
 
   it("carries the impersonator like authContext does", () => {
@@ -59,11 +50,7 @@ describe("contextFromSupabase", () => {
 
     expect(
       contextFromSupabase(
-        auth({
-          authMode: "user",
-          userClaims: { id: "u1" },
-          jwtClaims: claims,
-        }),
+        auth({ authMode: "user", userClaims: { id: "u1" }, jwtClaims: claims }),
       ),
     ).toEqual({
       actor: { id: "u1", kind: "user", impersonator: "admin-1" },
@@ -122,11 +109,7 @@ describe("withBetterDb", () => {
 
     const response = await handler(new Request("https://api.test/"), {
       ...seedContext(undefined),
-      ...auth({
-        authMode: "user",
-        userClaims,
-        jwtClaims,
-      }),
+      ...auth({ authMode: "user", userClaims, jwtClaims }),
       supabase: client,
     });
 

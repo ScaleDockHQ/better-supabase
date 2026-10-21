@@ -123,7 +123,7 @@ describe("createOAuthConsentController", () => {
     const first = mount(createOAuthConsentController(options));
     const second = mount(createOAuthConsentController(options));
     await flush();
-    expect(oauth.getAuthorizationDetails).toHaveBeenCalledTimes(1);
+    expect(oauth.getAuthorizationDetails).toHaveBeenCalledOnce();
     expect(redirect).toHaveBeenCalledWith("https://client.example/cb?code=old");
     expect(first.view().redirectUrl).toBe("https://client.example/cb?code=old");
     first.unmount();
@@ -157,9 +157,10 @@ describe("OAuth read failures", () => {
 
   it("keeps a failed details read and refuses to decide without a request", async () => {
     const oauth = fakeOAuth();
-    oauth.getAuthorizationDetails.mockImplementationOnce(
-      () => Promise.resolve({ data: null, error: failing }) as never,
-    );
+    oauth.getAuthorizationDetails.mockResolvedValueOnce({
+      data: null,
+      error: failing,
+    } as never);
 
     const { view, unmount } = mount(
       createOAuthConsentController({
@@ -207,9 +208,10 @@ describe("OAuth read failures", () => {
 
   it("keeps a failed grants read and a failed revoke", async () => {
     const oauth = fakeOAuth();
-    oauth.listGrants.mockImplementationOnce(
-      () => Promise.resolve({ data: null, error: failing }) as never,
-    );
+    oauth.listGrants.mockResolvedValueOnce({
+      data: null,
+      error: failing,
+    } as never);
 
     const { view, unmount } = mount(
       createOAuthGrantsController({ oauth, auth: fakeAuth() }),
@@ -217,9 +219,10 @@ describe("OAuth read failures", () => {
 
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
-    oauth.revokeGrant.mockImplementationOnce(
-      () => Promise.resolve({ data: null, error: failing }) as never,
-    );
+    oauth.revokeGrant.mockResolvedValueOnce({
+      data: null,
+      error: failing,
+    } as never);
     expect(await view().revoke("c1")).toMatchObject({ ok: false });
     unmount();
   });

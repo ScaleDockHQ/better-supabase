@@ -1,10 +1,13 @@
 "use server";
 
+import type {
+  ImportPreview,
+  ImportRowError,
+} from "better-supabase/blocks/imports";
+
 import { DbException, err, ok } from "better-supabase";
 import {
   appTableImport,
-  type ImportPreview,
-  type ImportRowError,
   previewImport,
   runImport,
 } from "better-supabase/blocks/imports";
@@ -15,11 +18,9 @@ import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bs } from "@/lib/supabase/server";
 
-import {
-  TASK_IMPORT_FIELDS,
-  type TaskStatus,
-  TaskStatusSchema,
-} from "./project-types";
+import type { TaskStatus } from "./project-types";
+
+import { TASK_IMPORT_FIELDS, TaskStatusSchema } from "./project-types";
 
 const PREVIEW_ROWS = 20;
 
@@ -87,9 +88,9 @@ export interface TaskImportOutcome {
 }
 
 /**
- * Validates the file and counts the tasks it creates, changes and leaves.
- * A task with the same title in the project is the same task (the
- * `(project_id, title)` unique set). Nothing is written.
+ * Validates the file and counts the tasks it creates, changes and leaves. A
+ * task with the same title in the project is the same task (the `(project_id,
+ * title)` unique set). Nothing is written.
  */
 export const previewTaskImport = bs.action(
   {
@@ -116,8 +117,8 @@ export const previewTaskImport = bs.action(
 );
 
 /**
- * Upserts the file's tasks into the project. An existing task keeps the
- * fields it already has and gains the ones that were empty (`fill`).
+ * Upserts the file's tasks into the project. An existing task keeps the fields
+ * it already has and gains the ones that were empty (`fill`).
  */
 export const runTaskImport = bs.action(
   {

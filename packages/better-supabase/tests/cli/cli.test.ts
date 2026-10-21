@@ -181,7 +181,7 @@ describe("relation names", () => {
         .find((entry) => entry.key === table)
         ?.relations.filter((entry) => entry.meta.table !== "organizations")
         .map((entry) => entry.name)
-        .sort();
+        .toSorted();
   };
 
   it("names a tenant key and a plain key to one table by every key column", async () => {
@@ -784,8 +784,8 @@ describe("config JSON Schema", () => {
       $ci: true,
     };
 
-    expect(Object.keys(schema.properties).sort()).toEqual(
-      Object.keys(keys).sort(),
+    expect(Object.keys(schema.properties).toSorted()).toEqual(
+      Object.keys(keys).toSorted(),
     );
   });
 });
@@ -798,10 +798,7 @@ describe("gen", () => {
     await cp(snapshotPath, join(dir, "snapshot.json"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        casing: "camel",
-        output: "src/db/generated.ts",
-      }),
+      JSON.stringify({ casing: "camel", output: "src/db/generated.ts" }),
     );
   });
 
@@ -1087,10 +1084,7 @@ describe("sql", () => {
   it("stops before writing the tenant module when the provider's hook owns memberships", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        blocks: ["invitations"],
-        authorization: stubProvider,
-      }),
+      JSON.stringify({ blocks: ["invitations"], authorization: stubProvider }),
     );
     const stopped = await run(["sql", "add", "tenant", "--cwd", dir]);
     expect(stopped.code).toBe(1);

@@ -4,9 +4,9 @@ import { moduleContext } from "./module-context.ts";
 
 /**
  * The flags past their `expires_at`, as doctor reads them: `expires_at` and
- * `owner` are optional `extraColumns` of the flags table, and an archived
- * flag is left out. Undefined when the flags module isn't installed or has
- * no `expires_at` column.
+ * `owner` are optional `extraColumns` of the flags table, and an archived flag
+ * is left out. Undefined when the flags module isn't installed or has no
+ * `expires_at` column.
  */
 export function expiredFlagsQuery(
   layout: ModuleLayout,

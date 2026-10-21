@@ -1,6 +1,8 @@
 "use server";
 
-import { type Result, dbError, err, ok } from "better-supabase";
+import type { Result } from "better-supabase";
+
+import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
@@ -9,7 +11,9 @@ import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
-import { getPlans, type PlanOption } from "./billing-queries";
+import type { PlanOption } from "./billing-queries";
+
+import { getPlans } from "./billing-queries";
 
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bs.action(
@@ -48,8 +52,8 @@ export const loadPlanCatalog = bs.action(
 
 /**
  * Starts Stripe Checkout for a plan of the fixture's catalog (`public.plans`).
- * It runs on the server, so the Stripe key never reaches the browser: with
- * the billing SQL module and a test-mode key (`sk_test_...`), it returns
+ * It runs on the server, so the Stripe key never reaches the browser: with the
+ * billing SQL module and a test-mode key (`sk_test_...`), it returns
  * `billing.checkout(organizationId, { plan, successUrl, cancelUrl })`. This
  * example installs neither, so it answers `unsupported`.
  */

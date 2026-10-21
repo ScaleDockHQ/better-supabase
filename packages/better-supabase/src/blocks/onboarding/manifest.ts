@@ -9,9 +9,7 @@ export const onboardingBlock: BlockOf<"onboarding", typeof createOnboarding> =
   defineBlock({
     name: "onboarding",
     sql: ["onboarding"],
-    options: {
-      onboarding: onboardingSqlOptions,
-    },
+    options: { onboarding: onboardingSqlOptions },
     create: createOnboarding,
     client: "onboarding",
     category: "growth",

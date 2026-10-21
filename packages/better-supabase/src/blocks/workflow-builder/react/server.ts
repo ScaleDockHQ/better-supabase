@@ -12,7 +12,10 @@ export type {
   WorkflowCanvasRunState,
 } from "./index.ts";
 
-/** The `react-server` build of `useWorkflowBuilder`: call `builder.definitions.list()` instead. */
+/**
+ * The `react-server` build of `useWorkflowBuilder`: call
+ * `builder.definitions.list()` instead.
+ */
 export const useWorkflowBuilder: (
   options?: UseWorkflowBuilderOptions,
 ) => WorkflowBuilderState = () => {
@@ -21,7 +24,10 @@ export const useWorkflowBuilder: (
   );
 };
 
-/** The `react-server` build of `useWorkflowCanvasRun`: call `builder.nodeRuns.list()` instead. */
+/**
+ * The `react-server` build of `useWorkflowCanvasRun`: call
+ * `builder.nodeRuns.list()` instead.
+ */
 export const useWorkflowCanvasRun: (
   run: string | null,
   options?: UseWorkflowCanvasRunOptions,

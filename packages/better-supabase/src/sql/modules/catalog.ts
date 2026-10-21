@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Names } from "./catalog-functions.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
 import {
@@ -16,7 +17,6 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
-  type Names,
   SLUG,
   optionFunctions,
   productExtras,
@@ -43,10 +43,7 @@ const EVENTS: ModuleEvents<CatalogEvents> = {
     subject: "products",
     payload: ["organizationId", "id", "from", "to"],
   },
-  "product.deleted": {
-    subject: "products",
-    payload: ["organizationId", "id"],
-  },
+  "product.deleted": { subject: "products", payload: ["organizationId", "id"] },
   "variant.created": {
     subject: "variants",
     payload: ["organizationId", "id", "productId", "sku"],
@@ -250,10 +247,7 @@ const NAMES: ModuleNames = {
       name: "storefronts",
       lifecycle: tenantExport,
       optionalTable: true,
-      columns: {
-        tenant: "tenant_id",
-        publishedAt: "published_at",
-      },
+      columns: { tenant: "tenant_id", publishedAt: "published_at" },
     },
   },
 };
@@ -430,7 +424,10 @@ ${read("storefronts")}
 `;
 }
 
-/** Anon read policies for active products of tenants with a published storefront. */
+/**
+ * Anon read policies for active products of tenants with a published
+ * storefront.
+ */
 function storefrontPolicies(ctx: ModuleContext, names: Names): string {
   if (!ctx.manages) {
     return "";

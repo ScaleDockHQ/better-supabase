@@ -1,7 +1,7 @@
 /**
- * A callback that decides something a module would otherwise allow or refuse
- * by default: `authorize`, `canInvite`, `shouldDeliver`, `allowUrl`. Only
- * `true` allows; `false`, any other value, a throw or a rejection denies.
+ * A callback that decides something a module would otherwise allow or refuse by
+ * default: `authorize`, `canInvite`, `shouldDeliver`, `allowUrl`. Only `true`
+ * allows; `false`, any other value, a throw or a rejection denies.
  */
 export type Policy<A extends readonly unknown[]> = (
   ...args: A
@@ -11,7 +11,10 @@ export type PolicyDecision =
   | { readonly allowed: true }
   | {
       readonly allowed: false;
-      /** `denied`: the policy returned something other than `true`. `threw`: it threw or rejected. */
+      /**
+       * `denied`: the policy returned something other than `true`. `threw`: it
+       * threw or rejected.
+       */
       readonly reason: "denied" | "threw";
       readonly cause?: unknown;
     };

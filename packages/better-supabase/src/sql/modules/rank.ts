@@ -4,12 +4,12 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { RANK_ALPHABET, RANK_REBALANCE_QUEUE } from "../../core/rank-keys.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, schemaPreamble, serviceGrant, userGrant } from "../shared.ts";
 import {
-  type RegisteredSubject,
   registeredIdMatches,
   registeredSubjects,
 } from "../subject-registry.ts";
@@ -47,9 +47,9 @@ ${subjects.map((subject) => `    when ${sqlString(subject.type)} then\n${branch(
 }
 
 /**
- * `v_group` read back as the group column's own type. Text has no
- * assignment cast to uuid or an enum, so a plain `set group = v_group`
- * fails for a `stage_id` column; the row type carries the cast.
+ * `v_group` read back as the group column's own type. Text has no assignment
+ * cast to uuid or an enum, so a plain `set group = v_group` fails for a
+ * `stage_id` column; the row type carries the cast.
  */
 function typedGroup(subject: RegisteredSubject, column: string): string {
   return `(jsonb_populate_record(null::${subject.qualified}, jsonb_build_object(${sqlString(column)}, v_group))).${sqlIdent(column)}`;
@@ -99,7 +99,10 @@ function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
       end if;`;
 }
 
-/** The `rebalance_ranks` branch: even keys for every row of the tenant, per group. */
+/**
+ * The `rebalance_ranks` branch: even keys for every row of the tenant, per
+ * group.
+ */
 function rebalanceBranch(
   ctx: ModuleContext,
   subject: RegisteredSubject,

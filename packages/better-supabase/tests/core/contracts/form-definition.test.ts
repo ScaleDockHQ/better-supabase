@@ -52,9 +52,7 @@ describe("fieldSchema", () => {
   it("gives a required field a floor so an empty answer fails", () => {
     expect(
       fieldSchema({ key: "k", type: "text", required: true }),
-    ).toMatchObject({
-      minLength: 1,
-    });
+    ).toMatchObject({ minLength: 1 });
     expect(
       fieldSchema({
         key: "k",
@@ -72,11 +70,7 @@ describe("fieldSchema", () => {
   it("keeps help as the description", () => {
     expect(
       fieldSchema({ key: "k", type: "bool", label: "K", help: "Why" }),
-    ).toEqual({
-      type: "boolean",
-      title: "K",
-      description: "Why",
-    });
+    ).toEqual({ type: "boolean", title: "K", description: "Why" });
   });
 
   it("throws for a customField that publishing has not resolved", () => {

@@ -1,13 +1,11 @@
-import {
-  embedMany,
-  type EmbeddingModel,
-  jsonSchema,
-  rerank,
-  type RerankingModel,
-  type SourceDocumentUIPart,
-  type Tool,
-  tool,
+import type {
+  EmbeddingModel,
+  RerankingModel,
+  SourceDocumentUIPart,
+  Tool,
 } from "ai";
+
+import { embedMany, jsonSchema, rerank, tool } from "ai";
 
 import type {
   Embedder,
@@ -103,8 +101,8 @@ export function rerankWith(
 
 /**
  * Keeps the items of a search the caller may read. A tool applies it before
- * anything else sees the items: the reranker, `onHits` and the model. A
- * throw fails the tool call, so no items reach the model.
+ * anything else sees the items: the reranker, `onHits` and the model. A throw
+ * fails the tool call, so no items reach the model.
  */
 export type ResultsFilter<T, C = { readonly query: string }> = (
   items: readonly T[],
@@ -133,8 +131,8 @@ export interface SearchToolResult {
 }
 
 /**
- * A tool that searches the knowledge base as the caller. Each result id
- * is `documentId#index`, the `sourceId` that `toSourceParts` gives it.
+ * A tool that searches the knowledge base as the caller. Each result id is
+ * `documentId#index`, the `sourceId` that `toSourceParts` gives it.
  */
 export function searchTool(
   knowledge: Knowledge,
@@ -233,9 +231,7 @@ export interface SupabaseEmbedOptions {
 }
 
 interface SupabaseGlobal {
-  readonly ai?: {
-    readonly Session?: new (model: string) => SupabaseAiSession;
-  };
+  readonly ai?: { readonly Session?: new (model: string) => SupabaseAiSession };
 }
 
 function supabaseSession(model: string): SupabaseAiSession {

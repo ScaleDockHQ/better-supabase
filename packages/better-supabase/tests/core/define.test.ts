@@ -7,13 +7,14 @@ import type {
   RpcContext,
 } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
+import type { Result } from "../../src/core/result.ts";
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
-import { err, ok, type Result } from "../../src/core/result.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -166,9 +167,7 @@ describe("connect", () => {
       fake({ answer: () => ok({ rows: [], count: 9 }) }),
     );
 
-    const extended = db.tags.extend((base) => ({
-      total: () => base.count(),
-    }));
+    const extended = db.tags.extend((base) => ({ total: () => base.count() }));
 
     expect(await extended.total()).toEqual(ok(9));
     expect(typeof extended.findMany).toBe("function");
@@ -212,7 +211,7 @@ describe("$storage", () => {
     const db = betterSupabase.connect(client);
     expect(db.$storage).toBe(storage);
     expect(db.$storage).toBe(storage);
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledOnce();
     const option = storageApi();
     expect(
       betterSupabase.connect(client, {}, { storage: option }).$storage,
@@ -500,9 +499,7 @@ describe("$search", () => {
       dbError(
         "invalid_input",
         "db.$search() needs a vector of finite numbers (or text alone on a hybrid entry) and a positive integer k",
-        {
-          table: "notes",
-        },
+        { table: "notes" },
       ),
     );
   });
@@ -514,12 +511,14 @@ describe("$search", () => {
     });
 
     expect(
-      await betterSupabase.connect(executor).$search("notes", {
-        vector: "[1,2]",
-        k: 3,
-        select: ["id"],
-        where: { kind: "call" },
-      }),
+      await betterSupabase
+        .connect(executor)
+        .$search("notes", {
+          vector: "[1,2]",
+          k: 3,
+          select: ["id"],
+          where: { kind: "call" },
+        }),
     ).toEqual(ok([{ id: "1" }]));
     expect(executor.ops[0]).toMatchObject({
       limit: 3,
@@ -562,11 +561,13 @@ describe("$search", () => {
 
   it("passes filter and text to the search function", async () => {
     const executor = fake({ functionSources: true });
-    await betterSupabase.connect(executor).$search("notes", {
-      vector,
-      filter: { kind: ["call", null] },
-      text: "renewal",
-    });
+    await betterSupabase
+      .connect(executor)
+      .$search("notes", {
+        vector,
+        filter: { kind: ["call", null] },
+        text: "renewal",
+      });
     expect(executor.ops[0]).toMatchObject({
       source: {
         args: {

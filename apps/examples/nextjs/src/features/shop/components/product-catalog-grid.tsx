@@ -32,7 +32,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import { type Product, getProducts } from "../shop-queries";
+import type { Product } from "../shop-queries";
+
+import { getProducts } from "../shop-queries";
 import { CreateProductDialog } from "./create-product-dialog";
 import { CreatePromotionCodeDialog } from "./promotion-code-field";
 

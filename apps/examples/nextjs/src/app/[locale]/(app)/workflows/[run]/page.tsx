@@ -11,7 +11,10 @@ import { Link } from "@/i18n/navigation";
 
 export const instant = true;
 
-/** The back link is the static shell; the run loads in the browser and stays live. */
+/**
+ * The back link is the static shell; the run loads in the browser and stays
+ * live.
+ */
 export default function WorkflowRunPage({
   params,
 }: PageProps<"/[locale]/workflows/[run]">) {

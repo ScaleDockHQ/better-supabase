@@ -108,10 +108,7 @@ describe(`Overlay ${SPEC_PINS.overlay12}`, () => {
     $self: "https://api.test/public.overlay.json",
     components: {
       actions: {
-        hide: {
-          description: "Hide an operation",
-          fields: { remove: true },
-        },
+        hide: { description: "Hide an operation", fields: { remove: true } },
       },
     },
     actions: [

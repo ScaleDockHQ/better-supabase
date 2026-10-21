@@ -21,7 +21,10 @@ const LOOP = 28;
 /** Below this the labels get too small, so a wider graph scrolls instead. */
 const MIN_WIDTH = 480;
 
-/** A curve between the facing sides of two boxes, or a loop out to the right within one column. */
+/**
+ * A curve between the facing sides of two boxes, or a loop out to the right
+ * within one column.
+ */
 function edgePath(
   from: DependencyNode,
   to: DependencyNode,
@@ -172,8 +175,8 @@ function GraphLinks({ layout }: { layout: DependencyLayout }): ReactElement {
 
 /**
  * A static dependency graph: boxes in the category's color, solid arrows for
- * `requires` and dashed lines for `integrates`. It uses no state or effects,
- * so it renders on the server and inside client trees alike.
+ * `requires` and dashed lines for `integrates`. It uses no state or effects, so
+ * it renders on the server and inside client trees alike.
  */
 export function DependencyGraph({
   layout,

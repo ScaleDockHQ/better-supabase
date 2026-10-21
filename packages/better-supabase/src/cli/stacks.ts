@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 
 import type { CliEnv } from "./env.ts";
+import type { RunProcess } from "./exec.ts";
 import type { SharedMemoryUsage } from "./shm.ts";
 
 import { CliError } from "./core/errors.ts";
-import { type RunProcess, runProcess, supabaseCli } from "./exec.ts";
+import { runProcess, supabaseCli } from "./exec.ts";
 
 /** One stack from `supabase stack list`, as the Supabase CLI persists it. */
 export interface ManagedStack {
@@ -123,7 +124,10 @@ export interface ReportOptions {
   readonly exists?: (path: string) => boolean;
 }
 
-/** Adds what `stack ls` shows to each stack: worktree, branch, segments, current. */
+/**
+ * Adds what `stack ls` shows to each stack: worktree, branch, segments,
+ * current.
+ */
 export async function reportStacks(
   stacks: readonly ManagedStack[],
   options: ReportOptions,
@@ -189,9 +193,9 @@ export async function reportStacks(
 }
 
 /**
- * The stacks `stack prune` acts on. A stack whose worktree or branch is gone
- * is destroyed; with `stopIdle`, a running stack of another checkout or
- * branch is only stopped, so its data stays.
+ * The stacks `stack prune` acts on. A stack whose worktree or branch is gone is
+ * destroyed; with `stopIdle`, a running stack of another checkout or branch is
+ * only stopped, so its data stays.
  */
 export function prunePlan(
   stacks: readonly StackReport[],

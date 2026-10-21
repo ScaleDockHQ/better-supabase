@@ -44,7 +44,10 @@ export function blockPath(name: string): `/blocks/${string}` {
   return `/blocks/${name}`;
 }
 
-/** The `generateStaticParams` of `app/(blocks)/blocks/[name]`: one page per catalog block. */
+/**
+ * The `generateStaticParams` of `app/(blocks)/blocks/[name]`: one page per
+ * catalog block.
+ */
 export function blockStaticParams(): { name: string }[] {
   return blocks.map((block) => ({ name: block.name }));
 }
@@ -222,8 +225,8 @@ function graphNode(name: string, focus = false): DependencyNodeSpec {
 }
 
 /**
- * The block in the middle, the modules it requires on the left and the
- * modules it works with on the right. A module in both lists counts as required.
+ * The block in the middle, the modules it requires on the left and the modules
+ * it works with on the right. A module in both lists counts as required.
  */
 export function blockGraphLayout(block: CatalogBlock): DependencyLayout {
   const requires = [...new Set(block.requires)].filter(
@@ -296,8 +299,8 @@ const configKey = (name: string): string =>
   /^[a-z_][a-z0-9_]*$/i.test(name) ? name : JSON.stringify(name);
 
 /**
- * The `blocks` entries in `better-supabase.config.ts` for `block` and
- * the modules `sql add` installs with it (`installed`, dependencies first).
+ * The `blocks` entries in `better-supabase.config.ts` for `block` and the
+ * modules `sql add` installs with it (`installed`, dependencies first).
  */
 export function configSnippet(
   block: CatalogBlock,

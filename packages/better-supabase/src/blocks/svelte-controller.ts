@@ -1,13 +1,19 @@
+import type { Readable } from "svelte/store";
+
 import { getContext, onDestroy, onMount } from "svelte";
-import { readable, type Readable } from "svelte/store";
+import { readable } from "svelte/store";
 
 import type { ClientLike } from "../bindings/client.ts";
+import type { BlockOptions } from "./block-env.ts";
 import type { Controller } from "./controller.ts";
 
 import { CLIENT } from "../svelte/context.ts";
-import { blockEnv, type BlockOptions, withEnv } from "./block-env.ts";
+import { blockEnv, withEnv } from "./block-env.ts";
 
-/** A block controller in a Svelte component: a readable store of its state, with its actions. */
+/**
+ * A block controller in a Svelte component: a readable store of its state, with
+ * its actions.
+ */
 export interface SvelteController<S, A> extends Readable<S> {
   readonly actions: A;
   readonly controller: Controller<S, A>;
@@ -26,9 +32,9 @@ function contextClient(): ClientLike {
 }
 
 /**
- * Makes a controller once, during component setup. The store follows it
- * from mount (never during server rendering) while it has subscribers, and
- * the controller is disposed with the component.
+ * Makes a controller once, during component setup. The store follows it from
+ * mount (never during server rendering) while it has subscribers, and the
+ * controller is disposed with the component.
  */
 export function useBlockController<O, S, A>(
   create: (options: O) => Controller<S, A>,

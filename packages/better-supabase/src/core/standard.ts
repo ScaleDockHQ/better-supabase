@@ -1,7 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import { dbError, type ValidationIssue } from "./errors.ts";
-import { err, ok, type Result } from "./result.ts";
+import type { ValidationIssue } from "./errors.ts";
+import type { Result } from "./result.ts";
+
+import { dbError } from "./errors.ts";
+import { err, ok } from "./result.ts";
 
 export type { StandardSchemaV1 };
 

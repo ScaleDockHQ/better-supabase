@@ -26,9 +26,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The locale comes from the `[locale]` root param, so it is known at build
- * time and the shell stays static. The theme provider never reads the theme
- * cookie on the server: its inline script sets the class before paint.
+ * The locale comes from the `[locale]` root param, so it is known at build time
+ * and the shell stays static. The theme provider never reads the theme cookie
+ * on the server: its inline script sets the class before paint.
  */
 export default async function LocaleLayout({
   children,

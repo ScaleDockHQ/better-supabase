@@ -59,7 +59,7 @@ function pushDownStore() {
         return err(dbError("stale", "Changed"));
       }
 
-      const id = input.id ?? `user-${++next}`;
+      const id = input.id ?? `user-${(next += 1)}`;
 
       const row: ScimStoredResource = {
         id,

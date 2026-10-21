@@ -3,7 +3,10 @@ import { sqlIdent } from "../core/template.ts";
 /** `blocks.<module>.api`, resolved. */
 export interface ModuleApi {
   readonly schema: string;
-  /** Function names to wrap; every function granted to the API roles when missing. */
+  /**
+   * Function names to wrap; every function granted to the API roles when
+   * missing.
+   */
   readonly functions?: readonly string[];
 }
 
@@ -44,7 +47,7 @@ function splitTopLevel(text: string): string[] {
   let quote: string | undefined;
   let start = 0;
 
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -54,9 +57,9 @@ function splitTopLevel(text: string): string[] {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(" || char === "[") {
-      depth++;
+      depth += 1;
     } else if (char === ")" || char === "]") {
-      depth--;
+      depth -= 1;
     } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, i));
       start = i + 1;
@@ -77,7 +80,7 @@ function closing(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
 
-  for (let i = open; i < text.length; i++) {
+  for (let i = open; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -87,9 +90,9 @@ function closing(text: string, open: number): number {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
 
       if (depth === 0) {
         return i;
@@ -246,13 +249,13 @@ grant execute on function ${target}(${types}) to ${grant.roles.join(", ")};`;
 /**
  * `security invoker` wrappers in `api.schema` for the module functions that
  * `anon`, `authenticated` or `service_role` may execute, with the same names,
- * arguments and grants (to those roles only). Expose the API schema to the
- * Data API instead of the module schema, which also holds helpers that only
- * policies should call. A server that reaches the database only through
- * PostgREST then calls the service functions, such as `flag_definitions`,
- * with a service-role client. The module's `internal` helpers (granted only
- * so its policies and triggers can call them as the client) get no wrapper,
- * and a wrapper an earlier version wrote for one is dropped.
+ * arguments and grants (to those roles only). Expose the API schema to the Data
+ * API instead of the module schema, which also holds helpers that only policies
+ * should call. A server that reaches the database only through PostgREST then
+ * calls the service functions, such as `flag_definitions`, with a service-role
+ * client. The module's `internal` helpers (granted only so its policies and
+ * triggers can call them as the client) get no wrapper, and a wrapper an
+ * earlier version wrote for one is dropped.
  */
 export function apiWrappers(
   sql: string,

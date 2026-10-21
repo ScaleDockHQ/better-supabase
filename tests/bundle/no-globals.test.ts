@@ -6,7 +6,10 @@ import { describe, expect, it } from "vitest";
 const run = promisify(execFile);
 const PACKAGE = resolve(import.meta.dirname, "../../packages/better-supabase");
 
-/** Runtimes such as React Native and some Jest environments ship no encoders at import time. */
+/**
+ * Runtimes such as React Native and some Jest environments ship no encoders at
+ * import time.
+ */
 const SCRIPT = (specifier: string) => `
 delete globalThis.TextEncoder;
 delete globalThis.TextDecoder;

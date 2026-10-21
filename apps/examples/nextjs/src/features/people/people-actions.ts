@@ -36,8 +36,8 @@ const OptionalId = v.optional(v.union([v.literal(""), Id]), "");
 const PlainDate = v.pipe(v.string(), v.isoDate());
 
 /**
- * Adds an employee. Phone and personal email are private details, saved
- * only when the caller may see them (`employees.view_sensitive`).
+ * Adds an employee. Phone and personal email are private details, saved only
+ * when the caller may see them (`employees.view_sensitive`).
  */
 export const createEmployee = bs.action(
   {
@@ -119,7 +119,10 @@ export const createEmployee = bs.action(
   },
 );
 
-/** An employee's private details; the block refuses callers without `employees.view_sensitive`. */
+/**
+ * An employee's private details; the block refuses callers without
+ * `employees.view_sensitive`.
+ */
 export const getPrivateDetails = bs.action(
   {
     input: v.object({ employeeId: Id }),
@@ -313,8 +316,8 @@ export const addCandidate = bs.action(
 );
 
 /**
- * Moves an application to another open stage. `rank.move` sets the stage
- * as the row's group, which needs `application` in `config.subjects`.
+ * Moves an application to another open stage. `rank.move` sets the stage as the
+ * row's group, which needs `application` in `config.subjects`.
  */
 export const moveApplication = bs.action(
   {

@@ -25,15 +25,18 @@ export interface DeliveryPayload {
   readonly organizationId: string;
   /** Who set the reminder; `createBlocks` notifies them. */
   readonly userId?: string;
-  /** The reminded subject, from `list_reminder_schedule`; its watchers are notified too. */
+  /**
+   * The reminded subject, from `list_reminder_schedule`; its watchers are
+   * notified too.
+   */
   readonly subjectType?: string;
   readonly subjectId?: string;
 }
 
 /**
  * Expands each rule between `from` and `until` and returns one delivery per
- * occurrence, shifted earlier by `offsetMinutes`. The caller enqueues each
- * row as a delayed `reminders.deliver` job with `dedupeKey`.
+ * occurrence, shifted earlier by `offsetMinutes`. The caller enqueues each row
+ * as a delayed `reminders.deliver` job with `dedupeKey`.
  */
 export function planReminderDeliveries(
   items: readonly ReminderPlanInput[],
@@ -77,7 +80,10 @@ export function planReminderDeliveries(
   return planned;
 }
 
-/** Records the delivery, then notifies. A second run of the same occurrence is a no-op in SQL. */
+/**
+ * Records the delivery, then notifies. A second run of the same occurrence is a
+ * no-op in SQL.
+ */
 export async function deliverReminder(
   payload: DeliveryPayload,
   effects: {

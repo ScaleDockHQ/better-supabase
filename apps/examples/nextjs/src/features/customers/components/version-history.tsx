@@ -67,8 +67,8 @@ import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 // #region recipe:version-history
 
 /**
- * Saved versions of the customer's name and KvK number, newest first. Each
- * one compares with the version before it and restores as a new version.
+ * Saved versions of the customer's name and KvK number, newest first. Each one
+ * compares with the version before it and restores as a new version.
  */
 export function VersionHistory({
   customerId,

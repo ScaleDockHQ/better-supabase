@@ -36,11 +36,15 @@ export interface RuleBuilderState
 }
 
 /**
- * The editor state of one rule: its fields, its condition tree with the
- * edits to it, validation, dirty state and save.
+ * The editor state of one rule: its fields, its condition tree with the edits
+ * to it, validation, dirty state and save.
  *
  * ```tsx
- * const builder = useRuleBuilder({ organizationId, rule: null, subjectType: "expense" });
+ * const builder = useRuleBuilder({
+ *   organizationId,
+ *   rule: null,
+ *   subjectType: "expense",
+ * });
  * builder.addRule(undefined, "amount");
  * ```
  */

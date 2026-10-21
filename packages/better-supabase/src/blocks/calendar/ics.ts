@@ -375,10 +375,10 @@ function eventOf(
 }
 
 /**
- * Reads an iCalendar file (RFC 5545): unfolds lines, unescapes TEXT values
- * and reads each `VEVENT`'s times, recurrence (`RRULE`, `EXDATE`,
- * `RECURRENCE-ID`) and attendees. Times in a zone Temporal does not know,
- * floating times and dates use `X-WR-TIMEZONE`, else UTC.
+ * Reads an iCalendar file (RFC 5545): unfolds lines, unescapes TEXT values and
+ * reads each `VEVENT`'s times, recurrence (`RRULE`, `EXDATE`, `RECURRENCE-ID`)
+ * and attendees. Times in a zone Temporal does not know, floating times and
+ * dates use `X-WR-TIMEZONE`, else UTC.
  */
 export function parseIcs(text: string): ParsedIcs {
   const lines = text
@@ -508,9 +508,9 @@ function offset(nanoseconds: number): string {
 }
 
 /**
- * A `VTIMEZONE` with one observance per transition between `from` and
- * `until`, from Temporal's zone data, so `TZID` references resolve
- * without an external database.
+ * A `VTIMEZONE` with one observance per transition between `from` and `until`,
+ * from Temporal's zone data, so `TZID` references resolve without an external
+ * database.
  */
 function vtimezone(
   tz: string,
@@ -656,9 +656,9 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
 }
 
 /**
- * Writes events as an iCalendar file (RFC 5545): CRLF line ends, lines
- * folded at 75 octets, escaped TEXT, and a `VTIMEZONE` for every zone a
- * timed event uses, so recurrence keeps its wall-clock time across DST.
+ * Writes events as an iCalendar file (RFC 5545): CRLF line ends, lines folded
+ * at 75 octets, escaped TEXT, and a `VTIMEZONE` for every zone a timed event
+ * uses, so recurrence keeps its wall-clock time across DST.
  */
 export function toIcs(
   events: readonly IcsSource[],

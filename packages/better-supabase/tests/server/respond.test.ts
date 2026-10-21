@@ -68,9 +68,9 @@ describe("guard and delegated scopes", () => {
     user(supabaseClaimFixtures[name].claims);
 
   it("limits only an oauth-client actor to the delegated scopes", () => {
-    expect(guard(as("oauthClient"), ["user"], "aal1", ["posts:read"])).toBe(
-      undefined,
-    );
+    expect(
+      guard(as("oauthClient"), ["user"], "aal1", ["posts:read"]),
+    ).toBeUndefined();
     expect(
       guard(as("agentChain"), ["user"], "aal1", ["posts:write"]),
     ).toMatchObject({ code: "INSUFFICIENT_SCOPE" });
@@ -82,9 +82,9 @@ describe("guard and delegated scopes", () => {
       "supportSessionReadOnly",
       "impersonation",
     ] as const) {
-      expect(guard(as(name), ["user"], "aal1", ["posts:write"])).toBe(
-        undefined,
-      );
+      expect(
+        guard(as(name), ["user"], "aal1", ["posts:write"]),
+      ).toBeUndefined();
     }
   });
 });

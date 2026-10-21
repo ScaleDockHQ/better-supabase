@@ -8,8 +8,8 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { bs } from "@/lib/supabase/server";
 
 /**
- * The editor saves through the browser client; this drops the caller's
- * cached rule list, so the next page shows the change.
+ * The editor saves through the browser client; this drops the caller's cached
+ * rule list, so the next page shows the change.
  */
 export const rulesChanged = bs.action(
   { input: v.object({}), requireTenant: true },

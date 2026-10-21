@@ -2,8 +2,8 @@
  * Stops the local stacks of branches already merged into `main`, for this
  * checkout and its worktrees. Every running native stack holds shared memory
  * segments, and macOS allows 32 (`kern.sysv.shmmni`), so a few dozen idle
- * stacks make the next `supabase start` fail. Stopping keeps the stack's
- * data; `supabase stack list` still shows it. `--dry-run` only prints.
+ * stacks make the next `supabase start` fail. Stopping keeps the stack's data;
+ * `supabase stack list` still shows it. `--dry-run` only prints.
  */
 import { execFileSync } from "node:child_process";
 import * as v from "valibot";
@@ -23,7 +23,10 @@ export type Stack = v.InferOutput<typeof StackList>["stacks"][number];
 
 const BRANCH_REF = "refs/heads/";
 
-/** The running stacks under `roots` whose branch is in `merged`, never `main` itself. */
+/**
+ * The running stacks under `roots` whose branch is in `merged`, never `main`
+ * itself.
+ */
 export function prunableStacks(
   stacks: readonly Stack[],
   roots: readonly string[],
@@ -54,7 +57,10 @@ export const worktreeRoots = (porcelain: string): string[] =>
     .filter((line) => line.startsWith("worktree "))
     .map((line) => line.slice("worktree ".length));
 
-/** The branch names `git branch --merged` prints, without the current-branch marks. */
+/**
+ * The branch names `git branch --merged` prints, without the current-branch
+ * marks.
+ */
 export const mergedBranches = (output: string): Set<string> =>
   new Set(
     output

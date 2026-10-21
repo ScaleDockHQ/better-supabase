@@ -1,4 +1,6 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "../../auth/resolve.ts";
 import type { Db } from "../../core/repository-types.ts";
@@ -22,9 +24,9 @@ export interface SqlIn<
 /**
  * Entry contributing `ctx.sql`: repositories over direct Postgres as the
  * caller, with RLS, from `createServer`'s `postgres`, else `undefined`.
- * `withPostgresClient` reads `jwtClaims`, so it runs after this entry and
- * can't back `ctx.sql`; importing the SQL compiler here would also ship it
- * to every app without Postgres.
+ * `withPostgresClient` reads `jwtClaims`, so it runs after this entry and can't
+ * back `ctx.sql`; importing the SQL compiler here would also ship it to every
+ * app without Postgres.
  */
 export function withSql<
   M extends AnyModels,

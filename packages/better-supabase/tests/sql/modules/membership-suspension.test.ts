@@ -165,10 +165,9 @@ describe("membership suspension", () => {
   });
 
   it("keeps suspended members out of the provider and custom models", () => {
-    const provider = render({
-      ...SUSPENDABLE,
-      access: { model: "provider" },
-    })("access");
+    const provider = render({ ...SUSPENDABLE, access: { model: "provider" } })(
+      "access",
+    );
 
     expect(provider).toContain(
       'and not exists (select 1 from "public"."organization_users" sm where sm."organization_id" = tenant and sm."user_id" = member and sm."suspended_at" is not null)',

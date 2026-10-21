@@ -1,6 +1,9 @@
 import type { ApiModel } from "./model.ts";
 
-/** How a version of a format is supported. `preview` follows a draft and is never a default. */
+/**
+ * How a version of a format is supported. `preview` follows a draft and is
+ * never a default.
+ */
 export type VersionStatus = "stable" | "legacy" | "preview";
 
 export interface FormatVersion {
@@ -12,8 +15,8 @@ export interface FormatVersion {
 export type DiagnosticSeverity = "error" | "warning" | "info";
 
 /**
- * A finding from building, lowering or checking a document. `code` is
- * stable: tools and `--fail-on` read it, and a retired code stays reserved.
+ * A finding from building, lowering or checking a document. `code` is stable:
+ * tools and `--fail-on` read it, and a retired code stays reserved.
  */
 export interface SpecDiagnostic {
   readonly code: string;
@@ -29,11 +32,11 @@ export interface LowerContext {
 }
 
 /**
- * The plugin contract every document format implements, the first-party
- * ones included (API v1). `lower` is pure: it reads the model and returns a
- * new document, so the same model renders to every version. `Docs` maps
- * each version to its document type, so `transform` hooks can switch on the
- * version; it defaults to `Doc` for every version.
+ * The plugin contract every document format implements, the first-party ones
+ * included (API v1). `lower` is pure: it reads the model and returns a new
+ * document, so the same model renders to every version. `Docs` maps each
+ * version to its document type, so `transform` hooks can switch on the version;
+ * it defaults to `Doc` for every version.
  */
 export interface DocumentFormat<
   Id extends string = string,
@@ -46,7 +49,10 @@ export interface DocumentFormat<
   readonly versions: Readonly<Record<V, FormatVersion>>;
   readonly defaultVersion: V;
   lower(model: ApiModel, version: V, ctx: LowerContext): Doc;
-  /** Semantic checks a schema cannot express (unique ids, resolvable references). */
+  /**
+   * Semantic checks a schema cannot express (unique ids, resolvable
+   * references).
+   */
   lint?(doc: Doc, version: V): readonly SpecDiagnostic[];
   /** Default file name for a version, e.g. `openapi.json`. */
   fileName(version: V): string;
@@ -65,8 +71,8 @@ export type DocumentOf<F> =
   F extends DocumentFormat<string, any, infer D, any> ? D : never;
 
 /**
- * What a `transform` hook receives: the document with its format and
- * version, a union discriminated by `version`.
+ * What a `transform` hook receives: the document with its format and version, a
+ * union discriminated by `version`.
  */
 export type RenderedOf<F> =
   // oxlint-disable-next-line typescript/no-explicit-any -- see AnyDocumentFormat
@@ -80,7 +86,10 @@ export type RenderedOf<F> =
       }[V]
     : never;
 
-/** Identity helper that fixes `apiVersion` and checks that the default version exists. */
+/**
+ * Identity helper that fixes `apiVersion` and checks that the default version
+ * exists.
+ */
 export function defineDocumentFormat<
   const Id extends string,
   const V extends string,

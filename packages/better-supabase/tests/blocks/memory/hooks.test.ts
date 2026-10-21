@@ -16,9 +16,7 @@ describe("createMemory hooks", () => {
         },
       },
       hooks: {
-        render: {
-          before: () => dbError("forbidden", "No rendering here"),
-        },
+        render: { before: () => dbError("forbidden", "No rendering here") },
         core: {
           view: {
             after: (result, [organizationId]) => {

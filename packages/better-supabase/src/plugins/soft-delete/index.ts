@@ -1,14 +1,16 @@
+import type {
+  HasFlag,
+  Plugin,
+  RepositoryExtension,
+} from "../../core/plugin.ts";
+import type { Result } from "../../core/result.ts";
+import type { MutationOp, Operation } from "../../ir/types.ts";
 import type { PrimaryKeyValue, TableMeta } from "../../schema/types.ts";
 
-import {
-  definePlugin,
-  type HasFlag,
-  type Plugin,
-  type RepositoryExtension,
-} from "../../core/plugin.ts";
-import { AsyncResult, ok, type Result } from "../../core/result.ts";
+import { definePlugin } from "../../core/plugin.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { scopeOperation } from "../../ir/scope.ts";
-import { and, type MutationOp, type Operation } from "../../ir/types.ts";
+import { and } from "../../ir/types.ts";
 import {
   dbName,
   guardManaged,
@@ -69,14 +71,14 @@ type UpdateFn = (
 /**
  * Soft delete for tables generated with `Flags.softDelete`:
  *
- * - reads, updates and deletes skip deleted rows, including inside includes
- *   and relation filters (`withDeleted` / `onlyDeleted` change the root table);
+ * - Reads, updates and deletes skip deleted rows, including inside includes and
+ *   relation filters (`withDeleted` / `onlyDeleted` change the root table);
  * - `delete` sets the column instead (`{ hard: true }` really deletes);
  * - `restore(key)` clears it.
  *
  * Deletes become updates without `RETURNING`, so a SELECT policy that hides
- * deleted rows does not make them fail. `deleteMany({ returning: true })`
- * keeps `RETURNING`, which needs a SELECT policy that still shows the row.
+ * deleted rows does not make them fail. `deleteMany({ returning: true })` keeps
+ * `RETURNING`, which needs a SELECT policy that still shows the row.
  */
 export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
   return definePlugin<"softDelete", SoftDeleteExtension>({
@@ -168,12 +170,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
             const result = await update(
               key,
               { [flag]: null },
-              {
-                ...args,
-                withDeleted: true,
-                returning: false,
-                override: true,
-              },
+              { ...args, withDeleted: true, returning: false, override: true },
             );
 
             return result.ok ? ok(undefined) : result;

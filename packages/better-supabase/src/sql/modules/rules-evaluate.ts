@@ -26,7 +26,10 @@ function negativeCase(operator: string): string {
   return `case ${operator} ${arms} end`;
 }
 
-/** The pure evaluator: the same operators and null handling as `evaluateFilterQuery`. */
+/**
+ * The pure evaluator: the same operators and null handling as
+ * `evaluateFilterQuery`.
+ */
 export function rulesEvaluator(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
 

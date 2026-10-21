@@ -39,7 +39,10 @@ function slugLengths(ctx: ModuleContext): {
   return { min, max };
 }
 
-/** `blocks["reserved-slugs"].options.slugs`: the app's own words, such as its route names. */
+/**
+ * `blocks["reserved-slugs"].options.slugs`: the app's own words, such as its
+ * route names.
+ */
 function appSlugs(ctx: ModuleContext): string {
   const slugs = ctx.list("slugs", []);
 

@@ -14,6 +14,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("comments", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("copies a thread in a PostgREST session, where pg-safeupdate refuses a delete without where", async () => {
@@ -321,9 +322,7 @@ describe.skipIf(!live)("comments", () => {
 
       await s.install(
         ["organizations", "outbox", "notifications", "comments"],
-        {
-          modules: { comments: { options: { subjects } } },
-        },
+        { modules: { comments: { options: { subjects } } } },
       );
       const owner = await s.user("owner");
       const member = await s.user("member");
@@ -368,9 +367,7 @@ describe.skipIf(!live)("comments", () => {
 
       await s.install(
         ["organizations", "outbox", "notifications", "comments"],
-        {
-          modules: { comments: { options: { subjects, notify: false } } },
-        },
+        { modules: { comments: { options: { subjects, notify: false } } } },
       );
       await s.asRole(author);
       await comments
@@ -666,9 +663,7 @@ describe.skipIf(!live)("comments", () => {
         modules: {
           comments: {
             options: {
-              subjects: {
-                quote: { table: "bs_test_quotes", cascade: true },
-              },
+              subjects: { quote: { table: "bs_test_quotes", cascade: true } },
             },
           },
         },

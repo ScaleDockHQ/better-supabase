@@ -2,7 +2,10 @@ import type { SessionActor } from "../auth/actor.ts";
 
 import cases from "../../testing/act-cases.json" with { type: "json" };
 
-/** One `act` claim set, with what `actorOf` and `actor_may_write()` say about it. */
+/**
+ * One `act` claim set, with what `actorOf` and `actor_may_write()` say about
+ * it.
+ */
 export interface ActCase {
   readonly name: string;
   /** Only the claims the verdict reads: `act`, `client_id` and `scope`. */
@@ -19,16 +22,19 @@ export interface ActCase {
   readonly mayWrite: boolean;
 }
 
-/** `better-supabase/testing/act-cases.json`, versioned so other parsers can pin it. */
+/**
+ * `better-supabase/testing/act-cases.json`, versioned so other parsers can pin
+ * it.
+ */
 export interface ActCases {
   readonly version: 1;
   readonly cases: readonly ActCase[];
 }
 
 /**
- * The RFC 8693 `act` chains better-supabase accepts and refuses, as plain
- * JSON (`better-supabase/testing/act-cases.json`), so another library that
- * reads the same claims can run the same cases.
+ * The RFC 8693 `act` chains better-supabase accepts and refuses, as plain JSON
+ * (`better-supabase/testing/act-cases.json`), so another library that reads the
+ * same claims can run the same cases.
  */
 // SAFETY: the JSON import widens `version` and `kind` to number and string; tests/testing/act-cases.test.ts checks every case against actorOf.
 export const actCases: ActCases = cases as ActCases;

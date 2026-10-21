@@ -14,6 +14,7 @@ import type {
 } from "./bucket.ts";
 import type { StoragePath } from "./path.ts";
 import type { TenantGuard } from "./tenant-scope.ts";
+import type { ObjectVersion } from "./versioning.ts";
 
 import { DbException, dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
@@ -24,7 +25,7 @@ import { inScope } from "./layouts.ts";
 import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
 import { storageApiOf } from "./storage-api.ts";
 import { ttlSeconds } from "./ttl.ts";
-import { type ObjectVersion, toVersion } from "./versioning.ts";
+import { toVersion } from "./versioning.ts";
 
 /** Folder listings in flight at once while `list` walks a tree. */
 const LIST_CONCURRENCY = 4;
@@ -39,7 +40,7 @@ function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
 
   return async (fn) => {
     if (active < limit) {
-      active++;
+      active += 1;
     } else {
       await new Promise<void>((resolve) => {
         waiting.push(resolve);
@@ -54,7 +55,7 @@ function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
       if (next) {
         next();
       } else {
-        active--;
+        active -= 1;
       }
     }
   };
@@ -637,7 +638,7 @@ export function connectBucket<P extends string, Id extends string>(
           }),
         ).andThen((data) => {
           const failed = data.find(
-            (entry) => entry.error != null || !entry.signedUrl,
+            (entry) => entry.error !== null || !entry.signedUrl,
           );
 
           if (failed) {
@@ -688,7 +689,9 @@ export function connectBucket<P extends string, Id extends string>(
         const path = resolve(target);
 
         const previous =
-          options.previous == null ? null : resolve(options.previous);
+          typeof options.previous === "string"
+            ? resolve(options.previous)
+            : null;
 
         const same = previous === path;
 
@@ -819,7 +822,7 @@ export function connectBucket<P extends string, Id extends string>(
             bucket.prefix(scope),
             options.signal,
           )) {
-            scanned++;
+            scanned += 1;
 
             if (!inScope(bucket.match(object.path), scope)) {
               continue;

@@ -28,7 +28,10 @@ function tokenError(
   );
 }
 
-/** `client_secret_basic` (RFC 6749 section 2.3.1), then `client_secret_post`, then a public client. */
+/**
+ * `client_secret_basic` (RFC 6749 section 2.3.1), then `client_secret_post`,
+ * then a public client.
+ */
 function clientCredentials(
   request: Request,
   form: URLSearchParams,
@@ -94,7 +97,10 @@ export async function authorize(input: {
   return redirect;
 }
 
-/** The token endpoint for the `authorization_code` grant, issuing RFC 9068 access tokens. */
+/**
+ * The token endpoint for the `authorization_code` grant, issuing RFC 9068
+ * access tokens.
+ */
 export async function token(request: Request): Promise<Response> {
   const form = new URLSearchParams(await request.text());
 

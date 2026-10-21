@@ -18,7 +18,10 @@ export interface CloudEvent<T = unknown> {
 /** The CloudEvents type prefix when no `typePrefix` is set. */
 export const DEFAULT_TYPE_PREFIX = "dev.better-supabase";
 
-/** `type` without `typePrefix` and its dot, as sinks store it. Other types come back unchanged. */
+/**
+ * `type` without `typePrefix` and its dot, as sinks store it. Other types come
+ * back unchanged.
+ */
 export function stripTypePrefix(
   type: string,
   typePrefix: string = DEFAULT_TYPE_PREFIX,
@@ -73,8 +76,8 @@ export interface EventSink {
 }
 
 /**
- * A block event as a CloudEvent: `dev.better-supabase.support.started` with
- * the event data and the actor (`actorId`) as `data` and the tenant as
+ * A block event as a CloudEvent: `dev.better-supabase.support.started` with the
+ * event data and the actor (`actorId`) as `data` and the tenant as
  * `partitionkey`.
  */
 export function blockCloudEvent(
@@ -107,9 +110,9 @@ export interface ForwardBlockOptions extends CloudEventOptions {
 }
 
 /**
- * Sends a CloudEvent for every block event (`support.*`, `organization.*`, ...) to
- * `sink`. Returns a function that stops forwarding. Like
- * `forwardMutations`, sends are tracked on `betterSupabase.events`.
+ * Sends a CloudEvent for every block event (`support.*`, `organization.*`, ...)
+ * to `sink`. Returns a function that stops forwarding. Like `forwardMutations`,
+ * sends are tracked on `betterSupabase.events`.
  */
 export function forwardBlockEvents(
   betterSupabase: { readonly events: EventHub },

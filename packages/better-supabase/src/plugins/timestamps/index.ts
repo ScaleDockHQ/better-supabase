@@ -1,14 +1,15 @@
+import type { Plugin } from "../../core/plugin.ts";
 import type { MutationOp } from "../../ir/types.ts";
 
-import { definePlugin, type Plugin } from "../../core/plugin.ts";
+import { definePlugin } from "../../core/plugin.ts";
 import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 
 /**
  * Stamps the columns generated as `Flags.timestamps`: `createdAt` on insert,
  * `updatedAt` on insert and update. A call that sets either column fails with
  * `invalid_request` unless it passes `{ override: true }`, which keeps the
- * caller's values. Pair it with
- * the `updated-at` SQL module trigger to cover writes that bypass the app.
+ * caller's values. Pair it with the `updated-at` SQL module trigger to cover
+ * writes that bypass the app.
  */
 export function timestamps(): Plugin<"timestamps"> {
   return definePlugin({

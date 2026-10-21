@@ -65,17 +65,11 @@ import {
 import { Link } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import {
-  type ImportOutcome,
-  type ImportPreview,
-  previewCustomerImport,
-  runCustomerImport,
-} from "../imports-actions";
-import {
-  type ColumnMapping,
-  CUSTOMER_IMPORT_FIELDS,
-  type CustomerImportField,
-} from "../imports-fields";
+import type { ImportOutcome, ImportPreview } from "../imports-actions";
+import type { ColumnMapping, CustomerImportField } from "../imports-fields";
+
+import { previewCustomerImport, runCustomerImport } from "../imports-actions";
+import { CUSTOMER_IMPORT_FIELDS } from "../imports-fields";
 
 const SKIP = "skip";
 const MAX_BYTES = 500_000;
@@ -469,9 +463,7 @@ export function CsvImportWizard() {
                     <Badge variant="success-light">
                       {t(
                         "{count, plural, =1 {# valid row} other {# valid rows}}",
-                        {
-                          count: preview.valid,
-                        },
+                        { count: preview.valid },
                       )}
                     </Badge>
                     {preview.errors.length > 0 ? (
@@ -513,7 +505,7 @@ export function CsvImportWizard() {
                       </TableHeader>
                       <TableBody>
                         {preview.rows.map((row, index) => (
-                          // oxlint-disable-next-line react/no-array-index-key -- preview rows have no unique column and the list never reorders (1 finding)
+                          // oxlint-disable-next-line react/no-array-index-key, react-doctor/no-array-index-as-key -- preview rows have no unique column and the list never reorders (1 finding)
                           <TableRow key={`${row.name}-${index}`}>
                             <TableCell className="font-medium">
                               {row.name}

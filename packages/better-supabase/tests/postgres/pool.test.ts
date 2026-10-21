@@ -22,7 +22,10 @@ function recordingPool(
 const settingsSql = (count: number): string =>
   `select ${Array.from({ length: count }, (_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`;
 
-/** statement_timeout, request.jwt.claims, role and idle_in_transaction_session_timeout. */
+/**
+ * Statement_timeout, request.jwt.claims, role and
+ * idle_in_transaction_session_timeout.
+ */
 const USER_SQL = settingsSql(4);
 
 afterEach(() => {

@@ -376,9 +376,8 @@ ${serviceGrant(`${fn("unlock_ai_harness_session")}(uuid, text, text)`)}`;
 }
 
 /**
- * The SQL behind durable chat runs: run lookups for stop and resume, run
- * steps for progress, the approval inbox and the experimental harness
- * session store.
+ * The SQL behind durable chat runs: run lookups for stop and resume, run steps
+ * for progress, the approval inbox and the experimental harness session store.
  */
 export function aiChatDurable(ctx: ModuleContext, names: AiChatNames): string {
   return `${runs(ctx, names)}

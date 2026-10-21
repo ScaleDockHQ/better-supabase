@@ -31,8 +31,8 @@ export interface DataApiOptions {
   /** Functions by key, or `true` for all of them, as `POST /rest/v1/rpc/<name>`. */
   readonly functions?: true | readonly string[];
   /**
-   * The operations per table, by app key. Defaults to all four for a table
-   * and to the ones its columns allow for a view.
+   * The operations per table, by app key. Defaults to all four for a table and
+   * to the ones its columns allow for a view.
    */
   readonly operations?: Readonly<Record<string, readonly DataApiOperation[]>>;
   /** The tag of every Data API operation. Defaults to `Data API`. */
@@ -55,7 +55,10 @@ const ERROR_SCHEMA: Json = {
   },
 };
 
-/** Query parameters PostgREST reserves, so a column with the name gets no filter. */
+/**
+ * Query parameters PostgREST reserves, so a column with the name gets no
+ * filter.
+ */
 const RESERVED = new Set([
   "select",
   "order",
@@ -127,7 +130,10 @@ function typeSchema(meta: SchemaMeta, type: string): JsonSchema {
   }
 }
 
-/** A table schema with database column names, as the Data API reads and writes them. */
+/**
+ * A table schema with database column names, as the Data API reads and writes
+ * them.
+ */
 function databaseCased(schema: JsonSchema, table: TableMeta): Json {
   const dbName = (name: string): string => table.columns[name]?.db ?? name;
   const properties = schema["properties"];
@@ -185,7 +191,10 @@ const query = (
   schema: schema ?? STRING,
 });
 
-/** The `Accept-Profile` or `Content-Profile` header a table outside `public` needs. */
+/**
+ * The `Accept-Profile` or `Content-Profile` header a table outside `public`
+ * needs.
+ */
 function profile(schema: string, write: boolean): ModelParameter[] {
   return schema === "public"
     ? []
@@ -204,7 +213,10 @@ const PREFER_WRITE = header(
   "`return=representation` answers with the written rows; `return=minimal` (the default) answers without a body.",
 );
 
-/** Documents the Data API: table operations under `/rest/v1/<table>` and RPCs under `/rest/v1/rpc/<name>`. */
+/**
+ * Documents the Data API: table operations under `/rest/v1/<table>` and RPCs
+ * under `/rest/v1/rpc/<name>`.
+ */
 export function buildDataApi<Ref>(
   ctx: BuildContext<Ref>,
   dataApi: DataApiOptions,
@@ -293,11 +305,12 @@ export function buildDataApi<Ref>(
     content: jsonContent(schemaRef(ERROR)),
   };
 
-  const errors: Record<string, ModelResponseOrRef> = {
-    "4XX": { ref: ERROR },
-  };
+  const errors: Record<string, ModelResponseOrRef> = { "4XX": { ref: ERROR } };
 
-  /** The database-cased component of a table variant, or `undefined` when the table has none. */
+  /**
+   * The database-cased component of a table variant, or `undefined` when the
+   * table has none.
+   */
   const component = (
     key: string,
     variant: "Row" | "Insert" | "Update",
@@ -484,10 +497,7 @@ export function buildDataApi<Ref>(
                   : {},
               ),
             },
-            responses: {
-              ...written("201", "Created."),
-              ...errors,
-            },
+            responses: { ...written("201", "Created."), ...errors },
             source: source("insert"),
           });
           break;
@@ -505,10 +515,7 @@ export function buildDataApi<Ref>(
               PREFER_WRITE,
               ...profile(table.schema, true),
             ],
-            requestBody: {
-              required: true,
-              content: jsonContent(update ?? {}),
-            },
+            requestBody: { required: true, content: jsonContent(update ?? {}) },
             responses: {
               ...written("200", "Updated."),
               "204": { description: "Updated, without a body." },
@@ -609,10 +616,7 @@ export function buildDataApi<Ref>(
       summary: `Call ${qualified(fn.schema, fn.name)}`,
       description: `A ${fn.volatility} function.${fn.volatility === "volatile" ? "" : " A GET with the arguments as query parameters calls it too."}`,
       parameters: profile(fn.schema, true),
-      requestBody: {
-        required: takesArgs,
-        content: jsonContent(body),
-      },
+      requestBody: { required: takesArgs, content: jsonContent(body) },
       responses: {
         ...(fn.returns === "void" && !fn.returnsSet
           ? { "204": { description: "Done." } }

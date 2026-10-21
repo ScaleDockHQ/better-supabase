@@ -46,9 +46,9 @@ export interface BuiltinWorkflowOptions {
 }
 
 /**
- * One workflow per cursor-paginated list: read the first page, then the
- * next one from its `nextCursor` when `hasMore` is true. Repeat the second
- * step with its own `nextCursor` to walk the rest.
+ * One workflow per cursor-paginated list: read the first page, then the next
+ * one from its `nextCursor` when `hasMore` is true. Repeat the second step with
+ * its own `nextCursor` to walk the rest.
  */
 export function paginationWorkflows(
   options: BuiltinWorkflowOptions = {},
@@ -137,7 +137,10 @@ export function paginationWorkflows(
       });
 }
 
-/** One workflow per resource with `create` and `get`: create a row, then read it back by its key. */
+/**
+ * One workflow per resource with `create` and `get`: create a row, then read it
+ * back by its key.
+ */
 export function createThenGetWorkflows(
   options: BuiltinWorkflowOptions = {},
 ): WorkflowSource {
@@ -193,19 +196,25 @@ export function createThenGetWorkflows(
 export interface AuthWorkflowOptions {
   /** The operationId to call once signed in. */
   readonly call: string;
-  /** The sign-in operationId: it takes `email` and `password` and returns a token. Defaults to `signIn`. */
+  /**
+   * The sign-in operationId: it takes `email` and `password` and returns a
+   * token. Defaults to `signIn`.
+   */
   readonly signIn?: string;
-  /** JSON Pointer to the access token in the sign-in response. Defaults to `/access_token`. */
+  /**
+   * JSON Pointer to the access token in the sign-in response. Defaults to
+   * `/access_token`.
+   */
   readonly tokenPointer?: string;
   /** Defaults to `signInThen<Call>`. */
   readonly id?: string;
 }
 
 /**
- * Sign in, then call an operation with the access token as a bearer
- * token. A 403 Problem Details answer with code `APPROVAL_REQUIRED` ends the
- * workflow (the `approvalRequired` failure action), so a client can wait for
- * the approval instead of retrying.
+ * Sign in, then call an operation with the access token as a bearer token. A
+ * 403 Problem Details answer with code `APPROVAL_REQUIRED` ends the workflow
+ * (the `approvalRequired` failure action), so a client can wait for the
+ * approval instead of retrying.
  */
 export function authWorkflow(options: AuthWorkflowOptions): WorkflowSource {
   const signIn = options.signIn ?? "signIn";

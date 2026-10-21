@@ -15,9 +15,7 @@ import { createWebhookInbox } from "./webhook-inbox.ts";
 export const jobsBlock: BlockOf<"jobs", typeof createJobs> = defineBlock({
   name: "jobs",
   sql: ["jobs"],
-  options: {
-    jobs: jobsSqlOptions,
-  },
+  options: { jobs: jobsSqlOptions },
   create: createJobs,
   category: "automation",
   recipes: ["job-runs-table"],
@@ -39,9 +37,7 @@ export const rateLimitBlock: BlockOf<"rate-limit", typeof createRateLimit> =
   defineBlock({
     name: "rate-limit",
     sql: ["rate-limit"],
-    options: {
-      "rate-limit": rateLimitSqlOptions,
-    },
+    options: { "rate-limit": rateLimitSqlOptions },
     create: createRateLimit,
     category: "developer",
   });
@@ -53,9 +49,7 @@ export const webhookInboxBlock: BlockOf<
 > = defineBlock({
   name: "webhook-inbox",
   sql: ["webhook-inbox"],
-  options: {
-    "webhook-inbox": webhookInboxSqlOptions,
-  },
+  options: { "webhook-inbox": webhookInboxSqlOptions },
   create: createWebhookInbox,
   category: "developer",
 });

@@ -27,7 +27,10 @@ export type SharedSignalsEvents = {
   readonly "ssf_stream.deleted": SsfStreamEventData;
 };
 
-/** The `shared-signals` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `shared-signals` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const sharedSignalsEvents: Events<SharedSignalsEvents> = defineEvents({
   "ssf_stream.created": event<SsfStreamCreatedEventData>(),
   "ssf_stream.status_changed": event<SsfStreamStatusEventData>(),

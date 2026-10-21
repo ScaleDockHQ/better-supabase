@@ -2,16 +2,14 @@ import { glob, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import type { TemplateContext } from "../../src/cli/templates.ts";
+
 import { GLOBAL_ARGS } from "../../src/cli/core/command.ts";
 import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
 import { effectsLine } from "../../src/cli/core/help.ts";
 import { findSpec, specPaths } from "../../src/cli/core/manifest.ts";
 import { commandNames, help } from "../../src/cli/core/run.ts";
-import {
-  INTEGRATIONS,
-  type TemplateContext,
-  TEMPLATES,
-} from "../../src/cli/templates.ts";
+import { INTEGRATIONS, TEMPLATES } from "../../src/cli/templates.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const repo = join(import.meta.dirname, "../../../..");
@@ -44,7 +42,10 @@ const PAGES: Readonly<Record<string, string>> = {
   config: "cli/config.mdx",
 };
 
-/** Each global option as help prints it: `--no-color` for a boolean that is on by default. */
+/**
+ * Each global option as help prints it: `--no-color` for a boolean that is on
+ * by default.
+ */
 const globalFlags = Object.entries(GLOBAL_ARGS).map(([name, definition]) =>
   definition.type === "boolean" && "default" in definition
     ? `no-${name}`
@@ -83,7 +84,10 @@ const slug = (heading: string): string =>
     .trim()
     .replaceAll(" ", "-");
 
-/** The text under the heading whose anchor is `anchor`, up to the next heading at its level or above. */
+/**
+ * The text under the heading whose anchor is `anchor`, up to the next heading
+ * at its level or above.
+ */
 function section(text: string, anchor: string): string {
   const lines = text.split("\n");
 
@@ -263,10 +267,12 @@ describe("naming", () => {
     const files = [
       ...(await sources()),
       ...INTEGRATIONS.flatMap((name) =>
-        TEMPLATES[name].files(templateContext).map((file) => ({
-          path: `template ${name}: ${file.path}`,
-          text: file.contents,
-        })),
+        TEMPLATES[name]
+          .files(templateContext)
+          .map((file) => ({
+            path: `template ${name}: ${file.path}`,
+            text: file.contents,
+          })),
       ),
     ];
 
@@ -303,8 +309,8 @@ describe("naming", () => {
     expect(
       Object.values(api)
         .flatMap((names) => names.values ?? [])
-        .filter((name) => FACTORIES.has(name)).length,
-    ).toBe(FACTORIES.size);
+        .filter((name) => FACTORIES.has(name)),
+    ).toHaveLength(FACTORIES.size);
   });
 });
 

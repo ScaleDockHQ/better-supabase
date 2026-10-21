@@ -59,9 +59,7 @@ async function asOrganizationMember(organizationId: string) {
   });
 
   return betterSupabase.connect(
-    createClient(url, publishableKey, {
-      accessToken: async () => token,
-    }),
+    createClient(url, publishableKey, { accessToken: async () => token }),
   );
 }
 
@@ -411,7 +409,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       })
       .orThrow();
 
-    expect(deleted.map((row) => row.id).sort()).toEqual([...ids].sort());
+    expect(deleted.map((row) => row.id).toSorted()).toEqual(ids.toSorted());
   });
 
   it("reads a list of 600 ids in requests that fit the URL", async () => {
@@ -429,8 +427,8 @@ describe.skipIf(!live)("PostgREST integration", () => {
       })
       .orThrow();
 
-    expect(rows.map((row) => row.id).sort()).toEqual(
-      [ROAD_RUNNER, ANVIL].sort(),
+    expect(rows.map((row) => row.id).toSorted()).toEqual(
+      [ROAD_RUNNER, ANVIL].toSorted(),
     );
   });
 
@@ -702,8 +700,8 @@ describe.skipIf(!live)("PostgREST integration", () => {
     ] as const;
 
     const [customers, notes, initech] = await acme.$many(specs).orThrow();
-    expect(customers.map((row) => row.id).sort()).toEqual(
-      [ROAD_RUNNER, ANVIL].sort(),
+    expect(customers.map((row) => row.id).toSorted()).toEqual(
+      [ROAD_RUNNER, ANVIL].toSorted(),
     );
     expect(notes).toBeGreaterThan(0);
     expect(initech).toBe(false);

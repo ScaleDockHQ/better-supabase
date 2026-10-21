@@ -70,9 +70,9 @@ function vectorSearchOf(
 }
 
 /**
- * With `authorization` set, the `access` module's model defaults to
- * `provider`, so `can`, `tenant_ids_with` and every module check answer
- * from the provider's templates instead of the built-in roles.
+ * With `authorization` set, the `access` module's model defaults to `provider`,
+ * so `can`, `tenant_ids_with` and every module check answer from the provider's
+ * templates instead of the built-in roles.
  */
 function blocksOf(
   blocks: BetterSupabaseConfig["blocks"],
@@ -145,8 +145,8 @@ export const CONFIG_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/config-v1.json";
 
 /**
- * Types `better-supabase.config.ts`. With `preset`, it expands the preset
- * into `blocks` and its conventions first, and the keys you set win.
+ * Types `better-supabase.config.ts`. With `preset`, it expands the preset into
+ * `blocks` and its conventions first, and the keys you set win.
  */
 export function defineConfig(
   config: BetterSupabaseConfig,

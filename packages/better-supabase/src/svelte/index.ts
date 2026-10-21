@@ -75,7 +75,10 @@ export type { AuthSession } from "../auth/view.ts";
 
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
-/** A value read through `.current`, reactive in templates, `$derived` and `$effect`. */
+/**
+ * A value read through `.current`, reactive in templates, `$derived` and
+ * `$effect`.
+ */
 export interface Current<T> {
   readonly current: T;
 }
@@ -121,7 +124,10 @@ export interface BetterSvelte<B extends ClientLike = ClientLike> {
   readonly queryClient: QueryClient | undefined;
   /** Repositories bound to the current session. */
   readonly db: B["db"];
-  /** TanStack Query option factories: `createQuery(() => bs.queries.customers.findMany())`. */
+  /**
+   * TanStack Query option factories: `createQuery(() =>
+   * bs.queries.customers.findMany())`.
+   */
   readonly queries: B["queries"];
   readonly supabase: SupabaseClient;
   /** The session state for UI: `loading`, `signed-out` or `signed-in`. */
@@ -152,7 +158,7 @@ export interface BetterSvelte<B extends ClientLike = ClientLike> {
 }
 
 export interface BetterSvelteOptions {
-  /** better-supabase queries are reset when the user signs out or changes. */
+  /** Better-supabase queries are reset when the user signs out or changes. */
   readonly queryClient?: QueryClient;
 }
 
@@ -170,10 +176,10 @@ function reactive<T>(store: Store<T>): Current<T> {
 }
 
 /**
- * A subscription keyed by `key()`. The returned function goes in each
- * getter: it registers the reader, then restarts the subscription when the
- * key (read in the reader's tracking context) changed. Notifications are
- * queued, since a getter may run inside `$derived`, where writes throw.
+ * A subscription keyed by `key()`. The returned function goes in each getter:
+ * it registers the reader, then restarts the subscription when the key (read in
+ * the reader's tracking context) changed. Notifications are queued, since a
+ * getter may run inside `$derived`, where writes throw.
  */
 function followed(
   key: () => string | null,
@@ -212,7 +218,10 @@ function followed(
 
 const NO_MEMBERS: readonly never[] = [];
 
-/** Binds a client to Svelte without a component context, e.g. in tests or a module. */
+/**
+ * Binds a client to Svelte without a component context, e.g. in tests or a
+ * module.
+ */
 export function createBetterSvelte<B extends ClientLike>(
   client: B,
   options: BetterSvelteOptions = {},
@@ -554,7 +563,10 @@ export function setBetterSupabase<B extends ClientLike>(
   return setContext(CLIENT, bound);
 }
 
-/** The client `setBetterSupabase` bound, typed with `getBetterSupabase<typeof bs>()`. */
+/**
+ * The client `setBetterSupabase` bound, typed with `getBetterSupabase<typeof
+ * bs>()`.
+ */
 export function getBetterSupabase<
   B extends ClientLike = ClientLike,
 >(): BetterSvelte<B> {
@@ -626,12 +638,18 @@ export function useAction<I, T>(
   return getBetterSupabase().action(action, options);
 }
 
-/** Shares a server-verified session (from `+layout.ts` data) with the components below. */
+/**
+ * Shares a server-verified session (from `+layout.ts` data) with the components
+ * below.
+ */
 export function setSession(session: () => AuthSession): void {
   setContext(SESSION, session);
 }
 
-/** The session from the nearest `setSession()`, typed with `useSession<Claims, Profile>()`. */
+/**
+ * The session from the nearest `setSession()`, typed with `useSession<Claims,
+ * Profile>()`.
+ */
 export function useSession<C = unknown, P = unknown>(): Current<
   AuthSession<C, P>
 > {

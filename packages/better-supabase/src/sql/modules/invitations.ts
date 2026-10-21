@@ -1,6 +1,7 @@
 import type { OrganizationsEvents } from "../../blocks/organizations/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -45,7 +46,6 @@ import {
   statusOf,
   tenantTable,
   tokenHash,
-  type InviteTable,
 } from "./invitations-tables.ts";
 import { assignableRole, roleValue } from "./organizations-roles.ts";
 import { roleThrough } from "./tenant.ts";
@@ -256,7 +256,10 @@ create policy bs_platform_invitations_read on ${p.table} for select to authentic
 `;
 }
 
-/** Raises unless `valid_for` is positive and at most `blocks.invitations.options.maxValidFor`. */
+/**
+ * Raises unless `valid_for` is positive and at most
+ * `blocks.invitations.options.maxValidFor`.
+ */
 function validity(ctx: ModuleContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
 
@@ -477,7 +480,10 @@ $$;
 `;
 }
 
-/** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
+/**
+ * Whether the caller may manage tenant invitation row `alias` (revoke and
+ * resend).
+ */
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
 
@@ -488,7 +494,10 @@ function close(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
 
-  /** Ends open invitations of `table` matching `where`: sets `logical`, or deletes when the table lacks it. */
+  /**
+   * Ends open invitations of `table` matching `where`: sets `logical`, or
+   * deletes when the table lacks it.
+   */
   const end = (table: InviteTable, logical: string, where: string) => {
     const open = openFilter(table, "i");
     const filter = `${where}${open ? ` and ${open}` : ""}${table.only("i")}`;

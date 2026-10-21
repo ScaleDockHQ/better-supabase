@@ -2,11 +2,14 @@ import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type {
+  DatabaseChangeEventLike,
+  ExpoSqliteContextLike,
+  ExpoSqliteDatabaseLike,
+} from "../../src/expo-sqlite/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import {
-  type DatabaseChangeEventLike,
-  type ExpoSqliteContextLike,
-  type ExpoSqliteDatabaseLike,
   expoSqliteDatabase,
   expoSqliteExecutor,
   sqliteTables,

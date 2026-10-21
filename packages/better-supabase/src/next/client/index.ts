@@ -25,15 +25,16 @@ export interface SessionChangeOptions {
 }
 
 /**
- * After a session change, expire the server cache (`changed`), navigate,
- * then refresh the client router. `refresh()` in a Server Action leaves
- * prefetched private App Shells, so `router.push` alone shows the old
- * session. Pass a next-intl (or other) router when `push` must keep the
- * locale prefix.
+ * After a session change, expire the server cache (`changed`), navigate, then
+ * refresh the client router. `refresh()` in a Server Action leaves prefetched
+ * private App Shells, so `router.push` alone shows the old session. Pass a
+ * next-intl (or other) router when `push` must keep the locale prefix.
  *
  * ```ts
- * const switched = useSessionChange(sessionChanged, router, { refreshToken: useSupabase() });
- * await switched('/dashboard');
+ * const switched = useSessionChange(sessionChanged, router, {
+ *   refreshToken: useSupabase(),
+ * });
+ * await switched("/dashboard");
  * ```
  */
 export function useSessionChange(

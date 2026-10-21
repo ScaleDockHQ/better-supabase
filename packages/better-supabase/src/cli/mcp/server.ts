@@ -1,20 +1,16 @@
 /**
- * The dev-time MCP server behind `better-supabase mcp`: each tool runs one
- * CLI command in process with `--json` and returns its result envelope.
- * Tools that write files exist only with `--allow-writes`, and each call
- * needs a consent token the user agreed to (ADR 0047, ADR 0049).
+ * The dev-time MCP server behind `better-supabase mcp`: each tool runs one CLI
+ * command in process with `--json` and returns its result envelope. Tools that
+ * write files exist only with `--allow-writes`, and each call needs a consent
+ * token the user agreed to (ADR 0047, ADR 0049).
  */
 
 import * as v from "valibot";
 
+import type { ProtocolServer, ToolInfo, ToolResult } from "../../mcp/index.ts";
 import type { Cli } from "../core/run.ts";
 
-import {
-  answerLine,
-  type ProtocolServer,
-  type ToolInfo,
-  type ToolResult,
-} from "../../mcp/index.ts";
+import { answerLine } from "../../mcp/index.ts";
 import { consentToken } from "../core/agent.ts";
 import { CliError } from "../core/errors.ts";
 import { envelope } from "../core/output.ts";
@@ -52,10 +48,7 @@ const Input = v.object({
 
 type Input = v.InferOutput<typeof Input>;
 
-const string = (description: string): Json => ({
-  type: "string",
-  description,
-});
+const string = (description: string): Json => ({ type: "string", description });
 
 const CONFIRM = string(
   "The consent token from the last call's error, once the user agreed to the change",
@@ -326,7 +319,10 @@ export function createDevMcp(options: DevMcpOptions): ProtocolServer {
   };
 }
 
-/** Answers each newline-delimited JSON-RPC message in turn, writing one line per response. */
+/**
+ * Answers each newline-delimited JSON-RPC message in turn, writing one line per
+ * response.
+ */
 export async function serveLines(
   lines: AsyncIterable<string>,
   server: ProtocolServer,

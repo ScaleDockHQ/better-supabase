@@ -1,9 +1,10 @@
 import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { UsageMeter } from "./usage-meters.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { type UsageMeter, isMeterTable, metersOf } from "./usage-meters.ts";
+import { isMeterTable, metersOf } from "./usage-meters.ts";
 
 /** The meters that count distinct subjects or are computed by a query. */
 export interface UsageKinds {
@@ -34,10 +35,10 @@ function usageKindsOf(ctx: ModuleContext): UsageKinds {
 }
 
 /**
- * Distinct meters (`track_usage`: one unit per subject and period) and
- * computed meters (`usage_refresh`: a gauge a query reports per tenant). Both
- * write the counters table, so quotas, status and Stripe reporting read them
- * like any counter.
+ * Distinct meters (`track_usage`: one unit per subject and period) and computed
+ * meters (`usage_refresh`: a gauge a query reports per tenant). Both write the
+ * counters table, so quotas, status and Stripe reporting read them like any
+ * counter.
  */
 export function usageKindsSql(ctx: ModuleContext): string {
   const kinds = usageKindsOf(ctx);

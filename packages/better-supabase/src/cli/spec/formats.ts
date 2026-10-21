@@ -6,9 +6,9 @@ import { openapiFormat } from "../../openapi/index.ts";
 import { isRecord } from "../guards.ts";
 
 /**
- * The first-party document formats `spec` knows by id. Entries add more
- * through a `formats` export, for example `createArazzoFormat()` with
- * other source description URLs.
+ * The first-party document formats `spec` knows by id. Entries add more through
+ * a `formats` export, for example `createArazzoFormat()` with other source
+ * description URLs.
  */
 const BUILTIN_FORMATS: readonly AnyDocumentFormat[] = [
   openapiFormat,
@@ -29,7 +29,10 @@ export function isDocumentFormat(value: unknown): value is AnyDocumentFormat {
   );
 }
 
-/** The built-in formats, then the entry's, keyed by id; a later one with the same id wins. */
+/**
+ * The built-in formats, then the entry's, keyed by id; a later one with the
+ * same id wins.
+ */
 export function formatRegistry(
   extra: readonly AnyDocumentFormat[] = [],
 ): ReadonlyMap<string, AnyDocumentFormat> {

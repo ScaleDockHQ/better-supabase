@@ -36,8 +36,8 @@ function stripeCustomerOf(payload: unknown): string | undefined {
 
 /**
  * Users whose `memberships` claim carries the entitlements of the Stripe
- * customer in an `entitlements.active_entitlement_summary.updated` event, so
- * a job can invalidate their sessions. Empty for other payloads.
+ * customer in an `entitlements.active_entitlement_summary.updated` event, so a
+ * job can invalidate their sessions. Empty for other payloads.
  */
 export function entitlementMembers(
   sql: SqlClient,
@@ -58,7 +58,10 @@ export function entitlementMembers(
 }
 
 export interface EntitlementsOptions {
-  /** The member's transport: `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
+  /**
+   * The member's transport: `sqlTransport(postgres.asUser(claims))` or
+   * `rpcTransport(supabase)`.
+   */
   readonly transport: BlockTransport;
   /** The module's schema, or its API schema. Default `better_supabase`. */
   readonly schema?: string;
@@ -69,14 +72,17 @@ export interface EntitlementsOptions {
   readonly logger?: Logger;
 }
 
-/** A member's reads of the tenant's entitlements, as `has_entitlement` and `entitlement_value` check them. */
+/**
+ * A member's reads of the tenant's entitlements, as `has_entitlement` and
+ * `entitlement_value` check them.
+ */
 export interface Entitlements {
   /** Whether the tenant has `key`; `false` when the caller is not a member. */
   has(organizationId: string, key: string): AsyncResult<boolean>;
   /**
-   * The feature's value: a number or text from the plan catalog's value
-   * column, `true` for a feature without one, and `undefined` when the
-   * tenant lacks it or the caller is not a member.
+   * The feature's value: a number or text from the plan catalog's value column,
+   * `true` for a feature without one, and `undefined` when the tenant lacks it
+   * or the caller is not a member.
    */
   value(organizationId: string, key: string): AsyncResult<unknown>;
 }

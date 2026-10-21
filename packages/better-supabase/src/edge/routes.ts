@@ -128,8 +128,8 @@ function paramsOf(
 }
 
 /**
- * The route for `method` and `path`: a match, the allowed methods when the
- * path matches under another method (`HEAD` falls back to `GET`), or `"none"`.
+ * The route for `method` and `path`: a match, the allowed methods when the path
+ * matches under another method (`HEAD` falls back to `GET`), or `"none"`.
  */
 export function matchRoute<
   M extends AnyModels,

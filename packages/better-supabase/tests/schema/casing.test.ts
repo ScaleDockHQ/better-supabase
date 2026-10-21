@@ -8,10 +8,7 @@ import { toApp, toDb } from "../../src/schema/casing.ts";
 const table = {
   primaryKey: ["name"],
   uniqueKeys: {},
-  columns: {
-    createdAt: { db: "created_at" },
-    name: { db: "name" },
-  },
+  columns: { createdAt: { db: "created_at" }, name: { db: "name" } },
 } as unknown as TableMeta;
 
 describe("casing converters", () => {

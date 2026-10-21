@@ -56,8 +56,8 @@ export interface CalendarActions {
 export type CalendarController = Controller<CalendarSnapshot, CalendarActions>;
 
 /**
- * The occurrences of some calendars in the visible range, typed for a
- * headless event calendar such as ReUI's Event Calendar.
+ * The occurrences of some calendars in the visible range, typed for a headless
+ * event calendar such as ReUI's Event Calendar.
  */
 export function createCalendarController(
   options: CalendarControllerOptions,
@@ -76,7 +76,8 @@ export function createCalendarController(
     { occurrences: undefined, events: [], error: undefined, loading: true },
     (state) => {
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         state.set({ loading: true });
         const time = temporal();
 

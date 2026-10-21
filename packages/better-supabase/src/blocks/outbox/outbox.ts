@@ -1,3 +1,4 @@
+import type { BlockOptions, Budget } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type {
   AuthorizationHooks,
@@ -6,18 +7,15 @@ import type {
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
+import type { AsyncResult } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
+import type { CursorPageOptions } from "../shared.ts";
 
-import {
-  type BlockOptions,
-  type Budget,
-  blockCall,
-  budget,
-} from "../../core/block-helpers.ts";
+import { blockCall, budget } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { DbException } from "../../core/db-exception.ts";
-import { type AsyncResult, toDbError } from "../../core/result.ts";
+import { toDbError } from "../../core/result.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
   asDbError,
@@ -25,7 +23,6 @@ import {
   toInstant,
   workerId,
   applyTemporal,
-  type CursorPageOptions,
   pageOf,
 } from "../shared.ts";
 
@@ -39,7 +36,10 @@ export interface OutboxEvent {
   readonly id: string;
   readonly type: string;
   readonly payload: unknown;
-  /** The module or function that wrote it, e.g. `better-supabase/blocks/organizations`. */
+  /**
+   * The module or function that wrote it, e.g.
+   * `better-supabase/blocks/organizations`.
+   */
   readonly source: string | null;
   readonly subject: string | null;
   readonly tenant: string | null;
@@ -57,20 +57,23 @@ export interface EmitOptions {
 }
 
 /**
- * `transport` writes (`emit`) and reads (`history`); `service`, which
- * defaults to `transport`, runs the consumer calls (`register`, `relay`,
- * `consume`, `deadLetters`, `purge`), which need the service role.
+ * `transport` writes (`emit`) and reads (`history`); `service`, which defaults
+ * to `transport`, runs the consumer calls (`register`, `relay`, `consume`,
+ * `deadLetters`, `purge`), which need the service role.
  */
 export interface OutboxOptions extends BlockOptions {
   /** CloudEvents `source` of the relayed events, e.g. `https://crm.example.com`. */
   readonly source: string;
-  /** Prepended to each type with a dot when relaying, e.g. `com.example`. Defaults to `dev.better-supabase`. */
+  /**
+   * Prepended to each type with a dot when relaying, e.g. `com.example`.
+   * Defaults to `dev.better-supabase`.
+   */
   readonly typePrefix?: string;
   /**
    * Decides, per event, whether a consumer gets it. The consumer is the
-   * subscriber `{ principal: <consumer name>, kind: "service" }`. An event
-   * it leaves out is skipped and the cursor moves past it; a throw counts
-   * as a failed attempt. Defaults to `authorization.delivery.subscribers`.
+   * subscriber `{ principal: <consumer name>, kind: "service" }`. An event it
+   * leaves out is skipped and the cursor moves past it; a throw counts as a
+   * failed attempt. Defaults to `authorization.delivery.subscribers`.
    */
   readonly subscribers?: SubscriberPolicy;
   /** `server.authorization`, for its `delivery.subscribers` policy. */
@@ -82,7 +85,10 @@ export interface OutboxOptions extends BlockOptions {
 }
 
 export interface RegisterOptions {
-  /** Type patterns such as `organization.*` or `invoice.paid`. Defaults to every event. */
+  /**
+   * Type patterns such as `organization.*` or `invoice.paid`. Defaults to every
+   * event.
+   */
   readonly types?: readonly string[];
   /** Start at the first kept event instead of after the latest one. */
   readonly fromStart?: boolean;
@@ -109,11 +115,14 @@ export interface RelayOptions {
 export interface RelayResult {
   /** Events handed to the sink or handler. */
   readonly delivered: number;
-  /** Events the `subscribers` policy kept from the consumer, when there were any. */
+  /**
+   * Events the `subscribers` policy kept from the consumer, when there were
+   * any.
+   */
   readonly refused?: number;
   /**
-   * Set when the sink threw: the consumer backs off and retries the batch
-   * one event at a time.
+   * Set when the sink threw: the consumer backs off and retries the batch one
+   * event at a time.
    */
   readonly error?: DbError;
   /** 1 when this run moved the failing event to the dead letters. */
@@ -131,9 +140,9 @@ export interface OutboxDeadLetter {
 
 export interface OutboxPurgeOptions {
   /**
-   * A consumer that hasn't claimed for this long (a Postgres interval such
-   * as `30 days`) no longer holds events back. Defaults to waiting for
-   * every consumer.
+   * A consumer that hasn't claimed for this long (a Postgres interval such as
+   * `30 days`) no longer holds events back. Defaults to waiting for every
+   * consumer.
    */
   readonly ignoreIdle?: string;
 }
@@ -150,7 +159,10 @@ export interface OutboxRouteOptions
   extends Omit<RelayOptions, "owner">, BlockProblemOptions {
   /** The bearer secret, such as `process.env.CRON_SECRET`. */
   readonly secret: string | undefined;
-  /** Consumer name to the sink its events go to, or a handler that takes the rows. */
+  /**
+   * Consumer name to the sink its events go to, or a handler that takes the
+   * rows.
+   */
   readonly consumers: Readonly<Record<string, EventSink | OutboxHandler>>;
   readonly onError?: (error: DbError, consumer: string) => void;
 }
@@ -201,7 +213,10 @@ export interface Outbox {
     handler: OutboxHandler,
     options?: RelayOptions,
   ): Promise<RelayResult>;
-  /** A `GET`/`POST` handler for a cron that relays every consumer at once, within one budget. */
+  /**
+   * A `GET`/`POST` handler for a cron that relays every consumer at once,
+   * within one budget.
+   */
   relayRoute(
     options: OutboxRouteOptions,
   ): (request: Request) => Promise<Response>;
@@ -213,8 +228,8 @@ export interface Outbox {
   ): AsyncResult<readonly OutboxDeadLetter[]>;
   /**
    * Deletes up to `batch` events (default 10,000) older than `olderThan` that
-   * every consumer has passed, and dead letters older than `olderThan`. Call
-   * it again while it returns `batch`.
+   * every consumer has passed, and dead letters older than `olderThan`. Call it
+   * again while it returns `batch`.
    */
   purge(
     olderThan?: string,
@@ -274,9 +289,9 @@ function toEvents(value: unknown): readonly OutboxEvent[] {
 
 /**
  * The CloudEvent for an outbox row: the row id as `id` (stable, so receivers
- * can deduplicate), the payload as `data`, the tenant as `partitionkey` and
- * the writing module as `producer`. The actor stays out of the context
- * attributes, which must not carry personal data.
+ * can deduplicate), the payload as `data`, the tenant as `partitionkey` and the
+ * writing module as `producer`. The actor stays out of the context attributes,
+ * which must not carry personal data.
  */
 export function outboxCloudEvent(
   event: OutboxEvent,
@@ -348,8 +363,8 @@ function toDeadLetters(value: unknown): readonly OutboxDeadLetter[] {
 /**
  * The outbox over a `BlockTransport`: `sqlTransport(postgres)` on a server
  * connection, where `emit` joins the caller's transaction, or
- * `rpcTransport(serviceClient)` for apps that reach the database only
- * through the Data API, where `emit` writes in its own transaction.
+ * `rpcTransport(serviceClient)` for apps that reach the database only through
+ * the Data API, where `emit` writes in its own transaction.
  */
 export function createOutbox(options: OutboxOptions): Outbox {
   applyTemporal(options);
@@ -363,7 +378,10 @@ export function createOutbox(options: OutboxOptions): Outbox {
     ),
   };
 
-  /** Calls `fn` with positional `args`, named by `PARAMS`; a failure throws its `DbError`. */
+  /**
+   * Calls `fn` with positional `args`, named by `PARAMS`; a failure throws its
+   * `DbError`.
+   */
   const callAs =
     (as: keyof typeof callers) =>
     async (fn: string, args: unknown[]): Promise<unknown> =>
@@ -386,7 +404,10 @@ export function createOutbox(options: OutboxOptions): Outbox {
   const subscribers =
     options.subscribers ?? options.authorization?.delivery?.subscribers;
 
-  /** The events `subscribers` lets `consumer` have; all of them without a policy. */
+  /**
+   * The events `subscribers` lets `consumer` have; all of them without a
+   * policy.
+   */
   async function permitted(
     consumer: string,
     events: readonly OutboxEvent[],
@@ -579,9 +600,10 @@ export function createOutbox(options: OutboxOptions): Outbox {
           );
 
           const results: Record<string, RelayResult> = {};
-          entries.forEach(([consumer], index) => {
+
+          for (const [index, [consumer]] of entries.entries()) {
             results[consumer] = relayed[index]!;
-          });
+          }
 
           const result: OutboxRouteResult = {
             consumers: results,

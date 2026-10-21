@@ -1,6 +1,8 @@
 import type { Executor } from "../../core/executor.ts";
 import type { AnyPlugin, HookArgs, RequestContext } from "../../core/plugin.ts";
 import type { Operation } from "../../ir/types.ts";
+import type { ConformanceReport } from "../conformance.ts";
+import type { AnyDb, AnySupabase } from "./executor.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { ok } from "../../core/result.ts";
@@ -15,16 +17,8 @@ import {
   expect,
   frozenCopy,
   same,
-  type ConformanceReport,
 } from "../conformance.ts";
-import {
-  captureOp,
-  hasName,
-  recorder,
-  tableKey,
-  type AnyDb,
-  type AnySupabase,
-} from "./executor.ts";
+import { captureOp, hasName, recorder, tableKey } from "./executor.ts";
 
 export interface TestPluginOptions {
   /** The definition without this plugin. */
@@ -38,11 +32,11 @@ export interface TestPluginOptions {
 }
 
 /**
- * Proves a `Plugin` targets API v1, installs cleanly on its own and next to
- * the first-party plugins in either order, adds repository methods without
- * replacing base ones, keeps `context`, `transformQuery` and
- * `beforeMutation` pure and deterministic, and keeps executors'
- * results intact when it wraps them.
+ * Proves a `Plugin` targets API v1, installs cleanly on its own and next to the
+ * first-party plugins in either order, adds repository methods without
+ * replacing base ones, keeps `context`, `transformQuery` and `beforeMutation`
+ * pure and deterministic, and keeps executors' results intact when it wraps
+ * them.
  */
 export function testPlugin(
   plugin: AnyPlugin,

@@ -91,7 +91,7 @@ describe("JSON Schema 2020-12", () => {
     const check = (document: Record<string, unknown>) => {
       const validate = ajv.getSchema(String(document["$schema"]));
       expect(validate).toBeTypeOf("function");
-      validate!(document);
+      void validate!(document);
 
       return validate!.errors ?? [];
     };

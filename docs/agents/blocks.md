@@ -12,7 +12,7 @@ workflow; this page is the checklist for a new block.
   `SQL_MODULES` in `src/sql/registry.ts`: the position is part of the file
   name, so new modules always go at the end. A module whose table the
   subject checks of `comments` or `attachments` name sets `before:
-"comments"`: it renders ahead of them and its file takes the number before
+  "comments"`: it renders ahead of them and its file takes the number before
   theirs, so it still goes at the end (ADR 0025).
 - Functions live in `ctx.schema` (`better_supabase` by default), tables use
   `create table if not exists`, and no line of a schema file starts with
@@ -37,7 +37,7 @@ workflow; this page is the checklist for a new block.
   `src/sql/modules/access-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them.
 - A table that holds a user's or a tenant's rows declares `lifecycle: {
-user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
+  user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   `data-lifecycle` module exports and purges it. Secrets that only the
   tenant's purge should delete take `export: false`; `omit` lists columns
   an export leaves out. A `credential_ref` column goes in `credentials`
@@ -70,7 +70,7 @@ user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
 - A module notifies users only through `ctx.notify`, never by writing
   notification rows.
 - In PL/pgSQL, `perform` resets `found`, so `delete ...; ${record}; return
-found;` returns the record's `found`. Check `found` before the record.
+  found;` returns the record's `found`. Check `found` before the record.
 - A module reads another module only through `ctx.installed(name)` and
   `ctx.of(name)`, and only one it lists in `requires` or `integrates`; both
   throw for any other name. Prefer `integrates` and a helper that does
@@ -95,7 +95,7 @@ found;` returns the record's `found`. Check `found` before the record.
   module uses, and writes them with `addExtraColumns` from `shared.ts`.
   A write that takes them as a separate argument uses `extraFieldsArg`
   from `shared.ts` for it: the parameter is always `fields jsonb default
-null`, and `drop` goes before the function so turning `extraColumns` on
+  null`, and `drop` goes before the function so turning `extraColumns` on
   or off never leaves two overloads (`tests/sql/extra-fields-overloads.test.ts`).
 - Every new module installs next to every other one with the default
   config: `sql-modules.integration.test.ts` installs them all into

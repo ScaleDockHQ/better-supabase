@@ -7,6 +7,7 @@ import type {
   RecordedDeliveryEvent,
   SuppressInput,
 } from "../../../src/blocks/notifications/index.ts";
+import type { Result } from "../../../src/core/result.ts";
 
 import {
   mailHeaders,
@@ -17,7 +18,7 @@ import {
   resendWebhook,
 } from "../../../src/blocks/notifications/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../../src/core/result.ts";
+import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { signWebhook } from "../../../src/core/signatures.ts";
 import { ConformanceError } from "../../../src/testing/conformance.ts";
 import { testDeliveryTransport } from "../../../src/testing/delivery-transport.ts";
@@ -63,9 +64,7 @@ describe("resendTransport", () => {
     expect(
       await transport.send(
         mail({ html: "<p>Hi</p>", replyTo: "s@acme.test" }),
-        {
-          idempotencyKey: "d-1",
-        },
+        { idempotencyKey: "d-1" },
       ),
     ).toEqual({ providerMessageId: "re_1" });
     const [request] = requests;
@@ -144,10 +143,9 @@ describe("resendTransport", () => {
     });
 
     await expect(
-      resendTransport({
-        apiKey: "re_test",
-        fetch: offline,
-      }).send(mail(), { idempotencyKey: "d-5" }),
+      resendTransport({ apiKey: "re_test", fetch: offline }).send(mail(), {
+        idempotencyKey: "d-5",
+      }),
     ).rejects.toMatchObject({ status: 0, message: /network down/ });
   });
 
@@ -518,10 +516,7 @@ describe("resendWebhook", () => {
     ).toBe(204);
     expect(recorded).toEqual([
       expect.objectContaining({ kind: "opened", providerMessageId: "re_1" }),
-      expect.objectContaining({
-        kind: "complained",
-        providerEventId: "msg_1",
-      }),
+      expect.objectContaining({ kind: "complained", providerEventId: "msg_1" }),
     ]);
     expect(written).toEqual([
       expect.objectContaining({ address: "c@acme.test", reason: "complaint" }),

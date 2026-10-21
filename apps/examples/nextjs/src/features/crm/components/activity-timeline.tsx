@@ -1,5 +1,6 @@
+import type { LucideIcon } from "lucide-react";
+
 import {
-  type LucideIcon,
   CalendarIcon,
   CircleCheckIcon,
   HistoryIcon,
@@ -46,8 +47,8 @@ const ICONS = new Map<string, LucideIcon>([
 ]);
 
 /**
- * Render inside `<Suspense>`: the calls, emails, meetings and notes logged
- * on a contact, newest first, with a form to log the next one.
+ * Render inside `<Suspense>`: the calls, emails, meetings and notes logged on a
+ * contact, newest first, with a form to log the next one.
  */
 export async function ActivityTimeline({
   subject,

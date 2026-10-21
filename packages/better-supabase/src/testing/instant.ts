@@ -1,8 +1,6 @@
-import {
-  type BudgetPage,
-  expectDbBudget,
-  type MeasuredRender,
-} from "./budget.ts";
+import type { BudgetPage, MeasuredRender } from "./budget.ts";
+
+import { expectDbBudget } from "./budget.ts";
 
 /** The part of a Playwright `BrowserContext` that `instant()` uses. */
 export interface InstantBrowserContext {
@@ -41,14 +39,17 @@ export interface InstantExpectation {
   /** Locators that must not exist while the lock holds. */
   readonly absent?: readonly InstantLocator[];
   /**
-   * Fails when one render of the navigation makes more database calls, or
-   * when no render reached the proxy (a navigation the client cache served
-   * has nothing to measure: drop the budget for it).
+   * Fails when one render of the navigation makes more database calls, or when
+   * no render reached the proxy (a navigation the client cache served has
+   * nothing to measure: drop the budget for it).
    */
   readonly maxCalls?: number;
   /** Fails when one render of the navigation makes more sequential waves. */
   readonly maxWaves?: number;
-  /** How long to wait for the render that streams in after the lock releases. Defaults to 500 ms. */
+  /**
+   * How long to wait for the render that streams in after the lock releases.
+   * Defaults to 500 ms.
+   */
   readonly settleMs?: number;
   /** Scopes the lock on a page that has not loaded yet. */
   readonly baseURL?: string;
@@ -63,8 +64,8 @@ type Instant = <T>(
 ) => Promise<T>;
 
 /**
- * `@next/playwright` is an optional peer: loading it on demand keeps it out
- * of apps that never call `expectInstant`, and a missing install returns
+ * `@next/playwright` is an optional peer: loading it on demand keeps it out of
+ * apps that never call `expectInstant`, and a missing install returns
  * `undefined` so the caller can say how to add it.
  */
 async function loadInstant(): Promise<Instant | undefined> {
@@ -108,9 +109,9 @@ async function assertUnderLock(expectation: InstantExpectation): Promise<void> {
 
 /**
  * Runs `during` inside `@next/playwright`'s `instant()`, checks what the
- * prefetched UI shows while the lock holds, and with `maxCalls` or
- * `maxWaves` checks the navigation's database budget like `expectDbBudget`.
- * Needs a `next build` with the testing API exposed.
+ * prefetched UI shows while the lock holds, and with `maxCalls` or `maxWaves`
+ * checks the navigation's database budget like `expectDbBudget`. Needs a `next
+ * build` with the testing API exposed.
  */
 export async function expectInstant(
   page: InstantPage,

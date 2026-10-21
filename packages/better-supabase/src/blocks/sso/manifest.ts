@@ -11,9 +11,7 @@ export const ssoBlock: BlockOf<"sso", typeof createSso, SsoEvents> =
   defineBlock({
     name: "sso",
     sql: ["sso"],
-    options: {
-      sso: ssoSqlOptions,
-    },
+    options: { sso: ssoSqlOptions },
     events: ssoEvents,
     create: createSso,
     category: "identity",

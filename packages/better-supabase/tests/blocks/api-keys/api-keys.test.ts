@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthState } from "../../../src/auth/resolve.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
+import type { HonoEnv } from "../../../src/hono/index.ts";
 import type {
   BetterPostgres,
   SessionOptions,
   SqlClaims,
 } from "../../../src/postgres/pool.ts";
+import type { Functions, Models } from "../../fixtures/generated-camel.ts";
 
 import { toSession } from "../../../src/auth/view.ts";
 import {
@@ -20,14 +22,10 @@ import {
 import { sha256Hex } from "../../../src/core/block-helpers.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
 import { ok } from "../../../src/core/result.ts";
-import { createHono, type HonoEnv } from "../../../src/hono/index.ts";
+import { createHono } from "../../../src/hono/index.ts";
 import { postgresExecutor } from "../../../src/postgres/executor.ts";
 import { fakeSql } from "../../fixtures/fake-sql.ts";
-import {
-  type Functions,
-  type Models,
-  schema,
-} from "../../fixtures/generated-camel.ts";
+import { schema } from "../../fixtures/generated-camel.ts";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";
@@ -410,9 +408,7 @@ describe("apiKeyResolver", () => {
       keys: {
         verify: () =>
           createApiKeys({
-            transport: {
-              call: () => Promise.reject(new Error("down")),
-            },
+            transport: { call: () => Promise.reject(new Error("down")) },
           }).verify(token),
       },
     });

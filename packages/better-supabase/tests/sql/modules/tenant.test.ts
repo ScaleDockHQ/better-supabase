@@ -103,10 +103,7 @@ describe("tenant module sameTenant", () => {
         table: "task_materials",
         column: "quote_id",
         references: { table: "quotes", where: "{row}.status <> 'draft'" },
-        match: {
-          site_id: "site_id",
-          "task_id.customer_id": "customer_id",
-        },
+        match: { site_id: "site_id", "task_id.customer_id": "customer_id" },
         through: { task_id: { table: "work.tasks", column: "key" } },
       },
     ]);

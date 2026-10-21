@@ -33,8 +33,8 @@ const betterSupabase = defineSupabase(schema);
 type ToolHandler = (...params: never[]) => unknown;
 
 /**
- * A structural stand-in for an authorization library's `protectServer`: it takes a
- * `permission` key in the tool config, checks it against the caller's
+ * A structural stand-in for an authorization library's `protectServer`: it
+ * takes a `permission` key in the tool config, checks it against the caller's
  * `authInfo`, and registers the remaining config on the wrapped server.
  */
 function protectServer<
@@ -115,10 +115,7 @@ const build = (guarded: boolean) => {
       },
       (args, ctx) => ({
         content: [
-          {
-            type: "text",
-            text: `${args.message} from ${ctx.auth.kind}`,
-          },
+          { type: "text", text: `${args.message} from ${ctx.auth.kind}` },
         ],
       }),
     );

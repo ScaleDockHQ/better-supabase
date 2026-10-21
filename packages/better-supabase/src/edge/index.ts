@@ -1,41 +1,38 @@
 import { withCors } from "@supabase/middleware/cors";
 
 import type { AuthSession } from "../auth/view.ts";
+import type { EdgeHandler } from "../bridges/edge.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { CorsOptions } from "../server/cors.ts";
+import type {
+  BlockRequireOptions,
+  ResourceLoaderContext,
+} from "../server/kit.ts";
+import type { ResourceMap } from "../server/resources.ts";
+import type { MiddlewareOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { RouteMatch } from "./routes.ts";
 
-import { type EdgeHandler, toEdge } from "../bridges/edge.ts";
+import { toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { err } from "../core/result.ts";
 import { withFlush, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
-import {
-  type CorsOptions,
-  corsConfig,
-  SUPABASE_CORS_HEADERS,
-} from "../server/cors.ts";
+import { corsConfig, SUPABASE_CORS_HEADERS } from "../server/cors.ts";
 import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
-import {
-  type BlockRequireOptions,
-  requireCaller,
-  type ResourceLoaderContext,
-} from "../server/kit.ts";
-import { type ResourceMap, resourceRouter } from "../server/resources.ts";
-import {
-  defaultExpose,
-  type MiddlewareOptions,
-  respond,
-} from "../server/respond.ts";
+import { requireCaller } from "../server/kit.ts";
+import { resourceRouter } from "../server/resources.ts";
+import { defaultExpose, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
-import { compileRoutes, matchRoute, type RouteMatch } from "./routes.ts";
+import { compileRoutes, matchRoute } from "./routes.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 
@@ -69,7 +66,10 @@ export type {
 export interface EdgeOptions extends ServerOptions {
   /** Answer preflights and add CORS headers. `true` uses Supabase's defaults. */
   readonly cors?: boolean | CorsOptions;
-  /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
+  /**
+   * Include error details in problem responses. Defaults to `NODE_ENV ===
+   * 'development'`.
+   */
   readonly exposeErrors?: boolean;
   /**
    * Keeps the invocation alive for event sink sends a handler started, e.g.
@@ -92,9 +92,9 @@ type ParamNames<K extends string> =
       : never;
 
 /**
- * The params a route key declares: one per `:name` segment, and `*` for a
- * final wildcard. `RouteParams<"GET /orgs/:org/files/*">` is
- * `{ org: string; "*": string }`.
+ * The params a route key declares: one per `:name` segment, and `*` for a final
+ * wildcard. `RouteParams<"GET /orgs/:org/files/*">` is `{ org: string; "*":
+ * string }`.
  */
 export type RouteParams<K extends string> = {
   readonly [
@@ -120,7 +120,10 @@ export type EdgeRouteHandler<
   },
 ) => unknown;
 
-/** A route with its own guard: `allow`, `aal`, `scopes`, `requireTenant`, `authorize`. */
+/**
+ * A route with its own guard: `allow`, `aal`, `scopes`, `requireTenant`,
+ * `authorize`.
+ */
 export interface EdgeRoute<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -140,8 +143,8 @@ export interface EdgeRoute<
 }
 
 /**
- * Routes by `"METHOD /path"` (or `"/path"` for every method). `:name`
- * segments are params, a final `*` matches the rest of the path.
+ * Routes by `"METHOD /path"` (or `"/path"` for every method). `:name` segments
+ * are params, a final `*` matches the rest of the path.
  */
 export type EdgeRoutes<
   M extends AnyModels,
@@ -177,16 +180,25 @@ export interface BetterEdge<
   ): EdgeHandler;
   /**
    * A router: each route runs as the caller, behind the shared guard in
-   * `options` and its own. An unknown path answers 404 and a known path
-   * with another method 405, both before auth resolves. `ctx.params` is
-   * typed from the key: `"GET /customers/:id"` gets `params.id`.
+   * `options` and its own. An unknown path answers 404 and a known path with
+   * another method 405, both before auth resolves. `ctx.params` is typed from
+   * the key: `"GET /customers/:id"` gets `params.id`.
    *
    * ```ts
-   * Deno.serve(bs.routes({
-   *   'GET /customers': (req, ctx) => ctx.db.customers.findMany(),
-   *   'GET /customers/:id': (req, ctx) => ctx.db.customers.find(ctx.params.id),
-   *   'POST /invites': { requireTenant: true, handler: (req, ctx) => invite(req, ctx) },
-   * }, { basePath: '/api' }))
+   * Deno.serve(
+   *   bs.routes(
+   *     {
+   *       "GET /customers": (req, ctx) => ctx.db.customers.findMany(),
+   *       "GET /customers/:id": (req, ctx) =>
+   *         ctx.db.customers.find(ctx.params.id),
+   *       "POST /invites": {
+   *         requireTenant: true,
+   *         handler: (req, ctx) => invite(req, ctx),
+   *       },
+   *     },
+   *     { basePath: "/api" },
+   *   ),
+   * );
    * ```
    */
   routes<K extends string>(
@@ -198,9 +210,9 @@ export interface BetterEdge<
     options?: ResourcesOptions,
   ): EdgeHandler;
   /**
-   * REST resources matching the API model, e.g.
-   * `Deno.serve(bs.resources({ customers: true }))`: collection, item and
-   * action paths. An unknown path answers 404 before auth resolves.
+   * REST resources matching the API model, e.g. `Deno.serve(bs.resources({
+   * customers: true }))`: collection, item and action paths. An unknown path
+   * answers 404 before auth resolves.
    */
   resources(
     map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B>["db"]>,
@@ -317,9 +329,7 @@ export function createEdge<
         if (found === undefined || found === "none") {
           return problemResponse(
             dbError("not_found", `No route for ${pathname}`),
-            {
-              instance: pathname,
-            },
+            { instance: pathname },
           );
         }
 

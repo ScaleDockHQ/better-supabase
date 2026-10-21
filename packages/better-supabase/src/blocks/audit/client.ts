@@ -72,9 +72,9 @@ function listOptions(
 }
 
 /**
- * One organization's audit trail for an audit table: the newest page as
- * the caller may read it, `setFilters` to narrow it by actor, action or
- * text, and `loadMore` for older pages.
+ * One organization's audit trail for an audit table: the newest page as the
+ * caller may read it, `setFilters` to narrow it by actor, action or text, and
+ * `loadMore` for older pages.
  */
 export function createAuditLogController(
   options: AuditLogControllerOptions,
@@ -102,7 +102,8 @@ export function createAuditLogController(
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         state.set({ loading: true });
 
         const result = await client.list(

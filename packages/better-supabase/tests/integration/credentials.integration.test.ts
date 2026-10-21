@@ -10,6 +10,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("credentials module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("passes the CredentialProvider kit over Vault", async () => {

@@ -241,10 +241,7 @@ describe("createComments", () => {
       .history(
         "org-1",
         { type: "quote", id: "q1" },
-        {
-          cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"),
-          limit: 2,
-        },
+        { cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"), limit: 2 },
       )
       .orThrow();
 

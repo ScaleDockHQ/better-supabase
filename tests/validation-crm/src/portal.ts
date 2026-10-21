@@ -16,7 +16,10 @@ export const StaffClaims = v.object({
   organization_id: v.pipe(v.string(), v.uuid()),
 });
 
-/** The same tables, with `column` marked as the tenant column wherever a table has it. */
+/**
+ * The same tables, with `column` marked as the tenant column wherever a table
+ * has it.
+ */
 function scopedBy(column: "customerId" | "organizationId") {
   return {
     ...schema,
@@ -36,8 +39,8 @@ function scopedBy(column: "customerId" | "organizationId") {
 
 /**
  * A contact's reads: every query on a table with `customer_id` filters on the
- * customer in the token, next to the RLS policy
- * `customer_id in (select customer_ids_with('quotes.view'))`.
+ * customer in the token, next to the RLS policy `customer_id in (select
+ * customer_ids_with('quotes.view'))`.
  */
 export const portal = defineSupabase(scopedBy("customerId"))
   .claims(PortalClaims)

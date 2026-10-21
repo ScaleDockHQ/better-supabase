@@ -84,9 +84,9 @@ export const RETENTION_CONTRACT: readonly ModuleContractFunction[] = [
 ];
 
 /**
- * Retention policies per kind (for a tenant, a plan or every tenant) and
- * legal holds, which the modules' purges read through `ctx.retention` and
- * `ctx.held`, and `purge_organization` checks.
+ * Retention policies per kind (for a tenant, a plan or every tenant) and legal
+ * holds, which the modules' purges read through `ctx.retention` and `ctx.held`,
+ * and `purge_organization` checks.
  */
 export function retentionSql(ctx: ModuleContext): string {
   const id = ctx.idType;

@@ -14,9 +14,7 @@ export const apiKeysBlock: BlockOf<
 > = defineBlock({
   name: "api-keys",
   sql: ["api-keys"],
-  options: {
-    "api-keys": apiKeysSqlOptions,
-  },
+  options: { "api-keys": apiKeysSqlOptions },
   events: apiKeysEvents,
   create: createApiKeys,
   category: "developer",

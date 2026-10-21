@@ -12,7 +12,10 @@ import { detectWorkflow, sqlWorkflow, tomlGet } from "../supabase-toml.ts";
 
 const catalogs = new WeakMap<Snapshot, Catalog>();
 
-/** The project's SQL workflow: `sql.workflow`, or the one `config.toml` and the schema files imply. */
+/**
+ * The project's SQL workflow: `sql.workflow`, or the one `config.toml` and the
+ * schema files imply.
+ */
 export function workflowOf(context: DoctorContext): SqlWorkflow {
   const toml = context.configToml;
 
@@ -41,7 +44,10 @@ export function catalogOf(context: DoctorContext): Catalog {
   return catalog;
 }
 
-/** `[api] schemas` from `config.toml`, the schemas PostgREST serves, or `config.schemas` without one. */
+/**
+ * `[api] schemas` from `config.toml`, the schemas PostgREST serves, or
+ * `config.schemas` without one.
+ */
 export function exposedSchemas(context: DoctorContext): readonly string[] {
   const listed = context.configToml
     ? tomlGet(context.configToml.document, ["api", "schemas"])
@@ -122,9 +128,9 @@ export interface SqlStatement {
 const DOLLAR_TAG = /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/uy;
 
 /**
- * `text` split into statements at the semicolons outside quotes, dollar
- * quotes and comments. Comments are dropped; strings and dollar-quoted
- * bodies stay as they are.
+ * `text` split into statements at the semicolons outside quotes, dollar quotes
+ * and comments. Comments are dropped; strings and dollar-quoted bodies stay as
+ * they are.
  */
 export function splitStatements(text: string): SqlStatement[] {
   const statements: SqlStatement[] = [];

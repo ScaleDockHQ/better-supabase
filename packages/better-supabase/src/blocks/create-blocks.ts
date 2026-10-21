@@ -27,7 +27,10 @@ import { generatedOptions } from "./block-config.ts";
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
 export const BLOCK_EVENT_SOURCE = "/better-supabase/blocks";
 
-/** What every block's creator receives from `createBlocks`, before its ports and `with` settings. */
+/**
+ * What every block's creator receives from `createBlocks`, before its ports and
+ * `with` settings.
+ */
 export interface BlockContext extends BlockOptions {
   /** Connectors, ai-providers and the workflow builder store their secrets here. */
   readonly credentials?: CredentialProvider;
@@ -37,10 +40,10 @@ export interface BlockContext extends BlockOptions {
 
 export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
   /**
-   * `blockConfig` from `blocks.generated.ts`: each block gets its schema
-   * (the API schema when the module has one) and the options its SQL half
-   * shares, such as `attachments.requireScan`, under its own name. Blocks
-   * without an entry use the module defaults.
+   * `blockConfig` from `blocks.generated.ts`: each block gets its schema (the
+   * API schema when the module has one) and the options its SQL half shares,
+   * such as `attachments.requireScan`, under its own name. Blocks without an
+   * entry use the module defaults.
    */
   readonly config?: GeneratedBlocks;
   /**
@@ -80,8 +83,8 @@ type SinkKeys<B extends BlockMap> = {
 }[keyof B];
 
 /**
- * Outbox sinks of the blocks that provide one (`search`, `metrics`), keyed
- * like the blocks, for `outbox.relayRoute({ consumers: { ...app.sinks } })`.
+ * Outbox sinks of the blocks that provide one (`search`, `metrics`), keyed like
+ * the blocks, for `outbox.relayRoute({ consumers: { ...app.sinks } })`.
  */
 export type BlockSinks<B extends BlockMap = BlockMap> = {
   readonly [K in SinkKeys<B>]?: EventSink;
@@ -106,7 +109,10 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
   readonly config: GeneratedBlocks;
   /** Every block's events and the app's, typed. */
   readonly events: Events<M>;
-  /** Builds the blocks with the generated config: `createBlocks({ ...options, config }, blocks)`. */
+  /**
+   * Builds the blocks with the generated config: `createBlocks({ ...options,
+   * config }, blocks)`.
+   */
   create(
     options: Omit<CreateBlocksOptions, "config"> & {
       readonly hooks?: BlocksHooks<B>;
@@ -121,12 +127,12 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
 }
 
 /**
- * The blocks an app uses, built with `blockConfig` from
- * `blocks.generated.ts` (`better-supabase gen`), so each block's schema
- * and the options its SQL half shares come from the `blocks` config, and
- * the app's own events (`defineEvents`). The event types are the union of
- * every block's events, so `on` and `events` type each one's data without
- * `declare module` (invariant 2).
+ * The blocks an app uses, built with `blockConfig` from `blocks.generated.ts`
+ * (`better-supabase gen`), so each block's schema and the options its SQL half
+ * shares come from the `blocks` config, and the app's own events
+ * (`defineEvents`). The event types are the union of every block's events, so
+ * `on` and `events` type each one's data without `declare module` (invariant
+ * 2).
  */
 export function defineBlocks<
   const B extends BlockMap,
@@ -158,17 +164,16 @@ export function defineBlocks<
 }
 
 /**
- * Builds `blocks` with one set of options and wires them on their ports.
- * Each block gets its schema and shared options from its entry in
- * `config` (`blocks.generated.ts`), keyed by the block's name. Each block
- * that consumes a port (`notifier`, `files`, `attachments`,
- * `workflows`) gets it from the one block in the set that provides it, and
- * `sinks` holds the outbox sinks the blocks provide. `credentials` reaches
- * every block, and block events go to `audit`. Only the blocks you pass are
- * imported, so the rest stay out of the bundle. `hooks` wraps each block's
- * methods with `withBlockHooks`, and the ports are built from the wrapped
- * clients, so a sibling's calls (ai-tasks sending notifications) go through
- * the hooks too.
+ * Builds `blocks` with one set of options and wires them on their ports. Each
+ * block gets its schema and shared options from its entry in `config`
+ * (`blocks.generated.ts`), keyed by the block's name. Each block that consumes
+ * a port (`notifier`, `files`, `attachments`, `workflows`) gets it from the one
+ * block in the set that provides it, and `sinks` holds the outbox sinks the
+ * blocks provide. `credentials` reaches every block, and block events go to
+ * `audit`. Only the blocks you pass are imported, so the rest stay out of the
+ * bundle. `hooks` wraps each block's methods with `withBlockHooks`, and the
+ * ports are built from the wrapped clients, so a sibling's calls (ai-tasks
+ * sending notifications) go through the hooks too.
  */
 export function createBlocks<const B extends BlockMap>(
   options: CreateBlocksOptions & { readonly hooks?: NoInfer<BlocksHooks<B>> },
@@ -254,8 +259,8 @@ function buildBlocks<B extends BlockMap>(
   };
 
   /**
-   * The options `key`'s creator gets: shared, then its generated config,
-   * then ports, then `with` settings.
+   * The options `key`'s creator gets: shared, then its generated config, then
+   * ports, then `with` settings.
    */
   const optionsOf = (key: string): Record<string, unknown> => {
     const ports: Record<string, unknown> = {};
@@ -290,7 +295,10 @@ function buildBlocks<B extends BlockMap>(
     };
   };
 
-  /** `shared`'s transports, calling the block functions by the names the SQL gave them. */
+  /**
+   * `shared`'s transports, calling the block functions by the names the SQL
+   * gave them.
+   */
   function renamedTransports(naming: BlockNaming): Partial<BlockContext> {
     const middleware = blockNames(naming);
 

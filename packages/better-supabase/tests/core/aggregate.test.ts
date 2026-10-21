@@ -224,9 +224,7 @@ describe("db.x.aggregate()", () => {
     const db = defineSupabase(defineSchema(ledgerMeta)).connect(
       client,
     ) as never as {
-      ledger: {
-        aggregate(args: object): PromiseLike<{ data: unknown }>;
-      };
+      ledger: { aggregate(args: object): PromiseLike<{ data: unknown }> };
     };
 
     const { data } = await db.ledger.aggregate({

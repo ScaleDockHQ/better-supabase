@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { type CategoryStyle, categoryStyle } from "../categories";
+import type { CategoryStyle } from "../categories";
+
+import { categoryStyle } from "../categories";
 
 /*
  * Illustrations, not product UI: each scene sketches what a category's blocks
@@ -429,8 +431,8 @@ export function PreviewSurface({
 }
 
 /**
- * A category's mini UI on its surface. `size="lg"` is the block page hero;
- * the default fits a catalog tile.
+ * A category's mini UI on its surface. `size="lg"` is the block page hero; the
+ * default fits a catalog tile.
  */
 export function BlockPreview({
   category,

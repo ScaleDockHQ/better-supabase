@@ -108,9 +108,9 @@ export async function addModules(
 }
 
 /**
- * Lists `untracked` in `blocks` of the config file, so `sql sync
- * --check` keeps them current, or prints the snippet when the file isn't a
- * literal object the edit can follow.
+ * Lists `untracked` in `blocks` of the config file, so `sql sync --check` keeps
+ * them current, or prints the snippet when the file isn't a literal object the
+ * edit can follow.
  */
 async function listInConfig(
   args: SqlFlags,

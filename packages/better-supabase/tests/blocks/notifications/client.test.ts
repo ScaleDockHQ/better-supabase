@@ -51,9 +51,7 @@ describe("createNotificationsController", () => {
     rows = [item("d")];
     topic.emit("notifications:u1", "notification_created", { id: "d" });
     await flush();
-    expect(onMessage).toHaveBeenCalledWith("notification_created", {
-      id: "d",
-    });
+    expect(onMessage).toHaveBeenCalledWith("notification_created", { id: "d" });
     expect(view().items?.map((each) => each.id)).toEqual(["c", "d"]);
     rows = [];
     topic.rejoin("notifications:u1");

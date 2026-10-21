@@ -7,9 +7,11 @@ import { Hono } from "hono";
 import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { OrpcRequestContext } from "../../src/orpc/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
-import { createOrpc, type OrpcRequestContext } from "../../src/orpc/index.ts";
+import { createOrpc } from "../../src/orpc/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackUrl } from "./stack-env.ts";
@@ -102,6 +104,7 @@ describe.skipIf(!live)(
     );
 
     const created: string[] = [];
+
     afterAll(async () => {
       if (created.length > 0) {
         await admin.customers.deleteMany({ where: { id: { in: created } } });

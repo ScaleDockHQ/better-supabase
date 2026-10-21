@@ -1,11 +1,6 @@
-import {
-  type Result,
-  dbError,
-  err,
-  fromProblem,
-  isProblem,
-  ok,
-} from "better-supabase";
+import type { Result } from "better-supabase";
+
+import { dbError, err, fromProblem, isProblem, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { bs, supabase } from "./supabase/client.native";
@@ -19,10 +14,12 @@ export interface PlanOption {
 }
 
 /**
- * The fixture's plan catalog (`public.plans`, readable by every signed-in
- * user) and the organization's plan, through PostgREST as the caller.
+ * The fixture's plan catalog (`public.plans`, readable by every signed-in user)
+ * and the organization's plan, through PostgREST as the caller.
  */
-export async function loadPlanCatalog(organizationId: string): Promise<{
+export async function loadPlanCatalog(
+  organizationId: string,
+): Promise<{
   readonly plans: readonly PlanOption[];
   readonly current: string | undefined;
 }> {

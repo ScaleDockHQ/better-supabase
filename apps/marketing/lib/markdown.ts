@@ -133,10 +133,10 @@ const SIDE_LABEL = {
   native: "Native (Expo)",
 } as const satisfies Record<RecipePlatform, string>;
 
-const PROMPT_LABEL = {
-  web: "Web",
-  native: "Native",
-} as const satisfies Record<RecipePlatform, string>;
+const PROMPT_LABEL = { web: "Web", native: "Native" } as const satisfies Record<
+  RecipePlatform,
+  string
+>;
 
 /** `/recipes/<slug>.md`: one recipe as Markdown. */
 export function recipeMarkdown(

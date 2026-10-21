@@ -134,7 +134,10 @@ const functionName = (name: string): string =>
         .join(".")
     : `public.${sqlIdent(name)}`;
 
-/** `options.handlers`: form key to `schema.function(submission_id uuid) returns jsonb`. */
+/**
+ * `options.handlers`: form key to `schema.function(submission_id uuid) returns
+ * jsonb`.
+ */
 function handlersOf(
   ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {
@@ -200,7 +203,10 @@ function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
   return { max, period };
 }
 
-/** PL/pgSQL that raises 23514 with the schema errors, as the jsonb-schemas checks do. */
+/**
+ * PL/pgSQL that raises 23514 with the schema errors, as the jsonb-schemas
+ * checks do.
+ */
 const answersInvalid = (table: string): string =>
   `raise exception '%.answers does not match its JSON Schema: %', ${sqlString(table)}, array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';`;

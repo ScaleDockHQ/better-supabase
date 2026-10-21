@@ -1,6 +1,8 @@
+import type { OxlintConfig } from "oxlint";
+
 import playwright from "eslint-plugin-playwright";
 import { fileURLToPath } from "node:url";
-import { type OxlintConfig, defineConfig } from "oxlint";
+import { defineConfig } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
@@ -17,7 +19,8 @@ function plugin(specifier: string): string {
 
 /**
  * Every config spreads these: a workspace's `ignorePatterns` replaces the
- * inherited list. `apps/docs/content/docs/build` is a docs section, not output.
+ * inherited list. `apps/docs/content/docs/build` is a docs section, not
+ * output.
  */
 export const ignorePatterns: string[] = [
   ...(core.ignorePatterns ?? []).filter((pattern) => pattern !== "**/build"),
@@ -33,8 +36,8 @@ export const ignorePatterns: string[] = [
 
 /**
  * Imports that the one-library-per-concern rule keeps out of the repo. A
- * `no-restricted-imports` override replaces the whole rule, so overrides
- * spread these in.
+ * `no-restricted-imports` override replaces the whole rule, so overrides spread
+ * these in.
  */
 export const restrictedImportPaths: { name: string; message: string }[] = [
   { name: "zod", message: "Use Valibot; any Standard Schema library works." },
@@ -109,7 +112,10 @@ export const library: OxlintConfig = defineConfig({
   ],
 });
 
-/** React components: Ultracite's react preset, react-doctor and the effect rules. */
+/**
+ * React components: Ultracite's react preset, react-doctor and the effect
+ * rules.
+ */
 export const react: OxlintConfig = defineConfig({
   extends: [ultraciteReact, reactDoctor],
   jsPlugins: [
@@ -146,13 +152,8 @@ export const react: OxlintConfig = defineConfig({
     // Findings when measured: function-component-definition 296,
     // js-combine-iterations 151, js-set-map-lookups 98, async-await-in-loop 75,
     // no-barrel-import 36, no-json-parse-stringify-clone 22,
-    // server-sequential-independent-await 5, jsx-handler-names 4, js-index-maps
-    // 4, no-react-children 3, hook-use-state 3,
-    // prefer-module-scope-pure-function 3, js-cache-property-access 3,
-    // async-defer-await 3, jsx-curly-brace-presence 2, no-array-index-as-key 1,
-    // jsx-pascal-case 1, rerender-defer-reads-hook 1,
-    // rendering-hydration-mismatch-time 1, no-danger 1, no-giant-component 1,
-    // js-flatmap-filter 1, js-length-check-first 1, button-has-type 1.
+    // server-sequential-independent-await 10,
+    // prefer-module-scope-pure-function 6.
     "react/function-component-definition": "off",
     "react-doctor/js-combine-iterations": "off",
     "react-doctor/js-set-map-lookups": "off",
@@ -160,23 +161,29 @@ export const react: OxlintConfig = defineConfig({
     "react-doctor/no-barrel-import": "off",
     "react-doctor/no-json-parse-stringify-clone": "off",
     "react-doctor/server-sequential-independent-await": "off",
-    "react/jsx-handler-names": "off",
-    "react-doctor/js-index-maps": "off",
-    "react/no-react-children": "off",
-    "react/hook-use-state": "off",
     "react-doctor/prefer-module-scope-pure-function": "off",
+    // Read and kept, every finding deliberate. js-index-maps (4) and
+    // js-cache-property-access (3) flag lookups over lists of a few entries.
+    // async-defer-await (3) flags awaits that write a row or authenticate
+    // before the early return. jsx-handler-names (4) flags state setters
+    // passed straight to a handler prop. rerender-defer-reads-hook (3) flags
+    // `usePathname()` read in a handler, where the path must come from the
+    // Next.js router. no-giant-component (3) asks to split the CSV import,
+    // work grid and order detail screens, a change per screen.
+    "react-doctor/js-index-maps": "off",
     "react-doctor/js-cache-property-access": "off",
     "react-doctor/async-defer-await": "off",
-    "react/jsx-curly-brace-presence": "off",
-    "react-doctor/no-array-index-as-key": "off",
-    "react/jsx-pascal-case": "off",
+    "react/jsx-handler-names": "off",
     "react-doctor/rerender-defer-reads-hook": "off",
-    "react-doctor/rendering-hydration-mismatch-time": "off",
-    "react/no-danger": "off",
     "react-doctor/no-giant-component": "off",
-    "react-doctor/js-flatmap-filter": "off",
-    "react-doctor/js-length-check-first": "off",
-    "react/button-has-type": "off",
+    // jsx-curly-brace-presence (2) flags `{"'a'"}` strings whose quotes
+    // no-unescaped-entities rejects as bare JSX text.
+    "react/jsx-curly-brace-presence": "off",
+    // hook-use-state (3) flags `const [client] = useState(() => new
+    // QueryClient())`, the lazy initial value that keeps one per mount.
+    "react/hook-use-state": "off",
+    // Fumadocs compiles each page to an `MDX` component.
+    "react/jsx-pascal-case": ["error", { allowAllCaps: true }],
   },
 });
 
@@ -196,7 +203,7 @@ export const shadcn: OxlintConfig = defineConfig({
   rules: {
     // Pages pass layout and appearance classes to shadcn components; moving
     // appearance into variants is per component. Backlog in docs/decisions/0002.
-    // Findings when measured: no-restyle 140.
+    // Findings when measured: no-restyle 399.
     "shadcn/no-restyle": "off",
   },
 });
@@ -248,58 +255,47 @@ const config: OxlintConfig = defineConfig({
     "typescript/require-await": "error",
     "typescript/return-await": ["error", "in-try-catch"],
 
-    // 2,103 findings when measured (1,754 in tests). Each needs a guard or a
+    // 2,231 findings when measured (1,862 in tests). Each needs a guard or a
     // narrower type; tracked as backlog in docs/decisions/0002.
     "typescript/no-non-null-assertion": "off",
-    // 1,231 findings when measured, most of them `if (text)` checks where the
-    // empty string is meant to be falsy. Rewriting them changes behavior one
-    // by one; tracked as backlog in docs/decisions/0002.
+    // 1,503 findings when measured (179 in tests), most of them `if (text)`
+    // checks where the empty string is meant to be falsy. Rewriting them
+    // changes behavior one by one; tracked as backlog in docs/decisions/0002.
     "typescript/strict-boolean-expressions": "off",
     // 1,836 findings when measured (1,120 in tests). Misuse (an unknown table, a role other
     // than authenticated or anon) throws synchronously before any I/O, and
     // tests assert that; `async` turns those throws into rejections.
     "typescript/promise-function-async": "off",
     // Shadowing a name in a nested scope is how the query builders read;
-    // 123 findings when measured.
+    // 147 findings when measured (69 in tests), each a rename by hand.
     "eslint/no-shadow": "off",
-    // `toSorted` and `toReversed` copies are not needed on local arrays;
-    // 108 and 9 findings when measured.
-    "unicorn/no-array-sort": "off",
-    "unicorn/no-array-reverse": "off",
     // Migrations, pages and retries run in order on purpose; 663 findings
     // when measured.
     "eslint/no-await-in-loop": "off",
     // Closures next to their single caller read better than hoisted helpers;
     // 596 findings when measured.
     "unicorn/consistent-function-scoping": "off",
-    // Row and option objects are small; spreading them is not a hot path
-    // (103 and 2 findings when measured).
-    "oxc/no-map-spread": "off",
-    "oxc/no-accumulating-spread": "off",
     // 1,671 findings when measured: generic trees, decoded JSON and the
     // isolatedDeclarations boundary need assertions. AGENTS.md asks for a
     // `SAFETY:` comment on each new one instead.
     "typescript/no-unsafe-type-assertion": "off",
     // `query<R>(): Promise<{ rows: R[] }>` style return-only generics are
-    // the caller-supplied row type, not an unused parameter; 28 findings
-    // when measured.
+    // the caller-supplied row type, not an unused parameter; 36 findings
+    // when measured, most on published signatures.
     "typescript/no-unnecessary-type-parameters": "off",
-    // 119 findings when measured, all `String(unknown)` for SQL literals,
+    // 141 findings when measured, all `String(unknown)` for SQL literals,
     // headers, form values and error text, where that is the intent.
     "typescript/no-base-to-string": "off",
     // `Record<never, never>` is the deliberate "no extra fields" marker in
     // the DbError detail map and in conditional types; 232 findings when
     // measured.
     "typescript/no-generated-empty-object-type": "off",
-    // Fire-and-forget `.then()` side effects in realtime subscriptions
-    // (33 and 9 findings when measured).
-    "promise/always-return": "off",
+    // The rule is written for Node-style callbacks; its 11 findings when
+    // measured were all arrow functions that return a promise, such as
+    // `execute: () => Promise.resolve(refuse())`.
     "promise/no-promise-in-callback": "off",
-    // Realtime and storage wrap `on*` handler properties of the SDK objects;
-    // 4 findings when measured.
-    "unicorn/prefer-add-event-listener": "off",
-    // Spreading an iterable into a fresh array is how readonly inputs copy;
-    // 12 findings when measured.
+    // 9 findings when measured, all `for (const listener of [...listeners])`
+    // style copies taken before a loop that may unsubscribe or delete.
     "unicorn/no-useless-spread": "off",
     // An explicit `undefined` argument or arrow body is how a call fills a
     // required `T | undefined` parameter or an `() => undefined` contract.
@@ -326,7 +322,7 @@ const config: OxlintConfig = defineConfig({
     // fights the SDK types the library wraps; `readonly` arrays and
     // `Readonly<T>` are used where a function promises not to mutate.
     "typescript/prefer-readonly-parameter-types": "off",
-    // 2,241 findings when measured. The `u` flag changes escape rules and
+    // 2,621 findings when measured. The `u` flag changes escape rules and
     // case folding per pattern, so each needs review; backlog in
     // docs/decisions/0002.
     "eslint/require-unicode-regexp": "off",
@@ -356,11 +352,12 @@ const config: OxlintConfig = defineConfig({
     // declarations, keys in reading order, interfaces); adopting one is a
     // repo-wide codemod.
     // Findings when measured: sort-keys 22,476, func-style 5,625,
-    // method-signature-style 1,971, consistent-type-specifier-style 1,834,
-    // no-await-expression-member 1,504, prefer-named-capture-group 520,
-    // no-use-before-define 486, prefer-destructuring 452,
-    // no-nested-ternary 210, consistent-type-definitions 207, no-plusplus
-    // 127, import-style 126, no-bitwise 54, no-array-for-each 30, no-eq-null 7.
+    // method-signature-style 2,106, no-await-expression-member 1,504,
+    // no-use-before-define 603, prefer-named-capture-group 598,
+    // prefer-destructuring 519, no-nested-ternary 314,
+    // consistent-type-definitions 221, import-style 148.
+    // consistent-type-definitions would turn types into interfaces, which
+    // are not assignable to `Record<string, unknown>`.
     // no-array-reduce (8) flags folds that compose middleware or chain
     // results, which read clearer as a fold than as a loop.
     // prefer-ternary (4) flags branches that each await a call with effects.
@@ -371,33 +368,35 @@ const config: OxlintConfig = defineConfig({
     "eslint/sort-keys": "off",
     "eslint/func-style": "off",
     "typescript/method-signature-style": "off",
-    "import/consistent-type-specifier-style": "off",
     "unicorn/no-await-expression-member": "off",
     "eslint/prefer-named-capture-group": "off",
     "eslint/no-use-before-define": "off",
     "eslint/prefer-destructuring": "off",
     "typescript/consistent-type-definitions": "off",
     "eslint/no-nested-ternary": "off",
-    "eslint/no-plusplus": "off",
     "unicorn/import-style": "off",
-    "eslint/no-bitwise": "off",
-    "unicorn/no-array-for-each": "off",
     "unicorn/prefer-export-from": "off",
     "typescript/no-inferrable-types": "off",
-    "eslint/no-eq-null": "off",
     "unicorn/no-array-reduce": "off",
     "unicorn/prefer-ternary": "off",
 
     // Each finding needs reading first: some are deliberate (Promise
-    // constructors around callback APIs, bitwise hashing, empty fakes), others
-    // are worth fixing.
-    // Findings when measured: prefer-await-to-then 140, avoid-new 114,
-    // complexity 112, no-void 100, no-array-filter-map 77, no-module-mocking
-    // 59, prefer-await-to-callbacks 50, callback-return 45,
-    // prefer-structured-clone 22, no-invalid-void-type 21, param-names 18,
-    // no-dynamic-delete 17, class-methods-use-this 17, no-empty-object-type
-    // 16, custom-error-definition 16, no-empty-function 14,
-    // no-unreadable-array-destructuring 14.
+    // constructors around callback APIs, empty fakes), others are worth
+    // fixing.
+    // Findings when measured: prefer-await-to-then 185, complexity 150,
+    // avoid-new 123, no-void 105, no-array-filter-map 98, no-module-mocking
+    // 59, prefer-await-to-callbacks 50, callback-return 45, param-names 18.
+    // Read and kept, every finding deliberate:
+    // prefer-structured-clone (23) flags JSON round trips that model the
+    // wire, which `structuredClone` does not (it keeps `undefined` and Dates).
+    // custom-error-definition (23) would rename exported classes such as
+    // `DbException`. no-invalid-void-type (22) flags `| void` callback
+    // returns that let a hook return nothing. no-empty-function (20) flags
+    // no-op defaults. no-dynamic-delete (19) flags patch and record code that
+    // removes a key. class-methods-use-this (17) flags methods that implement
+    // an interface. no-empty-object-type (16) flags `= {}` generic defaults.
+    // no-unreadable-array-destructuring (16) flags positional `ps` columns
+    // and mock call arguments.
     // These stay off because every finding is deliberate: throw-new-error (7)
     // flags `extends TaggedError("X")` class factories, default-param-last
     // (6) flags callbacks whose positions an interface fixes, prefer-catch (5)
@@ -434,10 +433,6 @@ const config: OxlintConfig = defineConfig({
       rules: {
         "vitest/no-focused-tests": "error",
         "vitest/no-disabled-tests": "error",
-        // Tests await in `expect(...).rejects` and fire promises on purpose
-        // (14 and 2 findings when measured).
-        "typescript/no-floating-promises": "off",
-        "typescript/no-misused-promises": "off",
         // Plain `vi.fn()` spies stand in for callbacks of any shape; 753
         // findings when measured.
         "vitest/require-mock-type-parameters": "off",
@@ -479,50 +474,40 @@ const config: OxlintConfig = defineConfig({
         // Ultracite's matcher and layout preferences differ from how the suites
         // assert (`toEqual`, `.rejects`, several expects per case); each is a
         // codemod across the tests. Backlog in docs/decisions/0002.
-        // Findings when measured: prefer-strict-equal 5,723,
+        // Findings when measured: prefer-strict-equal 6,576,
         // prefer-expect-resolves 4,241, max-expects 4,068, prefer-to-be-truthy
-        // 946, prefer-describe-function-title 766, prefer-to-be-falsy 734,
-        // prefer-called-once 155, padding-around-after-all-blocks 122,
-        // require-top-level-describe 71, prefer-import-in-mock 56,
-        // consistent-test-it 25, prefer-to-be 25, prefer-called-with 24,
-        // prefer-to-have-length 23, prefer-expect-type-of 21,
-        // prefer-mock-return-shorthand 19, padding-around-test-blocks 11,
-        // consistent-test-filename 7, prefer-importing-vitest-globals 7,
-        // prefer-mock-promise-shorthand 5, prefer-hooks-in-order 4, prefer-each
-        // 3, prefer-comparison-matcher 2, prefer-to-contain 2.
+        // 946, prefer-describe-function-title 892, prefer-to-be-falsy 734,
+        // require-top-level-describe 88, prefer-expect-type-of 25,
+        // consistent-test-filename 16. The autofixes of
+        // prefer-describe-function-title and prefer-expect-type-of move a
+        // method reference into `describe()` or `expect()`, which
+        // typescript/unbound-method then rejects.
         "vitest/prefer-strict-equal": "off",
         "vitest/prefer-expect-resolves": "off",
         "vitest/max-expects": "off",
         "vitest/prefer-to-be-truthy": "off",
         "vitest/prefer-describe-function-title": "off",
         "vitest/prefer-to-be-falsy": "off",
-        "vitest/prefer-called-once": "off",
-        "vitest/padding-around-after-all-blocks": "off",
         "vitest/require-top-level-describe": "off",
-        "vitest/prefer-import-in-mock": "off",
-        "vitest/consistent-test-it": "off",
-        "vitest/prefer-to-be": "off",
-        "vitest/prefer-called-with": "off",
-        "vitest/prefer-to-have-length": "off",
         "vitest/prefer-expect-type-of": "off",
-        "vitest/prefer-mock-return-shorthand": "off",
-        "vitest/padding-around-test-blocks": "off",
         "vitest/consistent-test-filename": "off",
-        "vitest/prefer-importing-vitest-globals": "off",
-        "vitest/prefer-mock-promise-shorthand": "off",
-        "vitest/prefer-hooks-in-order": "off",
-        "vitest/prefer-each": "off",
+        // Its 3 findings compare base-62 rank keys, which are strings, and
+        // `toBeLessThan` takes only numbers.
         "vitest/prefer-comparison-matcher": "off",
-        "vitest/prefer-to-contain": "off",
       },
     },
     {
       files: ["**/e2e/**/*.spec.ts"],
+      // An override only sets rules of the plugins it lists.
+      plugins: ["vitest"],
       jsPlugins: [
         { name: "playwright", specifier: plugin("eslint-plugin-playwright") },
       ],
       rules: {
         ...playwrightRules,
+        // `test` and `expect` come from @playwright/test here, not Vitest.
+        "vitest/prefer-importing-vitest-globals": "off",
+        // `test` and `expect` come from @playwright/test here, not Vitest.
         "playwright/expect-expect": [
           "error",
           { assertFunctionNames: ["expectInstant"] },
@@ -531,6 +516,8 @@ const config: OxlintConfig = defineConfig({
         // like the Vitest suites; 2 findings each when measured.
         "playwright/no-conditional-in-test": "off",
         "playwright/no-conditional-expect": "off",
+        // Playwright has no `test.each`; a loop is how it parametrises.
+        "vitest/prefer-each": "off",
       },
     },
     {

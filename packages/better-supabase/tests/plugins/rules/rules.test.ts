@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { RuleViolation } from "../../../src/plugins/rules/index.ts";
+
 import { defineSupabase } from "../../../src/core/define.ts";
 import { definePlugin, orderPlugins } from "../../../src/core/plugin.ts";
 import {
   recommended,
   rules,
-  type RuleViolation,
   safe,
   strict,
 } from "../../../src/plugins/rules/index.ts";
@@ -104,9 +105,7 @@ describe("rules()", () => {
     const claims = db.$with({ claims: { tenant_id: "org-1" } });
     expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
 
-    const service = db.$with({
-      actor: { id: "service", kind: "service" },
-    });
+    const service = db.$with({ actor: { id: "service", kind: "service" } });
 
     expect((await service.customers.findMany({ limit: 1 })).error).toBeNull();
   });
@@ -119,9 +118,7 @@ describe("rules()", () => {
 
     const db = defineSupabase(schema)
       .use(plugin)
-      .connect(client, {
-        actor: { id: "service", kind: "service" },
-      });
+      .connect(client, { actor: { id: "service", kind: "service" } });
 
     const result = await db.tags.findMany({ limit: 1 });
     expect(result.error?.message).toContain("noAdminInBrowser");

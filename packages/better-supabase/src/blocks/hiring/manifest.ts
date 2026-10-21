@@ -11,9 +11,7 @@ export const hiringBlock: BlockOf<"hiring", typeof createHiring, HiringEvents> =
   defineBlock({
     name: "hiring",
     sql: ["hiring"],
-    options: {
-      hiring: hiringSqlOptions,
-    },
+    options: { hiring: hiringSqlOptions },
     events: hiringEvents,
     create: createHiring,
     category: "people",

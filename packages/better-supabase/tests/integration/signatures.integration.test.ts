@@ -28,9 +28,7 @@ const MODULES = [
 ];
 
 const layoutFor = (signer: string): ModuleLayout => ({
-  subjects: {
-    contract: { table: "signatures_it.contracts", idType: "uuid" },
-  },
+  subjects: { contract: { table: "signatures_it.contracts", idType: "uuid" } },
   modules: {
     versions: { options: { subjects: { contract: { columns: ["body"] } } } },
     approvals: {
@@ -48,6 +46,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("signatures", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("signs a frozen version in order, decides the approval step and detects edits", async () => {

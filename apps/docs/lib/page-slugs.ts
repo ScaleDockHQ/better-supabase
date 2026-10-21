@@ -2,9 +2,9 @@ const CONTENT_FILE = /^(.+)\.mdx?$/u;
 const GROUP = /^\(.+\)$/u;
 
 /**
- * The slug of a file under `content/docs`, by the Fumadocs rules: no
- * extension, no `(group)` folders and no trailing `index`. `undefined` for
- * files that are not pages, such as `meta.json`.
+ * The slug of a file under `content/docs`, by the Fumadocs rules: no extension,
+ * no `(group)` folders and no trailing `index`. `undefined` for files that are
+ * not pages, such as `meta.json`.
  */
 export function pageSlug(file: string): string | undefined {
   const path = CONTENT_FILE.exec(file.replaceAll("\\", "/"))?.[1];

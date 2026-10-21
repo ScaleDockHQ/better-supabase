@@ -24,7 +24,10 @@ import type { CredentialRow } from "../builder-queries";
 
 import { createCredential, revokeCredential } from "../builder-actions";
 
-/** The organization's Slack credentials: the token goes to Vault, the row keeps a reference. */
+/**
+ * The organization's Slack credentials: the token goes to Vault, the row keeps
+ * a reference.
+ */
 export function CredentialSheet({
   credentials,
 }: {

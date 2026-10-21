@@ -78,7 +78,10 @@ function membershipNames(ctx: ModuleContext): Names {
   };
 }
 
-/** Whether membership row `m` grants catalog permission row `p`: deny beats grant beats the role default. */
+/**
+ * Whether membership row `m` grants catalog permission row `p`: deny beats
+ * grant beats the role default.
+ */
 function catalogEffective(ctx: ModuleContext, n: Names): string {
   const rp = ctx.table("rolePermissions");
   const fallback = `exists (select 1 from ${rp} rp where rp.${ctx.col("rolePermissions", "role")} = m.${n.role} and rp.${ctx.col("rolePermissions", "permission")} = p.${ctx.col("permissions", "id")})`;
@@ -304,7 +307,10 @@ ${addForeignKey({
 })}`;
 }
 
-/** `member_can`, `member_permissions` and `platform_can` for the roles and catalog models. */
+/**
+ * `member_can`, `member_permissions` and `platform_can` for the roles and
+ * catalog models.
+ */
 function membershipFunctions(ctx: ModuleContext): string {
   const id = ctx.idType;
   const n = membershipNames(ctx);
@@ -511,9 +517,9 @@ grant execute on function better_supabase.platform_can_assign(uuid, text) to ser
 }
 
 /**
- * The authorization provider behind the `provider` model, which `sql add`
- * reads from the config's `authorization`. Never a default, so a project
- * without one never gets functions that call functions that don't exist.
+ * The authorization provider behind the `provider` model, which `sql add` reads
+ * from the config's `authorization`. Never a default, so a project without one
+ * never gets functions that call functions that don't exist.
  */
 function providerOf(
   ctx: ModuleContext,
@@ -576,7 +582,10 @@ function providerCanAssign(ctx: ModuleContext, layout: ModuleLayout): string {
   return "false";
 }
 
-/** `member_permissions` and `permission_claims` from the provider's `permissionsFor`. */
+/**
+ * `member_permissions` and `permission_claims` from the provider's
+ * `permissionsFor`.
+ */
 function providerPermissions(
   ctx: ModuleContext,
   provider: ModuleAccessProvider,
@@ -657,9 +666,9 @@ export function providerForUser(layout: ModuleLayout): {
 
 /**
  * The body of `can_assign_as(member, tenant, role)` under the provider and
- * custom models: `blocks.access.functions.canAssignFor`, else the
- * provider's `canAssignFor`. Undefined when there is none, so nothing can
- * check a stored user's authority.
+ * custom models: `blocks.access.functions.canAssignFor`, else the provider's
+ * `canAssignFor`. Undefined when there is none, so nothing can check a stored
+ * user's authority.
  */
 function assignAsCheck(
   ctx: ModuleContext,
@@ -1138,11 +1147,7 @@ export const ACCESS: ModuleDefinition = {
       returns: "boolean",
     },
     { name: "can_assign", args: ["{id}", "text"], returns: "boolean" },
-    {
-      name: "member_can",
-      args: ["uuid", "{id}", "text"],
-      returns: "boolean",
-    },
+    { name: "member_can", args: ["uuid", "{id}", "text"], returns: "boolean" },
     {
       name: "can_assign_as",
       args: ["uuid", "{id}", "text"],

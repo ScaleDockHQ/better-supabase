@@ -1,7 +1,7 @@
 /**
- * schema.org graphs for the JSON-LD on each page. They take every URL and
- * value as an argument, so they stay pure and the tests need no env.
- * `JSON.stringify` drops the properties that are `undefined`.
+ * Schema.org graphs for the JSON-LD on each page. They take every URL and value
+ * as an argument, so they stay pure and the tests need no env. `JSON.stringify`
+ * drops the properties that are `undefined`.
  */
 
 export interface Crumb {

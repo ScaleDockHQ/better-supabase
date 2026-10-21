@@ -1,13 +1,13 @@
 export interface CsvOptions {
   /**
-   * The columns in order. Defaults to every key of the rows, in the order
-   * they first appear.
+   * The columns in order. Defaults to every key of the rows, in the order they
+   * first appear.
    */
   readonly columns?: readonly string[];
   /**
    * Prefixes a text cell that starts with `=`, `+`, `-`, `@`, a tab or a
-   * carriage return with `'`, so a spreadsheet shows it instead of running
-   * it as a formula (CSV injection). Default true.
+   * carriage return with `'`, so a spreadsheet shows it instead of running it
+   * as a formula (CSV injection). Default true.
    */
   readonly escapeFormulas?: boolean;
 }
@@ -72,8 +72,8 @@ export function toCsv(
 }
 
 /**
- * Parses RFC 4180 CSV into rows of fields. A quoted field may contain
- * commas, CRLF and `""` for one quote. A trailing newline does not add a row.
+ * Parses RFC 4180 CSV into rows of fields. A quoted field may contain commas,
+ * CRLF and `""` for one quote. A trailing newline does not add a row.
  */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];

@@ -41,6 +41,7 @@ interface Node {
 
 describe.skipIf(!live)("drive", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("inherits grants down the tree and checks them on every write", async () => {

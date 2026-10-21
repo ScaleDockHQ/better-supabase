@@ -7,7 +7,10 @@ import type {
 
 import { loadSupabaseMcp } from "../../core/supabase-mcp.ts";
 
-/** Input and output schemas by tool name, as `MCPClient.tools({ schemas })` takes them. */
+/**
+ * Input and output schemas by tool name, as `MCPClient.tools({ schemas })`
+ * takes them.
+ */
 export type McpToolSchemas = Exclude<
   NonNullable<Parameters<MCPClient["toolsFromDefinitions"]>[1]>["schemas"],
   "automatic" | undefined
@@ -18,18 +21,21 @@ export const SUPABASE_MCP_URL = "https://mcp.supabase.com/mcp";
 
 export interface SupabaseMcpOptions extends SupabaseMcpScope {
   /**
-   * The server URL. Defaults to `SUPABASE_MCP_URL`; the local stack serves
-   * it at `http://localhost:54321/mcp`.
+   * The server URL. Defaults to `SUPABASE_MCP_URL`; the local stack serves it
+   * at `http://localhost:54321/mcp`.
    */
   readonly url?: string;
 }
 
 export interface SupabaseMcp {
-  /** The server URL with the scope as query parameters, for a connector server's `url`. */
+  /**
+   * The server URL with the scope as query parameters, for a connector server's
+   * `url`.
+   */
   readonly url: string;
   /**
-   * For `connectTools`: types each tool's input and output, and keeps only
-   * the tools the scope allows.
+   * For `connectTools`: types each tool's input and output, and keeps only the
+   * tools the scope allows.
    */
   readonly schemas: McpToolSchemas;
 }

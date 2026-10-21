@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AiFiles } from "../../src/blocks/ai-files/index.ts";
 import type { BlockContext, Notifier } from "../../src/blocks/index.ts";
+import type { OrganizationsEvents } from "../../src/blocks/organizations/index.ts";
 import type { CloudEvent } from "../../src/events/index.ts";
 
 import { auditBlock } from "../../src/blocks/audit/index.ts";
@@ -16,10 +17,7 @@ import {
 } from "../../src/blocks/index.ts";
 import { rateLimitBlock } from "../../src/blocks/jobs/index.ts";
 import { metricsBlock } from "../../src/blocks/metrics/index.ts";
-import {
-  organizationsBlock,
-  type OrganizationsEvents,
-} from "../../src/blocks/organizations/index.ts";
+import { organizationsBlock } from "../../src/blocks/organizations/index.ts";
 import { remindersBlock } from "../../src/blocks/reminders/index.ts";
 import { searchSink } from "../../src/blocks/search/index.ts";
 import { tenantBlock } from "../../src/blocks/tenant/manifest.ts";
@@ -30,9 +28,7 @@ import { AsyncResult } from "../../src/core/result.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
 
 const transport = rpcTransport({
-  schema: () => ({
-    rpc: () => Promise.resolve({ data: null, error: null }),
-  }),
+  schema: () => ({ rpc: () => Promise.resolve({ data: null, error: null }) }),
 });
 
 const fakeFiles = {} as AiFiles;
@@ -112,7 +108,7 @@ describe("createBlocks sinks", () => {
 
     const rollup = vi
       .spyOn(blocks.metrics, "rollup")
-      .mockImplementation(() => AsyncResult.ok(1));
+      .mockReturnValue(AsyncResult.ok(1));
 
     await blocks.sinks.metrics?.send([cloudEvent("time_entry.recorded", {})]);
     expect(rollup.mock.calls[0]?.[0]).toMatchObject({ metric: "time_tracked" });
@@ -162,8 +158,8 @@ describe("createBlocks hooks", () => {
     );
     const port = seen[0]?.["notifier"] as Notifier;
     await port.send("x", { recipients: [], tenant: "o", key: "k", data: {} });
-    expect(before).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(before).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledOnce();
   });
 });
 

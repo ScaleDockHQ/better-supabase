@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { ScimSqlNames } from "./sso-scim-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import { accessModel, moduleOperations, roleNames } from "./access-model.ts";
 import { roleValue } from "./organizations-roles.ts";
 import {
   SCIM_SYNC_LOG_CONTRACT,
-  type ScimSqlNames,
   scimSql,
   scimSyncLogSql,
 } from "./sso-scim-sql.ts";

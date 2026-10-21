@@ -22,10 +22,7 @@ const EVENTS: ModuleEvents<OAuthServerEvents> = {
     subject: "oauth-clients",
     payload: ["clientId"],
   },
-  "oauth_client.deleted": {
-    subject: "oauth-clients",
-    payload: ["clientId"],
-  },
+  "oauth_client.deleted": { subject: "oauth-clients", payload: ["clientId"] },
   "oauth_grant.created": {
     subject: "oauth-grants",
     payload: ["grantId", "userId", "clientId"],

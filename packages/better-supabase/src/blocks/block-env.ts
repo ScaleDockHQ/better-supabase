@@ -7,14 +7,20 @@ import type { AuthPort } from "./controller.ts";
 
 import { topicPort } from "../realtime/watch-topic.ts";
 
-/** What the block bindings hand their controllers: the provider's client, session and ports. */
+/**
+ * What the block bindings hand their controllers: the provider's client,
+ * session and ports.
+ */
 export interface BlockEnv {
   readonly supabase: SupabaseClient;
   readonly auth: AuthPort;
   readonly ports: ClientPorts & { readonly topic: TopicPort };
 }
 
-/** The client's session and ports; the topic port defaults to its supabase-js client. */
+/**
+ * The client's session and ports; the topic port defaults to its supabase-js
+ * client.
+ */
 export function blockEnv(
   client: Pick<ClientLike, "supabase" | "auth" | "ports">,
 ): BlockEnv {
@@ -31,8 +37,8 @@ export function blockEnv(
 type EnvKey = "auth" | "ports";
 
 /**
- * A controller's options as a binding takes them: `auth` and `ports` come
- * from the provider unless the caller passes its own.
+ * A controller's options as a binding takes them: `auth` and `ports` come from
+ * the provider unless the caller passes its own.
  */
 export type BlockOptions<O> = Omit<O, EnvKey> &
   Partial<Pick<O, Extract<keyof O, EnvKey>>>;

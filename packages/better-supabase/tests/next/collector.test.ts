@@ -35,7 +35,7 @@ describe("StatsCollector", () => {
     recorder.begin("customers")();
     recorder.begin("notes")();
     vi.advanceTimersByTime(300);
-    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledOnce();
     expect(log.warn.mock.calls[0]![0]).toMatch(
       /request r1 made 2 database calls in 2 waves, over the budget of 2 calls and 1 waves/,
     );
@@ -83,7 +83,7 @@ describe("sharedCollector", () => {
     quietRecorder.begin("customers")();
     quietRecorder.begin("notes")();
     vi.advanceTimersByTime(300);
-    expect(strictLog.warn).toHaveBeenCalledTimes(1);
+    expect(strictLog.warn).toHaveBeenCalledOnce();
     expect(quietLog.warn).not.toHaveBeenCalled();
     expect(strict.get("shared-quiet")).toMatchObject({ calls: 2 });
   });

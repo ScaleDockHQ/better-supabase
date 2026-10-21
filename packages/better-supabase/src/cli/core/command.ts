@@ -1,12 +1,12 @@
-import {
-  type ArgsDef,
-  type CommandDef,
-  type CommandMeta,
-  defineCommand,
-  type ParsedArgs,
-  parseArgs,
-  type SubCommandsDef,
+import type {
+  ArgsDef,
+  CommandDef,
+  CommandMeta,
+  ParsedArgs,
+  SubCommandsDef,
 } from "citty";
+
+import { defineCommand, parseArgs } from "citty";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
@@ -33,7 +33,10 @@ export interface CliContext {
   readonly signal: AbortSignal | undefined;
   /** Messages and progress on stderr. */
   readonly log: CliLog;
-  /** Colors text for stdout, or leaves it plain under `--no-color` and in a pipe. */
+  /**
+   * Colors text for stdout, or leaves it plain under `--no-color` and in a
+   * pipe.
+   */
   readonly paint: Paint;
   /**
    * Prints one result now, for a command that runs until stopped: the text
@@ -43,19 +46,15 @@ export interface CliContext {
   /** The coding agent running the CLI, in agent mode; `undefined` for a person. */
   readonly agent: string | undefined;
   /**
-   * In agent mode, throws `consent_required` until the run passes
-   * `--confirm` with this request's token; does nothing for a person.
+   * In agent mode, throws `consent_required` until the run passes `--confirm`
+   * with this request's token; does nothing for a person.
    */
   readonly requireConsent: (request: ConsentRequest) => void;
 }
 
 /** Options every command accepts; `run()` reads them before the command starts. */
 export const GLOBAL_ARGS = {
-  cwd: {
-    type: "string",
-    description: "Project directory",
-    valueHint: "dir",
-  },
+  cwd: { type: "string", description: "Project directory", valueHint: "dir" },
   config: {
     type: "string",
     description: "Config file, relative to --cwd",
@@ -105,16 +104,25 @@ export const GLOBAL_ARGS = {
 
 export type CliArgs<T extends ArgsDef> = ParsedArgs<T & typeof GLOBAL_ARGS>;
 
-/** What a runner reads from a command's flags: any subset of them, so another command's runner can call it without parsing argv. */
+/**
+ * What a runner reads from a command's flags: any subset of them, so another
+ * command's runner can call it without parsing argv.
+ */
 export type CliOptions<T extends ArgsDef> = {
   readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliArgs<T>[K];
 } & { readonly _?: readonly string[] };
 
-/** The values a shell offers for one argument, for names it can't know from the arg definition. */
+/**
+ * The values a shell offers for one argument, for names it can't know from the
+ * arg definition.
+ */
 export type CompletionValues = () => readonly string[];
 
 export interface CliCommandDef<T extends ArgsDef> {
-  /** The command contract; a breaking change to `CliContext` or `CommandResult` ships a new one. */
+  /**
+   * The command contract; a breaking change to `CliContext` or `CommandResult`
+   * ships a new one.
+   */
   readonly apiVersion?: 1;
   readonly meta: CommandMeta & { readonly name: string };
   readonly args: T;
@@ -185,7 +193,10 @@ export function listArgs<T extends ArgsDef>(
   return LISTS.get(command) ?? [];
 }
 
-/** The completion values a command declared through `defineCliCommand`, by argument. */
+/**
+ * The completion values a command declared through `defineCliCommand`, by
+ * argument.
+ */
 export function completionValues<T extends ArgsDef>(
   command: CommandDef<T>,
 ): Readonly<Partial<Record<string, CompletionValues>>> {

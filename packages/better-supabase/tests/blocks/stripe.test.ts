@@ -2,11 +2,9 @@ import type Stripe from "stripe";
 
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import {
-  lazyStripe,
-  type StripeClient,
-  stripeClient,
-} from "../../src/blocks/stripe.ts";
+import type { StripeClient } from "../../src/blocks/stripe.ts";
+
+import { lazyStripe, stripeClient } from "../../src/blocks/stripe.ts";
 
 const client = { customers: {} } as unknown as StripeClient;
 

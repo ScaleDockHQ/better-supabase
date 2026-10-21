@@ -4,8 +4,13 @@ import { isRecord } from "../guards.ts";
 import { appliesTo, escape } from "./rls.ts";
 import { catalogOf, tableObject } from "./shared.ts";
 
-/** The attachments subjects as the block resolves them, with the per-subject keys each one has. */
-function attachmentSubjects(context: DoctorContext): {
+/**
+ * The attachments subjects as the block resolves them, with the per-subject
+ * keys each one has.
+ */
+function attachmentSubjects(
+  context: DoctorContext,
+): {
   readonly type: string;
   readonly table: string;
   readonly tenant: string;
@@ -155,7 +160,10 @@ function closingParen(text: string): number {
   return -1;
 }
 
-/** Tenant membership alone lets the caller through: the whole check, or one `or` branch of it. */
+/**
+ * Tenant membership alone lets the caller through: the whole check, or one `or`
+ * branch of it.
+ */
 function tenantSuffices(
   expression: string,
   column: string,

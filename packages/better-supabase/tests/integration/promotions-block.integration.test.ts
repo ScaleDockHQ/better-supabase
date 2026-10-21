@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { createOrders } from "../../src/blocks/orders/index.ts";
 import {
@@ -9,12 +10,7 @@ import {
   sqlTransport,
 } from "../../src/blocks/promotions/index.ts";
 import { money } from "../../src/commerce/index.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -26,7 +22,10 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
   let tenant: string;
   let tee: string;
 
-  /** Runs each call in a savepoint, as `role`, so a raised error doesn't end the test's transaction. */
+  /**
+   * Runs each call in a savepoint, as `role`, so a raised error doesn't end the
+   * test's transaction.
+   */
   const transport = (role: () => Promise<void>): BlockTransport => {
     const inner = sqlTransport(session.sql);
 

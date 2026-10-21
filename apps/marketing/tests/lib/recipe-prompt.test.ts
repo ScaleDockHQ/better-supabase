@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { getBlock } from "../../lib/blocks";
 import { parsePlatform } from "../../lib/recipe-platform";
@@ -19,7 +19,7 @@ const cases = availableRecipes.flatMap((recipe) =>
 );
 
 describe("recipePrompt", () => {
-  test.each(cases)(
+  it.each(cases)(
     "%s on %s names the goal, the blocks and the hook",
     (_slug, platform, recipe) => {
       const prompt = recipePrompt(recipe, platform, SITE);
@@ -40,7 +40,7 @@ describe("recipePrompt", () => {
     },
   );
 
-  test.each(
+  it.each(
     cases.filter(
       ([, platform, recipe]) => recipeSide(recipe, platform).glue.length > 0,
     ),
@@ -50,7 +50,7 @@ describe("recipePrompt", () => {
     );
   });
 
-  test.each(
+  it.each(
     availableRecipes.flatMap((recipe) =>
       recipe.native
         ? [[recipe.slug, { ...recipe, native: recipe.native }] as const]
@@ -72,7 +72,7 @@ describe("recipePrompt", () => {
     },
   );
 
-  test.each(cases)(
+  it.each(cases)(
     "%s on %s links the mirror and the block docs",
     (_slug, platform, recipe) => {
       const prompt = recipePrompt(recipe, platform, SITE);
@@ -83,7 +83,7 @@ describe("recipePrompt", () => {
     },
   );
 
-  test("the prompt has no em dashes", () => {
+  it("the prompt has no em dashes", () => {
     for (const [, platform, recipe] of cases) {
       expect(recipePrompt(recipe, platform, SITE)).not.toContain("\u2014");
     }
@@ -91,7 +91,7 @@ describe("recipePrompt", () => {
 });
 
 describe("parsePlatform", () => {
-  test("reads native and falls back to web", () => {
+  it("reads native and falls back to web", () => {
     expect(parsePlatform("native")).toBe("native");
     expect(parsePlatform("web")).toBe("web");
     expect(parsePlatform(null)).toBe("web");

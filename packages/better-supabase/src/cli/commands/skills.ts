@@ -6,18 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 
 import { byCodePoint } from "../compare.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import {
-  applyPlan,
-  type FilePlan,
-  PLAN_ARGS,
-  planResult,
-} from "../core/files.ts";
+import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 
 const SOURCE_ARG = {
@@ -90,7 +86,7 @@ async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
 
-  for (const entry of entries.sort((a, b) => byCodePoint(a.name, b.name))) {
+  for (const entry of entries.toSorted((a, b) => byCodePoint(a.name, b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
 
     if (entry.isDirectory()) {
@@ -129,7 +125,7 @@ export async function loadSkills(
     });
   }
 
-  return skills.sort((a, b) => byCodePoint(a.name, b.name));
+  return skills.toSorted((a, b) => byCodePoint(a.name, b.name));
 }
 
 async function listSkills(source: string | undefined): Promise<CommandResult> {

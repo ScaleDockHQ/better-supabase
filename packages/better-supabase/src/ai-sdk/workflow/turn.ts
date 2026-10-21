@@ -7,15 +7,15 @@ import type {
 } from "../../blocks/ai-chat/ai-chat.ts";
 import type { AiMessage } from "../../blocks/ai-chat/message.ts";
 import type { AiUsage, GatewayOptions } from "../gateway.ts";
+import type { ModelApproval, ModelSource } from "../model-messages.ts";
 
 import { usageOf } from "../gateway.ts";
-import {
-  fromModelMessages,
-  type ModelApproval,
-  type ModelSource,
-} from "../model-messages.ts";
+import { fromModelMessages } from "../model-messages.ts";
 
-/** What `durableChat` starts the turn's workflow with. Every field is serializable. */
+/**
+ * What `durableChat` starts the turn's workflow with. Every field is
+ * serializable.
+ */
 export interface DurableTurnInput {
   readonly chatId: string;
   readonly organizationId: string;
@@ -27,7 +27,10 @@ export interface DurableTurnInput {
   readonly parentId: string;
   /** The `ai_runs` row of the first segment, claimed before the start. */
   readonly runId: string;
-  /** The first segment's stream: the World stream namespace and the stream store id. */
+  /**
+   * The first segment's stream: the World stream namespace and the stream store
+   * id.
+   */
   readonly streamId: string;
   readonly messages: ModelMessage[];
   readonly providerOptions: { readonly gateway: GatewayOptions };
@@ -155,7 +158,10 @@ export type DurableStep = <K extends DurableStepName>(
   input: DurableStepInput<K>,
 ) => Promise<DurableStepOutput<K>>;
 
-/** A hook as `createHook` returns it: awaited once, or iterated for every payload. */
+/**
+ * A hook as `createHook` returns it: awaited once, or iterated for every
+ * payload.
+ */
 export type DurableHook<T> = PromiseLike<T> & AsyncIterable<T>;
 
 /** What `durableTurn` runs on; the workflow passes the Workflow SDK's functions. */
@@ -243,12 +249,12 @@ function sourcesOf(result: DurableAgentResult): ModelSource[] {
 
 /**
  * One durable answer, inside a `"use workflow"` function. Each pass of the
- * agent writes one segment: a World stream namespace, claimed in `ai_runs`.
- * The answer is saved after each pass under `input.messageId`. When the
- * agent asks for approvals, they go to `ai_tool_approvals`, the segment is
- * released and the turn waits on its hook (`durableTurnToken`) for as long
- * as the decisions take; it reads them back from the database rather than
- * from the hook payload. The stop hook (`durableStopToken`) aborts it.
+ * agent writes one segment: a World stream namespace, claimed in `ai_runs`. The
+ * answer is saved after each pass under `input.messageId`. When the agent asks
+ * for approvals, they go to `ai_tool_approvals`, the segment is released and
+ * the turn waits on its hook (`durableTurnToken`) for as long as the decisions
+ * take; it reads them back from the database rather than from the hook payload.
+ * The stop hook (`durableStopToken`) aborts it.
  */
 export async function durableTurn(
   input: DurableTurnInput,

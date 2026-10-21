@@ -27,13 +27,13 @@ export interface CalendarState
 }
 
 /**
- * The occurrences of some calendars in the visible range, typed for a
- * headless event calendar such as ReUI's Event Calendar.
+ * The occurrences of some calendars in the visible range, typed for a headless
+ * event calendar such as ReUI's Event Calendar.
  *
  * ```tsx
  * const [range, setRange] = useState({ start, end });
  * const calendar = useCalendar({ calendarIds: [id], range });
- * <EventCalendar events={calendar.events} onRangeChange={setRange} />
+ * <EventCalendar events={calendar.events} onRangeChange={setRange} />;
  * ```
  */
 export function useCalendar(options: UseCalendarOptions): CalendarState {

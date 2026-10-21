@@ -63,6 +63,7 @@ create table trash_it.labels (
 
 describe.skipIf(!live)("trash", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("trashes a subject with its children, restores, lists and purges", async () => {

@@ -4,15 +4,16 @@ import type { DbError } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 import type { Result } from "./result.ts";
 import type { OperationRunner } from "./runner.ts";
+import type { SearchInput } from "./search.ts";
 
 import { dbError } from "./errors.ts";
 import { AsyncResult, err, ok } from "./result.ts";
-import { vectorLiteral, type SearchInput } from "./search.ts";
+import { vectorLiteral } from "./search.ts";
 
 /**
  * `db.$search({ score: true })`: the ranked ids and scores from
- * `search_<table>_scores`, then those rows through the table (RLS and
- * `where` apply), best first, each with `$score`.
+ * `search_<table>_scores`, then those rows through the table (RLS and `where`
+ * apply), best first, each with `$score`.
  */
 async function scoredSearch(
   runner: OperationRunner,
@@ -69,11 +70,7 @@ async function scoredSearch(
       count: undefined,
       head: false,
       single: undefined,
-      source: {
-        schema: table.schema,
-        name: scoresTable.name,
-        args: fnArgs,
-      },
+      source: { schema: table.schema, name: scoresTable.name, args: fnArgs },
     },
     table,
     args.signal,
@@ -130,7 +127,10 @@ async function scoredSearch(
   );
 }
 
-/** `db.$search(table, args)`: nearest rows from the table's `search_<table>` function. */
+/**
+ * `db.$search(table, args)`: nearest rows from the table's `search_<table>`
+ * function.
+ */
 export function searchTable(
   runner: OperationRunner,
   base: Executor,

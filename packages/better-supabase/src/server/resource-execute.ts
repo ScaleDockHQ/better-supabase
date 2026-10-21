@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { Result } from "../core/result.ts";
 import type { ResourceActionSpec } from "../spec/resource.ts";
 import type {
   ActionArgs,
@@ -9,7 +10,7 @@ import type {
 } from "./resource-types.ts";
 
 import { dbError, isDbError } from "../core/errors.ts";
-import { err, ok, toDbError, type Result } from "../core/result.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 import { isResult } from "./respond.ts";
 
 export async function settled(value: unknown): Promise<Result<unknown>> {
@@ -29,7 +30,10 @@ function failure(cause: unknown, message: string): Result<never> {
   );
 }
 
-/** Runs a hook: its `Result` passes through, anything else is an `unexpected` error. */
+/**
+ * Runs a hook: its `Result` passes through, anything else is an `unexpected`
+ * error.
+ */
 export async function runHook(
   name: string,
   call: () => unknown,
@@ -71,7 +75,10 @@ export async function runHandler(
   }
 }
 
-/** Defines an action and types its handler's `data` and `query` from the schemas. */
+/**
+ * Defines an action and types its handler's `data` and `query` from the
+ * schemas.
+ */
 export function defineAction<
   DbT = unknown,
   Ref = string,

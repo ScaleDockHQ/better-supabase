@@ -1,7 +1,7 @@
 /**
- * What plugins add to `connect()` and `findMany` on an executor that answers
- * at once, with 0, 3 and 6 plugins installed.
- * Run with `pnpm --filter better-supabase bench`.
+ * What plugins add to `connect()` and `findMany` on an executor that answers at
+ * once, with 0, 3 and 6 plugins installed. Run with `pnpm --filter
+ * better-supabase bench`.
  */
 import type { Executor } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
@@ -61,13 +61,13 @@ const SETS: Readonly<Record<string, readonly AnyPlugin[]>> = {
 const context = { claims: { sub: "u1", org_id: ORG }, tenant: ORG };
 
 async function measure(work: () => PromiseLike<unknown>): Promise<number> {
-  for (let warm = 0; warm < 2000; warm++) {
+  for (let warm = 0; warm < 2000; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     await work();
   }
 

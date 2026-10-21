@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   ExtrasHookFunction,
   Snapshot,
@@ -11,11 +12,7 @@ import {
   hookGrantBlock,
   hookGrantProblems,
 } from "../../../src/cli/doctor/hooks.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
@@ -182,9 +179,7 @@ describe("BS308 tenant claim", () => {
   });
 
   const tenantConfig = resolveConfig(
-    {
-      blocks: { tenant: {}, access: { activeTenant: "claim" } },
-    },
+    { blocks: { tenant: {}, access: { activeTenant: "claim" } } },
     "/project",
   );
 
@@ -224,9 +219,7 @@ describe("BS308 tenant claim", () => {
 
   it("skips other active-tenant sources, missing users, failures and runs without --as", async () => {
     const resolver = resolveConfig(
-      {
-        blocks: { tenant: {}, access: { activeTenant: "resolver" } },
-      },
+      { blocks: { tenant: {}, access: { activeTenant: "resolver" } } },
       "/project",
     );
 

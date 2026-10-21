@@ -119,7 +119,7 @@ describe("createChatInstallations", () => {
     });
 
     expect(await installations.uninstall("slack", "T1").orThrow()).toBe(true);
-    expect(credentials.revoke).toHaveBeenCalledTimes(1);
+    expect(credentials.revoke).toHaveBeenCalledOnce();
     const none = setup({ chat_uninstall: null });
     expect(await none.installations.uninstall("slack", "T1").orThrow()).toBe(
       false,

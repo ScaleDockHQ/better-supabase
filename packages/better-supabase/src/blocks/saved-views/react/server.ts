@@ -10,7 +10,10 @@ export type {
   UseSavedViewsOptions,
 } from "./index.ts";
 
-/** The `react-server` build of `useSavedViews`: call `savedViews.list()` instead. */
+/**
+ * The `react-server` build of `useSavedViews`: call `savedViews.list()`
+ * instead.
+ */
 export const useSavedViews: <V extends SavedViewLike>(
   options: UseSavedViewsOptions<V>,
 ) => SavedViewsState<V> = () => {

@@ -2,17 +2,20 @@ import type { IntegrationName } from "../config/types/tooling.ts";
 
 import { INTEGRATION_INFO, INTEGRATION_NAMES } from "../config/names.ts";
 
-/** How `/create` and `init` show one value: its label and, where the label is not enough, a hint. */
+/**
+ * How `/create` and `init` show one value: its label and, where the label is
+ * not enough, a hint.
+ */
 export interface PresetValueInfo {
   readonly label: string;
   readonly hint?: string;
 }
 
 /**
- * One convention a preset sets. `values` and the field list are append-only:
- * a code stores each value's index in `bits` bits, so a value keeps its
- * index forever and a new value fits only while `values` stays within
- * `bits`. A `multi` field stores one bit per value.
+ * One convention a preset sets. `values` and the field list are append-only: a
+ * code stores each value's index in `bits` bits, so a value keeps its index
+ * forever and a new value fits only while `values` stays within `bits`. A
+ * `multi` field stores one bit per value.
  */
 export interface PresetCodeField<
   K extends string = string,
@@ -23,7 +26,10 @@ export interface PresetCodeField<
   readonly default: V | readonly V[];
   readonly bits: number;
   readonly multi?: true;
-  /** The code version that added the field; older codes decode it as its default. */
+  /**
+   * The code version that added the field; older codes decode it as its
+   * default.
+   */
   readonly since: number;
 }
 
@@ -98,8 +104,8 @@ export const PRESET_FRAMEWORKS = [
 export type PresetFramework = (typeof PRESET_FRAMEWORKS)[number];
 
 /**
- * The convention fields, in code order. Append new fields at the end with
- * the next `since`, and never remove or reorder one.
+ * The convention fields, in code order. Append new fields at the end with the
+ * next `since`, and never remove or reorder one.
  */
 export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
   field({
@@ -289,9 +295,8 @@ export function presetValueLabel(
 }
 
 /**
- * The integrations `init --preset` adds for a framework whatever the
- * selection says: the framework's own one, when it has one, then what that
- * one requires.
+ * The integrations `init --preset` adds for a framework whatever the selection
+ * says: the framework's own one, when it has one, then what that one requires.
  */
 export function integrationsForFramework(
   framework: PresetFramework,
@@ -309,7 +314,10 @@ export type PresetAccess = PresetConventions["access"];
 
 /** A block selection and its conventions: what a preset code encodes. */
 export interface Preset extends PresetConventions {
-  /** Block names (`blocks` keys in the config), as selected; `resolvePreset` adds what they require. */
+  /**
+   * Block names (`blocks` keys in the config), as selected; `resolvePreset`
+   * adds what they require.
+   */
   readonly blocks: readonly string[];
 }
 

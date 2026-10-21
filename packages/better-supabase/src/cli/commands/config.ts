@@ -6,7 +6,10 @@ import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { redact, redactUrl } from "../core/redact.ts";
 
-/** The resolved config as JSON: generators by name and version, every credential redacted. */
+/**
+ * The resolved config as JSON: generators by name and version, every credential
+ * redacted.
+ */
 export function printableConfig(config: ResolvedConfig): unknown {
   return redact({
     ...config,

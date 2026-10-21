@@ -39,7 +39,10 @@ export interface NextOptions extends ServerOptions {
   readonly server?: SharedServer;
   /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
   readonly cacheTags?: boolean;
-  /** Include internal error messages in Problem Details. Defaults to development only. */
+  /**
+   * Include internal error messages in Problem Details. Defaults to development
+   * only.
+   */
   readonly exposeErrors?: boolean;
   /** Per-request database call counts. See the Budget docs. */
   readonly debug?: NextDebugOptions;
@@ -48,7 +51,10 @@ export interface NextOptions extends ServerOptions {
 export interface NextDebugOptions {
   /** Collect outside development too, e.g. for e2e runs against `next start`. */
   readonly enabled?: boolean;
-  /** Header with `calls;waves;ms` on route handler responses. Defaults to `x-bs-db-calls`. */
+  /**
+   * Header with `calls;waves;ms` on route handler responses. Defaults to
+   * `x-bs-db-calls`.
+   */
   readonly header?: string;
   /** Warns in development when one render goes over it. */
   readonly budget?: DbBudget;
@@ -59,30 +65,33 @@ export interface NextDebugOptions {
 export interface ProxyOptions<C = unknown, P = unknown> {
   /**
    * Another middleware to compose with, such as next-intl's. It runs on the
-   * original request, alongside auth; its rewrite, redirect or request
-   * headers are kept, and refreshed cookies are merged into its response.
+   * original request, alongside auth; its rewrite, redirect or request headers
+   * are kept, and refreshed cookies are merged into its response.
    */
   readonly before?: (
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
-  /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
+  /**
+   * Answer before rendering, e.g. redirect signed-out users. Refreshed cookies
+   * are kept.
+   */
   readonly protect?: (
     auth: AuthState<C, P>,
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
   /**
    * A prefetch never refreshes, so a session cookie whose token expired
-   * resolves to `{ kind: 'anon', reason: 'expired' }` there. `'protect'`
-   * (the default) passes that to `protect` like any other caller.
-   * `'render'` skips `protect` for it, so the prefetch renders signed out
-   * instead of caching a redirect to sign-in; `sessionStale` keeps that view
-   * out of the App Shell, and the navigation itself refreshes the session.
+   * resolves to `{ kind: 'anon', reason: 'expired' }` there. `'protect'` (the
+   * default) passes that to `protect` like any other caller. `'render'` skips
+   * `protect` for it, so the prefetch renders signed out instead of caching a
+   * redirect to sign-in; `sessionStale` keeps that view out of the App Shell,
+   * and the navigation itself refreshes the session.
    */
   readonly expiredPrefetch?: "protect" | "render";
   /**
    * Methods that run `protect`. Defaults to `GET` and `HEAD`, so a Server
-   * Action POST is not redirected before the action runs. Set `true` to
-   * include mutations, or pass the methods yourself.
+   * Action POST is not redirected before the action runs. Set `true` to include
+   * mutations, or pass the methods yourself.
    */
   readonly protectMethods?: true | readonly string[];
   /** Post-processes the final response; return a new one to replace it. */
@@ -97,11 +106,10 @@ export interface ProxyOptions<C = unknown, P = unknown> {
   readonly serverTiming?: boolean;
   readonly endedSession?: true | EndedSessionOptions;
   /**
-   * Called when a refresh failed because the Auth server was unreachable,
-   * timed out or answered 5xx or 429. When the access token couldn't be
-   * kept (`event.kept` is false), a returned `Response` replaces the
-   * proxy's response, such as a 503 with `Retry-After`. A throw is logged
-   * and ignored.
+   * Called when a refresh failed because the Auth server was unreachable, timed
+   * out or answered 5xx or 429. When the access token couldn't be kept
+   * (`event.kept` is false), a returned `Response` replaces the proxy's
+   * response, such as a 503 with `Retry-After`. A throw is logged and ignored.
    */
   readonly onAuthOutage?: AuthOutageHook;
 }
@@ -109,11 +117,11 @@ export interface ProxyOptions<C = unknown, P = unknown> {
 export interface EndedSessionOptions {
   readonly paths?: readonly string[];
   readonly redirect?: string;
-  /** The `reason` query value on the redirect. Defaults to `session_ended` and `account_banned`. */
-  readonly reasons?: {
-    readonly ended?: string;
-    readonly banned?: string;
-  };
+  /**
+   * The `reason` query value on the redirect. Defaults to `session_ended` and
+   * `account_banned`.
+   */
+  readonly reasons?: { readonly ended?: string; readonly banned?: string };
 }
 
 export interface ActionOptions<
@@ -129,9 +137,9 @@ export interface ActionOptions<
   readonly input?: S;
   /**
    * The active tenant for the action's context, from the validated input,
-   * instead of `NextOptions.tenant`. It is checked the same way: the
-   * `tenant()` plugin and `current_tenant_id()` only honor a tenant the
-   * caller belongs to.
+   * instead of `NextOptions.tenant`. It is checked the same way: the `tenant()`
+   * plugin and `current_tenant_id()` only honor a tenant the caller belongs
+   * to.
    */
   readonly tenant?: (input: ActionParsed<S>) => string | undefined;
 }
@@ -167,9 +175,9 @@ export interface RequireOptions<
 export interface ScopeOptions {
   /**
    * The active tenant, e.g. from route params, instead of `NextOptions.tenant`
-   * (whose request has the incoming headers but no URL here). It goes where
-   * the resolver's result goes, so it gets the same checks: the `tenant()`
-   * plugin and `current_tenant_id()` only honor a tenant the caller belongs to.
+   * (whose request has the incoming headers but no URL here). It goes where the
+   * resolver's result goes, so it gets the same checks: the `tenant()` plugin
+   * and `current_tenant_id()` only honor a tenant the caller belongs to.
    */
   readonly tenant?: string;
 }
@@ -205,9 +213,9 @@ export interface BetterNext<
    */
   session(): Promise<AuthSession<C, P>>;
   /**
-   * The context for a session and its token, without reading the request.
-   * The token is verified again (memoized, no network call); a token for
-   * another user than `session` gives an `invalid` context.
+   * The context for a session and its token, without reading the request. The
+   * token is verified again (memoized, no network call); a token for another
+   * user than `session` gives an `invalid` context.
    */
   contextForSession(
     session: AuthSession<C, P>,
@@ -221,7 +229,7 @@ export interface BetterNext<
    *
    * ```ts
    * async function getCustomers() {
-   *   'use cache: private';
+   *   "use cache: private";
    *   const { db } = await bs.cached();
    *   return db.customers.findMany().orThrow();
    * }
@@ -231,12 +239,12 @@ export interface BetterNext<
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B>>;
   /**
-   * Drops every `bs.cached()` entry of a user, e.g. after a role change,
-   * and the entries tagged with `tags` (such as a permission snapshot's tag).
-   * In a Server Action it also re-renders the caller's page, so no
-   * `refresh()` is needed. It reaches server caches and the caller's router
-   * only: another user's browser keeps its `'use cache: private'` entries
-   * until they go stale or that user's token changes.
+   * Drops every `bs.cached()` entry of a user, e.g. after a role change, and
+   * the entries tagged with `tags` (such as a permission snapshot's tag). In a
+   * Server Action it also re-renders the caller's page, so no `refresh()` is
+   * needed. It reaches server caches and the caller's router only: another
+   * user's browser keeps its `'use cache: private'` entries until they go stale
+   * or that user's token changes.
    */
   invalidateSession(
     userId: string,
@@ -245,9 +253,9 @@ export interface BetterNext<
   /**
    * Counts on the server and returns a serializable seed for
    * `useLiveCount(seed)`, so the badge renders with a number and the client
-   * only refetches on changes. Pass `db` inside `'use cache: private'`
-   * (from `bs.cached()`); otherwise it uses `bs.context()`. A failed
-   * count gives `count: null` instead of throwing.
+   * only refetches on changes. Pass `db` inside `'use cache: private'` (from
+   * `bs.cached()`); otherwise it uses `bs.context()`. A failed count gives
+   * `count: null` instead of throwing.
    */
   liveCount<T extends Extract<keyof M, string>>(
     spec: QuerySpec<T, "count", number>,
@@ -270,8 +278,9 @@ export interface BetterNext<
    *
    * ```ts
    * export const invite = bs.action(
-   *   { input: Invite, requireTenant: true, roles: ['admin'] },
-   *   async (input, { db, tenant }) => db.invitations.create({ ...input, organizationId: tenant }),
+   *   { input: Invite, requireTenant: true, roles: ["admin"] },
+   *   async (input, { db, tenant }) =>
+   *     db.invitations.create({ ...input, organizationId: tenant }),
    * );
    * ```
    */
@@ -283,25 +292,28 @@ export interface BetterNext<
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /**
-   * For Server Components: the caller's context, or the Next.js interrupt
-   * for a refused caller. `unauthorized` calls `unauthorized()`, `forbidden`
-   * calls `forbidden()` (both need `experimental.authInterrupts`, else
-   * `notFound()`), and `not_found` calls `notFound()`.
+   * For Server Components: the caller's context, or the Next.js interrupt for a
+   * refused caller. `unauthorized` calls `unauthorized()`, `forbidden` calls
+   * `forbidden()` (both need `experimental.authInterrupts`, else `notFound()`),
+   * and `not_found` calls `notFound()`.
    *
    * ```ts
-   * const { db, tenant } = await bs.require({ requireTenant: true, roles: ['admin'] });
+   * const { db, tenant } = await bs.require({
+   *   requireTenant: true,
+   *   roles: ["admin"],
+   * });
    * ```
    */
   require<R extends boolean = false>(
     options?: RequireOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
   ): Promise<ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
-   * REST resources for a catch-all route, matching the API model:
-   * collections, items and actions, as the caller (RLS), behind the guard in
-   * `options`, with Problem Details errors. An unknown path answers 404
-   * before auth resolves.
+   * REST resources for a catch-all route, matching the API model: collections,
+   * items and actions, as the caller (RLS), behind the guard in `options`, with
+   * Problem Details errors. An unknown path answers 404 before auth resolves.
    *
-   * ```ts title="app/api/[...path]/route.ts"
+   * ```ts
+   * // app/api/[...path]/route.ts
    * export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(
    *   { customers: true },
    *   { basePath: "/api" },
@@ -322,9 +334,9 @@ export interface BetterNext<
     options?: TagOptions,
   ): void;
   /**
-   * Tags the current `"use cache"` scope with every table the specs (or a
-   * read set) read, plus the row of each `findById`, so any mutation that
-   * changes one revalidates it.
+   * Tags the current `"use cache"` scope with every table the specs (or a read
+   * set) read, plus the row of each `findById`, so any mutation that changes
+   * one revalidates it.
    */
   cacheTags(
     target:
@@ -339,14 +351,17 @@ export interface BetterNext<
    */
   debugRoute(): (request: Request) => Promise<Response>;
   /**
-   * Starts a support session for the signed-in admin and sets its cookie,
-   * so the admin's next requests render as the target. Call it from a
-   * server action.
+   * Starts a support session for the signed-in admin and sets its cookie, so
+   * the admin's next requests render as the target. Call it from a server
+   * action.
    */
   startSupport(
     request: SupportStartRequest,
   ): Promise<ActionResult<SupportStarted>>;
-  /** Ends the admin's support session and clears its cookie. Call it from a server action. */
+  /**
+   * Ends the admin's support session and clears its cookie. Call it from a
+   * server action.
+   */
   stopSupport(): Promise<ActionResult<{ readonly ended: boolean }>>;
 }
 
@@ -362,9 +377,9 @@ export interface SupportStarted {
 export interface SessionStaleOptions {
   /**
    * With fewer seconds left on the token, the view is not reused at all (0):
-   * Next.js would not prefetch it anyway. Defaults to 30, and values below
-   * 30 count as 30: the client router keeps any entry for at least 30
-   * seconds, so a shorter stale time would outlive the token.
+   * Next.js would not prefetch it anyway. Defaults to 30, and values below 30
+   * count as 30: the client router keeps any entry for at least 30 seconds, so
+   * a shorter stale time would outlive the token.
    */
   readonly min?: number;
   /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
@@ -380,15 +395,18 @@ export interface CachedOptions<T extends string = string> extends ScopeOptions {
   readonly tenant?: string;
   /**
    * `cacheLife` for the entry. `stale` is `sessionStale`, and never more than
-   * `stale` when it is set: pass a permission snapshot's lifetime so the
-   * entry goes stale with the snapshot too.
+   * `stale` when it is set: pass a permission snapshot's lifetime so the entry
+   * goes stale with the snapshot too.
    */
   readonly life?: SessionStaleOptions & {
     readonly stale?: number;
     readonly revalidate?: number;
     readonly expire?: number;
   };
-  /** More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
+  /**
+   * More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or
+   * `organization:<id>`.
+   */
   readonly tags?: readonly string[];
   /**
    * Tables the entry reads, so the `updateTag` after a mutation drops it:
@@ -409,31 +427,37 @@ export type CachedContext<
   B = unknown,
 > = ServerContext<M, F, E, C, P, B> & { readonly session: AuthSession<C, P> };
 
-/** The second argument of `revalidateTag`: a `cacheLife` profile name or `{ expire }`. */
+/**
+ * The second argument of `revalidateTag`: a `cacheLife` profile name or `{
+ * expire }`.
+ */
 export type RevalidateProfile = string | { readonly expire?: number };
 
 export interface NextCacheOptions {
   /**
-   * How a mutation outside a Server Action (a route handler, a webhook)
-   * expires its tags with `revalidateTag`. Defaults to `{ expire: 0 }`, so
-   * the next read waits for fresh data; `'max'` serves the stale entry
-   * while it revalidates.
+   * How a mutation outside a Server Action (a route handler, a webhook) expires
+   * its tags with `revalidateTag`. Defaults to `{ expire: 0 }`, so the next
+   * read waits for fresh data; `'max'` serves the stale entry while it
+   * revalidates.
    */
   readonly revalidate?: string | { readonly expire?: number };
 }
 
 export interface RequireAalOptions {
   /**
-   * Page that enrolls or challenges a second factor. Signed-in users below
-   * the level are redirected there with `?next=<path>`; without it they get
-   * a 403 Problem Details response.
+   * Page that enrolls or challenges a second factor. Signed-in users below the
+   * level are redirected there with `?next=<path>`; without it they get a 403
+   * Problem Details response.
    */
   readonly redirect?: string;
   /** Paths that need the level. Defaults to every path but `redirect`. */
   readonly match?: (pathname: string) => boolean;
 }
 
-/** What a `resource` loader gets in Next.js: the caller's context, with the checked tenant. */
+/**
+ * What a `resource` loader gets in Next.js: the caller's context, with the
+ * checked tenant.
+ */
 export type NextResource<
   M extends AnyModels,
   F extends AnyFunctions,

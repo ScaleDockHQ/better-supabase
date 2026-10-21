@@ -2,6 +2,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { RETENTION_KINDS } from "../../sql/modules/data-lifecycle-retention.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   applyTemporal,
@@ -13,7 +14,6 @@ import {
   recordsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
 } from "../shared.ts";
 
 /** A kind the modules' purges look up; an app's own purges may use any other. */
@@ -44,7 +44,10 @@ export interface LegalHold {
   readonly releasedAt: Temporal.Instant | undefined;
 }
 
-/** Who a policy applies to: one tenant, a plan's tenants, or every tenant (neither). */
+/**
+ * Who a policy applies to: one tenant, a plan's tenants, or every tenant
+ * (neither).
+ */
 export type RetentionScope =
   | { readonly organizationId: string; readonly plan?: never }
   | { readonly plan: string; readonly organizationId?: never }
@@ -60,8 +63,8 @@ export interface RetentionOptions extends BlockTemporalOptions {
 export interface Retention {
   /**
    * Keeps `kind` for `keep` (an interval such as `7 years` or a
-   * `Temporal.Duration`), replacing the scope's earlier policy. A purge
-   * keeps rows for the policy whatever its own `older_than`.
+   * `Temporal.Duration`), replacing the scope's earlier policy. A purge keeps
+   * rows for the policy whatever its own `older_than`.
    */
   setPolicy(
     kind: RetentionKind,
@@ -75,8 +78,8 @@ export interface Retention {
   ): AsyncResult<boolean>;
   policies(kind?: RetentionKind): AsyncResult<readonly RetentionPolicy[]>;
   /**
-   * Stops every purge (and the organization purge) from deleting what the
-   * hold covers: one tenant or all, one kind or all.
+   * Stops every purge (and the organization purge) from deleting what the hold
+   * covers: one tenant or all, one kind or all.
    */
   placeHold(hold: {
     readonly reason: string;

@@ -242,10 +242,7 @@ export async function RecipeDetail({
             ? absoluteUrl(recipe.screenshot.src, site.url)
             : null,
           steps: [
-            {
-              name: "Add the components",
-              text: shadcnAdd(web.components),
-            },
+            { name: "Add the components", text: shadcnAdd(web.components) },
             {
               name: "Install the glue",
               text: [

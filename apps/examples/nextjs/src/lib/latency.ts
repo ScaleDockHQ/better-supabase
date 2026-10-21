@@ -1,9 +1,9 @@
 import "server-only";
 
 /**
- * A `fetch` that waits `ms` before each request, to make every Supabase
- * round trip from the server visible. Cached reads and the static shell
- * skip it, so a slow page under it shows which reads were not cached.
+ * A `fetch` that waits `ms` before each request, to make every Supabase round
+ * trip from the server visible. Cached reads and the static shell skip it, so a
+ * slow page under it shows which reads were not cached.
  */
 function delayedFetch(ms: number): typeof fetch {
   return async (input, init) => {

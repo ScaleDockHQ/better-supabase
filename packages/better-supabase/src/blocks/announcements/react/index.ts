@@ -11,9 +11,16 @@ import { createAnnouncementsController } from "../client.ts";
 export interface UseAnnouncementsOptions {
   /** The active tenant, for tenant, role and plan audiences. */
   readonly organizationId?: string | null;
-  /** The topic the module broadcasts to (`blockConfig.announcements.options.topic` from `blocks.generated.ts`); `null` loads once. */
+  /**
+   * The topic the module broadcasts to
+   * (`blockConfig.announcements.options.topic` from `blocks.generated.ts`);
+   * `null` loads once.
+   */
   readonly topic?: string | null;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
 }
 
@@ -21,8 +28,8 @@ export interface AnnouncementsState
   extends AnnouncementsSnapshot, AnnouncementsActions {}
 
 /**
- * The signed-in user's live announcements, loaded again whenever staff
- * publish, change or remove one.
+ * The signed-in user's live announcements, loaded again whenever staff publish,
+ * change or remove one.
  *
  * ```tsx
  * const { items, dismiss } = useAnnouncements({ organizationId });

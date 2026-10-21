@@ -5,11 +5,9 @@ import {
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  createDocsMcpServer,
-  DOCS_MCP_NAME,
-  type DocsMcpSource,
-} from "../../lib/docs-mcp";
+import type { DocsMcpSource } from "../../lib/docs-mcp";
+
+import { createDocsMcpServer, DOCS_MCP_NAME } from "../../lib/docs-mcp";
 
 const PAGES = {
   "/docs/frameworks/hono": "# Hono (/docs/frameworks/hono)\n\nMiddleware.",

@@ -1,11 +1,9 @@
+import type { MetricDefinition } from "../../core/metric-definition.ts";
 import type { CloudEvent } from "../../events/cloud-event.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { isRecord } from "../../core/guards.ts";
-import {
-  defineMetric,
-  type MetricDefinition,
-} from "../../core/metric-definition.ts";
+import { defineMetric } from "../../core/metric-definition.ts";
 
 export interface TimeTrackingMetricsOptions {
   /** The time-tracking module's schema. Default `better_supabase`. */
@@ -41,7 +39,10 @@ export function timeTrackingMetrics(
   ];
 }
 
-/** The events that change `timeTrackingMetrics`, for `metricsSink` or `createBlocks({ metricEvents })`. */
+/**
+ * The events that change `timeTrackingMetrics`, for `metricsSink` or
+ * `createBlocks({ metricEvents })`.
+ */
 export const TIME_TRACKING_METRIC_EVENTS: {
   readonly "time_entry.recorded": readonly ["time_tracked"];
   readonly "time_entry.updated": readonly ["time_tracked"];
@@ -55,9 +56,9 @@ export const TIME_TRACKING_METRIC_EVENTS: {
 /**
  * The entry's `startedAt`, the time its seconds are bucketed by, for
  * `metricsSink({ time })` or `createBlocks({ metricTime })`. An update that
- * moves the entry to another day also returns its `previousStartedAt`, so
- * the old day's total drops. Undefined for other events, so they keep
- * their own time.
+ * moves the entry to another day also returns its `previousStartedAt`, so the
+ * old day's total drops. Undefined for other events, so they keep their own
+ * time.
  */
 export function timeEntryMetricTime(
   event: CloudEvent,

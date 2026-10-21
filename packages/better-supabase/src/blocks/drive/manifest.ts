@@ -15,9 +15,7 @@ export const driveBlock: BlockOf<
 > = defineBlock({
   name: "drive",
   sql: ["drive", "drive-files"],
-  options: {
-    drive: driveSqlOptions,
-  },
+  options: { drive: driveSqlOptions },
   events: driveEvents,
   consumes: { attachments: "optional" },
   create: createDrive,

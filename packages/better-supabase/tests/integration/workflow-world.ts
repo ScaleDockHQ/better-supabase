@@ -4,9 +4,9 @@ import { renderModules } from "../../src/sql/render.ts";
 import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 
 /**
- * Commits the `workflow-sdk-world` module (and the modules it requires)
- * unless an earlier suite did, as `sql-modules.integration` does: the World
- * writes through its own pool, outside any rolled-back session.
+ * Commits the `workflow-sdk-world` module (and the modules it requires) unless
+ * an earlier suite did, as `sql-modules.integration` does: the World writes
+ * through its own pool, outside any rolled-back session.
  */
 export async function installWorld(pool: Pool): Promise<void> {
   const present = await pool.query<{ ok: boolean }>(

@@ -27,13 +27,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { SharingGrant, SharingTarget } from "../drive-grants-actions";
+import type { DriveRole } from "../drive-roles";
 
 import {
   loadDriveSharing,
   shareDriveItem,
   unshareDriveItem,
 } from "../drive-grants-actions";
-import { DRIVE_ROLES, type DriveRole } from "../drive-roles";
+import { DRIVE_ROLES } from "../drive-roles";
 
 const isRole = (value: unknown): value is DriveRole =>
   DRIVE_ROLES.some((role) => role === value);
@@ -66,7 +67,10 @@ const keyOf = (target: { type: string; id: string }) =>
   `${target.type}:${target.id}`;
 
 // #region recipe:grants-editor
-/** Loads an item's grants; `open` starts a fresh read, so call it with the dialog. */
+/**
+ * Loads an item's grants; `open` starts a fresh read, so call it with the
+ * dialog.
+ */
 export function useDriveSharing(id: string) {
   const load = useAction(loadDriveSharing);
 
@@ -80,8 +84,8 @@ export function useDriveSharing(id: string) {
 }
 
 /**
- * Who can open a drive item: its grants, inherited ones from the folders
- * above included, and a picker to share it with a member or a team.
+ * Who can open a drive item: its grants, inherited ones from the folders above
+ * included, and a picker to share it with a member or a team.
  */
 export function GrantsEditor({
   id,

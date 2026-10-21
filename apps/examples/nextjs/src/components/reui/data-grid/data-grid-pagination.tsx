@@ -26,8 +26,10 @@ interface DataGridPaginationProps {
   sizesDescription?: string;
   sizesSkeleton?: ReactNode;
   more?: boolean;
-  /** Page buttons the truncated middle shows; the row adds first, last and
-   *  an ellipsis for each hidden stretch. Clamped to a minimum of 3. */
+  /**
+   * Page buttons the truncated middle shows; the row adds first, last and an
+   * ellipsis for each hidden stretch. Clamped to a minimum of 3.
+   */
   moreLimit?: number;
   info?: string;
   infoSkeleton?: ReactNode;
@@ -54,10 +56,10 @@ type DataGridPaginationItem =
  * 50-page grid there was no way to reach the end - the primitive wires only
  * `previousPage()` / `nextPage()`, so there is no last-page arrow either.
  *
- * `limit` is `moreLimit`: how many page buttons the truncated middle shows.
- * At the default of 5 this emits exactly the same rows as the block version
- * did at `moreLimit: 5`, so the prop keeps both its meaning and its default.
- * An ellipsis never stands for a single page, because the early return covers
+ * `limit` is `moreLimit`: how many page buttons the truncated middle shows. At
+ * the default of 5 this emits exactly the same rows as the block version did at
+ * `moreLimit: 5`, so the prop keeps both its meaning and its default. An
+ * ellipsis never stands for a single page, because the early return covers
  * every count a full row could hold.
  */
 function getDataGridPaginationItems(

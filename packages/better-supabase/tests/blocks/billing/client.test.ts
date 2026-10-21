@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  type CheckoutStarted,
-  createPlanPickerController,
-  type PlanCatalog,
+import type {
+  CheckoutStarted,
+  PlanCatalog,
 } from "../../../src/blocks/billing/client.ts";
+import type { Result } from "../../../src/core/result.ts";
+
+import { createPlanPickerController } from "../../../src/blocks/billing/client.ts";
 import { dbError } from "../../../src/core/errors.ts";
-import { err, ok, type Result } from "../../../src/core/result.ts";
+import { err, ok } from "../../../src/core/result.ts";
 import { fakeAuth, flush, mount, SIGNED_OUT } from "../../fixtures/ports.ts";
 
 const plans = [
@@ -39,15 +41,15 @@ describe("createPlanPickerController", () => {
     const started = view().choose("pro");
     expect(view().pending).toBe("pro");
     expect((await started).ok).toBe(true);
-    expect(calls.checkout).toHaveBeenCalledWith("pro");
+    expect(calls.checkout).toHaveBeenCalledExactlyOnceWith("pro");
     expect(calls.open).toHaveBeenCalledWith(
       "https://checkout.stripe.test/c/pay",
     );
     expect(view().pending).toBeUndefined();
-    expect(calls.load).toHaveBeenCalledTimes(1);
+    expect(calls.load).toHaveBeenCalledOnce();
 
     expect((await view().choose("free")).ok).toBe(true);
-    expect(calls.checkout).toHaveBeenCalledTimes(1);
+    expect(calls.checkout).toHaveBeenCalledExactlyOnceWith("pro");
     unmount();
   });
 

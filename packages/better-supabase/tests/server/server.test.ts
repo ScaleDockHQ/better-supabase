@@ -318,10 +318,7 @@ function stubFetch() {
   const sent = (index: number) => {
     const [input, init] = fetch.mock.calls[index]!;
 
-    return {
-      url: String(input),
-      headers: new Headers(init?.headers),
-    };
+    return { url: String(input), headers: new Headers(init?.headers) };
   };
 
   return { fetch, sent };

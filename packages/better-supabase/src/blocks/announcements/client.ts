@@ -12,7 +12,11 @@ export interface AnnouncementsControllerOptions {
   readonly ports: { readonly topic: TopicPort };
   /** The active tenant, for tenant, role and plan audiences. */
   readonly organizationId?: string | null;
-  /** The topic the module broadcasts to (`blockConfig.announcements.options.topic` from `blocks.generated.ts`); `null` loads once. */
+  /**
+   * The topic the module broadcasts to
+   * (`blockConfig.announcements.options.topic` from `blocks.generated.ts`);
+   * `null` loads once.
+   */
   readonly topic?: string | null;
 }
 
@@ -35,8 +39,8 @@ export type AnnouncementsController = Controller<
 >;
 
 /**
- * The signed-in user's live announcements, loaded again whenever staff
- * publish, change or remove one.
+ * The signed-in user's live announcements, loaded again whenever staff publish,
+ * change or remove one.
  */
 export function createAnnouncementsController(
   options: AnnouncementsControllerOptions,

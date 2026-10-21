@@ -13,7 +13,10 @@ const MOVED_COMMANDS: readonly MovedCommand[] = [
   { from: ["spec", "check"], to: ["spec", "emit", "--check"] },
 ];
 
-/** Flags renamed in 0.9, by command path. A replacement with a space takes no value from argv. */
+/**
+ * Flags renamed in 0.9, by command path. A replacement with a space takes no
+ * value from argv.
+ */
 const MOVED_FLAGS: ReadonlyMap<
   string,
   Readonly<Record<string, string>>
@@ -30,7 +33,10 @@ const MOVED_FLAGS: ReadonlyMap<
   ["sql add", { force: "allow-hook-overlap" }],
 ]);
 
-/** `argv` without the words of `prefix`, or `undefined` when it doesn't start with them. */
+/**
+ * `argv` without the words of `prefix`, or `undefined` when it doesn't start
+ * with them.
+ */
 function withoutPrefix(
   argv: readonly string[],
   prefix: readonly string[],
@@ -150,7 +156,10 @@ export function movedCommand(
   return undefined;
 }
 
-/** A `flag_renamed` error when `rest` (the argv after the command path) passes a renamed flag. */
+/**
+ * A `flag_renamed` error when `rest` (the argv after the command path) passes a
+ * renamed flag.
+ */
 export function movedFlag(
   path: readonly string[],
   rest: readonly string[],

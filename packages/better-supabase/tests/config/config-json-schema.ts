@@ -1,18 +1,20 @@
 /**
  * Renders `schemas/config-v1.json` from the config's valibot schema
  * (`configSchemas()`), the options schema of every block
- * (`BLOCK_OPTION_SCHEMAS`) and the descriptions in `config-annotations.ts`,
- * so the JSON Schema, the CLI's config check and the `BetterSupabaseConfig`
- * type come from one source. `scripts/gen-config-schema.ts` writes it;
+ * (`BLOCK_OPTION_SCHEMAS`) and the descriptions in `config-annotations.ts`, so
+ * the JSON Schema, the CLI's config check and the `BetterSupabaseConfig` type
+ * come from one source. `scripts/gen-config-schema.ts` writes it;
  * `config-json-schema.test.ts` fails when the file is stale.
  */
 import { toJsonSchema } from "@valibot/to-json-schema";
+
+import type { Annotation } from "./config-annotations.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../../src/blocks/options-registry.ts";
 import { optionsJsonSchema } from "../../src/blocks/options.ts";
 import { configSchemas } from "../../src/cli/config-schema.ts";
 import { PRESET_NAMES } from "../../src/preset/index.ts";
-import { type Annotation, CONFIG_ANNOTATIONS } from "./config-annotations.ts";
+import { CONFIG_ANNOTATIONS } from "./config-annotations.ts";
 
 export const CONFIG_SCHEMA: URL = new URL(
   "../../schemas/config-v1.json",
@@ -89,7 +91,7 @@ function blocksSchema(description: unknown): {
   readonly blocks: Json;
   readonly perModule: Json;
 } {
-  const modules = Object.keys(BLOCK_OPTION_SCHEMAS).sort((a, b) =>
+  const modules = Object.keys(BLOCK_OPTION_SCHEMAS).toSorted((a, b) =>
     a.localeCompare(b),
   );
 
@@ -136,7 +138,10 @@ function blocksSchema(description: unknown): {
   };
 }
 
-/** Drops what toJsonSchema writes that says nothing: `required: []` and string `propertyNames`. */
+/**
+ * Drops what toJsonSchema writes that says nothing: `required: []` and string
+ * `propertyNames`.
+ */
 export function tidy(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(tidy);

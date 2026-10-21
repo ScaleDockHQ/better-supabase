@@ -181,8 +181,8 @@ function sameFields(
 }
 
 /**
- * The field editor and a live preview of it. The preview submits real
- * answers once the edited fields match the published version.
+ * The field editor and a live preview of it. The preview submits real answers
+ * once the edited fields match the published version.
  */
 export function FormBuilderWorkspace({
   formId,

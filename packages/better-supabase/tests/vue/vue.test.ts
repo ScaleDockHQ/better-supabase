@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { App } from "vue";
 
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
@@ -9,7 +10,6 @@ import {
   h,
   nextTick,
   ref,
-  type App,
 } from "vue";
 import { renderToString } from "vue/server-renderer";
 
@@ -205,7 +205,7 @@ describe("useBroadcast", () => {
     expect(client.channel).not.toHaveBeenCalled();
     setAuth(signedIn(USER));
     await nextTick();
-    expect(client.channel).toHaveBeenCalledTimes(1);
+    expect(client.channel).toHaveBeenCalledOnce();
     await flush();
     expect(result.value).toBe("subscribed");
     emit("room:r1", "created", {});

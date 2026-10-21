@@ -70,7 +70,8 @@ function fakeServer(canWrite = true) {
         } as never);
       }
 
-      const seq = next++;
+      const seq = next;
+      next += 1;
       updates.push({ seq, update });
 
       return AsyncResult.ok(seq);
@@ -192,11 +193,7 @@ function fakeBus() {
   return { client };
 }
 
-const ref = {
-  organizationId: "org",
-  subjectType: "page",
-  subjectId: "p1",
-};
+const ref = { organizationId: "org", subjectType: "page", subjectId: "p1" };
 
 describe("createDocumentProvider", () => {
   it("syncs two documents through the log and the topic", async () => {
@@ -336,7 +333,7 @@ describe("createDocumentProvider", () => {
     expect((await provider.track({ name: "Ada" })).ok).toBe(true);
     bus.sync({ k: [{ presence_ref: "1", name: "Ada" }] });
     await vi.waitFor(() => {
-      expect(provider.members().length).toBe(1);
+      expect(provider.members()).toHaveLength(1);
     });
     expect(seen.length).toBeGreaterThan(0);
     await provider[Symbol.asyncDispose]();

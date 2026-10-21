@@ -1,10 +1,10 @@
 import { temporal } from "../../core/temporal-required.ts";
 
 /**
- * Expands an RFC 5545 recurrence rule on `Temporal.ZonedDateTime`, so a
- * local time stays on the same clock time across a daylight-saving change.
- * Covered parts: FREQ, INTERVAL, COUNT, UNTIL, BYDAY (with ordinals),
- * BYMONTHDAY, BYMONTH, BYSETPOS and WKST.
+ * Expands an RFC 5545 recurrence rule on `Temporal.ZonedDateTime`, so a local
+ * time stays on the same clock time across a daylight-saving change. Covered
+ * parts: FREQ, INTERVAL, COUNT, UNTIL, BYDAY (with ordinals), BYMONTHDAY,
+ * BYMONTH, BYSETPOS and WKST.
  */
 
 const DAYS: Readonly<Record<string, number>> = {
@@ -191,12 +191,7 @@ function fromColumns(columns: NonNullable<ExpandInput["columns"]>): Rule {
   const byDay: DayRule[] =
     columns.monthWeekday === undefined
       ? (columns.weekDays ?? []).map((day) => ({ ordinal: undefined, day }))
-      : [
-          {
-            ordinal: columns.monthOrdinal,
-            day: columns.monthWeekday,
-          },
-        ];
+      : [{ ordinal: columns.monthOrdinal, day: columns.monthWeekday }];
 
   return {
     frequency,

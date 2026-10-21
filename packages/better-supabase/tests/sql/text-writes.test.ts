@@ -6,7 +6,7 @@ const written = (sql: string): Record<string, string[]> =>
   Object.fromEntries(
     [...computedWrites(sql)].map(([table, columns]) => [
       table,
-      [...columns].sort(),
+      [...columns].toSorted(),
     ]),
   );
 

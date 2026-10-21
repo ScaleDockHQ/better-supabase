@@ -23,7 +23,10 @@ interface Ports {
   readonly topic: TopicPort;
 }
 
-/** Runs a write and returns its data, or records the error and returns `undefined`. */
+/**
+ * Runs a write and returns its data, or records the error and returns
+ * `undefined`.
+ */
 async function attempt<T>(
   write: AsyncResult<T>,
   fail: (error: DbError) => void,
@@ -45,7 +48,10 @@ export interface AiChatsControllerOptions {
   readonly ports: Ports;
   /** The list's filters and page size. */
   readonly query?: Omit<AiChatQuery, "cursor">;
-  /** The prefix of the list topic (`blockConfig["ai-chat"].options.listTopic` from `blocks.generated.ts`); `null` loads once. */
+  /**
+   * The prefix of the list topic (`blockConfig["ai-chat"].options.listTopic`
+   * from `blocks.generated.ts`); `null` loads once.
+   */
   readonly topic?: string | null;
 }
 
@@ -72,8 +78,8 @@ export interface AiChatsActions {
 export type AiChatsController = Controller<AiChatsSnapshot, AiChatsActions>;
 
 /**
- * The signed-in user's chats in a tenant, newest first, loaded again when
- * any of their chats changes. Pages loaded with `loadMore` load again too.
+ * The signed-in user's chats in a tenant, newest first, loaded again when any
+ * of their chats changes. Pages loaded with `loadMore` load again too.
  */
 export function createAiChatsController(
   options: AiChatsControllerOptions,
@@ -116,7 +122,8 @@ export function createAiChatsController(
           return;
         }
 
-        const run = ++ticket;
+        ticket += 1;
+        const run = ticket;
         const items: AiChatRecord[] = [];
         let page: AiChatPage | undefined;
 
@@ -167,7 +174,8 @@ export function createAiChatsController(
               return;
             }
 
-            const run = ++ticket;
+            ticket += 1;
+            const run = ticket;
             pages += 1;
             const result = await chats.list({ ...query, cursor: next });
 
@@ -271,7 +279,10 @@ export interface AiChatTreeControllerOptions {
   readonly ports: Ports;
   /** `null` or `undefined` waits. */
   readonly chatId: string | null | undefined;
-  /** The prefix of the chat topic (`blockConfig["ai-chat"].options.topic` from `blocks.generated.ts`); `null` loads once. */
+  /**
+   * The prefix of the chat topic (`blockConfig["ai-chat"].options.topic` from
+   * `blocks.generated.ts`); `null` loads once.
+   */
   readonly topic?: string | null;
 }
 
@@ -296,8 +307,8 @@ export type AiChatTreeController = Controller<
 >;
 
 /**
- * One chat's active branch, loaded again when a message is saved or the
- * branch changes, in this tab or another.
+ * One chat's active branch, loaded again when a message is saved or the branch
+ * changes, in this tab or another.
  */
 export function createAiChatTreeController(
   options: AiChatTreeControllerOptions,
@@ -324,7 +335,8 @@ export function createAiChatTreeController(
           return;
         }
 
-        const run = ++ticket;
+        ticket += 1;
+        const run = ticket;
 
         const result = await messages.path(
           chatId,
@@ -482,7 +494,10 @@ export interface AiShareSnapshot {
 }
 
 export interface AiShareActions {
-  /** Makes a link to the active branch, or to `leafId`; the token is in the result only. */
+  /**
+   * Makes a link to the active branch, or to `leafId`; the token is in the
+   * result only.
+   */
   readonly create: (leafId?: string) => Promise<AiShareLink | undefined>;
   readonly revoke: (shareId: string) => Promise<void>;
 }

@@ -16,6 +16,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps private agents private and runs the store", async () => {
@@ -234,9 +235,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       ).toBe(true);
       expect(
         await connectors.sessions.get(server.id, "c1").orThrow(),
-      ).toMatchObject({
-        sessionId: "sess",
-      });
+      ).toMatchObject({ sessionId: "sess" });
 
       await s.asRole(owner);
       expect(

@@ -9,17 +9,14 @@ import type {
   TableMeta,
   Update,
 } from "../schema/types.ts";
+import type { LocalStack } from "./as-user.ts";
+import type { Check, ConformanceReport } from "./conformance.ts";
 import type { TestJwtClaims } from "./jwt.ts";
 
 import { BetterSupabase } from "../core/define.ts";
 import { ENV_VARIABLES } from "../env/index.ts";
-import { asUser, type LocalStack } from "./as-user.ts";
-import {
-  type Check,
-  type ConformanceReport,
-  conform,
-  expect,
-} from "./conformance.ts";
+import { asUser } from "./as-user.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface IsolationTenant {
   /** Handed to each table's `row`, usually the tenant's id. */
@@ -33,7 +30,8 @@ export interface IsolationTenant {
 export interface IsolationTable<M extends AnyModels, K extends keyof M> {
   /**
    * A row owned by `tenant`. `n` is 0 for the row seeded through the service
-   * role and 1 for the other tenant's insert attempt: put it in unique columns.
+   * role and 1 for the other tenant's insert attempt: put it in unique
+   * columns.
    */
   readonly row: (tenant: IsolationTenant, n: 0 | 1) => Insert<M, K>;
   /** A change the other tenant tries to make. It must differ from `row`. */
@@ -47,9 +45,15 @@ export type IsolationTables<M extends AnyModels> = {
 export interface TenantIsolationOptions<M extends AnyModels> {
   readonly tenants: readonly [IsolationTenant, IsolationTenant];
   readonly tables: IsolationTables<M>;
-  /** Defaults to `$SUPABASE_URL`, `$SUPABASE_PUBLISHABLE_KEY` and `$SUPABASE_SECRET_KEY`. */
+  /**
+   * Defaults to `$SUPABASE_URL`, `$SUPABASE_PUBLISHABLE_KEY` and
+   * `$SUPABASE_SECRET_KEY`.
+   */
   readonly stack?: LocalStack;
-  /** Runs before any row is created, e.g. `() => seed.insert(sql)` for the tenants and their memberships. */
+  /**
+   * Runs before any row is created, e.g. `() => seed.insert(sql)` for the
+   * tenants and their memberships.
+   */
   readonly seed?: () => Promise<void>;
 }
 
@@ -107,9 +111,9 @@ function env(names: readonly string[]): string | undefined {
 /**
  * Checks row-level security between two tenants against a running stack: for
  * each table, a user of one tenant must not select, insert, update or delete
- * the other tenant's rows. Runs without `betterSupabase`'s plugins, so the `tenant()`
- * plugin can't hide a missing policy. Throws a `ConformanceError` naming each
- * table and command that leaks; removes every row it created.
+ * the other tenant's rows. Runs without `betterSupabase`'s plugins, so the
+ * `tenant()` plugin can't hide a missing policy. Throws a `ConformanceError`
+ * naming each table and command that leaks; removes every row it created.
  *
  * ```ts
  * await expectTenantIsolation(betterSupabase, {
@@ -119,8 +123,11 @@ function env(names: readonly string[]): string | undefined {
  *   ],
  *   tables: {
  *     tags: {
- *       row: (tenant, n) => ({ organizationId: tenant.id, name: `iso-${n}` }),
- *       update: { name: 'changed' },
+ *       row: (tenant, n) => ({
+ *         organizationId: tenant.id,
+ *         name: `iso-${n}`,
+ *       }),
+ *       update: { name: "changed" },
  *     },
  *   },
  * });
@@ -296,7 +303,7 @@ export async function expectTenantIsolation<
 
     return await conform("Tenant isolation", [...reads, ...deletes]);
   } finally {
-    for (const remove of cleanup.reverse()) {
+    for (const remove of cleanup.toReversed()) {
       await remove();
     }
   }

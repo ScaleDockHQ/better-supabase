@@ -10,11 +10,7 @@ describe("toOpenApi30Schema", () => {
   it("turns null types into nullable", () => {
     expect(
       toOpenApi30Schema({ type: ["string", "null"], format: "uuid" }),
-    ).toEqual({
-      type: "string",
-      format: "uuid",
-      nullable: true,
-    });
+    ).toEqual({ type: "string", format: "uuid", nullable: true });
     expect(toOpenApi30Schema({ type: ["string", "integer"] })).toEqual({
       anyOf: [{ type: "string" }, { type: "integer" }],
     });
@@ -70,10 +66,7 @@ describe("toOpenApi30Schema", () => {
     });
     expect(
       toOpenApi30Schema({ type: "string", contentEncoding: "base64" }),
-    ).toEqual({
-      type: "string",
-      format: "byte",
-    });
+    ).toEqual({ type: "string", format: "byte" });
     expect(
       toOpenApi30Schema({
         type: "string",

@@ -24,6 +24,7 @@ const MODULES = [
 
 describe.skipIf(!live)("access requests", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   const hint = (result: Result<unknown>) =>
@@ -40,10 +41,7 @@ describe.skipIf(!live)("access requests", () => {
         modules: { "access-requests": { options: { maxDuration: "P7D" } } },
       });
 
-      const tenant = await s.organization(owner, {
-        member: requester,
-        viewer,
-      });
+      const tenant = await s.organization(owner, { member: requester, viewer });
 
       const transport = sqlTransport(s.sql);
       const access = createAccessRequests({ transport });
@@ -187,8 +185,8 @@ describe.skipIf(!live)("access requests", () => {
 
       await s.asRole(owner);
       expect(
-        (await access.list(tenant, { status: "pending" }).orThrow()).length,
-      ).toBe(2);
+        await access.list(tenant, { status: "pending" }).orThrow(),
+      ).toHaveLength(2);
       await approvals.reject(rejected.approvalId!).orThrow();
       await approvals.approve(join.approvalId!).orThrow();
       const ended = await access.end(join.id).orThrow();

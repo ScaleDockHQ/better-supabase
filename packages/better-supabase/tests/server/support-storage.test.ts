@@ -1,16 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { StorageApi, StorageBucketApi } from "../../src/storage/index.ts";
 import type { SqlCall, SqlRule } from "../fixtures/fake-sql.ts";
 
 import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import { createDataLifecycle } from "../../src/blocks/data-lifecycle/index.ts";
 import { supportStorage } from "../../src/server/support-storage.ts";
-import {
-  defineBucket,
-  fromStorageError,
-  type StorageApi,
-  type StorageBucketApi,
-} from "../../src/storage/index.ts";
+import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 
 const VISIBLE = "as visible";
@@ -26,7 +22,10 @@ const INFO_SQL =
 const CREATED = new Date("2026-10-01T00:00:00.123Z");
 const UPDATED = new Date("2026-10-02T00:00:00.456Z");
 
-/** One folder level of `visible`, folders included, as `storage.search` returns it. */
+/**
+ * One folder level of `visible`, folders included, as `storage.search` returns
+ * it.
+ */
 function search(visible: readonly string[], call: SqlCall) {
   const [prefix, , limit, , offset, term] = call.values as [
     string,
@@ -41,7 +40,7 @@ function search(visible: readonly string[], call: SqlCall) {
   const seen = new Set<string>();
   const entries: Record<string, unknown>[] = [];
 
-  const sorted = [...visible].sort((a, b) =>
+  const sorted = visible.toSorted((a, b) =>
     a.toLowerCase().localeCompare(b.toLowerCase()),
   );
 
@@ -622,7 +621,7 @@ limit $2::int`,
     );
     expect(sql.calls[3]?.values).toEqual(["docs", 1001, "org/a"]);
 
-    const reversed = fakeSql([[FLAT, [...rows].reverse()]]);
+    const reversed = fakeSql([[FLAT, rows.toReversed()]]);
 
     const unicode = supportStorage({
       admin: fakeAdmin().admin,
@@ -1483,9 +1482,7 @@ describe("supportStorage refusals and failures", () => {
       { sql: sql.sql, session: SESSION },
       { sql: sql.sql, adminSql: sql.sql },
       {
-        sql: {
-          queryRaw: <T>(text: string) => sql.sql.queryRaw<T>(text),
-        },
+        sql: { queryRaw: <T>(text: string) => sql.sql.queryRaw<T>(text) },
         adminSql: sql.sql,
         session: SESSION,
       },

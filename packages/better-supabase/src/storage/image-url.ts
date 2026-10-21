@@ -21,13 +21,13 @@ const clamp = (value: number, min: number, max: number): number =>
 
 /**
  * Turns public Storage object URLs into Supabase image transformation URLs
- * (`/render/image/public`) at a given size. Any other URL (local files,
- * other hosts, signed URLs) comes back as `undefined`: a signed URL's token
- * covers the transform it was signed with, so sign it with `renderUrl()`.
+ * (`/render/image/public`) at a given size. Any other URL (local files, other
+ * hosts, signed URLs) comes back as `undefined`: a signed URL's token covers
+ * the transform it was signed with, so sign it with `renderUrl()`.
  *
  * ```ts
- * const imageUrl = storageImageUrl({ url: SUPABASE_URL })
- * imageUrl(avatar, { width: 96 }) ?? avatar
+ * const imageUrl = storageImageUrl({ url: SUPABASE_URL });
+ * imageUrl(avatar, { width: 96 }) ?? avatar;
  * ```
  */
 export function storageImageUrl(

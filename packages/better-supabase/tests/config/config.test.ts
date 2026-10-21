@@ -78,10 +78,7 @@ describe("resolveConfig access model", () => {
     expect(listed.blockNames).toEqual(["tenant", "access"]);
 
     const keyed = resolveConfig(
-      {
-        authorization: stubProvider,
-        blocks: { access: { idType: "uuid" } },
-      },
+      { authorization: stubProvider, blocks: { access: { idType: "uuid" } } },
       "/app",
     ).blocks.access;
 
@@ -91,10 +88,7 @@ describe("resolveConfig access model", () => {
   it("keeps an explicit model, and roles without a provider", () => {
     expect(
       resolveConfig(
-        {
-          authorization: stubProvider,
-          blocks: { access: { model: "roles" } },
-        },
+        { authorization: stubProvider, blocks: { access: { model: "roles" } } },
         "/app",
       ).blocks.access?.model,
     ).toBe("roles");
@@ -112,10 +106,7 @@ describe("resolveConfig sql defaults", () => {
   it("gives every block sql.schema and sql.api unless it sets its own", () => {
     const { blocks } = resolveConfig(
       {
-        sql: {
-          schema: "app",
-          api: "api",
-        },
+        sql: { schema: "app", api: "api" },
         blocks: {
           comments: {},
           settings: { schema: "settings", api: "public_api" },

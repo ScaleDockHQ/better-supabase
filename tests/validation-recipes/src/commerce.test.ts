@@ -1,4 +1,7 @@
-import { AsyncResult, type StandardSchemaV1 } from "better-supabase";
+import type { StandardSchemaV1 } from "better-supabase";
+import type { Payment, PaymentProvider } from "better-supabase/commerce";
+
+import { AsyncResult } from "better-supabase";
 import { createBlocks, sqlTransport } from "better-supabase/blocks";
 import { createApprovals } from "better-supabase/blocks/approvals";
 import { createCatalog } from "better-supabase/blocks/catalog";
@@ -16,12 +19,7 @@ import {
 import { createPromotions } from "better-supabase/blocks/promotions";
 import { createSavedViews } from "better-supabase/blocks/saved-views";
 import { createSearch } from "better-supabase/blocks/search";
-import {
-  fixedRates,
-  money,
-  type Payment,
-  type PaymentProvider,
-} from "better-supabase/commerce";
+import { fixedRates, money } from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -34,7 +32,10 @@ const live = await reachable();
 
 const ADDRESS = { country: "NL", city: "Amsterdam", line1: "Dam 1" };
 
-/** The commerce page's event mapping: the order's watchers hear it was paid and shipped. */
+/**
+ * The commerce page's event mapping: the order's watchers hear it was paid and
+ * shipped.
+ */
 const ORDER_EVENTS = {
   "order.paid": "order.paid",
   "fulfillment.shipped": "order.shipped",
@@ -107,6 +108,7 @@ function fakePayments(): PaymentProvider {
 
 describe.skipIf(!live)("commerce recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("sells to an anonymous shopper who signs in, with a code, then ships", async () => {
@@ -212,10 +214,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       await s.as(shopper);
 
       const saved = await orders
-        .createCart(organizationId, {
-          currency: "EUR",
-          email: shopper.email,
-        })
+        .createCart(organizationId, { currency: "EUR", email: shopper.email })
         .orThrow();
 
       await orders.addToCart(saved.id, tee.id, 1).orThrow();

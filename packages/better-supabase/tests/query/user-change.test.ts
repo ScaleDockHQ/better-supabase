@@ -1,10 +1,9 @@
 import { QueryClient, QueryObserver } from "@tanstack/query-core";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  clearOnUserChange,
-  type UserChangeSource,
-} from "../../src/query/index.ts";
+import type { UserChangeSource } from "../../src/query/index.ts";
+
+import { clearOnUserChange } from "../../src/query/index.ts";
 import { identityKey } from "../../src/query/user-change.ts";
 
 type Snapshot = ReturnType<UserChangeSource["current"]>;

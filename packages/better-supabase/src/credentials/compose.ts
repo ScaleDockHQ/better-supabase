@@ -1,3 +1,4 @@
+import type { DbError } from "../core/errors.ts";
 import type {
   CredentialCapabilities,
   CredentialProvider,
@@ -5,7 +6,7 @@ import type {
   CredentialSubject,
 } from "./provider.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { AsyncResult } from "../core/result.ts";
 import { credentialProviderOf, credentialRefInTenant } from "./provider.ts";
 
@@ -22,10 +23,10 @@ const unsupported = (provider: string, what: string): DbError =>
   });
 
 /**
- * One provider over several: each call goes to the provider whose `name`
- * is the ref's `provider`. A ref no provider handles fails with
- * `invalid_input` (`CREDENTIAL_PROVIDER_UNKNOWN`), and an optional method
- * the chosen provider lacks with `unsupported`.
+ * One provider over several: each call goes to the provider whose `name` is the
+ * ref's `provider`. A ref no provider handles fails with `invalid_input`
+ * (`CREDENTIAL_PROVIDER_UNKNOWN`), and an optional method the chosen provider
+ * lacks with `unsupported`.
  */
 export function credentialRouter(
   providers: readonly CredentialProvider[],
@@ -106,9 +107,9 @@ export function credentialRouter(
 export interface RevokeIfConfiguredOptions {
   readonly subject: CredentialSubject;
   /**
-   * The tenant of the row that holds the ref, or `undefined` for an
-   * app-level row. When the key is present, a ref outside that tenant is
-   * left alone, so a row can never revoke another tenant's credential.
+   * The tenant of the row that holds the ref, or `undefined` for an app-level
+   * row. When the key is present, a ref outside that tenant is left alone, so a
+   * row can never revoke another tenant's credential.
    */
   readonly tenant?: string | undefined;
 }

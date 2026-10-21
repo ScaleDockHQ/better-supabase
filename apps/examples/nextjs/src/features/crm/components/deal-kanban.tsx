@@ -73,9 +73,9 @@ function DealCard({ deal }: { deal: BoardDeal }) {
 }
 
 /**
- * The board's columns. Dragging a deal to another column moves its stage;
- * a refused move puts it back. The parent keys it by the deals' positions,
- * so a server refresh starts it from the saved board.
+ * The board's columns. Dragging a deal to another column moves its stage; a
+ * refused move puts it back. The parent keys it by the deals' positions, so a
+ * server refresh starts it from the saved board.
  */
 export function DealKanban({
   stages,

@@ -338,10 +338,7 @@ import { createAudit, rpcTransport } from "better-supabase/blocks/audit";
 export function AuditLog(props: { organizationId: string }) {
   const supabase = useSupabase();
   const { state } = useAuditLog({
-    client: createAudit({
-      transport: rpcTransport(supabase),
-      schema: "api",
-    }),
+    client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
     organizationId: props.organizationId,
   });
   return <p>{state().entries?.length ?? 0} entries</p>;

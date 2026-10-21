@@ -3,8 +3,8 @@ import type { StandardSchemaV1 } from "../core/standard.ts";
 import { isRecord } from "../core/guards.ts";
 
 /**
- * What a SQL module option holds. `unknown` is an object or a value the
- * module checks itself; the JSON Schema leaves it open.
+ * What a SQL module option holds. `unknown` is an object or a value the module
+ * checks itself; the JSON Schema leaves it open.
  */
 export type OptionKind =
   | "string"
@@ -66,9 +66,9 @@ export type OptionSpecs<T> = {
 };
 
 /**
- * A SQL module's options: a Standard Schema typed `T` that refuses unknown
- * keys and values of the wrong kind, plus the option specs `gen` and the JSON
- * Schema read.
+ * A SQL module's options: a Standard Schema typed `T` that refuses unknown keys
+ * and values of the wrong kind, plus the option specs `gen` and the JSON Schema
+ * read.
  */
 export interface BlockOptionsSchema<
   T extends object = object,

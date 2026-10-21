@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
@@ -7,13 +12,9 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -21,7 +22,6 @@ import { revokeIfConfigured } from "../../credentials/compose.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   credentialRefOf,
   instantArg,
   isRecord,
@@ -36,7 +36,10 @@ import {
 
 export type ConnectorTransport = "http" | "sse";
 
-/** `none`, OAuth per user (a grant each), or a header from the server's credential_ref. */
+/**
+ * `none`, OAuth per user (a grant each), or a header from the server's
+ * credential_ref.
+ */
 export type ConnectorAuth = "none" | "oauth" | "header";
 
 export type FingerprintStatus = "approved" | "pending" | "rejected";
@@ -115,7 +118,10 @@ export interface ConnectorsOptions<
   readonly transport: BlockTransport;
   /** Calls as the service role, for grants and renewals. */
   readonly service?: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Revokes a grant's credential when the grant or its server goes away. */
@@ -148,8 +154,8 @@ export interface Connectors<F extends object = Record<never, never>> {
   };
   readonly grants: {
     /**
-     * Records a user's grant after the provider stored the credential
-     * (service role), revoking the grant it replaces.
+     * Records a user's grant after the provider stored the credential (service
+     * role), revoking the grant it replaces.
      */
     record(
       serverId: string,
@@ -349,17 +355,19 @@ export function createConnectors<
     serverId: string | undefined,
     fields: ConnectorServerFields<F>,
   ): AsyncResult<ConnectorServer<F>> =>
-    extraFields.args(fields.fields).andThen((checked) =>
-      call(
-        "save_connector_server",
-        {
-          tenant: organizationId,
-          id: serverId,
-          fields: { ...checked, ...fieldsArg(fields) },
-        },
-        serverOf,
-      ).andThen(extraFields.row),
-    );
+    extraFields
+      .args(fields.fields)
+      .andThen((checked) =>
+        call(
+          "save_connector_server",
+          {
+            tenant: organizationId,
+            id: serverId,
+            fields: { ...checked, ...fieldsArg(fields) },
+          },
+          serverOf,
+        ).andThen(extraFields.row),
+      );
 
   const decide = (
     serverId: string,

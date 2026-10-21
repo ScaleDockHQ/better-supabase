@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { Jwk } from "../../src/core/jws.ts";
+
 import {
   accessTokenResolver,
   isAccessTokenJwt,
@@ -9,7 +11,6 @@ import { dbError } from "../../src/core/errors.ts";
 import {
   generateSigningKey,
   importSigningKey,
-  type Jwk,
   signCompact,
 } from "../../src/core/jws.ts";
 import { err, ok } from "../../src/core/result.ts";

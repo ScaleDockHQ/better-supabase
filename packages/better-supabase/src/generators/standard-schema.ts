@@ -20,11 +20,14 @@ import {
 } from "./shared.ts";
 
 export interface StandardSchemaGeneratorOptions {
-  /** Output path relative to the project root. Defaults to `<output>.standard.ts`. */
+  /**
+   * Output path relative to the project root. Defaults to
+   * `<output>.standard.ts`.
+   */
   readonly output?: string;
   /**
-   * Standard Schemas for typed jsonb columns:
-   * `{ 'customers.metadata': './schemas.ts#metadata' }`.
+   * Standard Schemas for typed jsonb columns: `{ 'customers.metadata':
+   * './schemas.ts#metadata' }`.
    */
   readonly json?: Readonly<Record<string, string>>;
 }
@@ -75,7 +78,7 @@ export function standardSchema(
 
       for (const [from, names] of imports) {
         lines.push(
-          `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
+          `import { ${[...new Set(names)].toSorted().join(", ")} } from ${JSON.stringify(from)};`,
         );
       }
 

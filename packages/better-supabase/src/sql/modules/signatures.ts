@@ -107,8 +107,8 @@ const versionHash = (content: string, storagePath: string): string =>
   sha256Hex(`coalesce(${content}::text, '') || coalesce(${storagePath}, '')`);
 
 /**
- * The hash a signature stores: the request, the signed version's content
- * hash, the signer, how they signed and when, so `verify` can recompute it.
+ * The hash a signature stores: the request, the signed version's content hash,
+ * the signer, how they signed and when, so `verify` can recompute it.
  */
 const signedHash = (parts: {
   readonly request: string;

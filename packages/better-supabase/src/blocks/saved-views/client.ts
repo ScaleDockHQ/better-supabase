@@ -27,17 +27,26 @@ export interface SavedViewLike extends DefaultViewCandidate {
 }
 
 export interface SavedViewsSyncOptions<V extends SavedViewLike> {
-  /** Loads the list's views, e.g. a server action that calls `savedViews.list()`. */
+  /**
+   * Loads the list's views, e.g. a server action that calls
+   * `savedViews.list()`.
+   */
   readonly load: () => Promise<readonly V[]>;
   /**
    * The state the UI shows outside the URL: columns, grouping, density and
-   * layout. `saveCurrent` stores it with the query, and `active` and
-   * `isDirty` compare it. Without it only the query counts.
+   * layout. `saveCurrent` stores it with the query, and `active` and `isDirty`
+   * compare it. Without it only the query counts.
    */
   readonly getState?: () => SavedViewDisplayState;
-  /** Shows a view's state outside the URL; `apply` calls it with everything but `query`. */
+  /**
+   * Shows a view's state outside the URL; `apply` calls it with everything but
+   * `query`.
+   */
   readonly onApplyState?: (state: SavedViewDisplayState, view: V) => void;
-  /** Saves the current state, e.g. a server action that calls `savedViews.save()`. */
+  /**
+   * Saves the current state, e.g. a server action that calls
+   * `savedViews.save()`.
+   */
   readonly save?: (input: {
     readonly name: string;
     readonly query: ListQueryInput<string, string>;
@@ -52,19 +61,28 @@ export interface SavedViewsSyncOptions<V extends SavedViewLike> {
     readonly name: string;
     readonly scope?: SavedViewScope;
   }) => Promise<unknown>;
-  /** Sets the caller's flags, e.g. a server action that calls `savedViews.setPreference()`. */
+  /**
+   * Sets the caller's flags, e.g. a server action that calls
+   * `savedViews.setPreference()`.
+   */
   readonly setPreference?: (
     id: string,
     preference: SavedViewPreferenceInput,
   ) => Promise<unknown>;
-  /** Applies the default view after the first load when the URL holds no query. Default `true`. */
+  /**
+   * Applies the default view after the first load when the URL holds no query.
+   * Default `true`.
+   */
   readonly openDefault?: boolean;
 }
 
 export interface SavedViewsControllerOptions<
   V extends SavedViewLike,
 > extends SavedViewsSyncOptions<V> {
-  /** The list's URL state now, e.g. from nuqs `useQueryStates(list.nuqs(createParser))`. */
+  /**
+   * The list's URL state now, e.g. from nuqs
+   * `useQueryStates(list.nuqs(createParser))`.
+   */
   readonly urlState: () => ListUrlState;
   /** Its setter, which `apply` calls with every key so stale ones clear. */
   readonly setUrlState: (next: Record<string, unknown>) => unknown;
@@ -144,9 +162,8 @@ function needs<T>(value: T | undefined, name: string): T {
 }
 
 /**
- * Saved views of one list, synced with its URL state and, through
- * `getState` and `onApplyState`, with the table's columns, grouping,
- * density and layout.
+ * Saved views of one list, synced with its URL state and, through `getState`
+ * and `onApplyState`, with the table's columns, grouping, density and layout.
  */
 export function createSavedViewsController<V extends SavedViewLike>(
   options: SavedViewsControllerOptions<V>,
@@ -196,11 +213,7 @@ export function createSavedViewsController<V extends SavedViewLike>(
             await needs(
               options.duplicate,
               "duplicate",
-            )({
-              id,
-              name,
-              ...(scope !== undefined && { scope }),
-            });
+            )({ id, name, ...(scope !== undefined && { scope }) });
             await refresh();
           },
           setPreference: async (id, preference) => {

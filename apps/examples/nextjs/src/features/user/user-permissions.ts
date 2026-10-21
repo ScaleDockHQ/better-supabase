@@ -1,7 +1,11 @@
-import { type AuthSession, tenantOf } from "better-supabase/react";
+import type { AuthSession } from "better-supabase/react";
+
+import { tenantOf } from "better-supabase/react";
 import * as v from "valibot";
 
-import { type Claims, MEMBERSHIP_SCOPE, Role } from "@/lib/claims";
+import type { Claims } from "@/lib/claims";
+
+import { MEMBERSHIP_SCOPE, Role } from "@/lib/claims";
 
 // A deliberately small, hand-written permission check that runs on the server
 // and the client, over the claims the access token hook writes. An app with
@@ -155,8 +159,9 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
- * Mirrors `better_supabase.role_permissions` (supabase/schemas/better_supabase/functions/role_permissions.sql),
- * which RLS and the SQL modules check. Owners hold everything.
+ * Mirrors `better_supabase.role_permissions`
+ * (supabase/schemas/better_supabase/functions/role_permissions.sql), which RLS
+ * and the SQL modules check. Owners hold everything.
  */
 const grants = {
   owner: "*",
@@ -378,8 +383,8 @@ const grants = {
 const RANK = { owner: 3, admin: 2, member: 1 } satisfies Record<Role, number>;
 
 /**
- * The role of the membership in the active organization, from the
- * `memberships` claim. Never `user_metadata`: users can edit that.
+ * The role of the membership in the active organization, from the `memberships`
+ * claim. Never `user_metadata`: users can edit that.
  */
 export function roleOf(session: AuthSession<Claims>): Role | undefined {
   const tenant = tenantOf(session);

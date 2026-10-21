@@ -43,7 +43,10 @@ function isApi(value: unknown): value is ApiLike {
   );
 }
 
-/** The format id of a finished document (`{ openapi: "3.1.0", ... }` is `openapi`). */
+/**
+ * The format id of a finished document (`{ openapi: "3.1.0", ... }` is
+ * `openapi`).
+ */
 export function documentFormatId(value: unknown): string | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -64,10 +67,10 @@ async function settle(value: unknown): Promise<unknown> {
 }
 
 /**
- * Loads the entry module fresh (so `--watch` sees edits). It exports `api`
- * (a `defineApi()` result) or a document as `openapi`, `asyncapi`, `arazzo`
- * or default; each may be a function returning one. `formats` adds
- * document formats and `cacheKey` adds to the cache key.
+ * Loads the entry module fresh (so `--watch` sees edits). It exports `api` (a
+ * `defineApi()` result) or a document as `openapi`, `asyncapi`, `arazzo` or
+ * default; each may be a function returning one. `formats` adds document
+ * formats and `cacheKey` adds to the cache key.
  */
 export async function loadSpecEntry(path: string): Promise<SpecEntry> {
   if (!existsSync(path)) {

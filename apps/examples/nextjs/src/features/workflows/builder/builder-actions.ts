@@ -230,7 +230,10 @@ export const rotateWebhookToken = bs.action(
   async ({ id }, { supabase }) => builderFor(supabase).triggers.rotateToken(id),
 );
 
-/** Stores a Slack bot token in Vault and the reference to it in the tenant's credentials. */
+/**
+ * Stores a Slack bot token in Vault and the reference to it in the tenant's
+ * credentials.
+ */
 export const createCredential = bs.action(
   {
     input: v.object({
@@ -282,9 +285,9 @@ export const revokeCredential = bs.action(
 );
 
 /**
- * Resumes an approval node of a graph run. The run is read under RLS and
- * must belong to the active organization, so a caller can only decide the
- * runs they can see.
+ * Resumes an approval node of a graph run. The run is read under RLS and must
+ * belong to the active organization, so a caller can only decide the runs they
+ * can see.
  */
 export const decideNode = bs.action(
   {

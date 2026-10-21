@@ -40,8 +40,8 @@ function toRow(item: DataExport): ExportRow {
 
 /**
  * The caller's exports, the organization's exports when the caller holds
- * `organization.export`, and the pending deletion. A failed read throws, so
- * it is never cached and Retry reads again.
+ * `organization.export`, and the pending deletion. A failed read throws, so it
+ * is never cached and Retry reads again.
  */
 export async function loadPrivacy(): Promise<PrivacyData> {
   "use cache: private";

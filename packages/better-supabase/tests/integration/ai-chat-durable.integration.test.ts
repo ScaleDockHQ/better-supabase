@@ -2,18 +2,14 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
+import type { TestUser } from "./block-session.ts";
 
 import {
   createAiChat,
   createHarnessSessions,
   sqlTransport,
 } from "../../src/blocks/ai-chat/index.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -54,6 +50,7 @@ function transports(s: BlockSession, caller: () => TestUser) {
 
 describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("attaches engine runs, records steps and lists them for readers", async () => {

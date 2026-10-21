@@ -1,8 +1,8 @@
 import { defineChecklist } from "better-supabase/blocks/onboarding";
 
 /**
- * The organization's getting-started checklist, the same steps as the one
- * the Next.js example passes to the onboarding SQL module.
+ * The organization's getting-started checklist, the same steps as the one the
+ * Next.js example passes to the onboarding SQL module.
  */
 export const gettingStarted = defineChecklist({
   id: "getting-started",

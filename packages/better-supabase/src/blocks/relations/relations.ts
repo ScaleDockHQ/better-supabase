@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -7,12 +12,9 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { UndoCall, UndoToken } from "../undo/undo.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readAllFields,
   readFields,
-  type RowFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -35,13 +37,19 @@ export interface SubjectRef {
 
 export interface LinkInput<F extends object = Record<never, never>> {
   readonly organizationId: string;
-  /** A kind, or its inverse name (`blocked_by` stores `blocks` from the other end). */
+  /**
+   * A kind, or its inverse name (`blocked_by` stores `blocks` from the other
+   * end).
+   */
   readonly kind: string;
   readonly source: SubjectRef;
   readonly target: SubjectRef;
   /** Data on the link, such as a Gantt dependency's `type` and `lag`. */
   readonly data?: Readonly<Record<string, unknown>>;
-  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  /**
+   * Values for the app's extra columns (`options.extraColumns`); left out keeps
+   * the stored ones.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -51,7 +59,10 @@ export interface LinkResult<F extends object = Record<never, never>> {
   readonly id: string;
   /** The stored kind; an inverse name resolves to its kind. */
   readonly kind: string;
-  /** The stored source, after an inverse name or a symmetric kind swapped the ends. */
+  /**
+   * The stored source, after an inverse name or a symmetric kind swapped the
+   * ends.
+   */
   readonly source: SubjectRef;
   readonly target: SubjectRef;
   /** `false` when the link existed; its data was updated if `data` was given. */
@@ -73,7 +84,10 @@ export interface UnlinkResult {
 
 export interface Relation<F extends object = Record<never, never>> {
   readonly id: string;
-  /** The kind as read from the subject's side: `blocked_by` for an incoming `blocks`. */
+  /**
+   * The kind as read from the subject's side: `blocked_by` for an incoming
+   * `blocks`.
+   */
   readonly kind: string;
   readonly direction: "out" | "in";
   readonly subject: SubjectRef;
@@ -137,7 +151,10 @@ export interface Relations<F extends object = Record<never, never>> {
     subject: SubjectRef,
     kind?: string,
   ): AsyncResult<Relation<F>[]>;
-  /** Every link of a kind in the organization (up to 10,000), for a chart or a tree. */
+  /**
+   * Every link of a kind in the organization (up to 10,000), for a chart or a
+   * tree.
+   */
   edges(organizationId: string, kind: string): AsyncResult<RelationEdge<F>[]>;
   ancestors(
     organizationId: string,
@@ -149,12 +166,15 @@ export interface Relations<F extends object = Record<never, never>> {
     kind: string,
     subject: SubjectRef,
   ): AsyncResult<RelationNode[]>;
-  /** Aggregates a column over a subject's descendants, such as estimates under an epic. */
+  /**
+   * Aggregates a column over a subject's descendants, such as estimates under
+   * an epic.
+   */
   rollup(input: RollupInput): AsyncResult<number | string | null>;
   /**
-   * The id of the record of `intoType` that `origin` was already converted
-   * into through a `created_from` link, or `undefined`. Check it before a
-   * conversion so converting twice returns the first record.
+   * The id of the record of `intoType` that `origin` was already converted into
+   * through a `created_from` link, or `undefined`. Check it before a conversion
+   * so converting twice returns the first record.
    */
   convertedInto(
     organizationId: string,
@@ -163,8 +183,8 @@ export interface Relations<F extends object = Record<never, never>> {
   ): AsyncResult<string | undefined>;
   /**
    * The records a subject was converted from (`origins`, nearest first) and
-   * into (`conversions`) through `created_from` links: a deal, its quote,
-   * the order and the invoice.
+   * into (`conversions`) through `created_from` links: a deal, its quote, the
+   * order and the invoice.
    */
   lineage(
     organizationId: string,

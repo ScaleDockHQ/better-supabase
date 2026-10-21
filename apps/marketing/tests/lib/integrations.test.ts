@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   integrationCounts,
@@ -31,7 +31,7 @@ function hasDocsPage(href: string): boolean {
 }
 
 describe("integrations", () => {
-  test("every frameworks docs page is linked", () => {
+  it("every frameworks docs page is linked", () => {
     const hrefs = new Set(integrations.map((integration) => integration.href));
 
     const missing = readdirSync(join(DOCS, "frameworks"))
@@ -43,7 +43,7 @@ describe("integrations", () => {
     expect(missing).toEqual([]);
   });
 
-  test("every entry links to a docs page and has a logo", () => {
+  it("every entry links to a docs page and has a logo", () => {
     const broken = integrations
       .filter(
         (integration) =>
@@ -55,7 +55,7 @@ describe("integrations", () => {
     expect(broken).toEqual([]);
   });
 
-  test("names are unique and every group has entries", () => {
+  it("names are unique and every group has entries", () => {
     const names = integrations.map((integration) => integration.name);
 
     const empty = integrationGroups.filter(
@@ -66,7 +66,7 @@ describe("integrations", () => {
     expect(empty).toEqual([]);
   });
 
-  test("the count line follows the list", () => {
+  it("the count line follows the list", () => {
     const servers = integrationsIn("Server frameworks").length;
 
     expect(integrationCounts()).toMatch(

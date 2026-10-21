@@ -16,11 +16,14 @@ export type { ApiKeyChange, ApiKeyDraft } from "../client.ts";
 
 export interface UseApiKeysOptions {
   /**
-   * The organization whose keys to list and create; without one the hook
-   * lists the caller's personal keys.
+   * The organization whose keys to list and create; without one the hook lists
+   * the caller's personal keys.
    */
   readonly organizationId: string | null | undefined;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
   /** The token's first segment, `blocks.api-keys.options.prefix` (default `bs`). */
   readonly prefix?: string;
@@ -31,10 +34,10 @@ export interface UseApiKeysOptions {
 export interface ApiKeysState extends ApiKeysSnapshot, ApiKeysActions {}
 
 /**
- * An organization's API keys through the browser client, for an API keys
- * table: `create` keeps the new token in `created`, which is the only time
- * it is shown, and `revoke` revokes a key. The same hook runs in React DOM
- * and React Native.
+ * An organization's API keys through the browser client, for an API keys table:
+ * `create` keeps the new token in `created`, which is the only time it is
+ * shown, and `revoke` revokes a key. The same hook runs in React DOM and React
+ * Native.
  *
  * ```tsx
  * const { keys, created, create, revoke } = useApiKeys({ organizationId });

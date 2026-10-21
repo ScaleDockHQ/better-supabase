@@ -83,7 +83,7 @@ describe("blockCall", () => {
 describe("row helpers", () => {
   it("coerces values from jsonb and pg", () => {
     expect(textOf(3)).toBe("3");
-    expect(optionalText(null)).toBe(undefined);
+    expect(optionalText(null)).toBeUndefined();
     expect(optionalText("a")).toBe("a");
     expect(stringsOf(["a", 1])).toEqual(["a", "1"]);
     expect(stringsOf(null)).toEqual([]);
@@ -95,10 +95,10 @@ describe("row helpers", () => {
     const at = "2026-10-06T12:00:00Z";
     expect(optionalInstant(at)?.toString()).toBe(at);
     expect(optionalInstant(new Date(at))?.toString()).toBe(at);
-    expect(optionalInstant(null)).toBe(undefined);
-    expect(optionalInstant(5)).toBe(undefined);
-    expect(instantArg(undefined)).toBe(undefined);
-    expect(instantArg(null)).toBe(null);
+    expect(optionalInstant(null)).toBeUndefined();
+    expect(optionalInstant(5)).toBeUndefined();
+    expect(instantArg(undefined)).toBeUndefined();
+    expect(instantArg(null)).toBeNull();
     expect(instantArg(Temporal.Instant.from(at))).toBe(at);
   });
 
@@ -249,10 +249,10 @@ describe("leaseHeartbeat", () => {
       const extend = vi.fn();
       const stop = leaseHeartbeat(10, extend);
       vi.advanceTimersByTime(5000);
-      expect(extend).toHaveBeenCalledTimes(1);
+      expect(extend).toHaveBeenCalledOnce();
       stop();
       vi.advanceTimersByTime(20_000);
-      expect(extend).toHaveBeenCalledTimes(1);
+      expect(extend).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }

@@ -139,9 +139,8 @@ describe("applyOverlay", () => {
       tags: ["sales"],
     });
     expect(
-      applyOverlay("a", overlay11([{ target: "$", update: "b" }]), {
-        jsonpath,
-      }).document,
+      applyOverlay("a", overlay11([{ target: "$", update: "b" }]), { jsonpath })
+        .document,
     ).toBe("b");
   });
 
@@ -466,7 +465,7 @@ describe("applyOverlay", () => {
 
     const counting: JsonPathEngine = {
       paths: (doc, expression) => {
-        calls++;
+        calls += 1;
 
         return jsonpath.paths(doc, expression);
       },
@@ -508,10 +507,7 @@ describe("reusable actions (1.2)", () => {
         target: "$.info",
         update: { "x-audited": "overridden" },
       },
-      {
-        $ref: "#/components/actions/drop~1internal",
-        target: "$.paths.*.post",
-      },
+      { $ref: "#/components/actions/drop~1internal", target: "$.paths.*.post" },
     ],
   };
 
@@ -583,9 +579,7 @@ describe("reusable actions (1.2)", () => {
     // SAFETY: a 1.1 overlay that uses a 1.2 feature, on purpose.
     const mixed = { ...overlay12, overlay: "1.1.0" } as unknown as Overlay;
 
-    const { document, diagnostics } = applyOverlay(base(), mixed, {
-      jsonpath,
-    });
+    const { document, diagnostics } = applyOverlay(base(), mixed, { jsonpath });
 
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([
       ["overlay-version-feature", "warning"],

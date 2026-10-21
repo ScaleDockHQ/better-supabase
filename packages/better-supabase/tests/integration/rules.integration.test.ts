@@ -218,6 +218,7 @@ const CASES: readonly (readonly [string, FilterQuery])[] = [
 
 describe.skipIf(!live)("rules module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("evaluates every operator the same way as evaluateFilterQuery", async () => {

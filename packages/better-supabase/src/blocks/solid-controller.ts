@@ -1,9 +1,12 @@
-import { type Accessor, from, onCleanup, onMount } from "solid-js";
+import type { Accessor } from "solid-js";
 
+import { from, onCleanup, onMount } from "solid-js";
+
+import type { BlockOptions } from "./block-env.ts";
 import type { Controller } from "./controller.ts";
 
 import { useContext } from "../solid/context.ts";
-import { blockEnv, type BlockOptions, withEnv } from "./block-env.ts";
+import { blockEnv, withEnv } from "./block-env.ts";
 
 /** A block controller in a Solid component: `state` follows the controller. */
 export interface SolidController<S, A> {
@@ -13,9 +16,9 @@ export interface SolidController<S, A> {
 }
 
 /**
- * Makes a controller once and reads it through `from`. Its work starts on
- * mount (never during server rendering), and the controller is disposed
- * with the owner.
+ * Makes a controller once and reads it through `from`. Its work starts on mount
+ * (never during server rendering), and the controller is disposed with the
+ * owner.
  */
 export function useBlockController<O, S, A>(
   create: (options: O) => Controller<S, A>,

@@ -92,11 +92,7 @@ function topicOf(ctx: ModuleContext): string {
  */
 function visibleCase(
   ctx: ModuleContext,
-  args: {
-    readonly type: string;
-    readonly id: string;
-    readonly tenant: string;
-  },
+  args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
   const subjects = subjectsOption(ctx);
   const whens: string[] = [];

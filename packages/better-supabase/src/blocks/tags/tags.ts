@@ -1,21 +1,21 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   isRecord,
   optionalText,
   recordOf,
@@ -27,8 +27,8 @@ export interface TagsOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the tag's extra columns
-   * (`blocks.tags.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `create` and `update`.
+   * (`blocks.tags.options.extraColumns`), keyed by database name. It types and
+   * parses them on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -62,15 +62,18 @@ export interface Tags<F extends object = Record<never, never>> {
     description?: string,
     fields?: Partial<F>,
   ): AsyncResult<Tag<F>>;
-  /** Renames a tag (`name` null keeps it) and sets the extra columns `fields` names. */
+  /**
+   * Renames a tag (`name` null keeps it) and sets the extra columns `fields`
+   * names.
+   */
   update(
     id: string,
     name: string | null,
     fields?: Partial<F>,
   ): AsyncResult<boolean>;
   /**
-   * Moves a tag between the tags with rank keys `previous` and `next`.
-   * Resolves to its new key.
+   * Moves a tag between the tags with rank keys `previous` and `next`. Resolves
+   * to its new key.
    */
   reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
@@ -132,20 +135,22 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Tags<F> = {
     create: (organizationId, kind, name, color, description, extra) =>
-      fields.args(extra).andThen((checked) =>
-        call(
-          "create_tag",
-          {
-            tenant: organizationId,
-            kind,
-            name,
-            color: color ?? null,
-            description: description ?? null,
-            fields: checked,
-          },
-          (value) => ({ ...tagOf(value), name }),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "create_tag",
+            {
+              tenant: organizationId,
+              kind,
+              name,
+              color: color ?? null,
+              description: description ?? null,
+              fields: checked,
+            },
+            (value) => ({ ...tagOf(value), name }),
+          ).andThen(fields.row),
+        ),
     update: (id, name, extra) =>
       fields
         .args(extra)

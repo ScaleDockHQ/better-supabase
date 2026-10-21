@@ -1,20 +1,17 @@
+import type {
+  AuthorizationOutcome,
+  AuthorizationRequest,
+  Authorizer,
+} from "../core/authorizer.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import {
-  type AuthorizationOutcome,
-  type AuthorizationRequest,
-  type Authorizer,
   checkPermission,
   defineAuthorizer,
   requestOf,
 } from "../core/authorizer.ts";
-import {
-  type ConformanceReport,
-  conform,
-  expect,
-  frozenCopy,
-  same,
-} from "./conformance.ts";
+import { conform, expect, frozenCopy, same } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 export interface TestAuthorizerOptions<Ref> {
@@ -25,7 +22,10 @@ export interface TestAuthorizerOptions<Ref> {
     readonly permission: Ref;
     readonly context: RequestContext;
   };
-  /** A permission reference the authorizer doesn't know; it must never be granted. */
+  /**
+   * A permission reference the authorizer doesn't know; it must never be
+   * granted.
+   */
   readonly unknown?: Ref;
 }
 
@@ -55,12 +55,12 @@ const FORGED = {
 
 /**
  * Proves an `Authorizer` targets API v1, keys every permission to the same
- * string each time (and after a JSON round trip, so references are plain
- * JSON), answers every request with a known outcome without mutating it,
- * keeps the request order in `evaluations`, decides from the subject rather
- * than the input (forged roles, claims and memberships in the resource
- * properties or the context never turn a denial into a grant), never grants an unknown permission, and grants
- * `options.granted` through `checkPermission`.
+ * string each time (and after a JSON round trip, so references are plain JSON),
+ * answers every request with a known outcome without mutating it, keeps the
+ * request order in `evaluations`, decides from the subject rather than the
+ * input (forged roles, claims and memberships in the resource properties or the
+ * context never turn a denial into a grant), never grants an unknown
+ * permission, and grants `options.granted` through `checkPermission`.
  */
 export function testAuthorizer<Ref>(
   authorizer: Authorizer<Ref>,
@@ -233,14 +233,17 @@ export interface StaticAuthorizerOptions<Ref extends string> {
   readonly roles?: Readonly<Record<string, readonly Ref[]>>;
   /** Permissions per subject id, on top of the role's. */
   readonly grants?: Readonly<Record<string, readonly Ref[]>>;
-  /** Permissions that answer `approval-required` with the approval id `approval:<permission>`. */
+  /**
+   * Permissions that answer `approval-required` with the approval id
+   * `approval:<permission>`.
+   */
   readonly approvals?: readonly Ref[];
 }
 
 /**
- * An in-memory `Authorizer` for tests and examples: permissions come from
- * the subject's `role` and id only, never from the request's resource or
- * context, and it ignores `subject.properties.claims`.
+ * An in-memory `Authorizer` for tests and examples: permissions come from the
+ * subject's `role` and id only, never from the request's resource or context,
+ * and it ignores `subject.properties.claims`.
  */
 export function staticAuthorizer<Ref extends string>(
   options: StaticAuthorizerOptions<Ref>,

@@ -164,9 +164,7 @@ observes any method; see [extending blocks](/docs/extending/blocks).
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    pipelines: { options: { extraColumns: { team: "text" } } },
-  },
+  blocks: { pipelines: { options: { extraColumns: { team: "text" } } } },
 });
 ```
 

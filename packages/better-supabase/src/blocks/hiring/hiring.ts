@@ -1,21 +1,18 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { compact, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   enumOrThrow,
   instantArg,
   isRecord,
@@ -168,8 +165,8 @@ export interface HiringOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the jobs' extra columns
-   * (`blocks.hiring.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `saveJob` and validates the ones it writes.
+   * (`blocks.hiring.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on `saveJob` and validates the ones it writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Hiring<FieldsOf<S>>>>;
@@ -252,8 +249,8 @@ function interviewOf(value: unknown): Interview {
 
 /**
  * The hiring block: jobs and applications on a pipeline per job, with
- * scorecards and interviews. Act on `application.hired` to create the
- * employee in your app.
+ * scorecards and interviews. Act on `application.hired` to create the employee
+ * in your app.
  */
 export function createHiring<
   S extends StandardSchemaV1 | undefined = undefined,

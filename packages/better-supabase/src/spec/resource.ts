@@ -15,8 +15,8 @@ export type ActionMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export interface ResourceActionSpec<Ref = string> {
   readonly method: ActionMethod;
   /**
-   * Relative to the collection: `/{id}/send` acts on one row (the key
-   * parameter is the table's primary key), `/export` on the table.
+   * Relative to the collection: `/{id}/send` acts on one row (the key parameter
+   * is the table's primary key), `/export` on the table.
    */
   readonly path: string;
   /** The JSON body. */
@@ -43,8 +43,8 @@ export interface ErrorResponse {
 }
 
 /**
- * What a resource serves and documents. `defineResource` and `defineApi`
- * read the same object, so the routes and the spec cannot drift.
+ * What a resource serves and documents. `defineResource` and `defineApi` read
+ * the same object, so the routes and the spec cannot drift.
  */
 export interface ResourceDescription<Ref = string> {
   /** Defaults to every operation for tables, `list` and `get` for views. */
@@ -65,7 +65,10 @@ export interface ResourceDescription<Ref = string> {
   readonly path?: string;
   readonly tag?: string;
   readonly description?: string;
-  /** Validates request bodies; their JSON Schema replaces the table's in the spec. */
+  /**
+   * Validates request bodies; their JSON Schema replaces the table's in the
+   * spec.
+   */
   readonly input?: {
     readonly create?: StandardLike;
     readonly update?: StandardLike;
@@ -84,7 +87,10 @@ export interface ResourceDescription<Ref = string> {
   readonly security?: readonly SecurityRequirement[];
   /** The shared error responses. Defaults to the API's `errors`. */
   readonly errors?: readonly ErrorResponse[];
-  /** Deep-merged into the lowered operation, by operation or action name (`*` for all). */
+  /**
+   * Deep-merged into the lowered operation, by operation or action name (`*`
+   * for all).
+   */
   readonly extend?: Readonly<Record<string, JsonObject>>;
 }
 
@@ -101,7 +107,10 @@ export interface ResourcePlan<Ref = string> {
   readonly table: string;
   readonly meta: TableMeta;
   readonly operations: readonly ResourceOperation[];
-  /** Name of the key parameter, or `undefined` for tables without a single-column key. */
+  /**
+   * Name of the key parameter, or `undefined` for tables without a
+   * single-column key.
+   */
   readonly keyParam: string | undefined;
   readonly pagination: ResourcePagination;
   readonly maxPageSize: number;
@@ -164,8 +173,8 @@ function planAction<Ref>(
 }
 
 /**
- * Resolves what a resource serves: the operations, the key, paging,
- * actions and permissions. Shared by `defineResource` and the API model.
+ * Resolves what a resource serves: the operations, the key, paging, actions and
+ * permissions. Shared by `defineResource` and the API model.
  */
 export function planResource<Ref = string>(
   schema: SchemaMeta,

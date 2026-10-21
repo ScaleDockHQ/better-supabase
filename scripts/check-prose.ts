@@ -92,7 +92,8 @@ function check(file: string): Finding[] {
   const lines = readFileSync(file, "utf-8").split("\n");
   let fence: string | undefined;
   let jsx = false;
-  lines.forEach((raw, index) => {
+
+  for (const [index, raw] of lines.entries()) {
     const trimmed = raw.trim();
     const marker = /^(`{3,}|~{3,})/u.exec(trimmed)?.[1];
 
@@ -103,15 +104,15 @@ function check(file: string): Finding[] {
         fence = undefined;
       }
 
-      return;
+      continue;
     }
 
     if (fence !== undefined) {
-      return;
+      continue;
     }
 
     if (/^(import|export)\s/u.test(trimmed)) {
-      return;
+      continue;
     }
 
     // Multi-line JSX tags carry props, not prose.
@@ -120,13 +121,13 @@ function check(file: string): Finding[] {
         jsx = false;
       }
 
-      return;
+      continue;
     }
 
     if (/^<[A-Za-z][^>]*$/u.test(trimmed)) {
       jsx = true;
 
-      return;
+      continue;
     }
 
     const text = prose(raw);
@@ -136,7 +137,7 @@ function check(file: string): Finding[] {
         findings.push({ file, line: index + 1, message });
       }
     }
-  });
+  }
 
   return findings;
 }

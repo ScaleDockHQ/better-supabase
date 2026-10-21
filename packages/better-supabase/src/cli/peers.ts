@@ -61,7 +61,7 @@ function compare(a: Version, b: Version): number {
     return right.length - left.length;
   }
 
-  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
     const x = left[index];
     const y = right[index];
 
@@ -180,8 +180,8 @@ function holds(
  * Whether `version` is in `range`, for the ranges better-supabase declares:
  * `||` alternatives of space-separated comparators (`>=`, `>`, `<=`, `<`,
  * exact) and caret ranges. As in npm, a prerelease only matches a set with a
- * comparator on the same release that has a prerelease too. `undefined`
- * when either can't be parsed.
+ * comparator on the same release that has a prerelease too. `undefined` when
+ * either can't be parsed.
  */
 export function satisfies(version: string, range: string): boolean | undefined {
   const parsed = parseVersion(version);
@@ -223,7 +223,10 @@ async function readManifest(
   }
 }
 
-/** The version of `name` that `root` resolves, looking in `node_modules` up to the file system root. */
+/**
+ * The version of `name` that `root` resolves, looking in `node_modules` up to
+ * the file system root.
+ */
 export async function installedVersion(
   name: string,
   root: string,

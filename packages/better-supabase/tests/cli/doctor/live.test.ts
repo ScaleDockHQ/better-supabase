@@ -1,18 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
+import type { SqlRule } from "../fixtures/fake-sql.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { errorText } from "../../../src/cli/core/errors.ts";
 import { ident, literal, summarizePlan } from "../../../src/cli/doctor/live.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { CLI_QUERY_TAG } from "../../../src/cli/introspect/source.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";
+import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const snapshot = await parseSnapshot(fixture);
@@ -248,12 +246,7 @@ describe("BS209 slow statements", () => {
         [
           /mean_exec_time >/,
           [
-            {
-              queryid: "1",
-              query: long,
-              calls: "2000",
-              mean_exec_time: "60",
-            },
+            { queryid: "1", query: long, calls: "2000", mean_exec_time: "60" },
             {
               queryid: "2",
               query: "select 1",
@@ -437,7 +430,11 @@ describe("BS212 --explain", () => {
     const zero = database([
       [
         /pg_stat_xact_user_functions/,
-        () => [{ name: "f.g", calls: reads++, self_time: 0.5 * reads }],
+        () => {
+          reads += 1;
+
+          return [{ name: "f.g", calls: reads - 1, self_time: 0.5 * reads }];
+        },
       ],
       [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }]],
     ]);

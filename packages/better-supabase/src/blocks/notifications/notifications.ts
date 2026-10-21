@@ -1,6 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { SubscriberEvent } from "../../core/contracts/authorization-hooks.ts";
+import type { Result } from "../../core/result.ts";
 import type {
   DeliveryEventKind,
   ListOptions,
@@ -26,16 +33,8 @@ import type { NotificationsEvents } from "./events.ts";
 import type { NotificationItem } from "./types.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
-import {
-  blockEmitter,
-  type NotificationDeliveryEventData,
-} from "../../core/block-events.ts";
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-  type RowFields,
-} from "../../core/block-fields.ts";
+import { blockEmitter } from "../../core/block-events.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import {
   batchResultsOf,
   budget,
@@ -44,13 +43,7 @@ import {
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  toDbError,
-  type Result,
-} from "../../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
@@ -161,7 +154,10 @@ const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
     }),
 });
 
-/** The data of `notification.delivered` and `notification.failed` for one delivery. */
+/**
+ * The data of `notification.delivered` and `notification.failed` for one
+ * delivery.
+ */
 const deliveryData = (
   message: NotificationMessage,
   channel: string,
@@ -203,7 +199,10 @@ function deliveryChannels(
   return [...channels, emailChannel(options.email)];
 }
 
-/** The event a delivery's audience check sees: the notification, as its recipients read it. */
+/**
+ * The event a delivery's audience check sees: the notification, as its
+ * recipients read it.
+ */
 const subscriberEventOf = (
   notification: NotificationItem,
 ): SubscriberEvent => ({
@@ -317,7 +316,10 @@ export function createNotifications<
     items: itemsOf(isRecord(value) ? value["items"] : []),
   });
 
-  /** Parses each item's data with its type's schema, before `hydrate` and `render` see it. */
+  /**
+   * Parses each item's data with its type's schema, before `hydrate` and
+   * `render` see it.
+   */
   const parsed = async (
     items: readonly NotificationItem[],
   ): Promise<Result<ParsedItem[]>> => {
@@ -483,8 +485,8 @@ export function createNotifications<
   };
 
   /**
-   * Sends a claimed batch: suppressed addresses are skipped first, then
-   * each notification's remaining recipients go through `audience` once.
+   * Sends a claimed batch: suppressed addresses are skipped first, then each
+   * notification's remaining recipients go through `audience` once.
    */
   async function deliverBatch(
     channel: NotificationChannel,
@@ -581,7 +583,10 @@ export function createNotifications<
     }
   }
 
-  /** `send_notification`'s argument for one send, after the type's schema and the fields. */
+  /**
+   * `send_notification`'s argument for one send, after the type's schema and
+   * the fields.
+   */
   const prepare = async (
     type: string,
     input: SendInput<unknown, F>,
@@ -682,12 +687,7 @@ export function createNotifications<
 
     if (options.onSent) {
       try {
-        await options.onSent({
-          id,
-          type,
-          tenant: tenant ?? null,
-          recipients,
-        });
+        await options.onSent({ id, type, tenant: tenant ?? null, recipients });
       } catch (cause) {
         return err(toDbError(cause));
       }

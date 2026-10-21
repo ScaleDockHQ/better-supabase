@@ -9,7 +9,10 @@ import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 
-/** The tenant module's memberships table and columns, for the entitlement lookups. */
+/**
+ * The tenant module's memberships table and columns, for the entitlement
+ * lookups.
+ */
 interface Memberships {
   readonly table: string;
   readonly tenant: string;
@@ -95,7 +98,10 @@ $$;
 revoke execute on function better_supabase.entitlement_value(${id}, text) from public, anon;
 grant execute on function better_supabase.entitlement_value(${id}, text) to authenticated, service_role;`;
 
-/** `tenant_entitlement_value` for sources without values: true when the tenant has the key. */
+/**
+ * `tenant_entitlement_value` for sources without values: true when the tenant
+ * has the key.
+ */
 export const booleanEntitlementValue = (id: string): string => `
 -- The value of a feature for the tenant: true when it has the key, null
 -- otherwise. Numeric limits come from the plan catalog's value column.
@@ -112,7 +118,10 @@ $$;
 revoke execute on function better_supabase.tenant_entitlement_value(${id}, text) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
 
-/** The pieces of the entitlement lookups that differ between the tenant module and a provider. */
+/**
+ * The pieces of the entitlement lookups that differ between the tenant module
+ * and a provider.
+ */
 interface ChecksSource {
   /** Comment lines before `has_entitlement`, with their own trailing blank line. */
   readonly intro: string;
@@ -204,7 +213,10 @@ export const tenantEntitlementChecks = (
     claim,
   );
 
-/** `has_entitlement` and `feature_claims` on the provider's `memberIds` and `memberIdsFor`. */
+/**
+ * `has_entitlement` and `feature_claims` on the provider's `memberIds` and
+ * `memberIdsFor`.
+ */
 export const providerEntitlementChecks = (
   claims: ClaimsMeta,
   provider: ModuleEntitlementsProvider,

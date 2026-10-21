@@ -1,14 +1,17 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
+import type { ReplicaState } from "../replicas.ts";
 import type { ServerContext } from "../server-types.ts";
 import type { ServerCore } from "./core.ts";
 
-import { type ReplicaState, withPrimaryPin } from "../replicas.ts";
+import { withPrimaryPin } from "../replicas.ts";
 
 /**
- * Entry contributing `ctx.replica`, where `ctx.db` reads go when a read URL
- * is configured (`undefined` without one). On the way out it sets the
+ * Entry contributing `ctx.replica`, where `ctx.db` reads go when a read URL is
+ * configured (`undefined` without one). On the way out it sets the
  * `bs-primary-until` cookie after a write, so the caller's next reads see it.
  */
 export function withReplica<

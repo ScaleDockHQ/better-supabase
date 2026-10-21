@@ -54,8 +54,8 @@ export interface WriteArgs<
   /** `false` skips `RETURNING` (needed when RLS hides the written row). */
   readonly returning?: boolean;
   /**
-   * Keep caller-supplied values for columns that `timestamps()`, `actor()`
-   * and `softDelete()` fill (imports, backfills). Without it they are refused.
+   * Keep caller-supplied values for columns that `timestamps()`, `actor()` and
+   * `softDelete()` fill (imports, backfills). Without it they are refused.
    */
   readonly override?: boolean;
 }
@@ -65,14 +65,14 @@ export interface UpdateArgs<
   T extends keyof M,
 > extends WriteArgs<M, T> {
   /**
-   * More conditions the row must meet, such as a tenant or a status. A row
-   * with this key that does not match returns `not_found`, in one request.
+   * More conditions the row must meet, such as a tenant or a status. A row with
+   * this key that does not match returns `not_found`, in one request.
    */
   readonly where?: WhereInput<M, T>;
   /**
-   * Optimistic concurrency: the update only applies when the row still
-   * matches. Plain values mean equality; operators work as in `where`. A
-   * mismatch returns a `stale` error, found with a second request.
+   * Optimistic concurrency: the update only applies when the row still matches.
+   * Plain values mean equality; operators work as in `where`. A mismatch
+   * returns a `stale` error, found with a second request.
    */
   readonly expect?: WhereInput<M, T>;
 }
@@ -139,11 +139,14 @@ export interface WriteManyArgs<
   T extends keyof M,
 > extends WriteArgs<M, T> {
   /**
-   * Columns some rows leave out become `null` instead of their column
-   * default. Defaults to `false`, so a left-out column takes its default.
+   * Columns some rows leave out become `null` instead of their column default.
+   * Defaults to `false`, so a left-out column takes its default.
    */
   readonly defaultToNull?: boolean;
-  /** How `{ count }` is counted over PostgREST with `returning: false`. Defaults to `exact`. */
+  /**
+   * How `{ count }` is counted over PostgREST with `returning: false`. Defaults
+   * to `exact`.
+   */
   readonly count?: CountMode;
 }
 
@@ -212,9 +215,9 @@ export type CursorPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   readonly after: string | null;
   readonly size: number;
   /**
-   * Also count every row matching `where` (ignoring the cursor) and return
-   * it as `total`. The first page reads it from the page request; later
-   * pages cost one more request.
+   * Also count every row matching `where` (ignoring the cursor) and return it
+   * as `total`. The first page reads it from the page request; later pages cost
+   * one more request.
    */
   readonly withCount?: boolean;
 };
@@ -271,15 +274,15 @@ export interface Repository<
   ): AsyncResult<Payload<M, T, A> | null>;
   /**
    * The one row matching `where`, or `null` when none does, like supabase-js
-   * `maybeSingle()`. Several matching rows are a `multiple_rows` error, so
-   * a filter that should pick one row never reads an arbitrary one.
+   * `maybeSingle()`. Several matching rows are a `multiple_rows` error, so a
+   * filter that should pick one row never reads an arbitrary one.
    */
   findOnly<const A extends FindOnlyArgs<M, T> & FindExt<E, M, T>>(
     args: A,
   ): AsyncResult<Payload<M, T, A> | null>;
   /**
-   * The row with these values for the primary key or one named unique key
-   * (`{ email }`, `{ organizationId, slug }`), or `null`.
+   * The row with these values for the primary key or one named unique key (`{
+   * email }`, `{ organizationId, slug }`), or `null`.
    */
   findUnique<
     const A extends ReadArgs<M, T> & {
@@ -302,9 +305,11 @@ export interface Repository<
     args: A,
   ): AsyncResult<AggregateResult<M, T, A>>;
   exists(
-    args?: RequestArgs & {
-      readonly where?: WhereInput<M, T>;
-    } & FindExt<E, M, T>,
+    args?: RequestArgs & { readonly where?: WhereInput<M, T> } & FindExt<
+        E,
+        M,
+        T
+      >,
   ): AsyncResult<boolean>;
   paginate<
     const A extends (
@@ -423,7 +428,10 @@ export type NoArgName<F extends AnyFunctions> = {
     : never;
 }[OverloadedName<F>];
 
-/** Property names without index signatures (`Record<PropertyKey, never>` has none). */
+/**
+ * Property names without index signatures (`Record<PropertyKey, never>` has
+ * none).
+ */
 type KnownKeys<T> = keyof {
   [
     K in keyof T as string extends K
@@ -442,8 +450,8 @@ type RequiredKeys<T> = {
 
 /**
  * The overloads PostgREST can pick for arguments `A`: every name in `A` is an
- * argument, and every argument without a default is in `A`. Overloads with
- * the same names stay a union, since the call can't tell them apart.
+ * argument, and every argument without a default is in `A`. Overloads with the
+ * same names stay a union, since the call can't tell them apart.
  */
 type MatchingOverload<O, A> = A extends unknown
   ? O extends { readonly Args: infer OA }
@@ -464,8 +472,8 @@ export type OverloadReturns<O, A> = [MatchingOverload<O, A>] extends [never]
     : never;
 
 /**
- * `A` when its names pick an overload, with a name that no overload takes
- * typed `never`, and `never` when the names mix overloads.
+ * `A` when its names pick an overload, with a name that no overload takes typed
+ * `never`, and `never` when the names mix overloads.
  */
 export type OverloadArgs<O extends { readonly Args: unknown }, A> = A &
   NoInfer<
@@ -495,10 +503,10 @@ export interface DbHelpers<
   /** The underlying client (supabase-js), for anything the repository lacks. */
   readonly $client: C;
   /**
-   * Storage as the same caller: `connect()`'s `storage` option, or the
-   * client's `storage`. Pass it to `bucket.connect()` and the blocks, so
-   * Storage follows whatever the `Db` runs as. Throws when the connection
-   * has neither, such as a bare `Executor`.
+   * Storage as the same caller: `connect()`'s `storage` option, or the client's
+   * `storage`. Pass it to `bucket.connect()` and the blocks, so Storage follows
+   * whatever the `Db` runs as. Throws when the connection has neither, such as
+   * a bare `Executor`.
    */
   readonly $storage: StorageApi;
   readonly $executor: Executor;
@@ -517,8 +525,8 @@ export interface DbHelpers<
     ...rest: [...RpcArgs<F, N>, options?: RpcOptions<R>]
   ): AsyncResult<R>;
   /**
-   * An overloaded function: the arguments match one overload, and the
-   * result is the return type of the overloads with those argument names.
+   * An overloaded function: the arguments match one overload, and the result is
+   * the return type of the overloads with those argument names.
    */
   $rpc<N extends OverloadedName<F>, const A extends F[N]["Args"]>(
     name: N,
@@ -542,8 +550,8 @@ export interface DbHelpers<
   /**
    * Same connection without plugins: no tenant scoping, soft-delete filters,
    * timestamps, rules or executor wrappers. For migrations and admin tools.
-   * `keep` names plugins to leave installed, such as tracing (`keep: ["otel"]`);
-   * a name that isn't installed throws a `TypeError`.
+   * `keep` names plugins to leave installed, such as tracing (`keep:
+   * ["otel"]`); a name that isn't installed throws a `TypeError`.
    */
   $withoutPlugins(options?: {
     readonly keep?: readonly string[];
@@ -579,8 +587,8 @@ export interface DbHelpers<
   ): AsyncResult<{ -readonly [K in keyof S]: InferResult<S[K]> }>;
   /**
    * The `k` rows nearest to `vector`, nearest first, through the
-   * `search_<table>` function of the `vector-search` SQL module. RLS
-   * applies inside the search; `where` filters the `k` rows it returns.
+   * `search_<table>` function of the `vector-search` SQL module. RLS applies
+   * inside the search; `where` filters the `k` rows it returns.
    */
   $search<T extends TableKey<M>, const A extends SearchArgs<M, T>>(
     table: T,

@@ -42,8 +42,8 @@ export interface BookingPageRef {
 
 /**
  * The booking page of the signed-in member. The bookings block can't list
- * resources or services, so setup creates a calendar owned by
- * `booking_page` whose `ownerId` is `<userId>/<resourceId>/<serviceId>`.
+ * resources or services, so setup creates a calendar owned by `booking_page`
+ * whose `ownerId` is `<userId>/<resourceId>/<serviceId>`.
  */
 export async function findBookingPage(
   supabase: Parameters<typeof blocks>[0],
@@ -88,9 +88,9 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 /**
  * The member's booking page and its weekly hours. The block has no read for
- * hours, so they come from the open slots of a week from next Monday: each
- * day spans its first slot's start to its last slot's end. Bookings at a
- * day's edges narrow it, and a break inside a day doesn't show.
+ * hours, so they come from the open slots of a week from next Monday: each day
+ * spans its first slot's start to its last slot's end. Bookings at a day's
+ * edges narrow it, and a break inside a day doesn't show.
  */
 export async function loadBookingSetup(): Promise<BookingSetup | null> {
   "use cache: private";
@@ -176,7 +176,10 @@ export interface PublicBookingDay {
   readonly slots: readonly PublicSlot[];
 }
 
-/** Minutes in a Postgres interval as it prints, such as `00:30:00` or `1 day 02:00:00`. */
+/**
+ * Minutes in a Postgres interval as it prints, such as `00:30:00` or `1 day
+ * 02:00:00`.
+ */
 function intervalMinutes(interval: string): number {
   const days = /(\d+) days?/.exec(interval)?.[1];
 
@@ -197,9 +200,9 @@ export interface PublicBookingPage {
 }
 
 /**
- * The service a booking link points at and its open slots for the 7 days
- * from `from` (`YYYY-MM-DD`, today when it is earlier or missing). `null`
- * when the token doesn't resolve.
+ * The service a booking link points at and its open slots for the 7 days from
+ * `from` (`YYYY-MM-DD`, today when it is earlier or missing). `null` when the
+ * token doesn't resolve.
  */
 export async function loadPublicBooking(
   token: string,

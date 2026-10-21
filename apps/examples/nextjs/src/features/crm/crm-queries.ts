@@ -16,8 +16,8 @@ export type Loaded<T> =
   | { readonly kind: "error" };
 
 /**
- * Runs a cached loader. A failed read throws inside the loader, so it is
- * never cached and Retry reads again.
+ * Runs a cached loader. A failed read throws inside the loader, so it is never
+ * cached and Retry reads again.
  */
 export async function settle<T>(
   load: () => Promise<T | null>,
@@ -473,9 +473,9 @@ function quoteOf(row: v.InferOutput<typeof QuoteRow>): QuoteDetailData {
 }
 
 /**
- * The organization's latest quotes. The quotes block has no read function
- * yet: this calls `api.list_quotes(tenant, page_size)`, which the library
- * still has to add, so the region shows its error state until then.
+ * The organization's latest quotes. The quotes block has no read function yet:
+ * this calls `api.list_quotes(tenant, page_size)`, which the library still has
+ * to add, so the region shows its error state until then.
  */
 export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
   "use cache: private";
@@ -494,7 +494,10 @@ export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
   return v.parse(v.array(QuoteRow), rows).map(quoteOf);
 }
 
-/** One quote, `undefined` when it is gone. Calls `api.get_quote(quote)`, see `loadQuotes`. */
+/**
+ * One quote, `undefined` when it is gone. Calls `api.get_quote(quote)`, see
+ * `loadQuotes`.
+ */
 export async function loadQuote(
   id: string,
 ): Promise<QuoteDetailData | undefined | null> {

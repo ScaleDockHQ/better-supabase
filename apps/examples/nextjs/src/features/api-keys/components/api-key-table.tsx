@@ -31,9 +31,9 @@ import { apiKeyCreated } from "../api-key-actions";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
 /**
- * The organization's API keys through the browser client, with a button
- * that creates one and shows its token once. Members without
- * `api_keys.manage` create `personal` keys, which act as them.
+ * The organization's API keys through the browser client, with a button that
+ * creates one and shows its token once. Members without `api_keys.manage`
+ * create `personal` keys, which act as them.
  */
 export function ApiKeyTable({
   organizationId,

@@ -2,9 +2,11 @@ import type { ImmutableRequest, MiddlewareFunction } from "expo-server";
 
 import { setResponseHeaders, StatusError } from "expo-server";
 
+import type { ExpoParams } from "../bridges/expo.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ContextOptions,
@@ -13,24 +15,21 @@ import type {
 } from "../server/server-types.ts";
 
 import { serializeCookie } from "../auth/session.ts";
-import { type ExpoParams, toExpo } from "../bridges/expo.ts";
+import { toExpo } from "../bridges/expo.ts";
 import { DbException } from "../core/db-exception.ts";
 import { toProblem } from "../core/problem.ts";
 import { unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { refreshFor } from "../server/refresh.ts";
-import {
-  defaultExpose,
-  guard,
-  type GuardOptions,
-  type MiddlewareOptions,
-  respond,
-} from "../server/respond.ts";
+import { defaultExpose, guard, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 
-/** A request as Expo Router passes it: `ImmutableRequest` in loaders and middleware, `Request` in API routes. */
+/**
+ * A request as Expo Router passes it: `ImmutableRequest` in loaders and
+ * middleware, `Request` in API routes.
+ */
 export type ExpoRequest = Request | ImmutableRequest;
 
 export { toExpo } from "../bridges/expo.ts";
@@ -38,7 +37,10 @@ export { toExpo } from "../bridges/expo.ts";
 export type { ExpoParams, ToExpoOptions } from "../bridges/expo.ts";
 
 export interface ExpoOptions extends ServerOptions {
-  /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
+  /**
+   * Include error details in problem responses. Defaults to `NODE_ENV ===
+   * 'development'`.
+   */
   readonly exposeErrors?: boolean;
 }
 
@@ -46,9 +48,10 @@ export interface ExpoContextOptions
   extends Omit<ContextOptions, "refresh">, GuardOptions {
   /**
    * Refresh an expired cookie session and write the new cookies with
-   * `setResponseHeaders`. Defaults to true; bearer tokens never refresh.
-   * When `bs.middleware()` already ran for the request, the context reads the
-   * session it refreshed and never calls Auth again, whatever this option says.
+   * `setResponseHeaders`. Defaults to true; bearer tokens never refresh. When
+   * `bs.middleware()` already ran for the request, the context reads the
+   * session it refreshed and never calls Auth again, whatever this option
+   * says.
    */
   readonly refresh?: boolean;
 }
@@ -61,9 +64,9 @@ export interface ExpoMiddlewareOptions extends MiddlewareOptions {
   readonly redirectTo?: string;
   /**
    * Paths every caller may open, such as `/` or `/pricing`. An entry matches
-   * the path itself and everything under it (`/auth` matches
-   * `/auth/callback`). The `redirectTo` path and everything under it are
-   * always public, so its callback routes never loop back to it.
+   * the path itself and everything under it (`/auth` matches `/auth/callback`).
+   * The `redirectTo` path and everything under it are always public, so its
+   * callback routes never loop back to it.
    */
   readonly publicPaths?: readonly string[];
 }
@@ -86,19 +89,19 @@ export interface BetterExpo<
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
-   * The verified caller for a server loader, API route or middleware: a
-   * bearer token first, the session cookie second. Refreshed session
-   * cookies go out through `setResponseHeaders`. With `allow`, a refused
-   * caller throws a `StatusError` (401 or 403) that Expo Router answers.
+   * The verified caller for a server loader, API route or middleware: a bearer
+   * token first, the session cookie second. Refreshed session cookies go out
+   * through `setResponseHeaders`. With `allow`, a refused caller throws a
+   * `StatusError` (401 or 403) that Expo Router answers.
    */
   request(
     request: ExpoRequest,
     options?: ExpoContextOptions,
   ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
-   * A server loader (`export const loader = bs.loader(...)`) that runs `fn`
-   * as the caller. A `DbException` from `.orThrow()` becomes a `StatusError`
-   * with the error's status. Throws during static rendering, which has no request.
+   * A server loader (`export const loader = bs.loader(...)`) that runs `fn` as
+   * the caller. A `DbException` from `.orThrow()` becomes a `StatusError` with
+   * the error's status. Throws during static rendering, which has no request.
    */
   loader<T>(
     fn: (
@@ -122,12 +125,16 @@ export interface BetterExpo<
   ): (request: Request, params?: ExpoParams) => Promise<Response>;
   /**
    * `+middleware.ts`: refreshes an expired cookie session once per request,
-   * before loaders run, and redirects refused callers when `redirectTo` is set.
+   * before loaders run, and redirects refused callers when `redirectTo` is
+   * set.
    */
   middleware(options?: ExpoMiddlewareOptions): MiddlewareFunction;
 }
 
-/** `ImmutableRequest` has no body and immutable headers; the resolver only reads URL, method and headers. */
+/**
+ * `ImmutableRequest` has no body and immutable headers; the resolver only reads
+ * URL, method and headers.
+ */
 function toRequest(request: ExpoRequest): Request {
   if (request instanceof Request) {
     return request;
@@ -140,15 +147,18 @@ function toRequest(request: ExpoRequest): Request {
 }
 
 /**
- * expo-server wraps the incoming request in a new `ImmutableRequest` for the
- * middleware and for each loader, so a handoff can't key on the object. The
- * old cookie header pins it to one session: another request with the same key
+ * Expo-server wraps the incoming request in a new `ImmutableRequest` for the
+ * middleware and for each loader, so a handoff can't key on the object. The old
+ * cookie header pins it to one session: another request with the same key
  * carries the same cookies and would refresh to the same session.
  */
 const HANDOFF_TTL_MS = 10_000;
 
 interface Handoff {
-  /** The cookie header after the middleware's refresh, or undefined when it wrote no cookies. */
+  /**
+   * The cookie header after the middleware's refresh, or undefined when it
+   * wrote no cookies.
+   */
   readonly cookie: string | undefined;
   readonly expires: number;
 }
@@ -200,10 +210,7 @@ function writeHeaders(
 function statusError(error: DbError, expose: boolean): StatusError {
   const problem = toProblem(error, { expose });
 
-  return new StatusError(problem.status, {
-    error: problem.title,
-    ...problem,
-  });
+  return new StatusError(problem.status, { error: problem.title, ...problem });
 }
 
 /** Expo Router integration: server loaders, API routes and `+middleware.ts`. */

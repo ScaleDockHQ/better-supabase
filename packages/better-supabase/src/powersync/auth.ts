@@ -17,9 +17,9 @@ export interface SyncWithAuthOptions<C> {
   /** The connector, e.g. `createUploadConnector(...)`. */
   readonly connector: C;
   /**
-   * Clears the local database on sign-out and when another user signs in,
-   * so one user never reads another's rows. Unsynced changes are lost.
-   * Defaults to true.
+   * Clears the local database on sign-out and when another user signs in, so
+   * one user never reads another's rows. Unsynced changes are lost. Defaults to
+   * true.
    */
   readonly clearOnSignOut?: boolean;
   /** Called after each connect, disconnect or clear fails. */
@@ -27,12 +27,11 @@ export interface SyncWithAuthOptions<C> {
 }
 
 /**
- * Syncs while a user is signed in: connects on sign-in, and on sign-out
- * (or a different user) disconnects and clears the local database. An app
- * that starts signed out clears it too, since the rows may belong to a user
- * whose session ended while the app was closed. Steps
- * run one at a time in order. Returns a function that stops following the
- * session and disconnects.
+ * Syncs while a user is signed in: connects on sign-in, and on sign-out (or a
+ * different user) disconnects and clears the local database. An app that starts
+ * signed out clears it too, since the rows may belong to a user whose session
+ * ended while the app was closed. Steps run one at a time in order. Returns a
+ * function that stops following the session and disconnects.
  *
  * ```ts
  * useEffect(() => syncWithAuth(powersync, bs.auth, { connector }), []);

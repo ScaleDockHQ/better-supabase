@@ -16,9 +16,7 @@ export const workflowsBlock: BlockOf<
   name: "workflows",
   sql: ["workflows"],
   events: workflowsEvents,
-  provides: {
-    workflows: (client) => client,
-  },
+  provides: { workflows: (client) => client },
   create: createWorkflows,
   client: "workflows",
   category: "automation",

@@ -114,7 +114,9 @@ export function App() {
         <main>
           <header>
             {auth.user.email}{" "}
-            <button onClick={() => void signOut()}>Sign out</button>
+            <button type="button" onClick={() => void signOut()}>
+              Sign out
+            </button>
           </header>
           {organizationId ? (
             <Customers organizationId={organizationId} />

@@ -14,7 +14,7 @@ export type ErrorMessages = {
  *
  * ```ts
  * const message = createErrorMessages({
- *   unauthorized: t('Sign in again to continue.'),
+ *   unauthorized: t("Sign in again to continue."),
  *   raised: (error) => error.message,
  *   // ...every other kind
  * });

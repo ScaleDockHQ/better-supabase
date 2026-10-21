@@ -14,9 +14,9 @@ export const OPERATION_PREFIXES = {
 /**
  * The permission operation `name` needs: the provider's entry first, then
  * `fallback` (the module's own key, already renamed through
- * `blocks.<module>.permissions`). `undefined` when neither names one,
- * which a caller treats as "no permission declared" and refuses unless the
- * operation is public by design.
+ * `blocks.<module>.permissions`). `undefined` when neither names one, which a
+ * caller treats as "no permission declared" and refuses unless the operation is
+ * public by design.
  */
 export function operationPermission(
   operations: OperationTable | undefined,

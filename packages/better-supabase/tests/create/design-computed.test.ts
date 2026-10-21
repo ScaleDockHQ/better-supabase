@@ -1,11 +1,12 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
+
+import type { Design } from "../../src/create/index.ts";
 
 import {
   addTable,
   columnError,
   deleteColumn,
   deleteTable,
-  type Design,
   EMPTY_DESIGN,
   editTable,
   renameColumn,
@@ -67,7 +68,7 @@ const computed: Design = editTable(
 );
 
 describe("sources", () => {
-  test("a rollup aggregates the tables that link here, a lookup follows a link", () => {
+  it("a rollup aggregates the tables that link here, a lookup follows a link", () => {
     const tables = linked.appTables ?? {};
 
     expect(rollupSources(tables, "projects")).toEqual([
@@ -79,7 +80,7 @@ describe("sources", () => {
     expect(rollupSources(tables, "tasks")).toEqual([]);
   });
 
-  test("sum takes numbers, min takes ordered types, count takes no column", () => {
+  it("sum takes numbers, min takes ordered types, count takes no column", () => {
     const tasks = linked.appTables?.["tasks"] ?? {};
 
     expect(rollupColumns(tasks, "sum")).toEqual(["effort"]);
@@ -87,7 +88,7 @@ describe("sources", () => {
     expect(rollupColumns(tasks, "count")).toEqual([]);
   });
 
-  test("an aggregate with no column to read falls back to count", () => {
+  it("an aggregate with no column to read falls back to count", () => {
     expect(
       fittedRollup(
         { tasks: { columns: { project_id: { type: "uuid" } } } },
@@ -98,7 +99,7 @@ describe("sources", () => {
 });
 
 describe("the design", () => {
-  test("encodes, and the node lists the computed rows under the columns", () => {
+  it("encodes, and the node lists the computed rows under the columns", () => {
     expect(() => encodeDesign(computed)).not.toThrow();
 
     const projects = withDesign(data, computed, preset).tables.find(
@@ -115,7 +116,7 @@ describe("the design", () => {
     ]);
   });
 
-  test("a computed name is taken for new columns", () => {
+  it("a computed name is taken for new columns", () => {
     expect(
       columnError(
         computed.appTables?.["projects"] ?? {},
@@ -125,7 +126,7 @@ describe("the design", () => {
     ).toMatch(/already has/u);
   });
 
-  test("renaming a table or column keeps the rollup and lookup pointed at it", () => {
+  it("renaming a table or column keeps the rollup and lookup pointed at it", () => {
     const renamed = renameColumn(
       renameColumn(
         renameTable(computed, "tasks", "todos"),
@@ -161,7 +162,7 @@ describe("the design", () => {
     );
   });
 
-  test("deleting what a rollup or lookup reads drops it", () => {
+  it("deleting what a rollup or lookup reads drops it", () => {
     const noEffort = deleteColumn(computed, "tasks", "effort");
 
     expect(noEffort.appTables?.["projects"]?.rollups).toBeUndefined();
@@ -180,7 +181,7 @@ describe("the design", () => {
     expect(() => encodeDesign(noTasks)).not.toThrow();
   });
 
-  test("a rollup renames in place and deletes", () => {
+  it("a rollup renames in place and deletes", () => {
     const projects = computed.appTables?.["projects"] ?? {};
     const rollup = projects.rollups?.["done_effort"];
 

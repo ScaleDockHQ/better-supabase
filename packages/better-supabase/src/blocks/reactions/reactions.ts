@@ -3,12 +3,12 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   optionalText,
   recordOf,
   recordsOf,
@@ -18,7 +18,10 @@ import {
 
 export interface ReactionsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Reactions>;

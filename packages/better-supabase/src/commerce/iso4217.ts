@@ -1,8 +1,8 @@
 /**
- * Minor units per ISO 4217 currency code, from ISO 4217 List One as
- * published on the date in `SPEC_PINS.iso4217`. Codes without minor units
- * (precious metals, SDR and testing codes) are left out: they are not money
- * a price or a payment can carry.
+ * Minor units per ISO 4217 currency code, from ISO 4217 List One as published
+ * on the date in `SPEC_PINS.iso4217`. Codes without minor units (precious
+ * metals, SDR and testing codes) are left out: they are not money a price or a
+ * payment can carry.
  */
 export const ISO_4217_MINOR_UNITS: Readonly<Record<string, number>> =
   Object.freeze({

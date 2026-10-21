@@ -62,10 +62,7 @@ const ADD_ARGS = {
       "Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react",
     valueHint: "integration,...",
   },
-  force: {
-    type: "boolean",
-    description: "Overwrite files that exist",
-  },
+  force: { type: "boolean", description: "Overwrite files that exist" },
   "allow-hook-overlap": {
     type: "boolean",
     description:
@@ -85,8 +82,8 @@ export type AddArgs = CliArgs<
 
 /**
  * Adds blocks: lists them in `blocks`, writes their modules and what they
- * require (`sql add`), wires the ones with a client into `lib/blocks.ts`,
- * and names the registry glue for the project's frameworks.
+ * require (`sql add`), wires the ones with a client into `lib/blocks.ts`, and
+ * names the registry glue for the project's frameworks.
  */
 async function addBlocks(
   config: ResolvedConfig,
@@ -209,7 +206,10 @@ export function blocksWiringPath(context: TemplateContext): string {
   return join(dirname(dirname(libEntry(context))), "blocks.ts");
 }
 
-/** How `lib/blocks.ts` imports the `blocks.generated.ts` that `gen` writes next to `generated.ts`. */
+/**
+ * How `lib/blocks.ts` imports the `blocks.generated.ts` that `gen` writes next
+ * to `generated.ts`.
+ */
 export function blockConfigImport(context: TemplateContext): string {
   return importFrom(
     context,

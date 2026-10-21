@@ -16,7 +16,10 @@ type Json =
 /** The JSON object an agent passes as a tool's input. */
 type ToolInput = { readonly [key: string]: Json };
 
-/** A tool as `document.modelContext.registerTool()` takes it (WebMCP draft, 30 September 2026). */
+/**
+ * A tool as `document.modelContext.registerTool()` takes it (WebMCP draft, 30
+ * September 2026).
+ */
 export interface WebMcpTool {
   readonly name: string;
   readonly title: string;
@@ -89,11 +92,13 @@ export function docsWebMcpTools(fetcher: Fetch = fetch): readonly WebMcpTool[] {
         }
 
         return {
-          results: results.output.slice(0, limit).map((result) => ({
-            url: result.url,
-            title: result.content.replaceAll(/<\/?mark>/gu, ""),
-            type: result.type,
-          })),
+          results: results.output
+            .slice(0, limit)
+            .map((result) => ({
+              url: result.url,
+              title: result.content.replaceAll(/<\/?mark>/gu, ""),
+              type: result.type,
+            })),
         };
       },
     },

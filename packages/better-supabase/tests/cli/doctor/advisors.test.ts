@@ -6,11 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Lint } from "../../../src/cli/doctor/advisors.ts";
 import type { Queryable } from "../../../src/cli/introspect/source.ts";
 
 import {
   apiSchemas,
-  type Lint,
   managementAdvisors,
   splinterAdvisors,
   splinterScript,

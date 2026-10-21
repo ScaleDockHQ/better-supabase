@@ -16,6 +16,7 @@ const slack = (value: string) =>
 
 describe.skipIf(!live)("identities module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("links a chat user through a code the signed-in user issued", async () => {

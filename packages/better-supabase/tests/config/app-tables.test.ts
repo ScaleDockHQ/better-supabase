@@ -70,9 +70,7 @@ describe("appTablesOf", () => {
     fails(
       {
         [`t${"a".repeat(40)}`]: {
-          columns: {
-            [`c${"b".repeat(20)}`]: { type: "text", options: ["x"] },
-          },
+          columns: { [`c${"b".repeat(20)}`]: { type: "text", options: ["x"] } },
         },
       },
       "is longer than 63 characters",
@@ -561,10 +559,7 @@ describe("appTablesOf rollups and lookups", () => {
     fails(
       tables(
         {},
-        {
-          rollups: {},
-          lookups: { id: { via: "project_id", column: "name" } },
-        },
+        { rollups: {}, lookups: { id: { via: "project_id", column: "name" } } },
       ),
       '"id" is already a column of tasks',
     );

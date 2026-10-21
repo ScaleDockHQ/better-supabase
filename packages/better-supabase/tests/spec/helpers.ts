@@ -7,10 +7,7 @@ export function standard(jsonSchema: Record<string, unknown>): StandardLike {
       version: 1,
       vendor: "test",
       validate: (value: unknown) => ({ value }),
-      jsonSchema: {
-        input: () => jsonSchema,
-        output: () => jsonSchema,
-      },
+      jsonSchema: { input: () => jsonSchema, output: () => jsonSchema },
     },
   };
 }

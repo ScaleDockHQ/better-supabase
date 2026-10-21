@@ -78,9 +78,7 @@ describe("entitlementsMode", () => {
 
     expect(
       entitlementsMode(resolveConfig({ authorization: provider }, "/project")),
-    ).toMatchObject({
-      provider: { memberships: stubProvider.memberships },
-    });
+    ).toMatchObject({ provider: { memberships: stubProvider.memberships } });
   });
 
   it("refuses what the provider doesn't back instead of falling back", () => {
@@ -181,9 +179,7 @@ describe("accessProviderMode", () => {
       accessProviderMode(
         config({}, withProvider({ suspension: { user }, roleSources })),
       ),
-    ).toMatchObject({
-      access: { suspension: { user }, roleSources },
-    });
+    ).toMatchObject({ access: { suspension: { user }, roleSources } });
     expect(
       accessProviderMode(config({}, withProvider({ roleSources: [] }))),
     ).not.toHaveProperty("access.roleSources");

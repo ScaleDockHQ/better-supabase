@@ -77,7 +77,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
         snapshot.generator.columns
           .filter((column) => column.table === "notes")
           .map((column) => column.name)
-          .sort(),
+          .toSorted(),
       ).toEqual(["body", "id", "owner", "tags"]);
       expect(snapshot.generator.functions.map((fn) => fn.name)).toContain(
         "note_count",

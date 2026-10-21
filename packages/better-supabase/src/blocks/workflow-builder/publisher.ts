@@ -3,10 +3,11 @@ import type {
   AutomationHooks,
   AutomationRef,
 } from "../../core/contracts/authorization-hooks.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { WorkflowVersion } from "./types.ts";
 
 import { PERMISSION_CAP_CLAIM } from "../../auth/delegation.ts";
-import { type DbError, dbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { isRecord, optionalText, recordOf, stringsOf } from "../shared.ts";
 import { graphOf } from "./graph.ts";
@@ -23,9 +24,9 @@ const forbidden = (
   });
 
 /**
- * The claims a step runs with when the app passes no `automation.runAs`:
- * the checked publisher (a user or the tenant's service principal), capped
- * to the version's stored permissions.
+ * The claims a step runs with when the app passes no `automation.runAs`: the
+ * checked publisher (a user or the tenant's service principal), capped to the
+ * version's stored permissions.
  */
 function defaultClaims(
   automation: AutomationRef,
@@ -49,9 +50,9 @@ async function settled<T>(run: () => T | Promise<T>): Promise<T | undefined> {
 }
 
 /**
- * Asks `automation.mayPublish` about `version` as the caller: `undefined`
- * when it allows the publish, the refusal otherwise. Without claims, or when
- * the hook refuses or throws, the publish is refused.
+ * Asks `automation.mayPublish` about `version` as the caller: `undefined` when
+ * it allows the publish, the refusal otherwise. Without claims, or when the
+ * hook refuses or throws, the publish is refused.
  */
 export function mayPublishRefusal(
   call: BlockCall,
@@ -108,10 +109,10 @@ export function mayPublishRefusal(
 }
 
 /**
- * The claims a step of `version` runs with: `workflow_run_principal` checks
- * the stored publisher, then `runAs` narrows their claims. `tenant` is the
- * one a system definition's run belongs to. Every refusal is an error;
- * nothing falls back to the service role.
+ * The claims a step of `version` runs with: `workflow_run_principal` checks the
+ * stored publisher, then `runAs` narrows their claims. `tenant` is the one a
+ * system definition's run belongs to. Every refusal is an error; nothing falls
+ * back to the service role.
  */
 export function runAsPublisher(
   serviceCall: BlockCall,

@@ -16,8 +16,8 @@ import { simplifyOrFalse } from "../ir/simplify.ts";
 import { dateText } from "../ir/wire.ts";
 
 /**
- * A compiled PostgREST request, expressed as calls on the public
- * postgrest-js builder so it works with any supabase-js client.
+ * A compiled PostgREST request, expressed as calls on the public postgrest-js
+ * builder so it works with any supabase-js client.
  */
 export interface PostgrestPlan {
   /** `select` parameter, or `undefined` for mutations without returning. */
@@ -34,8 +34,8 @@ export interface PostgrestPlan {
 
 export interface PostgrestCompileOptions {
   /**
-   * The PostgREST version the request goes to, from `postgrestVersion` in
-   * the config. `maxAffected` needs 13 or later; older versions fail with
+   * The PostgREST version the request goes to, from `postgrestVersion` in the
+   * config. `maxAffected` needs 13 or later; older versions fail with
    * `invalid_request` before any request. Defaults to `"13"`.
    */
   readonly postgrestVersion?: string;
@@ -132,8 +132,8 @@ function quote(value: unknown): string {
 
 /**
  * Values PostgREST reads the same with or without quotes in an `in` list:
- * uuids, numbers, ISO dates and times, enum values, slugs and emails.
- * `null` stays quoted, so it keeps meaning the string.
+ * uuids, numbers, ISO dates and times, enum values, slugs and emails. `null`
+ * stays quoted, so it keeps meaning the string.
  */
 const BARE = /^[\w.:+@-]+$/;
 
@@ -235,10 +235,7 @@ function operatorAndValue(
         invalidRequest('"in" needs an array');
       }
 
-      return {
-        operator: "in",
-        value: `(${value.map(listItem).join(",")})`,
-      };
+      return { operator: "in", value: `(${value.map(listItem).join(",")})` };
     }
 
     case "is": {
@@ -739,9 +736,9 @@ function renderSelect(
 }
 
 /**
- * PostgREST orders by columns only. `order=count` still sorts groups by
- * their row count: Postgres reads `customers.count` as `count(customers)`
- * when the table has no `count` column. Measures have no such spelling.
+ * PostgREST orders by columns only. `order=count` still sorts groups by their
+ * row count: Postgres reads `customers.count` as `count(customers)` when the
+ * table has no `count` column. Measures have no such spelling.
  */
 function aggregateOrder(
   compiler: PostgrestCompiler,

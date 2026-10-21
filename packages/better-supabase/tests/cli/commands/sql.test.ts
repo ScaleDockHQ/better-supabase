@@ -11,12 +11,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+
 import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import {
   modulePermissionKeys,
   renderModules,
@@ -112,9 +111,7 @@ describe("runSql", () => {
   });
 
   it("adds a module next to the ones blocks lists", async () => {
-    const config: BetterSupabaseConfig = {
-      blocks: ["organizations"],
-    };
+    const config: BetterSupabaseConfig = { blocks: ["organizations"] };
 
     const added = await sql(["add", "billing"], config);
     expect(added.output).toContain("(billing)");
@@ -270,10 +267,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
       sql(["sync"], { realtime: { policies, triggers } }),
     ).rejects.toThrow("add realtime-tables to blocks");
     await expect(
-      sql(["sync"], {
-        realtime: { triggers },
-        blocks: ["realtime-tables"],
-      }),
+      sql(["sync"], { realtime: { triggers }, blocks: ["realtime-tables"] }),
     ).rejects.toThrow("realtime.triggers needs realtime.policies");
     await expect(
       sql(["sync"], {
@@ -339,10 +333,7 @@ export const thread = defineTopic("thread:{threadId}");
 
     const expected = defineTopic("organization:{organizationId}:inbox").trigger(
       "public.messages",
-      {
-        ...options,
-        topics: [{ topic: defineTopic("thread:{threadId}") }],
-      },
+      { ...options, topics: [{ topic: defineTopic("thread:{threadId}") }] },
     );
 
     expect(written).toContain(expected);
@@ -522,9 +513,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       output: "blocks is empty; nothing to write.",
     });
 
-    const config: BetterSupabaseConfig = {
-      blocks: ["tenant", "rate-limit"],
-    };
+    const config: BetterSupabaseConfig = { blocks: ["tenant", "rate-limit"] };
 
     const synced = await sql(["sync"], config);
     expect(synced.output).toContain(
@@ -616,9 +605,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
-    const config: BetterSupabaseConfig = {
-      blocks: ["audit", "pgtap"],
-    };
+    const config: BetterSupabaseConfig = { blocks: ["audit", "pgtap"] };
 
     await mkdir(join(root, "supabase/schemas"), { recursive: true });
     await writeFile(
@@ -837,9 +824,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
     await sql(["sync"], {
       blocks: {
-        sessions: {
-          options: { policies: true, exclude: ["public.audit_*"] },
-        },
+        sessions: { options: { policies: true, exclude: ["public.audit_*"] } },
       },
     });
 
@@ -875,9 +860,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("writes the module extensions into a migration before the schema migration", async () => {
-    const config: BetterSupabaseConfig = {
-      blocks: ["jobs", "jsonb-schemas"],
-    };
+    const config: BetterSupabaseConfig = { blocks: ["jobs", "jsonb-schemas"] };
 
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(
@@ -908,9 +891,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   });
 
   it("refuses a data migration while no earlier migration creates a module extension", async () => {
-    const config: BetterSupabaseConfig = {
-      blocks: ["jsonb-schemas"],
-    };
+    const config: BetterSupabaseConfig = { blocks: ["jsonb-schemas"] };
 
     await sql(["sync"], config);
     const migrations = join(root, "supabase/migrations");
@@ -1355,9 +1336,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
       await expect(sql(["print", "access"], provider(null))).rejects.toThrow(
         /the config has no authorization/,
       );
-      expect(await sql(["list"], provider(null))).toMatchObject({
-        code: 0,
-      });
+      expect(await sql(["list"], provider(null))).toMatchObject({ code: 0 });
       expect(await sql(["print", "audit"], provider(null))).toMatchObject({
         code: 0,
       });

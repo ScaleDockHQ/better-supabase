@@ -77,6 +77,7 @@ const layout = (owner: string): ModuleLayout => ({
 
 describe.skipIf(!live)("state machine", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("transitions only records the caller may update, and keeps a lifecycle", async () => {

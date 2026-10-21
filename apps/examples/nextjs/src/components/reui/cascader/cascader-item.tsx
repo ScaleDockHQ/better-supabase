@@ -34,8 +34,10 @@ import { cn } from "@/lib/utils";
 // Base UI extends its synthetic events with a handler-veto escape hatch.
 type VetoableEvent = { preventBaseUIHandler?: () => void };
 
-/** A row press. The veto hook is optional: an `as="button"` row is outside Base
- *  UI's listbox and gets a plain React event. */
+/**
+ * A row press. The veto hook is optional: an `as="button"` row is outside Base
+ * UI's listbox and gets a plain React event.
+ */
 export type CascaderRowEvent = React.MouseEvent<HTMLElement> & VetoableEvent;
 
 // Each style's inline inset, as a variable: a row and its absolutely positioned
@@ -84,13 +86,15 @@ const ROW_CLASS = `${ROW_SHELL_CLASS} ${ROW_GAP_CLASS} ${ROW_TEXT_CLASS}`;
 
 const CASCADER_ACTION_INSET_CLASS = `${ROW_INSET_CLASS} ${ROW_FLUSH_CLASS}`;
 
-/** A footer COMMAND: the row theme, so it cannot drift from the list, plus the
- *  hover and `focus-visible` fills a plain button never gets. Fills, never a
- *  ring: a ring under rows that all paint with a fill read as a different
- *  widget bolted on. `focus-visible`, not `focus`, so a pointer press does not
- *  leave a command painted as if it were still hovered. Disabled keys off
- *  `aria-disabled`, not `:disabled`, to keep it FOCUSABLE: a footer whose only
- *  row is disabled has no tab stop. */
+/**
+ * A footer COMMAND: the row theme, so it cannot drift from the list, plus the
+ * hover and `focus-visible` fills a plain button never gets. Fills, never a
+ * ring: a ring under rows that all paint with a fill read as a different widget
+ * bolted on. `focus-visible`, not `focus`, so a pointer press does not leave a
+ * command painted as if it were still hovered. Disabled keys off
+ * `aria-disabled`, not `:disabled`, to keep it FOCUSABLE: a footer whose only
+ * row is disabled has no tab stop.
+ */
 export const CASCADER_ACTION_CLASS = `${ROW_SHELL_CLASS} ${ROW_TEXT_CLASS} ${ROW_FLUSH_CLASS} hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground cursor-pointer gap-2 transition-colors aria-disabled:pointer-events-none aria-disabled:opacity-50`;
 
 // The box around the affordances that are not the row. 20px around a 16px icon,
@@ -128,23 +132,29 @@ export interface CascaderItemProps extends Omit<
   onClick?: (event: CascaderRowEvent) => void;
   onMouseUp?: (event: CascaderRowEvent) => void;
   node: CascaderNode;
-  /** Explicit render index. Required while virtualized and DELIBERATELY IGNORED
-   *  otherwise: it self-registers the row and breaks `aria-activedescendant`. */
+  /**
+   * Explicit render index. Required while virtualized and DELIBERATELY IGNORED
+   * otherwise: it self-registers the row and breaks `aria-activedescendant`.
+   */
   index?: number;
   /** Indentation depth. Drives `--cascader-indent` in tree mode. */
   depth?: number;
   /** Renders the ancestor chain under the label, for deep and global search. */
   showPath?: boolean;
-  /** `option` renders a real `Combobox.Item`; `button` renders identical markup
-   *  outside the listbox, for the ancestor columns in columns mode. */
+  /**
+   * `option` renders a real `Combobox.Item`; `button` renders identical markup
+   * outside the listbox, for the ancestor columns in columns mode.
+   */
   as?: "option" | "button";
   /** Tree mode: this row is an expanded branch. */
   expanded?: boolean;
   /** Indent each depth by this many pixels. Tree mode only. */
   indent?: number;
-  /** Whether the node has children. Defaults to the cascader's own answer, as do
-   *  the three below: callers pass them because they already hold the level,
-   *  which keeps a memoised row off the volatile context. */
+  /**
+   * Whether the node has children. Defaults to the cascader's own answer, as do
+   * the three below: callers pass them because they already hold the level,
+   * which keeps a memoised row off the volatile context.
+   */
   branch?: boolean;
   /** Whether the node may be committed. Defaults to the cascader's own answer. */
   selectable?: boolean;
@@ -158,19 +168,25 @@ export interface CascaderItemProps extends Omit<
   loading?: boolean;
   /** Paging row only: this level's last request failed. */
   error?: boolean;
-  /** Branch row only: this node's OWN children are being fetched. The chevron
-   *  (or, in tree mode, the expander) becomes a spinner IN PLACE, in the same
-   *  16px box: no skeleton row appears below, nothing reflows. */
+  /**
+   * Branch row only: this node's OWN children are being fetched. The chevron
+   * (or, in tree mode, the expander) becomes a spinner IN PLACE, in the same
+   * 16px box: no skeleton row appears below, nothing reflows.
+   */
   childrenLoading?: boolean;
-  /** Branch row only: the last fetch of this node's children failed. The same
-   *  box becomes the retry. The press path is unchanged: it goes through
-   *  `navigate`, which refires the failed level rather than moving. */
+  /**
+   * Branch row only: the last fetch of this node's children failed. The same
+   * box becomes the retry. The press path is unchanged: it goes through
+   * `navigate`, which refires the failed level rather than moving.
+   */
   childrenError?: boolean;
   children?: React.ReactNode;
 }
 
-/** One row. Branch presses navigate instead of selecting, vetoed here with
- *  `preventBaseUIHandler()` on `onClick` (Enter too) and on `onMouseUp`. */
+/**
+ * One row. Branch presses navigate instead of selecting, vetoed here with
+ * `preventBaseUIHandler()` on `onClick` (Enter too) and on `onMouseUp`.
+ */
 const CascaderItem = React.memo(function CascaderItem({
   node,
   index,
@@ -876,9 +892,11 @@ function CascaderItemPath({ node }: { node: CascaderNode }) {
   );
 }
 
-/** Every load-derived prop a row needs. A PAGING row reports the level it
- *  belongs to, a BRANCH row the level it OWNS; mutually exclusive, so one call
- *  answers both. Exported because a memoised row cannot read them itself. */
+/**
+ * Every load-derived prop a row needs. A PAGING row reports the level it
+ * belongs to, a BRANCH row the level it OWNS; mutually exclusive, so one call
+ * answers both. Exported because a memoised row cannot read them itself.
+ */
 export function getCascaderMoreProps(
   node: CascaderNode,
   loadStates: ReadonlyMap<string, CascaderLoadState>,
@@ -912,10 +930,12 @@ export interface CascaderItemsProps {
   children?: (node: CascaderNode, index: number) => React.ReactNode;
 }
 
-/** Whatever the active view is: the current level, the deepest column, or the
- *  flattened tree rows. Lives here so `cascader.tsx` never imports a row
- *  component, which would cycle with the context. `index` is deliberately not
- *  passed; see `CascaderItemProps`. */
+/**
+ * Whatever the active view is: the current level, the deepest column, or the
+ * flattened tree rows. Lives here so `cascader.tsx` never imports a row
+ * component, which would cycle with the context. `index` is deliberately not
+ * passed; see `CascaderItemProps`.
+ */
 function CascaderItems({ children }: CascaderItemsProps) {
   const { mode, isBranch, isSelectable, isSelected, isIndeterminate } =
     useCascaderActions();
@@ -1002,11 +1022,13 @@ export interface CascaderGroupProps extends Omit<
   className?: string;
 }
 
-/** A run of related rows, named by the `CascaderLabel` inside it: the group is
- *  `role="group"` and Base UI points its `aria-labelledby` at the label, where a
- *  heading alone inside a listbox is dropped from the accessibility tree.
- *  Grouping is composition, not data: `CascaderItems` renders one flat run per
- *  level, so its indices line up with `listRef`. */
+/**
+ * A run of related rows, named by the `CascaderLabel` inside it: the group is
+ * `role="group"` and Base UI points its `aria-labelledby` at the label, where a
+ * heading alone inside a listbox is dropped from the accessibility tree.
+ * Grouping is composition, not data: `CascaderItems` renders one flat run per
+ * level, so its indices line up with `listRef`.
+ */
 function CascaderGroup({ className, ...props }: CascaderGroupProps) {
   return (
     <CascaderGroupContext.Provider value={true}>
@@ -1054,8 +1076,10 @@ function CascaderPlainLabel({ className, ...props }: CascaderLabelProps) {
   });
 }
 
-/** A heading. Inside `CascaderGroup` it is the group's accessible name; outside
- *  one (the footer flyout is a menu, not a listbox) it is decoration only. */
+/**
+ * A heading. Inside `CascaderGroup` it is the group's accessible name; outside
+ * one (the footer flyout is a menu, not a listbox) it is decoration only.
+ */
 function CascaderLabel(props: CascaderLabelProps) {
   const grouped = React.useContext(CascaderGroupContext);
   return grouped ? (
@@ -1073,9 +1097,11 @@ export interface CascaderSeparatorProps extends Omit<
   className?: string;
 }
 
-/** Decorative on purpose: Base UI's separator is `role="separator"`, which a
- *  `listbox` may not own, and a run that needs separating for a screen reader
- *  needs a `CascaderGroup`, not a line. A consumer can pass the role back. */
+/**
+ * Decorative on purpose: Base UI's separator is `role="separator"`, which a
+ * `listbox` may not own, and a run that needs separating for a screen reader
+ * needs a `CascaderGroup`, not a line. A consumer can pass the role back.
+ */
 function CascaderSeparator({ className, ...props }: CascaderSeparatorProps) {
   return (
     <ComboboxPrimitive.Separator

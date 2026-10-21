@@ -31,10 +31,7 @@ describe("credentials", () => {
     expect(databaseUrlCredential(bare, {})).toBeUndefined();
     expect(
       databaseUrlCredential(bare, { SUPABASE_DB_URL: env.SUPABASE_DB_URL }),
-    ).toEqual({
-      value: "postgres://supabase",
-      from: "$SUPABASE_DB_URL",
-    });
+    ).toEqual({ value: "postgres://supabase", from: "$SUPABASE_DB_URL" });
     expect(databaseUrlCredential(bare, env)?.from).toBe("$DATABASE_URL");
     expect(
       databaseUrlCredential(

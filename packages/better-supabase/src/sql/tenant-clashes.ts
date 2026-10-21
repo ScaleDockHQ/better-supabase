@@ -12,10 +12,10 @@ function defaultNames(module: SqlModule): readonly string[] {
 }
 
 /**
- * The names `module` already uses that `sql.naming.tenant: tenant` would
- * also give a renamed table or column, such as `team_id` and `teams` for
- * `team`. Such a module can't run under that tenant name: its tables would
- * collide, and the clients couldn't tell the two apart in a result.
+ * The names `module` already uses that `sql.naming.tenant: tenant` would also
+ * give a renamed table or column, such as `team_id` and `teams` for `team`.
+ * Such a module can't run under that tenant name: its tables would collide, and
+ * the clients couldn't tell the two apart in a result.
  */
 export function tenantNameClashes(
   module: SqlModule,

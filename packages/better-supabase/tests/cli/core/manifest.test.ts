@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import type { CommandEffect } from "../../../src/cli/core/manifest.ts";
+
 import { builtinCommands } from "../../../src/cli/builtin-commands.ts";
 import {
   COMMANDS,
-  type CommandEffect,
   findSpec,
   RESERVED_NAMES,
   specPaths,

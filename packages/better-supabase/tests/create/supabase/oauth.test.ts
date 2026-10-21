@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 
 import {
   authorizeUrl,
@@ -30,7 +30,7 @@ function tokenFetch(body: Record<string, string | number>, status = 200) {
 }
 
 describe("pkcePair", () => {
-  test("the challenge is the base64url SHA-256 of the verifier", async () => {
+  it("the challenge is the base64url SHA-256 of the verifier", async () => {
     const { verifier, challenge } = await pkcePair();
 
     const digest = await crypto.subtle.digest(
@@ -41,7 +41,7 @@ describe("pkcePair", () => {
     const expected = btoa(String.fromCodePoint(...new Uint8Array(digest)))
       .replaceAll("+", "-")
       .replaceAll("/", "_")
-      .replace(/=+$/u, "");
+      .replace(/[=]+$/u, "");
 
     expect(challenge).toBe(expected);
     expect(verifier).toMatch(/^[\w-]{43,}$/u);
@@ -51,33 +51,33 @@ describe("pkcePair", () => {
 describe("seal", () => {
   const session = { accessToken: "token", expiresAt: 1000 };
 
-  test("round-trips a value", async () => {
+  it("round-trips a value", async () => {
     const sealed = await seal(session, SECRET);
 
     expect(sealed).not.toContain("token");
     await expect(unseal(sealed, SECRET, isSession)).resolves.toEqual(session);
   });
 
-  test("rejects a tampered value, another secret or another shape", async () => {
+  it("rejects a tampered value, another secret or another shape", async () => {
     const sealed = await seal(session, SECRET);
     const tampered = `${sealed.slice(0, -2)}${sealed.endsWith("A") ? "B" : "A"}`;
 
-    await expect(unseal(tampered, SECRET, isSession)).resolves.toBe(undefined);
-    await expect(unseal(sealed, `${SECRET}-other`, isSession)).resolves.toBe(
-      undefined,
-    );
-    await expect(unseal(sealed, SECRET, isFlow)).resolves.toBe(undefined);
-    await expect(unseal("garbage", SECRET, isSession)).resolves.toBe(undefined);
+    await expect(unseal(tampered, SECRET, isSession)).resolves.toBeUndefined();
+    await expect(
+      unseal(sealed, `${SECRET}-other`, isSession),
+    ).resolves.toBeUndefined();
+    await expect(unseal(sealed, SECRET, isFlow)).resolves.toBeUndefined();
+    await expect(unseal("garbage", SECRET, isSession)).resolves.toBeUndefined();
   });
 });
 
 describe("returnPath", () => {
-  test("keeps paths under /create", () => {
+  it("keeps paths under /create", () => {
     expect(returnPath("/create?preset=abc")).toBe("/create?preset=abc");
     expect(returnPath("/create/x")).toBe("/create/x");
   });
 
-  test("falls back to /create for anything else", () => {
+  it("falls back to /create for anything else", () => {
     expect(returnPath(null)).toBe("/create");
     expect(returnPath("https://evil.example/create")).toBe("/create");
     expect(returnPath("//evil.example/create")).toBe("/create");
@@ -115,7 +115,7 @@ test("authorizeUrl asks for a code with an S256 challenge", () => {
 });
 
 describe("exchangeCode", () => {
-  test("posts the code with Basic auth and returns a session", async () => {
+  it("posts the code with Basic auth and returns a session", async () => {
     const fetchImpl = tokenFetch({
       access_token: "access",
       refresh_token: "refresh",
@@ -151,7 +151,7 @@ describe("exchangeCode", () => {
     );
   });
 
-  test("throws an OAuthError when Supabase refuses", async () => {
+  it("throws an OAuthError when Supabase refuses", async () => {
     await expect(
       exchangeCode(
         config,
@@ -163,7 +163,7 @@ describe("exchangeCode", () => {
 });
 
 describe("refreshSession", () => {
-  test("refreshes within a minute of expiry", () => {
+  it("refreshes within a minute of expiry", () => {
     expect(needsRefresh({ accessToken: "a", expiresAt: 100_000 }, 30_000)).toBe(
       false,
     );
@@ -172,7 +172,7 @@ describe("refreshSession", () => {
     );
   });
 
-  test("keeps the old refresh token when Supabase sends none", async () => {
+  it("keeps the old refresh token when Supabase sends none", async () => {
     const session = await refreshSession(
       config,
       { accessToken: "old", refreshToken: "refresh", expiresAt: 0 },
@@ -187,7 +187,7 @@ describe("refreshSession", () => {
     });
   });
 
-  test("throws without a refresh token", async () => {
+  it("throws without a refresh token", async () => {
     await expect(
       refreshSession(config, { accessToken: "old", expiresAt: 0 }),
     ).rejects.toBeInstanceOf(OAuthError);

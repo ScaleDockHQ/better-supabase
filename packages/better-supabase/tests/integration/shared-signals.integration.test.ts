@@ -16,6 +16,7 @@ const TENANT = crypto.randomUUID();
 
 describe.skipIf(!live)("shared-signals module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("pushes through a set endpoint, holds SETs while paused and sends them on resume", async () => {

@@ -1,13 +1,14 @@
+import type { Money } from "../commerce/money.ts";
 import type { DbError } from "../core/errors.ts";
 
-import { isCurrency, type Money, money } from "../commerce/money.ts";
+import { isCurrency, money } from "../commerce/money.ts";
 import { bigintOf, optionalBigintOf } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 
 /**
- * `Money` from an amount block functions send as text and its currency.
- * Throws for a number (precision is already lost), a missing amount or a
- * code ISO 4217 doesn't list.
+ * `Money` from an amount block functions send as text and its currency. Throws
+ * for a number (precision is already lost), a missing amount or a code ISO 4217
+ * doesn't list.
  */
 export const moneyOf = (
   amount: unknown,
@@ -63,8 +64,8 @@ export const unknownCurrency = (currency: string): DbError =>
   });
 
 /**
- * Why amounts can't be written in `currency`, or `undefined` when they can:
- * the currency is unknown, or an amount is in another one.
+ * Why amounts can't be written in `currency`, or `undefined` when they can: the
+ * currency is unknown, or an amount is in another one.
  */
 export function amountsError(
   currency: string | undefined,

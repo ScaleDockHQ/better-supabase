@@ -1,26 +1,27 @@
 import type { ModuleContext } from "../context.ts";
+import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
-import {
-  type OrdersNames,
-  amountOf,
-  columns,
-  guard,
-  serviceOnlyGuard,
-} from "./orders-shared.ts";
+import { amountOf, columns, guard, serviceOnlyGuard } from "./orders-shared.ts";
 
 const MAX_QUANTITY = 10_000;
 
 const COUNTRY = "'^[A-Z]{2}$'";
 
-/** Raises unless `address` (jsonb) is null or an object with a two-letter country. */
+/**
+ * Raises unless `address` (jsonb) is null or an object with a two-letter
+ * country.
+ */
 function addressCheck(address: string): string {
   return `if ${address} is not null and (jsonb_typeof(${address}) <> 'object' or (${address} ? 'country' and coalesce(${address} ->> 'country', '') !~ ${COUNTRY})) then
     ${fail("ORDERS_ADDRESS_INVALID", "an address is an object whose country is an ISO 3166-1 alpha-2 code", "22023")}
   end if;`;
 }
 
-/** The SQL that loads the cart `id` into `v_cart` and raises unless the caller owns it. */
+/**
+ * The SQL that loads the cart `id` into `v_cart` and raises unless the caller
+ * owns it.
+ */
 function ownCart(
   ctx: ModuleContext,
   id: string,

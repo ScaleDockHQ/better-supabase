@@ -16,13 +16,19 @@ import { createPlanPickerController } from "../client.ts";
 export type { CheckoutStarted, PlanCatalog, PlanOption } from "../client.ts";
 
 export interface UsePlanPickerOptions<P extends { readonly key: string }> {
-  /** The plans and the current one, such as a server action; it throws on failure. */
+  /**
+   * The plans and the current one, such as a server action; it throws on
+   * failure.
+   */
   readonly load: () => Promise<PlanCatalog<P>>;
   /** What a server already loaded: the first load is skipped. */
   readonly initial?: PlanCatalog<P>;
   /** A server action that starts Checkout for a plan key and returns its URL. */
   readonly checkout: (plan: string) => Promise<Result<CheckoutStarted>>;
-  /** Opens the Checkout URL: `location.assign` on the web, `WebBrowser.openBrowserAsync` in React Native. */
+  /**
+   * Opens the Checkout URL: `location.assign` on the web,
+   * `WebBrowser.openBrowserAsync` in React Native.
+   */
   readonly open: (url: string) => void | Promise<void>;
 }
 
@@ -33,13 +39,17 @@ export interface PlanPickerState<P>
 }
 
 /**
- * The plans with the tenant's current one, for a plan picker. `choose`
- * starts Checkout through the server action you pass and opens the URL it
- * returns; Stripe is only ever called on the server. The same hook runs in
- * React DOM and React Native.
+ * The plans with the tenant's current one, for a plan picker. `choose` starts
+ * Checkout through the server action you pass and opens the URL it returns;
+ * Stripe is only ever called on the server. The same hook runs in React DOM and
+ * React Native.
  *
  * ```tsx
- * const { plans, current, pending, choose } = usePlanPicker({ load, checkout, open });
+ * const { plans, current, pending, choose } = usePlanPicker({
+ *   load,
+ *   checkout,
+ *   open,
+ * });
  * ```
  */
 export function usePlanPicker<P extends { readonly key: string } = PlanOption>(

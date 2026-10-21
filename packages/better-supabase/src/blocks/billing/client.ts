@@ -1,10 +1,14 @@
 import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 
-import { err, ok, type Result, toDbError } from "../../core/result.ts";
+import { err, ok, toDbError } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
-/** A plan the picker lists: a key from the app's plan catalog, plus whatever the app shows. */
+/**
+ * A plan the picker lists: a key from the app's plan catalog, plus whatever the
+ * app shows.
+ */
 export interface PlanOption {
   readonly key: string;
   readonly name: string;
@@ -17,7 +21,10 @@ export interface PlanCatalog<P> {
   readonly current: string | undefined;
 }
 
-/** Where Checkout continues: Stripe's hosted page, or `undefined` when the server finished the change itself. */
+/**
+ * Where Checkout continues: Stripe's hosted page, or `undefined` when the
+ * server finished the change itself.
+ */
 export interface CheckoutStarted {
   readonly url: string | undefined;
 }
@@ -27,21 +34,22 @@ export interface PlanPickerControllerOptions<
 > {
   readonly auth: AuthPort;
   /**
-   * The plans and the current one, such as a server action that reads the
-   * app's plan catalog and the tenant's subscription. It throws on failure.
+   * The plans and the current one, such as a server action that reads the app's
+   * plan catalog and the tenant's subscription. It throws on failure.
    */
   readonly load: () => Promise<PlanCatalog<P>>;
   /** What a server already loaded: the first load is skipped. */
   readonly initial?: PlanCatalog<P>;
   /**
-   * Starts Checkout for a plan key on the server, such as a server action
-   * that calls `billing.checkout()`. The controller never talks to Stripe:
-   * the secret key stays on the server.
+   * Starts Checkout for a plan key on the server, such as a server action that
+   * calls `billing.checkout()`. The controller never talks to Stripe: the
+   * secret key stays on the server.
    */
   readonly checkout: (plan: string) => Promise<Result<CheckoutStarted>>;
   /**
    * Opens the Checkout URL: `location.assign(url)` on the web,
-   * `WebBrowser.openBrowserAsync(url)` from `expo-web-browser` in React Native.
+   * `WebBrowser.openBrowserAsync(url)` from `expo-web-browser` in React
+   * Native.
    */
   readonly open: (url: string) => void | Promise<void>;
 }
@@ -70,9 +78,8 @@ export type PlanPickerController<P> = Controller<
 >;
 
 /**
- * The plans with the tenant's current one, for a plan picker: `choose`
- * starts Checkout through the injected server action and opens the URL it
- * returns.
+ * The plans with the tenant's current one, for a plan picker: `choose` starts
+ * Checkout through the injected server action and opens the URL it returns.
  */
 export function createPlanPickerController<
   P extends { readonly key: string } = PlanOption,
@@ -89,7 +96,8 @@ export function createPlanPickerController<
       let seeded = options.initial !== undefined;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const catalog = await options.load();

@@ -1,33 +1,41 @@
+import type { Money } from "../../commerce/money.ts";
+import type {
+  Payment,
+  PaymentEvent,
+  PaymentProvider,
+} from "../../commerce/payments.ts";
+import type {
+  TaxCart,
+  TaxProvider,
+  TaxTransaction,
+} from "../../commerce/tax.ts";
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type {
+  Address,
+  CartLine,
+  Order,
+  OrderRefundStatus,
+  OrderStatus,
+  PricedCart,
+  QuantityLine,
+  ShippingOption,
+} from "./codecs.ts";
 
-import { money, type Money } from "../../commerce/money.ts";
-import {
-  type Payment,
-  type PaymentEvent,
-  type PaymentProvider,
-  paymentProviderOf,
-} from "../../commerce/payments.ts";
-import {
-  type TaxCart,
-  type TaxProvider,
-  taxProviderOf,
-  type TaxTransaction,
-} from "../../commerce/tax.ts";
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-  readFields,
-} from "../../core/block-fields.ts";
+import { money } from "../../commerce/money.ts";
+import { paymentProviderOf } from "../../commerce/payments.ts";
+import { taxProviderOf } from "../../commerce/tax.ts";
+import { blockFields, readFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -38,22 +46,14 @@ import {
   textOf,
 } from "../shared.ts";
 import {
-  type Address,
   amountText,
-  type CartLine,
   moneyOf,
-  type Order,
   orderOf,
-  type OrderRefundStatus,
-  type OrderStatus,
   ORDER_STATUSES,
-  type PricedCart,
   pricedCartOf,
   quoteToJson,
-  type QuantityLine,
   REFUND_STATUSES,
   refundedTaxLines,
-  type ShippingOption,
   shippingOptionsOf,
   transactionToJson,
 } from "./codecs.ts";
@@ -71,7 +71,10 @@ export interface OrdersOptions<
   readonly payments?: PaymentProvider;
   /** Quotes tax at checkout and records the sale once the order is paid. */
   readonly tax?: TaxProvider;
-  /** The tax category of each cart line, such as `standard` or a provider tax code. */
+  /**
+   * The tax category of each cart line, such as `standard` or a provider tax
+   * code.
+   */
   readonly taxCategory?: string | ((line: CartLine) => string | undefined);
   /** The tax category of the shipping line. */
   readonly shippingTaxCategory?: string;
@@ -81,7 +84,10 @@ export interface OrdersOptions<
   readonly capture?: "automatic" | "manual";
   /** `withBlockHooks` hooks around any orders method. */
   readonly hooks?: NoInfer<BlockHooks<Orders<FieldsOf<S>>>>;
-  /** Receives the errors `after` hooks throw and failed tax calls. Default: `console`. */
+  /**
+   * Receives the errors `after` hooks throw and failed tax calls. Default:
+   * `console`.
+   */
   readonly logger?: Logger;
 }
 
@@ -206,7 +212,10 @@ export interface Orders<F extends object = Record<never, never>> {
     input: ShippingRateInput,
   ): AsyncResult<{ readonly id: string }>;
   deleteShippingRate(rateId: string): AsyncResult<boolean>;
-  /** The caller's open cart in the organization and currency, created when there is none. */
+  /**
+   * The caller's open cart in the organization and currency, created when there
+   * is none.
+   */
   createCart(
     organizationId: string,
     input: CartInput,
@@ -230,17 +239,20 @@ export interface Orders<F extends object = Record<never, never>> {
   /** The cart at today's prices, with what keeps it from checkout. */
   priceCart(cartId: string): AsyncResult<PricedCart>;
   /**
-   * Moves an anonymous user's open carts to the user they signed in as.
-   * Service only. Resolves to the number of carts moved or merged.
+   * Moves an anonymous user's open carts to the user they signed in as. Service
+   * only. Resolves to the number of carts moved or merged.
    */
   mergeCarts(fromUserId: string, toUserId: string): AsyncResult<number>;
   /**
-   * Prices the cart, quotes tax, places the order (reserving its stock)
-   * and creates the payment. Repeating it for the same cart returns the
-   * same order and, through the idempotency key, the same payment.
+   * Prices the cart, quotes tax, places the order (reserving its stock) and
+   * creates the payment. Repeating it for the same cart returns the same order
+   * and, through the idempotency key, the same payment.
    */
   checkout(cartId: string, input?: CheckoutInput<F>): AsyncResult<Checkout<F>>;
-  /** Stores a payment's state on its order; the order is paid once its total is captured. Service only. */
+  /**
+   * Stores a payment's state on its order; the order is paid once its total is
+   * captured. Service only.
+   */
   recordPayment(
     orderId: string | null,
     payment: Payment,
@@ -251,7 +263,10 @@ export interface Orders<F extends object = Record<never, never>> {
   handlePaymentEvent(event: PaymentEvent): AsyncResult<PaymentEventOutcome>;
   /** Verifies a provider webhook and applies its events. */
   webhook(input: WebhookInput): AsyncResult<readonly PaymentEventOutcome[]>;
-  /** Records the paid order's sale with the tax provider; retries a failed commit. */
+  /**
+   * Records the paid order's sale with the tax provider; retries a failed
+   * commit.
+   */
   commitTax(orderId: string): AsyncResult<TaxTransaction | null>;
   /** Cancels an unpaid order, releasing its stock and its open payments. */
   cancelOrder(orderId: string, reason?: string): AsyncResult<boolean>;
@@ -274,13 +289,19 @@ export interface Orders<F extends object = Record<never, never>> {
     lines: readonly QuantityLine[],
     reason?: string,
   ): AsyncResult<{ readonly id: string; readonly quantity: number }>;
-  /** Receives the returned units; `restock` (default true) puts tracked ones back in stock. */
+  /**
+   * Receives the returned units; `restock` (default true) puts tracked ones
+   * back in stock.
+   */
   receiveReturn(
     returnId: string,
     options?: { readonly restock?: boolean; readonly locationId?: string },
   ): AsyncResult<boolean>;
   rejectReturn(returnId: string): AsyncResult<boolean>;
-  /** Refunds through the payment provider and reverses the refunded part of the tax. */
+  /**
+   * Refunds through the payment provider and reverses the refunded part of the
+   * tax.
+   */
   refund(orderId: string, input?: RefundRequest): AsyncResult<RefundOutcome>;
   /** The invoice of a paid order. */
   invoice(orderId: string): AsyncResult<Invoice<F>>;
@@ -330,7 +351,10 @@ function refundStatusOf(
   return status === "canceled" ? "failed" : status;
 }
 
-/** Carts, checkout, payments, fulfillments, returns, refunds and invoices over the `orders` SQL module. */
+/**
+ * Carts, checkout, payments, fulfillments, returns, refunds and invoices over
+ * the `orders` SQL module.
+ */
 export function createOrders<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: OrdersOptions<S>): Orders<FieldsOf<S>> {
@@ -423,7 +447,10 @@ export function createOrders<
       return stored.ok ? ok(committed.data) : stored;
     });
 
-  /** Commits the tax once a payment paid the order; a failure is logged and retried with `commitTax`. */
+  /**
+   * Commits the tax once a payment paid the order; a failure is logged and
+   * retried with `commitTax`.
+   */
   const afterPayment = async (record: PaymentRecord): Promise<void> => {
     if (!record.newlyPaid) {
       return;
@@ -683,11 +710,7 @@ export function createOrders<
   ): AsyncResult<Omit<RefundOutcome, "taxReversal">> =>
     service(
       "complete_refund",
-      {
-        refund: refundId,
-        status,
-        provider_reference: providerReference,
-      },
+      { refund: refundId, status, provider_reference: providerReference },
       (value) => recordOf(value, "complete_refund"),
     ).andThen(async (row) => {
       const order = await loadOrder(textOf(row["orderId"]));

@@ -14,8 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getEnabledFlags } from "../flag-queries";
 
 /**
- * Render inside `<Suspense>`. The sidebar hides the link while the flag is
- * off; this answers 404 for a direct visit too.
+ * Render inside `<Suspense>`. The sidebar hides the link while the flag is off;
+ * this answers 404 for a direct visit too.
  */
 export async function BetaContent() {
   const [flags, t] = await Promise.all([

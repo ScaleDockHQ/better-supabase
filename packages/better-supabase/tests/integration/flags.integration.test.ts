@@ -1,11 +1,12 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { FlagContext } from "../../src/blocks/flags/index.ts";
+
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import {
   createFlags,
   createFlagsProvider,
-  type FlagContext,
   sqlTransport,
 } from "../../src/blocks/flags/index.ts";
 import { expiredFlagsQuery } from "../../src/sql/index.ts";
@@ -22,6 +23,7 @@ const BUCKET_VECTORS = [
 
 describe.skipIf(!live)("flags", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("buckets like the TypeScript provider", async () => {
@@ -102,9 +104,7 @@ describe.skipIf(!live)("flags", () => {
       const sql = sqlTransport(s.sql);
 
       const admin = createFlags({
-        transport: {
-          call: (_schema, fn, args) => sql.call(api, fn, args),
-        },
+        transport: { call: (_schema, fn, args) => sql.call(api, fn, args) },
       });
 
       await s.asRole(staff, { platform_permissions: ["flags.manage"] });

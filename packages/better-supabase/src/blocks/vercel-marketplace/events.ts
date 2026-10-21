@@ -2,7 +2,10 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `marketplace_installation.*`: the Vercel team's installation of the integration. */
+/**
+ * `marketplace_installation.*`: the Vercel team's installation of the
+ * integration.
+ */
 export interface MarketplaceInstallationEventData {
   readonly installationId: string;
   readonly configurationId: string;
@@ -24,7 +27,10 @@ export type VercelMarketplaceEvents = {
   readonly "marketplace_invoice.state_changed": MarketplaceInvoiceEventData;
 };
 
-/** The `vercel-marketplace` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `vercel-marketplace` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const vercelMarketplaceEvents: Events<VercelMarketplaceEvents> =
   defineEvents({
     "marketplace_installation.upserted":

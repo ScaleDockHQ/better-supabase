@@ -124,6 +124,7 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
         .orThrow();
     }
   });
+
   afterAll(async () => {
     await admin.remove([
       { organizationId: ACME, file: "a.txt" },
@@ -233,7 +234,7 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
 
       await expect(shouting.ready).rejects.toThrow(/./);
       await shouting.unsubscribe();
-      client.removeAllChannels();
+      await client.removeAllChannels();
     },
     20_000,
   );
@@ -278,8 +279,8 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
       );
 
       expect(sent.ok).toBe(true);
-      readOnly.removeAllChannels();
-      sender.removeAllChannels();
+      await readOnly.removeAllChannels();
+      await sender.removeAllChannels();
     },
     20_000,
   );

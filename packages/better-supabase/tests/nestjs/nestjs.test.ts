@@ -1,20 +1,18 @@
 // oxlint-disable-next-line import/no-unassigned-import -- installs Reflect.getMetadata, which Nest decorators write to.
 import "reflect-metadata";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { HttpException } from "@nestjs/common";
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
+
+import type { ExecutionContextLike } from "../../src/nestjs/index.ts";
 
 import { DbException, dbError } from "../../src/core/errors.ts";
 import {
   contextOf,
   Ctx,
-  type ExecutionContextLike,
   guard,
   problemFilter,
   toNestMiddleware,

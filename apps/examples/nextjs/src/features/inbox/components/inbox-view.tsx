@@ -25,13 +25,11 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+import type { ConversationRow } from "../inbox-types";
+
 import { loadConversations } from "../inbox-actions";
 import { unwrap } from "../inbox-load";
-import {
-  AssigneeFilter,
-  type ConversationRow,
-  ConversationStatus,
-} from "../inbox-types";
+import { AssigneeFilter, ConversationStatus } from "../inbox-types";
 import { ConversationPanel } from "./conversation-panel";
 
 export function InboxView({

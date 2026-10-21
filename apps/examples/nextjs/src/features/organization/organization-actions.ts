@@ -34,8 +34,8 @@ function slugify(name: string): string {
 }
 
 /**
- * The caller's organizations with their plans, loaded by `useOrganizations`
- * in the switcher after each switch.
+ * The caller's organizations with their plans, loaded by `useOrganizations` in
+ * the switcher after each switch.
  */
 export const loadMyOrganizations = bs.action({}, async (_input, { db }) =>
   db.$rpc("my_organizations").map((rows) => toOrganizationSummaries(rows)),
@@ -76,10 +76,7 @@ export const updateOrganization = bs.action(
   async ({ name, slug }, { tenant: organizationId, supabase }) => {
     const updated = await blocks(supabase).organizations.update(
       organizationId,
-      {
-        name,
-        slug,
-      },
+      { name, slug },
     );
 
     if (!updated.ok) {
@@ -125,8 +122,8 @@ export const invitationSent = bs.action(
 );
 
 /**
- * The active organization's members with their profiles, loaded by
- * `useMembers` in the members table after a removal.
+ * The active organization's members with their profiles, loaded by `useMembers`
+ * in the members table after a removal.
  */
 export const loadMembers = bs.action(
   { requireTenant: true },
@@ -167,8 +164,8 @@ export const revokeInvitation = bs.action(
 
 /**
  * Runs after `useMembers` changed a member's role or removed them from the
- * browser (the organizations module checks and audits the change itself).
- * The member's token still carries the old role until it refreshes.
+ * browser (the organizations module checks and audits the change itself). The
+ * member's token still carries the old role until it refreshes.
  */
 export const memberChanged = bs.action(
   {

@@ -1,11 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { keyColumnsOf, parseSchema } from "../../src/create/index.ts";
 
 const source = (contents: string) => [{ path: "a.sql", module: "a", contents }];
 
 describe("parseSchema on hand-written SQL", () => {
-  test("ignores comments, unterminated blocks and alters of unknown tables", () => {
+  it("ignores comments, unterminated blocks and alters of unknown tables", () => {
     const tables = parseSchema(
       source(`
         -- create table public.ghost (id int);
@@ -19,7 +19,7 @@ describe("parseSchema on hand-written SQL", () => {
 });
 
 describe("keyColumnsOf", () => {
-  test("adds soft reference columns to the keys", () => {
+  it("adds soft reference columns to the keys", () => {
     const [notes] = parseSchema(
       source(
         "create table public.notes (id uuid primary key, body text, owner uuid);",

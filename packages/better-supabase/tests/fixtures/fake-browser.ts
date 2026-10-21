@@ -5,6 +5,7 @@ import { vi } from "vitest";
 
 import type { ClientLike, PresenceTopic } from "../../src/bindings/client.ts";
 import type { AuthSnapshot } from "../../src/client/index.ts";
+import type { BetterSupabase } from "../../src/core/define.ts";
 import type {
   PresenceMember,
   SubscriptionStatus,
@@ -15,7 +16,7 @@ import type {
   SchemaMeta,
 } from "../../src/schema/types.ts";
 
-import { type BetterSupabase, defineSupabase } from "../../src/core/define.ts";
+import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { defineSchema } from "../../src/schema/define.ts";

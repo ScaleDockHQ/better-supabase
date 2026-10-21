@@ -2,28 +2,26 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type {
+  FrameworkLocals,
+  LocalsResource,
+  FrameworkOptions,
+} from "../server/framework.ts";
+import type {
+  ActionParsed,
+  ActionResult,
+  AuthorizedContext,
+  BlockActionOptions,
+  BlockRequireOptions,
+  Unwrapped,
+} from "../server/kit.ts";
 import type { BetterServer } from "../server/server-types.ts";
 
 import { beforeRoute } from "../bridges/before-route.ts";
 import { nitroCloudflareEnv } from "../bridges/shared.ts";
 import { flushEvents } from "../server/adapter.ts";
-import {
-  type FrameworkLocals,
-  type LocalsResource,
-  type FrameworkOptions,
-  frameworkEntry,
-  localsOf,
-} from "../server/framework.ts";
-import {
-  type ActionParsed,
-  type ActionResult,
-  type AuthorizedContext,
-  type BlockActionOptions,
-  type BlockRequireOptions,
-  requireCaller,
-  runAction,
-  type Unwrapped,
-} from "../server/kit.ts";
+import { frameworkEntry, localsOf } from "../server/framework.ts";
+import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalResponse } from "../server/refusal.ts";
 import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
@@ -37,14 +35,17 @@ export interface SolidFetchEvent {
   readonly request: Request;
   readonly response: { readonly headers: Headers };
   readonly locals: Record<string, unknown>;
-  /** The H3 2 event; Nitro 3's Cloudflare preset puts the bindings on its request. */
+  /**
+   * The H3 2 event; Nitro 3's Cloudflare preset puts the bindings on its
+   * request.
+   */
   readonly nativeEvent?: { readonly req: Request } | undefined;
 }
 
 export interface SolidStartOptions extends FrameworkOptions {
   /**
-   * `getRequestEvent` from `solid-js/web`, which `require` and `action`
-   * call inside `"use server"` functions.
+   * `getRequestEvent` from `solid-js/web`, which `require` and `action` call
+   * inside `"use server"` functions.
    */
   readonly getRequestEvent: () => SolidFetchEvent | undefined;
   /** The host's env object for `getEnv`; defaults to the Cloudflare bindings. */
@@ -66,21 +67,22 @@ export interface BetterSolidStart<
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
-   * Verifies the caller, refreshes the session cookie on navigations and
-   * form posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
+   * Verifies the caller, refreshes the session cookie on navigations and form
+   * posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
    * `event.locals`.
    *
-   * ```ts title="src/middleware.ts"
-   * export default createMiddleware(bs.middleware)
+   * ```ts
+   * // src/middleware.ts
+   * export default createMiddleware(bs.middleware);
    * ```
    */
   readonly middleware: SolidStartMiddleware;
   /** The current request's `locals`, inside a `"use server"` function. */
   readonly locals: () => FrameworkLocals<M, F, E, C, P, B>;
   /**
-   * The caller inside a `"use server"` function (a `query`, an `action`,
-   * an API route), or a thrown refusal: a redirect to `signIn` or `mfa`
-   * when configured, else Problem Details.
+   * The caller inside a `"use server"` function (a `query`, an `action`, an API
+   * route), or a thrown refusal: a redirect to `signIn` or `mfa` when
+   * configured, else Problem Details.
    *
    * ```ts
    * const notes = query(async () => {

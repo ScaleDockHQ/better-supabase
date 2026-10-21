@@ -7,9 +7,7 @@ import { sessionsSqlOptions } from "./options.ts";
 export const sessionsBlock: Block<"sessions"> = defineBlock({
   name: "sessions",
   sql: ["sessions"],
-  options: {
-    sessions: sessionsSqlOptions,
-  },
+  options: { sessions: sessionsSqlOptions },
   category: "identity",
   recipes: ["sessions-list"],
 });

@@ -34,11 +34,11 @@ function sequenceFormatOf(
 }
 
 /**
- * PL/pgSQL that assigns the next number of `entity` in `tenant` to
- * `target.seq` (bigint) and `target.identifier` (text): from
- * `number-sequences` when it configures the entity, otherwise one more than
- * the tenant's highest in `fallback.table` under a transaction lock, with
- * `prefix` in front (`DEAL-4821`).
+ * PL/pgSQL that assigns the next number of `entity` in `tenant` to `target.seq`
+ * (bigint) and `target.identifier` (text): from `number-sequences` when it
+ * configures the entity, otherwise one more than the tenant's highest in
+ * `fallback.table` under a transaction lock, with `prefix` in front
+ * (`DEAL-4821`).
  */
 export function assignNumberSql(
   ctx: ModuleContext,

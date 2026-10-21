@@ -52,9 +52,15 @@ export interface VercelQueueClient {
 export interface VercelQueueBackendOptions {
   /** The consumer group that reads the topics. Default `better-supabase`. */
   readonly consumerGroup?: string;
-  /** Seconds a failed message waits before redelivery when `fail` gives no delay. Default 30. */
+  /**
+   * Seconds a failed message waits before redelivery when `fail` gives no
+   * delay. Default 30.
+   */
   readonly retryAfter?: number;
-  /** Milliseconds `read` waits for the rest of a batch after the first message. Default 25. */
+  /**
+   * Milliseconds `read` waits for the rest of a batch after the first message.
+   * Default 25.
+   */
   readonly settle?: number;
 }
 
@@ -70,10 +76,10 @@ interface Held {
  * Stores jobs on Vercel Queues through a `PollingQueueClient`. Queue names are
  * topic names. `read` holds each message open inside the client's `receive`
  * handler (the client keeps the visibility timeout alive), `complete`
- * acknowledges it and `fail` throws so the topic redelivers it after the
- * retry delay. Vercel Queues has no dead letters, schedules or ids that fit a
- * number, so ids are local handles, a message past `maxAttempts` is
- * acknowledged and dropped, and schedules need the SQL backend.
+ * acknowledges it and `fail` throws so the topic redelivers it after the retry
+ * delay. Vercel Queues has no dead letters, schedules or ids that fit a number,
+ * so ids are local handles, a message past `maxAttempts` is acknowledged and
+ * dropped, and schedules need the SQL backend.
  */
 export function vercelQueueBackend(
   client: VercelQueueClient,

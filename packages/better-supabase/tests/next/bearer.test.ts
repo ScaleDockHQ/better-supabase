@@ -108,8 +108,8 @@ describe("next.route for bearer callers", () => {
   });
 
   it("answers 404 for a row RLS hides, and lets the user's own token through", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(Response.json([])),
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      Response.json([]),
     );
 
     const delegated = await signer.sign({

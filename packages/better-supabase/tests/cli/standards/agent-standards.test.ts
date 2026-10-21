@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { loadSkills } from "../../../src/cli/commands/skills.ts";
 
-/** better-supabase, which ships the skills. */
+/** Better-supabase, which ships the skills. */
 const PACKAGE = resolve(import.meta.dirname, "../../..");
 const REPO = resolve(PACKAGE, "../..");
 const SKILLS = join(PACKAGE, "skills");
@@ -13,7 +13,10 @@ const SKILLS = join(PACKAGE, "skills");
 const json = async (path: string): Promise<Record<string, unknown>> =>
   JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
 
-/** The YAML frontmatter as flat `key: value` pairs (the spec's fields are scalars or one map). */
+/**
+ * The YAML frontmatter as flat `key: value` pairs (the spec's fields are
+ * scalars or one map).
+ */
 function frontmatter(markdown: string): Record<string, string> {
   const block = /^---\n([^]*?)\n---\n/.exec(markdown);
 

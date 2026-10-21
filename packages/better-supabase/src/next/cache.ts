@@ -2,13 +2,14 @@ import { revalidateTag, updateTag } from "next/cache.js";
 
 import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
+import type { TagOptions } from "../core/tags.ts";
 import type {
   NextCacheOptions,
   RevalidateProfile,
   SessionStaleOptions,
 } from "./types.ts";
 
-import { cacheTagsOf, tagFor, type TagOptions } from "../core/tags.ts";
+import { cacheTagsOf, tagFor } from "../core/tags.ts";
 
 /** The tag `bs.cached()` adds to entries rendered in a support session. */
 export function supportTag(sessionId: string): string {
@@ -21,9 +22,9 @@ const MIN_CLIENT_STALE = 30;
 /**
  * `cacheLife` `stale` seconds for a view of `session`: `max`, but never past
  * the token's expiry, and 0 once fewer than `min` seconds are left. A
- * signed-out view that a refresh would change (an `expired` or
- * `refresh_failed` cookie, or an `invalid` token) is 0 as well, so it never
- * joins the App Shell.
+ * signed-out view that a refresh would change (an `expired` or `refresh_failed`
+ * cookie, or an `invalid` token) is 0 as well, so it never joins the App
+ * Shell.
  */
 export function sessionStale(
   session: AuthSession,
@@ -73,9 +74,9 @@ export function sessionTag(userId: string): string {
 }
 
 /**
- * The table tags of a read: the tenant's and every tenant's, or the table's.
- * A read across tenants (`"*"`) also carries the table's, which every
- * mutation invalidates, including one scoped to a single tenant.
+ * The table tags of a read: the tenant's and every tenant's, or the table's. A
+ * read across tenants (`"*"`) also carries the table's, which every mutation
+ * invalidates, including one scoped to a single tenant.
  */
 export function tableTags(table: string, options: TagOptions): string[] {
   if (options.tenant === "*") {
@@ -95,8 +96,8 @@ const EXPIRE_NOW = { expire: 0 } as const;
 
 /**
  * Invalidates tags with `updateTag` (Server Actions), else `revalidateTag`
- * (Route Handlers), else not at all (jobs, scripts). The first tag decides
- * for the rest, so a mutation outside an action throws once, not per tag.
+ * (Route Handlers), else not at all (jobs, scripts). The first tag decides for
+ * the rest, so a mutation outside an action throws once, not per tag.
  */
 export function invalidateAll(
   tags: readonly string[],
@@ -105,7 +106,7 @@ export function invalidateAll(
   let index = 0;
 
   try {
-    for (; index < tags.length; index++) {
+    for (; index < tags.length; index += 1) {
       updateTag(tags[index]!);
     }
 
@@ -115,7 +116,7 @@ export function invalidateAll(
   }
 
   try {
-    for (; index < tags.length; index++) {
+    for (; index < tags.length; index += 1) {
       revalidateTag(tags[index]!, profile);
     }
   } catch {
@@ -125,8 +126,8 @@ export function invalidateAll(
 
 /**
  * Invalidates `bs:<table>` for every table in the target, the tenant's
- * `bs:<table>@<tenant>` (every tenant's `bs:<table>@*` when the mutation has
- * no tenant) and `bs:<table>:<id>` for the changed rows. Reads another tenant
+ * `bs:<table>@<tenant>` (every tenant's `bs:<table>@*` when the mutation has no
+ * tenant) and `bs:<table>:<id>` for the changed rows. Reads another tenant
  * tagged stay cached. `createNext` attaches it unless `cacheTags: false`.
  */
 export function nextCache(options: NextCacheOptions = {}): CacheAdapter {

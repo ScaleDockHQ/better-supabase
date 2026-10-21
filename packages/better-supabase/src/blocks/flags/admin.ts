@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -5,11 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FlagDefinition, FlagRule, FlagType, FlagValue } from "./flags.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { blockCall } from "../shared.ts";
@@ -23,13 +20,16 @@ export interface FlagsOptions<
    * platform staff over the Data API, or a service-role transport.
    */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
    * A Standard Schema for the flag's extra columns
-   * (`blocks.flags.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `list` and `save`, and validates them on `save`.
+   * (`blocks.flags.options.extraColumns`), keyed by column name. It types and
+   * parses `fields` on `list` and `save`, and validates them on `save`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the methods, such as a review rule on `save`. */
@@ -93,7 +93,10 @@ export interface Flags<F extends object = Record<never, never>> {
   ): AsyncResult<FlagRecord<F> | undefined>;
   /** `false` when there was no such flag. */
   remove(key: string): AsyncResult<boolean>;
-  /** Sets the variant of a tenant, a user or a context value; `null` removes the override. */
+  /**
+   * Sets the variant of a tenant, a user or a context value; `null` removes the
+   * override.
+   */
   override(
     key: string,
     target: FlagOverrideTarget,
@@ -138,8 +141,8 @@ const recordOf = async <F extends object>(
 
 /**
  * Manages feature flags for platform staff (`flags.manage`) or the service
- * role, through the `flags` module's `list_flags`, `save_flag`,
- * `delete_flag` and `set_flag_override`.
+ * role, through the `flags` module's `list_flags`, `save_flag`, `delete_flag`
+ * and `set_flag_override`.
  */
 export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
   options: FlagsOptions<S>,

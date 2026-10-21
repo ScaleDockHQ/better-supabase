@@ -74,6 +74,7 @@ function memoryStorage() {
 
 describe.skipIf(!live)("data lifecycle", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("exports a user's and an organization's rows to NDJSON files", async () => {
@@ -164,7 +165,11 @@ describe.skipIf(!live)("data lifecycle", () => {
         .split("\n")
         .map((line) => JSON.parse(line) as { name: string });
 
-      expect(lines.map((row) => row.name).sort()).toEqual(["p1", "p2", "p3"]);
+      expect(lines.map((row) => row.name).toSorted()).toEqual([
+        "p1",
+        "p2",
+        "p3",
+      ]);
 
       const memberships = memory.files.get(
         `${mine.id}/better_supabase.memberships.ndjson`,
@@ -174,15 +179,17 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(memberships).not.toContain(owner.id);
       expect((await exporter.run(mine.id)).ok).toBe(false);
 
-      await exporter.sink().send([
-        {
-          specversion: "1.0",
-          id: "e1",
-          source: "/t",
-          type: "dev.better-supabase.data_export.requested",
-          data: { exportId: theirs.id },
-        },
-      ]);
+      await exporter
+        .sink()
+        .send([
+          {
+            specversion: "1.0",
+            id: "e1",
+            source: "/t",
+            type: "dev.better-supabase.data_export.requested",
+            data: { exportId: theirs.id },
+          },
+        ]);
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where type like 'data_export.%' order by position",
@@ -393,10 +400,7 @@ describe.skipIf(!live)("data lifecycle", () => {
                   after: "180 days",
                   from: "ended_at",
                   unless: "{row}.keep_until > now()",
-                  set: {
-                    first_name: "Anonymized",
-                    email: { sql: "null" },
-                  },
+                  set: { first_name: "Anonymized", email: { sql: "null" } },
                   markedBy: "anonymized_at",
                 },
               ],
@@ -580,9 +584,7 @@ describe.skipIf(!live)("data lifecycle", () => {
             usage: { options: { history: true } },
             "data-lifecycle": {
               options: {
-                tables: {
-                  bs_test_lifecycle: { tenant: "organization_id" },
-                },
+                tables: { bs_test_lifecycle: { tenant: "organization_id" } },
               },
             },
           },
@@ -643,9 +645,9 @@ describe.skipIf(!live)("data lifecycle", () => {
         "ORGANIZATION_DELETION_FORBIDDEN",
       );
       await s.asRole(outsider);
-      expect(await lifecycle.organizationDeletion(organization).orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await lifecycle.organizationDeletion(organization).orThrow(),
+      ).toBeUndefined();
 
       await s.service();
 
@@ -668,7 +670,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.asRole(owner);
       expect(
         await lifecycle.cancelOrganizationDeletion(organization).orThrow(),
-      ).toBe(undefined);
+      ).toBeUndefined();
 
       await lifecycle
         .requestOrganizationDeletion(organization, { grace: "0 seconds" })
@@ -903,6 +905,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.close();
     }
   });
+
   it("never exports API keys and still purges them with the tenant", async () => {
     const s = await BlockSession.open(pool);
 

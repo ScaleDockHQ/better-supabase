@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Whether the client has an auth module to follow. A client built by hand
- * for Storage or Realtime only (or a test stand-in) has none.
+ * Whether the client has an auth module to follow. A client built by hand for
+ * Storage or Realtime only (or a test stand-in) has none.
  */
 export function hasAuthModule(supabase: SupabaseClient): boolean {
   const auth: Partial<SupabaseClient["auth"]> | undefined = supabase.auth;

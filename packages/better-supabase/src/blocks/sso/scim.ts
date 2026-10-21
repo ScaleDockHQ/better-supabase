@@ -1,19 +1,18 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { ApiKeys } from "../api-keys/api-keys.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { ScimFilter } from "./scim-filter.ts";
+import type {
+  ScimResourceType,
+  ScimStore,
+  ScimStoredResource,
+  ScimSyncLog,
+  ScimSyncOperation,
+} from "./scim-store.ts";
 
-import {
-  isRecord,
-  optionalText,
-  type BlockTemporalOptions,
-  applyTemporal,
-} from "../shared.ts";
-import {
-  matches,
-  parseFilter,
-  type ScimFilter,
-  ScimFilterError,
-} from "./scim-filter.ts";
+import { isRecord, optionalText, applyTemporal } from "../shared.ts";
+import { matches, parseFilter, ScimFilterError } from "./scim-filter.ts";
 import { applyPatch, ScimPatchError } from "./scim-patch.ts";
 import {
   ATTRIBUTES,
@@ -27,14 +26,7 @@ import {
   schemas,
   serviceProviderConfig,
 } from "./scim-schema.ts";
-import {
-  type ScimResourceType,
-  type ScimStore,
-  type ScimStoredResource,
-  type ScimSyncLog,
-  type ScimSyncOperation,
-  sqlScimStore,
-} from "./scim-store.ts";
+import { sqlScimStore } from "./scim-store.ts";
 
 interface ScimHandlerBaseOptions extends BlockTemporalOptions {
   /** Verifies the bearer token: an organization API key with the `scim` scope. */
@@ -178,7 +170,10 @@ const refs = (value: unknown, base: string, endpoint: string): unknown =>
       )
     : value;
 
-/** The resource as served: `$ref`s for the URL and `meta` from the store's fields. */
+/**
+ * The resource as served: `$ref`s for the URL and `meta` from the store's
+ * fields.
+ */
 function present(kind: Kind, stored: ScimStoredResource, base: string): Doc {
   const { resource } = stored;
   const endpoint = KINDS[kind].endpoint;
@@ -326,7 +321,10 @@ function groupData(input: Doc): Doc {
   };
 }
 
-/** `attributes` and `excludedAttributes` (RFC 7644 §3.4.2.5); `id` and `schemas` always stay. */
+/**
+ * `attributes` and `excludedAttributes` (RFC 7644 §3.4.2.5); `id` and `schemas`
+ * always stay.
+ */
 function project(
   doc: Doc,
   attributes: readonly string[] | undefined,
@@ -470,9 +468,9 @@ const KINDS = {
 
 /**
  * A SCIM 2.0 service provider (RFC 7644) as a web handler: `/Users` and
- * `/Groups` with filters, PATCH and ETags, plus the discovery endpoints.
- * Each request authenticates with an organization API key that has the
- * `scim` scope, and only touches that organization.
+ * `/Groups` with filters, PATCH and ETags, plus the discovery endpoints. Each
+ * request authenticates with an organization API key that has the `scim` scope,
+ * and only touches that organization.
  */
 export function scimHandler(
   options: ScimHandlerOptions,

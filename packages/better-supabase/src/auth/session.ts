@@ -1,5 +1,6 @@
+import type { CookieOptions } from "@supabase/ssr";
+
 import {
-  type CookieOptions,
   createChunks,
   DEFAULT_COOKIE_OPTIONS,
   isChunkLike,
@@ -12,8 +13,8 @@ import {
 export type { CookieOptions };
 
 /**
- * The session object auth-js persists (`sb-<ref>-auth-token`). A
- * `tokens-only` cookie has no `user`: auth-js keeps it in `auth.userStorage`.
+ * The session object auth-js persists (`sb-<ref>-auth-token`). A `tokens-only`
+ * cookie has no `user`: auth-js keeps it in `auth.userStorage`.
  */
 export interface StoredSession {
   readonly access_token: string;
@@ -26,9 +27,9 @@ export interface StoredSession {
 }
 
 /**
- * `cookies.encode` in `@supabase/ssr`: `user-and-tokens` stores the user
- * object in the cookie, `tokens-only` stores the access and refresh tokens
- * alone. The server and the browser client must use the same value.
+ * `cookies.encode` in `@supabase/ssr`: `user-and-tokens` stores the user object
+ * in the cookie, `tokens-only` stores the access and refresh tokens alone. The
+ * server and the browser client must use the same value.
  */
 export type SessionEncoding = "user-and-tokens" | "tokens-only";
 
@@ -93,7 +94,10 @@ export function serializeCookie(write: CookieWrite): string {
   return serializeCookieHeader(write.name, write.value, write.options);
 }
 
-/** Cookie values by name, per parsed cookie list: one request reads its session more than once. */
+/**
+ * Cookie values by name, per parsed cookie list: one request reads its session
+ * more than once.
+ */
 const cookieMaps = new WeakMap<
   readonly CookieRecord[],
   ReadonlyMap<string, string>
@@ -139,8 +143,8 @@ const readParts = new WeakMap<
 
 /**
  * The whole cookie, else the `.0`, `.1`, ... chunks. When the joined chunks
- * don't parse (a stale `.2` left by a longer session), the longest prefix
- * that parses wins, so one leftover chunk never signs the user out.
+ * don't parse (a stale `.2` left by a longer session), the longest prefix that
+ * parses wins, so one leftover chunk never signs the user out.
  */
 function readSessionParts(
   cookies: readonly CookieRecord[],
@@ -162,7 +166,7 @@ function readSessionParts(
   } else {
     const parts: string[] = [];
 
-    for (let index = 0; ; index++) {
+    for (let index = 0; ; index += 1) {
       const part = byName.get(`${name}.${index}`);
 
       if (!part) {
@@ -172,7 +176,7 @@ function readSessionParts(
       parts.push(part);
     }
 
-    for (let length = parts.length; length > 0; length--) {
+    for (let length = parts.length; length > 0; length -= 1) {
       const session = parseSession(parts.slice(0, length).join(""));
 
       if (session) {
@@ -212,8 +216,8 @@ function isStoredSession(value: unknown): value is StoredSession {
 /**
  * Reads the session written by `@supabase/ssr` (plain or `base64-`, whole or
  * chunked, `user-and-tokens` or `tokens-only`). Trailing chunks a shorter
- * session no longer uses are ignored; chunks that never form a session read
- * as no session.
+ * session no longer uses are ignored; chunks that never form a session read as
+ * no session.
  */
 export function readSession(
   cookies: readonly CookieRecord[],
@@ -224,8 +228,8 @@ export function readSession(
 
 /**
  * `Max-Age=0` writes for the session's chunk-like cookies that the readable
- * session doesn't use: a leftover `.2` after a shorter rewrite, chunks next
- * to a whole cookie, or chunks past a gap. Empty when no session reads.
+ * session doesn't use: a leftover `.2` after a shorter rewrite, chunks next to
+ * a whole cookie, or chunks past a gap. Empty when no session reads.
  */
 export function pruneSessionChunks(
   cookies: readonly CookieRecord[],
@@ -252,7 +256,10 @@ export function pruneSessionChunks(
     }));
 }
 
-/** The encoding a stored session was written with: `tokens-only` without a `user`. */
+/**
+ * The encoding a stored session was written with: `tokens-only` without a
+ * `user`.
+ */
 export function sessionEncoding(session: StoredSession): SessionEncoding {
   return session.user === undefined || session.user === null
     ? "tokens-only"
@@ -323,11 +330,11 @@ export function writeSession(
 }
 
 /**
- * `Max-Age=0` writes for every chunk of the session cookie at each of
- * `scopes`, like `clearAuthCookiesAtScopes` from `@supabase/ssr`. Use it once
- * the cookie `domain` or `path` changed, for the scopes earlier deploys
- * wrote: browsers ignore writes for scopes the host doesn't own, but a scope
- * equal to the current one clears the live session.
+ * `Max-Age=0` writes for every chunk of the session cookie at each of `scopes`,
+ * like `clearAuthCookiesAtScopes` from `@supabase/ssr`. Use it once the cookie
+ * `domain` or `path` changed, for the scopes earlier deploys wrote: browsers
+ * ignore writes for scopes the host doesn't own, but a scope equal to the
+ * current one clears the live session.
  */
 export function clearSessionAtScopes(
   existing: readonly CookieRecord[],

@@ -28,10 +28,7 @@ export async function generateMetadata({
   return {
     title: `${block.title} block`,
     description: block.description,
-    alternates: {
-      canonical: path,
-      types: { "text/markdown": `${path}.md` },
-    },
+    alternates: { canonical: path, types: { "text/markdown": `${path}.md` } },
     openGraph: { url: path },
   };
 }

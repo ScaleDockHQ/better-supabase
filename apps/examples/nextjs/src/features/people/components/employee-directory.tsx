@@ -29,9 +29,9 @@ import { PeopleLoadError } from "./people-load-error";
 
 // #region recipe:employee-directory
 /**
- * Render inside `<Suspense>`: the employees as an org chart, each manager
- * above their reports, with a search. Private details open in a sheet for
- * callers with `employees.view_sensitive`.
+ * Render inside `<Suspense>`: the employees as an org chart, each manager above
+ * their reports, with a search. Private details open in a sheet for callers
+ * with `employees.view_sensitive`.
  */
 export async function EmployeeDirectory() {
   const [session, t] = await Promise.all([

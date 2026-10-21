@@ -1,11 +1,13 @@
-import { type ContractOf, defineFunction } from "better-supabase/edge";
+import type { ContractOf } from "better-supabase/edge";
+
+import { defineFunction } from "better-supabase/edge";
 import * as v from "valibot";
 
 import { bs } from "./server.ts";
 
 /**
- * Runs as the caller, so RLS decides whether the organization accepts the
- * row. A body the input rejects answers 422 before the handler runs.
+ * Runs as the caller, so RLS decides whether the organization accepts the row.
+ * A body the input rejects answers 422 before the handler runs.
  */
 export const createCustomer = defineFunction(bs, {
   input: v.object({

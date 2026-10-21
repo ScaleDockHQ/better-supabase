@@ -40,16 +40,23 @@ function globalCrypto(): AesCryptoLike | undefined {
 }
 
 /**
- * Supabase Auth storage for sessions of any size: the session is encrypted
- * with AES-GCM and kept in MMKV or AsyncStorage, and only its key lives in
- * the keychain. A key that no longer decrypts (the app was reinstalled and
- * one store kept its data) reads as signed out and is replaced on the next
+ * Supabase Auth storage for sessions of any size: the session is encrypted with
+ * AES-GCM and kept in MMKV or AsyncStorage, and only its key lives in the
+ * keychain. A key that no longer decrypts (the app was reinstalled and one
+ * store kept its data) reads as signed out and is replaced on the next
  * sign-in.
  *
  * ```ts
- * import * as SecureStore from 'expo-secure-store';
- * import AsyncStorage from '@react-native-async-storage/async-storage';
- * createClient(url, key, { auth: { storage: largeSecureStorage({ secureStore: SecureStore, storage: AsyncStorage }) } });
+ * import * as SecureStore from "expo-secure-store";
+ * import AsyncStorage from "@react-native-async-storage/async-storage";
+ * createClient(url, key, {
+ *   auth: {
+ *     storage: largeSecureStorage({
+ *       secureStore: SecureStore,
+ *       storage: AsyncStorage,
+ *     }),
+ *   },
+ * });
  * ```
  */
 export function largeSecureStorage(

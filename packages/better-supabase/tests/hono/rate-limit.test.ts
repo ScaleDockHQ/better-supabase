@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { RateLimiter } from "../../src/hono/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
-import { createHono, type RateLimiter } from "../../src/hono/index.ts";
+import { createHono } from "../../src/hono/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";

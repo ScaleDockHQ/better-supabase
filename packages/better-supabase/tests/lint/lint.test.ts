@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import defaultPlugin, {
-  largeTables,
-  plugin,
-  type CallExpression,
-  type RuleContext,
-} from "../../src/lint/index.ts";
+import type { CallExpression, RuleContext } from "../../src/lint/index.ts";
+
+import defaultPlugin, { largeTables, plugin } from "../../src/lint/index.ts";
 
 type Reported = { messageId: string; data?: Readonly<Record<string, string>> };
 

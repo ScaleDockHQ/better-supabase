@@ -21,6 +21,7 @@ const BOOKING =
 
 describe.skipIf(!live)("scheduling recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("confirms a booking, records its fields and reminds once", async () => {
@@ -34,9 +35,7 @@ describe.skipIf(!live)("scheduling recipe", () => {
       const watchers = await watching(s);
 
       const { customFields, reminders, stateMachine } = createBlocks(
-        {
-          transport: sqlTransport(s.sql),
-        },
+        { transport: sqlTransport(s.sql) },
         {
           notifications: notificationsBlock.using((options) =>
             createNotifications({ ...options, types: NOTIFICATION_TYPES }),

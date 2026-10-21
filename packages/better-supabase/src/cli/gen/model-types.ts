@@ -24,7 +24,10 @@ export interface ColumnModel {
   readonly nullable: boolean;
   /** Optional on insert. */
   readonly optional: boolean;
-  /** An insert may leave it out: a default, `insertOptional`, or a CHECK-narrowed column a `before insert` trigger can fill. */
+  /**
+   * An insert may leave it out: a default, `insertOptional`, or a
+   * CHECK-narrowed column a `before insert` trigger can fill.
+   */
   readonly filled: boolean;
   /** Not writable (generated always / identity always). */
   readonly readonly: boolean;
@@ -61,7 +64,10 @@ export interface TableModel {
 export interface EnumModel {
   readonly schema: string;
   readonly name: string;
-  /** Key in `meta.enums`: the name, or `schema_name` when another schema has the same enum name. */
+  /**
+   * Key in `meta.enums`: the name, or `schema_name` when another schema has the
+   * same enum name.
+   */
   readonly key: string;
   /** Constant name for the value array, e.g. `noteKindValues`. */
   readonly constant: string;
@@ -85,7 +91,10 @@ export interface JsonImport {
 
 export type TableOptions = ResolvedConfig["tables"][string];
 
-/** What every step of `buildModel` reads: the catalog, the lookups and the warnings so far. */
+/**
+ * What every step of `buildModel` reads: the catalog, the lookups and the
+ * warnings so far.
+ */
 export interface ModelContext {
   readonly config: ResolvedConfig;
   readonly catalog: Catalog;

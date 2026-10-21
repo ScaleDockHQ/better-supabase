@@ -390,9 +390,9 @@ ${policy(q.t("messages"), "inbox_messages_read", `${q.staff(ms("tenant"))} or ($
 }
 
 /**
- * Realtime pings with ids only: messages on `<topic>:<conversation>` for
- * staff and the contact, every change on `<topic>:org:<tenant>` for staff.
- * Notes and deliveries go to the staff topic only.
+ * Realtime pings with ids only: messages on `<topic>:<conversation>` for staff
+ * and the contact, every change on `<topic>:org:<tenant>` for staff. Notes and
+ * deliveries go to the staff topic only.
  */
 export function inboxRealtime(q: InboxSql): string {
   const cv = q.cols("conversations");

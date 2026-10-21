@@ -11,8 +11,8 @@ import { entries } from "./data-lifecycle-entries.ts";
 export const SECRET_COLUMNS = "token|secret|_hash|password|api_key|license_key";
 
 /**
- * `options.omitPattern`: `true` for `SECRET_COLUMNS`, a string for a
- * Postgres regex of its own. Undefined when off.
+ * `options.omitPattern`: `true` for `SECRET_COLUMNS`, a string for a Postgres
+ * regex of its own. Undefined when off.
  */
 export function omitPatternOf(ctx: ModuleContext): string | undefined {
   const value = ctx.option("omitPattern");
@@ -35,9 +35,8 @@ export function omitPatternOf(ctx: ModuleContext): string | undefined {
 }
 
 /**
- * `body`'s rows with every column of the table whose name matches
- * `pattern` (`~*`) appended to `omit`, read from `pg_attribute` when the
- * function runs.
+ * `body`'s rows with every column of the table whose name matches `pattern`
+ * (`~*`) appended to `omit`, read from `pg_attribute` when the function runs.
  */
 export function withOmitPattern(body: string, pattern: string): string {
   return `select t.subject, t.name, t.tbl, t.col, t.purge,
@@ -60,12 +59,18 @@ export function withOmitPattern(body: string, pattern: string): string {
 
 /** What doctor needs to tell which columns a data export reads. */
 export interface DataExportPlan {
-  /** The listed and module tables an export reads, `schema.table`, with the columns it leaves out. */
+  /**
+   * The listed and module tables an export reads, `schema.table`, with the
+   * columns it leaves out.
+   */
   readonly tables: readonly {
     readonly name: string;
     readonly omit: readonly string[];
   }[];
-  /** `options.autoTables`: the tables in `schemas` with one of `columns`, minus `excluded` and the listed ones. */
+  /**
+   * `options.autoTables`: the tables in `schemas` with one of `columns`, minus
+   * `excluded` and the listed ones.
+   */
   readonly auto:
     | {
         readonly schemas: readonly string[];

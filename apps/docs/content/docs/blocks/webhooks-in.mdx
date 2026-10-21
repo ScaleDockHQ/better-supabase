@@ -252,9 +252,7 @@ import {
 
 const jobs = createJobs({
   sql: postgres.admin,
-  queues: {
-    leads: v.object({ route: v.string(), body: v.unknown() }),
-  },
+  queues: { leads: v.object({ route: v.string(), body: v.unknown() }) },
 });
 
 export const hooks = createIncomingWebhooks({

@@ -3,12 +3,13 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { JsonSchemaTarget } from "./json-schema-target.ts";
+import type { DocsSource } from "./shared.ts";
 
 import { tableJsonSchema } from "../core/table-json-schema.ts";
 import { forTarget } from "../core/table-schema.ts";
-import { type JsonSchemaTarget, toDraft07 } from "./json-schema-target.ts";
+import { toDraft07 } from "./json-schema-target.ts";
 import {
-  type DocsSource,
   fieldDocs,
   fieldSpec,
   fieldsFor,
@@ -22,13 +23,16 @@ import {
 export type { JsonSchemaTarget } from "./json-schema-target.ts";
 
 export interface JsonSchemaGeneratorOptions {
-  /** Output path relative to the project root. Defaults to `<output>.schema.json`. */
+  /**
+   * Output path relative to the project root. Defaults to
+   * `<output>.schema.json`.
+   */
   readonly output?: string;
   /** `$id` of the document. */
   readonly id?: string;
   /**
-   * The dialect. `draft-2020-12` (the default) writes `$defs`; `draft-07`
-   * and `openapi-3.0` (`nullable`, `example`) write `definitions`.
+   * The dialect. `draft-2020-12` (the default) writes `$defs`; `draft-07` and
+   * `openapi-3.0` (`nullable`, `example`) write `definitions`.
    */
   readonly target?: JsonSchemaTarget;
 }
@@ -68,9 +72,9 @@ function withDeprecated(
 }
 
 /**
- * JSON Schema `$defs` for every table: `customersRow`, `customersInsert`,
- * ... `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect,
- * which keep the schemas under `definitions`.
+ * JSON Schema `$defs` for every table: `customersRow`, `customersInsert`, ...
+ * `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect, which
+ * keep the schemas under `definitions`.
  */
 export function buildJsonSchema(
   input: DocsSource,

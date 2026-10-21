@@ -1,12 +1,13 @@
-import {
-  type CatalogColumn,
-  type CatalogForeignKey,
-  type CatalogFunction,
-  type CatalogTable,
-  type CatalogUnique,
-  fromCatalog,
-  type Snapshot,
+import type {
+  CatalogColumn,
+  CatalogForeignKey,
+  CatalogFunction,
+  CatalogTable,
+  CatalogUnique,
+  Snapshot,
 } from "better-supabase/cli";
+
+import { fromCatalog } from "better-supabase/cli";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -28,8 +29,8 @@ interface Profile {
    * CentraKit's shape: uuid keys, `unique (id, organization_id)` on every
    * table, composite foreign keys that repeat `organization_id`, and the
    * `graphql_public` schema next to `public`, plus one each of an enum column,
-   * a CHECK union, two foreign keys to one table, a view, a JSON override and
-   * a function the consumer calls.
+   * a CHECK union, two foreign keys to one table, a view, a JSON override and a
+   * function the consumer calls.
    */
   readonly composite: boolean;
 }
@@ -40,7 +41,10 @@ interface BaselineEntry extends Profile {
 }
 
 interface Baseline {
-  /** Check time of the calibration program on the machine that wrote the baseline. */
+  /**
+   * Check time of the calibration program on the machine that wrote the
+   * baseline.
+   */
   readonly calibration: Readonly<Record<Compiler, number>>;
   readonly profiles: Readonly<Record<string, BaselineEntry>>;
 }
@@ -215,7 +219,7 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
     ),
   ];
 
-  for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i++) {
+  for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i += 1) {
     const tableName = name(i);
 
     const columns = [
@@ -233,7 +237,7 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
       column("archived_at", "timestamptz", { nullable: true }),
     ];
 
-    for (let c = 0; c < 8; c++) {
+    for (let c = 0; c < 8; c += 1) {
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
     }
 
@@ -354,7 +358,7 @@ function consumer(profile: Profile): string {
     );
   }
 
-  for (let i = 1; i <= profile.queried; i++) {
+  for (let i = 1; i <= profile.queried; i += 1) {
     const key = name(i);
     const child = name(i + 1);
     lines.push(
@@ -369,14 +373,17 @@ function consumer(profile: Profile): string {
   return lines.join("\n");
 }
 
-/** Plain TypeScript with no better-supabase types, so its check time tracks the machine only. */
+/**
+ * Plain TypeScript with no better-supabase types, so its check time tracks the
+ * machine only.
+ */
 function calibrationProgram(): string {
   const lines = [
     "type Deep<T> = { readonly [K in keyof T]: T[K] extends object ? Deep<T[K]> : T[K] };",
     "type Pick2<T, K extends keyof T> = { [P in K]: T[P] };",
   ];
 
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 400; i += 1) {
     const fields = Array.from(
       { length: 20 },
       (_, f) =>
@@ -419,9 +426,7 @@ function measure(tsc: string): Measurement {
   const result = spawnSync(
     process.execPath,
     [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
-    {
-      encoding: "utf-8",
-    },
+    { encoding: "utf-8" },
   );
 
   const output = `${result.stdout}${result.stderr}`;
@@ -607,8 +612,8 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
 }
 
 /**
- * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is
- * the closer measure of how much slower this machine is.
+ * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is the
+ * closer measure of how much slower this machine is.
  */
 function checkGen(
   profileName: string,

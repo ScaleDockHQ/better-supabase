@@ -12,11 +12,11 @@ export interface DbErrorKinds {
   unauthorized: Record<never, never>;
   /**
    * `required`: the assurance level the route needs, when a second factor is
-   * missing. `scopes`: the OAuth scopes the route needs, when a delegated
-   * token lacks one (`INSUFFICIENT_SCOPE`). `permission`: the key an
-   * `Authorizer` denied. `permissions`: the keys the caller lacks, such as
-   * the ones a workflow's steps need (`WORKFLOW_PUBLISHER_FORBIDDEN`).
-   * `approval`: the pending approval when the answer is `APPROVAL_REQUIRED`.
+   * missing. `scopes`: the OAuth scopes the route needs, when a delegated token
+   * lacks one (`INSUFFICIENT_SCOPE`). `permission`: the key an `Authorizer`
+   * denied. `permissions`: the keys the caller lacks, such as the ones a
+   * workflow's steps need (`WORKFLOW_PUBLISHER_FORBIDDEN`). `approval`: the
+   * pending approval when the answer is `APPROVAL_REQUIRED`.
    */
   forbidden: {
     required?: "aal1" | "aal2";
@@ -31,14 +31,17 @@ export interface DbErrorKinds {
   not_null: { column?: string };
   exclusion: { constraint?: string };
   invalid_input: Record<never, never>;
-  /** A stored value the app type can't hold, e.g. `infinity` for a Temporal timestamp. */
+  /**
+   * A stored value the app type can't hold, e.g. `infinity` for a Temporal
+   * timestamp.
+   */
   invalid_value: { column?: string };
   raised: Record<never, never>;
   timeout: Record<never, never>;
   serialization: Record<never, never>;
   /**
-   * The database or a service could not be reached. `retryAfter`: seconds
-   * until a retry can succeed, when known (a paused connection pool).
+   * The database or a service could not be reached. `retryAfter`: seconds until
+   * a retry can succeed, when known (a paused connection pool).
    */
   network: { retryAfter?: number };
   aborted: Record<never, never>;
@@ -54,12 +57,15 @@ export interface DbErrorKinds {
   /** `retryAfter`: seconds until the window resets (the `Retry-After` header). */
   rate_limited: { retryAfter?: number };
   /**
-   * A usage quota is used up (`consume_quota`, SQLSTATE `BSQ29`). `meter`:
-   * what was metered, `limit`: the quota, `retryAfter`: seconds until the
-   * period resets.
+   * A usage quota is used up (`consume_quota`, SQLSTATE `BSQ29`). `meter`: what
+   * was metered, `limit`: the quota, `retryAfter`: seconds until the period
+   * resets.
    */
   quota_exceeded: { meter?: string; limit?: number; retryAfter?: number };
-  /** The executor or its dialect can't run this operation (an include on SQLite, say). */
+  /**
+   * The executor or its dialect can't run this operation (an include on SQLite,
+   * say).
+   */
   unsupported: Record<never, never>;
   unexpected: Record<never, never>;
 }
@@ -168,8 +174,8 @@ export function isDbError(value: unknown): value is DbError {
 }
 
 /**
- * The `DbError` in a `DbError`, a `DbException`, or an error whose `cause`
- * is a `DbError` (what `betterSupabase.mapError()` mappers should set).
+ * The `DbError` in a `DbError`, a `DbException`, or an error whose `cause` is a
+ * `DbError` (what `betterSupabase.mapError()` mappers should set).
  */
 export function dbErrorOf(value: unknown): DbError | undefined {
   if (value instanceof DbException) {
@@ -223,14 +229,20 @@ export const isCheck: <C extends string = string>(
 ) => error is DbErrorOf<"check"> & { readonly constraint: C } =
   constraintGuard("check");
 
-/** A foreign key violation, optionally for one constraint (`ForeignKeyConstraint`). */
+/**
+ * A foreign key violation, optionally for one constraint
+ * (`ForeignKeyConstraint`).
+ */
 export const isForeignKey: <C extends string = string>(
   error: unknown,
   constraint?: NoInfer<C>,
 ) => error is DbErrorOf<"foreign_key"> & { readonly constraint: C } =
   constraintGuard("foreign_key");
 
-/** Handlers for `matchDbError`: one per error kind, plus `codes` for SQLSTATE codes. */
+/**
+ * Handlers for `matchDbError`: one per error kind, plus `codes` for SQLSTATE
+ * codes.
+ */
 export type DbErrorMatchers = {
   readonly [K in DbErrorKind]?: (error: DbErrorOf<K>) => unknown;
 } & {
@@ -286,7 +298,10 @@ export interface RawDbError {
   readonly column?: string;
   readonly table?: string;
   readonly name?: string;
-  /** Milliseconds until a retry can succeed, from `@supabase/server`'s pool errors. */
+  /**
+   * Milliseconds until a retry can succeed, from `@supabase/server`'s pool
+   * errors.
+   */
   readonly retryAfterMs?: number;
 }
 
@@ -314,7 +329,10 @@ function constraintOf(raw: RawDbError): string | undefined {
   return raw.constraint ?? CONSTRAINT_IN_MESSAGE.exec(raw.message ?? "")?.[1];
 }
 
-/** The hint `better_supabase.check_json_schema()` raises with (the `jsonb-schemas` module). */
+/**
+ * The hint `better_supabase.check_json_schema()` raises with (the
+ * `jsonb-schemas` module).
+ */
 const JSON_SCHEMA_HINT = "JSON_SCHEMA_INVALID";
 
 /** The prefix of the `jsonb-schemas` check constraints and triggers. */
@@ -322,8 +340,8 @@ const JSON_SCHEMA_CONSTRAINT = "bs_json_";
 const JSON_SCHEMA_COLUMN = /^[\w$]+\.([\w$]+) does not match its JSON Schema/;
 
 /**
- * One issue per pg_jsonschema error in DETAIL (a JSON array of strings), at
- * the column's database name. Without the list (the check constraint itself
+ * One issue per pg_jsonschema error in DETAIL (a JSON array of strings), at the
+ * column's database name. Without the list (the check constraint itself
  * failed), one issue for the whole value.
  */
 function jsonSchemaIssues(raw: RawDbError): readonly ValidationIssue[] {
@@ -418,8 +436,8 @@ export function withMaxAffected(
 }
 
 /**
- * Maps a PostgREST or Postgres error to a `DbError`. Custom mappers run
- * first; the first one that returns an error wins.
+ * Maps a PostgREST or Postgres error to a `DbError`. Custom mappers run first;
+ * the first one that returns an error wins.
  */
 export function mapDbError(
   raw: RawDbError,

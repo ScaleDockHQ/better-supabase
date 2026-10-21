@@ -4,6 +4,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -13,7 +14,6 @@ import {
   userGrant,
 } from "../shared.ts";
 import {
-  type RegisteredSubject,
   registeredIdMatches,
   registeredSubjects,
   urlExpression,
@@ -21,7 +21,10 @@ import {
 
 const NAMES: ModuleNames = { tables: {} };
 
-/** The permission check for `action` on row `s`, `true` when the action has no key. */
+/**
+ * The permission check for `action` on row `s`, `true` when the action has no
+ * key.
+ */
 function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
 
@@ -53,9 +56,9 @@ function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
 }
 
 /**
- * `user` holds the key for `action` on row `s`, through `can_user`. An
- * action without a key is false: nothing but the row's policies would
- * decide it, and they answer for the caller only.
+ * `user` holds the key for `action` on row `s`, through `can_user`. An action
+ * without a key is false: nothing but the row's policies would decide it, and
+ * they answer for the caller only.
  */
 function actionCheckFor(subject: RegisteredSubject, user: string): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
@@ -247,11 +250,7 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "subject_types", args: [], returns: "text[]" },
     { name: "subject_title", args: ["text", "text"], returns: "text" },
     { name: "subject_url", args: ["text", "text"], returns: "text" },
-    {
-      name: "can_subject",
-      args: ["text", "text", "text"],
-      returns: "boolean",
-    },
+    { name: "can_subject", args: ["text", "text", "text"], returns: "boolean" },
     {
       name: "can_subject_for",
       args: ["uuid", "text", "text", "text"],

@@ -1,14 +1,11 @@
+import type { AnyBlocksConfig, BlockScope } from "../config/blocks.ts";
 import type {
   ModuleDefinition,
   ModuleLayout,
   SqlModule,
 } from "./module-types.ts";
 
-import {
-  type AnyBlocksConfig,
-  BLOCK_SCOPES,
-  type BlockScope,
-} from "../config/blocks.ts";
+import { BLOCK_SCOPES } from "../config/blocks.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
@@ -143,7 +140,10 @@ function built(definition: ModuleDefinition): SqlModule {
 // tenant scope runs on, so they always run in it.
 const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
 
-/** The scope `name` runs in for `layout`: its own, then `sql.scope`, then `tenant`. */
+/**
+ * The scope `name` runs in for `layout`: its own, then `sql.scope`, then
+ * `tenant`.
+ */
 export function blockScope(name: string, layout: ModuleLayout): BlockScope {
   if (TENANT_PROVIDERS.has(name)) {
     return "tenant";
@@ -168,9 +168,9 @@ const requiresOf = (
 };
 
 /**
- * Why `module` can't run in its scope for `layout`, or undefined. The
- * tenant module and the access contract run wherever a tenant-scoped
- * module needs them.
+ * Why `module` can't run in its scope for `layout`, or undefined. The tenant
+ * module and the access contract run wherever a tenant-scoped module needs
+ * them.
  */
 function scopeProblem(
   module: SqlModule,
@@ -322,7 +322,10 @@ function renderPosition(module: SqlModule): number {
 
 bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveModules });
 
-/** The modules to install for `names`, dependencies first. Throws on an unknown name. */
+/**
+ * The modules to install for `names`, dependencies first. Throws on an unknown
+ * name.
+ */
 export function resolveModules(
   names: readonly string[],
   layout: ModuleLayout = {},
@@ -361,10 +364,13 @@ export function resolveModules(
     visit(name);
   }
 
-  return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
+  return ordered.toSorted((a, b) => renderPosition(a) - renderPosition(b));
 }
 
-/** Throws on a `blocks` key that names no module, or a mode a module doesn't support. */
+/**
+ * Throws on a `blocks` key that names no module, or a mode a module doesn't
+ * support.
+ */
 export function checkModules(
   config: AnyBlocksConfig = {},
   registry: Readonly<Record<string, SqlModule>> = SQL_MODULES,

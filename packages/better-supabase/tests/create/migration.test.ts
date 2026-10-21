@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { CreateDesign } from "../../src/preset/index.ts";
 
@@ -15,7 +15,7 @@ const notes: CreateDesign = {
 };
 
 describe("migrationBetween", () => {
-  test("writes nothing when nothing changed", () => {
+  it("writes nothing when nothing changed", () => {
     expect(migrationBetween(code, notes, notes)).toEqual({
       ok: true,
       sql: "",
@@ -23,7 +23,7 @@ describe("migrationBetween", () => {
     });
   });
 
-  test("adds a table and a column", () => {
+  it("adds a table and a column", () => {
     const plan = migrationBetween(code, notes, {
       appTables: {
         notes: {
@@ -52,7 +52,7 @@ describe("migrationBetween", () => {
     });
   });
 
-  test("refuses a dropped column as breaking", () => {
+  it("refuses a dropped column as breaking", () => {
     const plan = migrationBetween(code, notes, {
       appTables: { notes: { columns: {} } },
     });
@@ -60,7 +60,7 @@ describe("migrationBetween", () => {
     expect(plan).toMatchObject({ ok: false, reason: "breaking" });
   });
 
-  test("refuses a changed default as unsupported", () => {
+  it("refuses a changed default as unsupported", () => {
     const plan = migrationBetween(code, notes, {
       appTables: {
         notes: {
@@ -72,7 +72,7 @@ describe("migrationBetween", () => {
     expect(plan).toMatchObject({ ok: false, reason: "unsupported" });
   });
 
-  test("refuses a change outside the app tables", () => {
+  it("refuses a change outside the app tables", () => {
     const projects = encodePreset(namedPreset("projects"));
 
     const plan = migrationBetween(projects, notes, {
@@ -83,7 +83,7 @@ describe("migrationBetween", () => {
     expect(plan).toMatchObject({ ok: false, reason: "unsupported" });
   });
 
-  test("the first deploy plus the migration reaches the next design in Postgres", async () => {
+  it("the first deploy plus the migration reaches the next design in Postgres", async () => {
     const next: CreateDesign = {
       appTables: {
         notes: {

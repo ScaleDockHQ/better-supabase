@@ -7,6 +7,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("api wrappers", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keep anon out under default privileges that grant every function", async () => {
@@ -59,10 +60,7 @@ describe.skipIf(!live)("api wrappers", () => {
         expect({
           name: row.name,
           authenticated: row.wrapper_authenticated,
-        }).toEqual({
-          name: row.name,
-          authenticated: row.source_authenticated,
-        });
+        }).toEqual({ name: row.name, authenticated: row.source_authenticated });
       }
 
       await s.asRole("anon");

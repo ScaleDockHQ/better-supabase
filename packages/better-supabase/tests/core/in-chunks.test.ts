@@ -1,4 +1,6 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import type { SchemaMeta } from "../../src/schema/types.ts";
@@ -44,7 +46,7 @@ describe("oversized in lists", () => {
     expect(
       requests.flatMap((request) => listOf(request.params.get("id"))),
     ).toEqual(ids);
-    expect(rows.map((row) => row.id)).toEqual([...ids].reverse());
+    expect(rows.map((row) => row.id)).toEqual(ids.toReversed());
   });
 
   it("selects an unselected order column for the sort and removes it", async () => {
@@ -79,7 +81,7 @@ describe("oversized in lists", () => {
     const { client } = capturingClient((request) => ({
       body: listOf(request.params.get("id"))
         .map((id) => ({ name: id, _bs_order0: id }))
-        .reverse(),
+        .toReversed(),
     }));
 
     const rows = await betterSupabase
@@ -140,7 +142,7 @@ describe("oversized in lists", () => {
       "2026-01-01T00:00:00.000001+00:00",
       "2026-01-01T00:30:00+00:00",
     ]);
-    expect(order.slice(0, 2).sort()).toEqual([
+    expect(order.slice(0, 2).toSorted()).toEqual([
       "2026-01-01T00:00:00+00:00",
       "2026-01-01T02:00:00+02:00",
     ]);
@@ -225,7 +227,7 @@ describe("oversized in lists", () => {
     expect(times.slice(firstNull).every((time) => time === null)).toBe(true);
     const present = times.slice(0, firstNull);
     expect(present).toEqual(
-      [...present].sort((a, b) => String(a).localeCompare(String(b))),
+      present.toSorted((a, b) => String(a).localeCompare(String(b))),
     );
   });
 
@@ -270,11 +272,15 @@ describe("oversized in lists", () => {
   it("returns invalid_request for a page of a long list", async () => {
     const { client, requests } = capturingClient();
 
-    const page = await betterSupabase.connect(client).customers.paginate({
-      where: { id: { in: ids } },
-      include: { notes: { where: { OR: [{ kind: "call" }, { body: "x" }] } } },
-      size: 20,
-    });
+    const page = await betterSupabase
+      .connect(client)
+      .customers.paginate({
+        where: { id: { in: ids } },
+        include: {
+          notes: { where: { OR: [{ kind: "call" }, { body: "x" }] } },
+        },
+        size: 20,
+      });
 
     expect(page.error?.kind).toBe("invalid_request");
     expect(requests).toHaveLength(0);
@@ -382,7 +388,9 @@ describe("oversized in lists on other key types", () => {
   });
 
   interface Repository {
-    findMany(args: object): PromiseLike<{
+    findMany(
+      args: object,
+    ): PromiseLike<{
       readonly data: Record<string, unknown>[] | null;
       readonly error: { readonly message: string } | null;
     }> & { orThrow(): Promise<Record<string, unknown>[]> };
@@ -403,7 +411,7 @@ describe("oversized in lists on other key types", () => {
     const { client, requests } = capturingClient((request) => ({
       body: listOf(request.params.get("code"))
         .map((code) => ({ code, name: code }))
-        .reverse(),
+        .toReversed(),
     }));
 
     const rows = await connect(client)
@@ -433,7 +441,7 @@ describe("oversized in lists on other key types", () => {
     const { client, requests } = capturingClient((request) => ({
       body: listOf(request.params.get("id"))
         .map((id) => ({ memo: id, _bs_order0: id }))
-        .reverse(),
+        .toReversed(),
     }));
 
     const rows = await connect(client)

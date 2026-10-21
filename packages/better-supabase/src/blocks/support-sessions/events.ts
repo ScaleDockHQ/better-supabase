@@ -10,7 +10,10 @@ export type SupportSessionsEvents = {
   readonly "support.denied": SupportEventData;
 };
 
-/** The `support-sessions` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `support-sessions` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const supportSessionsEvents: Events<SupportSessionsEvents> =
   defineEvents({
     "support.started": event<SupportEventData>(),

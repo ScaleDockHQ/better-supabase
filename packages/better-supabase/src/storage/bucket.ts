@@ -1,40 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { AsyncResult, Result } from "../core/result.ts";
+import type { TemplateParams, TemplateValues } from "../core/template.ts";
 import type { AccessBucketPolicy, BucketPolicyName } from "../schema/types.ts";
+import type { AppliedBucket } from "./apply.ts";
 import type { PathIn, StoragePath } from "./path.ts";
 import type { StorageClient } from "./storage-api.ts";
 import type { TtlPreset } from "./ttl.ts";
+import type {
+  BucketLifecycle,
+  ObjectVersion,
+  VersioningStatus,
+} from "./versioning.ts";
 
 import { tenantClaimPaths } from "../core/claims.ts";
-import { type DbError, DbException, dbError } from "../core/errors.ts";
-import {
-  type AsyncResult,
-  err,
-  ok,
-  type Result,
-  toDbError,
-} from "../core/result.ts";
-import {
-  slug,
-  sqlIdent,
-  claimSql,
-  sqlString,
-  type TemplateParams,
-  type TemplateValues,
-} from "../core/template.ts";
-import { type AppliedBucket, applyBucket } from "./apply.ts";
+import { DbException, dbError } from "../core/errors.ts";
+import { err, ok, toDbError } from "../core/result.ts";
+import { slug, sqlIdent, claimSql, sqlString } from "../core/template.ts";
+import { applyBucket } from "./apply.ts";
 import { connectBucket } from "./connect.ts";
 import { pathLayouts } from "./layouts.ts";
 import { policyChecks } from "./policy.ts";
 import { tenantGuard } from "./tenant-scope.ts";
-import {
-  type BucketLifecycle,
-  lifecyclePayload,
-  type ObjectVersion,
-  sameLifecycle,
-  type VersioningStatus,
-} from "./versioning.ts";
+import { lifecyclePayload, sameLifecycle } from "./versioning.ts";
 
 export type BucketPolicy = BucketPolicyName | AccessBucketPolicy;
 
@@ -48,28 +38,28 @@ export interface BucketConfig<
   /** Bucket id, e.g. `customer-logos`. */
   readonly id: Id;
   /**
-   * Object path template, e.g. `{organizationId}/{customerId}/logo/{version}.webp`,
-   * or several for a bucket that stores objects in more than one layout. A
-   * path from values uses the template whose placeholders are exactly the
-   * values given, and a stored path string is accepted when any template
-   * matches it, so list the current layout first and keep older ones after
-   * it. A last segment `{...rest}` matches one or more segments.
+   * Object path template, e.g.
+   * `{organizationId}/{customerId}/logo/{version}.webp`, or several for a
+   * bucket that stores objects in more than one layout. A path from values uses
+   * the template whose placeholders are exactly the values given, and a stored
+   * path string is accepted when any template matches it, so list the current
+   * layout first and keep older ones after it. A last segment `{...rest}`
+   * matches one or more segments.
    */
   readonly path: P | readonly [P, ...P[]];
   readonly public?: boolean;
   /**
    * Generated `storage.objects` policies. `tenant` and `owner` match a path
-   * segment against the JWT; `public` allows reads (on a `public: true`
-   * bucket the public URLs need no policy, so none is written and nobody can
-   * list the objects); `none` leaves access to
-   * the secret key; `{ access }` calls the SQL modules' access contract
-   * (`tenant_ids_with`), or the `sql` templates it is given. Defaults to
-   * `none`.
+   * segment against the JWT; `public` allows reads (on a `public: true` bucket
+   * the public URLs need no policy, so none is written and nobody can list the
+   * objects); `none` leaves access to the secret key; `{ access }` calls the
+   * SQL modules' access contract (`tenant_ids_with`), or the `sql` templates it
+   * is given. Defaults to `none`.
    *
-   * The access checks decide by role and scope only: for a permission with
-   * row conditions (e.g. `ownerId = principal.id`) the bucket would grant
-   * every object in the scope. `better-supabase doctor` (BS214) refuses
-   * keys the authorization provider doesn't mark `sqlComplete: true`.
+   * The access checks decide by role and scope only: for a permission with row
+   * conditions (e.g. `ownerId = principal.id`) the bucket would grant every
+   * object in the scope. `better-supabase doctor` (BS214) refuses keys the
+   * authorization provider doesn't mark `sqlComplete: true`.
    */
   readonly policy?: BucketPolicy;
   /** `'5MiB'`, `'500KB'` or bytes. */
@@ -77,8 +67,8 @@ export interface BucketConfig<
   /** `['image/png', 'image/*']`. */
   readonly allowedMimeTypes?: readonly string[];
   /**
-   * Keep earlier versions of an object when it is overwritten or removed.
-   * Set by `apply()` through the Storage API; `sql()` can't write it.
+   * Keep earlier versions of an object when it is overwritten or removed. Set
+   * by `apply()` through the Storage API; `sql()` can't write it.
    */
   readonly versioning?: boolean;
   /**
@@ -94,7 +84,10 @@ export interface BucketConfig<
   readonly tenant?: {
     /** Placeholder holding the tenant id. Defaults to `organizationId`. */
     readonly param?: string;
-    /** JWT claim paths, first match wins. Defaults to `tenant_id`, then `app_metadata.tenant_id`. */
+    /**
+     * JWT claim paths, first match wins. Defaults to `tenant_id`, then
+     * `app_metadata.tenant_id`.
+     */
     readonly claim?: string | readonly string[];
     /** SQL expression for the tenant id, instead of `claim`. */
     readonly sql?: string;
@@ -111,9 +104,9 @@ export type PathValues<P extends string> = P extends string
   : never;
 
 /**
- * A path from the values of one of the bucket's templates, or an existing
- * path string (checked against the templates). `StoragePath`s of other
- * buckets are rejected.
+ * A path from the values of one of the bucket's templates, or an existing path
+ * string (checked against the templates). `StoragePath`s of other buckets are
+ * rejected.
  */
 export type ObjectTarget<P extends string, Id extends string = string> =
   | PathValues<P>
@@ -144,10 +137,10 @@ export interface UploadOptions {
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly signal?: AbortSignal;
   /**
-   * Upload progress from 0 to 1. Where `XMLHttpRequest` exists (browsers,
-   * React Native) the body goes to a signed upload URL so progress events
-   * arrive and `signal` cancels the request; elsewhere it reports 1 when
-   * done. Uploads with `metadata` or a stream body report 1 when done.
+   * Upload progress from 0 to 1. Where `XMLHttpRequest` exists (browsers, React
+   * Native) the body goes to a signed upload URL so progress events arrive and
+   * `signal` cancels the request; elsewhere it reports 1 when done. Uploads
+   * with `metadata` or a stream body report 1 when done.
    */
   readonly onProgress?: (fraction: number) => void;
 }
@@ -158,9 +151,15 @@ export interface UrlOptions {
   readonly transform?: TransformOptions;
   /** Serve as an attachment, optionally with a file name. */
   readonly download?: boolean | string;
-  /** Added to the URL so the CDN and browsers fetch it again, e.g. the object's `updatedAt`. */
+  /**
+   * Added to the URL so the CDN and browsers fetch it again, e.g. the object's
+   * `updatedAt`.
+   */
   readonly cacheNonce?: string;
-  /** A URL for this version of the object instead of the current one (a versioned bucket). */
+  /**
+   * A URL for this version of the object instead of the current one (a
+   * versioned bucket).
+   */
   readonly versionId?: string;
 }
 
@@ -199,8 +198,8 @@ export interface ReplaceOptions<
   Id extends string = string,
 > extends UploadOptions {
   /**
-   * Path the object replaces, checked like any other target before the
-   * upload. Removed after `commit` succeeds.
+   * Path the object replaces, checked like any other target before the upload.
+   * Removed after `commit` succeeds.
    */
   readonly previous?: string | null;
   /**
@@ -221,8 +220,8 @@ export interface SweepOptions<P extends string> {
   /** Only look under the path prefix these values fill. */
   readonly within?: Partial<TemplateValues<P>>;
   /**
-   * A cutoff instant, or a minimum age. A duration counts a day as 24 hours
-   * and cannot use months or years.
+   * A cutoff instant, or a minimum age. A duration counts a day as 24 hours and
+   * cannot use months or years.
    */
   readonly olderThan: Temporal.Instant | Temporal.Duration;
   /** Returns which of `paths` are still referenced. */
@@ -254,25 +253,40 @@ export interface BucketDrift {
   readonly message: string;
 }
 
-/** Bucket state as stored in `storage.buckets` (or `better-supabase` introspection). */
+/**
+ * Bucket state as stored in `storage.buckets` (or `better-supabase`
+ * introspection).
+ */
 export interface ActualBucket {
   readonly public: boolean;
   readonly fileSizeLimit?: number | null;
   readonly allowedMimeTypes?: readonly string[] | null;
-  /** `storage.buckets.versioning_status`; leave it out when Storage has no versioning, and it isn't compared. */
+  /**
+   * `storage.buckets.versioning_status`; leave it out when Storage has no
+   * versioning, and it isn't compared.
+   */
   readonly versioning?: VersioningStatus | null;
-  /** `storage.buckets.lifecycle_configuration`; leave it out to skip the comparison. */
+  /**
+   * `storage.buckets.lifecycle_configuration`; leave it out to skip the
+   * comparison.
+   */
   readonly lifecycle?: unknown;
 }
 
 export type { StorageClient } from "./storage-api.ts";
 
-/** A supabase-js client with the secret key: `apply()` needs the bucket admin API. */
+/**
+ * A supabase-js client with the secret key: `apply()` needs the bucket admin
+ * API.
+ */
 export type StorageAdminClient = Pick<SupabaseClient, "storage">;
 
 export interface BucketClient<P extends string, Id extends string = string> {
   readonly bucket: Bucket<P, Id>;
-  /** The object path, checked against the template and, with `tenant`, the caller's tenant. */
+  /**
+   * The object path, checked against the template and, with `tenant`, the
+   * caller's tenant.
+   */
   path(target: ObjectTarget<P, Id>): Result<StoragePath<Id>>;
   upload(
     target: ObjectTarget<P, Id>,
@@ -287,7 +301,10 @@ export interface BucketClient<P extends string, Id extends string = string> {
   remove(
     targets: readonly ObjectTarget<P, Id>[],
   ): AsyncResult<readonly string[]>;
-  /** Copies an object to another path in the bucket; an existing object there is a `conflict`. */
+  /**
+   * Copies an object to another path in the bucket; an existing object there is
+   * a `conflict`.
+   */
   copy(
     from: ObjectTarget<P, Id>,
     to: ObjectTarget<P, Id>,
@@ -330,8 +347,8 @@ export interface BucketClient<P extends string, Id extends string = string> {
     options?: Omit<UrlOptions, "transform">,
   ): AsyncResult<readonly string[]>;
   /**
-   * URL for public buckets. No request is made, so it returns a `Result`
-   * like `path()`: an error for a path outside the templates or the tenant.
+   * URL for public buckets. No request is made, so it returns a `Result` like
+   * `path()`: an error for a path outside the templates or the tenant.
    */
   publicUrl(
     target: ObjectTarget<P, Id>,
@@ -360,14 +377,17 @@ export interface BucketClient<P extends string, Id extends string = string> {
     options?: UploadOptions,
   ): AsyncResult<{ path: StoragePath<Id> }>;
   /**
-   * Finishes a reserved upload once the file is stored. In a support session
-   * it makes the target the owner and records the session; elsewhere
-   * Storage already set the owner, and it succeeds without a request.
+   * Finishes a reserved upload once the file is stored. In a support session it
+   * makes the target the owner and records the session; elsewhere Storage
+   * already set the owner, and it succeeds without a request.
    */
   claimReserved(
     reservation: Pick<Reservation, "path">,
   ): AsyncResult<{ path: StoragePath<Id> }>;
-  /** Removes objects that match a template and the `within` values, are old enough and are not referenced. */
+  /**
+   * Removes objects that match a template and the `within` values, are old
+   * enough and are not referenced.
+   */
   sweep(options: SweepOptions<P>): AsyncResult<SweepResult>;
 }
 
@@ -386,16 +406,19 @@ export interface Bucket<P extends string, Id extends string = string> {
    * removes the objects it fills.
    */
   readonly owner: string | undefined;
-  /** Placeholder connected clients check against the caller's tenant; set by `tenant`. */
+  /**
+   * Placeholder connected clients check against the caller's tenant; set by
+   * `tenant`.
+   */
   readonly tenant: string | undefined;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
   readonly versioning: boolean;
   readonly lifecycle: BucketLifecycle | undefined;
   /**
-   * Builds a path with the template whose placeholders are exactly the keys
-   * of `values`. A value Storage would refuse, or keys no template takes, is
-   * an `invalid_input` error.
+   * Builds a path with the template whose placeholders are exactly the keys of
+   * `values`. A value Storage would refuse, or keys no template takes, is an
+   * `invalid_input` error.
    */
   path(values: PathValues<P>): Result<StoragePath<Id>>;
   /** The values of the first template that matches `path`, or `null`. */
@@ -410,9 +433,9 @@ export interface Bucket<P extends string, Id extends string = string> {
   toml(): string;
   drift(actual: ActualBucket | undefined): readonly BucketDrift[];
   /**
-   * Creates or updates the bucket through the Storage API, including
-   * versioning and the lifecycle policy, which `sql()` can't set. Needs the
-   * secret key. Idempotent.
+   * Creates or updates the bucket through the Storage API, including versioning
+   * and the lifecycle policy, which `sql()` can't set. Needs the secret key.
+   * Idempotent.
    */
   apply(client: StorageAdminClient): AsyncResult<AppliedBucket>;
   connect(
@@ -432,8 +455,8 @@ export interface BucketConnectOptions {
   /**
    * The request context (`db.$context`, or what an adapter passes to
    * `connect`). For a bucket with `tenant`, its tenant (`context.tenant`, the
-   * one `tenant()` resolved, or the `tenant.claim` claims) must fill the
-   * tenant segment of every path.
+   * one `tenant()` resolved, or the `tenant.claim` claims) must fill the tenant
+   * segment of every path.
    */
   readonly context?: RequestContext;
   /** The tenant every path must hold, instead of reading it from `context`. */
@@ -471,8 +494,8 @@ export function parseSize(value: string | number): number {
 /**
  * Path segment `index` equals `value`. A first segment also bounds `name` to
  * the `value/` prefix in the "C" collation, the storage name indexes', so
- * Postgres range-scans one tenant's objects instead of the whole bucket;
- * `like` can't, because its pattern only exists at run time.
+ * Postgres range-scans one tenant's objects instead of the whole bucket; `like`
+ * can't, because its pattern only exists at run time.
  */
 function segmentCheck(index: number, value: string): string {
   const equal = `split_part(name, '/', ${String(index)}) = ${value}`;
@@ -509,17 +532,17 @@ function sizeLabel(bytes: number): string {
 }
 
 /**
- * A typed Storage bucket: path builders from a template, limits, generated
- * SQL policies and `config.toml`, and helpers for the multi-step work apps
- * repeat (replace, signed uploads, orphan cleanup).
+ * A typed Storage bucket: path builders from a template, limits, generated SQL
+ * policies and `config.toml`, and helpers for the multi-step work apps repeat
+ * (replace, signed uploads, orphan cleanup).
  *
  * ```ts
  * export const logos = defineBucket({
- *   id: 'customer-logos',
- *   path: '{organizationId}/{customerId}/logo/{version}.webp',
- *   policy: 'tenant',
- *   fileSizeLimit: '5MiB',
- *   allowedMimeTypes: ['image/webp'],
+ *   id: "customer-logos",
+ *   path: "{organizationId}/{customerId}/logo/{version}.webp",
+ *   policy: "tenant",
+ *   fileSizeLimit: "5MiB",
+ *   allowedMimeTypes: ["image/webp"],
  * });
  * ```
  */
@@ -860,7 +883,7 @@ export function defineBucket<
       }
 
       const sorted = (list: readonly string[] | null | undefined) =>
-        list ? [...list].sort().join(",") : "";
+        list ? list.toSorted().join(",") : "";
 
       if (sorted(actual.allowedMimeTypes) !== sorted(allowedMimeTypes)) {
         issues.push({

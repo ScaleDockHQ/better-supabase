@@ -1,12 +1,14 @@
 import "server-only";
-import { PRODUCT_STATUSES } from "better-supabase/blocks/catalog";
-import {
-  ORDER_STATUSES,
-  type Order,
-  type OrderStatus,
-  type PricedCart,
+import type {
+  Order,
+  OrderStatus,
+  PricedCart,
 } from "better-supabase/blocks/orders";
-import { type Money, money } from "better-supabase/commerce";
+import type { Money } from "better-supabase/commerce";
+
+import { PRODUCT_STATUSES } from "better-supabase/blocks/catalog";
+import { ORDER_STATUSES } from "better-supabase/blocks/orders";
+import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
@@ -68,9 +70,9 @@ export interface Product {
 }
 
 /**
- * The organization's products with their first variant and its base price.
- * The catalog block has no list function, so `api.shop_products` reads
- * them with the caller's token and the block's `catalog.read` policy.
+ * The organization's products with their first variant and its base price. The
+ * catalog block has no list function, so `api.shop_products` reads them with
+ * the caller's token and the block's `catalog.read` policy.
  */
 async function loadProducts(): Promise<readonly Product[] | null> {
   "use cache: private";
@@ -124,7 +126,10 @@ const StockLevels = v.object({
 
 export type StockLevels = v.InferOutput<typeof StockLevels>;
 
-/** Every tracked variant at every active location, zero where nothing was counted. */
+/**
+ * Every tracked variant at every active location, zero where nothing was
+ * counted.
+ */
 async function loadStockLevels(): Promise<StockLevels | null> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
@@ -318,8 +323,8 @@ function draftView(cart: PricedCart): DraftView {
 }
 
 /**
- * An order by id, or the caller's open cart with that id as a draft.
- * Resolves to null when neither exists or the caller can't read it.
+ * An order by id, or the caller's open cart with that id as a draft. Resolves
+ * to null when neither exists or the caller can't read it.
  */
 async function loadOrderDetail(
   id: string,

@@ -17,10 +17,7 @@ function mount(options: Partial<QuestionnaireOptions> = {}) {
     ...options,
   });
 
-  const render = () => ({
-    ...controller.getSnapshot(),
-    ...controller.actions,
-  });
+  const render = () => ({ ...controller.getSnapshot(), ...controller.actions });
 
   return { render, onSubmit };
 }

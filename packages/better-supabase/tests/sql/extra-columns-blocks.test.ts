@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { renderModules } from "../../src/sql/render.ts";
 
-/** Each module that takes `extraColumns`: the modules it needs, its table, and its write and read. */
+/**
+ * Each module that takes `extraColumns`: the modules it needs, its table, and
+ * its write and read.
+ */
 const CASES = [
   {
     module: "push",
@@ -115,8 +118,9 @@ const sqlOf = (
     .join("\n");
 
 describe("extraColumns on the notifications to settings blocks", () => {
-  for (const entry of CASES) {
-    it(`${entry.module}: adds the columns, writes them from fields and returns them`, () => {
+  it.each(CASES)(
+    "$module: adds the columns, writes them from fields and returns them",
+    (entry) => {
       const plain = sqlOf(entry.module, entry.needs);
 
       const sql = sqlOf(entry.module, entry.needs, {
@@ -140,8 +144,8 @@ describe("extraColumns on the notifications to settings blocks", () => {
       );
       const read = sql.indexOf(entry.read);
       expect(read).toBeGreaterThan(-1);
-    });
-  }
+    },
+  );
 
   it("rejects a column that shadows a key the reads return", () => {
     expect(() =>

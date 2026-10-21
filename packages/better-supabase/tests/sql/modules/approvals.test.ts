@@ -109,9 +109,7 @@ describe("approvals module", () => {
     expect(() =>
       build({
         doc: {
-          publish: {
-            steps: [{ approvers: { users: [USER] }, required: 2 }],
-          },
+          publish: { steps: [{ approvers: { users: [USER] }, required: 2 }] },
         },
       }),
     ).toThrow(/more than approvers.users/);

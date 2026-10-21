@@ -13,9 +13,9 @@ import {
 } from "./signing-keys-server";
 
 /**
- * Makes a new key active and retires the current one, which stays in the
- * JWKS until the tokens it signed expire. With no key yet, it creates the
- * first (Ed25519).
+ * Makes a new key active and retires the current one, which stays in the JWKS
+ * until the tokens it signed expire. With no key yet, it creates the first
+ * (Ed25519).
  */
 export const rotateSigningKey = bs.action(
   {

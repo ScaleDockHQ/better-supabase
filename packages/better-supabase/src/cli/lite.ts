@@ -1,12 +1,13 @@
 import type { LiteDriver } from "../server/index.ts";
 
-/** The parts of `@supabase/lite` that `gen` and `doctor` use, typed structurally. */
+/**
+ * The parts of `@supabase/lite` that `gen` and `doctor` use, typed
+ * structurally.
+ */
 export interface CliLiteConnection {
   createMigrator(sql: string): { migrate(): Promise<unknown> };
   close(): Promise<void>;
-  readonly driver: {
-    query(sql: string): Promise<{ rows: unknown[] }>;
-  };
+  readonly driver: { query(sql: string): Promise<{ rows: unknown[] }> };
 }
 
 export interface CliLite {
@@ -30,8 +31,8 @@ export function isSqliteLiteDriver(driver: LiteDriver): boolean {
 }
 
 /**
- * `@supabase/lite` is an optional peer, imported through variable specifiers
- * so the CLI build leaves it out; `undefined` when it is not installed.
+ * `@supabase/lite` is an optional peer, imported through variable specifiers so
+ * the CLI build leaves it out; `undefined` when it is not installed.
  */
 export async function loadCliLite(): Promise<CliLite | undefined> {
   const root = "@supabase/lite";

@@ -114,9 +114,7 @@ describe("subjectsOption with the registry", () => {
   it("merges an object entry onto the registered one", () => {
     const sql = sqlOf(["tags"], {
       modules: {
-        tags: {
-          options: { subjects: { task: { permission: "tasks.tag" } } },
-        },
+        tags: { options: { subjects: { task: { permission: "tasks.tag" } } } },
       },
     });
 

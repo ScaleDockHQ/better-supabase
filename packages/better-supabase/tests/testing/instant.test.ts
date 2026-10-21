@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { DbStats } from "../../src/core/stats.ts";
 import type { BudgetResponse } from "../../src/testing/budget.ts";
+import type { InstantLocator, InstantPage } from "../../src/testing/instant.ts";
 
-import {
-  expectInstant,
-  type InstantLocator,
-  type InstantPage,
-} from "../../src/testing/instant.ts";
+import { expectInstant } from "../../src/testing/instant.ts";
 
 const LOCK = "next-instant-navigation-testing";
 

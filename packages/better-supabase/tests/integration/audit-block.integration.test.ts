@@ -19,6 +19,7 @@ async function lines(stream: ReadableStream<Uint8Array>) {
 
 describe.skipIf(!live)("audit block", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("exports one tenant's entries as NDJSON and OCSF, in pages", async () => {
@@ -212,9 +213,7 @@ describe.skipIf(!live)("audit block", () => {
     try {
       await s.install(["audit"], {
         modules: {
-          audit: {
-            options: { eventRoles: ["service_role", "authenticated"] },
-          },
+          audit: { options: { eventRoles: ["service_role", "authenticated"] } },
         },
       });
       await s.client.query(`

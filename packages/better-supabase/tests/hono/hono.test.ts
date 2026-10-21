@@ -2,22 +2,17 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
 
+import type { HonoEnv } from "../../src/hono/index.ts";
+import type { Functions, Models } from "../fixtures/generated-camel.ts";
+
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import {
-  type HonoEnv,
-  createHono,
-  defineAction,
-} from "../../src/hono/index.ts";
+import { createHono, defineAction } from "../../src/hono/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
-import {
-  type Functions,
-  type Models,
-  schema,
-} from "../fixtures/generated-camel.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

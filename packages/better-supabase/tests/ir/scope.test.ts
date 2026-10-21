@@ -34,7 +34,10 @@ const organizations = table("organizations");
 const live = column("archived_at", "is", null);
 const tenant = column("organization_id", "eq", "o1");
 
-/** Customers are soft-deleted, notes are tenant-scoped, organizations are unscoped. */
+/**
+ * Customers are soft-deleted, notes are tenant-scoped, organizations are
+ * unscoped.
+ */
 const scopeFor: ScopeFor = (target) =>
   target.key === "customers"
     ? live
@@ -308,16 +311,10 @@ describe("scopeOperation", () => {
     } as const;
 
     expect(scopeOperation({ ...base, returning: selection }, scopeFor)).toEqual(
-      {
-        ...base,
-        returning: scopedSelection,
-      },
+      { ...base, returning: scopedSelection },
     );
     expect(scopeOperation({ ...base, returning: undefined }, scopeFor)).toEqual(
-      {
-        ...base,
-        returning: undefined,
-      },
+      { ...base, returning: undefined },
     );
   });
 });

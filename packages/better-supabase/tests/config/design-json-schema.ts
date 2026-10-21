@@ -1,8 +1,8 @@
 /**
  * Renders `schemas/design-v1.json` from the design's valibot schema
  * (`configSchemas().design`), which reuses the config's `appTables` schema.
- * `scripts/gen-config-schema.ts` writes it; `design-json-schema.test.ts`
- * fails when the file is stale.
+ * `scripts/gen-config-schema.ts` writes it; `design-json-schema.test.ts` fails
+ * when the file is stale.
  */
 import { toJsonSchema } from "@valibot/to-json-schema";
 

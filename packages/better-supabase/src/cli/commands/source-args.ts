@@ -5,7 +5,10 @@ import type { SnapshotSource } from "./snapshot.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { CliError } from "../core/errors.ts";
 
-/** The connection string from stdin, for commands that connect but read no schema. */
+/**
+ * The connection string from stdin, for commands that connect but read no
+ * schema.
+ */
 export const DB_URL_STDIN_ARG = {
   "db-url-stdin": {
     type: "boolean",
@@ -24,7 +27,10 @@ export const STACK_ARG = {
   },
 } as const;
 
-/** Where to read the schema from, shared by gen, introspect, doctor, adopt and apply. */
+/**
+ * Where to read the schema from, shared by gen, introspect, doctor, adopt and
+ * apply.
+ */
 export const SOURCE_ARGS = {
   snapshot: {
     type: "string",

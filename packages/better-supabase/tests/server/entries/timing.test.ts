@@ -13,12 +13,7 @@ import { requestAs, server } from "../../fixtures/test-server.ts";
 
 describe("db stats header", () => {
   it("round-trips calls, waves and time", () => {
-    const value = formatDbStats({
-      calls: 3,
-      waves: 2,
-      ms: 12,
-      tables: [],
-    });
+    const value = formatDbStats({ calls: 3, waves: 2, ms: 12, tables: [] });
 
     expect(value).toBe("3;2;12");
     expect(parseDbStats(value)).toEqual({ calls: 3, waves: 2, ms: 12 });

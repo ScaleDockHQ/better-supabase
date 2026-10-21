@@ -8,7 +8,10 @@ import { CliError } from "./errors.ts";
 
 export type Loader = () => Promise<AnyCommand>;
 
-/** One command in the tree `run()` dispatches: a leaf with a loader, a parent with subcommands, or both. */
+/**
+ * One command in the tree `run()` dispatches: a leaf with a loader, a parent
+ * with subcommands, or both.
+ */
 export interface CommandNode {
   readonly spec: CommandSpec;
   readonly path: readonly string[];
@@ -16,14 +19,20 @@ export interface CommandNode {
   readonly children: Map<string, CommandNode>;
 }
 
-/** Global options that take a value, so a command name is never the token after them. */
+/**
+ * Global options that take a value, so a command name is never the token after
+ * them.
+ */
 const GLOBAL_VALUE_FLAGS: ReadonlySet<string> = new Set(
   Object.entries(GLOBAL_ARGS).flatMap(([name, definition]) =>
     definition.type === "string" ? [`--${name}`] : [],
   ),
 );
 
-/** The tree of `specs`, with each leaf's loader from `loaders` (keyed by its space-separated path). */
+/**
+ * The tree of `specs`, with each leaf's loader from `loaders` (keyed by its
+ * space-separated path).
+ */
 export function commandTree(
   specs: readonly CommandSpec[],
   loaders: ReadonlyMap<string, Loader>,
@@ -47,7 +56,10 @@ export function commandTree(
   );
 }
 
-/** The index of the next token that is not an option or a global option's value, from `start`. */
+/**
+ * The index of the next token that is not an option or a global option's value,
+ * from `start`.
+ */
 export function positionalIndex(argv: readonly string[], start = 0): number {
   for (let index = start; index < argv.length; index += 1) {
     const token = argv[index]!;
@@ -191,7 +203,10 @@ export function isVariadic(definition: ArgDef): boolean {
 const kebab = (name: string): string =>
   name.replaceAll(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
-/** The registered name closest to a mistyped one, if it is close enough to be a typo. */
+/**
+ * The registered name closest to a mistyped one, if it is close enough to be a
+ * typo.
+ */
 export async function closestName(
   name: string,
   names: readonly string[],
@@ -210,8 +225,8 @@ export async function closestName(
 }
 
 /**
- * Rejects what citty would ignore: unknown options, values outside an enum,
- * and positionals the command doesn't declare.
+ * Rejects what citty would ignore: unknown options, values outside an enum, and
+ * positionals the command doesn't declare.
  */
 export async function checkArgs(
   args: ArgsDef,

@@ -147,7 +147,10 @@ export interface InboxCounts {
 export interface PurgedContact {
   readonly conversations: number;
   readonly messages: number;
-  /** Storage paths of the erased messages' attachments, for the caller to remove. */
+  /**
+   * Storage paths of the erased messages' attachments, for the caller to
+   * remove.
+   */
   readonly attachments: readonly string[];
 }
 

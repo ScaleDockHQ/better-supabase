@@ -12,17 +12,17 @@ export interface ApprovalWaitOptions {
 }
 
 /**
- * Pauses a workflow on an approval and resumes it by token. `wait` runs
- * inside a `"use workflow"` function; `wake` runs in server code, after
- * the approver was checked (`authorizeHook`, or the provider's
- * `approverOf`). The token is the approval request's id, so the code that
- * records the decision can wake the run without storing the hook.
+ * Pauses a workflow on an approval and resumes it by token. `wait` runs inside
+ * a `"use workflow"` function; `wake` runs in server code, after the approver
+ * was checked (`authorizeHook`, or the provider's `approverOf`). The token is
+ * the approval request's id, so the code that records the decision can wake the
+ * run without storing the hook.
  */
 export interface ApprovalWaiter {
   /**
-   * Waits for `wake(token, payload)` until `expiresAt`: `{ status:
-   * "resumed", payload }`, or `{ status: "expired" }` when the time passes
-   * first (at once for a past `expiresAt`).
+   * Waits for `wake(token, payload)` until `expiresAt`: `{ status: "resumed",
+   * payload }`, or `{ status: "expired" }` when the time passes first (at once
+   * for a past `expiresAt`).
    */
   wait<P = unknown>(
     token: string,
@@ -106,7 +106,10 @@ export const APPROVAL_OUTCOME_EVENTS: readonly string[] = Object.freeze([
 
 /** The payload `wakeOnApproval` resumes a run with. */
 export interface ApprovalOutcome {
-  /** `true` only for `approval.approved`; a builder approval node takes the branch from it. */
+  /**
+   * `true` only for `approval.approved`; a builder approval node takes the
+   * branch from it.
+   */
   readonly approved: boolean;
   readonly status: "approved" | "rejected" | "expired" | "cancelled";
   readonly requestId: string;
@@ -123,9 +126,9 @@ export interface ApprovalOutcomeEvent {
  * decides it: pass every outbox event from your consumer. For
  * `approval.approved`, `approval.rejected`, `approval.expired` and
  * `approval.cancelled` it calls `waiter.wake(<request id>, outcome)` and
- * returns `true`; other events return `false`. The request id is a random
- * uuid, so only `decide_approval` (and with it the approver check) can end
- * the wait. A wake for a request no run waits on is ignored.
+ * returns `true`; other events return `false`. The request id is a random uuid,
+ * so only `decide_approval` (and with it the approver check) can end the wait.
+ * A wake for a request no run waits on is ignored.
  */
 export async function wakeOnApproval(
   event: ApprovalOutcomeEvent,
@@ -188,6 +191,9 @@ function statusOf(type: string): ApprovalOutcome["status"] {
   }
 }
 
-/** The Workflow SDK's `HookNotFoundError`, matched by name as `HookNotFoundError.is` does. */
+/**
+ * The Workflow SDK's `HookNotFoundError`, matched by name as
+ * `HookNotFoundError.is` does.
+ */
 const isMissingHook = (cause: unknown): boolean =>
   cause instanceof Error && cause.name === "HookNotFoundError";

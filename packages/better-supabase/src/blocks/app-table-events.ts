@@ -1,6 +1,6 @@
 /**
- * The data of an app table event (ADR 0048): `<type>.created`, `.updated`
- * and `.deleted`, written by the trigger `appTables.<table>.events` adds.
+ * The data of an app table event (ADR 0048): `<type>.created`, `.updated` and
+ * `.deleted`, written by the trigger `appTables.<table>.events` adds.
  */
 export interface AppTableEventData {
   /** The row id. */

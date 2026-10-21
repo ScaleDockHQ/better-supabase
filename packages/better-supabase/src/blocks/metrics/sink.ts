@@ -7,18 +7,18 @@ import { stripTypePrefix } from "../../events/cloud-event.ts";
 
 export interface MetricsSinkOptions {
   /**
-   * Event type (without `typePrefix`) to the metrics whose rows the event
-   * adds, such as `{ "order.placed": ["orders", "revenue"] }`.
+   * Event type (without `typePrefix`) to the metrics whose rows the event adds,
+   * such as `{ "order.placed": ["orders", "revenue"] }`.
    */
   readonly on: Readonly<Record<string, string | readonly string[] | undefined>>;
   /** Stripped from each event type. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
   /**
    * When the event's rows sit in time, for events about rows bucketed by
-   * another time than when the event happened, such as time logged for a
-   * past day (`timeEntryMetricTime`). Several times re-aggregate each of
-   * their buckets, for an event that moves a row from one day to another.
-   * Default: the event's `time`.
+   * another time than when the event happened, such as time logged for a past
+   * day (`timeEntryMetricTime`). Several times re-aggregate each of their
+   * buckets, for an event that moves a row from one day to another. Default:
+   * the event's `time`.
    */
   readonly time?: (event: CloudEvent) => string | readonly string[] | undefined;
 }
@@ -51,13 +51,13 @@ function timesOf(
 }
 
 /**
- * An outbox sink that re-aggregates the buckets an event's rows fall in,
- * so charts catch up without waiting for the periodic rollup:
- * `outbox.relay('metrics', metricsSink(metrics, { on }))`. It reads the
- * event's `time` (or `options.time`, now when neither has one) and runs one
- * rollup per metric for each UTC day the batch's times fall on, so a row
- * moved to another day fixes both days without re-aggregating the days
- * between. Build `metrics` with a service transport.
+ * An outbox sink that re-aggregates the buckets an event's rows fall in, so
+ * charts catch up without waiting for the periodic rollup:
+ * `outbox.relay('metrics', metricsSink(metrics, { on }))`. It reads the event's
+ * `time` (or `options.time`, now when neither has one) and runs one rollup per
+ * metric for each UTC day the batch's times fall on, so a row moved to another
+ * day fixes both days without re-aggregating the days between. Build `metrics`
+ * with a service transport.
  */
 export function metricsSink(
   metrics: Pick<Metrics, "rollup">,

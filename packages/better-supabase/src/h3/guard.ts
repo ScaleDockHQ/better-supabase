@@ -8,11 +8,13 @@ import {
 } from "../server/refusal.ts";
 
 /**
- * Route middleware that refuses callers outside `options`: Problem Details,
- * or a redirect to `signIn` or `mfa`. Runs after `toH3(...)`.
+ * Route middleware that refuses callers outside `options`: Problem Details, or
+ * a redirect to `signIn` or `mfa`. Runs after `toH3(...)`.
  *
  * ```ts
- * app.get('/admin', handler, { middleware: [guard({ roles: ['admin'] })] })
+ * app.get("/admin", handler, {
+ *   middleware: [guard({ roles: ["admin"] })],
+ * });
  * ```
  */
 export function guard(

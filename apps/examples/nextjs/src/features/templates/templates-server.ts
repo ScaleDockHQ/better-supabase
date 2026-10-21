@@ -1,10 +1,13 @@
 import "server-only";
-import { DbException, type Result } from "better-supabase";
-import { type RpcClient, rpcTransport } from "better-supabase/blocks";
+import type { Result } from "better-supabase";
+import type { RpcClient } from "better-supabase/blocks";
+import type { Templates } from "better-supabase/blocks/templates";
+
+import { DbException } from "better-supabase";
+import { rpcTransport } from "better-supabase/blocks";
 import {
   createTemplates,
   defineTemplateType,
-  type Templates,
 } from "better-supabase/blocks/templates";
 import * as v from "valibot";
 
@@ -36,8 +39,8 @@ export function templatesOf(supabase: RpcClient): Templates {
 }
 
 /**
- * The templates block with a `customer` type. Applying one creates a
- * customer named by the `name` value, through `createCustomer`.
+ * The templates block with a `customer` type. Applying one creates a customer
+ * named by the `name` value, through `createCustomer`.
  */
 export function customerTemplates(
   supabase: RpcClient,

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
+import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
@@ -13,11 +14,7 @@ import { connect } from "../db.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import { liteDriverOf, liteSource } from "../introspect/lite.ts";
-import {
-  type IntrospectionSource,
-  managementSource,
-  pgSource,
-} from "../introspect/source.ts";
+import { managementSource, pgSource } from "../introspect/source.ts";
 import {
   TypegenMissingError,
   validateGeneratorMetadata,

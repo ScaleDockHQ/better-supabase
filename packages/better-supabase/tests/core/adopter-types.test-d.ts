@@ -2,11 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { OrderByOf } from "../fixtures/generated-camel.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  schema as camel,
-  type OrderByOf,
-} from "../fixtures/generated-camel.ts";
+import { schema as camel } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 declare const flag: boolean;
@@ -66,9 +65,7 @@ describe("orderBy from a ternary", () => {
 
     void db.customers.findMany({ orderBy: merged });
     void db.customers.findMany({ orderBy: [merged] });
-    void db.customers.findMany({
-      orderBy: { name: flag ? "asc" : undefined },
-    });
+    void db.customers.findMany({ orderBy: { name: flag ? "asc" : undefined } });
 
     expectTypeOf(orderBy).toExtend<OrderByOf<"customers">>();
   });

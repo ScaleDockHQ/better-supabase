@@ -24,6 +24,7 @@ import type { Inbox } from "../blocks/inbox/inbox.ts";
 import type { InboxMessage } from "../blocks/inbox/types.ts";
 import type { IdentityRef } from "../core/contracts/authorization-hooks.ts";
 import type { StreamStore } from "../streams/store.ts";
+import type { BotJobsOptions } from "./identity.ts";
 
 import {
   isRecord,
@@ -32,7 +33,7 @@ import {
   toInstant,
 } from "../core/block-helpers.ts";
 import { writeToStore } from "../streams/tee.ts";
-import { type BotJobsOptions, botJobs } from "./identity.ts";
+import { botJobs } from "./identity.ts";
 
 const PREFIX = "inbox:";
 
@@ -47,7 +48,10 @@ class MarkdownConverter extends BaseFormatConverter {
 
 const converter = new MarkdownConverter();
 
-/** The job the `inbox` module queues for a contact message while `bot_mode = 'bot'`. */
+/**
+ * The job the `inbox` module queues for a contact message while `bot_mode =
+ * 'bot'`.
+ */
 export interface InboxBotJob {
   readonly conversation_id: string;
   readonly message_id: string;
@@ -66,22 +70,28 @@ export interface InboxAdapterOptions {
    * `dispatch` instead.
    */
   readonly verify?: (request: Request) => boolean | Promise<boolean>;
-  /** Stores streamed replies so a reader can resume them; the stream id lands in the message's `metadata.stream_id`. */
+  /**
+   * Stores streamed replies so a reader can resume them; the stream id lands in
+   * the message's `metadata.stream_id`.
+   */
   readonly streams?: StreamStore;
   /**
-   * Issues a ticket for the contact's linked user before the bot's
-   * handlers run, so they read and write as that user: `dispatch` resolves
-   * `inboxIdentityOf(contactId)` through `principalByIdentity` (or the
-   * server's `identities` hook) and calls `ticketFor` for a `kind: "user"`
-   * link, as `botJobs` does. Read it with `ticketOf(message)`. A contact
-   * with no link stays a visitor and gets no ticket.
+   * Issues a ticket for the contact's linked user before the bot's handlers
+   * run, so they read and write as that user: `dispatch` resolves
+   * `inboxIdentityOf(contactId)` through `principalByIdentity` (or the server's
+   * `identities` hook) and calls `ticketFor` for a `kind: "user"` link, as
+   * `botJobs` does. Read it with `ticketOf(message)`. A contact with no link
+   * stays a visitor and gets no ticket.
    */
   readonly identities?: Omit<BotJobsOptions<unknown, unknown>, "enqueue">;
 }
 
 export interface InboxAdapter extends Adapter<string, InboxMessage> {
   readonly name: "inbox";
-  /** Hands a queued bot job to Chat SDK: loads the contact's message and runs the bot's handlers. Other authors are skipped. */
+  /**
+   * Hands a queued bot job to Chat SDK: loads the contact's message and runs
+   * the bot's handlers. Other authors are skipped.
+   */
   dispatch(job: InboxBotJob): Promise<void>;
   /**
    * The ticket `dispatch` issued for the message's linked user, for
@@ -91,7 +101,10 @@ export interface InboxAdapter extends Adapter<string, InboxMessage> {
   ticketOf(message: Message<InboxMessage>): string | undefined;
 }
 
-/** The `IdentityRef` of an inbox contact: `kind: "chat"`, `provider: "inbox"` and the contact id. */
+/**
+ * The `IdentityRef` of an inbox contact: `kind: "chat"`, `provider: "inbox"`
+ * and the contact id.
+ */
 export function inboxIdentityOf(contactId: string): IdentityRef {
   return { kind: "chat", provider: "inbox", value: contactId };
 }
@@ -170,10 +183,10 @@ async function* textOnly(
 }
 
 /**
- * A Chat SDK adapter for the in-app inbox: the bot reads and writes the
- * `inbox` module's conversations, so one `Chat` instance answers the
- * widget and the other channels. Contact messages reach the bot as jobs
- * on the module's bot queue; pass them to `dispatch`.
+ * A Chat SDK adapter for the in-app inbox: the bot reads and writes the `inbox`
+ * module's conversations, so one `Chat` instance answers the widget and the
+ * other channels. Contact messages reach the bot as jobs on the module's bot
+ * queue; pass them to `dispatch`.
  */
 export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
   const { inbox } = options;

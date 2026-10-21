@@ -58,6 +58,7 @@ const languageModel = () =>
 
 describe("tenantOfEvent", () => {
   const base = { callId: "c", operationId: "ai.generateText" };
+
   it("reads the org tag, then the runtime context", () => {
     expect(
       tenantOfEvent({

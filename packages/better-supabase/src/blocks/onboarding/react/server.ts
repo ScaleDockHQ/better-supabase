@@ -3,7 +3,10 @@ import type { OnboardingState, UseOnboardingOptions } from "./index.ts";
 
 export type { OnboardingState, UseOnboardingOptions } from "./index.ts";
 
-/** The `react-server` build of `useOnboarding`: call the onboarding client's `progress()` instead. */
+/**
+ * The `react-server` build of `useOnboarding`: call the onboarding client's
+ * `progress()` instead.
+ */
 export const useOnboarding: <Id extends string, Scope extends ChecklistScope>(
   checklist: Checklist<Id, Scope>,
   options?: UseOnboardingOptions,

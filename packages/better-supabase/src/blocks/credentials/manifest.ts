@@ -14,9 +14,7 @@ export const credentialsBlock: Block<
 > = defineBlock({
   name: "credentials",
   sql: ["credentials"],
-  options: {
-    credentials: credentialsSqlOptions,
-  },
+  options: { credentials: credentialsSqlOptions },
   events: credentialsEvents,
   category: "developer",
   recipes: ["connector-setup"],

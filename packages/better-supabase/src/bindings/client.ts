@@ -68,17 +68,17 @@ export interface UseActionOptions<I, T> {
 
 export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
   /**
-   * A supabase-js client to subscribe with, for apps without the provider.
-   * It resubscribes when the client's user changes. Defaults to the
-   * provider's client.
+   * A supabase-js client to subscribe with, for apps without the provider. It
+   * resubscribes when the client's user changes. Defaults to the provider's
+   * client.
    */
   readonly client?: SupabaseClient;
   /** The query client `invalidate` refetches with. Defaults to the provider's. */
   readonly queryClient?: QueryClient;
   /**
-   * Refetch after each message: table keys (every query that read one of
-   * them), or a function returning query keys. Needs a `queryClient`, here
-   * or on the provider.
+   * Refetch after each message: table keys (every query that read one of them),
+   * or a function returning query keys. Needs a `queryClient`, here or on the
+   * provider.
    */
   readonly invalidate?:
     | readonly string[]
@@ -102,8 +102,8 @@ export interface LiveCountHookOptions extends LiveQueryHookOptions {
 
 export interface PresenceHookOptions<I> {
   /**
-   * The state this client shares while joined. It is tracked after the
-   * join and tracked again when its JSON changes; `null` stays untracked.
+   * The state this client shares while joined. It is tracked after the join and
+   * tracked again when its JSON changes; `null` stays untracked.
    */
   readonly state?: I | null;
   /** A supabase-js client for apps without the provider. */
@@ -123,14 +123,20 @@ export interface PresenceTopic<P extends string, I, O> {
 }
 
 /** Who a subscription runs as. */
-/** The claims type of a client's `betterSupabase.claims(schema)`, `unknown` without one. */
+/**
+ * The claims type of a client's `betterSupabase.claims(schema)`, `unknown`
+ * without one.
+ */
 export type ClaimsOf<B extends ClientLike> = B["betterSupabase"] extends {
   readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
 }
   ? C
   : unknown;
 
-/** The profile type of a client's `betterSupabase.userMetadata(schema)`, `unknown` without one. */
+/**
+ * The profile type of a client's `betterSupabase.userMetadata(schema)`,
+ * `unknown` without one.
+ */
 export type ProfileOf<B extends ClientLike> = B["betterSupabase"] extends {
   readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
 }
@@ -148,8 +154,8 @@ export function callerOf(auth: AuthSnapshot): Caller {
 }
 
 /**
- * The caller of a plain supabase-js client, for subscriptions made without
- * the provider. `loading` until auth-js reports the first state.
+ * The caller of a plain supabase-js client, for subscriptions made without the
+ * provider. `loading` until auth-js reports the first state.
  */
 export function plainCaller(supabase: SupabaseClient): Store<Caller> {
   let caller: Caller = { status: "loading", userId: null };
@@ -206,8 +212,8 @@ export function assertInvalidateClient(
 }
 
 /**
- * Subscribes to a topic by its rendered name. Returns the function that
- * leaves, or `undefined` when the name does not match the topic.
+ * Subscribes to a topic by its rendered name. Returns the function that leaves,
+ * or `undefined` when the name does not match the topic.
  */
 export function startBroadcast<P extends string, E extends EventSchemas>(
   run: BroadcastRun<P, E>,
@@ -472,7 +478,10 @@ export interface PresenceJoin<I> {
   leave(): void;
 }
 
-/** Joins a presence topic by its rendered name, or `undefined` when it does not match. */
+/**
+ * Joins a presence topic by its rendered name, or `undefined` when it does not
+ * match.
+ */
 export function joinPresence<P extends string, I, O>(
   supabase: SupabaseClient,
   topic: PresenceTopic<P, I, O>,
@@ -551,9 +560,9 @@ export interface ActionRunner<I, T> extends Store<ActionState<I, T>> {
 }
 
 /**
- * Tracks the runs of an action outside React: the inputs in flight, the
- * last data and the last error. `latest` is read on each run, so the action
- * and the callbacks can change between runs.
+ * Tracks the runs of an action outside React: the inputs in flight, the last
+ * data and the last error. `latest` is read on each run, so the action and the
+ * callbacks can change between runs.
  */
 export function createActionRunner<I, T>(
   latest: () => {
@@ -645,8 +654,8 @@ export function createActionRunner<I, T>(
 }
 
 /**
- * One run per key: `update` restarts `start` when the key changes and stops
- * the run when the key is `null`.
+ * One run per key: `update` restarts `start` when the key changes and stops the
+ * run when the key is `null`.
  */
 export function keyed(): {
   readonly update: (

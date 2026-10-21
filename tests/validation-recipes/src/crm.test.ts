@@ -16,6 +16,7 @@ const DEAL =
 
 describe.skipIf(!live)("CRM recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("notifies a deal's watchers about comments, tags and stage moves, except the actor", async () => {

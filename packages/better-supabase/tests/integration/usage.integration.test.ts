@@ -14,6 +14,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("usage", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("meters idempotently, enforces quotas and reports to Stripe", async () => {
@@ -76,9 +77,9 @@ describe.skipIf(!live)("usage", () => {
           `better_supabase.within_quota('${organization}', 'api_calls')`,
         ),
       ).toBe(false);
-      expect(await usage.remaining(organization, "storage").orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await usage.remaining(organization, "storage").orThrow(),
+      ).toBeUndefined();
 
       // A tenant quota overrides the plan quota.
       await s.service();
@@ -713,9 +714,7 @@ describe.skipIf(!live)("consume_quota under concurrency", () => {
       );
 
       expect(rejected).toHaveLength(1);
-      expect(rejected[0]).toMatchObject({
-        reason: { hint: "QUOTA_EXCEEDED" },
-      });
+      expect(rejected[0]).toMatchObject({ reason: { hint: "QUOTA_EXCEEDED" } });
 
       const { rows } = await pool.query<{ used: string }>(
         "select coalesce(sum(value), 0)::text as used from better_supabase.usage_counters where organization_id = $1 and meter = 'race'",

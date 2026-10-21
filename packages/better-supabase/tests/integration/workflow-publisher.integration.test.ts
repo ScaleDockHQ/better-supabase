@@ -1,13 +1,13 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { WorkflowGraph } from "../../src/blocks/workflow-builder/index.ts";
 import type { AutomationRef } from "../../src/core/contracts/authorization-hooks.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import {
   createWorkflowBuilder,
   sqlTransport,
-  type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
 import { moduleProvider } from "../fixtures/authorization-provider.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -55,6 +55,7 @@ const STEPS = [
 
 describe.skipIf(!live)("workflow-builder publisher rights", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   async function setUp(s: BlockSession) {
@@ -181,11 +182,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
         permissions: ["crm.read"],
       });
       expect(refs).toEqual([
-        {
-          publisher: publisher.id,
-          tenant,
-          permissions: ["crm.read"],
-        },
+        { publisher: publisher.id, tenant, permissions: ["crm.read"] },
       ]);
 
       await s.client.query(

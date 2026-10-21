@@ -6,9 +6,9 @@ export interface TagOptions {
 }
 
 /**
- * `bs:<table>`, `bs:<table>:<id>`, or `bs:<table>@<tenant>` for a read
- * scoped to one tenant. Mutations invalidate the table tag, the tag of their
- * tenant (`bs:<table>@*` without one) and the tags of the changed rows.
+ * `bs:<table>`, `bs:<table>:<id>`, or `bs:<table>@<tenant>` for a read scoped
+ * to one tenant. Mutations invalidate the table tag, the tag of their tenant
+ * (`bs:<table>@*` without one) and the tags of the changed rows.
  */
 export function tagFor(
   table: string,
@@ -25,9 +25,9 @@ export function tagFor(
 }
 
 /**
- * The tags a mutation invalidates: `bs:<table>` for every table in the
- * target, the tenant's `bs:<table>@<tenant>` (every tenant's `bs:<table>@*`
- * when the mutation has no tenant) and `bs:<table>:<id>` per changed row.
+ * The tags a mutation invalidates: `bs:<table>` for every table in the target,
+ * the tenant's `bs:<table>@<tenant>` (every tenant's `bs:<table>@*` when the
+ * mutation has no tenant) and `bs:<table>:<id>` per changed row.
  */
 export function cacheTagsOf(target: CacheTarget): string[] {
   const tenant = { tenant: target.tenant ?? "*" };
@@ -45,12 +45,12 @@ export function cacheTagsOf(target: CacheTarget): string[] {
 }
 
 /**
- * A `CacheAdapter` for any tag-based cache: it hands `invalidate` the tags
- * from `cacheTagsOf`, e.g. a CDN purge by tag, SvelteKit's `invalidate`, or
- * a Redis set of keys per tag. Tag your reads with `tagFor`.
+ * A `CacheAdapter` for any tag-based cache: it hands `invalidate` the tags from
+ * `cacheTagsOf`, e.g. a CDN purge by tag, SvelteKit's `invalidate`, or a Redis
+ * set of keys per tag. Tag your reads with `tagFor`.
  *
  * ```ts
- * betterSupabase.cache(tagCache((tags) => purgeCdn(tags), 'cdn'))
+ * betterSupabase.cache(tagCache((tags) => purgeCdn(tags), "cdn"));
  * ```
  */
 export function tagCache(

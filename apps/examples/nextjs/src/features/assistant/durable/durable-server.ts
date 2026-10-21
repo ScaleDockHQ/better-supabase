@@ -1,9 +1,10 @@
 import "server-only";
-import {
-  type DurableChat,
-  durableChat,
-  type DurableChatContext,
+import type {
+  DurableChat,
+  DurableChatContext,
 } from "better-supabase/ai-sdk/workflow";
+
+import { durableChat } from "better-supabase/ai-sdk/workflow";
 import { postgresStreamStore } from "better-supabase/streams";
 import * as v from "valibot";
 

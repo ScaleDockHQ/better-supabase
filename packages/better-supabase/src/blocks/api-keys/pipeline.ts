@@ -1,11 +1,7 @@
+import type { Entry, SingleKeyEntry } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 
-import {
-  defineComposite,
-  defineMiddleware,
-  type Entry,
-  type SingleKeyEntry,
-} from "@supabase/middleware";
+import { defineComposite, defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "../../auth/resolve.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
@@ -29,7 +25,10 @@ export type ApiKeyAuth = Extract<AuthState, { readonly kind: "apiKey" }>;
 /** The keys `withApiKey` puts on `ctx`. */
 export interface ApiKeyContributions {
   readonly auth: ApiKeyAuth;
-  /** The key's claims (`sub`, `role: authenticated`, `api_key`), for `withPostgresClient`. */
+  /**
+   * The key's claims (`sub`, `role: authenticated`, `api_key`), for
+   * `withPostgresClient`.
+   */
   readonly jwtClaims: JWTClaims | null;
   readonly userClaims: UserClaims | null;
   readonly authMode: AuthMode;

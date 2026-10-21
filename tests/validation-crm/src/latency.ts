@@ -6,9 +6,9 @@ import { schema } from "./generated.ts";
 export const betterSupabase = defineSupabase(schema);
 
 /**
- * The customers overview: the page, the per-status counts and each
- * row's contact count and latest update of a location, in two requests
- * that run in parallel. The original service ran up to six sequential queries.
+ * The customers overview: the page, the per-status counts and each row's
+ * contact count and latest update of a location, in two requests that run in
+ * parallel. The original service ran up to six sequential queries.
  */
 export const customerOverview = defineListQuery(betterSupabase, "customers", {
   search: ["companyName", "sortName", "billingEmail"],
@@ -23,8 +23,8 @@ export const customerOverview = defineListQuery(betterSupabase, "customers", {
 });
 
 /**
- * The three badges in the app chrome (unread notifications, my open
- * tasks, approvals waiting on me) as one read set: `gen` compiles it into
+ * The three badges in the app chrome (unread notifications, my open tasks,
+ * approvals waiting on me) as one read set: `gen` compiles it into
  * `public.rs_app_chrome(p jsonb)`, and `db.$many` calls it with one GET.
  */
 export const appChrome = defineReadSet(

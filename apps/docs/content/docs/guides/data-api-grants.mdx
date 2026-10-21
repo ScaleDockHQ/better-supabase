@@ -154,9 +154,7 @@ grant select, insert on table public.audit_logs to service_role;
 ```
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({
-  tables: { audit_logs: { serviceRole: true } },
-});
+export default defineConfig({ tables: { audit_logs: { serviceRole: true } } });
 ```
 
 Doctor then reports BS106 if `anon` or `authenticated` can still reach the

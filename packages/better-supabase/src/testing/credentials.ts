@@ -4,9 +4,10 @@ import type {
   CredentialRef,
   CredentialSubject,
 } from "../credentials/provider.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { tenantCredentialRef } from "../credentials/provider.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface TestCredentialProviderOptions {
   /** An app-scoped ref the kit may store into and revoke. */
@@ -19,7 +20,10 @@ export interface TestCredentialProviderOptions {
   ) => Promise<void>;
   /** A per-user ref, for providers that keep one credential per user. */
   readonly userRef?: CredentialRef;
-  /** A ref with an inbound scheme and a function that signs a request with `secret`. */
+  /**
+   * A ref with an inbound scheme and a function that signs a request with
+   * `secret`.
+   */
   readonly inbound?: {
     readonly ref: CredentialRef;
     readonly sign: (body: string, secret: string) => Promise<Request>;
@@ -33,11 +37,11 @@ const kindOf = (result: Result<unknown>): string | undefined =>
 
 /**
  * Runs the `CredentialProvider` contract against `provider`: the API version,
- * an unknown ref, a stored token with its headers, a new value seen after it
- * is stored, separate credentials per user and per tenant (`ref` with a
- * `tenant`, which `seed` must store too), revoke (per user, as the
- * organization purger revokes connector grants), and inbound checks that
- * accept a signed request and refuse a tampered one.
+ * an unknown ref, a stored token with its headers, a new value seen after it is
+ * stored, separate credentials per user and per tenant (`ref` with a `tenant`,
+ * which `seed` must store too), revoke (per user, as the organization purger
+ * revokes connector grants), and inbound checks that accept a signed request
+ * and refuse a tampered one.
  */
 export function testCredentialProvider(
   provider: CredentialProvider,
@@ -135,9 +139,7 @@ export function testCredentialProvider(
           "capabilities do not report user subjects",
         );
 
-        const asApp = await provider.getToken(userRef, {
-          subject: APP,
-        });
+        const asApp = await provider.getToken(userRef, { subject: APP });
 
         expect(!asApp.ok, "the app read a per-user credential");
       },

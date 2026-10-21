@@ -8,13 +8,9 @@ import { money } from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import {
-  dbUrl,
-  type Extra,
-  reachable,
-  type Session,
-  withCentraKit,
-} from "./stack.ts";
+import type { Extra, Session } from "./stack.ts";
+
+import { dbUrl, reachable, withCentraKit } from "./stack.ts";
 
 const live = await reachable();
 
@@ -64,6 +60,7 @@ async function organization(s: Session): Promise<string> {
 
 describe.skipIf(!live)("CRM and work records on CentraKit", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("points deals at CentraKit customers and contacts", async () => {

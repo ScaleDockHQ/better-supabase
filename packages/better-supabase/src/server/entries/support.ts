@@ -1,15 +1,18 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthResolution } from "../../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 import type { ActiveSupport } from "../support.ts";
+import type { ServerCore } from "./core.ts";
 
-import { callOf, type ServerCore, supportLookup } from "./core.ts";
+import { callOf, supportLookup } from "./core.ts";
 
 /**
  * Entry contributing `ctx.support`: the support session ("view as user") the
- * request's support cookie names, when `ServerOptions.support` is set and
- * the caller is the admin who started it. `undefined` otherwise.
+ * request's support cookie names, when `ServerOptions.support` is set and the
+ * caller is the admin who started it. `undefined` otherwise.
  */
 export function withSupport<
   M extends AnyModels,

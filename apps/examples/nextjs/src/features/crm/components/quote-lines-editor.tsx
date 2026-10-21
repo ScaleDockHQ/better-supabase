@@ -65,8 +65,8 @@ const EMPTY_ROW = {
 };
 
 /**
- * A draft's line items. Save sends every line; the database computes the
- * totals the page shows after the refresh.
+ * A draft's line items. Save sends every line; the database computes the totals
+ * the page shows after the refresh.
  */
 export function QuoteLinesEditor({
   quoteId,

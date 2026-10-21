@@ -270,10 +270,10 @@ function toolMessageParts(message: ToolModelMessage, turn: TurnParts): void {
 }
 
 /**
- * One answer in the canonical form, from the model messages an agent added
- * in a turn (`result.messages` after the history). Each assistant message
- * starts a step whose id is `<id>:<n>`, so saving the answer again after
- * another step updates the same message.
+ * One answer in the canonical form, from the model messages an agent added in a
+ * turn (`result.messages` after the history). Each assistant message starts a
+ * step whose id is `<id>:<n>`, so saving the answer again after another step
+ * updates the same message.
  */
 export function fromModelMessages(
   id: string,

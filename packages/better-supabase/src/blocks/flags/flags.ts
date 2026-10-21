@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import {
@@ -11,7 +12,6 @@ import {
   recordsOf,
   stringsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 
@@ -33,7 +33,10 @@ export interface FlagRule {
   /** Entitlement lookup keys; one match is enough. */
   readonly plans?: readonly string[];
   readonly roles?: readonly string[];
-  /** Custom contexts by name, such as `{ brand: ["acme"] }`; every one must match. */
+  /**
+   * Custom contexts by name, such as `{ brand: ["acme"] }`; every one must
+   * match.
+   */
   readonly contexts?: Readonly<Record<string, readonly string[]>>;
 }
 
@@ -66,7 +69,10 @@ export interface FlagDefinition {
   readonly variants: Readonly<Record<string, FlagValue>>;
   readonly defaultVariant: string;
   readonly enabled: boolean;
-  /** An archived flag serves its default variant and is hidden from Flags Explorer. */
+  /**
+   * An archived flag serves its default variant and is hidden from Flags
+   * Explorer.
+   */
   readonly archived?: boolean;
   readonly rules: readonly FlagRule[];
   /** 0 to 100, in steps of 0.01. */
@@ -75,20 +81,26 @@ export interface FlagDefinition {
   readonly overrides: readonly FlagOverride[];
   /** When the flag last changed, as an ISO 8601 string. */
   readonly updatedAt?: string;
-  /** The extra columns (`blocks.flags.options.extraColumns`), when the flag has any. */
+  /**
+   * The extra columns (`blocks.flags.options.extraColumns`), when the flag has
+   * any.
+   */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /**
- * The OpenFeature evaluation context the provider reads. `targetingKey` is
- * the user id; without one, the rollout buckets by `tenant`.
+ * The OpenFeature evaluation context the provider reads. `targetingKey` is the
+ * user id; without one, the rollout buckets by `tenant`.
  */
 export interface FlagContext {
   readonly targetingKey?: string;
   readonly tenant?: string;
   readonly plans?: readonly string[];
   readonly role?: string;
-  /** Every role the caller holds in the tenant; a `roles` rule matches any of them. */
+  /**
+   * Every role the caller holds in the tenant; a `roles` rule matches any of
+   * them.
+   */
   readonly roles?: readonly string[];
   /**
    * Custom context values by name, such as `{ brand: "acme" }`. Unlike
@@ -127,8 +139,8 @@ export type FlagErrorCode =
 
 /**
  * The shape of an OpenFeature `ResolutionDetails`. `Code` is the type of
- * `errorCode`: OpenFeature's `ErrorCode` when `errorCodes: ErrorCode` is
- * passed to the provider, the matching string literals otherwise.
+ * `errorCode`: OpenFeature's `ErrorCode` when `errorCodes: ErrorCode` is passed
+ * to the provider, the matching string literals otherwise.
  */
 export interface FlagResolution<T, Code extends string = FlagErrorCode> {
   readonly value: T;
@@ -150,9 +162,9 @@ export interface FlagDetails<
 const BUCKETS = 10_000;
 
 /**
- * The rollout bucket of `target` for `flag`, 0 to 9999: the first 32 bits
- * of SHA-256(`flag.target`) modulo 10000. `better_supabase.flag_bucket()`
- * computes the same number, so SQL and TypeScript agree on who is in.
+ * The rollout bucket of `target` for `flag`, 0 to 9999: the first 32 bits of
+ * SHA-256(`flag.target`) modulo 10000. `better_supabase.flag_bucket()` computes
+ * the same number, so SQL and TypeScript agree on who is in.
  */
 export async function flagBucket(
   flag: string,
@@ -381,11 +393,14 @@ export interface FlagsProviderOptions<
   Code extends string = FlagErrorCode,
 > extends BlockTemporalOptions {
   /**
-   * A service-role transport: `flag_definitions()` is granted to
-   * `service_role` only, as it lists every override.
+   * A service-role transport: `flag_definitions()` is granted to `service_role`
+   * only, as it lists every override.
    */
   readonly transport?: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   /** Error mappers that run before the built-in ones. */
   readonly mappers?: readonly ErrorMapper[];
@@ -395,8 +410,8 @@ export interface FlagsProviderOptions<
   readonly definitions?: readonly FlagDefinition[];
   /**
    * OpenFeature's `ErrorCode` enum (from `@openfeature/core` or
-   * `@openfeature/server-sdk`), so the provider's types match `Provider`.
-   * A map without `PARSE_ERROR` reports an unknown flag type as `GENERAL`.
+   * `@openfeature/server-sdk`), so the provider's types match `Provider`. A map
+   * without `PARSE_ERROR` reports an unknown flag type as `GENERAL`.
    */
   readonly errorCodes?: Readonly<
     Record<Exclude<FlagErrorCode, "PARSE_ERROR">, Code> &
@@ -604,8 +619,8 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
 }
 
 /**
- * The four `get*Details` methods that the OpenFeature server `Client` and
- * the `FlagClient` of `@supabase-labs/middleware-openfeature` share.
+ * The four `get*Details` methods that the OpenFeature server `Client` and the
+ * `FlagClient` of `@supabase-labs/middleware-openfeature` share.
  */
 export interface FlagClient<Code extends string = FlagErrorCode> {
   getBooleanDetails(
@@ -640,8 +655,8 @@ const details = async <T, Code extends string>(
 });
 
 /**
- * A flag client without the OpenFeature SDK: `withOpenFeature({ client })`
- * from `@supabase-labs/middleware-openfeature` accepts it.
+ * A flag client without the OpenFeature SDK: `withOpenFeature({ client })` from
+ * `@supabase-labs/middleware-openfeature` accepts it.
  */
 export function createFlagClient<Code extends string = FlagErrorCode>(
   source: FlagsProvider<Code> | FlagsProviderOptions<Code>,
@@ -683,8 +698,8 @@ export interface FlagContextSource {
   /** The active tenant; default the `tenant_id` claim. */
   readonly tenant?: string | null | undefined;
   /**
-   * Custom context values the request carries, such as the brand from the
-   * host. They win over `options.contextClaims`; `null` leaves one out.
+   * Custom context values the request carries, such as the brand from the host.
+   * They win over `options.contextClaims`; `null` leaves one out.
    */
   readonly contexts?: Readonly<Record<string, string | null | undefined>>;
 }
@@ -697,9 +712,10 @@ export interface FlagContextOptions {
   /** The claim the memberships hook writes, default `memberships`. */
   readonly membershipsClaim?: string;
   /**
-   * The scope of tenant memberships when the claim is a list of entries, as
-   * an authorization provider's hook may write it (`{ scope, id, roles }`). Without it, the entry
-   * for the tenant id that has no `within` (a root scope) is read.
+   * The scope of tenant memberships when the claim is a list of entries, as an
+   * authorization provider's hook may write it (`{ scope, id, roles }`).
+   * Without it, the entry for the tenant id that has no `within` (a root scope)
+   * is read.
    */
   readonly membershipScope?: string;
   /** Reads the caller's roles in `tenant` from claims of another shape. */
@@ -717,8 +733,8 @@ export interface FlagContextOptions {
 
 /**
  * The caller's roles in `tenant` from the memberships claim: an object of
- * tenant id to role (the `tenant` module's hook), or a list of
- * `{ scope, id, role | roles }` entries (an authorization provider's hook).
+ * tenant id to role (the `tenant` module's hook), or a list of `{ scope, id,
+ * role | roles }` entries (an authorization provider's hook).
  */
 function membershipRoles(
   memberships: unknown,

@@ -287,9 +287,9 @@ function DataGridTableDndBodyRows<TData extends object>({
 }
 
 /**
- * Memoized body rows: skip re-renders during active column resize.
- * Column widths update via CSS variables on the <table> element,
- * so the browser handles width changes without React re-renders.
+ * Memoized body rows: skip re-renders during active column resize. Column
+ * widths update via CSS variables on the <table> element, so the browser
+ * handles width changes without React re-renders.
  */
 const MemoizedDataGridTableDndBodyRows = memo(
   DataGridTableDndBodyRows,
@@ -332,8 +332,10 @@ function toLtrScrollView(element: Element): Element {
   });
 }
 
-/** A drop on a span's leaves targets its far edge, after its last leaf moving
- *  forward and before its owner moving back, so no move lands inside it. */
+/**
+ * A drop on a span's leaves targets its far edge, after its last leaf moving
+ * forward and before its owner moving back, so no move lands inside it.
+ */
 function getDataGridDropBesideSpans<TData extends object>(
   table: DataGridTableInstance<TData>,
   event: DragEndEvent,

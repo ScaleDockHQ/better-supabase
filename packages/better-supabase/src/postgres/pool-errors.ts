@@ -1,8 +1,9 @@
 import type { EventHub } from "../core/events.ts";
+import type { Logger } from "../core/logger.ts";
 
 import { mapDbError } from "../core/errors.ts";
 import { errorEvent } from "../core/events.ts";
-import { consoleLogger, type Logger } from "../core/logger.ts";
+import { consoleLogger } from "../core/logger.ts";
 import { toDbError } from "../core/result.ts";
 import { fromPgError } from "./pg-error.ts";
 
@@ -19,10 +20,10 @@ export interface PoolErrorOptions {
 }
 
 /**
- * Listens for errors on idle pooled connections, such as a server restart or
- * an ended session. `pg.Pool` emits them as an `error` event, and Node exits
- * on an `error` event nobody listens to. The listener reports the error and
- * never throws.
+ * Listens for errors on idle pooled connections, such as a server restart or an
+ * ended session. `pg.Pool` emits them as an `error` event, and Node exits on an
+ * `error` event nobody listens to. The listener reports the error and never
+ * throws.
  */
 export function watchPoolErrors(
   pool: PoolErrorSource,

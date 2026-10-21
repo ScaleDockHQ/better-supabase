@@ -194,13 +194,7 @@ describe("promotions block", () => {
         prefix: null,
         usage_limit: null,
       },
-      {
-        promotion: "p1",
-        codes: null,
-        count: 2,
-        prefix: "BF-",
-        usage_limit: 1,
-      },
+      { promotion: "p1", codes: null, count: 2, prefix: "BF-", usage_limit: 1 },
       {
         promotion: "p1",
         codes: null,

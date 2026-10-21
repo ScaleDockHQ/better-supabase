@@ -1,5 +1,6 @@
 import type { AuthorizationProvider } from "../config/authorization.ts";
 import type { DisabledRow } from "../config/blocks.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import {
   isScopeName,
@@ -9,7 +10,7 @@ import {
   templatePlaceholders,
   templateProblems,
 } from "../core/access-sql.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 function isPlainJson(value: unknown): boolean {
@@ -75,11 +76,11 @@ function expectRow(where: string, row: DisabledRow): void {
 }
 
 /**
- * Proves an `AuthorizationProvider` targets API v1, is plain JSON, names
- * valid scopes with a tenant scope that has an id type, writes templates
- * that are safe to inline and use the placeholders they need, lists every
- * function its templates call in `requires`, and keeps its token hook,
- * suspension rows, role sources and deciding columns well formed.
+ * Proves an `AuthorizationProvider` targets API v1, is plain JSON, names valid
+ * scopes with a tenant scope that has an id type, writes templates that are
+ * safe to inline and use the placeholders they need, lists every function its
+ * templates call in `requires`, and keeps its token hook, suspension rows, role
+ * sources and deciding columns well formed.
  */
 export function testAuthorizationProvider(
   provider: AuthorizationProvider,

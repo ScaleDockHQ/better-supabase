@@ -6,7 +6,10 @@ import { isAnonymousUser } from "../auth/view.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { claimAt, DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 
-/** Thrown by `supabaseAuth` so eve answers with `response` instead of downgrading to anonymous. */
+/**
+ * Thrown by `supabaseAuth` so eve answers with `response` instead of
+ * downgrading to anonymous.
+ */
 export class EveAuthRejection extends Error {
   override readonly name = "EveAuthRejection";
   readonly response: Response;
@@ -15,10 +18,7 @@ export class EveAuthRejection extends Error {
     super(message);
     this.response = Response.json(
       { error: message },
-      {
-        status,
-        headers: { "content-type": "application/json" },
-      },
+      { status, headers: { "content-type": "application/json" } },
     );
   }
 }
@@ -29,7 +29,10 @@ export interface SupabaseAuthOptions extends Omit<
 > {
   /** The tenant claim, `config.claims.tenant`. Defaults to `tenant_id`. */
   readonly tenantClaim?: string;
-  /** The memberships claim, `config.claims.memberships`. Defaults to `memberships`. */
+  /**
+   * The memberships claim, `config.claims.memberships`. Defaults to
+   * `memberships`.
+   */
   readonly membershipsClaim?: string;
   /** Extra attributes from the verified claims, merged over the defaults. */
   readonly attributes?: (

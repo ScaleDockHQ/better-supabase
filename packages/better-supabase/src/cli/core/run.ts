@@ -6,50 +6,39 @@ import { stripVTControlCharacters } from "node:util";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ConsentRequest } from "./agent.ts";
+import type { AnyCommand, CliCommand, CliContext } from "./command.ts";
+import type { CliErrorCode } from "./errors.ts";
 import type { CliIo, CommandResult, RunResult } from "./io.ts";
 import type { CommandSpec } from "./manifest.ts";
+import type { Rendered } from "./output.ts";
+import type { CommandNode, Loader } from "./parse.ts";
+import type { ExecEvent, HttpEvent } from "./trace.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
 import { painter } from "../style.ts";
 import { VERSION } from "../version.ts";
 import { checkConsent, missingInputNext, resolveAgent } from "./agent.ts";
 import {
-  type AnyCommand,
-  type CliCommand,
-  type CliContext,
   GLOBAL_ARGS,
   joinRepeated,
   listArgs,
   runsWithInvalidConfig,
 } from "./command.ts";
-import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
+import { CliError, toCliError } from "./errors.ts";
 import { commandHelp, rootHelp, treeJson } from "./help.ts";
 import { createLog, milliseconds } from "./log.ts";
 import { COMPLETE_COMMAND, RESERVED_NAMES } from "./manifest.ts";
 import { movedCommand, movedFlag } from "./moved.ts";
-import {
-  document,
-  envelope,
-  type Rendered,
-  renderError,
-  renderResult,
-} from "./output.ts";
+import { document, envelope, renderError, renderResult } from "./output.ts";
 import {
   checkArgs,
   closestName,
   commandArgs,
-  type CommandNode,
   commandTree,
   globalFlags,
-  type Loader,
   resolveCommand,
 } from "./parse.ts";
-import {
-  EXEC_CHANNEL,
-  type ExecEvent,
-  HTTP_CHANNEL,
-  type HttpEvent,
-} from "./trace.ts";
+import { EXEC_CHANNEL, HTTP_CHANNEL } from "./trace.ts";
 
 export interface RunOptions {
   /** Directory `--cwd` is relative to. */
@@ -58,28 +47,40 @@ export interface RunOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly io?: CliIo;
   readonly signal?: AbortSignal;
-  /** The name the CLI was called with, for help and hints. Defaults to `better-supabase`. */
+  /**
+   * The name the CLI was called with, for help and hints. Defaults to
+   * `better-supabase`.
+   */
   readonly bin?: string;
 }
 
 export interface CommandTreeInit {
   /** The command tree: names, descriptions, groups and subcommands. */
   readonly commands: readonly CommandSpec[];
-  /** Loads each leaf in `commands`, keyed by its space-separated path (`"sql add"`). */
+  /**
+   * Loads each leaf in `commands`, keyed by its space-separated path (`"sql
+   * add"`).
+   */
   readonly loaders: ReadonlyMap<string, Loader>;
 }
 
 export interface Cli {
   /** Runs the CLI. Never exits the process; returns the exit code and output. */
   run(argv: readonly string[], options?: RunOptions): Promise<RunResult>;
-  /** The usage text for the CLI, or for one command path (`"sql add"`); plain unless `color` is set. */
+  /**
+   * The usage text for the CLI, or for one command path (`"sql add"`); plain
+   * unless `color` is set.
+   */
   help(command?: string, color?: boolean): Promise<string>;
   /** The top-level names `run()` dispatches, your own commands included. */
   commandNames(): string[];
 }
 
 export interface CreateCliOptions {
-  /** Commands from `defineCliCommand` to add next to the built-in ones, keyed by name. */
+  /**
+   * Commands from `defineCliCommand` to add next to the built-in ones, keyed by
+   * name.
+   */
   readonly commands?: Readonly<Record<string, CliCommand>>;
 }
 
@@ -166,7 +167,10 @@ function metaDescription(command: AnyCommand): string {
     : "";
 }
 
-/** The tree node for one of the app's own commands, after checking its contract and name. */
+/**
+ * The tree node for one of the app's own commands, after checking its contract
+ * and name.
+ */
 function extraCommand(
   tree: ReadonlyMap<string, CommandNode>,
   name: string,
@@ -196,7 +200,10 @@ function extraCommand(
   };
 }
 
-/** A CLI over its own command tree, so tests and embedders don't share state through the module. */
+/**
+ * A CLI over its own command tree, so tests and embedders don't share state
+ * through the module.
+ */
 export function cliFromTree(
   init: CommandTreeInit,
   extra: Readonly<Record<string, CliCommand>> = {},
@@ -330,11 +337,7 @@ export function cliFromTree(
         `exit ${code} after ${milliseconds(started, performance.now())}`,
       );
 
-      return {
-        code,
-        stdout: stdout.join(""),
-        stderr: stderr.join(""),
-      };
+      return { code, stdout: stdout.join(""), stderr: stderr.join("") };
     };
 
     let resolution = resolveCommand(tree, argv);
@@ -666,10 +669,7 @@ export function cliFromTree(
     }
 
     try {
-      const { result } = await runCommand(command, {
-        rawArgs,
-        data: context,
-      });
+      const { result } = await runCommand(command, { rawArgs, data: context });
 
       if (!isCommandResult(result)) {
         return finish(0);
@@ -688,11 +688,7 @@ export function cliFromTree(
     }
   };
 
-  return {
-    run,
-    help,
-    commandNames: () => [...tree.keys()],
-  };
+  return { run, help, commandNames: () => [...tree.keys()] };
 }
 
 /**

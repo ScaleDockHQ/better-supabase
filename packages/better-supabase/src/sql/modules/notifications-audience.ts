@@ -9,9 +9,9 @@ import { accessModel } from "./access-model.ts";
 
 /**
  * Users who hold `notification.permission` in the tenant, added before
- * `exclude`. A provider without `holdersOf` refuses the audience. The roles
- * and catalog models ask `can_user` of each member, and the catalog model
- * also includes a platform-role holder. Never every member.
+ * `exclude`. A provider without `holdersOf` refuses the audience. The roles and
+ * catalog models ask `can_user` of each member, and the catalog model also
+ * includes a platform-role holder. Never every member.
  */
 export function permissionAudience(
   ctx: ModuleContext,
@@ -143,7 +143,10 @@ function audienceAppend(
 
 const NAME = /^[a-z][a-z0-9_]*$/;
 
-/** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
+/**
+ * A channel nobody chose is on for `in_app` and off for the rest, unless
+ * `channelDefaults` says otherwise.
+ */
 export function channelDefaults(ctx: ModuleContext, channel: string): string {
   const value = ctx.option("channelDefaults") ?? {};
 

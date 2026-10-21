@@ -65,7 +65,7 @@ describe("createOrganizationsController", () => {
     expect(view().activeId).toBe("org-1");
     auth.set(withTenant("org-2"));
     expect(view().activeId).toBe("org-2");
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledOnce();
     auth.set(withTenant("org-3", OTHER));
     expect(load).toHaveBeenCalledTimes(2);
     unmount();

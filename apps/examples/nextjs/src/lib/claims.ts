@@ -10,8 +10,8 @@ const isEntitlement = (key: string): key is Entitlement =>
 
 /**
  * The scope of the tenant entries in `memberships`: `claims.scope` in
- * better-supabase.config.ts. An authorization provider's hook writes its
- * own scope names, so with one this is its `tenantScope`.
+ * better-supabase.config.ts. An authorization provider's hook writes its own
+ * scope names, so with one this is its `tenantScope`.
  */
 export const MEMBERSHIP_SCOPE = "tenant";
 
@@ -42,21 +42,20 @@ const Memberships = v.fallback(
 );
 
 /**
- * The claims the servers validate on every request (`betterSupabase.claims(Claims)`),
- * in the claim contract better-supabase reads. The custom access token hook
- * (supabase/schemas/rbac/functions/custom_access_token_hook.sql) writes `memberships` and `features`;
- * `tenant_id` in `app_metadata` is the active organization, which
- * `switch_organization` changes.
+ * The claims the servers validate on every request
+ * (`betterSupabase.claims(Claims)`), in the claim contract better-supabase
+ * reads. The custom access token hook
+ * (supabase/schemas/rbac/functions/custom_access_token_hook.sql) writes
+ * `memberships` and `features`; `tenant_id` in `app_metadata` is the active
+ * organization, which `switch_organization` changes.
  *
- * Every object is loose, so claims this schema doesn't name reach other
- * readers unchanged.
+ * Every object is loose, so claims this schema doesn't name reach other readers
+ * unchanged.
  */
 export const Claims = v.looseObject({
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   app_metadata: v.optional(
-    v.looseObject({
-      tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
-    }),
+    v.looseObject({ tenant_id: v.optional(v.pipe(v.string(), v.uuid())) }),
   ),
   memberships: Memberships,
   // `better_supabase.feature_claims()` (entitlements SQL module). Keys the

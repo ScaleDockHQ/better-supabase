@@ -51,8 +51,8 @@ async function memberNames(
 
 /**
  * The active organization's access requests, newest first. Readers of the
- * organization see every request; others see their own. A failed read
- * throws, so it is never cached and Retry reads again.
+ * organization see every request; others see their own. A failed read throws,
+ * so it is never cached and Retry reads again.
  */
 export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";

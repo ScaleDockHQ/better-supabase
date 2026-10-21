@@ -1,9 +1,11 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { dbError, type ErrorMapper } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import {
@@ -17,7 +19,6 @@ import {
   stringsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
 } from "../shared.ts";
 
 interface StorageReply<T> {
@@ -94,7 +95,10 @@ export interface DataLifecycleOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, for `download`. */
   readonly storage?: LifecycleStorage;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Lifetime of a signed download URL in seconds. Default 300. */
@@ -106,7 +110,10 @@ export interface DataLifecycleOptions extends BlockTemporalOptions {
 }
 
 export interface DataLifecycle {
-  /** Exports the caller's data, or a tenant's with `organizationId` (needs `organization.export`). */
+  /**
+   * Exports the caller's data, or a tenant's with `organizationId` (needs
+   * `organization.export`).
+   */
   requestExport(options?: {
     readonly organizationId?: string;
   }): AsyncResult<DataExport>;
@@ -115,9 +122,9 @@ export interface DataLifecycle {
   /** Signed URLs for a ready export's files. */
   download(exportId: string): AsyncResult<DataExportDownload>;
   /**
-   * Disables the tenant and schedules its purge after `grace` (an
-   * interval such as `30 days` or a `Temporal.Duration`; default the
-   * module's `grace` option). Needs `organization.delete`.
+   * Disables the tenant and schedules its purge after `grace` (an interval such
+   * as `30 days` or a `Temporal.Duration`; default the module's `grace`
+   * option). Needs `organization.delete`.
    */
   requestOrganizationDeletion(
     organizationId: string,
@@ -207,7 +214,10 @@ export function stored<T>(
   });
 }
 
-/** The table a file holds: `{id}/public.projects.ndjson` gives `public.projects`. */
+/**
+ * The table a file holds: `{id}/public.projects.ndjson` gives
+ * `public.projects`.
+ */
 const tableOf = (path: string): string =>
   path.slice(path.lastIndexOf("/") + 1).replace(/\.(ndjson|csv)$/, "");
 

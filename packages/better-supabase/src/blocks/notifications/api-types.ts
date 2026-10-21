@@ -30,11 +30,14 @@ export interface SendInput<
   D = unknown,
   F extends object = Record<never, never>,
 > {
-  /** Who gets it. Watchers of `subject` and the `notification_audience` hook add more. */
+  /**
+   * Who gets it. Watchers of `subject` and the `notification_audience` hook add
+   * more.
+   */
   readonly recipients?: readonly string[];
   /**
-   * Also notify the users who hold this permission in `tenant`. Needs
-   * `tenant`. Without a holders template the send is refused.
+   * Also notify the users who hold this permission in `tenant`. Needs `tenant`.
+   * Without a holders template the send is refused.
    */
   readonly permission?: string;
   /** The organization; required when an authenticated user sends. */
@@ -52,8 +55,8 @@ export interface SendInput<
   /** Also notify the user who caused it. Defaults to `false`. */
   readonly includeActor?: boolean;
   /**
-   * `participating` (default) reaches subject watchers at both levels;
-   * `all` is routine activity that only `all` watchers get.
+   * `participating` (default) reaches subject watchers at both levels; `all` is
+   * routine activity that only `all` watchers get.
    */
   readonly activity?: "participating" | "all";
   /** Create it already resolved, e.g. for a record of a finished approval. */
@@ -62,8 +65,8 @@ export interface SendInput<
   readonly actorId?: string;
   /**
    * Add the watchers of `subject`. Defaults to `true`; `false` reaches only
-   * `recipients` and the audience hook (members ignoring the subject stay
-   * out either way).
+   * `recipients` and the audience hook (members ignoring the subject stay out
+   * either way).
    */
   readonly watchers?: boolean;
   /** Users left out after the watchers and the audience hook are added. */
@@ -185,8 +188,8 @@ export interface DeliverOptions {
 export interface DeliverResult {
   readonly sent: number;
   /**
-   * Deliveries not sent on purpose: the channel skipped them, the address
-   * is suppressed, or `audience` left the recipient out.
+   * Deliveries not sent on purpose: the channel skipped them, the address is
+   * suppressed, or `audience` left the recipient out.
    */
   readonly skipped: number;
   /**
@@ -198,7 +201,10 @@ export interface DeliverResult {
 
 export type SuppressionReason = "bounce" | "complaint" | "manual";
 
-/** An address a channel stops sending to, written by a bounce or complaint webhook. */
+/**
+ * An address a channel stops sending to, written by a bounce or complaint
+ * webhook.
+ */
 export interface SuppressInput {
   /** Stored in lower case. */
   readonly address: string;
@@ -306,8 +312,8 @@ export interface Rendered<
 }
 
 /**
- * A notification as `get`, `list` and `page` return it: its `data` parsed
- * with its type's schema, so checking `type` narrows `data`.
+ * A notification as `get`, `list` and `page` return it: its `data` parsed with
+ * its type's schema, so checking `type` narrows `data`.
  */
 export type NotificationOf<
   K extends NotificationTypes,
@@ -323,30 +329,36 @@ export interface NotificationsOptions<
   H = undefined,
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
-  /** `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the service. */
+  /**
+   * `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the
+   * service.
+   */
   readonly transport: BlockTransport;
   /**
-   * Each type's `data` schema. `send` validates against it, and `get`,
-   * `list` and `page` parse stored data with it, so keep a schema able to
-   * read the notifications already sent (or purge them). A stored value it
-   * rejects is a `validation` error with the hint `NOTIFICATION_DATA_INVALID`;
-   * a type no longer listed keeps its data as stored.
+   * Each type's `data` schema. `send` validates against it, and `get`, `list`
+   * and `page` parse stored data with it, so keep a schema able to read the
+   * notifications already sent (or purge them). A stored value it rejects is a
+   * `validation` error with the hint `NOTIFICATION_DATA_INVALID`; a type no
+   * longer listed keeps its data as stored.
    */
   readonly types: K;
   /**
    * A Standard Schema for the events table's extra columns
-   * (`blocks.notifications.options.extraColumns`): `send` validates them,
-   * and `get`, `list` and `page` parse them.
+   * (`blocks.notifications.options.extraColumns`): `send` validates them, and
+   * `get`, `list` and `page` parse them.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the methods, such as a rule on `send`. */
   readonly hooks?: NoInfer<BlockHooks<Notifications<K, FieldsOf<S>>>>;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   /**
-   * Loads what `render` needs for a whole page at once (actor names,
-   * subject titles), so a list of 50 items costs one query instead of 50.
-   * Its result reaches `render` as `context.hydrated`.
+   * Loads what `render` needs for a whole page at once (actor names, subject
+   * titles), so a list of 50 items costs one query instead of 50. Its result
+   * reaches `render` as `context.hydrated`.
    */
   readonly hydrate?: (
     items: readonly NotificationItem[],
@@ -364,24 +376,25 @@ export interface NotificationsOptions<
   readonly channels?: readonly NotificationChannel[];
   /**
    * Adds the `email` channel (`emailChannel`) over a
-   * `DeliveryTransport<"email">`, such as `resendTransport`. Don't also
-   * list a channel named `email`.
+   * `DeliveryTransport<"email">`, such as `resendTransport`. Don't also list a
+   * channel named `email`.
    */
   readonly email?: EmailChannelOptions;
   /**
-   * Checks each claimed delivery's recipient before a channel sends it;
-   * a recipient it leaves out is skipped, and a throw retries the
-   * deliveries later. Defaults to `server.authorization.delivery.audience`;
-   * with `server.authorization` but no such policy, to
-   * `subjectReaders(transport)`, so a notification about a `config.subjects`
-   * record only reaches recipients who may read it. In-app recipients are
-   * decided in SQL (`holdersOf`, membership).
+   * Checks each claimed delivery's recipient before a channel sends it; a
+   * recipient it leaves out is skipped, and a throw retries the deliveries
+   * later. Defaults to `server.authorization.delivery.audience`; with
+   * `server.authorization` but no such policy, to `subjectReaders(transport)`,
+   * so a notification about a `config.subjects` record only reaches recipients
+   * who may read it. In-app recipients are decided in SQL (`holdersOf`,
+   * membership).
    */
   readonly audience?: SubscriberPolicy;
-  /** The `createServer` result, whose `authorization` hooks give the default `audience`. */
-  readonly server?: {
-    readonly authorization?: AuthorizationHooks | undefined;
-  };
+  /**
+   * The `createServer` result, whose `authorization` hooks give the default
+   * `audience`.
+   */
+  readonly server?: { readonly authorization?: AuthorizationHooks | undefined };
   /** Runs after a notification is stored, e.g. to call Next's `updateTag`. */
   readonly onSent?: (sent: {
     readonly id: string;
@@ -398,10 +411,9 @@ export interface NotificationsOptions<
 }
 
 /**
- * The `notifications` SQL module as typed calls. `send` validates the
- * data against its type's schema; the database checks the send permission,
- * leaves out the actor and non-members and applies subscriptions and
- * preferences.
+ * The `notifications` SQL module as typed calls. `send` validates the data
+ * against its type's schema; the database checks the send permission, leaves
+ * out the actor and non-members and applies subscriptions and preferences.
  */
 export interface Notifications<
   K extends NotificationTypes,
@@ -414,9 +426,9 @@ export interface Notifications<
   ): AsyncResult<SentNotification | null>;
   /**
    * Sends up to 1000 notifications in one `send_notifications` call, with
-   * `send`'s checks per notification: one `Result` per item, in order, so a
-   * bad one never drops the others. The outer result fails only when the
-   * call does. Hooks on `send` don't run for these; hook `sendMany`.
+   * `send`'s checks per notification: one `Result` per item, in order, so a bad
+   * one never drops the others. The outer result fails only when the call does.
+   * Hooks on `send` don't run for these; hook `sendMany`.
    */
   sendMany(
     items: readonly SinkNotification<K, F>[],
@@ -484,14 +496,14 @@ export interface Notifications<
   /** Sends pending deliveries through `channels`. Run it from a cron or a job. */
   deliver(options?: DeliverOptions): Promise<DeliverResult>;
   /**
-   * Deletes up to `batch` (10,000) notifications older than `olderThan`
-   * (`90 days`) with their recipients and deliveries. Service only.
+   * Deletes up to `batch` (10,000) notifications older than `olderThan` (`90
+   * days`) with their recipients and deliveries. Service only.
    */
   purge(olderThan?: string, batch?: number): AsyncResult<number>;
   /**
    * Stops `channel` from sending to an address; `deliver()` skips its
-   * deliveries. `true` when the address was not suppressed yet. Service
-   * only; `resendWebhook` calls it for bounces and complaints.
+   * deliveries. `true` when the address was not suppressed yet. Service only;
+   * `resendWebhook` calls it for bounces and complaints.
    */
   suppress(input: SuppressInput): AsyncResult<boolean>;
   /** Lifts a suppression. `true` when there was one. Service only. */
@@ -501,20 +513,20 @@ export interface Notifications<
     readonly limit?: number;
   }): AsyncResult<readonly NotificationSuppression[]>;
   /**
-   * Records what a provider reported about a sent message: stores it on
-   * the delivery once per `providerEventId`, moves the delivery's provider
-   * status forward, suppresses the address on a bounce or a complaint, and
-   * emits `notification.<kind>` with the notification's subject. `null`
-   * when no delivery has that provider message id. Service only;
-   * `resendWebhook` calls it for every status.
+   * Records what a provider reported about a sent message: stores it on the
+   * delivery once per `providerEventId`, moves the delivery's provider status
+   * forward, suppresses the address on a bounce or a complaint, and emits
+   * `notification.<kind>` with the notification's subject. `null` when no
+   * delivery has that provider message id. Service only; `resendWebhook` calls
+   * it for every status.
    */
   recordDeliveryEvent(
     input: DeliveryEventInput,
   ): AsyncResult<RecordedDeliveryEvent | null>;
   /**
-   * The deliveries of the notifications about one record, newest first,
-   * each with its provider events: a record's sent emails. The service
-   * reads every tenant; a member needs the send permission in `tenant`.
+   * The deliveries of the notifications about one record, newest first, each
+   * with its provider events: a record's sent emails. The service reads every
+   * tenant; a member needs the send permission in `tenant`.
    */
   subjectDeliveries(options: {
     readonly subject: { readonly type: string; readonly id: string };
@@ -523,10 +535,10 @@ export interface Notifications<
     readonly limit?: number;
   }): AsyncResult<readonly SubjectDelivery[]>;
   /**
-   * An `EventSink` that sends a notification for each event `map` returns
-   * one for. The key defaults to the event id and the tenant to its
-   * `partitionkey`, so a redelivered event sends nothing new. A failed send
-   * rejects, so the forwarder retries. The comments module already notifies
+   * An `EventSink` that sends a notification for each event `map` returns one
+   * for. The key defaults to the event id and the tenant to its `partitionkey`,
+   * so a redelivered event sends nothing new. A failed send rejects, so the
+   * forwarder retries. The comments module already notifies
    * `comment.mentioned`; don't map it again.
    */
   sink(options: NotificationSinkOptions<K>): EventSink;
@@ -544,10 +556,16 @@ export type SinkNotification<
 }[TypeName<K>];
 
 export interface NotificationSinkOptions<K extends NotificationTypes> {
-  /** The notification for an event, or `null` to skip it. `event.type` has no `typePrefix`. */
+  /**
+   * The notification for an event, or `null` to skip it. `event.type` has no
+   * `typePrefix`.
+   */
   map(
     event: CloudEvent,
   ): SinkNotification<K> | null | Promise<SinkNotification<K> | null>;
-  /** Stripped from each event type before `map`. Defaults to `dev.better-supabase.`. */
+  /**
+   * Stripped from each event type before `map`. Defaults to
+   * `dev.better-supabase.`.
+   */
   readonly typePrefix?: string;
 }

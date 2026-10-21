@@ -57,7 +57,10 @@ const skipsNullKeys = (
     );
 };
 
-/** Whether the first `columns.length` columns of an index are exactly `columns`, in any order, and it holds every row that references something. */
+/**
+ * Whether the first `columns.length` columns of an index are exactly `columns`,
+ * in any order, and it holds every row that references something.
+ */
 const covers = (index: CatalogIndex, columns: readonly string[]): boolean =>
   (!index.partial || skipsNullKeys(index.predicate, columns)) &&
   index.columns.length >= columns.length &&
@@ -76,7 +79,10 @@ const SOFT_DELETE = /^(?:deleted|archived)_at$/;
 /** Operators that need a GIN index on jsonb or array columns. */
 const CONTAINS = String.raw`(?:@>|<@|\?\||\?&|\?|&&)`;
 
-/** `.contains("tags"`, `.containedBy('meta'`, `.overlaps("labels"`, supabase-js filters. */
+/**
+ * `.contains("tags"`, `.containedBy('meta'`, `.overlaps("labels"`, supabase-js
+ * filters.
+ */
 const CLIENT_CONTAINS =
   /\.(?:contains|containedBy|overlaps)\(\s*["'`]([A-Za-z_]\w*)["'`]/g;
 
@@ -89,7 +95,10 @@ const AVOID: Readonly<Record<string, string>> = {
   json: "jsonb",
 };
 
-/** A Supabase direct (`db.<ref>.supabase.co`) or session-pooler (`:5432`) connection string. */
+/**
+ * A Supabase direct (`db.<ref>.supabase.co`) or session-pooler (`:5432`)
+ * connection string.
+ */
 const DIRECT_URL =
   /postgres(?:ql)?:\/\/[^\s"'`]*@(?:db\.[a-z0-9]+\.supabase\.co(?::5432)?|[\w.-]+\.pooler\.supabase\.com:5432)\b/i;
 

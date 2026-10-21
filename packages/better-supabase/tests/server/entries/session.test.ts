@@ -62,7 +62,7 @@ describe("withSession onAuthOutage", () => {
     const token = await signer.sign({ sub: USER, expiresIn: 20 });
     const kept = await run(cookieRequest(token, "s-2"));
     expect(kept.status).toBe(200);
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledOnce();
     expect(onAuthOutage).toHaveBeenLastCalledWith(
       expect.objectContaining({ cause: "network", kept: true }),
       expect.any(Request),

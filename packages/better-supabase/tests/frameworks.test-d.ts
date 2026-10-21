@@ -6,6 +6,7 @@ import type {
   ExternalImageService,
   MiddlewareHandler,
 } from "astro";
+import type { H3Event as H3EventV2 } from "h3";
 import type Koa from "koa";
 import type { Nuxt, NuxtModule } from "nuxt/schema";
 import type {
@@ -20,7 +21,7 @@ import { createMiddleware as createStartMiddleware } from "@tanstack/react-start
 import { Elysia } from "elysia";
 import express from "express";
 import Fastify from "fastify";
-import { H3, type H3Event as H3EventV2 } from "h3";
+import { H3 } from "h3";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type {
@@ -53,11 +54,11 @@ import type { BetterTanStackStart } from "../src/tanstack-start/create.ts";
 
 /**
  * The structural framework types the adapters declare, checked against the
- * frameworks' real types at the pinned versions, in both directions: what
- * the framework passes fits what the adapter reads, and what the adapter
- * returns fits where the framework takes it. A major release that breaks
- * one fails here; the previous majors still in the
- * peer ranges are checked in `tests/types/frameworks-previous`.
+ * frameworks' real types at the pinned versions, in both directions: what the
+ * framework passes fits what the adapter reads, and what the adapter returns
+ * fits where the framework takes it. A major release that breaks one fails
+ * here; the previous majors still in the peer ranges are checked in
+ * `tests/types/frameworks-previous`.
  */
 describe("framework adapters", () => {
   it("React Router runs the middleware and pass loader arguments", () => {
@@ -128,6 +129,6 @@ describe("framework adapters", () => {
       .addHook("onRequest", {} as FastifyHook)
       .addHook("preHandler", {} as FastifyHook);
 
-    (({}) as Koa).use({} as KoaMiddleware);
+    ({} as Koa).use({} as KoaMiddleware);
   });
 });

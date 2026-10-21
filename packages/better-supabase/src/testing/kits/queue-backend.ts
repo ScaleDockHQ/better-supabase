@@ -3,20 +3,19 @@ import type {
   QueueMessageRow,
 } from "../../blocks/jobs/backends.ts";
 import type { Job } from "../../blocks/jobs/types.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
-import {
-  conform,
-  expect,
-  same,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { conform, expect, same } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestQueueBackendOptions {
   /** A queue the kit may fill and drain; use a fresh name per run. */
   readonly queue: string;
-  /** Check that a repeated dedupe key returns the first id. Defaults to `backend.leases`. */
+  /**
+   * Check that a repeated dedupe key returns the first id. Defaults to
+   * `backend.leases`.
+   */
   readonly dedupe?: boolean;
 }
 
@@ -38,9 +37,9 @@ function claimedJob(queue: string, row: QueueMessageRow): Job {
 
 /**
  * Proves a `QueueBackend` round-trips payloads, hides claimed messages for
- * their lease, counts attempts, retries and dead-letters on `fail`, and
- * (when it has `leases`) rejects a stale attempt and extends a lease. It
- * writes to `options.queue` on the backend's real store.
+ * their lease, counts attempts, retries and dead-letters on `fail`, and (when
+ * it has `leases`) rejects a stale attempt and extends a lease. It writes to
+ * `options.queue` on the backend's real store.
  */
 export function testQueueBackend(
   backend: QueueBackend,

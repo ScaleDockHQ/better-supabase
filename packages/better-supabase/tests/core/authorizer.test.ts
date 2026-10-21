@@ -45,9 +45,7 @@ describe("requestOf claims", () => {
   });
 
   it("leaves out claims that are not an object", () => {
-    const { subject } = requestOf({
-      actor: { id: USER, kind: "user" },
-    });
+    const { subject } = requestOf({ actor: { id: USER, kind: "user" } });
 
     expect(subject.properties).toEqual({});
   });

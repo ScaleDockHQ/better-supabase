@@ -25,9 +25,9 @@ export interface MfaState extends MfaSnapshot, MfaActions {}
 export interface StepUpState extends StepUpSnapshot, StepUpActions {}
 
 /**
- * The user's MFA factors through the browser client, for a security
- * settings page: `enroll` keeps a QR code in `enrollment`, `verify` confirms
- * it with the first code, and `unenroll` removes a factor.
+ * The user's MFA factors through the browser client, for a security settings
+ * page: `enroll` keeps a QR code in `enrollment`, `verify` confirms it with the
+ * first code, and `unenroll` removes a factor.
  *
  * ```tsx
  * const { factors, enrollment, enroll, verify } = useMfa();
@@ -49,9 +49,9 @@ export function useMfa(options: UseMfaOptions = {}): MfaState {
 }
 
 /**
- * Raises the session to `aal2` with a code from a verified factor. Show it
- * when a call fails with `needsStepUp(error)`, and retry the call once
- * `satisfied` is true.
+ * Raises the session to `aal2` with a code from a verified factor. Show it when
+ * a call fails with `needsStepUp(error)`, and retry the call once `satisfied`
+ * is true.
  *
  * ```tsx
  * const { satisfied, verify } = useStepUp();

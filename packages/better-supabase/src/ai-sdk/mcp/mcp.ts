@@ -1,31 +1,36 @@
+import type {
+  ElicitResult,
+  ElicitationRequest,
+  InitializeResult,
+  ListToolsResult,
+  MCPClient,
+  OAuthClientProvider,
+} from "@ai-sdk/mcp";
+import type { ToolSet } from "ai";
+
 import {
   ElicitationRequestSchema,
   createMCPClient,
   mcpAppClientCapabilities,
   splitMCPAppTools,
-  type ElicitResult,
-  type ElicitationRequest,
-  type InitializeResult,
-  type ListToolsResult,
-  type MCPClient,
-  type OAuthClientProvider,
 } from "@ai-sdk/mcp";
-import { fingerprintTools, type ToolSet } from "ai";
+import { fingerprintTools } from "ai";
 
 import type {
   ConnectorServer,
   Connectors,
 } from "../../blocks/connectors/connectors.ts";
+import type { DbError } from "../../core/errors.ts";
+import type { CredentialProvider } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 import type { McpToolSchemas } from "./supabase.ts";
 
 import { errorText, sha256Hex } from "../../core/block-helpers.ts";
-import { dbError, type DbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   credentialRefInTenant,
   foreignCredentialRef,
-  type CredentialProvider,
 } from "../../credentials/provider.ts";
 import { isOAuthRef, vaultOAuthProvider } from "./oauth.ts";
 
@@ -50,8 +55,8 @@ export interface ConnectToolsOptions {
   readonly prefix?: string;
   /**
    * Types the tools and keeps only the ones it names, such as
-   * `supabaseMcp().schemas`. The fingerprint still covers every tool the
-   * server lists.
+   * `supabaseMcp().schemas`. The fingerprint still covers every tool the server
+   * lists.
    */
   readonly schemas?: McpToolSchemas;
 }
@@ -68,7 +73,9 @@ export interface ConnectedTools {
 const forbidden = (message: string, hint: string): DbError =>
   dbError("forbidden", message, { hint });
 
-async function authOf(options: ConnectToolsOptions): Promise<
+async function authOf(
+  options: ConnectToolsOptions,
+): Promise<
   | {
       ok: true;
       headers: Record<string, string>;
@@ -197,10 +204,10 @@ function prefixed(tools: ToolSet, prefix: string | undefined): ToolSet {
 }
 
 /**
- * Connects to a server as the user and returns its tools, once the
- * fingerprint of their definitions is approved. A changed tool list waits
- * for an admin (`CONNECTOR_TOOLS_CHANGED`) and the client is closed. Close
- * the client when the run ends.
+ * Connects to a server as the user and returns its tools, once the fingerprint
+ * of their definitions is approved. A changed tool list waits for an admin
+ * (`CONNECTOR_TOOLS_CHANGED`) and the client is closed. Close the client when
+ * the run ends.
  */
 export function connectTools(
   options: ConnectToolsOptions,
@@ -355,8 +362,8 @@ export interface ConnectAllResult {
 
 /**
  * Connects to several servers (an agent's `connectorIds`) and merges their
- * tools, each prefixed with its server's name. A server that fails is
- * skipped and reported, not fatal.
+ * tools, each prefixed with its server's name. A server that fails is skipped
+ * and reported, not fatal.
  */
 export async function connectAll(
   servers: readonly ConnectorServer[],

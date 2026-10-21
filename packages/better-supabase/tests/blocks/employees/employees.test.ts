@@ -61,9 +61,7 @@ describe("employees block", () => {
 
     const employees = createEmployees({
       transport: t,
-      fields: v.object({
-        shoe_size: v.pipe(v.string(), v.transform(Number)),
-      }),
+      fields: v.object({ shoe_size: v.pipe(v.string(), v.transform(Number)) }),
     });
 
     const mia = await employees
@@ -243,9 +241,7 @@ describe("employees block", () => {
 
   it("stops the chart at the first row the fields schema refuses", async () => {
     const employees = createEmployees({
-      transport: transport({
-        org_chart: () => [{ ...EMPLOYEE, depth: 0 }],
-      }),
+      transport: transport({ org_chart: () => [{ ...EMPLOYEE, depth: 0 }] }),
       fields: v.object({ shoe_size: v.number() }),
     });
 

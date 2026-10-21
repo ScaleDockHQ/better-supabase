@@ -1,8 +1,10 @@
 "use server";
 
+import type { SsoAdmin } from "better-supabase/blocks/sso";
+
 import { dbError, err, ok } from "better-supabase";
 import { rpcTransport } from "better-supabase/blocks";
-import { createSsoAdmin, type SsoAdmin } from "better-supabase/blocks/sso";
+import { createSsoAdmin } from "better-supabase/blocks/sso";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 

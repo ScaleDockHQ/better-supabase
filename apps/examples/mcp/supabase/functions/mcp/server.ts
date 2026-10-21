@@ -1,4 +1,6 @@
-import { createMcp, type ToolRef } from "better-supabase/mcp";
+import type { ToolRef } from "better-supabase/mcp";
+
+import { createMcp } from "better-supabase/mcp";
 import { hasRole } from "better-supabase/server";
 import * as v from "valibot";
 

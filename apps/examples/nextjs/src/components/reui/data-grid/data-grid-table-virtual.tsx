@@ -652,12 +652,12 @@ function DataGridTableVirtualBody<TData extends object>({
 }
 
 /**
- * Memoized virtual body: skip re-renders during active column resize.
- * Column widths update via CSS variables on the <table> element,
- * so the browser handles width changes without React re-renders.
- * A cell-selection drag gets the same treatment: painting goes through each
- * cell's own Subscribe, and the virtualizer re-renders itself from inside the
- * memo boundary, so parent-driven reconciliation during the drag is waste.
+ * Memoized virtual body: skip re-renders during active column resize. Column
+ * widths update via CSS variables on the <table> element, so the browser
+ * handles width changes without React re-renders. A cell-selection drag gets
+ * the same treatment: painting goes through each cell's own Subscribe, and the
+ * virtualizer re-renders itself from inside the memo boundary, so parent-driven
+ * reconciliation during the drag is waste.
  */
 const MemoizedVirtualBody = memo(
   DataGridTableVirtualBody,

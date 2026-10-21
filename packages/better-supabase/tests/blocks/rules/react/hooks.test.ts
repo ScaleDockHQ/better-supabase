@@ -3,12 +3,10 @@ import type * as ReactModule from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../../../src/client/index.ts";
+import type { ClientLike } from "../../../../src/react/hooks.ts";
 
 import { useRuleBuilder } from "../../../../src/blocks/rules/react/index.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../../../src/react/hooks.ts";
 import { renderHook } from "../../../fixtures/hook-runtime.ts";
 
 const rpc = vi.hoisted(() => {
@@ -46,7 +44,7 @@ const client = {
 } as unknown as ClientLike;
 
 const provide = (): void => {
-  BetterSupabaseProvider({ client });
+  void BetterSupabaseProvider({ client });
 };
 
 afterEach(() => {

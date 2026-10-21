@@ -65,7 +65,10 @@ export interface PersistSessionsOptions {
   readonly title?: string;
 }
 
-/** The `ai_chats` id of an eve session: the same session always maps to the same chat. */
+/**
+ * The `ai_chats` id of an eve session: the same session always maps to the same
+ * chat.
+ */
 export function chatIdOf(sessionId: string): Promise<string> {
   return stableUuid(`eve-session:${sessionId}`);
 }
@@ -74,11 +77,11 @@ const streamOf = (sessionId: string, turnId: string): string =>
   `eve:${sessionId}:${turnId}`;
 
 /**
- * Hook handlers that copy an eve session into the canonical chat tables, so
- * the chat UI, search, memory recall and analytics read eve sessions like any
- * other chat. Every write is keyed by the event, so eve's at-least-once
- * delivery stores each message once. Sessions without a signed-in user and
- * tenant are skipped.
+ * Hook handlers that copy an eve session into the canonical chat tables, so the
+ * chat UI, search, memory recall and analytics read eve sessions like any other
+ * chat. Every write is keyed by the event, so eve's at-least-once delivery
+ * stores each message once. Sessions without a signed-in user and tenant are
+ * skipped.
  */
 export function persistSessions(
   options: PersistSessionsOptions,

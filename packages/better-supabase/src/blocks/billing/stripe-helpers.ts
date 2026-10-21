@@ -1,14 +1,9 @@
+import type { Result } from "../../core/result.ts";
 import type { StripeTaxId } from "../stripe.ts";
 import type { StripeEvent, SubscriptionItem } from "./types.ts";
 
 import { dbError } from "../../core/errors.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  type Result,
-  toDbError,
-} from "../../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { isRecord, optionalText, textOf } from "../shared.ts";
 
 export const ORGANIZATION_KEY = "organization_id";
@@ -83,7 +78,10 @@ export function isStripeEvent(value: unknown): value is StripeEvent {
   );
 }
 
-/** `extra` merged into `base`: nested objects merge, arrays and other values replace. */
+/**
+ * `extra` merged into `base`: nested objects merge, arrays and other values
+ * replace.
+ */
 function deepMerge(
   base: Readonly<Record<string, unknown>>,
   extra: Readonly<Record<string, unknown>>,
@@ -101,9 +99,9 @@ function deepMerge(
 
 /**
  * The block's Checkout Session parameters with the app's `params` merged in
- * deeply, then the customer, `client_reference_id` and the tenant metadata
- * (on the session and, for a subscription, on `subscription_data`) set
- * again, so `params` adds metadata without dropping the link the webhook needs.
+ * deeply, then the customer, `client_reference_id` and the tenant metadata (on
+ * the session and, for a subscription, on `subscription_data`) set again, so
+ * `params` adds metadata without dropping the link the webhook needs.
  */
 export function checkoutParams(
   base: Readonly<Record<string, unknown>>,
@@ -138,7 +136,10 @@ const isoOfEpoch = (value: unknown): string | undefined =>
     ? new Date(value * 1000).toISOString()
     : undefined;
 
-/** The arguments of `upsert_billing_subscription` for a `customer.subscription.*` object. */
+/**
+ * The arguments of `upsert_billing_subscription` for a
+ * `customer.subscription.*` object.
+ */
 export function subscriptionRecord(
   tenant: string,
   object: Readonly<Record<string, unknown>>,
@@ -164,7 +165,10 @@ export function subscriptionRecord(
   };
 }
 
-/** The `conflict` error `checkout` returns for a tenant billed elsewhere or already subscribed. */
+/**
+ * The `conflict` error `checkout` returns for a tenant billed elsewhere or
+ * already subscribed.
+ */
 export function checkoutBlockedError(reason: string): Result<never> {
   const [hint = "BILLING_ALREADY_SUBSCRIBED", provider] = reason.split(":", 2);
 

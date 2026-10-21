@@ -7,8 +7,6 @@ import { workflowSdkWorldSqlOptions } from "./options.ts";
 export const workflowSdkWorldBlock: Block<"workflow-sdk-world"> = defineBlock({
   name: "workflow-sdk-world",
   sql: ["workflow-sdk-world"],
-  options: {
-    "workflow-sdk-world": workflowSdkWorldSqlOptions,
-  },
+  options: { "workflow-sdk-world": workflowSdkWorldSqlOptions },
   category: "automation",
 });

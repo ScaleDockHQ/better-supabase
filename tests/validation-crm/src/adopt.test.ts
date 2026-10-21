@@ -122,9 +122,7 @@ describe("apply --adopt on the CRM schema", () => {
 
     // The CRM's tables keep their names: adopted tables are named in the
     // config, and only the managed blocks' default names follow sql.naming.
-    const { blocks } = (await committed()) as {
-      blocks: BlocksConfig;
-    };
+    const { blocks } = (await committed()) as { blocks: BlocksConfig };
 
     expect(data.adopted).toEqual({
       access: blocks.access,

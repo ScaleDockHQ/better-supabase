@@ -1,8 +1,16 @@
-import { streamText, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
+import type { Mock } from "vitest";
+
+import { streamText } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
 import { Temporal } from "temporal-polyfill";
-import { type Mock, vi } from "vitest";
+import { vi } from "vitest";
 
+import type {
+  AssistantContext,
+  AssistantOptions,
+  Assistant,
+} from "../../../src/ai-sdk/chat/index.ts";
 import type {
   AiChat,
   AiChatRecord,
@@ -12,12 +20,7 @@ import type {
 import type { DbError } from "../../../src/core/errors.ts";
 import type { StreamStore } from "../../../src/streams/index.ts";
 
-import {
-  type AssistantContext,
-  type AssistantOptions,
-  type Assistant,
-  createAssistant,
-} from "../../../src/ai-sdk/chat/index.ts";
+import { createAssistant } from "../../../src/ai-sdk/chat/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { redisStreamStore } from "../../../src/streams/redis/index.ts";
@@ -113,10 +116,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         organizationId: string,
         input: { id: string; model?: string },
       ) => {
-        const chat = record(input.id, {
-          organizationId,
-          model: input.model,
-        });
+        const chat = record(input.id, { organizationId, model: input.model });
 
         chats.set(chat.id, chat);
 
@@ -301,7 +301,7 @@ export function setup(
     streams,
     run,
     defaultModel: "openai/gpt-5",
-    generateId: () => `id${++ids}`,
+    generateId: () => `id${(ids += 1)}`,
     ...over,
   });
 

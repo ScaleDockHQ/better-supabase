@@ -25,7 +25,10 @@ export function providedTemporal(): typeof Temporal | undefined {
   return provided;
 }
 
-/** The provided `Temporal`, else the runtime's, or `undefined` when neither exists. */
+/**
+ * The provided `Temporal`, else the runtime's, or `undefined` when neither
+ * exists.
+ */
 export function optionalTemporal(): typeof Temporal | undefined {
   if (provided !== undefined) {
     return provided;
@@ -37,8 +40,8 @@ export function optionalTemporal(): typeof Temporal | undefined {
 }
 
 /**
- * The current instant, the default `now` everywhere. Without Temporal it
- * throws a `TypeError` that names the injection option and the polyfill.
+ * The current instant, the default `now` everywhere. Without Temporal it throws
+ * a `TypeError` that names the injection option and the polyfill.
  */
 export function nowInstant(): Temporal.Instant {
   const namespace = optionalTemporal();
@@ -104,7 +107,10 @@ function isZoned(value: object): value is ZonedLike {
   return "toInstant" in value && typeof value.toInstant === "function";
 }
 
-/** A `Temporal.Instant` from any copy of Temporal, checked by `Symbol.toStringTag`. */
+/**
+ * A `Temporal.Instant` from any copy of Temporal, checked by
+ * `Symbol.toStringTag`.
+ */
 export function isInstant(value: unknown): value is Temporal.Instant {
   return tagOf(value) === "Temporal.Instant";
 }

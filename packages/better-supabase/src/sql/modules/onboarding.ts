@@ -393,11 +393,7 @@ create trigger ${trigger} after insert on ${events}
 
 function contract(): readonly ModuleContractFunction[] {
   return [
-    {
-      name: "onboarding_progress",
-      args: ["text", "{id}"],
-      returns: "jsonb",
-    },
+    { name: "onboarding_progress", args: ["text", "{id}"], returns: "jsonb" },
     {
       name: "complete_onboarding_step",
       args: ["text", "text", "{id}"],

@@ -6,6 +6,8 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
+import type { ActivitySourceName } from "./comments-activity.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -24,7 +26,6 @@ import {
 } from "../shared.ts";
 import {
   qualifiedTable,
-  type Subject,
   subjectAccess,
   subjectCascades,
   subjectIdMatches,
@@ -32,7 +33,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
-import { type ActivitySourceName, activityReads } from "./comments-activity.ts";
+import { activityReads } from "./comments-activity.ts";
 import { commentWrites } from "./comments-writes.ts";
 
 const EVENTS: ModuleEvents<CommentsEvents> = {
@@ -213,8 +214,8 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
 
 /**
  * With notifications (and its subscriptions table) and `options.follow`
- * (default true): the comments_after_write statement that makes the author
- * of a new comment and its newly mentioned members follow the subject.
+ * (default true): the comments_after_write statement that makes the author of a
+ * new comment and its newly mentioned members follow the subject.
  */
 function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
   if (!ctx.installed("notifications") || !ctx.flag("follow", true)) {

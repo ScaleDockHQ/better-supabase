@@ -98,9 +98,9 @@ function StatusBadge({
 
 // #region recipe:timesheet
 /**
- * Render inside `<Suspense>`: the caller's week as one row per project
- * with hours per day and totals, a running timer, and Submit once the
- * week is done. `?week=YYYY-MM-DD` picks the week.
+ * Render inside `<Suspense>`: the caller's week as one row per project with
+ * hours per day and totals, a running timer, and Submit once the week is done.
+ * `?week=YYYY-MM-DD` picks the week.
  */
 export async function Timesheet({
   searchParams,
@@ -260,6 +260,7 @@ export async function Timesheet({
                       </TableCell>
                       {row.days.map((seconds, index) => (
                         <TableCell
+                          // oxlint-disable-next-line react-doctor/no-array-index-as-key -- the columns are a fixed week keyed by date; the index only covers a missing day
                           key={sheet.data.days[index]?.date ?? index}
                           className="text-right tabular-nums"
                         >

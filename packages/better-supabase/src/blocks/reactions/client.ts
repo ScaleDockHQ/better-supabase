@@ -15,7 +15,10 @@ export interface ReactionsControllerOptions {
   readonly subjectType: string;
   /** The subjects on screen, at most 200; `setSubjects` changes them. */
   readonly subjectIds: readonly string[];
-  /** `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null` loads without listening. */
+  /**
+   * `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null`
+   * loads without listening.
+   */
   readonly topic?: string | null;
 }
 
@@ -32,7 +35,10 @@ export interface ReactionsActions {
   /** Adds the emoji, or removes it when the user already reacted with it. */
   readonly toggle: (subjectId: string, emoji: string) => Promise<void>;
   readonly refresh: () => Promise<void>;
-  /** Watches other subjects, such as the rows on screen after a scroll, and loads them. */
+  /**
+   * Watches other subjects, such as the rows on screen after a scroll, and
+   * loads them.
+   */
   readonly setSubjects: (subjectIds: readonly string[]) => void;
 }
 
@@ -62,7 +68,8 @@ export function createReactionsController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const result = await client.summary(
           organizationId,

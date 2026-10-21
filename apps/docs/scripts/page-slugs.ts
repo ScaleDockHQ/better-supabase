@@ -5,7 +5,10 @@ import { pageSlug } from "../lib/page-slugs.ts";
 
 const CONTENT_DIR = join(import.meta.dirname, "../content/docs");
 
-/** The file `proxy.ts` reads; `dev` and `build` rewrite it, a test checks it is current. */
+/**
+ * The file `proxy.ts` reads; `dev` and `build` rewrite it, a test checks it is
+ * current.
+ */
 export const PAGE_SLUGS_FILE = join(
   import.meta.dirname,
   "../lib/page-slugs.json",

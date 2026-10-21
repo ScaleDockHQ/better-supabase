@@ -76,8 +76,8 @@ export interface UpcomingReminders {
 }
 
 /**
- * The next events in the coming two weeks, one entry per event (a series
- * shows once, at its next occurrence), with the caller's reminders on each.
+ * The next events in the coming two weeks, one entry per event (a series shows
+ * once, at its next occurrence), with the caller's reminders on each.
  */
 export async function loadUpcomingReminders(): Promise<UpcomingReminders | null> {
   "use cache: private";

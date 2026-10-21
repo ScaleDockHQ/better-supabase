@@ -1,4 +1,6 @@
-import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
+import type { ErrorObject, ValidateFunction } from "ajv";
+
+import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
@@ -101,8 +103,8 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
 }
 
 /**
- * A validator for a vendored schema, or for one definition in it
- * (`definition` is a JSON pointer such as `#/$defs/InitializeResult`).
+ * A validator for a vendored schema, or for one definition in it (`definition`
+ * is a JSON pointer such as `#/$defs/InitializeResult`).
  */
 export function validatorFor(file: string, definition = ""): ValidateFunction {
   const { engine, key } = load(file);
@@ -115,7 +117,10 @@ export function validatorFor(file: string, definition = ""): ValidateFunction {
   return validate;
 }
 
-/** The 2020-12 meta-schema, to check that generated schemas are themselves valid. */
+/**
+ * The 2020-12 meta-schema, to check that generated schemas are themselves
+ * valid.
+ */
 export function metaSchema2020(): ValidateFunction {
   const validate = draft2020.getSchema(
     "https://json-schema.org/draft/2020-12/schema",

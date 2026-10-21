@@ -46,8 +46,8 @@ function isYjs(value: unknown): value is YjsLike {
 }
 
 /**
- * Loads `yjs` on first use. The specifier is a variable so bundlers leave
- * the optional peer out of apps that pass the module in.
+ * Loads `yjs` on first use. The specifier is a variable so bundlers leave the
+ * optional peer out of apps that pass the module in.
  */
 async function loadYjs(given: YjsLike | undefined): Promise<YjsLike> {
   if (given !== undefined) {
@@ -81,7 +81,10 @@ export interface DocumentProviderOptions<P extends PresenceState> {
   /** Called with everyone on the document after each presence sync. */
   readonly onPresence?: (members: readonly PresenceMember<P>[]) => void;
   readonly onStatus?: (status: DocumentProviderStatus) => void;
-  /** Called when a push, pull or broadcast fails; the provider retries on reconnect. */
+  /**
+   * Called when a push, pull or broadcast fails; the provider retries on
+   * reconnect.
+   */
   readonly onError?: (error: unknown) => void;
 }
 
@@ -138,9 +141,9 @@ function broadcastOf(value: unknown): Broadcast | undefined {
 }
 
 /**
- * Syncs a `Y.Doc` with the documents module: it loads the snapshot and
- * updates, stores each local edit, broadcasts it on the document's private
- * topic, and pulls what it missed when the channel reconnects.
+ * Syncs a `Y.Doc` with the documents module: it loads the snapshot and updates,
+ * stores each local edit, broadcasts it on the document's private topic, and
+ * pulls what it missed when the channel reconnects.
  */
 export function createDocumentProvider<P extends PresenceState = PresenceState>(
   options: DocumentProviderOptions<P>,
@@ -332,12 +335,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
         const topic = defineTopic(
           `${current.topic.slice(0, split)}:{document}`,
-          {
-            private: true,
-            send: true,
-            presence: true,
-            tenant: false,
-          },
+          { private: true, send: true, presence: true, tenant: false },
         );
 
         subscription = topic.subscribe(
@@ -406,10 +404,10 @@ export interface CompactDocumentOptions {
 }
 
 /**
- * Merges a document's snapshot and updates into one state and stores it,
- * for the `documents.compact` job or a sweep over `documents.toCompact()`.
- * Needs the service role or `documents.manage`. Resolves false when there
- * was nothing to compact or a newer snapshot won.
+ * Merges a document's snapshot and updates into one state and stores it, for
+ * the `documents.compact` job or a sweep over `documents.toCompact()`. Needs
+ * the service role or `documents.manage`. Resolves false when there was nothing
+ * to compact or a newer snapshot won.
  */
 export function compactDocument(
   options: CompactDocumentOptions,

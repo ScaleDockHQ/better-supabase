@@ -1,8 +1,11 @@
-import { type ProxyOptions, toSession } from "better-supabase/next";
+import type { ProxyOptions } from "better-supabase/next";
+import type { NextRequest } from "next/server";
+
+import { toSession } from "better-supabase/next";
 import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { requiredPermission } from "./features/navigation/nav-items";
 import { can } from "./features/user/user-permissions";
@@ -36,8 +39,8 @@ function splitLocale(pathname: string) {
 
 /**
  * Optimistic redirects from the (locally verified) token. Pages, actions and
- * RLS still check; this only saves rendering a page the user can't use.
- * A path without a locale is left to next-intl's redirect.
+ * RLS still check; this only saves rendering a page the user can't use. A path
+ * without a locale is left to next-intl's redirect.
  */
 const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // A Server Action posts to the page it runs on; redirecting it drops the action.

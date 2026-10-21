@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogPolicy,
@@ -9,11 +10,7 @@ import type {
 } from "../../../src/cli/introspect/types.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -129,9 +126,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
     const config = (fromPolicies: boolean) => ({
       ...context(bare),
       config: resolveConfig(
-        {
-          blocks: { grants: { options: { fromPolicies } } },
-        },
+        { blocks: { grants: { options: { fromPolicies } } } },
         "/project",
       ),
     });
@@ -150,10 +145,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
       table(tables, "tags").rls = false;
     });
 
-    const rlsOff = {
-      ...context(open),
-      config: config(true).config,
-    };
+    const rlsOff = { ...context(open), config: config(true).config };
 
     expect(
       (await run(rlsOff, "BS106")).map((finding) => finding.target),

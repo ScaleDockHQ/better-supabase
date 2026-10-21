@@ -2,7 +2,9 @@
 
 import { useActionState } from "react";
 
-import { sendContact, type ContactState } from "@/app/contact/actions";
+import type { ContactState } from "@/app/contact/actions";
+
+import { sendContact } from "@/app/contact/actions";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

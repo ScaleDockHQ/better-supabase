@@ -61,9 +61,7 @@ describe("Stripe signatures", () => {
     ).toMatchObject({ error: { code: "WEBHOOK_TIMESTAMP_OUT_OF_RANGE" } });
     expect(
       await check({ "stripe-signature": header }, `${body} `),
-    ).toMatchObject({
-      error: { code: "WEBHOOK_INVALID_SIGNATURE" },
-    });
+    ).toMatchObject({ error: { code: "WEBHOOK_INVALID_SIGNATURE" } });
     const notJson = await signStripeWebhook(secret, "nope", at);
     expect(await check({ "stripe-signature": notJson }, "nope")).toMatchObject({
       error: { kind: "invalid_request" },
@@ -139,10 +137,7 @@ describe("Stripe replay checks through seen", () => {
     await verifyStripeWebhook(
       await signed(body, at.subtract({ minutes: 10 })),
       secret,
-      {
-        now,
-        seen,
-      },
+      { now, seen },
     );
     await verifyStripeWebhook(await signed("nope"), secret, { now, seen });
     expect(asked).toEqual([]);

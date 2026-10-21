@@ -9,6 +9,8 @@ import {
 } from "vue";
 import { renderToString } from "vue/server-renderer";
 
+import type { EnvOptions } from "../fixtures/block-bindings.ts";
+
 import { useUndoStack } from "../../src/blocks/undo/vue/index.ts";
 import { useBlockController } from "../../src/blocks/vue-controller.ts";
 import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
@@ -17,7 +19,6 @@ import {
   fakeBlockClient,
   fakeEnv,
   startCounter,
-  type EnvOptions,
 } from "../fixtures/block-bindings.ts";
 
 describe("useBlockController (Vue)", () => {

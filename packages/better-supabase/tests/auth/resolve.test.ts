@@ -2,13 +2,12 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { ResolveAuthOptions } from "../../src/auth/resolve.ts";
+import type { StoredSession } from "../../src/auth/session.ts";
+
 import { authContext } from "../../src/auth/context.ts";
-import {
-  clearVerifiedTokens,
-  resolveAuth,
-  type ResolveAuthOptions,
-} from "../../src/auth/resolve.ts";
-import { type StoredSession, writeSession } from "../../src/auth/session.ts";
+import { clearVerifiedTokens, resolveAuth } from "../../src/auth/resolve.ts";
+import { writeSession } from "../../src/auth/session.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
@@ -160,10 +159,7 @@ describe("verified token memo", () => {
       issuer: ["https://issuer.test"],
     };
 
-    const token = await signer.sign({
-      sub: USER,
-      iss: "https://issuer.test",
-    });
+    const token = await signer.sign({ sub: USER, iss: "https://issuer.test" });
 
     expect((await resolveAuth(bearer(token), options)).auth).toMatchObject({
       kind: "user",
@@ -340,7 +336,7 @@ describe("cookie sessions", () => {
       now: () => Date.now(),
     });
 
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledOnce();
     expect(refreshed.auth).toMatchObject({ kind: "user", token: fresh });
     expect(refreshed.cookies.length).toBeGreaterThan(0);
   });
@@ -569,7 +565,7 @@ describe("claims and user_metadata schemas", () => {
   });
 
   it("runs async user_metadata schemas and warns through console by default", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockReturnValue(undefined);
 
     const token = await signer.sign({
       sub: USER,
@@ -594,7 +590,7 @@ describe("claims and user_metadata schemas", () => {
     });
 
     expect(failing.auth).not.toHaveProperty("profile");
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledOnce();
     expect(JSON.stringify(warn.mock.calls[0])).toContain('["","0.theme"]');
   });
 });

@@ -33,9 +33,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     session = await BlockSession.open(pool);
     await session.install(
       ["organizations", "calendar", "share-links", "reminders"],
-      {
-        modules: { calendar: { schema: "calendar_it" } },
-      },
+      { modules: { calendar: { schema: "calendar_it" } } },
     );
     owner = await session.user("owner");
     member = await session.user("member");

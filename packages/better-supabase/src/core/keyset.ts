@@ -1,17 +1,12 @@
-import {
-  and,
-  column as columnIs,
-  type Condition,
-  not,
-  or,
-  type OrderTerm,
-} from "../ir/types.ts";
+import type { Condition, OrderTerm } from "../ir/types.ts";
+
+import { and, column as columnIs, not, or } from "../ir/types.ts";
 
 /**
- * The rows after the cursor `values` in `orderBy` order, as an OR of ANDs:
- * `a > x or (a = x and b > y)`. The SQL compiler sends that shape as the row
- * comparison `(a, b) > (x, y)`. Nulls sort where Postgres puts them: last
- * for `asc`, first for `desc`, unless the term says otherwise.
+ * The rows after the cursor `values` in `orderBy` order, as an OR of ANDs: `a >
+ * x or (a = x and b > y)`. The SQL compiler sends that shape as the row
+ * comparison `(a, b) > (x, y)`. Nulls sort where Postgres puts them: last for
+ * `asc`, first for `desc`, unless the term says otherwise.
  */
 export function keysetCondition(
   orderBy: readonly OrderTerm[],

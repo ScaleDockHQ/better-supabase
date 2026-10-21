@@ -2,20 +2,16 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
 /**
  * An authorization provider's schema: memberships with text roles, declared
- * roles (`owner`, `admin`, `member`) and tenant custom roles, and the
- * functions the provider access model calls.
+ * roles (`owner`, `admin`, `member`) and tenant custom roles, and the functions
+ * the provider access model calls.
  */
 async function providerSchema(
   s: BlockSession,
@@ -94,6 +90,7 @@ function providerLayout(schema: string, canAssignFor?: string): ModuleLayout {
 
 describe.skipIf(!live)("invitations in adopted tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("accepts an invitation to a tenant custom role through the provider's canAssignFor", async () => {

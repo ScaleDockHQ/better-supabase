@@ -2,21 +2,25 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type {
+  AnyAuthorizer,
+  AuthorizationResource,
+} from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
+import type { GuardOptions } from "./respond.ts";
 
 import { authContext } from "../auth/context.ts";
 import { toSession } from "../auth/view.ts";
-import {
-  checkPermission,
-  type AnyAuthorizer,
-  type AuthorizationResource,
-} from "../core/authorizer.ts";
+import { checkPermission } from "../core/authorizer.ts";
 import { claimAt } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { validate } from "../core/standard.ts";
-import { guard, type GuardOptions, settle } from "./respond.ts";
+import { guard, settle } from "./respond.ts";
 
-/** What a server action returns: plain data, safe across any serialization boundary. */
+/**
+ * What a server action returns: plain data, safe across any serialization
+ * boundary.
+ */
 export type ActionResult<T> =
   | { readonly ok: true; readonly data: T; readonly error: null }
   | { readonly ok: false; readonly data: null; readonly error: DbError };
@@ -37,35 +41,44 @@ export interface AuthorizeOptions<
   readonly requireTenant?: R;
   /** Admit only users holding one of these roles at `roleClaim`. */
   readonly roles?: readonly string[];
-  /** The dotted claim path `roles` reads: one string or an array. Defaults to `app_metadata.role`. */
+  /**
+   * The dotted claim path `roles` reads: one string or an array. Defaults to
+   * `app_metadata.role`.
+   */
   readonly roleClaim?: string;
   /**
-   * The permission the server's `authorizer` must grant. Without an
-   * authorizer, or on any outcome but `granted`, the caller is refused;
-   * `approval-required` refuses with `code: "APPROVAL_REQUIRED"`.
+   * The permission the server's `authorizer` must grant. Without an authorizer,
+   * or on any outcome but `granted`, the caller is refused; `approval-required`
+   * refuses with `code: "APPROVAL_REQUIRED"`.
    */
   readonly permission?: Ref;
   /**
-   * The resource `permission` is checked against, loaded after the session
-   * and tenant checks, e.g. the project row with its owner and team. It
-   * gets the validated input and the request's context (`db`, `session`,
-   * `tenant`). Defaults to `{ type: "action" }` with the input as
-   * `properties`, or `{ type: "route" }`. A thrown `DbException` refuses
-   * with its error (such as `not_found`); any other throw refuses with
-   * `forbidden` and `code: "RESOURCE_UNAVAILABLE"`.
+   * The resource `permission` is checked against, loaded after the session and
+   * tenant checks, e.g. the project row with its owner and team. It gets the
+   * validated input and the request's context (`db`, `session`, `tenant`).
+   * Defaults to `{ type: "action" }` with the input as `properties`, or `{
+   * type: "route" }`. A thrown `DbException` refuses with its error (such as
+   * `not_found`); any other throw refuses with `forbidden` and `code:
+   * "RESOURCE_UNAVAILABLE"`.
    */
   readonly resource?: (
     input: I,
     ctx: X,
   ) => AuthorizationResource | Promise<AuthorizationResource>;
-  /** Return `false` to refuse the caller, e.g. `(session, input) => input.ownerId === session.user.id`. */
+  /**
+   * Return `false` to refuse the caller, e.g. `(session, input) =>
+   * input.ownerId === session.user.id`.
+   */
   readonly authorize?: (
     session: AuthSession<C, P>,
     input: I,
   ) => boolean | Promise<boolean>;
 }
 
-/** What a `resource` loader gets besides the input, when the adapter has no context of its own. */
+/**
+ * What a `resource` loader gets besides the input, when the adapter has no
+ * context of its own.
+ */
 export interface ResourceLoaderContext<C = unknown, P = unknown> {
   readonly session: AuthSession<C, P>;
   readonly tenant: string | undefined;
@@ -163,7 +176,10 @@ function callerResource(input: unknown): AuthorizationResource {
   };
 }
 
-/** Runs a `resource` loader; any failure refuses, so a missing row never reads as granted. */
+/**
+ * Runs a `resource` loader; any failure refuses, so a missing row never reads
+ * as granted.
+ */
 async function loadResource(
   load: () => unknown,
 ): Promise<AuthorizationResource | DbError> {
@@ -213,10 +229,7 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
   authorizer?: AnyAuthorizer,
   scope?: object,
 ): Promise<
-  | {
-      readonly session: AuthSession<C, P>;
-      readonly tenant: string | undefined;
-    }
+  | { readonly session: AuthSession<C, P>; readonly tenant: string | undefined }
   | DbError
 > {
   const session = toSession(auth);

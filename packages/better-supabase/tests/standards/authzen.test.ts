@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { AuthorizationRequest } from "../../src/core/authorizer.ts";
+
 import {
-  type AuthorizationRequest,
   checkEach,
   checkPermission,
   defineAuthorizer,
@@ -79,7 +80,7 @@ describe("AuthZEN Authorization API", () => {
     );
 
     expect(granted).toEqual([true, false, true]);
-    expect(evaluations).toHaveBeenCalledTimes(1);
+    expect(evaluations).toHaveBeenCalledOnce();
     expect(
       evaluations.mock.calls[0]![0].map((request) => request.resource.id),
     ).toEqual(["a", "b", "c"]);

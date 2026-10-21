@@ -31,7 +31,7 @@ describe("createClients", () => {
     expect(clients.supabaseFor({ kind: "service", keyName: "secret" })).toBe(
       clients.supabaseFor({ kind: "service", keyName: "secret" }),
     );
-    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createClient).toHaveBeenCalledOnce();
   });
 
   it("builds a user client per call", () => {

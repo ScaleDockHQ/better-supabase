@@ -1,4 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
+
+import type { Preset } from "../../src/preset/index.ts";
 
 import {
   previewAccessProvider,
@@ -8,7 +10,6 @@ import {
 import {
   encodePreset,
   namedPreset,
-  type Preset,
   PRESET_NAMES,
   PRESETS,
 } from "../../src/preset/index.ts";
@@ -17,7 +18,7 @@ const withProvider = (preset: Preset): string =>
   encodePreset({ ...preset, access: "provider" });
 
 describe("previewFiles", () => {
-  test("renders a design's app tables", () => {
+  it("renders a design's app tables", () => {
     const files = previewFiles(encodePreset(namedPreset("saas")), {
       appTables: {
         projects: { columns: { title: { type: "text", nullable: false } } },
@@ -32,21 +33,22 @@ describe("previewFiles", () => {
   });
 
   // sso needs roleOrder under access: provider; the next test covers that.
-  test.each(
-    PRESET_NAMES.filter((name) => !PRESETS[name].blocks.includes("sso")),
-  )("renders the %s preset with access: provider", (name) => {
-    expect(
-      previewFiles(withProvider(namedPreset(name))).length,
-    ).toBeGreaterThan(0);
-  });
+  it.each(PRESET_NAMES.filter((name) => !PRESETS[name].blocks.includes("sso")))(
+    "renders the %s preset with access: provider",
+    (name) => {
+      expect(
+        previewFiles(withProvider(namedPreset(name))).length,
+      ).toBeGreaterThan(0);
+    },
+  );
 
-  test("keeps a real config error, such as sso without roleOrder", () => {
+  it("keeps a real config error, such as sso without roleOrder", () => {
     expect(() => previewFiles(withProvider(namedPreset("everything")))).toThrow(
       /roleOrder/u,
     );
   });
 
-  test("calls the placeholder functions only for access: provider", () => {
+  it("calls the placeholder functions only for access: provider", () => {
     const sql = (code: string): string =>
       previewFiles(code)
         .map((file) => file.contents)
@@ -60,7 +62,7 @@ describe("previewFiles", () => {
     );
   });
 
-  test("renders a bigint workspace tenant", () => {
+  it("renders a bigint workspace tenant", () => {
     const code = withProvider({
       ...namedPreset("saas"),
       idType: "bigint",
@@ -72,7 +74,7 @@ describe("previewFiles", () => {
 });
 
 describe("previewAccessProvider", () => {
-  test("uses the preset's tenant name and id type", () => {
+  it("uses the preset's tenant name and id type", () => {
     const provider = previewAccessProvider({
       ...namedPreset("saas"),
       idType: "bigint",

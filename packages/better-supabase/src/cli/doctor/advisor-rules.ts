@@ -9,7 +9,10 @@ import type {
 
 import { errorText } from "../core/errors.ts";
 
-/** One request per advisor category, shared by the advisor rules and the rules that defer to them. */
+/**
+ * One request per advisor category, shared by the advisor rules and the rules
+ * that defer to them.
+ */
 const fetched = new WeakMap<
   AdvisorSource,
   Map<AdvisorCategory, Promise<readonly Lint[]>>
@@ -74,7 +77,10 @@ function lintFinding(lint: Lint): FindingInput {
   };
 }
 
-/** A rule that reports one category of Supabase's advisors (splinter) as findings. */
+/**
+ * A rule that reports one category of Supabase's advisors (splinter) as
+ * findings.
+ */
 export function advisorRule(
   code: string,
   category: AdvisorCategory,
@@ -119,11 +125,11 @@ export function advisorRule(
 const PERFORMANCE_ADVISOR = "BS200";
 
 /**
- * The tables splinter reports `lint` for (`schema.table`), when the
- * performance advisor runs in this run and its lints loaded. A rule that
- * repeats the lint (BS207, BS216) drops its findings for these tables; with
- * `undefined` (no advisors, a saved snapshot, an advisor error, or BS200 not
- * in the run) it reports them itself.
+ * The tables splinter reports `lint` for (`schema.table`), when the performance
+ * advisor runs in this run and its lints loaded. A rule that repeats the lint
+ * (BS207, BS216) drops its findings for these tables; with `undefined` (no
+ * advisors, a saved snapshot, an advisor error, or BS200 not in the run) it
+ * reports them itself.
  */
 export async function splinterTables(
   context: DoctorContext,

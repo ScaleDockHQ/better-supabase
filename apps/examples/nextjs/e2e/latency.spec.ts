@@ -1,4 +1,6 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+
+import { expect, test } from "@playwright/test";
 
 import { clickSidebar, field, heading, visibleTestId } from "./nav";
 import { fetchDelayMs } from "./server";
@@ -6,8 +8,8 @@ import { users } from "./users";
 
 /**
  * Runs against the server whose Supabase requests wait `fetchDelayMs`
- * (`e2e/serve.ts`). Anything that shows in under a second came from the
- * static shell or a cache; a cold read shows after the delay.
+ * (`e2e/serve.ts`). Anything that shows in under a second came from the static
+ * shell or a cache; a cold read shows after the delay.
  */
 const instantMs = 1000;
 const slowMs = fetchDelayMs - 500;
@@ -22,15 +24,20 @@ async function timed(
   await action();
   await expect(until).toBeVisible({ timeout: fetchDelayMs * 5 });
   const ms = Math.round(performance.now() - start);
-  test.info().annotations.push({
-    type: "timing",
-    description: `${label}: ${String(ms)} ms`,
-  });
+  test
+    .info()
+    .annotations.push({
+      type: "timing",
+      description: `${label}: ${String(ms)} ms`,
+    });
 
   return ms;
 }
 
-/** A full page load that returns when the first byte arrives, not after the stream ends. */
+/**
+ * A full page load that returns when the first byte arrives, not after the
+ * stream ends.
+ */
 function load(page: Page, path: string): () => Promise<void> {
   return async () => {
     await page.goto(path, { waitUntil: "commit" });
@@ -127,9 +134,7 @@ test.describe("owner", () => {
     await page.goto("/en/customers");
     await expect(
       page.getByRole("link", { name: "Road Runner Inc" }),
-    ).toBeVisible({
-      timeout: fetchDelayMs * 5,
-    });
+    ).toBeVisible({ timeout: fetchDelayMs * 5 });
     // supabase-js in the browser talks to the Data API directly.
     await page.route("**/rest/v1/customers**", async (route) => {
       await new Promise((resolve) => {
@@ -204,16 +209,18 @@ test.describe("the shared plan catalog", () => {
       timeout: fetchDelayMs * 5,
     });
     const subscription = Math.round(performance.now() - start);
-    test.info().annotations.push(
-      {
-        type: "timing",
-        description: `plans as another user: ${String(plans)} ms`,
-      },
-      {
-        type: "timing",
-        description: `subscription as another user: ${String(subscription)} ms`,
-      },
-    );
+    test
+      .info()
+      .annotations.push(
+        {
+          type: "timing",
+          description: `plans as another user: ${String(plans)} ms`,
+        },
+        {
+          type: "timing",
+          description: `subscription as another user: ${String(subscription)} ms`,
+        },
+      );
     expect(plans).toBeLessThan(instantMs);
     expect(subscription).toBeGreaterThanOrEqual(slowMs);
     await member.close();

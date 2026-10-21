@@ -1,4 +1,5 @@
 import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type {
   InvitationSent,
@@ -12,7 +13,7 @@ import type {
 
 import { tenantOf } from "../../auth/tenant.ts";
 import { dbError } from "../../core/errors.ts";
-import { err, type Result, toDbError } from "../../core/result.ts";
+import { err, toDbError } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
 /** Loads the caller's organizations, e.g. a server action; it throws on failure. */
@@ -23,11 +24,17 @@ export interface OrganizationsControllerOptions<
 > {
   readonly client: Pick<Organizations, "switch">;
   readonly auth: AuthPort;
-  /** The caller's organizations, most recently used first, such as `organizations.mine()`. */
+  /**
+   * The caller's organizations, most recently used first, such as
+   * `organizations.mine()`.
+   */
   readonly load: OrganizationSource<T>;
   /** Organizations a server already loaded: the first load is skipped. */
   readonly initial?: readonly T[];
-  /** The active organization a server read from the session, used while the session has no tenant claim. */
+  /**
+   * The active organization a server read from the session, used while the
+   * session has no tenant claim.
+   */
   readonly activeId?: string | null;
   /** The tenant claim, `config.claims.tenant` (default `tenant_id`). */
   readonly claim?: string;
@@ -49,7 +56,10 @@ export interface OrganizationsSnapshot<T> {
 }
 
 export interface OrganizationsActions {
-  /** Makes `organizationId` active, then runs `onSwitched`; a failure is also kept in `error`. */
+  /**
+   * Makes `organizationId` active, then runs `onSwitched`; a failure is also
+   * kept in `error`.
+   */
   readonly switchTo: (organizationId: string) => Promise<Result<SwitchResult>>;
   readonly refresh: () => Promise<void>;
 }
@@ -60,9 +70,9 @@ export type OrganizationsController<T> = Controller<
 >;
 
 /**
- * The caller's organizations and the active one, for an organization
- * switcher: `switchTo` switches, refreshes the session through `onSwitched`
- * and loads the list again.
+ * The caller's organizations and the active one, for an organization switcher:
+ * `switchTo` switches, refreshes the session through `onSwitched` and loads the
+ * list again.
  */
 export function createOrganizationsController<
   T extends { readonly id: string } = OrganizationMembership,
@@ -93,7 +103,8 @@ export function createOrganizationsController<
       let seeded = options.initial !== undefined;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const organizations = await options.load();
@@ -191,13 +202,16 @@ export interface MembersControllerOptions<
   readonly auth: AuthPort;
   /** The organization; the table waits without one. */
   readonly organizationId: string | null;
-  /** The organization's members, such as `organizations.members(id)` or a server action that adds profiles. */
+  /**
+   * The organization's members, such as `organizations.members(id)` or a server
+   * action that adds profiles.
+   */
   readonly load: OrganizationRowSource<T>;
   /** Members a server already loaded: the first load is skipped. */
   readonly initial?: readonly T[];
   /**
-   * Runs after a role change or a removal committed, such as a server
-   * action that refreshes the member's session. A throw is kept in `error`.
+   * Runs after a role change or a removal committed, such as a server action
+   * that refreshes the member's session. A throw is kept in `error`.
    */
   readonly onChanged?: (change: MemberChange) => void | Promise<void>;
 }
@@ -229,9 +243,9 @@ const noOrganization = (): Result<never> =>
   err(dbError("invalid_input", "No organization is active"));
 
 /**
- * One organization's members for a members table: `setRole` changes a
- * role optimistically, `remove` removes a member, and both run
- * `onChanged` once the database committed.
+ * One organization's members for a members table: `setRole` changes a role
+ * optimistically, `remove` removes a member, and both run `onChanged` once the
+ * database committed.
  */
 export function createMembersController<
   T extends { readonly userId: string; readonly role: string } =
@@ -250,7 +264,8 @@ export function createMembersController<
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const members = await options.load(organizationId);
@@ -396,8 +411,8 @@ export interface InvitationsControllerOptions<
   /** Invitations a server already loaded: the first load is skipped. */
   readonly initial?: readonly T[];
   /**
-   * Runs after an invitation was sent or revoked, such as a server action
-   * that completes an onboarding step. A throw is kept in `error`.
+   * Runs after an invitation was sent or revoked, such as a server action that
+   * completes an onboarding step. A throw is kept in `error`.
    */
   readonly onChanged?: (change: InvitationChange) => void | Promise<void>;
 }
@@ -407,7 +422,10 @@ export interface InvitationsSnapshot<T> {
   readonly invitations: readonly T[] | undefined;
   /** Whether an invitation is being sent. */
   readonly inviting: boolean;
-  /** The last invitation sent, with the token for the accept link, until `clear`. */
+  /**
+   * The last invitation sent, with the token for the accept link, until
+   * `clear`.
+   */
   readonly sent: InvitationSent | undefined;
   /** The invitation ids with a revoke in flight. */
   readonly revoking: readonly string[];
@@ -415,7 +433,10 @@ export interface InvitationsSnapshot<T> {
 }
 
 export interface InvitationsActions {
-  /** Invites `email` with `role`, then loads the list again; a failure is also kept in `error`. */
+  /**
+   * Invites `email` with `role`, then loads the list again; a failure is also
+   * kept in `error`.
+   */
   readonly invite: (draft: InvitationDraft) => Promise<Result<InvitationSent>>;
   /** Revokes an open invitation; `false` when it was not open. */
   readonly revoke: (invitationId: string) => Promise<Result<boolean>>;
@@ -430,9 +451,9 @@ export type InvitationsController<T> = Controller<
 >;
 
 /**
- * One organization's open invitations for an invite dialog: `invite` sends
- * one and keeps its token in `sent` for the accept link, `revoke` revokes
- * one, and both load the list again.
+ * One organization's open invitations for an invite dialog: `invite` sends one
+ * and keeps its token in `sent` for the accept link, `revoke` revokes one, and
+ * both load the list again.
  */
 export function createInvitationsController<
   T extends { readonly id: string } = OrganizationInvitationRow,
@@ -456,7 +477,8 @@ export function createInvitationsController<
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const invitations = await options.load(organizationId);

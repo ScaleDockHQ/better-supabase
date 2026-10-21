@@ -190,12 +190,12 @@ function compareFilterBounds(from: unknown, to: unknown): number | null {
  * ways this builder can hold a condition that SILENTLY does the wrong thing.
  * `missing-operator` and `empty-group` carry no predicate and are dropped by
  * `flattenFilterConditions`; `missing-value` reaches the consumer with a
- * `values` array that is empty or all blank, which most backends read as
- * "match nothing"; `incomplete-range` is the same for a range and often
- * arrives with one bound FILLED, so an emptiness check will not catch it;
- * `reversed-range` is legal and matches nothing anywhere. A group of exactly
- * ONE node is NOT an issue (it is what "Convert to group" produces), and the
- * root is exempt from `empty-group`.
+ * `values` array that is empty or all blank, which most backends read as "match
+ * nothing"; `incomplete-range` is the same for a range and often arrives with
+ * one bound FILLED, so an emptiness check will not catch it; `reversed-range`
+ * is legal and matches nothing anywhere. A group of exactly ONE node is NOT an
+ * issue (it is what "Convert to group" produces), and the root is exempt from
+ * `empty-group`.
  */
 export function collectFilterIssues<V>(
   query: FilterQuery<V>,
@@ -206,11 +206,7 @@ export function collectFilterIssues<V>(
 
   const visit = (group: FilterGroupNode<V>, isRoot: boolean) => {
     if (!isRoot && group.rules.length === 0) {
-      issues.push({
-        nodeId: group.id,
-        column: "group",
-        reason: "empty-group",
-      });
+      issues.push({ nodeId: group.id, column: "group", reason: "empty-group" });
     }
 
     for (const child of group.rules) {
@@ -592,9 +588,10 @@ export function moveFilterNodeTo<V>(
 
 /**
  * Copies a node into a group at a position: the Alt path of the drag layer. Not
- * `duplicateFilterNode` then `moveFilterNodeTo`, which emits two queries for one
- * gesture and needs the id the first step minted and never returned. The clone
- * is taken BEFORE the insert, so copying a group into itself stays finite.
+ * `duplicateFilterNode` then `moveFilterNodeTo`, which emits two queries for
+ * one gesture and needs the id the first step minted and never returned. The
+ * clone is taken BEFORE the insert, so copying a group into itself stays
+ * finite.
  */
 export function copyFilterNodeTo<V>(
   query: FilterQuery<V>,

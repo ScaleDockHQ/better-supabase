@@ -13,7 +13,10 @@ import {
 } from "../core/block-helpers.ts";
 
 export interface SupabaseStateOptions {
-  /** `sqlTransport(postgres.asService())` or `rpcTransport` with the service role key. */
+  /**
+   * `sqlTransport(postgres.asService())` or `rpcTransport` with the service
+   * role key.
+   */
   readonly transport: BlockTransport;
   /** The schema of the `chat-sdk-state` module. Defaults to `better_supabase`. */
   readonly schema?: string;
@@ -81,8 +84,8 @@ const ms = (value: number | undefined): number | undefined =>
 
 /**
  * A Chat SDK `StateAdapter` on the `chat-sdk-state` SQL module: thread
- * subscriptions, locks, the cache, lists and the per-thread queue in
- * Postgres, so a bot needs no Redis. Service role only.
+ * subscriptions, locks, the cache, lists and the per-thread queue in Postgres,
+ * so a bot needs no Redis. Service role only.
  */
 export function createSupabaseState(
   options: SupabaseStateOptions,

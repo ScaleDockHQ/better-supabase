@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { TaxCart, TaxProvider } from "../../src/commerce/index.ts";
+
 import {
   fixedRates,
   money,
   reversalOf,
   SHIPPING_LINE,
-  type TaxCart,
-  type TaxProvider,
   taxProviderOf,
 } from "../../src/commerce/index.ts";
 import { ConformanceError, testTaxProvider } from "../../src/testing/index.ts";
@@ -228,10 +228,9 @@ describe("testTaxProvider", () => {
       ...provider,
       name: "lossy",
       quote: (input, options) =>
-        provider.quote(input, options).map((quote) => ({
-          ...quote,
-          lines: quote.lines.slice(1),
-        })),
+        provider
+          .quote(input, options)
+          .map((quote) => ({ ...quote, lines: quote.lines.slice(1) })),
     };
 
     await expect(

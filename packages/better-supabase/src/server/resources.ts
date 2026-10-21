@@ -26,9 +26,9 @@ export interface ResourceRoute<Ref = string> {
 export interface ResourceRouter<Ref = string> {
   readonly handlers: readonly ResourceHandler<Ref>[];
   /**
-   * The resource a request is for, or the 404 (or 400 for a malformed path)
-   * to send before auth resolves. Matched from the URL, so it can run twice
-   * for one request.
+   * The resource a request is for, or the 404 (or 400 for a malformed path) to
+   * send before auth resolves. Matched from the URL, so it can run twice for
+   * one request.
    */
   match(request: Request): ResourceRoute<Ref> | Response;
 }
@@ -84,8 +84,8 @@ export function matchResource<Ref>(
 }
 
 /**
- * Routes `basePath` plus each resource's path (`/<table>` unless `path` is
- * set) to its handler. Shared by the edge and Next.js resource routers.
+ * Routes `basePath` plus each resource's path (`/<table>` unless `path` is set)
+ * to its handler. Shared by the edge and Next.js resource routers.
  */
 export function resourceRouter<
   M extends AnyModels,
@@ -149,7 +149,10 @@ export function resourceRouter<
 
       const raw = split(pathname);
 
-      if (!base.every((segment, index) => raw[index] === segment)) {
+      if (
+        raw.length < base.length ||
+        !base.every((segment, index) => raw[index] === segment)
+      ) {
         return notFound();
       }
 

@@ -2,14 +2,10 @@ import type {
   DeliveryTransport,
   EmailMessage,
 } from "../blocks/notifications/delivery.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { mailHeaders } from "../blocks/notifications/delivery.ts";
-import {
-  type ConformanceReport,
-  conform,
-  deepFreeze,
-  expect,
-} from "./conformance.ts";
+import { conform, deepFreeze, expect } from "./conformance.ts";
 
 /** What the provider received for one message, as the test's fake reports it. */
 export interface ReceivedDelivery {
@@ -21,8 +17,8 @@ export interface TestDeliveryTransportOptions {
   /** The sample's recipient. Defaults to `delivered@example.test`. */
   readonly to?: string;
   /**
-   * What the provider received, read after the kit sends. When given, the
-   * kit checks that the idempotency key and the headers arrived as sent.
+   * What the provider received, read after the kit sends. When given, the kit
+   * checks that the idempotency key and the headers arrived as sent.
    */
   readonly received?: () => Promise<readonly ReceivedDelivery[]>;
 }
@@ -30,10 +26,10 @@ export interface TestDeliveryTransportOptions {
 const KEY = "00000000-0000-4000-8000-00000000d0f0";
 
 /**
- * Runs the `DeliveryTransport` contract against `transport`: API version 1,
- * the `email` channel, a provider name, and one frozen sample message it
- * sends without mutating, with the delivery id as its idempotency key.
- * Throws a `ConformanceError` listing every failed check.
+ * Runs the `DeliveryTransport` contract against `transport`: API version 1, the
+ * `email` channel, a provider name, and one frozen sample message it sends
+ * without mutating, with the delivery id as its idempotency key. Throws a
+ * `ConformanceError` listing every failed check.
  */
 export function testDeliveryTransport(
   transport: DeliveryTransport,

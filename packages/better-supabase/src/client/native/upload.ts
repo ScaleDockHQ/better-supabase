@@ -10,7 +10,10 @@ export interface UriUploadTarget<T, R> {
 }
 
 export interface UploadFromUriOptions extends UploadOptions {
-  /** Defaults to the global `fetch`, which reads `file://` and `content://` URIs on React Native. */
+  /**
+   * Defaults to the global `fetch`, which reads `file://` and `content://` URIs
+   * on React Native.
+   */
   readonly fetch?: (uri: string) => Promise<Response>;
 }
 
@@ -45,14 +48,16 @@ export function contentTypeOf(uri: string): string | undefined {
 }
 
 /**
- * Uploads a local file (an `expo-image-picker` or `expo-document-picker`
- * URI) to a connected bucket. The file is read into an `ArrayBuffer`, as
- * React Native's `Blob` can't be uploaded; the content type comes from the
- * option, the response or the extension.
+ * Uploads a local file (an `expo-image-picker` or `expo-document-picker` URI)
+ * to a connected bucket. The file is read into an `ArrayBuffer`, as React
+ * Native's `Blob` can't be uploaded; the content type comes from the option,
+ * the response or the extension.
  *
  * ```ts
  * const picked = await ImagePicker.launchImageLibraryAsync();
- * await uploadFromUri(avatars, { userId }, picked.assets[0].uri, { upsert: true });
+ * await uploadFromUri(avatars, { userId }, picked.assets[0].uri, {
+ *   upsert: true,
+ * });
  * ```
  */
 export function uploadFromUri<T, R>(

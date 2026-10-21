@@ -82,18 +82,17 @@ interface UntypedRpcClient {
 /** Options for `rpcTransport`. */
 export interface RpcTransportOptions {
   /**
-   * The exposed schema that holds the block's entry points, such as `api`
-   * from `blocks.<module>.api`. Every call goes there instead of the
-   * module schema, which stays out of `[api] schemas` (doctor BS312).
+   * The exposed schema that holds the block's entry points, such as `api` from
+   * `blocks.<module>.api`. Every call goes there instead of the module schema,
+   * which stays out of `[api] schemas` (doctor BS312).
    */
   readonly schema?: string;
 }
 
 /**
- * Calls the functions over the Data API with the user's session. Pass
- * `schema` with the API schema that `blocks.<module>.api` writes
- * wrappers into; without it the calls go to the module schema, which then
- * has to be exposed.
+ * Calls the functions over the Data API with the user's session. Pass `schema`
+ * with the API schema that `blocks.<module>.api` writes wrappers into; without
+ * it the calls go to the module schema, which then has to be exposed.
  */
 export function rpcTransport(
   client: RpcClient,
@@ -129,9 +128,9 @@ export function rpcTransport(
 /** Options for `dbTransport`. */
 export interface DbTransportOptions {
   /**
-   * The schema every call goes to instead of the module schema, such as the
-   * API schema from `blocks.<module>.api`. Over PostgREST it has to be
-   * exposed; over Postgres any schema the caller may use works.
+   * The schema every call goes to instead of the module schema, such as the API
+   * schema from `blocks.<module>.api`. Over PostgREST it has to be exposed;
+   * over Postgres any schema the caller may use works.
    */
   readonly schema?: string;
 }
@@ -142,11 +141,11 @@ export interface DbTransportSource {
 }
 
 /**
- * Calls the functions through a `Db`'s executor, so a block runs wherever
- * the `Db` does: over PostgREST for `ctx.db` in a normal request, and over
- * direct Postgres as the target in a support session or for an API key.
- * Rejects with the raw database error, like the other transports, so the
- * block's error mappers see the same codes and hints.
+ * Calls the functions through a `Db`'s executor, so a block runs wherever the
+ * `Db` does: over PostgREST for `ctx.db` in a normal request, and over direct
+ * Postgres as the target in a support session or for an API key. Rejects with
+ * the raw database error, like the other transports, so the block's error
+ * mappers see the same codes and hints.
  */
 export function dbTransport(
   db: DbTransportSource,

@@ -1,4 +1,6 @@
-import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
+
+import { blockOptions, option } from "../options.ts";
 
 /** `blocks.oauth-server.options`. */
 export type OAuthServerSqlOptions = {
@@ -11,6 +13,4 @@ export type OAuthServerSqlOptions = {
 };
 
 export const oauthServerSqlOptions: BlockOptionsSchema<OAuthServerSqlOptions> =
-  blockOptions<OAuthServerSqlOptions>({
-    clientIdPattern: option.string(),
-  });
+  blockOptions<OAuthServerSqlOptions>({ clientIdPattern: option.string() });

@@ -47,7 +47,7 @@ describe("zod generator", () => {
 
     expect(result.success).toBe(false);
     expect(
-      result.error?.issues.map((issue) => issue.path.join(".")).sort(),
+      result.error?.issues.map((issue) => issue.path.join(".")).toSorted(),
     ).toEqual(["organizationId", "status"]);
   });
 
@@ -86,7 +86,7 @@ describe("zod generator, mini flavor", () => {
     });
 
     expect(
-      result.error?.issues.map((issue) => issue.path.join(".")).sort(),
+      result.error?.issues.map((issue) => issue.path.join(".")).toSorted(),
     ).toEqual(["organizationId", "status"]);
     expect(
       zodMiniSchemas.customersInsert.safeParse({ ...customer, name: "" })
@@ -137,7 +137,7 @@ describe("standard schema generator", () => {
 
     expect(
       !(bad instanceof Promise) &&
-        bad.issues?.map((issue) => issue.path?.join(".")).sort(),
+        bad.issues?.map((issue) => issue.path?.join(".")).toSorted(),
     ).toEqual(["organizationId", "status"]);
   });
 

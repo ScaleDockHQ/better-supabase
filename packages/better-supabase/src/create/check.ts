@@ -1,7 +1,7 @@
+import type { CreateDesign, Preset, PresetInput } from "../preset/index.ts";
 import type { DesignIssue } from "./design-issues.ts";
 
 import {
-  type CreateDesign,
   designConfig,
   DesignParseError,
   DesignTooLongError,
@@ -9,8 +9,6 @@ import {
   encodeDesign,
   encodePreset,
   parseDesign,
-  type Preset,
-  type PresetInput,
   presetOf,
   resolvePreset,
 } from "../preset/index.ts";
@@ -83,11 +81,10 @@ async function designFrom(input: unknown): Promise<CreateDesign> {
 }
 
 /**
- * Checks a design against a preset with every rule the canvas and
- * `sql sync` apply, so a server, an MCP tool and the canvas share one
- * answer. `input` is a design object, a design code or a `/create` URL with
- * `&design=`. It never throws for a bad design or preset: each problem is
- * an issue.
+ * Checks a design against a preset with every rule the canvas and `sql sync`
+ * apply, so a server, an MCP tool and the canvas share one answer. `input` is a
+ * design object, a design code or a `/create` URL with `&design=`. It never
+ * throws for a bad design or preset: each problem is an issue.
  */
 export async function checkDesign(
   input: unknown,

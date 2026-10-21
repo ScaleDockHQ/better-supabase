@@ -75,9 +75,7 @@ import { jobs } from "@/lib/jobs";
 
 export const GET = jobs.drainRoute({
   secret: process.env.CRON_SECRET,
-  handlers: {
-    inbox_bot: (payload) => inboxBot.dispatch(payload),
-  },
+  handlers: { inbox_bot: (payload) => inboxBot.dispatch(payload) },
 });
 ```
 

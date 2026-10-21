@@ -1,3 +1,4 @@
+/* oxlint-disable react/no-react-children -- the Markdown forms walk the MDX children of a component to write them out as text. */
 import type { MDXComponents } from "mdx/types";
 import type { ReactNode } from "react";
 
@@ -6,8 +7,8 @@ import { Children, isValidElement } from "react";
 
 /**
  * The Markdown forms of the MDX components the docs use, for `llms-full.txt`,
- * the `.md` routes, Ask AI and the docs MCP server. Only components listed
- * here are rendered; any other JSX element is written out as JSX.
+ * the `.md` routes, Ask AI and the docs MCP server. Only components listed here
+ * are rendered; any other JSX element is written out as JSX.
  */
 
 const CALLOUT_LABELS = new Map([
@@ -70,7 +71,7 @@ export async function Steps({
 
   const numbered = Children.map(children, (child) =>
     isValidElement<StepProps>(child) && child.type === Step ? (
-      <Step index={++index}>{child.props.children}</Step>
+      <Step index={(index += 1)}>{child.props.children}</Step>
     ) : (
       child
     ),

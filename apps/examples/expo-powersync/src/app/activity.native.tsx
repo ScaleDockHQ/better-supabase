@@ -8,7 +8,7 @@ import { NotificationList } from "../components/notification-list";
 import { OnboardingChecklist } from "../components/onboarding-checklist";
 import { OrganizationSwitcher } from "../components/organization-switcher";
 
-/** iOS and Android: the UI recipes, with the same hooks as the Next.js example. */
+/** IOS and Android: the UI recipes, with the same hooks as the Next.js example. */
 export default function ActivityScreen() {
   const [showList, setShowList] = useState(false);
 

@@ -1,8 +1,6 @@
-import {
-  type ModuleFile,
-  renderModules,
-  resolveModules,
-} from "better-supabase/sql";
+import type { ModuleFile } from "better-supabase/sql";
+
+import { renderModules, resolveModules } from "better-supabase/sql";
 
 export interface BlockMigrations {
   /** The modules `sql add` installs, dependencies first. */

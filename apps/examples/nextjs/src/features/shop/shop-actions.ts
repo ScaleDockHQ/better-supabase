@@ -30,8 +30,8 @@ const Count = v.pipe(
 );
 
 /**
- * Creates an active product with one variant and its base price, so the
- * grid has something to show and a draft order something to add.
+ * Creates an active product with one variant and its base price, so the grid
+ * has something to show and a draft order something to add.
  */
 export const createProduct = bs.action(
   {
@@ -139,8 +139,8 @@ export const adjustStock = bs.action(
 );
 
 /**
- * Adds a product to the caller's open cart, which the shop shows as the
- * draft order. `createCart` returns the open cart when there is one.
+ * Adds a product to the caller's open cart, which the shop shows as the draft
+ * order. `createCart` returns the open cart when there is one.
  */
 export const createDraftOrder = bs.action(
   {

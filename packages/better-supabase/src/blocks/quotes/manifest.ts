@@ -11,9 +11,7 @@ export const quotesBlock: BlockOf<"quotes", typeof createQuotes, QuotesEvents> =
   defineBlock({
     name: "quotes",
     sql: ["quotes"],
-    options: {
-      quotes: quotesSqlOptions,
-    },
+    options: { quotes: quotesSqlOptions },
     events: quotesEvents,
     create: createQuotes,
     category: "crm",

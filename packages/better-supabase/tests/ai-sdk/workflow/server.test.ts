@@ -4,6 +4,7 @@ import { Temporal } from "temporal-polyfill";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AssistantTurn } from "../../../src/ai-sdk/chat/index.ts";
+import type { DurableChatContext } from "../../../src/ai-sdk/workflow/index.ts";
 import type {
   AiChat,
   AiChatRecord,
@@ -13,7 +14,6 @@ import type {
 import type { DbError } from "../../../src/core/errors.ts";
 
 import {
-  type DurableChatContext,
   durableChat,
   WORKFLOW_RUN_ID_HEADER,
 } from "../../../src/ai-sdk/workflow/index.ts";
@@ -200,7 +200,7 @@ function setup(options: Setup = {}) {
     workflow,
     streams,
     streamTtl: 60,
-    generateId: () => `id${++ids}`,
+    generateId: () => `id${(ids += 1)}`,
   });
 
   return { durable, context, calls, prepare, pending, streams, workflow };
@@ -284,9 +284,7 @@ describe("durableChat respond", () => {
     const s = setup();
     const response = await s.durable.respond(post("not json"), s.context);
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({
-      code: "AI_CHAT_RUN_FAILED",
-    });
+    expect(await response.json()).toMatchObject({ code: "AI_CHAT_RUN_FAILED" });
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "id1",

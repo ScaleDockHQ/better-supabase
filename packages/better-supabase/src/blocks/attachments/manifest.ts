@@ -16,13 +16,9 @@ export const attachmentsBlock: BlockOf<
 > = defineBlock({
   name: "attachments",
   sql: ["attachments"],
-  options: {
-    attachments: attachmentsSqlOptions,
-  },
+  options: { attachments: attachmentsSqlOptions },
   events: attachmentsEvents,
-  provides: {
-    attachments: (client) => client,
-  },
+  provides: { attachments: (client) => client },
   create: createAttachments,
   category: "collaboration",
   recipes: ["attachments-uploader"],

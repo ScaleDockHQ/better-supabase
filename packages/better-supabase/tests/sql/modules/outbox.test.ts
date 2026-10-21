@@ -112,7 +112,7 @@ describe("outbox module", () => {
   it("renders nothing in custom mode", () => {
     expect(
       moduleBody("outbox", { modules: { outbox: { mode: "custom" } } }),
-    ).toBe(undefined);
+    ).toBeUndefined();
   });
 
   it("lets other modules emit once the outbox is installed", () => {

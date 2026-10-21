@@ -16,10 +16,10 @@ export type MemoryScope =
 export type MemoryKind = "core" | "archival";
 
 /**
- * Whose memory a call reads or changes. The default is the caller's own
- * memory; `organization` memory is shared and only admins change it. The
- * `project` scope takes a `projectId` (an ai-chat project) and no other
- * scope does. The service role names the user in `ownerId`.
+ * Whose memory a call reads or changes. The default is the caller's own memory;
+ * `organization` memory is shared and only admins change it. The `project`
+ * scope takes a `projectId` (an ai-chat project) and no other scope does. The
+ * service role names the user in `ownerId`.
  */
 export interface MemoryNamespace {
   readonly scope?: MemoryScope;
@@ -112,7 +112,10 @@ export interface MemoryOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** Calls as the service role, for embeddings and extracted memories. */
   readonly service?: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Embeds archival memories, messages and queries. */
@@ -121,13 +124,19 @@ export interface MemoryOptions extends BlockTemporalOptions {
   readonly maxRender?: number;
   /** `saveExtracted` skips a fact this similar to a saved one. Default 0.92. */
   readonly dedupeThreshold?: number;
-  /** `withBlockHooks` hooks around the methods, and around each group's under its name. */
+  /**
+   * `withBlockHooks` hooks around the methods, and around each group's under
+   * its name.
+   */
   readonly hooks?: MemoryHooks;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
 }
 
-/** Hooks for `Memory`: the top-level methods, and `core`, `archival`, `recall` and `documents` by group. */
+/**
+ * Hooks for `Memory`: the top-level methods, and `core`, `archival`, `recall`
+ * and `documents` by group.
+ */
 export type MemoryHooks = BlockHooks<Memory> & {
   readonly core?: BlockHooks<Memory["core"]>;
   readonly archival?: BlockHooks<Memory["archival"]>;
@@ -234,8 +243,8 @@ export interface Memory {
     ): AsyncResult<readonly RecalledMessage[]>;
   };
   /**
-   * Core memory as delimited text for a system prompt, cut at
-   * `maxRender` characters. Empty when there is none.
+   * Core memory as delimited text for a system prompt, cut at `maxRender`
+   * characters. Empty when there is none.
    */
   render(organizationId: string, ns?: MemoryNamespace): AsyncResult<string>;
   /** Saves facts that aren't already remembered. Returns the new ones. */
@@ -245,14 +254,17 @@ export interface Memory {
     ns?: MemoryNamespace,
     options?: { readonly sourceMessageId?: string },
   ): AsyncResult<readonly MemoryRecord[]>;
-  /** Embeds memories edited since their last embedding (service role). Returns how many. */
+  /**
+   * Embeds memories edited since their last embedding (service role). Returns
+   * how many.
+   */
   embedPending(options?: {
     readonly batch?: number;
     readonly signal?: AbortSignal;
   }): AsyncResult<number>;
   /**
-   * Documents under an opaque scope key, for agent runtimes (service role).
-   * A write names the version it read; a stale one fails with the hint
+   * Documents under an opaque scope key, for agent runtimes (service role). A
+   * write names the version it read; a stale one fails with the hint
    * `MEMORY_DOCUMENT_CONFLICT`.
    */
   readonly documents: {

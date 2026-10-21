@@ -2,9 +2,10 @@ import type {
   NotificationChannel,
   NotificationMessage,
 } from "../blocks/notifications/channel.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { temporal } from "../core/temporal-required.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 export interface TestNotificationChannelOptions {
   /** The recipient's email in the sample message. Defaults to `null`. */
@@ -48,9 +49,9 @@ function sample(channel: string, email: string | null): NotificationMessage {
 }
 
 /**
- * Runs the `NotificationChannel` contract against `channel`: the API version,
- * a name, and one frozen sample message it must send without mutating.
- * Throws a `ConformanceError` listing every failed check.
+ * Runs the `NotificationChannel` contract against `channel`: the API version, a
+ * name, and one frozen sample message it must send without mutating. Throws a
+ * `ConformanceError` listing every failed check.
  */
 export function testNotificationChannel(
   channel: NotificationChannel,

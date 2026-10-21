@@ -6,6 +6,7 @@ import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
+import type { InStackDiffOptions } from "../in-stack-diff.ts";
 
 import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
@@ -16,7 +17,6 @@ import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import { supabaseCli } from "../exec.ts";
 import {
-  type InStackDiffOptions,
   inStackDiff,
   isShadowFailure,
   MIGRATION_HEADER,
@@ -46,9 +46,7 @@ const ARGS = {
 
 type DbQueryFlags = CliOptions<
   typeof ARGS & typeof DB_URL_STDIN_ARG & typeof STACK_ARG
-> & {
-  readonly _: readonly string[];
-};
+> & { readonly _: readonly string[] };
 
 /** Runs each file as one multi-statement script and reports the files it ran. */
 export async function runDbQuery(
@@ -220,10 +218,10 @@ function cliDiffCommand(
 }
 
 /**
- * Turns the declarative schema into a migration with the Supabase CLI's
- * command for the project's workflow. When the CLI can't start its shadow
- * database (no shared memory segment left), or with `--in-stack`, it diffs
- * inside the running stack instead.
+ * Turns the declarative schema into a migration with the Supabase CLI's command
+ * for the project's workflow. When the CLI can't start its shadow database (no
+ * shared memory segment left), or with `--in-stack`, it diffs inside the
+ * running stack instead.
  */
 export async function runDbDiff(
   config: ResolvedConfig,

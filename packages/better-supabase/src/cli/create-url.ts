@@ -1,4 +1,7 @@
-/** A query parameter of a `/create` URL, decoded; undefined for a name or a code. */
+/**
+ * A query parameter of a `/create` URL, decoded; undefined for a name or a
+ * code.
+ */
 export function createUrlParam(
   input: string | undefined,
   name: "authz" | "package",

@@ -15,14 +15,17 @@ export interface QueryPersister<T> {
 export interface PersistQueryCacheOptions {
   /** Defaults to `better-supabase.query-cache`. */
   readonly key?: string;
-  /** Writes at most once per interval, keeping the latest cache. Defaults to 1000 ms. */
+  /**
+   * Writes at most once per interval, keeping the latest cache. Defaults to
+   * 1000 ms.
+   */
   readonly throttleMs?: number;
 }
 
 /**
- * Persists the query cache to MMKV or AsyncStorage, so a cold start shows
- * the last rows before the first fetch. The provider's `clearOnUserChange`
- * drops them when another user signs in.
+ * Persists the query cache to MMKV or AsyncStorage, so a cold start shows the
+ * last rows before the first fetch. The provider's `clearOnUserChange` drops
+ * them when another user signs in.
  *
  * ```tsx
  * <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: persistQueryCache(storage) }}>

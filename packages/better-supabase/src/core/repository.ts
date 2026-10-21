@@ -1,35 +1,32 @@
+import type {
+  Condition,
+  DeleteOp,
+  InsertOp,
+  Operation,
+  OrderTerm,
+  SelectColumn,
+  SelectOp,
+  Selection,
+  UpdateOp,
+} from "../ir/types.ts";
 import type { TableMeta } from "../schema/types.ts";
 import type { ExecuteResult } from "./executor.ts";
+import type { Result } from "./result.ts";
+import type { OperationRunner, Args } from "./runner.ts";
 
 import { invalidRequest } from "../ir/build.ts";
 import { decodeRows } from "../ir/codec.ts";
 import { simplify } from "../ir/simplify.ts";
-import {
-  and,
-  type Condition,
-  type DeleteOp,
-  type InsertOp,
-  type Operation,
-  type OrderTerm,
-  type SelectColumn,
-  type SelectOp,
-  type Selection,
-  type UpdateOp,
-} from "../ir/types.ts";
+import { and } from "../ir/types.ts";
 import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { decodeBoundCursor, encodeBoundCursor, sortKey } from "./cursor.ts";
 import { dbError } from "./errors.ts";
 import { keysetCondition } from "./keyset.ts";
 import { offsetEnvelope, pageWindow, strip } from "./paginate.ts";
-import { AsyncResult, ok, toDbError, type Result } from "./result.ts";
+import { AsyncResult, ok, toDbError } from "./result.ts";
 import { byKey } from "./row-keys.ts";
-import {
-  type OperationRunner,
-  optionsOf,
-  signalOf,
-  type Args,
-} from "./runner.ts";
+import { optionsOf, signalOf } from "./runner.ts";
 import { tuningOf } from "./timeout.ts";
 import { countOf, maxAffectedOf } from "./write-args.ts";
 
@@ -118,7 +115,10 @@ export function createRepository(
     ...patch,
   });
 
-  /** Writes return every column but the sensitive ones unless they are asked for. */
+  /**
+   * Writes return every column but the sensitive ones unless they are asked
+   * for.
+   */
   const returning = (args: Args | undefined): Selection | undefined => {
     if (args?.["returning"] === false) {
       return undefined;
@@ -162,7 +162,10 @@ export function createRepository(
   const notFound = <T>(): Result<T> =>
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
 
-  /** Arguments the builder rejects fail like any other error: with the table and an `error` event. */
+  /**
+   * Arguments the builder rejects fail like any other error: with the table and
+   * an `error` event.
+   */
   const guarded = <T>(work: () => Promise<Result<T>>): AsyncResult<T> =>
     AsyncResult.from(async () => {
       try {
@@ -315,10 +318,7 @@ export function createRepository(
       return guarded(async () => {
         const op = selectOp(
           { where: args?.["where"] },
-          {
-            selection: existsSelection(),
-            limit: 1,
-          },
+          { selection: existsSelection(), limit: 1 },
         );
 
         const result = await run(op, args);
@@ -637,7 +637,10 @@ export function createRepository(
     };
   }
 
-  /** One column is enough to see a row: the primary key, or the first non-sensitive column. */
+  /**
+   * One column is enough to see a row: the primary key, or the first
+   * non-sensitive column.
+   */
   function existsSelection(): Selection {
     let found = existsSelections.get(table);
 

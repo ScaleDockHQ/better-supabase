@@ -10,7 +10,7 @@
   "files": [
     {
       "path": "items/lib/postgres.ts",
-      "content": "import { createPostgres } from \"better-supabase/postgres\";\n\n/**\n * One pool for the server-side blocks. It reads `SUPABASE_DB_URL`, then\n * `DATABASE_URL`. `postgres.admin` bypasses RLS: use it only in route\n * handlers that check their own secret, never with a user's input.\n */\nexport const postgres = createPostgres();\n",
+      "content": "import { createPostgres } from \"better-supabase/postgres\";\n\n/**\n * One pool for the server-side blocks. It reads `SUPABASE_DB_URL`, then\n * `DATABASE_URL`. `postgres.admin` bypasses RLS: use it only in route handlers\n * that check their own secret, never with a user's input.\n */\nexport const postgres = createPostgres();\n",
       "type": "registry:lib",
       "target": "@lib/postgres.ts"
     }

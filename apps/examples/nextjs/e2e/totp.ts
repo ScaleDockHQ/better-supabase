@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- RFC 4226 truncation masks the digest bytes. */
+
 import { createHmac } from "node:crypto";
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -30,7 +32,10 @@ export function totpStep(at: number = Date.now()): number {
   return Math.floor(at / 1000 / STEP_SECONDS);
 }
 
-/** The six-digit code for `step` (RFC 6238 with SHA-1, as authenticator apps use). */
+/**
+ * The six-digit code for `step` (RFC 6238 with SHA-1, as authenticator apps
+ * use).
+ */
 export function totp(secret: string, step: number = totpStep()): string {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(step));

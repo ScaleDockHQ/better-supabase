@@ -2,10 +2,11 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { GuardOptions } from "../server/respond.ts";
 import type { ServerContext, ServerOptions } from "../server/server-types.ts";
+import type { ConformanceReport } from "./conformance.ts";
 
 import { dbError, DbException } from "../core/errors.ts";
 import { PRIMARY_COOKIE } from "../server/replicas.ts";
-import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { conform, expect } from "./conformance.ts";
 
 // oxlint-disable-next-line typescript/no-explicit-any -- the module accepts a definition of any schema.
 type AnySupabase = BetterSupabase<any, any, any, any>;
@@ -19,14 +20,17 @@ export type AdapterRun = (
 ) => unknown;
 
 export interface TestAdapterOptions {
-  /** The definition the adapter is built from: the module tracks event sends on its `events`. */
+  /**
+   * The definition the adapter is built from: the module tracks event sends on
+   * its `events`.
+   */
   readonly betterSupabase: AnySupabase;
   /**
    * Builds the adapter with `server` (pass it to `createX(betterSupabase,
-   * server)`) and returns a fetch function that answers a request with
-   * `run` as the caller, behind a guard that allows `allow`. Translate the
-   * module's bare GET into what the adapter expects (a JSON-RPC `tools/call`,
-   * an oRPC call) inside the function.
+   * server)`) and returns a fetch function that answers a request with `run` as
+   * the caller, behind a guard that allows `allow`. Translate the module's bare
+   * GET into what the adapter expects (a JSON-RPC `tools/call`, an oRPC call)
+   * inside the function.
    */
   readonly serve: (
     server: ServerOptions & { readonly exposeErrors: false },
@@ -36,7 +40,10 @@ export interface TestAdapterOptions {
       readonly waitUntil: (promise: Promise<unknown>) => void;
     },
   ) => (request: Request) => Promise<Response>;
-  /** The adapter answers handler errors in a 200 body (MCP tool results), not with HTTP statuses. */
+  /**
+   * The adapter answers handler errors in a 200 body (MCP tool results), not
+   * with HTTP statuses.
+   */
   readonly errorsInBody?: boolean;
   /** The adapter sends no cookies (bearer-only transports such as MCP). */
   readonly cookies?: false;
@@ -55,9 +62,9 @@ const MODULE_SERVER = {
 
 /**
  * Proves a framework adapter refuses callers its guard rejects, answers
- * `DbError`s with their status, hides unexpected errors, applies the
- * context's cookies and hands pending event sends to `waitUntil`, the way
- * `handle()` from `better-supabase/server` does.
+ * `DbError`s with their status, hides unexpected errors, applies the context's
+ * cookies and hands pending event sends to `waitUntil`, the way `handle()` from
+ * `better-supabase/server` does.
  */
 export function testAdapter(
   name: string,

@@ -4,7 +4,10 @@ import { sqlString } from "../../core/template.ts";
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
-/** `options.autoTables`: every table in `schemas` with the tenant (or user) column. */
+/**
+ * `options.autoTables`: every table in `schemas` with the tenant (or user)
+ * column.
+ */
 export interface AutoTables {
   readonly schemas: readonly string[];
   readonly tenant: string | undefined;

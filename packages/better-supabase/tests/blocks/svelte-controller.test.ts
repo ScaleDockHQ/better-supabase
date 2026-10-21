@@ -2,6 +2,7 @@ import * as $ from "svelte/internal/client";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SvelteController } from "../../src/blocks/svelte-controller.ts";
+import type { EnvOptions } from "../fixtures/block-bindings.ts";
 
 import { useBlockController } from "../../src/blocks/svelte-controller.ts";
 import { useUndoStack } from "../../src/blocks/undo/svelte/index.ts";
@@ -11,17 +12,16 @@ import {
   fakeBlockClient,
   fakeEnv,
   startCounter,
-  type EnvOptions,
 } from "../fixtures/block-bindings.ts";
 
 // Node resolves svelte to its server runtime, where effects never run.
-vi.mock("svelte", () => {
+vi.mock(import("svelte"), () => {
   const clientBuild = "../../node_modules/svelte/src/index-client.js";
 
   return import(clientBuild);
 });
 
-vi.mock("svelte/reactivity", () => {
+vi.mock(import("svelte/reactivity"), () => {
   const clientBuild =
     "../../node_modules/svelte/src/reactivity/index-client.js";
 
@@ -29,8 +29,8 @@ vi.mock("svelte/reactivity", () => {
 });
 
 /**
- * Runs `setup` as a component's script, reads the store as its template
- * would, then mounts. `unmount` destroys the component.
+ * Runs `setup` as a component's script, reads the store as its template would,
+ * then mounts. `unmount` destroys the component.
  */
 function mount<S, A>(
   setup: () => SvelteController<S, A>,

@@ -2,6 +2,7 @@ import { createRoot } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SolidController } from "../../src/blocks/solid-controller.ts";
+import type { EnvOptions } from "../fixtures/block-bindings.ts";
 
 import { useBlockController } from "../../src/blocks/solid-controller.ts";
 import { useUndoStack } from "../../src/blocks/undo/solid/index.ts";
@@ -11,11 +12,10 @@ import {
   fakeBlockClient,
   fakeEnv,
   startCounter,
-  type EnvOptions,
 } from "../fixtures/block-bindings.ts";
 
 // Node resolves solid-js to its server build, where effects never run.
-vi.mock("solid-js", () => {
+vi.mock(import("solid-js"), () => {
   const browserBuild = "../../node_modules/solid-js/dist/solid.js";
 
   return import(browserBuild);

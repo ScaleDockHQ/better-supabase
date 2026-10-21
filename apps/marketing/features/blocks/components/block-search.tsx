@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { SearchIcon, SearchXIcon } from "lucide-react";
 import { useDeferredValue, useId, useState } from "react";
 
+import type { BlockSummary } from "@/lib/block-filter";
+
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -15,11 +17,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
-import {
-  ALL_CATEGORIES,
-  type BlockSummary,
-  filterBlocks,
-} from "@/lib/block-filter";
+import { ALL_CATEGORIES, filterBlocks } from "@/lib/block-filter";
 
 import { BlockTile } from "./block-tile";
 

@@ -3,15 +3,13 @@ import { RPCHandler } from "@orpc/server/fetch";
 import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
+import type { OrpcRequestContext } from "../../src/orpc/index.ts";
+
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import {
-  createOrpc,
-  type OrpcRequestContext,
-  orpcCode,
-} from "../../src/orpc/index.ts";
+import { createOrpc, orpcCode } from "../../src/orpc/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -29,10 +27,7 @@ const signer = await createTestSigner();
 describe("createOrpc", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createOrpc(betterSupabase, {
-    env,
-    auth: { jwks: signer.jwks },
-  });
+  const bs = createOrpc(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
   const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
 
@@ -184,7 +179,7 @@ describe("createOrpc", () => {
     expect(response.headers.get("set-cookie")).toMatch(
       /sb-abcdefghijklmnopqrst-auth-token=;/,
     );
-    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledOnce();
   });
 
   it("derives codes from the error status", () => {

@@ -51,9 +51,9 @@ export function tenantRoleScope(
 
 /**
  * A role argument as the membership role column stores it: the name for the
- * roles model, the catalog role id (looked up by id or key) for `catalog`.
- * With `tenant`, a key resolves among that tenant's roles. A `roleThrough`
- * lookup keeps to the rows its `where` accepts unless `tenantRoles` is false.
+ * roles model, the catalog role id (looked up by id or key) for `catalog`. With
+ * `tenant`, a key resolves among that tenant's roles. A `roleThrough` lookup
+ * keeps to the rows its `where` accepts unless `tenantRoles` is false.
  */
 export function roleValue(
   ctx: ModuleContext,

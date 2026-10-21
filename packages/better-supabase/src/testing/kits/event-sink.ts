@@ -1,24 +1,23 @@
-import {
-  toCloudEvents,
-  type CloudEvent,
-  type EventSink,
-} from "../../events/index.ts";
-import {
-  conform,
-  deepFreeze,
-  expect,
-  frozenCopy,
-  type ConformanceReport,
-} from "../conformance.ts";
+import type { CloudEvent, EventSink } from "../../events/index.ts";
+import type { ConformanceReport } from "../conformance.ts";
+
+import { toCloudEvents } from "../../events/index.ts";
+import { conform, deepFreeze, expect, frozenCopy } from "../conformance.ts";
 
 export interface TestEventSinkOptions {
-  /** Events the sink delivered, for sinks that can be read back (an outbox, a test queue). */
+  /**
+   * Events the sink delivered, for sinks that can be read back (an outbox, a
+   * test queue).
+   */
   readonly received?: () =>
     | readonly CloudEvent[]
     | Promise<readonly CloudEvent[]>;
 }
 
-/** Proves an `EventSink` accepts empty and full batches without mutating them, and delivers them when readable. */
+/**
+ * Proves an `EventSink` accepts empty and full batches without mutating them,
+ * and delivers them when readable.
+ */
 export function testEventSink(
   sink: EventSink,
   options: TestEventSinkOptions = {},

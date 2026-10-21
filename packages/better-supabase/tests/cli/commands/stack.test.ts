@@ -3,14 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { StackDeps } from "../../../src/cli/commands/stack.ts";
 import type { ConsentRequest } from "../../../src/cli/core/agent.ts";
 import type { StackReport } from "../../../src/cli/stacks.ts";
 
-import {
-  runStackLs,
-  runStackPrune,
-  type StackDeps,
-} from "../../../src/cli/commands/stack.ts";
+import { runStackLs, runStackPrune } from "../../../src/cli/commands/stack.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { parseEnv } from "../../../src/cli/env.ts";
 

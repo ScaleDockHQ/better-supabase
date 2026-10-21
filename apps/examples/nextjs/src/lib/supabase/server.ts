@@ -1,5 +1,7 @@
 import "server-only";
-import { createNext, type NextOptions } from "better-supabase/next";
+import type { NextOptions } from "better-supabase/next";
+
+import { createNext } from "better-supabase/next";
 
 import { serverFetch } from "../latency";
 import { betterSupabase } from "./index";

@@ -7,8 +7,8 @@ import { anthropicMemory, memoryTool } from "../../src/ai-sdk/memory/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 /**
- * The commands of Anthropic's memory tool at the pinned version and the
- * fields each one requires, from its documentation.
+ * The commands of Anthropic's memory tool at the pinned version and the fields
+ * each one requires, from its documentation.
  */
 const COMMANDS: Record<string, readonly string[]> = {
   view: ["path"],

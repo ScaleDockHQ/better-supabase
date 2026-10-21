@@ -44,7 +44,10 @@ const PREFIXES = [
   ...new Set(Object.values(PREFIX_NAMES).filter((prefix) => prefix !== "")),
 ];
 
-/** The names `stackEnvValues` writes, with or without a browser prefix; not the CLI's own `SUPABASE_BIN` or `SUPABASE_ACCESS_TOKEN`. */
+/**
+ * The names `stackEnvValues` writes, with or without a browser prefix; not the
+ * CLI's own `SUPABASE_BIN` or `SUPABASE_ACCESS_TOKEN`.
+ */
 const STACK_VARIABLE =
   /(?:^|_)SUPABASE_(?:URL|PUBLISHABLE_KEY|SECRET_KEY|JWKS_URL|DB_URL|JWT_SECRET)$/;
 
@@ -57,8 +60,8 @@ const exportsStackVariable = (
   );
 
 /**
- * Reads the running stack only when the shell exports a `SUPABASE_*`
- * variable, so a doctor run without one never starts `supabase status`.
+ * Reads the running stack only when the shell exports a `SUPABASE_*` variable,
+ * so a doctor run without one never starts `supabase status`.
  */
 export async function loadStackEnvCheck(
   root: string,

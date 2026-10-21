@@ -3,15 +3,11 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AppTablesConfig } from "../../src/config/types/app-tables.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { APP_TABLES_MODULE } from "../../src/sql/modules/app-tables.ts";
 import { renderModules } from "../../src/sql/render.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -130,7 +126,7 @@ describe.skipIf(!live)("app tables", () => {
     const planned = Number(/plan\((\d+)\)/u.exec(body)?.[1]);
 
     expect(planned).toBeGreaterThan(0);
-    expect(lines.filter((line) => line.startsWith("ok")).length).toBe(planned);
+    expect(lines.filter((line) => line.startsWith("ok"))).toHaveLength(planned);
   });
 
   it("keeps each organization's rows to its members", async () => {

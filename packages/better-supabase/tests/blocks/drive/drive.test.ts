@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { DriveNode } from "../../../src/blocks/drive/index.ts";
+
 import { createAttachments } from "../../../src/blocks/attachments/attachments.ts";
-import {
-  createDrive,
-  driveSubject,
-  type DriveNode,
-} from "../../../src/blocks/drive/index.ts";
+import { createDrive, driveSubject } from "../../../src/blocks/drive/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, string, unknown][] = [];
@@ -170,12 +168,8 @@ describe("drive client", () => {
     expect(file.fields).toEqual({ drive_id: "d1" });
     expect(file.createdBy).toBeUndefined();
     expect(
-      (
-        await drive
-          .list("o", { parentId: "f1", pageSize: 5, skip: 5 })
-          .orThrow()
-      ).length,
-    ).toBe(2);
+      await drive.list("o", { parentId: "f1", pageSize: 5, skip: 5 }).orThrow(),
+    ).toHaveLength(2);
     expect(await drive.shared("o").orThrow()).toHaveLength(1);
     expect(await drive.path("n1").orThrow()).toEqual([
       { id: "f1", name: "Projects", kind: "folder" },
@@ -436,12 +430,7 @@ describe("drive client", () => {
         },
       ],
       drive_link: (args) => ({
-        link: {
-          id: "l1",
-          role: "viewer",
-          nodeId: "f1",
-          expiresAt: null,
-        },
+        link: { id: "l1", role: "viewer", nodeId: "f1", expiresAt: null },
         node: (args as { node: string | null }).node === null ? FOLDER : FILE,
         children:
           (args as { node: string | null }).node === null ? [FILE] : null,

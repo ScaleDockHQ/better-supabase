@@ -28,19 +28,17 @@ async function missing(response: Response): Promise<boolean> {
     return false;
   }
 
-  const body = (await response.json().catch(() => ({}))) as {
-    code?: string;
-  };
+  const body = (await response.json().catch(() => ({}))) as { code?: string };
 
   return MISSING.has(body.code ?? "");
 }
 
 /**
- * Asks PostgREST to reload its schema cache, then waits until every named
- * table and function resolves. A probe that is denied or fails for another
- * reason still counts as found: only "not in the schema cache" waits. The
- * reload is requested again while waiting, because a reload that started
- * before the new objects committed (another test's DDL) never sees them.
+ * Asks PostgREST to reload its schema cache, then waits until every named table
+ * and function resolves. A probe that is denied or fails for another reason
+ * still counts as found: only "not in the schema cache" waits. The reload is
+ * requested again while waiting, because a reload that started before the new
+ * objects committed (another test's DDL) never sees them.
  */
 export async function reloadSchemaCache(
   pool: Pool,
@@ -77,7 +75,7 @@ export async function reloadSchemaCache(
   const deadline = Date.now() + (wait.timeout ?? 30_000);
   let pending = probes;
 
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 0; ; attempt += 1) {
     if (attempt % 8 === 0) {
       await pool.query(`notify pgrst, 'reload schema'`);
     }

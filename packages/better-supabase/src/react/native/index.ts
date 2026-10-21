@@ -48,7 +48,10 @@ export interface UseOAuthOptions extends OAuthSignInOptions {
 }
 
 export interface OAuth extends PendingState {
-  /** Opens the provider in an auth session and finishes the sign-in. A cancelled browser is no error. */
+  /**
+   * Opens the provider in an auth session and finishes the sign-in. A cancelled
+   * browser is no error.
+   */
   readonly signIn: (provider: Provider) => Promise<AuthFailure | undefined>;
   /**
    * Native sign-in with an ID token from `expo-apple-authentication` or
@@ -80,13 +83,20 @@ function useClientOf<C>(explicit: C | undefined, hook: string): C {
 const NOT_FINISHED = { error: null };
 
 /**
- * OAuth and native ID-token sign-in on a device, with `pending` and
- * `error` state.
+ * OAuth and native ID-token sign-in on a device, with `pending` and `error`
+ * state.
  *
  * ```tsx
- * import * as WebBrowser from 'expo-web-browser';
- * const oauth = useOAuth({ browser: WebBrowser, redirectTo: Linking.createURL('auth/callback') });
- * <Button title="GitHub" disabled={oauth.pending} onPress={() => oauth.signIn('github')} />
+ * import * as WebBrowser from "expo-web-browser";
+ * const oauth = useOAuth({
+ *   browser: WebBrowser,
+ *   redirectTo: Linking.createURL("auth/callback"),
+ * });
+ * <Button
+ *   title="GitHub"
+ *   disabled={oauth.pending}
+ *   onPress={() => oauth.signIn("github")}
+ * />;
  * ```
  */
 export function useOAuth(options: UseOAuthOptions): OAuth {
@@ -160,13 +170,15 @@ export interface AuthDeepLinksOptions {
 }
 
 /**
- * Finishes sign-ins from deep links while mounted: the URL that opened the
- * app and every link after it (magic links, email confirmations, OAuth
- * redirects outside an auth session). Returns the last auth link's outcome.
+ * Finishes sign-ins from deep links while mounted: the URL that opened the app
+ * and every link after it (magic links, email confirmations, OAuth redirects
+ * outside an auth session). Returns the last auth link's outcome.
  *
  * ```tsx
- * import * as Linking from 'expo-linking';
- * useAuthDeepLinks(Linking, { onResult: (r) => r.type === 'signed-in' && router.replace('/') });
+ * import * as Linking from "expo-linking";
+ * useAuthDeepLinks(Linking, {
+ *   onResult: (r) => r.type === "signed-in" && router.replace("/"),
+ * });
  * ```
  */
 export function useAuthDeepLinks(
@@ -228,12 +240,15 @@ export interface ProtectedRouteOptions {
 }
 
 /**
- * Redirects with expo-router: signed-out users outside the public group go
- * to `signInHref`, signed-in users inside it go to `homeHref`. Returns the
- * auth state; render a splash screen while it is `loading`.
+ * Redirects with expo-router: signed-out users outside the public group go to
+ * `signInHref`, signed-in users inside it go to `homeHref`. Returns the auth
+ * state; render a splash screen while it is `loading`.
  *
  * ```tsx
- * const status = useProtectedRoute({ segments: useSegments(), router: useRouter() });
+ * const status = useProtectedRoute({
+ *   segments: useSegments(),
+ *   router: useRouter(),
+ * });
  * ```
  */
 export function useProtectedRoute(
@@ -270,9 +285,9 @@ export interface AuthGateProps {
 }
 
 /**
- * Renders `children` for signed-in users, `signedOut` otherwise, and
- * `fallback` while the session loads. With expo-router, `Stack.Protected`
- * takes `useAuth().status === 'signed-in'` as its `guard` instead.
+ * Renders `children` for signed-in users, `signedOut` otherwise, and `fallback`
+ * while the session loads. With expo-router, `Stack.Protected` takes
+ * `useAuth().status === 'signed-in'` as its `guard` instead.
  */
 export function AuthGate(props: AuthGateProps): ReactNode {
   const { status } = useAuth();

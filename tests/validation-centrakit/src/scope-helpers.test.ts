@@ -1,5 +1,7 @@
+import type { QueryArrayResult } from "pg";
+
 import { readFile } from "node:fs/promises";
-import { Client, type QueryArrayResult } from "pg";
+import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 
 import { dbUrl, reachable } from "./stack.ts";

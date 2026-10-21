@@ -1,15 +1,15 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraOf,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -24,15 +24,14 @@ import {
   stringsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 
 export type AnnouncementSeverity = "info" | "success" | "warning" | "critical";
 
 /**
- * Who sees it: everyone, members of some tenants, members with some roles,
- * or tenants on some plans (entitlement lookup keys, with the entitlements
+ * Who sees it: everyone, members of some tenants, members with some roles, or
+ * tenants on some plans (entitlement lookup keys, with the entitlements
  * module).
  */
 export type AnnouncementAudience =
@@ -79,8 +78,8 @@ export interface AnnouncementsOptions<
   /**
    * A Standard Schema for the announcement columns the app adds
    * (`blocks.announcements.options.extraColumns`), keyed by column name. It
-   * types and parses them on every read, and validates them on `publish`
-   * and `update`, which return a `validation` error for a bad value.
+   * types and parses them on every read, and validates them on `publish` and
+   * `update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -88,14 +87,20 @@ export interface AnnouncementsOptions<
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
 }
 
 /** `F` is the extra fields `options.fields` describes. */
 export interface Announcements<F extends object = Record<never, never>> {
-  /** The caller's live, undismissed announcements; pass the active tenant for tenant, role and plan audiences. */
+  /**
+   * The caller's live, undismissed announcements; pass the active tenant for
+   * tenant, role and plan audiences.
+   */
   listActive(
     organizationId?: string | null,
   ): AsyncResult<readonly (Announcement & F)[]>;

@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AgentProbe } from "../../../src/cli/core/agent.ts";
+
 import {
-  type AgentProbe,
   checkConsent,
   consentToken,
   databaseHost,
@@ -395,9 +396,7 @@ describe("agent mode in run()", () => {
   it("asks no consent for --force under --dry-run", async () => {
     const result = await cli.run(
       ["mode", "--force", "--dry-run", "--cwd", dir],
-      {
-        env: { CLAUDECODE: "1" },
-      },
+      { env: { CLAUDECODE: "1" } },
     );
 
     expect(result.code).toBe(0);

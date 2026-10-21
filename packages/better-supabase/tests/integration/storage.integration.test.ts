@@ -76,6 +76,7 @@ describe.skipIf(!live)("Storage module", async () => {
     await pool.query(logos.sql());
     await pool.query(avatars.sql());
   });
+
   afterAll(async () => {
     const all = await admin.list({
       organizationId: ACME,
@@ -277,7 +278,7 @@ describe.skipIf(!live)("Storage module", async () => {
   it("lists and sweeps orphans", async () => {
     const within = { organizationId: ACME, customerId: CUSTOMER };
     const listed = await user.list(within).orThrow();
-    expect(listed.map((object) => object.path).sort()).toEqual([
+    expect(listed.map((object) => object.path).toSorted()).toEqual([
       `${ACME}/${CUSTOMER}/logo/r1.webp`,
       `${ACME}/${CUSTOMER}/logo/v2.webp`,
     ]);

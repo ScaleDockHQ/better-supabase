@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { MutationNotice } from "../../src/core/events.ts";
+import type { CloudEvent } from "../../src/events/index.ts";
 
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import {
-  type CloudEvent,
   forwardMutations,
   fromHttp,
   httpSink,
@@ -164,7 +164,7 @@ describe("CloudEvents", () => {
 
     const { client } = capturingClient(() => ({
       status: 201,
-      body: [{ id: `c${String(++id)}`, organization_id: "o1", name: "N" }],
+      body: [{ id: `c${String((id += 1))}`, organization_id: "o1", name: "N" }],
     }));
 
     const db = betterSupabase.connect(client);

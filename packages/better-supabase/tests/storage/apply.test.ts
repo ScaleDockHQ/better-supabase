@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  defineBucket,
-  type StorageAdminClient,
-} from "../../src/storage/index.ts";
+import type { StorageAdminClient } from "../../src/storage/index.ts";
+
+import { defineBucket } from "../../src/storage/index.ts";
 
 const notFound = {
   name: "StorageApiError",

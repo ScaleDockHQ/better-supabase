@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
-  type Subject,
   qualifiedTable,
   subjectCascades,
   subjectReadable,
@@ -34,7 +34,10 @@ export interface RelationKind {
   readonly inverse?: string;
   /** Refuse a link that would close a cycle of this kind. */
   readonly acyclic?: boolean;
-  /** `one`: a source has at most one target of this kind; a new link replaces it. */
+  /**
+   * `one`: a source has at most one target of this kind; a new link replaces
+   * it.
+   */
   readonly cardinality?: "one" | "many";
   /** The link reads the same from both ends; it is stored once. */
   readonly symmetric?: boolean;
@@ -115,7 +118,10 @@ interface ResolvedKind {
   readonly symmetric: boolean;
 }
 
-/** `options.kinds`, checked: names, inverses that clash, and symmetric kinds without direction. */
+/**
+ * `options.kinds`, checked: names, inverses that clash, and symmetric kinds
+ * without direction.
+ */
 function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
   const where = "blocks.relations.options.kinds";
   const raw: unknown = ctx.option("kinds") ?? DEFAULT_RELATION_KINDS;

@@ -14,9 +14,7 @@ export const reviewsBlock: BlockOf<
 > = defineBlock({
   name: "reviews",
   sql: ["reviews"],
-  options: {
-    reviews: reviewsSqlOptions,
-  },
+  options: { reviews: reviewsSqlOptions },
   events: reviewsEvents,
   create: createReviews,
   category: "commerce",

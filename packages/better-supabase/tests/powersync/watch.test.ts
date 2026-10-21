@@ -75,7 +75,7 @@ describe("watch refresh", () => {
     });
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(2000);
     expect(query).toHaveBeenCalledTimes(3);
     expect(onResult).toHaveBeenLastCalledWith(ok(3));
@@ -98,7 +98,7 @@ describe("watch refresh", () => {
     await vi.advanceTimersByTimeAsync(0);
     setConnected(true);
     await vi.advanceTimersByTimeAsync(0);
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledOnce();
     setConnected(false);
     setConnected(true);
     await vi.advanceTimersByTimeAsync(0);
@@ -117,7 +117,7 @@ describe("watch refresh", () => {
     });
 
     await vi.advanceTimersByTimeAsync(3000);
-    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledOnce();
     stop();
   });
 
@@ -144,7 +144,7 @@ describe("watch refresh", () => {
       }
 
       await vi.advanceTimersByTimeAsync(5000);
-      expect(query).toHaveBeenCalledTimes(1);
+      expect(query).toHaveBeenCalledOnce();
       expect(listeners.size).toBe(0);
     }
   });

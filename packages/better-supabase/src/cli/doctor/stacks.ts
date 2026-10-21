@@ -1,10 +1,11 @@
 import type { CliEnv } from "../env.ts";
 import type { SharedMemorySegment, SharedMemoryUsage } from "../shm.ts";
+import type { ManagedStack } from "../stacks.ts";
 import type { Rule } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
 import { readSharedMemory } from "../shm.ts";
-import { branchName, listStacks, type ManagedStack } from "../stacks.ts";
+import { branchName, listStacks } from "../stacks.ts";
 
 /** The segment use and the managed stacks, for BS700 and BS701. */
 export type LocalStackCheck =
@@ -19,8 +20,8 @@ export type LocalStackCheck =
 const SEGMENT_WARNING_SHARE = 0.8;
 
 /**
- * Larger than the interlock segment every postmaster keeps (56 bytes), so
- * the stack keeps its shared buffers in System V memory.
+ * Larger than the interlock segment every postmaster keeps (56 bytes), so the
+ * stack keeps its shared buffers in System V memory.
  */
 const SYSV_SEGMENT_BYTES = 1024 * 1024;
 

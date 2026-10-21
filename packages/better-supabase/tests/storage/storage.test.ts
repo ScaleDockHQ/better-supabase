@@ -2,19 +2,23 @@ import { createClient } from "@supabase/supabase-js";
 import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 
+import type { Result } from "../../src/core/result.ts";
+import type {
+  StorageApi,
+  StorageClient,
+  StoragePath,
+  StorageResponse,
+} from "../../src/storage/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
-import { err, ok, type Result } from "../../src/core/result.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import {
   defineBucket,
   fromStorageError,
   parseSize,
-  type StorageApi,
-  type StorageClient,
-  type StoragePath,
-  type StorageResponse,
   TTL,
 } from "../../src/storage/index.ts";
 import { fakeStorage, storageError } from "../fixtures/fake-storage.ts";
@@ -616,11 +620,13 @@ describe("BucketClient upload and download", () => {
   it("uploads to the templated path with the file options", async () => {
     const { client, files, calls } = fakeStorage();
 
-    const result = await docs.connect(client).upload(A, "hello", {
-      contentType: "text/plain",
-      cacheControl: "60",
-      metadata: { source: "test" },
-    });
+    const result = await docs
+      .connect(client)
+      .upload(A, "hello", {
+        contentType: "text/plain",
+        cacheControl: "60",
+        metadata: { source: "test" },
+      });
 
     expect(result).toEqual(ok({ path: "o1/u1/a.txt" }));
     expect(calls).toEqual([
@@ -800,7 +806,7 @@ describe("BucketClient remove and list", () => {
     expect(await bucket.move({ ...A, file: "b.txt" }, "o1/u2/c.txt")).toEqual(
       ok({ path: "o1/u2/c.txt" }),
     );
-    expect([...files.keys()].sort()).toEqual([
+    expect([...files.keys()].toSorted()).toEqual([
       "docs/o1/u1/a.txt",
       "docs/o1/u2/c.txt",
     ]);
@@ -847,12 +853,12 @@ describe("BucketClient remove and list", () => {
           const api = from(id);
 
           const list = async (...args: Parameters<typeof api.list>) => {
-            active++;
+            active += 1;
             peak = Math.max(peak, active);
             await new Promise((resolve) => {
               setTimeout(resolve, 5);
             });
-            active--;
+            active -= 1;
 
             return api.list(...args);
           };
@@ -1026,7 +1032,7 @@ describe("BucketClient URLs", () => {
     const { client, calls } = fakeStorage();
     const cached = docs.connect(client, { cacheSignedUrls: true });
 
-    for (let index = 0; index <= 500; index++) {
+    for (let index = 0; index <= 500; index += 1) {
       await cached.signedUrl({ ...A, file: `f${String(index)}.txt` });
     }
 
@@ -1212,10 +1218,12 @@ describe("BucketClient replace", () => {
       files: { "docs/o1/u1/a.txt": "old" },
     });
 
-    const result = await docs.connect(client).replace(A, "new", {
-      previous: "o1/u1/a.txt",
-      signal: new AbortController().signal,
-    });
+    const result = await docs
+      .connect(client)
+      .replace(A, "new", {
+        previous: "o1/u1/a.txt",
+        signal: new AbortController().signal,
+      });
 
     expect(result).toEqual(ok({ path: "o1/u1/a.txt", removed: null }));
     expect(files.get("docs/o1/u1/a.txt")?.body).toBe("new");
@@ -1475,11 +1483,13 @@ describe("BucketClient sweep", () => {
       paths.filter((path) => path === "o1/u1/a.txt"),
     );
 
-    const result = await docs.connect(storage.client).sweep({
-      olderThan: Temporal.Duration.from({ hours: 1 }),
-      now: () => NOW,
-      referenced,
-    });
+    const result = await docs
+      .connect(storage.client)
+      .sweep({
+        olderThan: Temporal.Duration.from({ hours: 1 }),
+        now: () => NOW,
+        referenced,
+      });
 
     expect(result).toEqual(
       ok({
@@ -1502,12 +1512,14 @@ describe("BucketClient sweep", () => {
   it("only sweeps objects whose values match every within value", async () => {
     const storage = files();
 
-    const result = await docs.connect(storage.client).sweep({
-      within: { organizationId: "o1", file: "c.txt" },
-      olderThan: Temporal.Duration.from({ hours: 1 }),
-      now: () => NOW,
-      referenced: () => [],
-    });
+    const result = await docs
+      .connect(storage.client)
+      .sweep({
+        within: { organizationId: "o1", file: "c.txt" },
+        olderThan: Temporal.Duration.from({ hours: 1 }),
+        now: () => NOW,
+        referenced: () => [],
+      });
 
     expect(result).toEqual(
       ok({ scanned: 4, orphans: ["o1/u2/c.txt"], removed: ["o1/u2/c.txt"] }),
@@ -1584,11 +1596,13 @@ describe("BucketClient sweep", () => {
   it("uses the real clock by default", async () => {
     const storage = files();
 
-    const result = await docs.connect(storage.client).sweep({
-      olderThan: Temporal.Duration.from({ seconds: 1 }),
-      referenced: () => [],
-      dryRun: true,
-    });
+    const result = await docs
+      .connect(storage.client)
+      .sweep({
+        olderThan: Temporal.Duration.from({ seconds: 1 }),
+        referenced: () => [],
+        dryRun: true,
+      });
 
     expect(result.ok && result.data.orphans).toHaveLength(3);
   });
@@ -1596,12 +1610,14 @@ describe("BucketClient sweep", () => {
   it("reports orphans without removing them on a dry run", async () => {
     const storage = files();
 
-    const result = await docs.connect(storage.client).sweep({
-      olderThan: Temporal.Duration.from({ seconds: 0 }),
-      now: () => NOW,
-      referenced: () => [],
-      dryRun: true,
-    });
+    const result = await docs
+      .connect(storage.client)
+      .sweep({
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
+        now: () => NOW,
+        referenced: () => [],
+        dryRun: true,
+      });
 
     expect(result.ok && result.data).toEqual({
       scanned: 4,
@@ -1619,14 +1635,16 @@ describe("BucketClient sweep", () => {
       paths.filter((path) => path.endsWith("a.txt")),
     );
 
-    const result = await docs.connect(storage.client).sweep({
-      within: { organizationId: "o1", userId: "u1" },
-      olderThan: Temporal.Duration.from({ seconds: 0 }),
-      now: () => NOW,
-      batchSize: 1,
-      referenced,
-      signal: new AbortController().signal,
-    });
+    const result = await docs
+      .connect(storage.client)
+      .sweep({
+        within: { organizationId: "o1", userId: "u1" },
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
+        now: () => NOW,
+        batchSize: 1,
+        referenced,
+        signal: new AbortController().signal,
+      });
 
     expect(result.ok && result.data).toEqual({
       scanned: 2,
@@ -1672,13 +1690,15 @@ describe("BucketClient sweep", () => {
       error: null,
     });
 
-    const result = await docs.connect(stubClient({ list })).sweep({
-      within: { organizationId: "o1", userId: "u1" },
-      olderThan: Temporal.Duration.from({ seconds: 0 }),
-      now: () => NOW,
-      referenced: () => [],
-      dryRun: true,
-    });
+    const result = await docs
+      .connect(stubClient({ list }))
+      .sweep({
+        within: { organizationId: "o1", userId: "u1" },
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
+        now: () => NOW,
+        referenced: () => [],
+        dryRun: true,
+      });
 
     expect(result.ok && result.data.orphans).toEqual(["o1/u1/a.txt"]);
   });
@@ -1686,7 +1706,7 @@ describe("BucketClient sweep", () => {
   it("pages through large folders and removes only after the walk", async () => {
     const many: Record<string, string> = {};
 
-    for (let index = 0; index < 1005; index++) {
+    for (let index = 0; index < 1005; index += 1) {
       many[`docs/o1/u1/f${String(index).padStart(4, "0")}.txt`] = "x";
     }
 
@@ -1696,13 +1716,15 @@ describe("BucketClient sweep", () => {
       paths.filter((path) => !path.endsWith("0.txt")),
     );
 
-    const result = await docs.connect(storage.client).sweep({
-      within: { organizationId: "o1", userId: "u1" },
-      olderThan: Temporal.Duration.from({ seconds: 0 }),
-      now: () => NOW,
-      batchSize: 400,
-      referenced,
-    });
+    const result = await docs
+      .connect(storage.client)
+      .sweep({
+        within: { organizationId: "o1", userId: "u1" },
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
+        now: () => NOW,
+        batchSize: 400,
+        referenced,
+      });
 
     expect(result.ok && result.data.scanned).toBe(1005);
     expect(result.ok && result.data.removed).toHaveLength(101);
@@ -1718,10 +1740,12 @@ describe("BucketClient sweep", () => {
     });
 
     expect(
-      await docs.connect(listing.client).sweep({
-        olderThan: Temporal.Duration.from({ seconds: 0 }),
-        referenced: () => [],
-      }),
+      await docs
+        .connect(listing.client)
+        .sweep({
+          olderThan: Temporal.Duration.from({ seconds: 0 }),
+          referenced: () => [],
+        }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
 
     const storage = fakeStorage({
@@ -1730,19 +1754,23 @@ describe("BucketClient sweep", () => {
     });
 
     expect(
-      await docs.connect(storage.client).sweep({
-        olderThan: Temporal.Duration.from({ seconds: 0 }),
-        now: () => NOW,
-        referenced: () => [],
-      }),
+      await docs
+        .connect(storage.client)
+        .sweep({
+          olderThan: Temporal.Duration.from({ seconds: 0 }),
+          now: () => NOW,
+          referenced: () => [],
+        }),
     ).toMatchObject({ ok: false, error: { kind: "network" } });
 
     expect(
-      await docs.connect(files().client).sweep({
-        olderThan: Temporal.Duration.from({ seconds: 0 }),
-        referenced: () => [],
-        signal: AbortSignal.abort(),
-      }),
+      await docs
+        .connect(files().client)
+        .sweep({
+          olderThan: Temporal.Duration.from({ seconds: 0 }),
+          referenced: () => [],
+          signal: AbortSignal.abort(),
+        }),
     ).toMatchObject({ ok: false, error: { kind: "aborted" } });
   });
 });

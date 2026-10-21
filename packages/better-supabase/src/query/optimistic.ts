@@ -2,7 +2,10 @@ import type { QueryClient } from "@tanstack/query-core";
 
 import type { QueryKeyOf } from "./queries.ts";
 
-/** A query whose cached data an optimistic update rewrites: any `q.<table>.*()` option. */
+/**
+ * A query whose cached data an optimistic update rewrites: any `q.<table>.*()`
+ * option.
+ */
 export interface OptimisticTarget<T> {
   readonly queryKey: QueryKeyOf<T>;
 }
@@ -20,8 +23,8 @@ export interface OptimisticSnapshot {
 }
 
 /**
- * `onMutate`, `onError` and `onSettled` for `useMutation`: spread them next
- * to a mutation option, which keeps its `onSuccess` invalidation.
+ * `onMutate`, `onError` and `onSettled` for `useMutation`: spread them next to
+ * a mutation option, which keeps its `onSuccess` invalidation.
  */
 export interface OptimisticHandlers<V> {
   onMutate(variables: V, context: MutationContext): Promise<OptimisticSnapshot>;
@@ -47,10 +50,10 @@ function listOf<T>(targets: Targets<T>): readonly OptimisticTarget<T>[] {
 }
 
 /**
- * Rewrites the cached data of `targets` before the mutation runs, puts it
- * back when the mutation fails, and refetches the targets once it settles.
- * `apply` gets the cached data (skipped while nothing is cached) and the
- * mutation's variables.
+ * Rewrites the cached data of `targets` before the mutation runs, puts it back
+ * when the mutation fails, and refetches the targets once it settles. `apply`
+ * gets the cached data (skipped while nothing is cached) and the mutation's
+ * variables.
  */
 function rewrite<T, V>(
   targets: Targets<T>,
@@ -96,8 +99,8 @@ function rewrite<T, V>(
 type Keyed<R> = Extract<keyof R, string>;
 
 /**
- * Optimistic updates for list queries (`findMany`), keyed by a row column
- * (`id` by default):
+ * Optimistic updates for list queries (`findMany`), keyed by a row column (`id`
+ * by default):
  *
  * - `optimistic.create(list, (input) => row)` adds the row the input will make.
  * - `optimistic.update(list)` merges `{ id, patch }` into the matching row.
@@ -121,10 +124,7 @@ export const optimistic: (<T, V>(
   update<R, K extends Keyed<R> = Keyed<R> & "id">(
     targets: Targets<R[]>,
     options?: { readonly key?: K },
-  ): OptimisticHandlers<{
-    readonly id: R[K];
-    readonly patch: Partial<R>;
-  }>;
+  ): OptimisticHandlers<{ readonly id: R[K]; readonly patch: Partial<R> }>;
   remove<R, K extends Keyed<R> = Keyed<R> & "id">(
     targets: Targets<R[]>,
     options?: { readonly key?: K },

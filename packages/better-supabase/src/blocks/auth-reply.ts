@@ -1,6 +1,7 @@
+import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";
 
 /** A supabase-js Auth answer: `data` or an `AuthError`. */

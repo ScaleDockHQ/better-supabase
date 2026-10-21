@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -69,6 +71,7 @@ function clientAs(client: PoolClient, claims: () => object): SqlClient {
 
 describe.skipIf(!live)("incoming webhook endpoints", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("creates endpoints and stores verified deliveries per tenant", async () => {
@@ -393,10 +396,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       });
       expect(
         await hooks.create({ tenant: organization, name: "x" }),
-      ).toMatchObject({
-        ok: false,
-        error: { hint: "WEBHOOK_IN_FORBIDDEN" },
-      });
+      ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_FORBIDDEN" } });
 
       await s.as(admin);
       expect(await hooks.setEnabled(created.id, false).orThrow()).toBe(true);
@@ -870,9 +870,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
       const jobs = createJobs({
         sql,
-        queues: {
-          [queue]: v.object({ route: v.string() }),
-        },
+        queues: { [queue]: v.object({ route: v.string() }) },
       });
 
       const queued = createIncomingWebhooks({

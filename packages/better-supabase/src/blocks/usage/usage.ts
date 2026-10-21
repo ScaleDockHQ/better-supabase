@@ -3,11 +3,12 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockOptions, CursorPageOptions } from "../shared.ts";
+import type { StripeSource } from "../stripe.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
-  type BlockOptions,
   DEFAULT_BLOCK_SCHEMA,
   eachLimit,
   isRecord,
@@ -17,14 +18,16 @@ import {
   textOf,
   toInstant,
   applyTemporal,
-  type CursorPageOptions,
   pageOf,
   seconds,
 } from "../shared.ts";
-import { lazyStripe, type StripeSource } from "../stripe.ts";
+import { lazyStripe } from "../stripe.ts";
 
 export interface UsageOptions extends BlockOptions {
-  /** `withBlockHooks` hooks around the client's methods, such as a check before `consume`. */
+  /**
+   * `withBlockHooks` hooks around the client's methods, such as a check before
+   * `consume`.
+   */
   readonly hooks?: BlockHooks<Usage>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
@@ -43,8 +46,8 @@ export interface RecordUsageOptions {
   /** More detail for the history entry, such as a document id. */
   readonly metadata?: Readonly<Record<string, unknown>>;
   /**
-   * Who used it, for a service transport recording on a user's behalf.
-   * Ignored for other callers, whose own user id is recorded.
+   * Who used it, for a service transport recording on a user's behalf. Ignored
+   * for other callers, whose own user id is recorded.
    */
   readonly actor?: string;
 }
@@ -102,8 +105,8 @@ export interface UsageRecorded {
 }
 
 /**
- * A quota period: a UTC calendar period, or `billing` for the window the
- * app's `usage_billing_period(tenant)` function returns.
+ * A quota period: a UTC calendar period, or `billing` for the window the app's
+ * `usage_billing_period(tenant)` function returns.
  */
 export type UsagePeriod = "day" | "week" | "month" | "year" | "billing";
 
@@ -202,25 +205,28 @@ export interface Usage {
     options?: UsageHistoryOptions,
   ): AsyncResult<readonly UsageHistoryEntry[]>;
   /**
-   * The meter's usage in its current quota window per actor and source,
-   * largest first (`usage.read`). Empty without the history option.
+   * The meter's usage in its current quota window per actor and source, largest
+   * first (`usage.read`). Empty without the history option.
    */
   breakdown(
     organizationId: string,
     meter: string,
   ): AsyncResult<readonly UsageBreakdownEntry[]>;
   /**
-   * Deletes up to `batch` history entries older than `olderThan` (default
-   * 400 days, `purge_usage_history`); returns how many.
+   * Deletes up to `batch` history entries older than `olderThan` (default 400
+   * days, `purge_usage_history`); returns how many.
    */
   purgeHistory(options?: PurgeUsageOptions): AsyncResult<number>;
   /**
    * Deletes up to `batch` idempotency keys of recorded usage older than
-   * `olderThan` (default 30 days, `purge_usage_events`); returns how many.
-   * A retry with a purged key records again.
+   * `olderThan` (default 30 days, `purge_usage_events`); returns how many. A
+   * retry with a purged key records again.
    */
   purgeEvents(options?: PurgeUsageOptions): AsyncResult<number>;
-  /** A job handler that runs `purgeHistory` and `purgeEvents`; schedule it nightly. */
+  /**
+   * A job handler that runs `purgeHistory` and `purgeEvents`; schedule it
+   * nightly.
+   */
   purgeJob(options?: {
     readonly history?: PurgeUsageOptions;
     readonly events?: PurgeUsageOptions;
@@ -475,23 +481,26 @@ export function createUsage(options: UsageOptions): Usage {
 }
 
 export interface ReportUsageOptions {
-  /** A service-role transport: the reporting functions are granted to `service_role` only. */
+  /**
+   * A service-role transport: the reporting functions are granted to
+   * `service_role` only.
+   */
   readonly transport: BlockTransport;
   readonly stripe: StripeSource;
   readonly schema?: string;
   /** The Stripe meter's `event_name` for a meter; default the meter itself. */
   readonly eventName?: (meter: string) => string | undefined;
   /**
-   * The tenant's Stripe customer. Default: `tenant_stripe_customer()` from
-   * the `entitlements` module (`config.entitlements.customer`).
+   * The tenant's Stripe customer. Default: `tenant_stripe_customer()` from the
+   * `entitlements` module (`config.entitlements.customer`).
    */
   readonly customer?: (organizationId: string) => Promise<string | undefined>;
   /** Counters per run, default 500. */
   readonly batch?: number;
   /**
    * Send only the usage above the tenant's quota (the allowance its plan
-   * includes) in each quota window, instead of every unit. A meter without
-   * a quota sends everything, and one with an unlimited quota sends nothing.
+   * includes) in each quota window, instead of every unit. A meter without a
+   * quota sends everything, and one with an unlimited quota sends nothing.
    */
   readonly overage?: boolean;
 }
@@ -511,7 +520,10 @@ interface PendingReport {
 }
 
 export interface ReportUsageResult {
-  /** Meter events sent; usage inside the quota with `overage` is marked without one. */
+  /**
+   * Meter events sent; usage inside the quota with `overage` is marked without
+   * one.
+   */
   readonly reported: number;
   /**
    * Counters left for a later run: no customer, or no event name. They don't
@@ -521,10 +533,10 @@ export interface ReportUsageResult {
 }
 
 /**
- * Sends unreported usage to Stripe as meter events, one per counter and
- * delta. The event `identifier` is the tenant, meter, day and new total, so
- * a run that fails after sending and before marking resends the same event,
- * and Stripe drops the duplicate. Run it from a job or a cron route.
+ * Sends unreported usage to Stripe as meter events, one per counter and delta.
+ * The event `identifier` is the tenant, meter, day and new total, so a run that
+ * fails after sending and before marking resends the same event, and Stripe
+ * drops the duplicate. Run it from a job or a cron route.
  */
 export async function reportUsageToStripe(
   options: ReportUsageOptions,
@@ -547,7 +559,10 @@ export async function reportUsageToStripe(
   const skipMeters = new Set<string>();
   const skipTenants = new Set<string>();
 
-  /** Sends the meter event when there is a delta, then marks the total; `true` when it sent one. */
+  /**
+   * Sends the meter event when there is a delta, then marks the total; `true`
+   * when it sent one.
+   */
   const send = async (pending: PendingReport): Promise<boolean> => {
     const { organizationId, meter, day, value, delta, identifier } = pending;
 

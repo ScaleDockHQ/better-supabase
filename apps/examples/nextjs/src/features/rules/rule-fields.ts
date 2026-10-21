@@ -9,9 +9,9 @@ export const RULE_SUBJECT = "customer";
 export const RULE_TRIGGER = "customer.saved";
 
 /**
- * The customer values a rule may test. `sync-rule-fields.ts` writes them
- * at start-up, so the database checks and evaluates rules against the same
- * catalog as the editor.
+ * The customer values a rule may test. `sync-rule-fields.ts` writes them at
+ * start-up, so the database checks and evaluates rules against the same catalog
+ * as the editor.
  */
 export const customerRuleFields = defineRuleFields(RULE_SUBJECT, {
   status: {

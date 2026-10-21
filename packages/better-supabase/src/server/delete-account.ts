@@ -1,42 +1,37 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { Bucket } from "../storage/index.ts";
 
-import {
-  type DbError,
-  dbError,
-  isDbError,
-  mapDbError,
-} from "../core/errors.ts";
+import { dbError, isDbError, mapDbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromPgError } from "../postgres/pg-error.ts";
 
 export interface DeleteAccountOptions {
   /**
-   * Buckets to clear first. Objects whose `owner` placeholder (`{userId}`,
-   * or `owner.param` for `owner` buckets) is the user are removed; buckets
-   * without one are skipped.
+   * Buckets to clear first. Objects whose `owner` placeholder (`{userId}`, or
+   * `owner.param` for `owner` buckets) is the user are removed; buckets without
+   * one are skipped.
    */
   readonly buckets?: readonly Bucket<string>[];
   /**
-   * App keys of tables whose rows the database deletes or updates with the
-   * user (`on delete cascade` or `set null` to `auth.users`). They get a
-   * table-wide `mutation` notice, so caches drop their reads.
+   * App keys of tables whose rows the database deletes or updates with the user
+   * (`on delete cascade` or `set null` to `auth.users`). They get a table-wide
+   * `mutation` notice, so caches drop their reads.
    */
   readonly cascades?: readonly string[];
   readonly context?: RequestContext;
   readonly signal?: AbortSignal;
   /**
    * Direct Postgres with rights on `auth.users` (`postgres.admin`). When the
-   * Auth server reports a database error, the delete is replayed in a
-   * statement that is rolled back, and the database's own error (its
-   * SQLSTATE and hint, such as `ORGANIZATION_OWNER_REQUIRED`) is returned
-   * instead of Auth's generic one. `server.deleteAccount` passes its
-   * `postgres.admin`.
+   * Auth server reports a database error, the delete is replayed in a statement
+   * that is rolled back, and the database's own error (its SQLSTATE and hint,
+   * such as `ORGANIZATION_OWNER_REQUIRED`) is returned instead of Auth's
+   * generic one. `server.deleteAccount` passes its `postgres.admin`.
    */
   readonly sql?: SqlClient;
 }
@@ -105,8 +100,8 @@ const PROBE = "better_supabase.delete_account_probe";
 
 /**
  * The database error that refuses deleting `userId`, from the delete and its
- * deferred checks run in a `do` block that always fails, so nothing is
- * deleted. Undefined when the delete itself would pass.
+ * deferred checks run in a `do` block that always fails, so nothing is deleted.
+ * Undefined when the delete itself would pass.
  */
 async function databaseRefusal(
   sql: SqlClient,
@@ -140,13 +135,13 @@ $$`);
 }
 
 /**
- * Deletes the Auth user, then removes their Storage objects, then announces
- * the delete. Rows referencing `auth.users` follow their foreign keys. The
- * objects are listed first and removed only once the user is gone, so a
- * delete the database refuses leaves them in place.
+ * Deletes the Auth user, then removes their Storage objects, then announces the
+ * delete. Rows referencing `auth.users` follow their foreign keys. The objects
+ * are listed first and removed only once the user is gone, so a delete the
+ * database refuses leaves them in place.
  *
- * `server.deleteAccount` calls it with the server's service client. Apps on
- * the `@supabase/server` pipeline call it with theirs:
+ * `server.deleteAccount` calls it with the server's service client. Apps on the
+ * `@supabase/server` pipeline call it with theirs:
  * `deleteAccount(betterSupabase, ctx.supabaseAdmin, userId)`.
  */
 export function deleteAccount<

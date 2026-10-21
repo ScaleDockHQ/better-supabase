@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
@@ -36,7 +38,10 @@ const INVITE = crypto.randomUUID();
 const BILLING = crypto.randomUUID();
 const USERS_MANAGE = crypto.randomUUID();
 
-/** Runs `run` in a transaction that is always rolled back, after installing `names` for `layout`. */
+/**
+ * Runs `run` in a transaction that is always rolled back, after installing
+ * `names` for `layout`.
+ */
 async function inTransaction<T>(
   pool: Pool,
   setup: string,
@@ -80,6 +85,7 @@ async function asUser(
 
 describe.skipIf(!live)("access contract against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("answers from the roles model, with platform permissions from the token", async () => {
@@ -161,10 +167,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
 
         return {
           own: await answers({}),
-          delegated: await answers({
-            client_id: "c",
-            scope: "members:write",
-          }),
+          delegated: await answers({ client_id: "c", scope: "members:write" }),
           unmapped: await answers({ client_id: "c", scope: "audit.read" }),
           capped: await answers({ bs_permission_cap: ["members.invite"] }),
           support: await answers({ act: { kind: "support", sub: "a" } }),

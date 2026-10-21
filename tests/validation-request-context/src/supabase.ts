@@ -1,16 +1,15 @@
+import type { BetterSupabaseEnv, PublicEnv } from "better-supabase/env";
 import type { ServerContext } from "better-supabase/server";
 
 import { createBrowserClient } from "@supabase/ssr";
 import { defineSupabase } from "better-supabase";
 import { createClient } from "better-supabase/client";
 import { createEdge } from "better-supabase/edge";
-import {
-  type BetterSupabaseEnv,
-  envSchema,
-  type PublicEnv,
-} from "better-supabase/env";
+import { envSchema } from "better-supabase/env";
 
-import { type Functions, type Models, schema } from "./generated.ts";
+import type { Functions, Models } from "./generated.ts";
+
+import { schema } from "./generated.ts";
 
 export const betterSupabase = defineSupabase(schema);
 
@@ -19,7 +18,10 @@ export const supabaseClientEnv = envSchema();
 
 export type Channel = "web" | "mobile" | "cron" | "worker";
 
-/** Headers the app stamps on every outbound Supabase request, for logs and rate limits. */
+/**
+ * Headers the app stamps on every outbound Supabase request, for logs and rate
+ * limits.
+ */
 export function appRequestHeaders(
   request: Request,
   channel: Channel,
@@ -48,7 +50,10 @@ export type AppContext = ServerContext<Models, Functions, unknown>;
 
 type AppHandler = Parameters<AppServer["handler"]>[0];
 
-/** Signed-in users only; refreshes an expiring cookie session and sends the new cookies. */
+/**
+ * Signed-in users only; refreshes an expiring cookie session and sends the new
+ * cookies.
+ */
 export function withUserAuth(
   server: AppServer,
   handler: AppHandler,

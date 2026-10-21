@@ -11,10 +11,7 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
 const EVENTS: ModuleEvents<CredentialsEvents> = {
-  "credential.set": {
-    subject: "credentials",
-    payload: ["provider", "name"],
-  },
+  "credential.set": { subject: "credentials", payload: ["provider", "name"] },
   "credential.deleted": {
     subject: "credentials",
     payload: ["provider", "name"],
@@ -42,8 +39,8 @@ const NAMES: ModuleNames = {
 };
 
 /**
- * True when the credential_ref `ref` doesn't carry `"tenant": <tenant>`,
- * the SQL side of `credentialRefInTenant`.
+ * True when the credential_ref `ref` doesn't carry `"tenant": <tenant>`, the
+ * SQL side of `credentialRefInTenant`.
  */
 export function refOutsideTenant(ref: string, tenant: string): string {
   return `jsonb_typeof(${ref} -> 'tenant') is distinct from 'string' or (${ref} ->> 'tenant') is distinct from (${tenant})::text`;
@@ -114,10 +111,10 @@ function vaultStorage(ctx: ModuleContext): boolean {
 }
 
 /**
- * The declarations and statements that turn a call's provider and name into
- * an adopted row's key: `tenant/<tenant>/` and `@<user id>` move into the
- * tenant and scope columns when the table has them, and a `vault` call names
- * another provider's row as `<provider>:<name>`.
+ * The declarations and statements that turn a call's provider and name into an
+ * adopted row's key: `tenant/<tenant>/` and `@<user id>` move into the tenant
+ * and scope columns when the table has them, and a `vault` call names another
+ * provider's row as `<provider>:<name>`.
  */
 function adoptedKey(
   ctx: ModuleContext,
@@ -171,7 +168,10 @@ function adoptedKey(
   };
 }
 
-/** Deleting a row, or replacing its `vaultId`, deletes the Vault secret it pointed to. */
+/**
+ * Deleting a row, or replacing its `vaultId`, deletes the Vault secret it
+ * pointed to.
+ */
 function vaultCleanup(ctx: ModuleContext, vault: boolean): string {
   const t = ctx.table("secrets");
   const trigger = ctx.trigger("credential_vault");

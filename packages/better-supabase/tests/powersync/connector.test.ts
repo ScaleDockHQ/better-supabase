@@ -81,12 +81,7 @@ function session(token: string | null, expiresAt?: number) {
 const put = (
   id: string,
   opData: Record<string, unknown> = {},
-): CrudEntryLike => ({
-  op: "PUT",
-  table: "customers",
-  id,
-  opData,
-});
+): CrudEntryLike => ({ op: "PUT", table: "customers", id, opData });
 
 describe("createUploadConnector", () => {
   it("fetches credentials from the session", async () => {

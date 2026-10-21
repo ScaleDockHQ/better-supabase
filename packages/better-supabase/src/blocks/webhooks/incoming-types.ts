@@ -17,14 +17,14 @@ export type IncomingVerify =
 export interface IncomingWebhooksOptions
   extends BlockProblemOptions, BlockTemporalOptions {
   /**
-   * A service SQL connection (`postgres.admin`): `receive` looks endpoints
-   * up by token, counts the rate limit and stores deliveries with it.
+   * A service SQL connection (`postgres.admin`): `receive` looks endpoints up
+   * by token, counts the rate limit and stores deliveries with it.
    */
   readonly sql: SqlClient;
   /**
    * The caller's transport for `create`, `list`, `update` and the other
-   * management calls, so `webhooks.manage` is checked for them. Defaults
-   * to `sqlTransport(sql)`.
+   * management calls, so `webhooks.manage` is checked for them. Defaults to
+   * `sqlTransport(sql)`.
    */
   readonly transport?: BlockTransport;
   readonly mappers?: readonly ErrorMapper[];
@@ -34,11 +34,14 @@ export interface IncomingWebhooksOptions
   readonly logger?: Logger;
   /** The schema of the `webhooks-in` module. Defaults to `better_supabase`. */
   readonly schema?: string;
-  /** The webhook inbox source deliveries are stored under. Defaults to `webhook-in`. */
+  /**
+   * The webhook inbox source deliveries are stored under. Defaults to
+   * `webhook-in`.
+   */
   readonly source?: string;
   /**
-   * Deliveries per endpoint and period, counted with the `rate-limit`
-   * module's `hit_rate_limit`. Unset: no limit.
+   * Deliveries per endpoint and period, counted with the `rate-limit` module's
+   * `hit_rate_limit`. Unset: no limit.
    */
   readonly rateLimit?: {
     readonly max: number;
@@ -48,10 +51,9 @@ export interface IncomingWebhooksOptions
   /** Request headers stored with each delivery. Defaults to none. */
   readonly keepHeaders?: readonly string[];
   /**
-   * Where verified deliveries go. Defaults to `inboxDestination(sql, {
-   * source })`, the webhook inbox; `jobsDestination(jobs, { queue })` sends
-   * them to a jobs queue. A destination can route on the endpoint's
-   * metadata.
+   * Where verified deliveries go. Defaults to `inboxDestination(sql, { source
+   * })`, the webhook inbox; `jobsDestination(jobs, { queue })` sends them to a
+   * jobs queue. A destination can route on the endpoint's metadata.
    */
   readonly destination?: IncomingDestination;
 }
@@ -101,7 +103,10 @@ export interface CreateIncomingWebhookInput {
   /** Defaults to `none`: the token in the URL is the only credential. */
   readonly verify?: IncomingVerify;
   readonly metadata?: Readonly<Record<string, unknown>>;
-  /** The header that carries the HMAC for `hmac-sha256`. Defaults to `x-signature`. */
+  /**
+   * The header that carries the HMAC for `hmac-sha256`. Defaults to
+   * `x-signature`.
+   */
   readonly signatureHeader?: string;
   /** The record the endpoint belongs to, a type from `options.subjects`. */
   readonly subject?: { readonly type: string; readonly id: string };
@@ -161,13 +166,12 @@ export interface RotatedIncomingSecret {
 
 export interface IncomingWebhooks {
   /**
-   * The route for `/hooks/<token>`: finds the endpoint, checks the body
-   * size, the rate limit and the signature, stores the delivery in the
-   * webhook inbox with the endpoint's tenant and answers 202 (200 for a
-   * repeated delivery). A delivery repeats when its signed `webhook-id`
-   * does (`standard-webhooks`), when its body does (`hmac-sha256`, whose
-   * signature covers only the body), or when its `webhook-id` header does
-   * (`none`). Needs a service connection.
+   * The route for `/hooks/<token>`: finds the endpoint, checks the body size,
+   * the rate limit and the signature, stores the delivery in the webhook inbox
+   * with the endpoint's tenant and answers 202 (200 for a repeated delivery). A
+   * delivery repeats when its signed `webhook-id` does (`standard-webhooks`),
+   * when its body does (`hmac-sha256`, whose signature covers only the body),
+   * or when its `webhook-id` header does (`none`). Needs a service connection.
    */
   receive(request: Request, token: string): Promise<Response>;
   /** Creates an endpoint for a tenant; the caller needs `webhooks.manage`. */
@@ -190,8 +194,8 @@ export interface IncomingWebhooks {
   setEnabled(id: string, enabled: boolean): AsyncResult<boolean>;
   remove(id: string): AsyncResult<boolean>;
   /**
-   * A tenant's endpoints, or one subject's, as the caller sees them (the
-   * read policy hides endpoints whose subject they can't read).
+   * A tenant's endpoints, or one subject's, as the caller sees them (the read
+   * policy hides endpoints whose subject they can't read).
    */
   list(
     tenant: string,

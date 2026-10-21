@@ -3,18 +3,16 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { FieldDocs, FieldPlan, ScalarKind } from "./shared.ts";
 
 import {
-  type FieldDocs,
   fieldDocs,
-  type FieldPlan,
   fieldsFor,
   HEADER,
   optionalLine,
   parseImport,
   propertyKey,
   rowType,
-  type ScalarKind,
   schemaName,
   siblingPath,
   tableDocs,
@@ -27,7 +25,10 @@ import {
 export interface ZodGeneratorOptions {
   /** Output path relative to the project root. Defaults to `<output>.zod.ts`. */
   readonly output?: string;
-  /** Schemas for typed jsonb columns: `{ 'customers.metadata': './schemas.ts#metadata' }`. */
+  /**
+   * Schemas for typed jsonb columns: `{ 'customers.metadata':
+   * './schemas.ts#metadata' }`.
+   */
   readonly json?: Readonly<Record<string, string>>;
   /**
    * `classic` (the default) imports `zod` and chains methods; `mini` imports
@@ -129,7 +130,10 @@ function bounds(docs: FieldDocs, flavor: ZodFlavor): string {
   ].join("");
 }
 
-/** `.meta({ ... })` (`.check(z.meta({ ... }))` in mini) for the entries that are set, or nothing. */
+/**
+ * `.meta({ ... })` (`.check(z.meta({ ... }))` in mini) for the entries that are
+ * set, or nothing.
+ */
 function meta(
   entries: Readonly<Record<string, unknown>>,
   flavor: ZodFlavor,
@@ -190,8 +194,8 @@ function typeName(flavor: ZodFlavor): string {
 }
 
 /**
- * Zod 4 schemas for every table's Row, Insert and Update shape, for `zod`
- * or, with `flavor: 'mini'`, `zod/mini`.
+ * Zod 4 schemas for every table's Row, Insert and Update shape, for `zod` or,
+ * with `flavor: 'mini'`, `zod/mini`.
  */
 export function zod(options: ZodGeneratorOptions = {}): Generator {
   const flavor = options.flavor ?? "classic";
@@ -235,7 +239,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
 
       for (const [from, names] of imports) {
         lines.push(
-          `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
+          `import { ${[...new Set(names)].toSorted().join(", ")} } from ${JSON.stringify(from)};`,
         );
       }
 

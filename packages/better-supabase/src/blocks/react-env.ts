@@ -1,11 +1,16 @@
 import { useContext, useMemo } from "react";
 
+import type { BlockEnv } from "./block-env.ts";
+
 import { ClientContext } from "../react/context.ts";
-import { blockEnv, type BlockEnv } from "./block-env.ts";
+import { blockEnv } from "./block-env.ts";
 
 export type { BlockEnv } from "./block-env.ts";
 
-/** The provider's client, session and ports; the topic port defaults to its supabase-js client. */
+/**
+ * The provider's client, session and ports; the topic port defaults to its
+ * supabase-js client.
+ */
 export function useBlockEnv(): BlockEnv {
   const value = useContext(ClientContext);
 

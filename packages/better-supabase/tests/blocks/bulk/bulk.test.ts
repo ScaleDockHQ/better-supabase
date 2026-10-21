@@ -115,10 +115,7 @@ describe("bulk client", () => {
 
     expect(
       await bulk.apply({ ...input, rows: ["a", "b"] }).orThrow(),
-    ).toMatchObject({
-      mode: "now",
-      succeeded: 2,
-    });
+    ).toMatchObject({ mode: "now", succeeded: 2 });
     expect(
       await bulk.apply({ ...input, rows: ["a", "b", "c"] }).orThrow(),
     ).toEqual({

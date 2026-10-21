@@ -30,9 +30,7 @@ export function SignInScreen() {
       supabase,
       WebBrowser,
       "github",
-      {
-        redirectTo,
-      },
+      { redirectTo },
     );
 
     setOauthError(result.type === "error" ? result.error.message : undefined);

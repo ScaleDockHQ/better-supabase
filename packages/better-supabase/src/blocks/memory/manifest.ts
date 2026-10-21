@@ -8,9 +8,7 @@ import { memorySqlOptions } from "./options.ts";
 export const memoryBlock: BlockOf<"memory", typeof createMemory> = defineBlock({
   name: "memory",
   sql: ["memory"],
-  options: {
-    memory: memorySqlOptions,
-  },
+  options: { memory: memorySqlOptions },
   create: createMemory,
   category: "ai",
 });

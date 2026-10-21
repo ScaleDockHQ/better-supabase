@@ -49,7 +49,7 @@ export async function CodeBlock({
       </figcaption>
       <div
         className="overflow-x-auto p-4 text-code leading-6 [&_pre]:font-mono"
-        // Shiki output is generated at build time from the static snippets in lib/snippets.ts.
+        // oxlint-disable-next-line react/no-danger -- Shiki output is generated at build time from the static snippets in lib/snippets.ts.
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </figure>

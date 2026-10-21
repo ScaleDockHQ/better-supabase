@@ -8,8 +8,9 @@ export type NumberSequencesEvents = {
   readonly "number.assigned": SaasEventData;
 };
 
-/** The `number-sequences` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `number-sequences` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const numberSequencesEvents: Events<NumberSequencesEvents> =
-  defineEvents({
-    "number.assigned": event<SaasEventData>(),
-  });
+  defineEvents({ "number.assigned": event<SaasEventData>() });

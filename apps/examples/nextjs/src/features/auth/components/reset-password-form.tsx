@@ -25,8 +25,8 @@ import { useRouter } from "@/i18n/navigation";
 import { useSupabase } from "@/lib/hooks";
 
 /**
- * The reset link signs the user in (the browser client exchanges its code),
- * so the new password is a plain `updateUser`.
+ * The reset link signs the user in (the browser client exchanges its code), so
+ * the new password is a plain `updateUser`.
  */
 export function ResetPasswordForm() {
   const t = useExtracted("auth");

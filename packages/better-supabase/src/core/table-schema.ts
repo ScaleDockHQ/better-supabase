@@ -3,13 +3,14 @@ import type {
   StandardSchemaV1,
 } from "@standard-schema/spec";
 
-import { isList, isRecord } from "./guards.ts";
-import {
-  type FieldSpec,
-  type JsonSchema,
-  tableJsonSchema,
-  type TableSchemaSpec,
+import type {
+  FieldSpec,
+  JsonSchema,
+  TableSchemaSpec,
 } from "./table-json-schema.ts";
+
+import { isList, isRecord } from "./guards.ts";
+import { tableJsonSchema } from "./table-json-schema.ts";
 import { isInstant, isPlainDateTime } from "./temporal.ts";
 
 export type { StandardJSONSchemaV1 };
@@ -27,7 +28,10 @@ const SCHEMA_URIS: Readonly<Record<string, string>> = {
   "draft-07": "http://json-schema.org/draft-07/schema#",
 };
 
-/** Rewrites a 2020-12 schema into the OpenAPI 3.0 dialect (`nullable`, `example`). */
+/**
+ * Rewrites a 2020-12 schema into the OpenAPI 3.0 dialect (`nullable`,
+ * `example`).
+ */
 function toOpenApi30(schema: JsonSchema): JsonSchema {
   const out: JsonSchema = {};
 
@@ -310,9 +314,9 @@ function checkField(
     return;
   }
 
-  value.forEach((item, index) => {
+  for (const [index, item] of value.entries()) {
     checkValue(field, item, [name, index], issues, pending);
-  });
+  }
 }
 
 /**

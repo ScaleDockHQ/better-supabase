@@ -14,9 +14,7 @@ export const commentsBlock: BlockOf<
 > = defineBlock({
   name: "comments",
   sql: ["comments"],
-  options: {
-    comments: commentsSqlOptions,
-  },
+  options: { comments: commentsSqlOptions },
   events: commentsEvents,
   create: createComments,
   category: "collaboration",

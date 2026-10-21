@@ -1,15 +1,15 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraFieldsArg,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -18,7 +18,6 @@ import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   optionalText,
   recordOf,
   recordsOf,
@@ -30,13 +29,16 @@ export interface AccessRequestsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the request columns the app adds
-   * (`blocks.access-requests.options.extraColumns`), keyed by column name.
-   * It types and parses them on every read, and validates them on
-   * `request`, which returns a `validation` error for a bad value.
+   * (`blocks.access-requests.options.extraColumns`), keyed by column name. It
+   * types and parses them on every read, and validates them on `request`, which
+   * returns a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -47,8 +49,8 @@ export interface AccessRequestsOptions<
 }
 
 /**
- * `pending`, `rejected`, `cancelled` and `expired` follow the approval
- * request; `granted` and `ended` follow the role itself.
+ * `pending`, `rejected`, `cancelled` and `expired` follow the approval request;
+ * `granted` and `ended` follow the role itself.
  */
 export type AccessRequestStatus =
   | "pending"

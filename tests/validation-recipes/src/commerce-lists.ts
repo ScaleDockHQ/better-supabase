@@ -66,7 +66,10 @@ type Models = {
 
 const betterSupabase = defineSupabase(defineSchema<Models>(meta));
 
-/** The admin order grid: search by number or email, a status facet, newest first. */
+/**
+ * The admin order grid: search by number or email, a status facet, newest
+ * first.
+ */
 export const orderList = defineListQuery(
   betterSupabase,
   "better_supabase_orders",

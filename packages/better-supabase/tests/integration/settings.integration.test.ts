@@ -33,6 +33,7 @@ const settings = defineSettings({
 
 describe.skipIf(!live)("settings", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("reaches the module through API schema wrappers", async () => {

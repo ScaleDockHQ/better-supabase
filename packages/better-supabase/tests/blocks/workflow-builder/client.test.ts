@@ -61,10 +61,7 @@ describe("createWorkflowBuilderController", () => {
     const list = vi.fn(() => answer.result);
 
     const controller = createWorkflowBuilderController({
-      client: {
-        definitions: { list },
-        steps: { list: () => resolved([]) },
-      },
+      client: { definitions: { list }, steps: { list: () => resolved([]) } },
       auth: fakeAuth(),
     });
 

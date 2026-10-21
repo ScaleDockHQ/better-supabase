@@ -3,7 +3,9 @@ import { extname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { FilePlan, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { Paint } from "../style.ts";
 
 import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
@@ -13,12 +15,10 @@ import {
   applyPlan,
   changedFiles,
   changeLines,
-  type FilePlan,
-  type PlannedFile,
   planResult,
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
-import { type Paint, plain } from "../style.ts";
+import { plain } from "../style.ts";
 
 const CODEMOD_ARGS = {
   path: {
@@ -62,7 +62,10 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
 ]);
 
-/** Source, config and script files under `path`, skipping dependencies, build output and `.d.ts` files. */
+/**
+ * Source, config and script files under `path`, skipping dependencies, build
+ * output and `.d.ts` files.
+ */
 async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
 
@@ -94,7 +97,7 @@ async function sourceFiles(path: string): Promise<string[]> {
     }
   }
 
-  return files.sort();
+  return files.toSorted();
 }
 
 export async function runCodemod(

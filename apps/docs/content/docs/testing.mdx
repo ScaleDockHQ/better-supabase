@@ -281,9 +281,7 @@ const bs = createServer(betterSupabase, {
 
 const ctx = await bs.context(
   new Request("https://app.test/", {
-    headers: {
-      authorization: `Bearer ${await signer.sign({ sub: aliceId })}`,
-    },
+    headers: { authorization: `Bearer ${await signer.sign({ sub: aliceId })}` },
   }),
 );
 ```

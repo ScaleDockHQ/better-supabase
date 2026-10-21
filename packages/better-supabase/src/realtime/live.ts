@@ -1,7 +1,6 @@
-import {
-  type RealtimeChannel,
-  REALTIME_SUBSCRIBE_STATES,
-} from "@supabase/supabase-js";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
@@ -11,24 +10,39 @@ import type { RealtimeClient, SubscriptionStatus } from "./index.ts";
 
 import { refreshRealtimeAuth } from "./auth.ts";
 
-/** What `liveQuery` needs from `betterSupabase`: metadata and the tables a spec reads. */
+/**
+ * What `liveQuery` needs from `betterSupabase`: metadata and the tables a spec
+ * reads.
+ */
 export interface LiveSource {
   readonly meta: SchemaMeta;
   tablesOf(spec: QuerySpec): string[];
 }
 
 export interface LiveQueryOptions {
-  /** Called once per burst of changes, with the app keys of the tables that changed. */
+  /**
+   * Called once per burst of changes, with the app keys of the tables that
+   * changed.
+   */
   readonly onChange: (tables: readonly string[]) => void;
-  /** Tenant value for tables scoped by a tenant column (`realtime-tables` topics). */
+  /**
+   * Tenant value for tables scoped by a tenant column (`realtime-tables`
+   * topics).
+   */
   readonly tenant?: string;
-  /** The signed-in user's id, for tables that broadcast per user (`realtime.users`). */
+  /**
+   * The signed-in user's id, for tables that broadcast per user
+   * (`realtime.users`).
+   */
   readonly user?: string;
-  /** Waits this long after the last change before calling `onChange`. Defaults to 100 ms. */
+  /**
+   * Waits this long after the last change before calling `onChange`. Defaults
+   * to 100 ms.
+   */
   readonly debounceMs?: number;
   /**
-   * Also reports a channel that errors after it joined (`error`) and its
-   * rejoin (`subscribed`), not only the first join.
+   * Also reports a channel that errors after it joined (`error`) and its rejoin
+   * (`subscribed`), not only the first join.
    */
   readonly onStatus?: (status: SubscriptionStatus, error?: Error) => void;
   /**
@@ -41,7 +55,10 @@ export interface LiveQueryOptions {
 export interface LiveSubscription extends Disposable, AsyncDisposable {
   /** App keys of the watched tables. */
   readonly tables: readonly string[];
-  /** Tables the query reads that don't broadcast changes (not in `realtime.tables`). */
+  /**
+   * Tables the query reads that don't broadcast changes (not in
+   * `realtime.tables`).
+   */
   readonly unwatched: readonly string[];
   readonly ready: Promise<void>;
   unsubscribe(): Promise<void>;
@@ -49,20 +66,23 @@ export interface LiveSubscription extends Disposable, AsyncDisposable {
 
 /**
  * A count from the server plus the spec to keep it live on the client:
- * `bs.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count`
- * is `null` when the server read failed; the client then fetches it.
+ * `bs.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count` is
+ * `null` when the server read failed; the client then fetches it.
  */
 export interface LiveCountSeed<T extends string = string> {
   readonly spec: QuerySpec<T, "count", number>;
   readonly count: number | null;
-  /** When the count was taken (epoch ms). `useLiveCount` counts again after joining when it is older than a second. */
+  /**
+   * When the count was taken (epoch ms). `useLiveCount` counts again after
+   * joining when it is older than a second.
+   */
   readonly at?: number;
 }
 
 /**
  * Topic a `realtime-tables` trigger broadcasts on:
- * `bs:t:<schema>.<table>[:<tenant>]`, or `bs:t:<schema>.<table>:u:<user>`
- * for a `realtime.users` table.
+ * `bs:t:<schema>.<table>[:<tenant>]`, or `bs:t:<schema>.<table>:u:<user>` for a
+ * `realtime.users` table.
  */
 export function liveTopic(
   meta: SchemaMeta,
@@ -261,12 +281,14 @@ function join(
 
 /**
  * Calls `onChange` when a table the spec reads changes, so you can refetch.
- * Needs the `realtime-tables` SQL module and the tables in
- * `realtime.tables`. Live queries on the same client share one channel per
- * table, so any number of them can run at once.
+ * Needs the `realtime-tables` SQL module and the tables in `realtime.tables`.
+ * Live queries on the same client share one channel per table, so any number of
+ * them can run at once.
  *
  * ```ts
- * using live = liveQuery(betterSupabase, supabase, spec, { onChange: () => refetch() });
+ * using live = liveQuery(betterSupabase, supabase, spec, {
+ *   onChange: () => refetch(),
+ * });
  * ```
  */
 export function liveQuery(
@@ -437,7 +459,10 @@ export function liveQuery(
   };
 }
 
-/** What `liveCount` runs the spec with: a `db` from `betterSupabase.connect()` or `createClient()`. */
+/**
+ * What `liveCount` runs the spec with: a `db` from `betterSupabase.connect()`
+ * or `createClient()`.
+ */
 export interface CountRunner {
   $run(spec: QuerySpec): PromiseLike<Result<unknown>>;
 }
@@ -449,22 +474,26 @@ export interface LiveCountOptions extends Omit<LiveQueryOptions, "onChange"> {
   /** Count right away. Defaults to `true`; pass `false` when you have a seed. */
   readonly immediate?: boolean;
   /**
-   * When the count you already have was taken (epoch ms). Counts again once
-   * the channel joins when that is more than a second ago, so a change made
-   * before the join is not lost.
+   * When the count you already have was taken (epoch ms). Counts again once the
+   * channel joins when that is more than a second ago, so a change made before
+   * the join is not lost.
    */
   readonly since?: number;
 }
 
 /**
- * Keeps a count current: runs the `count` spec (a HEAD request) now, after
- * each debounced change to a table it reads, and after the channel rejoins.
+ * Keeps a count current: runs the `count` spec (a HEAD request) now, after each
+ * debounced change to a table it reads, and after the channel rejoins.
  * Responses that arrive out of order are dropped.
  *
  * ```ts
- * using live = liveCount(betterSupabase, supabase, db, betterSupabase.spec.notes.count(), {
- *   onCount: (count) => render(count),
- * });
+ * using live = liveCount(
+ *   betterSupabase,
+ *   supabase,
+ *   db,
+ *   betterSupabase.spec.notes.count(),
+ *   { onCount: (count) => render(count) },
+ * );
  * ```
  */
 export function liveCount(
@@ -478,7 +507,8 @@ export function liveCount(
   let closed = false;
 
   const refetch = (): void => {
-    const call = ++latest;
+    latest += 1;
+    const call = latest;
     void Promise.resolve(db.$run(spec)).then((result) => {
       if (closed || call !== latest) {
         return;

@@ -1,14 +1,17 @@
+import type {
+  FlagContext,
+  FlagContextOptions,
+  FlagDefinition,
+  FlagsProvider,
+  FlagsProviderOptions,
+  FlagType,
+  FlagValue,
+} from "../blocks/flags/flags.ts";
+
 import {
   createFlagsProvider,
   evaluateFlag,
-  type FlagContext,
   flagContext,
-  type FlagContextOptions,
-  type FlagDefinition,
-  type FlagsProvider,
-  type FlagsProviderOptions,
-  type FlagType,
-  type FlagValue,
 } from "../blocks/flags/flags.ts";
 import { errorText } from "../core/block-helpers.ts";
 
@@ -43,8 +46,8 @@ export interface FlagsSdkRequest {
 }
 
 /**
- * Where a flag is managed, for Flags Explorer: a function of the key, or a
- * URL in which `{key}` is replaced by the key.
+ * Where a flag is managed, for Flags Explorer: a function of the key, or a URL
+ * in which `{key}` is replaced by the key.
  */
 export type FlagsSdkOrigin = string | ((key: string) => string | undefined);
 
@@ -55,8 +58,8 @@ export interface FlagsSdkOption {
 }
 
 /**
- * The shape of a Flags SDK `Adapter` (`flags` 4.2 or later). This package
- * never imports `flags`; a type test checks this shape against the real one.
+ * The shape of a Flags SDK `Adapter` (`flags` 4.2 or later). This package never
+ * imports `flags`; a type test checks this shape against the real one.
  */
 export interface FlagsSdkAdapter<V, E = FlagsSdkEntities> {
   readonly adapterId: symbol;
@@ -84,8 +87,8 @@ export type BetterSupabaseAdapterOptions = (
 };
 
 /**
- * What `betterSupabaseAdapter()` returns. Pass it as `adapter` by reference
- * or call it; every adapter it makes shares one definitions cache and one
+ * What `betterSupabaseAdapter()` returns. Pass it as `adapter` by reference or
+ * call it; every adapter it makes shares one definitions cache and one
  * `adapterId`, so `evaluate()` decides them in one `bulkDecide`.
  */
 export interface BetterSupabaseAdapterFactory {
@@ -123,7 +126,10 @@ export function flagContextOf(entities?: FlagsSdkEntities): FlagContext {
   };
 }
 
-/** Whether `value` fits a flag of `type`; an `object` flag holds any JSON object or list. */
+/**
+ * Whether `value` fits a flag of `type`; an `object` flag holds any JSON object
+ * or list.
+ */
 function fitsType(value: FlagValue, type: FlagType): boolean {
   return type === "object"
     ? typeof value === "object" && value !== null
@@ -131,12 +137,12 @@ function fitsType(value: FlagValue, type: FlagType): boolean {
 }
 
 /**
- * The flag's value for a declaration with `defaultValue`, or `undefined`
- * for the fallback: a missing variant or an unknown type always falls back.
- * A `null` value is served to a declaration whose default is `null` or
- * unset. Otherwise a declaration without a default takes any value, one
- * with a `null` default a value of the flag's type, and any other default a
- * value of its own `typeof`.
+ * The flag's value for a declaration with `defaultValue`, or `undefined` for
+ * the fallback: a missing variant or an unknown type always falls back. A
+ * `null` value is served to a declaration whose default is `null` or unset.
+ * Otherwise a declaration without a default takes any value, one with a `null`
+ * default a value of the flag's type, and any other default a value of its own
+ * `typeof`.
  */
 async function valueOf(
   flag: FlagDefinition | undefined,
@@ -180,10 +186,10 @@ const why = (flag: FlagDefinition | undefined): string =>
 /**
  * A Flags SDK adapter over the `flags` block. It evaluates rules, overrides,
  * custom contexts and rollouts like `flag_evaluation()`, from definitions it
- * caches for `ttl`. A flag that is missing, has an unknown type, has
- * another type than the declaration or fails to load gets the declaration's
- * `defaultValue`; without one, `decide` throws. A variant whose value is
- * `null` is served to a declaration whose `defaultValue` is `null` or unset.
+ * caches for `ttl`. A flag that is missing, has an unknown type, has another
+ * type than the declaration or fails to load gets the declaration's
+ * `defaultValue`; without one, `decide` throws. A variant whose value is `null`
+ * is served to a declaration whose `defaultValue` is `null` or unset.
  */
 export function betterSupabaseAdapter(
   options: BetterSupabaseAdapterOptions,
@@ -295,8 +301,8 @@ export interface CreateIdentifyOptions extends FlagContextOptions {
 }
 
 /**
- * An `identify` for `flag()` declarations, built on `flagContext()`. Wrap it
- * in the Flags SDK's `dedupe` so it runs once per request.
+ * An `identify` for `flag()` declarations, built on `flagContext()`. Wrap it in
+ * the Flags SDK's `dedupe` so it runs once per request.
  */
 export function createIdentify(
   options: CreateIdentifyOptions,

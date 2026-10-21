@@ -133,7 +133,10 @@ export const renameDriveItem = bs.action(
   },
 );
 
-/** Moves the item and everything under it to the trash; returns the trash item for Undo. */
+/**
+ * Moves the item and everything under it to the trash; returns the trash item
+ * for Undo.
+ */
 export const trashDriveItem = bs.action(
   {
     input: v.object({ id: Id }),

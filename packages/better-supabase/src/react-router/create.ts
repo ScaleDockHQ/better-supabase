@@ -2,29 +2,26 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type {
+  FrameworkLocals,
+  LocalsResource,
+  FrameworkOptions,
+} from "../server/framework.ts";
+import type {
+  ActionParsed,
+  ActionResult,
+  AuthorizedContext,
+  BlockActionOptions,
+  BlockRequireOptions,
+  Unwrapped,
+} from "../server/kit.ts";
 import type { BetterServer } from "../server/server-types.ts";
 
 import { around, bufferInPlace } from "../bridges/shared.ts";
 import { problemResponse } from "../core/problem.ts";
 import { withFlush } from "../server/adapter.ts";
-import {
-  actionInput,
-  type FrameworkLocals,
-  type LocalsResource,
-  type FrameworkOptions,
-  frameworkEntry,
-  localsOf,
-} from "../server/framework.ts";
-import {
-  type ActionParsed,
-  type ActionResult,
-  type AuthorizedContext,
-  type BlockActionOptions,
-  type BlockRequireOptions,
-  requireCaller,
-  runAction,
-  type Unwrapped,
-} from "../server/kit.ts";
+import { actionInput, frameworkEntry, localsOf } from "../server/framework.ts";
+import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalResponse } from "../server/refusal.ts";
 import { defaultExpose, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
@@ -46,8 +43,8 @@ export interface ReactRouterOptions extends FrameworkOptions {
   /** `createContext` from `react-router`; the factory makes its own context key. */
   readonly createContext: () => unknown;
   /**
-   * The host's env object for `getEnv`, e.g.
-   * `({ context }) => context.get(cloudflareContext).env` on Workers.
+   * The host's env object for `getEnv`, e.g. `({ context }) =>
+   * context.get(cloudflareContext).env` on Workers.
    */
   readonly platformEnv?: (args: ReactRouterArgs) => unknown;
 }
@@ -60,7 +57,10 @@ export interface BetterReactRouter<
   P = unknown,
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
-  /** The context key the middleware sets: `context.get(bs.contextKey)`, or `bs.locals(args)`. */
+  /**
+   * The context key the middleware sets: `context.get(bs.contextKey)`, or
+   * `bs.locals(args)`.
+   */
   readonly contextKey: unknown;
   /**
    * Server middleware for `root.tsx`: verifies the caller, refreshes the
@@ -74,9 +74,9 @@ export interface BetterReactRouter<
   locals(args: ReactRouterArgs): FrameworkLocals<M, F, E, C, P, B>;
   /**
    * A loader that runs the guard first. A refused caller gets a redirect to
-   * `signIn` or `mfa` when configured, else a thrown Problem Details
-   * response for the `ErrorBoundary`. `Result`s unwrap, and a failed one
-   * is thrown the same way.
+   * `signIn` or `mfa` when configured, else a thrown Problem Details response
+   * for the `ErrorBoundary`. `Result`s unwrap, and a failed one is thrown the
+   * same way.
    */
   loader<A extends ReactRouterArgs, T, R extends boolean = false>(
     options: BlockRequireOptions<

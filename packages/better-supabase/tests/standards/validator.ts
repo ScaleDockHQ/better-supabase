@@ -1,4 +1,6 @@
-import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
+import type { ErrorObject, ValidateFunction } from "ajv";
+
+import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
@@ -110,7 +112,8 @@ function draft07Bounds(node: unknown): void {
 
 /**
  * The AsyncAPI bundles embed the draft-07 meta-schema under its own `$id`,
- * which Ajv already registers, so drop the copy and let `$ref`s resolve to Ajv's.
+ * which Ajv already registers, so drop the copy and let `$ref`s resolve to
+ * Ajv's.
  */
 function builtInDraft07(schema: Json): void {
   const definitions = schema["definitions"] as Json | undefined;
@@ -127,8 +130,8 @@ function builtInDraft07(schema: Json): void {
 }
 
 /**
- * The shadcn registry schema refers to the item schema by its published
- * URL, so register the vendored item schema of the same release under it.
+ * The shadcn registry schema refers to the item schema by its published URL, so
+ * register the vendored item schema of the same release under it.
  */
 function shadcnItemSchema(engine: Ajv | Ajv2020, file: string): void {
   const url = "https://ui.shadcn.com/schema/registry-item.json";
@@ -188,8 +191,8 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
 }
 
 /**
- * A validator for a vendored schema, or for one definition in it
- * (`definition` is a JSON pointer such as `#/$defs/InitializeResult`).
+ * A validator for a vendored schema, or for one definition in it (`definition`
+ * is a JSON pointer such as `#/$defs/InitializeResult`).
  */
 export function validatorFor(file: string, definition = ""): ValidateFunction {
   const { engine, key } = load(file);
@@ -202,7 +205,10 @@ export function validatorFor(file: string, definition = ""): ValidateFunction {
   return validate;
 }
 
-/** The 2020-12 meta-schema, to check that generated schemas are themselves valid. */
+/**
+ * The 2020-12 meta-schema, to check that generated schemas are themselves
+ * valid.
+ */
 export function metaSchema2020(): ValidateFunction {
   const validate = draft2020.getSchema(
     "https://json-schema.org/draft/2020-12/schema",

@@ -18,7 +18,10 @@ const MODULE_DATA_MARKER: RegExp = /^-- @bs-module-data ([a-z0-9-]+)$/m;
 export const isModuleDataFile = (contents: string): boolean =>
   MODULE_DATA_MARKER.test(contents);
 
-/** Whether an installed file matches, ignoring line endings and the version releases before 0.13 stamped in its header. */
+/**
+ * Whether an installed file matches, ignoring line endings and the version
+ * releases before 0.13 stamped in its header.
+ */
 export function sameModuleFile(
   current: string | undefined,
   expected: string,

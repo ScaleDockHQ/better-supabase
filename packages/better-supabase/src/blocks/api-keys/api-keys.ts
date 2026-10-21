@@ -1,22 +1,25 @@
+/* oxlint-disable eslint/no-bitwise -- CRC-32 works on 32-bit integers. */
+
 import type { JWTClaims } from "@supabase/server";
 
 import type { AuthResolver, ResolvedState } from "../../auth/resolve.ts";
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraFieldsArg,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
@@ -29,7 +32,6 @@ import {
   sha256Hex,
   stringsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
 
@@ -90,27 +92,29 @@ export type ApiKeyCheck<F extends object = Record<never, never>> =
 export interface ApiKeys<F extends object = Record<never, never>> {
   /** Keys besides the input's own are the key's extra columns. */
   create(input: CreateApiKeyInput & Partial<F>): AsyncResult<CreatedApiKey<F>>;
-  /** A tenant's keys for its managers (the caller's own otherwise), or the caller's personal keys. */
+  /**
+   * A tenant's keys for its managers (the caller's own otherwise), or the
+   * caller's personal keys.
+   */
   list(organizationId?: string): AsyncResult<readonly (ApiKey & F)[]>;
   revoke(id: string): AsyncResult<boolean>;
   /**
-   * A new token for the key, with its extra columns; the old one keeps
-   * working for `grace` (one day by default).
+   * A new token for the key, with its extra columns; the old one keeps working
+   * for `grace` (one day by default).
    */
   rotate(
     id: string,
     options?: { readonly grace?: Temporal.Duration },
   ): AsyncResult<CreatedApiKey<F>>;
   /**
-   * Checks a presented token and counts the request. Needs a service
-   * transport. A token that doesn't parse, such as `<prefix>_bad`, is
-   * `invalid`.
+   * Checks a presented token and counts the request. Needs a service transport.
+   * A token that doesn't parse, such as `<prefix>_bad`, is `invalid`.
    */
   verify(token: string): AsyncResult<ApiKeyCheck<F>>;
   /**
-   * Whether a token claims to be one of these keys: it starts with the
-   * prefix and `_`, well formed or not. Use it to send a Bearer token to
-   * `verify` instead of JWT verification.
+   * Whether a token claims to be one of these keys: it starts with the prefix
+   * and `_`, well formed or not. Use it to send a Bearer token to `verify`
+   * instead of JWT verification.
    */
   isApiKey(token: string): boolean;
 }
@@ -120,9 +124,9 @@ export interface ApiKeysOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the key columns the app adds
-   * (`blocks.api-keys.options.extraColumns`), keyed by column name. It
-   * types and parses them on every read, and validates them on `create`,
-   * which returns a `validation` error for a bad value.
+   * (`blocks.api-keys.options.extraColumns`), keyed by column name. It types
+   * and parses them on every read, and validates them on `create`, which
+   * returns a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -171,8 +175,8 @@ const CRC_TABLE = ((): Uint32Array => {
 
 /**
  * The CRC-32 (IEEE 802.3) of `text` as 6 base62 characters: the checksum
- * GitHub-style tokens end in, so a secret
- * scanner or the server rejects a mistyped key without a lookup.
+ * GitHub-style tokens end in, so a secret scanner or the server rejects a
+ * mistyped key without a lookup.
  */
 export function apiKeyChecksum(text: string): string {
   let crc = 0xff_ff_ff_ff;
@@ -216,8 +220,7 @@ function base62Secret(): string {
  * Splits `<prefix>_<public id>_<secret><checksum>`: a 43-character base62
  * secret and the 6-character checksum of everything before it. A key from
  * before the checksum (`<prefix>_<public id>_<secret>`) still parses. A
- * checksum that doesn't match, or anything else (a JWT, say), is
- * `undefined`.
+ * checksum that doesn't match, or anything else (a JWT, say), is `undefined`.
  */
 export function parseApiKey(token: string): ParsedApiKey | undefined {
   const match = TOKEN.exec(token.trim());
@@ -340,9 +343,9 @@ function checkOf(value: unknown): ApiKeyCheck {
 }
 
 /**
- * API keys over the `api-keys` SQL module. Members create and rotate keys
- * with their own transport; `verify` (and `apiKeyResolver`) need one that
- * runs as the service role.
+ * API keys over the `api-keys` SQL module. Members create and rotate keys with
+ * their own transport; `verify` (and `apiKeyResolver`) need one that runs as
+ * the service role.
  */
 export function createApiKeys<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -482,8 +485,8 @@ export function createApiKeys<
 }
 
 /**
- * A second claim for an authorization provider's SQL functions, with the
- * field names they read. Every field but `name` is optional.
+ * A second claim for an authorization provider's SQL functions, with the field
+ * names they read. Every field but `name` is optional.
  */
 export interface ApiKeyExtraClaim {
   /** The claim. `api_key` adds the fields to the module's own claim. */
@@ -494,7 +497,10 @@ export interface ApiKeyExtraClaim {
   readonly tenant?: string;
   /** The field with a tenant key's roles, default `roles`. */
   readonly roles?: string;
-  /** The roles a tenant key holds in its tenant, unless `serviceRoles` in the options answers. */
+  /**
+   * The roles a tenant key holds in its tenant, unless `serviceRoles` in the
+   * options answers.
+   */
   readonly serviceRoles?: readonly string[];
 }
 
@@ -516,8 +522,8 @@ const RESERVED_CLAIMS: ReadonlySet<string> = new Set<ApiKeyReservedClaim>([
 /** `F` is the extra key fields of `createApiKeys({ fields })`. */
 export interface ApiKeyClaimsOptions<F extends object = Record<never, never>> {
   /**
-   * Also write the claim an authorization provider's SQL functions read:
-   * the scopes as a ceiling, and a tenant key's tenant and roles.
+   * Also write the claim an authorization provider's SQL functions read: the
+   * scopes as a ceiling, and a tenant key's tenant and roles.
    */
   readonly claim?: ApiKeyExtraClaim;
   /** The roles a tenant key holds in its tenant; default `claim.serviceRoles`. */
@@ -529,8 +535,8 @@ export interface ApiKeyClaimsOptions<F extends object = Record<never, never>> {
    */
   readonly claims?: (key: ApiKey & F) => ApiKeyExtraClaims;
   /**
-   * The permission keys `*` stands for in `claim`, which has no wildcard,
-   * so without this a key with `*` allows nothing there.
+   * The permission keys `*` stands for in `claim`, which has no wildcard, so
+   * without this a key with `*` allows nothing there.
    */
   readonly allPermissions?: readonly string[];
   /**
@@ -544,20 +550,23 @@ export interface ApiKeyResolverOptions<
   F extends object = Record<never, never>,
 > extends ApiKeyClaimsOptions<F> {
   /**
-   * `createApiKeys` over a service transport. With `isApiKey`, a Bearer
-   * token with the key prefix is checked as a key even when it is
-   * malformed, so it gets `INVALID_API_KEY`.
+   * `createApiKeys` over a service transport. With `isApiKey`, a Bearer token
+   * with the key prefix is checked as a key even when it is malformed, so it
+   * gets `INVALID_API_KEY`.
    */
   readonly keys: Pick<ApiKeys<F>, "verify"> &
     Partial<Pick<ApiKeys<F>, "isApiKey">>;
-  /** The header that carries the key besides `Authorization: Bearer`. Defaults to `x-api-key`. */
+  /**
+   * The header that carries the key besides `Authorization: Bearer`. Defaults
+   * to `x-api-key`.
+   */
   readonly header?: string;
 }
 
 /**
- * The claims queries run with for a key: `api_key` with `id`, `name`,
- * `scopes` and `organization_id` for the module's `has_scope()` and
- * `api_key_tenant()`, plus `options.claim` and `options.claims`.
+ * The claims queries run with for a key: `api_key` with `id`, `name`, `scopes`
+ * and `organization_id` for the module's `has_scope()` and `api_key_tenant()`,
+ * plus `options.claim` and `options.claims`.
  */
 export function apiKeyClaims<F extends object = Record<never, never>>(
   key: ApiKey & F,
@@ -652,8 +661,9 @@ function presented(
 
 /**
  * Resolves `x-api-key` (or a Bearer token shaped like a key, or one with the
- * key prefix) to an `apiKey` auth state. Requests without one fall through
- * to the JWT and cookie resolution. Pass it to `createServer({ auth: { resolvers: [...] } })`.
+ * key prefix) to an `apiKey` auth state. Requests without one fall through to
+ * the JWT and cookie resolution. Pass it to `createServer({ auth: { resolvers:
+ * [...] } })`.
  */
 export function apiKeyResolver<F extends object = Record<never, never>>(
   options: ApiKeyResolverOptions<F>,

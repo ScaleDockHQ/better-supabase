@@ -41,10 +41,7 @@ describe("createMcp", () => {
     name: "crm",
     version: "1.0.0",
     instructions: "Customer records of the caller’s organization.",
-    resources: {
-      customers: { list },
-      tags: { operations: ["list", "get"] },
-    },
+    resources: { customers: { list }, tags: { operations: ["list", "get"] } },
     tools: [
       defineTool({
         name: "echo",
@@ -768,7 +765,7 @@ describe("createMcp table tool meta", () => {
       version: "1.0.0",
       resources: { tags: { operations: ["list"] } },
       visible: () => {
-        checks++;
+        checks += 1;
 
         return checks === 1;
       },
@@ -882,10 +879,7 @@ describe("createMcp cursor lists", () => {
     };
 
     expect(result.tools[0]?.inputSchema).toMatchObject({
-      properties: {
-        after: { type: "string" },
-        size: { maximum: 10 },
-      },
+      properties: { after: { type: "string" }, size: { maximum: 10 } },
     });
     expect(result.tools[0]?.outputSchema).toMatchObject({
       required: ["items", "nextCursor", "hasMore"],
@@ -893,7 +887,10 @@ describe("createMcp cursor lists", () => {
   });
 });
 
-/** A request as the Edge Functions gateway forwards it: internal URL, public origin in headers. */
+/**
+ * A request as the Edge Functions gateway forwards it: internal URL, public
+ * origin in headers.
+ */
 const edgeRequest = (path: string, init: RequestInit = {}) =>
   new Request(`http://localhost:8081${path}`, {
     ...init,
@@ -1273,7 +1270,7 @@ describe("tool schemas per protocol version", () => {
       await list({ "mcp-protocol-version": version });
     }
 
-    expect(calls.length).toBe(after);
+    expect(calls).toHaveLength(after);
     expect(after - before).toBeLessThanOrEqual(2);
     expect(
       mcp.tools.find((tool) => tool.name === "raw")?.inputSchema,

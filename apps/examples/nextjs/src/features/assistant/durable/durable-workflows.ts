@@ -1,12 +1,13 @@
+import type {
+  DurableAgentArgs,
+  DurableTurnDeps,
+  DurableTurnInput,
+  DurableTurnResult,
+} from "better-supabase/ai-sdk/workflow";
+
 import { WorkflowAgent } from "@ai-sdk/workflow";
 import { jsonSchema, tool } from "ai";
-import {
-  type DurableAgentArgs,
-  durableTurn,
-  type DurableTurnDeps,
-  type DurableTurnInput,
-  type DurableTurnResult,
-} from "better-supabase/ai-sdk/workflow";
+import { durableTurn } from "better-supabase/ai-sdk/workflow";
 import { createHook, getWorkflowMetadata, getWritable } from "workflow";
 
 import {
@@ -45,9 +46,9 @@ export async function assistantTurn(
 }
 
 /**
- * The research agent: it outlines sub-questions, answers each with a
- * subagent step and records its progress in `ai_run_steps`. Sending the
- * report needs the user's approval, which can wait for hours.
+ * The research agent: it outlines sub-questions, answers each with a subagent
+ * step and records its progress in `ai_run_steps`. Sending the report needs the
+ * user's approval, which can wait for hours.
  */
 export async function researchTurn(
   input: DurableTurnInput,

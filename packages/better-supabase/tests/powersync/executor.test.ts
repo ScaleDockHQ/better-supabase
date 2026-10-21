@@ -2,6 +2,10 @@ import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
+import type {
+  PowerSyncDatabaseLike,
+  SqliteContextLike,
+} from "../../src/powersync/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -9,8 +13,6 @@ import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import {
-  type PowerSyncDatabaseLike,
-  type SqliteContextLike,
   checkSqlite,
   fromSqliteError,
   postgrestTimestamp,
@@ -203,10 +205,7 @@ describe("powersyncExecutor", () => {
       .paginate({ select: ["name"], page: 1, size: 10, count: "exact" })
       .orThrow();
 
-    expect(page).toMatchObject({
-      items: [{ name: "a" }],
-      page: { total: 1 },
-    });
+    expect(page).toMatchObject({ items: [{ name: "a" }], page: { total: 1 } });
     expect(transactions).toBe(1);
     expect(inTransaction).toHaveLength(2);
   });
@@ -499,9 +498,7 @@ describe("lists on SQLite", () => {
       .run(
         client,
         list.parse({ facets: { status: ["active", "lead"] } }).value!,
-        {
-          select: ["name"],
-        },
+        { select: ["name"] },
       )
       .orThrow();
 
@@ -784,11 +781,7 @@ describe("watch", () => {
 
     const controller = new AbortController();
     const remove = vi.spyOn(controller.signal, "removeEventListener");
-    watch(db, query, {
-      tables: [],
-      onResult,
-      signal: controller.signal,
-    })();
+    watch(db, query, { tables: [], onResult, signal: controller.signal })();
     expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 

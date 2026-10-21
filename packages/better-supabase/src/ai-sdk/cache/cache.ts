@@ -27,7 +27,10 @@ export interface CacheMiddlewareOptions {
   readonly cache: Pick<AiCache, "get" | "set">;
   /** Seconds an entry lives, capped by the module's `maxTtl`. */
   readonly ttl: number;
-  /** Keeps tenants' entries apart and lets `clear` and tenant deletion find them. */
+  /**
+   * Keeps tenants' entries apart and lets `clear` and tenant deletion find
+   * them.
+   */
   readonly organizationId?: string;
   /**
    * What the key covers. Defaults to the provider, the model id and the call
@@ -125,11 +128,7 @@ function decode(value: unknown): unknown {
 const defaultKey = (call: CacheCall): unknown => {
   const { abortSignal: _signal, headers: _headers, ...params } = call.params;
 
-  return {
-    provider: call.model.provider,
-    model: call.model.modelId,
-    params,
-  };
+  return { provider: call.model.provider, model: call.model.modelId, params };
 };
 
 /**

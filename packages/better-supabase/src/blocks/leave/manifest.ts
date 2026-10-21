@@ -11,9 +11,7 @@ export const leaveBlock: BlockOf<"leave", typeof createLeave, LeaveEvents> =
   defineBlock({
     name: "leave",
     sql: ["leave"],
-    options: {
-      leave: leaveSqlOptions,
-    },
+    options: { leave: leaveSqlOptions },
     events: leaveEvents,
     create: createLeave,
     category: "people",

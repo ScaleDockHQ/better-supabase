@@ -14,8 +14,7 @@ export const sqlList = (values: readonly string[]): string =>
 
 /**
  * How runs start (`workflow_start_target`, its subject variant and
- * `start_test_run`), and who may run a definition: forks, opt-outs and
- * grants.
+ * `start_test_run`), and who may run a definition: forks, opt-outs and grants.
  */
 export function builderStartsSql(ctx: ModuleContext, s: BuilderSql): string {
   const {

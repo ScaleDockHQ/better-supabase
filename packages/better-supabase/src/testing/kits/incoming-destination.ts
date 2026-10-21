@@ -2,8 +2,9 @@ import type {
   IncomingDelivery,
   IncomingDestination,
 } from "../../blocks/webhooks/incoming-types.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import { conform, expect, type ConformanceReport } from "../conformance.ts";
+import { conform, expect } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestIncomingDestinationOptions {
@@ -16,8 +17,8 @@ export interface TestIncomingDestinationOptions {
 /**
  * Proves an `IncomingDestination` accepts a delivery once per endpoint and
  * message id: a repeat reports the first id as a duplicate, while another
- * message id or another endpoint is new.
- * It delivers four messages with random endpoint ids; the destination keeps them.
+ * message id or another endpoint is new. It delivers four messages with random
+ * endpoint ids; the destination keeps them.
  */
 export function testIncomingDestination(
   destination: IncomingDestination,

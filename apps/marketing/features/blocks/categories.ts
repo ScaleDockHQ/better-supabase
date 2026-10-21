@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 import {
   BellIcon,
   BotIcon,
@@ -9,7 +11,6 @@ import {
   FileTextIcon,
   HandshakeIcon,
   KanbanIcon,
-  type LucideIcon,
   MessagesSquareIcon,
   RocketIcon,
   ScaleIcon,
@@ -48,9 +49,9 @@ export type StyledCategoryName =
   | (typeof RECIPE_CATEGORY_NAMES)[number];
 
 /**
- * How a category looks wherever it appears. The hue marks categorical
- * identity only; every class is a literal so Tailwind finds it, and each
- * light class has its `dark:` pair.
+ * How a category looks wherever it appears. The hue marks categorical identity
+ * only; every class is a literal so Tailwind finds it, and each light class has
+ * its `dark:` pair.
  */
 export interface CategoryStyle {
   readonly name: StyledCategoryName;

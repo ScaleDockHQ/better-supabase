@@ -1,16 +1,15 @@
 import type { ArgDef, ArgsDef } from "citty";
 
 import type { Paint } from "../style.ts";
+import type {
+  CommandEffect,
+  CommandExample,
+  CommandGroup,
+} from "./manifest.ts";
 import type { CommandNode } from "./parse.ts";
 
 import { GLOBAL_ARGS, listArgs } from "./command.ts";
-import {
-  type CommandEffect,
-  type CommandExample,
-  type CommandGroup,
-  DOCS_ORIGIN,
-  GROUPS,
-} from "./manifest.ts";
+import { DOCS_ORIGIN, GROUPS } from "./manifest.ts";
 import { commandArgs, isVariadic } from "./parse.ts";
 
 const COMMANDS_SCHEMA_URL =
@@ -113,7 +112,7 @@ function optionRows(
   );
 }
 
-/** citty requires a positional unless it is `required: false` or has a default. */
+/** Citty requires a positional unless it is `required: false` or has a default. */
 const isRequired = (definition: ArgDef): boolean =>
   definition.required !== false && definition.default === undefined;
 
@@ -247,7 +246,10 @@ export function rootHelp(
   return `${lines.join("\n")}\n`;
 }
 
-/** One command's usage: its arguments, options, the global options, examples and the docs link. */
+/**
+ * One command's usage: its arguments, options, the global options, examples and
+ * the docs link.
+ */
 export async function commandHelp(
   node: CommandNode,
   options: HelpOptions,
@@ -385,7 +387,10 @@ function optionsJson(args: ArgsDef, lists: ReadonlySet<string>): OptionJson[] {
   });
 }
 
-/** One command and its subcommands as `cli-commands-v1.json` describes them. Loads every leaf. */
+/**
+ * One command and its subcommands as `cli-commands-v1.json` describes them.
+ * Loads every leaf.
+ */
 async function commandJson(node: CommandNode): Promise<CommandJson> {
   const command = node.load ? await node.load() : undefined;
   const args = command ? ownArgs(await commandArgs(command)) : {};

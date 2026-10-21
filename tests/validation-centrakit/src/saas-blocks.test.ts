@@ -1,7 +1,9 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { dbUrl, reachable, type Session, withCentraKit } from "./stack.ts";
+import type { Session } from "./stack.ts";
+
+import { dbUrl, reachable, withCentraKit } from "./stack.ts";
 
 const live = await reachable();
 
@@ -25,6 +27,7 @@ const TABLES = [
 
 describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it.each(TABLES)("adopts centrakit.%s", async (table) => {

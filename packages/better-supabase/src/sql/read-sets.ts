@@ -1,8 +1,9 @@
+import type { SqlQuery } from "../compile/sql.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Placeholder, ReadSet } from "../core/read-set.ts";
 import type { Operation } from "../ir/types.ts";
 
-import { compileSql, type SqlQuery } from "../compile/sql.ts";
+import { compileSql } from "../compile/sql.ts";
 import {
   hasPlaceholder,
   placeholderOf,
@@ -139,7 +140,10 @@ function arrayElement(value: unknown): string {
   return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
-/** A parameter value as SQL: a reference to `p` for placeholders, else a literal. */
+/**
+ * A parameter value as SQL: a reference to `p` for placeholders, else a
+ * literal.
+ */
 function literal(set: ReadSet, value: unknown): string {
   const placeholder = placeholderOf(value);
 
@@ -266,9 +270,9 @@ function entry(set: ReadSet, op: Operation): string {
 }
 
 /**
- * The function for a read set: `stable`, `security invoker` (RLS applies to
- * the caller) and with an empty `search_path`. Parameters are read from the
- * `p jsonb` argument; nothing is built dynamically.
+ * The function for a read set: `stable`, `security invoker` (RLS applies to the
+ * caller) and with an empty `search_path`. Parameters are read from the `p
+ * jsonb` argument; nothing is built dynamically.
  */
 export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
   const ops = await operations(set);
@@ -320,7 +324,7 @@ export async function compileReadSets(
     byName.set(set.name, set);
   }
 
-  const names = [...byName.keys()].sort();
+  const names = [...byName.keys()].toSorted();
 
   return Promise.all(names.map((name) => compileReadSet(byName.get(name)!)));
 }

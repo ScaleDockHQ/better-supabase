@@ -26,8 +26,8 @@ import {
 import { sameTenantSql } from "./tenant-same.ts";
 
 /**
- * `blocks.tenant.options.roleThrough`: the membership role column holds
- * a key of `table` (`id`), and the role name is that row's `column`.
+ * `blocks.tenant.options.roleThrough`: the membership role column holds a key
+ * of `table` (`id`), and the role name is that row's `column`.
  */
 export interface RoleThrough {
   /** The quoted `schema.table`. */
@@ -92,8 +92,8 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
 }
 
 /**
- * The quoted table of `blocks.tenant.options.roleThrough` and whether
- * it sets `where`; `undefined` when unset or malformed.
+ * The quoted table of `blocks.tenant.options.roleThrough` and whether it sets
+ * `where`; `undefined` when unset or malformed.
  */
 export function roleThroughTable(
   tenant: ModuleContext,
@@ -119,10 +119,9 @@ export function roleThroughTable(
 }
 
 /**
- * Why `blocks.tenant.options.roleThrough` needs `where`: its table also
- * holds the platform roles of
- * `blocks.invitations.options.platformRoles.through`. `undefined` when
- * it doesn't.
+ * Why `blocks.tenant.options.roleThrough` needs `where`: its table also holds
+ * the platform roles of `blocks.invitations.options.platformRoles.through`.
+ * `undefined` when it doesn't.
  */
 export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
   const own = roleThroughTable(tenant);
@@ -140,8 +139,8 @@ export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
 
 /**
  * The `bs_role_scope` trigger on the memberships table: with
- * `roleThrough.where`, every write (the service role's too) stores a role
- * that the condition names. Removed when `where` is unset.
+ * `roleThrough.where`, every write (the service role's too) stores a role that
+ * the condition names. Removed when `where` is unset.
  */
 function roleScope(ctx: ModuleContext): string {
   if (ctx.manages) {
@@ -210,7 +209,10 @@ export function roleNameOf(ctx: ModuleContext, alias: string): string {
   return roleNameFrom(ctx, `${alias}.${ctx.col("memberships", "role")}`);
 }
 
-/** The active tenant: `blocks.access.activeTenant` (claim, resolver or profile column). */
+/**
+ * The active tenant: `blocks.access.activeTenant` (claim, resolver or profile
+ * column).
+ */
 function currentTenant(ctx: ModuleContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
@@ -313,8 +315,8 @@ create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
 
 /**
  * The provider's `memberIds` and `memberIdsFor` templates under the provider
- * access model: the role helpers then answer membership from the provider,
- * and the memberships table only names roles.
+ * access model: the role helpers then answer membership from the provider, and
+ * the memberships table only names roles.
  */
 export function providerMembers(
   ctx: ModuleContext,

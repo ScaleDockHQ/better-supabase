@@ -1,3 +1,5 @@
+import type { RecipeSource } from "./types.ts";
+
 /**
  * The recipe list that `build-recipes.ts` renders. A recipe with a `web` side
  * is available; the planned ones in `planned.ts` name what they wait for.
@@ -5,7 +7,7 @@
 import { PLANNED } from "./planned.ts";
 import { RECORD_RECIPES } from "./records.ts";
 import { SAAS_RECIPES } from "./saas.ts";
-import { NATIVE_APP, type RecipeSource, WEB_APP } from "./types.ts";
+import { NATIVE_APP, WEB_APP } from "./types.ts";
 
 export const RECIPES: readonly RecipeSource[] = [
   {
@@ -340,10 +342,7 @@ export const RECIPES: readonly RecipeSource[] = [
     kind: "component",
     description:
       "The audit trail, newest first, with filters by actor and action and older pages on demand.",
-    hook: {
-      name: "useAuditLog",
-      entry: "better-supabase/blocks/audit/react",
-    },
+    hook: { name: "useAuditLog", entry: "better-supabase/blocks/audit/react" },
     web: {
       file: `${WEB_APP}/src/features/audit/components/audit-log-table.tsx`,
       components: ["button", "select", "skeleton", "table"],
@@ -362,10 +361,7 @@ export const RECIPES: readonly RecipeSource[] = [
     kind: "component",
     description:
       "A record's tags with suggestions, where typing a name adds a tag or creates it.",
-    hook: {
-      name: "useTagInput",
-      entry: "better-supabase/blocks/tags/react",
-    },
+    hook: { name: "useTagInput", entry: "better-supabase/blocks/tags/react" },
     web: {
       file: `${WEB_APP}/src/features/customers/components/tag-input.tsx`,
       components: ["badge", "button", "input", "skeleton"],

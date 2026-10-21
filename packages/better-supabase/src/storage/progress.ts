@@ -1,6 +1,9 @@
 import type { UploadBody } from "./bucket.ts";
 
-/** What `xhrUpload` needs from `XMLHttpRequest`, present in browsers and React Native. */
+/**
+ * What `xhrUpload` needs from `XMLHttpRequest`, present in browsers and React
+ * Native.
+ */
 interface Xhr {
   open(method: string, url: string): void;
   setRequestHeader(name: string, value: string): void;
@@ -8,17 +11,19 @@ interface Xhr {
   abort(): void;
   readonly status: number;
   readonly responseText: string;
-  onload: (() => void) | null;
-  onerror: (() => void) | null;
-  onabort: (() => void) | null;
+  addEventListener(
+    type: "load" | "error" | "abort",
+    listener: () => void,
+  ): void;
   readonly upload: {
-    onprogress:
-      | ((event: {
-          readonly loaded: number;
-          readonly total: number;
-          readonly lengthComputable: boolean;
-        }) => void)
-      | null;
+    addEventListener(
+      type: "progress",
+      listener: (event: {
+        readonly loaded: number;
+        readonly total: number;
+        readonly lengthComputable: boolean;
+      }) => void,
+    ): void;
   };
 }
 
@@ -57,8 +62,8 @@ export interface XhrFailure {
 }
 
 /**
- * PUTs `body` to a signed upload URL with upload progress events. Resolves
- * with `undefined` on success or the failure to map.
+ * PUTs `body` to a signed upload URL with upload progress events. Resolves with
+ * `undefined` on success or the failure to map.
  */
 export function xhrUpload(
   Request: XhrConstructor,
@@ -95,13 +100,13 @@ export function xhrUpload(
       xhr.setRequestHeader("content-type", type);
     }
 
-    xhr.upload.onprogress = (event) => {
+    xhr.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable && event.total > 0) {
         options.onProgress(Math.min(1, event.loaded / event.total));
       }
-    };
+    });
 
-    xhr.onload = () => {
+    xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         options.onProgress(1);
         done(undefined);
@@ -110,23 +115,23 @@ export function xhrUpload(
       }
 
       done(parseFailure(xhr.status, xhr.responseText));
-    };
+    });
 
-    xhr.onerror = () => {
+    xhr.addEventListener("error", () => {
       done({
         message: "Upload failed",
         statusCode: "0",
         name: "StorageUnknownError",
       });
-    };
+    });
 
-    xhr.onabort = () => {
+    xhr.addEventListener("abort", () => {
       done({
         message: "The upload was aborted",
         statusCode: "0",
         name: "AbortError",
       });
-    };
+    });
 
     options.signal?.addEventListener("abort", onAbort, { once: true });
     xhr.send(body);

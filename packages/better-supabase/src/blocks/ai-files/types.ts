@@ -44,10 +44,9 @@ export interface AiFilesOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the file columns the app adds
-   * (`blocks.ai-files.options.extraColumns`), keyed by column name. It
-   * types and parses them on the file reads, and validates them on
-   * `files.upload` and `files.store`, which return a `validation` error for
-   * a bad value.
+   * (`blocks.ai-files.options.extraColumns`), keyed by column name. It types
+   * and parses them on the file reads, and validates them on `files.upload` and
+   * `files.store`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -106,7 +105,10 @@ export interface NewAiFile {
 
 export interface AiFileUpload<F extends object = Record<never, never>> {
   readonly file: AiFile & F;
-  /** PUT the file here, or pass `token` to `uploadToSignedUrl(path, token, file)`. */
+  /**
+   * PUT the file here, or pass `token` to `uploadToSignedUrl(path, token,
+   * file)`.
+   */
   readonly signedUrl: string;
   readonly token: string;
 }
@@ -225,8 +227,8 @@ export interface AiFiles<F extends object = Record<never, never>> {
       file: StoredAiFile & Partial<F>,
     ): AsyncResult<AiFile & F>;
     /**
-     * Deletes stale pending uploads, expired files and the files of
-     * deleted chats, then their objects (service role). Returns how many.
+     * Deletes stale pending uploads, expired files and the files of deleted
+     * chats, then their objects (service role). Returns how many.
      */
     purge(options?: {
       readonly olderThan?: string;
@@ -277,9 +279,9 @@ export interface AiFiles<F extends object = Record<never, never>> {
     resolve(suggestionId: string, accepted: boolean): AsyncResult<AiSuggestion>;
   };
   /**
-   * Replaces the `supabase-storage://` URLs of file parts with signed
-   * download URLs, so a browser or a provider can fetch them. Parts the
-   * caller may not read keep their URL.
+   * Replaces the `supabase-storage://` URLs of file parts with signed download
+   * URLs, so a browser or a provider can fetch them. Parts the caller may not
+   * read keep their URL.
    */
   sign(messages: readonly AiMessage[]): Promise<readonly AiMessage[]>;
 }

@@ -1,8 +1,6 @@
-import {
-  type RpcClient,
-  defineBlocks,
-  rpcTransport,
-} from "better-supabase/blocks";
+import type { RpcClient } from "better-supabase/blocks";
+
+import { defineBlocks, rpcTransport } from "better-supabase/blocks";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";

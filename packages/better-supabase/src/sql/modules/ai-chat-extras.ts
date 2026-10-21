@@ -1,6 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
+import type { ApproverCheck } from "./approver.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -11,11 +12,7 @@ import {
   pageSize,
 } from "../shared.ts";
 import { AI_TOOL_SUBJECT, linkedPolicy } from "./approvals.ts";
-import {
-  AI_TOOL_APPROVAL,
-  type ApproverCheck,
-  approverCheck,
-} from "./approver.ts";
+import { AI_TOOL_APPROVAL, approverCheck } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
@@ -43,7 +40,10 @@ function moderationJson(names: AiChatNames, row: string): string {
   return `jsonb_build_object('id', ${row}.${md.id}, 'organization_id', ${row}.${md.tenant}, 'chat_id', ${row}.${md.chat}, 'message_id', ${row}.${md.message}, 'user_id', ${row}.${md.user}, 'stage', ${row}.${md.stage}, 'category', ${row}.${md.category}, 'score', ${row}.${md.score}, 'action', ${row}.${md.action}, 'created_at', ${row}.${md.createdAt})`;
 }
 
-/** The provider's approver check for a waiting tool call, whose subject is the tool name. */
+/**
+ * The provider's approver check for a waiting tool call, whose subject is the
+ * tool name.
+ */
 function toolApprover(
   ctx: ModuleContext,
   names: AiChatNames,
@@ -62,8 +62,8 @@ function toolApprover(
 
 /**
  * Who may decide a waiting tool call besides the service role: a user the
- * provider's approver check allows (never the chat's owner when the check
- * is distinct), else the chat's owner.
+ * provider's approver check allows (never the chat's owner when the check is
+ * distinct), else the chat's owner.
  */
 function approver(
   names: AiChatNames,

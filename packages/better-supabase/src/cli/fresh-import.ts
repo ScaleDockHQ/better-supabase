@@ -40,10 +40,10 @@ function tagLocalImports(): void {
 let runs = 0;
 
 /**
- * Imports a project module and the project files it imports as they are on
- * disk now, so watch loops see edits to a read-set module's dependencies
- * (such as the `generated.ts` the previous run wrote). Each call keeps its
- * copy of those modules in memory for the life of the process.
+ * Imports a project module and the project files it imports as they are on disk
+ * now, so watch loops see edits to a read-set module's dependencies (such as
+ * the `generated.ts` the previous run wrote). Each call keeps its copy of those
+ * modules in memory for the life of the process.
  */
 export async function importFresh(
   path: string,

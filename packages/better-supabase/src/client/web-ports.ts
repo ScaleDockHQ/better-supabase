@@ -240,7 +240,10 @@ export function webDeepLinks(): DeepLinkPort {
 export interface WebPushTokenOptions {
   /** The VAPID public key, base64url-encoded. */
   readonly vapidPublicKey: string;
-  /** The service worker that receives the pushes. Default `navigator.serviceWorker.ready`. */
+  /**
+   * The service worker that receives the pushes. Default
+   * `navigator.serviceWorker.ready`.
+   */
   readonly registration?: () => Promise<PushRegistrationLike>;
 }
 
@@ -252,8 +255,8 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
 }
 
 /**
- * The push token port over the Push API: the token is the JSON of the
- * browser's push subscription, which a Web Push sender needs.
+ * The push token port over the Push API: the token is the JSON of the browser's
+ * push subscription, which a Web Push sender needs.
  */
 export function webPushToken(options: WebPushTokenOptions): PushTokenPort {
   return {
@@ -290,7 +293,10 @@ export function webPushToken(options: WebPushTokenOptions): PushTokenPort {
   };
 }
 
-/** The web ports `createClient` uses: storage, the keyboard, the file picker and deep links. */
+/**
+ * The web ports `createClient` uses: storage, the keyboard, the file picker and
+ * deep links.
+ */
 export function webPorts(): ClientPorts {
   return {
     storage: webStorage(),

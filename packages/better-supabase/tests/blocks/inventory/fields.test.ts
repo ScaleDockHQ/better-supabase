@@ -28,9 +28,7 @@ describe("inventory fields", () => {
       .orThrow();
 
     expect(saved.fields?.timezone).toBe("Europe/Amsterdam");
-    expect(t.calls[0]?.[1]["fields"]).toEqual({
-      timezone: "Europe/Amsterdam",
-    });
+    expect(t.calls[0]?.[1]["fields"]).toEqual({ timezone: "Europe/Amsterdam" });
   });
 
   it("refuses a bad field before the call", async () => {

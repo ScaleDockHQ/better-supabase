@@ -1,6 +1,7 @@
+import type { AppColumnFormat } from "../preset/index.ts";
 import type { AppColumn, AppColumnType } from "./design.ts";
 
-import { type AppColumnFormat, isAppDefault } from "../preset/index.ts";
+import { isAppDefault } from "../preset/index.ts";
 
 /** The most options a select takes, and the longest option. */
 const MAX_OPTIONS = 100;
@@ -81,8 +82,8 @@ function fitsBound(
 
 /**
  * A column without the keys its type can't take: a format of another type,
- * options outside text and text[], bounds that don't apply, an identity
- * outside integer and bigint, and a default an identity or the type refuses.
+ * options outside text and text[], bounds that don't apply, an identity outside
+ * integer and bigint, and a default an identity or the type refuses.
  */
 export function fitted(column: AppColumn): AppColumn {
   const {
@@ -162,7 +163,10 @@ export function optionError(
   return undefined;
 }
 
-/** Why `value` can't be a bound of `column`, or `undefined` when it can (an empty value clears it). */
+/**
+ * Why `value` can't be a bound of `column`, or `undefined` when it can (an
+ * empty value clears it).
+ */
 export function boundError(
   column: AppColumn,
   side: "min" | "max",
@@ -221,7 +225,10 @@ export function withBounds(
   return next;
 }
 
-/** What the canvas shows for a column that is more than its type, such as an email or a select. */
+/**
+ * What the canvas shows for a column that is more than its type, such as an
+ * email or a select.
+ */
 export function columnLabel(column: AppColumn): string | undefined {
   if (column.identity === true) {
     return "autonumber";

@@ -10,6 +10,7 @@ const live = await reachable();
 // the members of centrakit.project_members, without an organization role.
 describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("reads comments and attachments through a grant on the project", async () => {

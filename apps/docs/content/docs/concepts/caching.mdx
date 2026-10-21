@@ -42,9 +42,7 @@ Database functions don't say what they change. Declare it once:
 ```ts
 export const betterSupabase = defineSupabase(schema).defineRpc(
   "archive_customer",
-  {
-    invalidates: ["customers", "notes"],
-  },
+  { invalidates: ["customers", "notes"] },
 );
 ```
 

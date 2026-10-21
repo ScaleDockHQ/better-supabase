@@ -2,7 +2,10 @@ import type { AppTableVersions } from "../config/index.ts";
 import type { Design } from "./design.ts";
 import type { SchemaColumn } from "./schema.ts";
 
-/** Makes the rows a subject (`appTables.<table>.subject`); the shape of `AppTableSubject`. */
+/**
+ * Makes the rows a subject (`appTables.<table>.subject`); the shape of
+ * `AppTableSubject`.
+ */
 export interface AppSubject {
   readonly type: string;
   readonly title?: string;
@@ -23,7 +26,10 @@ export interface AppEvents {
   readonly include?: readonly string[];
 }
 
-/** The columns `subject` adds: `rank` for manual order and `deleted_at` for trash. */
+/**
+ * The columns `subject` adds: `rank` for manual order and `deleted_at` for
+ * trash.
+ */
 export function subjectColumns(
   subject: AppSubject | undefined,
 ): SchemaColumn[] {
@@ -111,7 +117,10 @@ export function subjectColumnsEdited(
 
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]*$/u;
 
-/** Why `type` can't be the subject type of the app table `table`, or `undefined` when it can. */
+/**
+ * Why `type` can't be the subject type of the app table `table`, or `undefined`
+ * when it can.
+ */
 export function subjectTypeError(
   design: Design,
   table: string,
@@ -130,7 +139,10 @@ export function subjectTypeError(
     : `${owner} already has the subject type ${type}.`;
 }
 
-/** App table events with `edit` applied to the payload columns, dropping an empty list. */
+/**
+ * App table events with `edit` applied to the payload columns, dropping an
+ * empty list.
+ */
 export function eventsColumnsEdited(
   events: true | AppEvents,
   edit: (columns: readonly string[]) => readonly string[],

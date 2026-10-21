@@ -4,7 +4,10 @@ import { lineOf } from "./shared.ts";
 
 const TOKENS_ONLY = /\bencode\s*:\s*["'`]tokens-only["'`]/;
 
-/** Imports that create the browser client, which writes the session cookie in the browser. */
+/**
+ * Imports that create the browser client, which writes the session cookie in
+ * the browser.
+ */
 const BROWSER_SIDE =
   /from\s+["']better-supabase\/client["']|\bcreateBrowserClient\s*\(/;
 

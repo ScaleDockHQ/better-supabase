@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   columnError,
@@ -14,14 +14,14 @@ const preset = {
 } as const;
 
 describe("isRollupAggregate", () => {
-  test("accepts the aggregates and nothing else", () => {
+  it("accepts the aggregates and nothing else", () => {
     expect(isRollupAggregate("sum")).toBe(true);
     expect(isRollupAggregate("median")).toBe(false);
   });
 });
 
 describe("tableWithoutComputed", () => {
-  test("drops the rollup or lookup with that name", () => {
+  it("drops the rollup or lookup with that name", () => {
     const table = {
       columns: {},
       rollups: {
@@ -34,12 +34,12 @@ describe("tableWithoutComputed", () => {
 });
 
 describe("columnError and defaultError", () => {
-  test("refuse a bad identifier and accept a free name", () => {
+  it("refuse a bad identifier and accept a free name", () => {
     expect(columnError({ columns: {} }, "Bad Name", preset)).toBeDefined();
     expect(columnError({ columns: {} }, "title", preset)).toBeUndefined();
   });
 
-  test("defaultError allows an empty value and explains a wrong one", () => {
+  it("defaultError allows an empty value and explains a wrong one", () => {
     expect(defaultError({ type: "integer" }, " ")).toBeUndefined();
     expect(defaultError({ type: "integer" }, "abc")).toMatch(/integer column/u);
   });

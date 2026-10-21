@@ -55,9 +55,9 @@ const READ_METHODS: readonly ReadMethod[] = [
 declare const resultType: unique symbol;
 
 /**
- * A read, described as plain JSON: build it with `betterSupabase.spec`, run it with
- * `db.$run(spec)`, send it from a Server Component to the client, or hand it
- * to `/query` and `/next`. Args never carry a `signal`.
+ * A read, described as plain JSON: build it with `betterSupabase.spec`, run it
+ * with `db.$run(spec)`, send it from a Server Component to the client, or hand
+ * it to `/query` and `/next`. Args never carry a `signal`.
  */
 export interface QuerySpec<
   T extends string = string,
@@ -185,9 +185,9 @@ function specOptions(
 
 /**
  * App keys of every table a spec reads: its table, included relations and
- * relations used in `where`. Queries keyed by a spec go stale when any of
- * them changes. Invalid arguments yield just the spec's table; running the
- * spec reports the error.
+ * relations used in `where`. Queries keyed by a spec go stale when any of them
+ * changes. Invalid arguments yield just the spec's table; running the spec
+ * reports the error.
  */
 export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   const table = meta.tables[spec.table];

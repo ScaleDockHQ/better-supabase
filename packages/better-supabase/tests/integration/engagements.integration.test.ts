@@ -30,6 +30,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("engagements", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("logs calls and tasks on records and finds the next step", async () => {
@@ -121,7 +122,7 @@ describe.skipIf(!live)("engagements", () => {
         .orThrow();
 
       expect(done.doneAt).toBeDefined();
-      expect((await engagements.open(org).orThrow()).length).toBe(0);
+      expect(await engagements.open(org).orThrow()).toHaveLength(0);
       await s.as(rep);
       expect(
         (await engagements.open(org).orThrow()).map((item) => item.title),

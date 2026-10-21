@@ -14,9 +14,7 @@ export const accessRequestsBlock: BlockOf<
 > = defineBlock({
   name: "access-requests",
   sql: ["access-requests"],
-  options: {
-    "access-requests": accessRequestsSqlOptions,
-  },
+  options: { "access-requests": accessRequestsSqlOptions },
   events: accessRequestsEvents,
   create: createAccessRequests,
   category: "identity",

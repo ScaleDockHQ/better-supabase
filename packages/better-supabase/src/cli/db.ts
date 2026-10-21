@@ -64,9 +64,7 @@ export async function connect(
 
   try {
     // SAFETY: pg is an optional peer loaded without its types.
-    const mod = (await load()) as {
-      default?: PgModule;
-    } & PgModule;
+    const mod = (await load()) as { default?: PgModule } & PgModule;
 
     pg = mod.default ?? mod;
   } catch {
@@ -143,8 +141,8 @@ const UNREACHABLE =
 
 /**
  * Whether a failure looks like a local stack that isn't running: a loopback
- * host that refused or dropped the connection. A remote host, a bad password
- * or a TLS error has another cause, so `supabase start` would mislead.
+ * host that refused or dropped the connection. A remote host, a bad password or
+ * a TLS error has another cause, so `supabase start` would mislead.
  */
 function localStackDown(url: string, message: string): boolean {
   let host: string;

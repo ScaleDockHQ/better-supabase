@@ -20,14 +20,8 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents<FlagsEvents> = {
-  "flag.saved": {
-    subject: "flags",
-    payload: ["key"],
-  },
-  "flag.deleted": {
-    subject: "flags",
-    payload: ["key"],
-  },
+  "flag.saved": { subject: "flags", payload: ["key"] },
+  "flag.deleted": { subject: "flags", payload: ["key"] },
   "flag.override_set": {
     subject: "flags",
     payload: [
@@ -95,9 +89,9 @@ interface FlagContextSource {
 }
 
 /**
- * `options.contexts`: a context name to `{ table, column, tenant? }`, the
- * table and column that hold a tenant's value. `tenant` names the column
- * with the tenant id and defaults to `id`, for a column on the tenant table.
+ * `options.contexts`: a context name to `{ table, column, tenant? }`, the table
+ * and column that hold a tenant's value. `tenant` names the column with the
+ * tenant id and defaults to `id`, for a column on the tenant table.
  */
 function contextsOf(ctx: ModuleContext): readonly FlagContextSource[] {
   const where = "blocks.flags.options.contexts";
@@ -563,8 +557,8 @@ grant execute on function ${fn("flag_definitions")}() to service_role;`;
 
 /**
  * Brings version 2 tables forward: adds the context columns and the archived
- * flag, and replaces the unnamed tenant-or-user check and unique constraint
- * of `flag_overrides` with the named ones. A no-op on version 3 tables.
+ * flag, and replaces the unnamed tenant-or-user check and unique constraint of
+ * `flag_overrides` with the named ones. A no-op on version 3 tables.
  */
 function upgradeContexts(ctx: ModuleContext): string {
   const flags = ctx.table("flags");

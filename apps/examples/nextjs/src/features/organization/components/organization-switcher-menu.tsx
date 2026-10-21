@@ -47,9 +47,9 @@ async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
 }
 
 /**
- * The organization menu. The server renders it with its rows; switching
- * goes through `switch_organization`, refreshes the session for the new
- * tenant claim, then re-renders the server tree.
+ * The organization menu. The server renders it with its rows; switching goes
+ * through `switch_organization`, refreshes the session for the new tenant
+ * claim, then re-renders the server tree.
  */
 export function OrganizationSwitcherMenu({
   initial,

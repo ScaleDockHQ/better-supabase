@@ -12,6 +12,30 @@
   its runtime dependencies and peers; use them there instead of `catalog:`, so
   apps don't get a second copy of a package they already have.
 
+## TypeScript 7.1 upgrade checklist
+
+The repo stays on TypeScript 7.0.2 until a 7.1 release and a matching
+`oxlint-tsgolint` build both pass `minimumReleaseAge`. The bump is one
+commit series:
+
+1. Move `typescript` in the default catalog and the two `peerDependencyRules`
+   entries (`jsonv-ts>typescript`, `@sveltejs/kit>typescript`) together.
+2. Move `oxlint-tsgolint` to its 7.1 build in the same commit; tsgolint
+   embeds the compiler and refuses a mismatched one.
+3. Run `pnpm typecheck`. 7.1 rejects a distributed conditional branch that
+   passes `T` to a generic constrained on the original `T`
+   (`'B' is only assignable to the non-distributed 'A'`). The library had no
+   such case when audited in October 2026; the generated
+   `database.types.ts` helpers (`Tables`, `TablesInsert`, `Enums`) are the
+   likely place, and they are fixed by regenerating with a newer
+   `@supabase/postgrest-typegen`, never by hand.
+4. Refresh the baselines: `pnpm --filter ./tests/types/perf update`, `pnpm size` and the
+   CLI startup entry, with the before and after numbers in the commit.
+5. Decide separately whether `base.json` moves to `es2026`: runtime support
+   on every WinterTC target decides it (invariant 6), not the compiler.
+6. Consider bringing back `fumadocs-typescript` hover types once its API
+   for the native compiler is stable.
+
 ## Scripts and hooks
 
 - `pnpm verify` is the gate. `pnpm check` runs `ultracite check`, the Oxfmt

@@ -18,13 +18,12 @@ const MODULES = [
 ];
 
 const layout: ModuleLayout = {
-  modules: {
-    parties: { options: { extraColumns: { segment: "text" } } },
-  },
+  modules: { parties: { options: { extraColumns: { segment: "text" } } } },
 };
 
 describe.skipIf(!live)("parties", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("keeps companies, people and who works where", async () => {
@@ -153,6 +152,7 @@ describe.skipIf(!live)("parties", () => {
 
 describe.skipIf(!live)("parties and the inbox", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("finds the person behind an inbox contact by link, by email or as a new lead", async () => {

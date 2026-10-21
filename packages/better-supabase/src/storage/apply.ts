@@ -1,12 +1,9 @@
 import type { StorageAdminClient } from "./bucket.ts";
+import type { LifecyclePayload, VersioningStatus } from "./versioning.ts";
 
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
-import {
-  lifecycleAbsent,
-  type LifecyclePayload,
-  type VersioningStatus,
-} from "./versioning.ts";
+import { lifecycleAbsent } from "./versioning.ts";
 
 export interface BucketSettings {
   readonly id: string;
@@ -23,8 +20,8 @@ export interface AppliedBucket {
 }
 
 /**
- * Creates or updates a bucket through the Storage API, then sets or removes
- * its lifecycle policy. Versioning and lifecycle live behind the API, so
+ * Creates or updates a bucket through the Storage API, then sets or removes its
+ * lifecycle policy. Versioning and lifecycle live behind the API, so
  * `bucket.sql()` can't write them.
  */
 export function applyBucket(

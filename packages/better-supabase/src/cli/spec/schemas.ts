@@ -1,8 +1,8 @@
 /**
- * The official JSON Schemas `spec validate` checks documents against,
- * vendored unmodified under `schemas/` (sources and SHA-256 in
- * `tests/standards/schemas/SOURCES.md`). Each loads on first use, so a
- * command that validates one format never parses the others.
+ * The official JSON Schemas `spec validate` checks documents against, vendored
+ * unmodified under `schemas/` (sources and SHA-256 in
+ * `tests/standards/schemas/SOURCES.md`). Each loads on first use, so a command
+ * that validates one format never parses the others.
  */
 
 export type SchemaDialect = "draft-04" | "draft-07" | "2020-12";

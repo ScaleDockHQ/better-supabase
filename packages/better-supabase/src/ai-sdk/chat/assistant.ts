@@ -1,12 +1,12 @@
-import {
-  convertToModelMessages,
-  JsonToSseTransformStream,
-  type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessage,
-  type UIMessageChunk,
-  type UIMessageStreamOnEndCallback,
+import type {
+  LanguageModelUsage,
+  ModelMessage,
+  UIMessage,
+  UIMessageChunk,
+  UIMessageStreamOnEndCallback,
 } from "ai";
+
+import { convertToModelMessages, JsonToSseTransformStream } from "ai";
 
 import type {
   AiChat,
@@ -18,6 +18,11 @@ import type {
 import type { AiMessage } from "../../blocks/ai-chat/message.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { StreamStore } from "../../streams/store.ts";
+import type {
+  AiUsage,
+  CostBackfillPayload,
+  GatewayOptions,
+} from "../gateway.ts";
 
 import {
   pathToHistory,
@@ -27,15 +32,7 @@ import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
-import {
-  type AiUsage,
-  type CostBackfillPayload,
-  gatewayOptions,
-  type GatewayOptions,
-  problem429,
-  runRelease,
-  usageOf,
-} from "../gateway.ts";
+import { gatewayOptions, problem429, runRelease, usageOf } from "../gateway.ts";
 import { badRequest, readJson, sse } from "../http.ts";
 import {
   AI_SDK_UI_FORMAT,
@@ -54,8 +51,8 @@ export interface AssistantContext {
   readonly userId: string;
   readonly organizationId: string;
   /**
-   * Keeps the function alive until the answer is stored, after the response
-   * is sent: `after` in Next.js, `ctx.waitUntil` on Workers and Vercel.
+   * Keeps the function alive until the answer is stored, after the response is
+   * sent: `after` in Next.js, `ctx.waitUntil` on Workers and Vercel.
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
@@ -114,8 +111,8 @@ export interface AssistantOptions {
   /** The model when neither the request nor the chat names an allowed one. */
   readonly defaultModel: string;
   /**
-   * The quota check before a generation (`usageQuota(usage, meter)`); an
-   * error answers 429.
+   * The quota check before a generation (`usageQuota(usage, meter)`); an error
+   * answers 429.
    */
   readonly quota?: (organizationId: string) => Promise<DbError | undefined>;
   /** Checks the user's message; `block` answers 403, others are recorded. */
@@ -123,13 +120,19 @@ export interface AssistantOptions {
     readonly message: AiMessage;
     readonly chat: AiChatRecord;
   }) => Promise<AssistantModeration | undefined>;
-  /** Called with the cost backfill payload when the gateway hasn't reported a cost yet. */
+  /**
+   * Called with the cost backfill payload when the gateway hasn't reported a
+   * cost yet.
+   */
   readonly enqueueCostBackfill?: (
     payload: CostBackfillPayload,
   ) => Promise<unknown>;
   /** Called after the answer is stored, such as to record usage. */
   readonly onFinish?: (finish: AssistantFinish) => void | Promise<void>;
-  /** What the stream is kept for: seconds or a Postgres interval. Defaults to one day. */
+  /**
+   * What the stream is kept for: seconds or a Postgres interval. Defaults to
+   * one day.
+   */
   readonly streamTtl?: number | string;
   /** The `feature` tag of the gateway options. Defaults to `chat`. */
   readonly feature?: string;
@@ -168,10 +171,10 @@ export interface Assistant {
   /** Stores the user's message, starts the answer and streams it (SSE). */
   respond(request: Request, context: AssistantContext): Promise<Response>;
   /**
-   * The checks and writes before a generation, without one: parses the
-   * body `useAssistant` sends, creates the chat on first use, picks the
-   * model, moderates, checks the quota, stores the user's message and loads
-   * the history. Returns a problem response when one of them fails.
+   * The checks and writes before a generation, without one: parses the body
+   * `useAssistant` sends, creates the chat on first use, picks the model,
+   * moderates, checks the quota, stores the user's message and loads the
+   * history. Returns a problem response when one of them fails.
    */
   prepare(
     body: unknown,
@@ -183,7 +186,10 @@ export interface Assistant {
     context: AssistantContext,
     options?: { readonly fromIdx?: number; readonly signal?: AbortSignal },
   ): Promise<Response>;
-  /** Asks the running answer to stop: 204 whether or not one runs, a problem when the user may not. */
+  /**
+   * Asks the running answer to stop: 204 whether or not one runs, a problem
+   * when the user may not.
+   */
   stop(chatId: string, context: AssistantContext): Promise<Response>;
 }
 
@@ -236,10 +242,10 @@ const settle = async <T>(
 
 /**
  * A chat route for the AI SDK on the `ai-chat` block: `respond` stores the
- * user's message, picks an allowed model, checks the quota, claims the
- * chat's answer, runs the model and streams it while keeping a copy in the
- * stream store; the answer and its usage are stored when it ends, even
- * after the client left. `resume` replays it after a reload, `stop` ends it.
+ * user's message, picks an allowed model, checks the quota, claims the chat's
+ * answer, runs the model and streams it while keeping a copy in the stream
+ * store; the answer and its usage are stored when it ends, even after the
+ * client left. `resume` replays it after a reload, `stop` ends it.
  */
 export function createAssistant(options: AssistantOptions): Assistant {
   const newId = options.generateId ?? (() => crypto.randomUUID());

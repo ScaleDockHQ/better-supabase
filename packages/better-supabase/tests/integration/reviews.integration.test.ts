@@ -2,14 +2,10 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { createReviews, sqlTransport } from "../../src/blocks/reviews/index.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -112,6 +108,7 @@ async function paidOrder(
 
 describe.skipIf(!live)("reviews module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("moderates storefront product reviews and keeps the aggregate public", async () => {
@@ -328,10 +325,7 @@ describe.skipIf(!live)("reviews module", () => {
         .submit(tenant, "ticket", ticket!.id, { rating: 3 })
         .orThrow();
 
-      expect(submitted).toMatchObject({
-        status: "pending",
-        verified: false,
-      });
+      expect(submitted).toMatchObject({ status: "pending", verified: false });
       expect(
         (await reviews.mine(tenant, "ticket", ticket!.id).orThrow())?.rating,
       ).toBe(3);

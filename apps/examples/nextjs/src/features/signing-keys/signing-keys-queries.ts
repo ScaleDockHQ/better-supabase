@@ -22,10 +22,10 @@ export interface SigningKeysOverview {
 }
 
 /**
- * The organization's published keys, newest first: the first is the
- * active one. Reads with the service role, so it checks the permission
- * itself. A failed read throws, so it is never cached and Retry reads
- * again. `null` without an organization or the permission.
+ * The organization's published keys, newest first: the first is the active one.
+ * Reads with the service role, so it checks the permission itself. A failed
+ * read throws, so it is never cached and Retry reads again. `null` without an
+ * organization or the permission.
  */
 export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
   "use cache: private";

@@ -12,7 +12,8 @@ export function isPlainObject(
 
 /**
  * Copies plain objects and arrays so hooks and listeners cannot change the
- * caller's result (invariant 5). Temporal values are immutable and stay shared.
+ * caller's result (invariant 5). Temporal values are immutable and stay
+ * shared.
  */
 export function cloneValue(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -32,7 +33,10 @@ export function cloneValue(value: unknown): unknown {
   return value;
 }
 
-/** Freezes plain objects and arrays in place, recursively, and returns the value. */
+/**
+ * Freezes plain objects and arrays in place, recursively, and returns the
+ * value.
+ */
 export function deepFreeze<T>(value: T): T {
   if (Array.isArray(value) || isPlainObject(value)) {
     for (const item of Object.values(value)) {

@@ -3,8 +3,8 @@
 import "./globals.css";
 
 /**
- * An error in the root layout. It replaces the document, outside the
- * `[locale]` layout and its message provider, so the copy is English.
+ * An error in the root layout. It replaces the document, outside the `[locale]`
+ * layout and its message provider, so the copy is English.
  */
 export default function GlobalError({
   error,

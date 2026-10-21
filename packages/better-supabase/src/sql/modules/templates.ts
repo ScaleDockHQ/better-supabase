@@ -213,11 +213,7 @@ function build(ctx: ModuleContext): string {
   const workflows =
     builder === undefined
       ? undefined
-      : workflowParts(ctx, {
-          builder,
-          schemas,
-          mayManage,
-        });
+      : workflowParts(ctx, { builder, schemas, mayManage });
 
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
@@ -820,11 +816,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     { name: "fork_template", args: ["uuid", "{id}"], returns: "jsonb" },
     { name: "sync_templates", args: ["jsonb"], returns: "integer" },
-    {
-      name: "template_apply_target",
-      args: ["uuid", "{id}"],
-      returns: "jsonb",
-    },
+    { name: "template_apply_target", args: ["uuid", "{id}"], returns: "jsonb" },
     {
       name: "record_template_application",
       args: ["uuid", "uuid", "{id}", "text", "text"],
@@ -847,11 +839,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
             args: ["uuid", "uuid"],
             returns: "boolean",
           },
-          {
-            name: "template_workflows_list",
-            args: ["uuid"],
-            returns: "jsonb",
-          },
+          { name: "template_workflows_list", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
   ];

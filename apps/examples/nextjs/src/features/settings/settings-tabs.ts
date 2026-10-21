@@ -24,7 +24,10 @@ export interface SettingsTab {
   readonly requires?: Permission;
 }
 
-/** The proxy reads the same permissions from `navItems` for the organization tabs. */
+/**
+ * The proxy reads the same permissions from `navItems` for the organization
+ * tabs.
+ */
 export const settingsTabs: readonly SettingsTab[] = [
   { id: "profile", href: "/settings/profile" },
   { id: "preferences", href: "/settings/preferences" },
@@ -57,9 +60,5 @@ export const settingsTabs: readonly SettingsTab[] = [
   },
   { id: "jobs", href: "/settings/jobs", requires: "audit.read" },
   { id: "audit", href: "/settings/audit", requires: "audit.read" },
-  {
-    id: "aiProviders",
-    href: "/settings/ai-providers",
-    requires: "ai.admin",
-  },
+  { id: "aiProviders", href: "/settings/ai-providers", requires: "ai.admin" },
 ];

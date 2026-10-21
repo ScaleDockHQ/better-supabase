@@ -2,13 +2,11 @@ import { os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it } from "vitest";
 
+import type { OrpcRequestContext, RateLimiter } from "../../src/orpc/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
-import {
-  createOrpc,
-  type OrpcRequestContext,
-  type RateLimiter,
-} from "../../src/orpc/index.ts";
+import { createOrpc } from "../../src/orpc/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
@@ -38,17 +36,19 @@ describe("createOrpc().rateLimit", () => {
 
   const bs = createOrpc(defineSupabase(schema), { env });
 
-  const base = os.$context<OrpcRequestContext>().use(
-    bs.rateLimit({
-      limiter,
-      scope: "rpc",
-      rule: { max: 2, period: "1 minute" },
-      key: ({ context, path }) =>
-        context.request.headers.get("x-client") === null
-          ? undefined
-          : `${context.request.headers.get("x-client")}:${path.join(".")}`,
-    }),
-  );
+  const base = os
+    .$context<OrpcRequestContext>()
+    .use(
+      bs.rateLimit({
+        limiter,
+        scope: "rpc",
+        rule: { max: 2, period: "1 minute" },
+        key: ({ context, path }) =>
+          context.request.headers.get("x-client") === null
+            ? undefined
+            : `${context.request.headers.get("x-client")}:${path.join(".")}`,
+      }),
+    );
 
   const fetch = bs.fetchHandler(
     new RPCHandler({ ping: base.handler(() => ({ pong: true })) }),

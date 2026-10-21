@@ -199,11 +199,7 @@ describe("createRules", () => {
     expect(await rules.get("missing").orThrow()).toBeUndefined();
 
     const saved = await rules
-      .save("org-1", {
-        id: "r1",
-        version: 3,
-        name: "Large",
-      })
+      .save("org-1", { id: "r1", version: 3, name: "Large" })
       .orThrow();
 
     expect(saved.version).toBe(4);

@@ -49,7 +49,10 @@ const typeOf = (value: unknown): string => {
   return typeof value;
 };
 
-/** Enough of JSON Schema 2020-12 for the shipped schemas: type, enum, const, $ref, properties, additionalProperties, items, oneOf, anyOf. */
+/**
+ * Enough of JSON Schema 2020-12 for the shipped schemas: type, enum, const,
+ * $ref, properties, additionalProperties, items, oneOf, anyOf.
+ */
 function validate(
   root: Schema,
   schema: Schema,
@@ -146,7 +149,7 @@ function validate(
   }
 
   if (Array.isArray(value) && schema["items"]) {
-    value.forEach((item, index) => {
+    for (const [index, item] of value.entries()) {
       validate(
         root,
         schema["items"] as Schema,
@@ -154,7 +157,7 @@ function validate(
         `${path}[${index}]`,
         errors,
       );
-    });
+    }
   }
 }
 

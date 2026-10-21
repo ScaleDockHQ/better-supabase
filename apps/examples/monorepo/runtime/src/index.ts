@@ -1,13 +1,16 @@
+import type { AuthSession, ServerContext } from "better-supabase/server";
+
 import { defineSupabase } from "better-supabase";
-import {
-  type AuthSession,
-  type ServerContext,
-  toSession,
-} from "better-supabase/server";
+import { toSession } from "better-supabase/server";
 
-import { type Functions, type Models, schema } from "./generated";
+import type { Functions, Models } from "./generated";
 
-/** The one `defineSupabase` in the monorepo. Domain packages never import `./generated`. */
+import { schema } from "./generated";
+
+/**
+ * The one `defineSupabase` in the monorepo. Domain packages never import
+ * `./generated`.
+ */
 export const betterSupabase = defineSupabase(schema);
 
 /** The request context every domain package receives. */

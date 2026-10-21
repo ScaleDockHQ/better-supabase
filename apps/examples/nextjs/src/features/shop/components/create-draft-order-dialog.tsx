@@ -42,8 +42,8 @@ export interface OrderableProduct {
 }
 
 /**
- * Adds a catalog product to the caller's draft order, then opens it. The
- * draft is the caller's open cart, so a second add goes to the same draft.
+ * Adds a catalog product to the caller's draft order, then opens it. The draft
+ * is the caller's open cart, so a second add goes to the same draft.
  */
 export function CreateDraftOrderDialog({
   products,

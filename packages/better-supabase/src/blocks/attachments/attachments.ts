@@ -1,23 +1,25 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { UploadClaimStorage } from "../upload-claim.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraOf,
   extraFieldsArg,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import {
   blockCall,
@@ -29,14 +31,9 @@ import {
   recordsOf,
   textOf,
   toInstant,
-  type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
-import {
-  claimsUploads,
-  claimUpload,
-  type UploadClaimStorage,
-} from "../upload-claim.ts";
+import { claimsUploads, claimUpload } from "../upload-claim.ts";
 
 interface StorageReply<T> {
   readonly data: T | null;
@@ -75,9 +72,9 @@ export interface AttachmentsOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the attachment columns the app adds
-   * (`blocks.attachments.options.extraColumns`), keyed by column name. It
-   * types and parses them on every read, and validates them on `upload`
-   * and `put`, which return a `validation` error for a bad value.
+   * (`blocks.attachments.options.extraColumns`), keyed by column name. It types
+   * and parses them on every read, and validates them on `upload` and `put`,
+   * which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -88,12 +85,15 @@ export interface AttachmentsOptions<
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, so the bucket policies apply. */
   readonly storage: AttachmentStorage;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * `blocks.attachments.options.requireScan`, which `defineBlocks` passes
-   * from `blocks.generated.ts`. Default `true`.
+   * `blocks.attachments.options.requireScan`, which `defineBlocks` passes from
+   * `blocks.generated.ts`. Default `true`.
    */
   readonly requireScan?: boolean;
   /** Lifetime of a signed download URL in seconds. Default 300. */
@@ -109,7 +109,10 @@ export interface Attachment {
   readonly subjectType: string | undefined;
   readonly subjectId: string | undefined;
   readonly bucket: string;
-  /** The object path in the bucket, `{organizationId}/attachments/{id}` unless `options.path` says otherwise. */
+  /**
+   * The object path in the bucket, `{organizationId}/attachments/{id}` unless
+   * `options.path` says otherwise.
+   */
   readonly path: string;
   readonly name: string;
   readonly mimeType: string;
@@ -135,13 +138,19 @@ export interface NewAttachment {
   readonly size: number;
   readonly subjectType?: string;
   readonly subjectId?: string;
-  /** App data about the file, such as a caption or its source, kept with the record. */
+  /**
+   * App data about the file, such as a caption or its source, kept with the
+   * record.
+   */
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 export interface AttachmentUpload<F extends object = Record<never, never>> {
   readonly attachment: Attachment & F;
-  /** PUT the file here, or pass `token` to `uploadToSignedUrl(path, token, file)`. */
+  /**
+   * PUT the file here, or pass `token` to `uploadToSignedUrl(path, token,
+   * file)`.
+   */
   readonly signedUrl: string;
   readonly token: string;
 }
@@ -160,7 +169,10 @@ export interface Attachments<F extends object = Record<never, never>> {
   upload(
     attachment: NewAttachment & Partial<F>,
   ): AsyncResult<AttachmentUpload<F>>;
-  /** Marks the upload done after the file is stored; emits `attachment.uploaded`. */
+  /**
+   * Marks the upload done after the file is stored; emits
+   * `attachment.uploaded`.
+   */
   confirm(id: string): AsyncResult<Attachment & F>;
   get(id: string): AsyncResult<Attachment & F>;
   list(
@@ -179,18 +191,18 @@ export interface Attachments<F extends object = Record<never, never>> {
   remove(id: string): AsyncResult<boolean>;
   /**
    * Creates the record, uploads `file` from the server and confirms it, for
-   * files the server makes or fetches (an export, a generated PDF, an
-   * import). Returns the confirmed attachment, which still waits for the
-   * scan when the module requires one. When Storage refuses the upload,
-   * the record is deleted again, so no pending record is left behind.
+   * files the server makes or fetches (an export, a generated PDF, an import).
+   * Returns the confirmed attachment, which still waits for the scan when the
+   * module requires one. When Storage refuses the upload, the record is deleted
+   * again, so no pending record is left behind.
    */
   put(
     attachment: NewAttachment & Partial<F>,
     file: Blob | ArrayBuffer | Uint8Array,
   ): AsyncResult<Attachment & F>;
   /**
-   * The file's bytes, for server-side processing, behind the same scan gate
-   * as `download`: `ATTACHMENT_NOT_SCANNED` until the scan passes.
+   * The file's bytes, for server-side processing, behind the same scan gate as
+   * `download`: `ATTACHMENT_NOT_SCANNED` until the scan passes.
    */
   read(
     id: string,
@@ -273,8 +285,8 @@ export function stored<T>(
 
 /**
  * Waits for a scan from a job or an event. A scan whose target is gone (the
- * attachment row, or for an object the stored object) is done, not a
- * failure, so the job or event is not retried; every other error throws.
+ * attachment row, or for an object the stored object) is done, not a failure,
+ * so the job or event is not retried; every other error throws.
  */
 async function settle(
   scanned: AsyncResult<unknown>,
@@ -522,12 +534,18 @@ export interface ScanVerdict {
 }
 
 export interface AttachmentScannerOptions extends BlockTemporalOptions {
-  /** A service-role transport: `set_attachment_status()` is granted to `service_role` only. */
+  /**
+   * A service-role transport: `set_attachment_status()` is granted to
+   * `service_role` only.
+   */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to read pending files. */
   readonly storage: AttachmentStorage;
   readonly schema?: string;
-  /** Scans the file (ClamAV, a scanning API). A throw records `failed` and rethrows. */
+  /**
+   * Scans the file (ClamAV, a scanning API). A throw records `failed` and
+   * rethrows.
+   */
   readonly scan: (
     file: Blob,
     attachment: Attachment,
@@ -551,9 +569,9 @@ export interface AttachmentScanner {
    */
   readonly job: JobHandler<AttachmentScanJob>;
   /**
-   * An outbox sink that scans each `attachment.uploaded` event's file. An
-   * event for a deleted attachment is skipped, so it never holds up the
-   * events behind it; other errors throw so the relay retries the batch.
+   * An outbox sink that scans each `attachment.uploaded` event's file. An event
+   * for a deleted attachment is skipped, so it never holds up the events behind
+   * it; other errors throw so the relay retries the batch.
    */
   sink(): EventSink;
 }
@@ -661,7 +679,10 @@ export interface ScannedObject {
 }
 
 export interface ObjectScannerOptions extends BlockTemporalOptions {
-  /** A service-role transport: `set_object_scan()` is granted to `service_role` only. */
+  /**
+   * A service-role transport: `set_object_scan()` is granted to `service_role`
+   * only.
+   */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to read the objects. */
   readonly storage: AttachmentStorage;
@@ -683,7 +704,10 @@ export interface ObjectScanJob {
 }
 
 export interface ObjectScanner {
-  /** Scans one object and records the verdict; a clean or infected object is not scanned again. */
+  /**
+   * Scans one object and records the verdict; a clean or infected object is not
+   * scanned again.
+   */
   scan(
     bucket: string,
     path: string,
@@ -695,9 +719,9 @@ export interface ObjectScanner {
    */
   readonly job: JobHandler<ObjectScanJob>;
   /**
-   * An outbox sink that scans each `object.uploaded` event's object. An
-   * event for an object deleted from storage is skipped; other errors throw
-   * so the relay retries the batch.
+   * An outbox sink that scans each `object.uploaded` event's object. An event
+   * for an object deleted from storage is skipped; other errors throw so the
+   * relay retries the batch.
    */
   sink(): EventSink;
 }
@@ -719,9 +743,9 @@ function scannedOf(value: unknown): ScannedObject {
 }
 
 /**
- * The scan gate for objects outside the attachments table, such as a file
- * drive or avatars: scans an object with the app's `scan` function and
- * records the verdict in `scanned_objects`, which storage policies read with
+ * The scan gate for objects outside the attachments table, such as a file drive
+ * or avatars: scans an object with the app's `scan` function and records the
+ * verdict in `scanned_objects`, which storage policies read with
  * `object_clean(bucket_id, name)`. With `options.scanBuckets`, new objects in
  * those buckets get a pending row and an `object.uploaded` event.
  */

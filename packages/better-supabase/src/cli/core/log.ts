@@ -1,8 +1,8 @@
 import type { Paint } from "../style.ts";
 
 /**
- * Messages for the person running the command. Every method writes to
- * stderr, so stdout carries only the command's output or its JSON document.
+ * Messages for the person running the command. Every method writes to stderr,
+ * so stdout carries only the command's output or its JSON document.
  */
 export interface CliLog {
   readonly info: (text: string) => void;
@@ -11,8 +11,8 @@ export interface CliLog {
   /** Written only under `--debug`. */
   readonly debug: (text: string) => void;
   /**
-   * Runs `task` while `message` shows: a spinner on a terminal, one plain
-   * line elsewhere. Under `--debug` it also logs how long the task took.
+   * Runs `task` while `message` shows: a spinner on a terminal, one plain line
+   * elsewhere. Under `--debug` it also logs how long the task took.
    */
   readonly progress: <T>(message: string, task: () => Promise<T>) => Promise<T>;
 }
@@ -22,7 +22,10 @@ export interface LogOptions {
   readonly write: (line: string) => void;
   readonly paint: Paint;
   readonly debug: boolean;
-  /** Shows `message` until the returned function is called. Without it, progress shows nothing. */
+  /**
+   * Shows `message` until the returned function is called. Without it, progress
+   * shows nothing.
+   */
   readonly spinner?: (message: string) => () => void;
   readonly now?: () => number;
 }

@@ -33,7 +33,10 @@ function queryTables(query: Query): readonly string[] | undefined {
   return prefix === "bs" && typeof table === "string" ? [table] : undefined;
 }
 
-/** Table to the hashes of the queries that read it, kept current from the cache's events. */
+/**
+ * Table to the hashes of the queries that read it, kept current from the
+ * cache's events.
+ */
 interface TableIndex {
   readonly byTable: Map<string, Set<string>>;
   readonly tablesOf: Map<string, readonly string[]>;
@@ -124,10 +127,10 @@ function indexOf(cache: QueryCache): TableIndex {
 }
 
 /**
- * Invalidates every query that read one of `tables`: better-supabase queries
- * by their `meta.bsTables`, and other `['bs', table, ...]` keys by prefix.
- * An index from table to queries finds them, so a write to a table nothing
- * read skips the cache scan.
+ * Invalidates every query that read one of `tables`: better-supabase queries by
+ * their `meta.bsTables`, and other `['bs', table, ...]` keys by prefix. An
+ * index from table to queries finds them, so a write to a table nothing read
+ * skips the cache scan.
  */
 export function invalidateTables(
   client: QueryClient,

@@ -1,32 +1,29 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 
 import type { DbError } from "../core/errors.ts";
+import type { SessionActor, SessionDelegation } from "./actor.ts";
+import type { Impersonator } from "./impersonation.ts";
+import type { Aal, AmrEntry } from "./mfa.ts";
 import type { AuthState, InvalidReason } from "./resolve.ts";
 
-import {
-  actorOf,
-  delegationOf,
-  invalidActorError,
-  type SessionActor,
-  type SessionDelegation,
-} from "./actor.ts";
-import { type Impersonator, impersonatorOf } from "./impersonation.ts";
-import { type Aal, aalOf, type AmrEntry, amrOf } from "./mfa.ts";
+import { actorOf, delegationOf, invalidActorError } from "./actor.ts";
+import { impersonatorOf } from "./impersonation.ts";
+import { aalOf, amrOf } from "./mfa.ts";
 
 export { tenantOf } from "./tenant.ts";
 
 /**
- * The verified caller as plain data: no token, no clients. Safe to return
- * from a `'use cache: private'` function and to pass to Client Components.
+ * The verified caller as plain data: no token, no clients. Safe to return from
+ * a `'use cache: private'` function and to pass to Client Components.
  */
 export type AuthSession<C = unknown, P = unknown> =
   | {
       readonly kind: "user";
       /**
-       * Read from the verified claims (`sub`, `email`, `role`,
-       * `app_metadata`, `user_metadata`), never from the user object in the
-       * cookie, so it is the same with `tokens-only` cookies. Call
-       * `auth.getUser()` when a flow must see a revoked or changed user.
+       * Read from the verified claims (`sub`, `email`, `role`, `app_metadata`,
+       * `user_metadata`), never from the user object in the cookie, so it is
+       * the same with `tokens-only` cookies. Call `auth.getUser()` when a flow
+       * must see a revoked or changed user.
        */
       readonly user: UserClaims;
       /**
@@ -37,8 +34,8 @@ export type AuthSession<C = unknown, P = unknown> =
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
       /**
-       * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`, for display.
-       * Absent without a schema or when the metadata fails it. Users
+       * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`, for
+       * display. Absent without a schema or when the metadata fails it. Users
        * write this data with `auth.updateUser()`: never base access on it.
        */
       readonly profile?: P;
@@ -64,8 +61,8 @@ export type AuthSession<C = unknown, P = unknown> =
        */
       readonly actor?: SessionActor;
       /**
-       * The scopes the user granted an `oauth-client` actor (or an `agent`
-       * on a token with a `scope`), without the OpenID identity scopes in
+       * The scopes the user granted an `oauth-client` actor (or an `agent` on a
+       * token with a `scope`), without the OpenID identity scopes in
        * `IDENTITY_SCOPES`, plus its `act` chain. Never set for a support or
        * impersonated session.
        */

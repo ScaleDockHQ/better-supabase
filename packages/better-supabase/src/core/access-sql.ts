@@ -38,9 +38,9 @@ export const SCOPE_ID_TYPES: readonly string[] = [
 ];
 
 /**
- * What is wrong with a provider's scopes: an unknown tenant scope or
- * parent, a parent cycle, an id type outside `SCOPE_ID_TYPES`, or a tenant
- * scope without one.
+ * What is wrong with a provider's scopes: an unknown tenant scope or parent, a
+ * parent cycle, an id type outside `SCOPE_ID_TYPES`, or a tenant scope without
+ * one.
  */
 export function scopeProblems(provider: {
   readonly scopes: readonly {
@@ -125,8 +125,8 @@ const CALL_KEYWORDS = new Set([
 ]);
 
 /**
- * What makes a template unsafe to put into generated SQL: a `$$`, `;` or
- * `--` (outside string literals), or a function call without a schema.
+ * What makes a template unsafe to put into generated SQL: a `$$`, `;` or `--`
+ * (outside string literals), or a function call without a schema.
  */
 export function templateProblems(template: string): string[] {
   const code = template
@@ -160,8 +160,8 @@ export const templatePlaceholders = (template: string): string[] => [
 ];
 
 /**
- * Fills a template's `{name}` placeholders. `where` names the setting in
- * the error for a placeholder `values` doesn't have.
+ * Fills a template's `{name}` placeholders. `where` names the setting in the
+ * error for a placeholder `values` doesn't have.
  */
 export function fillTemplate(
   where: string,
@@ -183,7 +183,10 @@ export function fillTemplate(
   });
 }
 
-/** The `schema.name` of every schema-qualified function a template calls, with `{scope}` filled. */
+/**
+ * The `schema.name` of every schema-qualified function a template calls, with
+ * `{scope}` filled.
+ */
 export function templateFunctions(template: string, scope?: string): string[] {
   const filled =
     scope === undefined ? template : template.replaceAll("{scope}", scope);

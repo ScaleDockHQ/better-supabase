@@ -30,14 +30,8 @@ const EVENTS: ModuleEvents<TeamsEvents> = {
     subject: "teams",
     payload: ["organizationId", "id", "name"],
   },
-  "team.archived": {
-    subject: "teams",
-    payload: ["organizationId", "id"],
-  },
-  "team.deleted": {
-    subject: "teams",
-    payload: ["organizationId", "id"],
-  },
+  "team.archived": { subject: "teams", payload: ["organizationId", "id"] },
+  "team.deleted": { subject: "teams", payload: ["organizationId", "id"] },
   "team_member.added": {
     subject: "teams",
     payload: ["organizationId", "id", "userId"],

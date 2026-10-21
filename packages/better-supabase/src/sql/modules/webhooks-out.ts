@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { HookNames } from "./webhooks-out-sql.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -20,7 +21,6 @@ import {
 import {
   ADDED_COLUMNS,
   functions,
-  type HookNames,
   hookNames,
   WEBHOOK_STATUSES,
 } from "./webhooks-out-sql.ts";
@@ -175,9 +175,9 @@ export const ADOPTED_FORMAT_ERROR =
   'blocks.webhooks-out: the adopted endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
 
 /**
- * Without a format column every endpoint uses `defaultFormat`, whose
- * default changed from the 0.8 body to `cloudevents` in 0.9, so an adopted
- * table has to choose it.
+ * Without a format column every endpoint uses `defaultFormat`, whose default
+ * changed from the 0.8 body to `cloudevents` in 0.9, so an adopted table has to
+ * choose it.
  */
 function requireAdoptedFormat(ctx: ModuleContext, n: HookNames): void {
   if (

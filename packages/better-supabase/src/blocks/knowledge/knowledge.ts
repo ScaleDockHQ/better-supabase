@@ -5,6 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { AiFile, AiFiles } from "../ai-files/ai-files.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
@@ -13,7 +14,6 @@ import { vectorLiteral as pgVector } from "../../core/search.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   isRecord,
   optionalText,
@@ -27,8 +27,8 @@ import {
 } from "../shared.ts";
 
 /**
- * Turns texts into vectors. `model` is stored with each document, so a
- * document embedded by another model can be found and embedded again.
+ * Turns texts into vectors. `model` is stored with each document, so a document
+ * embedded by another model can be found and embedded again.
  */
 export interface Embedder {
   /** The embedder contract version. Omitted means 1. */
@@ -54,7 +54,10 @@ export interface KnowledgeDocument {
   readonly organizationId: string;
   readonly ownerId: string;
   readonly scope: KnowledgeScope;
-  /** The agent, project, chat or user the document belongs to; none for organization scope. */
+  /**
+   * The agent, project, chat or user the document belongs to; none for
+   * organization scope.
+   */
   readonly scopeId: string | undefined;
   readonly fileId: string | undefined;
   readonly title: string;
@@ -121,7 +124,10 @@ export interface KnowledgeSearchOptions {
 export interface ChunkOptions {
   /** The most characters in a chunk. Default 2000. */
   readonly size?: number;
-  /** Characters repeated from the end of the previous chunk. Default 200, or a tenth of a smaller `size`. */
+  /**
+   * Characters repeated from the end of the previous chunk. Default 200, or a
+   * tenth of a smaller `size`.
+   */
   readonly overlap?: number;
 }
 
@@ -130,7 +136,10 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** Calls as the service role, for `process`, `drain` and `reembed`. */
   readonly service?: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** Embeds chunks and queries; without one, search is full text only. */
@@ -138,20 +147,26 @@ export interface KnowledgeOptions extends BlockTemporalOptions {
   /** The ai-files block, for `ingest.file`. */
   readonly files?: AiFiles;
   /**
-   * The text of a file. The default decodes `text/*`, JSON, XML and YAML
-   * as UTF-8 and fails with `KNOWLEDGE_UNSUPPORTED` for anything else.
+   * The text of a file. The default decodes `text/*`, JSON, XML and YAML as
+   * UTF-8 and fails with `KNOWLEDGE_UNSUPPORTED` for anything else.
    */
   readonly extract?: (file: AiFile, data: Uint8Array) => Promise<string>;
   readonly chunking?: ChunkOptions;
   /** Chunks per embedding call. Default 64. */
   readonly batchSize?: number;
-  /** `withBlockHooks` hooks around the methods, and around each group's under its name (ADR 0015). */
+  /**
+   * `withBlockHooks` hooks around the methods, and around each group's under
+   * its name (ADR 0015).
+   */
   readonly hooks?: KnowledgeHooks;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
 }
 
-/** Hooks for `Knowledge`: the top-level methods, and `documents` and `ingest` by group. */
+/**
+ * Hooks for `Knowledge`: the top-level methods, and `documents` and `ingest` by
+ * group.
+ */
 export type KnowledgeHooks = BlockHooks<Knowledge> & {
   readonly documents?: BlockHooks<Knowledge["documents"]>;
   readonly ingest?: BlockHooks<Knowledge["ingest"]>;
@@ -193,22 +208,22 @@ export interface Knowledge {
     ): AsyncResult<KnowledgeDocument>;
   };
   /**
-   * Embeds a document's pending chunks (service role). Returns how many
-   * still wait, 0 once the document is ready.
+   * Embeds a document's pending chunks (service role). Returns how many still
+   * wait, 0 once the document is ready.
    */
   process(
     documentId: string,
     options?: { readonly signal?: AbortSignal | undefined },
   ): AsyncResult<number>;
   /**
-   * The handler for the `knowledge_embed` queue. The last attempt marks
-   * the document failed with the error.
+   * The handler for the `knowledge_embed` queue. The last attempt marks the
+   * document failed with the error.
    */
   embedJob(): JobHandler<{ readonly document_id: string }>;
   /**
    * Processes pending documents without a queue (service role). Returns how
-   * many. A document is marked failed only after `attempts` (default 3)
-   * tries fail, and never when the signal aborted it.
+   * many. A document is marked failed only after `attempts` (default 3) tries
+   * fail, and never when the signal aborted it.
    */
   drain(options?: {
     readonly batch?: number;
@@ -221,8 +236,8 @@ export interface Knowledge {
     options?: KnowledgeSearchOptions,
   ): AsyncResult<readonly KnowledgeHit[]>;
   /**
-   * Marks documents embedded by another model (or every document when
-   * `model` is unset) pending again (service role). Returns how many.
+   * Marks documents embedded by another model (or every document when `model`
+   * is unset) pending again (service role). Returns how many.
    */
   reembed(options?: {
     readonly organizationId?: string;
@@ -245,9 +260,9 @@ const TEXT_TYPES =
   /^(text\/|application\/(json|xml|yaml|x-yaml|ld\+json|x-ndjson)\b)/;
 
 /**
- * Splits text into chunks of at most `size` characters, preferring a
- * paragraph, line, sentence or word break in the second half of each
- * chunk, and repeating `overlap` characters of the previous one.
+ * Splits text into chunks of at most `size` characters, preferring a paragraph,
+ * line, sentence or word break in the second half of each chunk, and repeating
+ * `overlap` characters of the previous one.
  */
 export function chunk(
   text: string,
@@ -307,8 +322,8 @@ export function chunk(
 }
 
 /**
- * An `invalid_input` error unless the embedder returned `count` vectors of
- * one non-zero length with finite numbers.
+ * An `invalid_input` error unless the embedder returned `count` vectors of one
+ * non-zero length with finite numbers.
  */
 export function checkVectors(
   vectors: readonly (readonly number[])[],

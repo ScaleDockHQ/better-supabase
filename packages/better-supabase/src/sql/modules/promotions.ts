@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { PromotionsNames } from "./promotions-functions.ts";
 
 import {
   addExtraColumns,
@@ -16,7 +17,6 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 import { columns } from "./orders-shared.ts";
 import {
-  type PromotionsNames,
   codeFunctions,
   discountFunctions,
   promotionExtras,
@@ -271,11 +271,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "delete_promotion_code", args: ["uuid"], returns: "boolean" },
-    {
-      name: "apply_promotion_code",
-      args: ["uuid", "text"],
-      returns: "jsonb",
-    },
+    { name: "apply_promotion_code", args: ["uuid", "text"], returns: "jsonb" },
     {
       name: "remove_promotion_code",
       args: ["uuid", "text"],

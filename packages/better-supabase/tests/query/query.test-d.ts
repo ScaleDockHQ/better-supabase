@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { InfiniteData } from "@tanstack/react-query";
 
 import {
-  type InfiniteData,
   QueryClient,
   skipToken,
   useInfiniteQuery,
@@ -15,11 +15,12 @@ import type {
   CursorPage,
   OffsetPage,
 } from "../../src/core/repository-types.ts";
+import type { CustomersStatus } from "../fixtures/generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { createQueries } from "../../src/query/index.ts";
-import { type CustomersStatus, schema } from "../fixtures/generated-camel.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 const betterSupabase = defineSupabase(schema).use(softDelete());

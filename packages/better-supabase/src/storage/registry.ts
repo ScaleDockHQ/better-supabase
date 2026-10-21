@@ -1,3 +1,4 @@
+import type { Result } from "../core/result.ts";
 import type {
   Bucket,
   BucketClient,
@@ -7,7 +8,7 @@ import type {
 import type { StoragePath } from "./path.ts";
 
 import { dbError } from "../core/errors.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 
 /** Any bucket definition from `defineBucket` or a preset. */
 export type AnyBucket = Bucket<string>;
@@ -30,7 +31,10 @@ export interface StoredRef {
   readonly path: string;
 }
 
-/** A stored reference whose bucket is registered and whose path matches one of its templates. */
+/**
+ * A stored reference whose bucket is registered and whose path matches one of
+ * its templates.
+ */
 export interface ResolvedRef<B extends BucketMap> {
   readonly bucket: B[keyof B];
   readonly path: StoragePath<BucketIdOf<B>>;
@@ -57,9 +61,9 @@ export interface Buckets<B extends BucketMap> {
    */
   resolve(ref: StoredRef): Result<ResolvedRef<B>>;
   /**
-   * `resolve`, then `connect` the bucket and check the path with the
-   * connected client, so a bucket with `tenant` also refuses another
-   * tenant's path (`forbidden`). No request is made.
+   * `resolve`, then `connect` the bucket and check the path with the connected
+   * client, so a bucket with `tenant` also refuses another tenant's path
+   * (`forbidden`). No request is made.
    */
   connectStored(
     client: StorageClient,
@@ -69,18 +73,18 @@ export interface Buckets<B extends BucketMap> {
 }
 
 /**
- * A registry of bucket definitions by id, for rows that store a bucket id
- * next to an object path (files, attachments, sources). An id no bucket
- * has, and a path outside the bucket's templates, are errors, never a
- * fallback bucket.
+ * A registry of bucket definitions by id, for rows that store a bucket id next
+ * to an object path (files, attachments, sources). An id no bucket has, and a
+ * path outside the bucket's templates, are errors, never a fallback bucket.
  *
  * ```ts
  * export const buckets = defineBuckets({ files, attachments, logos });
  *
- * const ref = buckets.connectStored(supabase, {
- *   bucket: row.bucketId,
- *   path: row.path,
- * }, { context: db.$context });
+ * const ref = buckets.connectStored(
+ *   supabase,
+ *   { bucket: row.bucketId, path: row.path },
+ *   { context: db.$context },
+ * );
  * if (ref.ok) await ref.data.storage.signedUrl(ref.data.path);
  * ```
  */

@@ -1,6 +1,7 @@
 import type { Logger } from "../core/logger.ts";
+import type { DbStats } from "../core/stats.ts";
 
-import { type DbStats, StatsRecorder } from "../core/stats.ts";
+import { StatsRecorder } from "../core/stats.ts";
 
 /** Forwarded by the proxy so every scope of one render shares an id. */
 export const REQUEST_ID_HEADER = "x-bs-request-id";
@@ -19,7 +20,10 @@ export interface CollectorOptions {
   readonly ttlMs?: number;
   /** Defaults to 500 requests. */
   readonly maxEntries?: number;
-  /** Idle time after the last call before the budget is checked. Defaults to 250 ms. */
+  /**
+   * Idle time after the last call before the budget is checked. Defaults to 250
+   * ms.
+   */
   readonly idleMs?: number;
 }
 
@@ -147,9 +151,9 @@ export interface CollectorView {
 
 /**
  * One store of request totals per process. Next.js can load the proxy, pages
- * and route handlers as separate module instances, and they must see the
- * same totals. Each caller's budget and logger apply to the requests it
- * starts, so a second app in the process keeps its own.
+ * and route handlers as separate module instances, and they must see the same
+ * totals. Each caller's budget and logger apply to the requests it starts, so a
+ * second app in the process keeps its own.
  */
 export function sharedCollector(options: CollectorOptions): CollectorView {
   // SAFETY: SHARED is a module symbol, so nothing else writes to that global slot.

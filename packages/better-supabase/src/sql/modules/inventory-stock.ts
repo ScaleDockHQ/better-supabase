@@ -17,7 +17,10 @@ export interface InventoryNames {
   readonly read: string;
   readonly reserve: string;
   readonly purchase: string;
-  /** `options.extraColumns` on the locations table, which `save_location` writes from `fields`. */
+  /**
+   * `options.extraColumns` on the locations table, which `save_location` writes
+   * from `fields`.
+   */
   readonly extras: readonly ExtraColumn[];
 }
 
@@ -47,8 +50,8 @@ export const columns =
     ctx.col(table, column);
 
 /**
- * Whether a variant's stock can't go below zero: catalog's
- * `track_inventory` is on and `allow_backorder` off.
+ * Whether a variant's stock can't go below zero: catalog's `track_inventory` is
+ * on and `allow_backorder` off.
  */
 export function strict(ctx: ModuleContext, variant: string): string {
   const catalog = ctx.of("catalog");
@@ -58,8 +61,8 @@ export function strict(ctx: ModuleContext, variant: string): string {
 }
 
 /**
- * Raises unless the variant is in the tenant, so a level never joins a
- * variant and a location from two organizations.
+ * Raises unless the variant is in the tenant, so a level never joins a variant
+ * and a location from two organizations.
  */
 function variantCheck(
   ctx: ModuleContext,
@@ -74,7 +77,10 @@ function variantCheck(
   end if;`;
 }
 
-/** Records `stock.reorder_point_reached` when available drops to the reorder point. */
+/**
+ * Records `stock.reorder_point_reached` when available drops to the reorder
+ * point.
+ */
 export function threshold(
   ctx: ModuleContext,
   values: {

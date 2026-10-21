@@ -34,23 +34,32 @@ export interface SyncQueryWithAppOptions {
   /** With `netInfo`, queries pause offline and refetch on reconnect. */
   readonly onlineManager?: OnlineManagerLike;
   readonly netInfo?: NetInfoLike;
-  /** Also refresh the session only in the foreground (`autoRefreshOnForeground`). */
+  /**
+   * Also refresh the session only in the foreground
+   * (`autoRefreshOnForeground`).
+   */
   readonly supabase?: AutoRefreshClient;
 }
 
 const NOOP = (): undefined => undefined;
 
 /**
- * Wires TanStack Query to the app lifecycle on React Native: queries count
- * as focused while the app is active, and as online while NetInfo reports
- * a connection (an unreachable internet counts as offline). Returns a
- * function that removes every listener.
+ * Wires TanStack Query to the app lifecycle on React Native: queries count as
+ * focused while the app is active, and as online while NetInfo reports a
+ * connection (an unreachable internet counts as offline). Returns a function
+ * that removes every listener.
  *
  * ```ts
- * import { focusManager, onlineManager } from '@tanstack/react-query';
- * import NetInfo from '@react-native-community/netinfo';
- * import { AppState } from 'react-native';
- * syncQueryWithApp({ focusManager, onlineManager, appState: AppState, netInfo: NetInfo, supabase });
+ * import { focusManager, onlineManager } from "@tanstack/react-query";
+ * import NetInfo from "@react-native-community/netinfo";
+ * import { AppState } from "react-native";
+ * syncQueryWithApp({
+ *   focusManager,
+ *   onlineManager,
+ *   appState: AppState,
+ *   netInfo: NetInfo,
+ *   supabase,
+ * });
  * ```
  */
 export function syncQueryWithApp(options: SyncQueryWithAppOptions): () => void {

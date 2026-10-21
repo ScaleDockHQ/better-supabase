@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  WebhookEncoder,
+  WebhookResponse,
+} from "../../../src/blocks/webhooks/index.ts";
 import type { CloudEvent } from "../../../src/events/index.ts";
 
 import { encoderRegistry } from "../../../src/blocks/webhooks/encoders.ts";
@@ -9,8 +13,6 @@ import {
   securityEvents,
   splunkHec,
   standardEnvelope,
-  type WebhookEncoder,
-  type WebhookResponse,
 } from "../../../src/blocks/webhooks/index.ts";
 
 const event = (overrides: Partial<CloudEvent> = {}): CloudEvent => ({
@@ -31,10 +33,7 @@ const target = {
   tenant: null,
 };
 
-const token = {
-  token: "tok-1",
-  headers: { authorization: "Bearer tok-1" },
-};
+const token = { token: "tok-1", headers: { authorization: "Bearer tok-1" } };
 
 describe("cloudEvents", () => {
   it("writes a structured event, or a batch for a batch endpoint", async () => {
@@ -265,9 +264,7 @@ describe("splunkHec", () => {
 
     expect(
       classify({ status: 200, body: '{"text":"Success","code":0}' }),
-    ).toEqual({
-      outcome: "succeeded",
-    });
+    ).toEqual({ outcome: "succeeded" });
     expect(classify({ status: 400, body: '{"code":0}' })).toBeUndefined();
     expect(classify({ status: 200, body: "ok" })).toBeUndefined();
     expect(

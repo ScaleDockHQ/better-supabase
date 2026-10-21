@@ -21,7 +21,10 @@ export interface UseTagInputOptions {
   readonly subjectId: string;
   /** The kind of tags the input offers and creates, such as `customer`. */
   readonly kind: string;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
   /** Runs after a tag was added or removed. */
   readonly onChanged?: (change: TagChange) => void | Promise<void>;
@@ -30,13 +33,18 @@ export interface UseTagInputOptions {
 export interface TagInputState extends TagInputSnapshot, TagInputActions {}
 
 /**
- * One subject's tags through the browser client, for a tag input: the
- * tags on it, every tag of the kind for suggestions, and `add`, `remove`
- * and `create`, which show the change at once. The same hook runs in
- * React DOM and React Native.
+ * One subject's tags through the browser client, for a tag input: the tags on
+ * it, every tag of the kind for suggestions, and `add`, `remove` and `create`,
+ * which show the change at once. The same hook runs in React DOM and React
+ * Native.
  *
  * ```tsx
- * const { tags, available, add, remove, create } = useTagInput({ organizationId, subjectType: "customer", subjectId, kind: "customer" });
+ * const { tags, available, add, remove, create } = useTagInput({
+ *   organizationId,
+ *   subjectType: "customer",
+ *   subjectId,
+ *   kind: "customer",
+ * });
  * ```
  */
 export function useTagInput(options: UseTagInputOptions): TagInputState {

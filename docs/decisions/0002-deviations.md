@@ -186,21 +186,26 @@ in October 2026 across every workspace, by removing the `off` line so the
 preset's own options apply. "Library" is `packages/better-supabase/src`
 outside `cli`.
 
-| Rule                                           | Findings when measured       |
-| ---------------------------------------------- | ---------------------------- |
-| `typescript/strict-boolean-expressions`        | 1,231 (724 library, 195 CLI) |
-| `typescript/no-non-null-assertion`             | 2,103 (1,754 in tests)       |
-| `typescript/prefer-readonly-parameter-types`   | 10,176 (3,636 in tests)      |
-| `eslint/require-unicode-regexp`                | 2,241 (1,453 in tests)       |
-| `typescript/promise-function-async`            | 1,836 (1,120 in tests)       |
-| `unicorn/no-array-callback-reference`          | 336                          |
-| `anti-slop/no-runtime-typeof`                  | 1,059 library, 93 CLI        |
-| `anti-slop/no-unsafe-dictionary-type`          | 872 library, 36 CLI          |
-| `anti-slop/no-unknown-parameters`              | 841 library, 30 CLI          |
-| `anti-slop/no-unknown-returns`                 | 255 library, 22 CLI          |
-| `anti-slop/no-known-value-widening`            | 410 library, 37 CLI          |
-| `anti-slop/no-object-parameters`               | 70 library, 2 CLI            |
-| `anti-slop/no-conditional-empty-object-spread` | 1,427 library, 143 CLI       |
+| Rule                                           | Findings when measured  |
+| ---------------------------------------------- | ----------------------- |
+| `typescript/strict-boolean-expressions`        | 1,503 (179 in tests)    |
+| `typescript/no-non-null-assertion`             | 2,231 (1,862 in tests)  |
+| `typescript/prefer-readonly-parameter-types`   | 10,176 (3,636 in tests) |
+| `eslint/require-unicode-regexp`                | 2,621                   |
+| `typescript/promise-function-async`            | 1,836 (1,120 in tests)  |
+| `unicorn/no-array-callback-reference`          | 336                     |
+| `anti-slop/no-runtime-typeof`                  | 1,152 in `src`          |
+| `anti-slop/no-unsafe-dictionary-type`          | 908 in `src`            |
+| `anti-slop/no-unknown-parameters`              | 871 in `src`            |
+| `anti-slop/no-unknown-returns`                 | 466 with the tests      |
+| `anti-slop/no-known-value-widening`            | 645 with the tests      |
+| `anti-slop/no-object-parameters`               | 147 with the tests      |
+| `anti-slop/no-conditional-empty-object-spread` | 1,427 library, 143 CLI  |
+
+The October 2026 TypeScript 7.1 preparation re-measured these after the
+toolchain bump (oxlint 1.89, oxfmt 0.74). The non-null and boolean counts
+grew with new code since the first measurement; each site needs a guard or
+a narrower type, so neither backlog is cleared by a codemod.
 
 The anti-slop rules are errors everywhere else. The library and the CLI
 decode PostgREST, Auth, webhook, catalog and `config.toml` payloads without a
@@ -215,17 +220,22 @@ rejections that tests assert on.
 These rules stay off by design, each with its reason in the root
 `oxlint.config.ts`:
 
-| Rule                                  | Findings | Reason                                               |
-| ------------------------------------- | -------- | ---------------------------------------------------- |
-| `typescript/consistent-return`        | 81       | `noImplicitReturns` covers it                        |
-| `eslint/no-useless-return`            | 41       | TS7030 needs the final `return;`                     |
-| `unicorn/prefer-regexp-test`          | 3        | not type-aware; custom matchers have a `match`       |
-| `eslint/require-await`                | 851      | duplicates the type-aware `typescript/require-await` |
-| `typescript/ban-types`                | 27       | `string & {}` and the `{}` generic defaults          |
-| `eslint/no-redeclare`                 | 15       | a Valibot schema and its type share a name           |
-| `eslint/max-classes-per-file`         | 12       | an error class next to its subclass                  |
-| `typescript/no-unsafe-type-assertion` | 1,671    | each assertion carries a `SAFETY:` comment instead   |
-| `typescript/no-base-to-string`        | 119      | `String(unknown)` for SQL literals and error text    |
+| Rule                                  | Findings | Reason                                                |
+| ------------------------------------- | -------- | ----------------------------------------------------- |
+| `typescript/consistent-return`        | 81       | `noImplicitReturns` covers it                         |
+| `eslint/no-useless-return`            | 41       | TS7030 needs the final `return;`                      |
+| `unicorn/prefer-regexp-test`          | 3        | not type-aware; custom matchers have a `match`        |
+| `eslint/require-await`                | 851      | duplicates the type-aware `typescript/require-await`  |
+| `typescript/ban-types`                | 27       | `string & {}` and the `{}` generic defaults           |
+| `eslint/no-redeclare`                 | 15       | a Valibot schema and its type share a name            |
+| `eslint/max-classes-per-file`         | 12       | an error class next to its subclass                   |
+| `typescript/no-unsafe-type-assertion` | 1,671    | each assertion carries a `SAFETY:` comment instead    |
+| `typescript/no-base-to-string`        | 141      | `String(unknown)` for SQL literals and error text     |
+| `promise/no-promise-in-callback`      | 11       | arrow functions that return a promise                 |
+| `oxc/no-useless-spread`               | 9        | listener copies taken before a loop that unsubscribes |
+
+`eslint-plugin-tsdoc` is not adopted: it runs only under ESLint, which this
+repo does not install. oxfmt's `jsdoc` option formats the comments instead.
 
 `unicorn/catch-error-name` is on, but it ignores `cause`: a handler that also
 builds or returns an `error` of its own (`{ error: toDbError(cause) }`) names
@@ -256,19 +266,34 @@ enforcement on new code is what it was before the migration.
 
 The October 2026 pass turned on `anti-slop/require-readable-spacing`,
 `eslint/curly`, `unicorn/switch-case-braces` and `unicorn/catch-error-name`.
-Their autofix commits are listed in `.git-blame-ignore-revs`. The largest
-that remain:
+Their autofix commits are listed in `.git-blame-ignore-revs`.
 
-| Rule                                     | Findings when measured |
-| ---------------------------------------- | ---------------------- |
-| `eslint/sort-keys`                       | 22,476                 |
-| `vitest/prefer-strict-equal`             | 5,723                  |
-| `eslint/func-style`                      | 5,625                  |
-| `vitest/prefer-expect-resolves`          | 4,241                  |
-| `vitest/max-expects`                     | 4,068                  |
-| `typescript/method-signature-style`      | 1,971                  |
-| `import/consistent-type-specifier-style` | 1,834                  |
-| `unicorn/no-await-expression-member`     | 1,504                  |
+The TypeScript 7.1 preparation turned on the rules with few findings, the
+small bug finders (`oxc/no-map-spread`, `oxc/no-accumulating-spread`,
+`promise/always-return`, `unicorn/prefer-add-event-listener`, and the
+floating and misused promise rules in tests), the React hints that had a
+handful of findings (`react/no-danger` and `no-array-index-as-key` with a
+reason on each disable), `import/consistent-type-specifier-style` (a
+1,015-file codemod) and the Vitest padding, `vi.mock(import(...))` and
+globals rules. The rules read per site and kept off carry their reasons in
+the root config. The largest that remain:
+
+| Rule                                  | Findings when measured |
+| ------------------------------------- | ---------------------- |
+| `eslint/sort-keys`                    | 22,476                 |
+| `vitest/prefer-strict-equal`          | 6,576                  |
+| `eslint/func-style`                   | 5,625                  |
+| `vitest/prefer-expect-resolves`       | 4,241                  |
+| `vitest/max-expects`                  | 4,068                  |
+| `typescript/method-signature-style`   | 2,106                  |
+| `unicorn/no-await-expression-member`  | 1,504                  |
+| `shadcn/no-restyle`                   | 399                    |
+| `react/function-component-definition` | 296                    |
+
+`vitest/prefer-strict-equal` changes what each assertion checks (it fails on
+`undefined` keys and class instances), and `method-signature-style` changes
+parameter variance under `strictFunctionTypes`, so neither is a blind
+codemod.
 
 The style rules (`sort-keys`, `func-style` and the rest of that group) want
 a different form than the repo

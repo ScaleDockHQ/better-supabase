@@ -10,7 +10,8 @@ export type StoragePath<B extends string = string> = string & {
   readonly [bucketOf]: B;
 };
 
-/** A plain string or a `StoragePath` of bucket `B`; paths of other buckets are rejected. */
-export type PathIn<B extends string> = string & {
-  readonly [bucketOf]?: B;
-};
+/**
+ * A plain string or a `StoragePath` of bucket `B`; paths of other buckets are
+ * rejected.
+ */
+export type PathIn<B extends string> = string & { readonly [bucketOf]?: B };

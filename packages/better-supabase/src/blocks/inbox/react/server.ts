@@ -23,13 +23,19 @@ const clientOnly = (hook: string, instead: string): never => {
   );
 };
 
-/** The `react-server` build of `useInbox`: call `inbox.conversations.list()` instead. */
+/**
+ * The `react-server` build of `useInbox`: call `inbox.conversations.list()`
+ * instead.
+ */
 export const useInbox: <T>(
   options: UseInboxOptions<T>,
 ) => InboxListState<T> = () =>
   clientOnly("useInbox", "`inbox.conversations.list()`");
 
-/** The `react-server` build of `useConversation`: call `inbox.messages.list()` instead. */
+/**
+ * The `react-server` build of `useConversation`: call `inbox.messages.list()`
+ * instead.
+ */
 export const useConversation: <T>(
   options: UseConversationOptions<T>,
 ) => ConversationState<T> = () =>

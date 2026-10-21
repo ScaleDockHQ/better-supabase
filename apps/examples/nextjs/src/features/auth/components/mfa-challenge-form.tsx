@@ -48,10 +48,7 @@ export function MfaChallengeForm() {
       }
 
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify(
-        {
-          factorId: factor.id,
-          code,
-        },
+        { factorId: factor.id, code },
       );
 
       if (verifyError) {

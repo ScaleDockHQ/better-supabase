@@ -52,11 +52,11 @@ function mapValues(
 }
 
 /**
- * Rewrites a 2020-12 schema into draft-07: `$defs` becomes `definitions`
- * (and `$ref`s into it follow), `prefixItems` becomes the array form of
- * `items`, `dependentRequired` and `dependentSchemas` become
- * `dependencies`, and keywords without a draft-07 form are left out. A
- * draft-07 schema passes through unchanged.
+ * Rewrites a 2020-12 schema into draft-07: `$defs` becomes `definitions` (and
+ * `$ref`s into it follow), `prefixItems` becomes the array form of `items`,
+ * `dependentRequired` and `dependentSchemas` become `dependencies`, and
+ * keywords without a draft-07 form are left out. A draft-07 schema passes
+ * through unchanged.
  */
 export function toDraft07(schema: Readonly<JsonSchema>): JsonSchema {
   const out: JsonSchema = {};

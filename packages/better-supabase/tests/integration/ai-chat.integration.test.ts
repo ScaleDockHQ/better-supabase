@@ -2,14 +2,10 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { createAiChat, sqlTransport } from "../../src/blocks/ai-chat/index.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -35,6 +31,7 @@ async function setUp(s: BlockSession) {
 
 describe.skipIf(!live)("ai-chat module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("stores a branching tree, edits and regenerates as siblings", async () => {
@@ -660,6 +657,7 @@ describe.skipIf(!live)("ai-chat module", () => {
       await s.close();
     }
   });
+
   it("drives the block client over both transports", async () => {
     const s = await BlockSession.open(pool);
 

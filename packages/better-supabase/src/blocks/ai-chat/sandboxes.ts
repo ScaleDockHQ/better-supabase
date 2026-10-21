@@ -16,7 +16,10 @@ export interface AiSandbox {
   readonly chatId: string | undefined;
   /** The harness session the sandbox belongs to, when a harness started it. */
   readonly harnessId: string | undefined;
-  /** Who runs it, such as `vercel` or `anthropic`; `harness` for a harness session's sandbox saved without one. */
+  /**
+   * Who runs it, such as `vercel` or `anthropic`; `harness` for a harness
+   * session's sandbox saved without one.
+   */
   readonly provider: string;
   readonly sandboxId: string;
   /** A provider container id, such as Anthropic's code execution container. */
@@ -39,7 +42,10 @@ export interface NewAiSandbox {
   readonly harnessId?: string;
   readonly containerId?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
-  /** Seconds without use before the idle-stop claim takes it; ai-chat's `sandboxIdleAfter` by default. */
+  /**
+   * Seconds without use before the idle-stop claim takes it; ai-chat's
+   * `sandboxIdleAfter` by default.
+   */
   readonly idleSeconds?: number;
   readonly expiresAt?: Temporal.Instant;
 }
@@ -48,8 +54,8 @@ export interface NewAiSandbox {
 export type AiSandboxStopper = (sandbox: AiSandbox) => Promise<unknown>;
 
 /**
- * The sandboxes chats and harness sessions started, in `ai_sandboxes`, with
- * one idle-stop claim for all of them.
+ * The sandboxes chats and harness sessions started, in `ai_sandboxes`, with one
+ * idle-stop claim for all of them.
  */
 export interface AiSandboxes {
   /** Records a sandbox, or marks a known one running and used (service role). */
@@ -66,8 +72,8 @@ export interface AiSandboxes {
     options?: { readonly chatId?: string },
   ): AsyncResult<readonly AiSandbox[]>;
   /**
-   * Claims idle and expired sandboxes to stop (service role). A sandbox
-   * whose harness session is locked by a turn is skipped.
+   * Claims idle and expired sandboxes to stop (service role). A sandbox whose
+   * harness session is locked by a turn is skipped.
    */
   idle(options?: {
     readonly batch?: number;
@@ -82,7 +88,10 @@ export interface AiSandboxes {
     stopped: boolean,
     error?: string,
   ): AsyncResult<boolean>;
-  /** Claims idle sandboxes, stops each with `stop`, and records the outcome. Returns how many stopped. */
+  /**
+   * Claims idle sandboxes, stops each with `stop`, and records the outcome.
+   * Returns how many stopped.
+   */
   stopIdle(
     stop: AiSandboxStopper,
     options?: { readonly batch?: number },

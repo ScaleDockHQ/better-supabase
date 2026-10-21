@@ -5,22 +5,22 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { DbError } from "../../src/core/errors.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { InferResult } from "../../src/core/spec.ts";
+import type {
+  CheckConstraint,
+  ForeignKeyConstraint,
+  UniqueConstraint,
+  CustomersStatus,
+  TagsColor,
+  NoteKind,
+  OrderByOf,
+  OrderTermOf,
+  WhereOf,
+} from "../fixtures/generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { isCheck, isConflict } from "../../src/core/errors.ts";
 import { rules } from "../../src/plugins/rules/index.ts";
-import {
-  schema as camel,
-  type CheckConstraint,
-  type ForeignKeyConstraint,
-  type UniqueConstraint,
-  type CustomersStatus,
-  type TagsColor,
-  type NoteKind,
-  type OrderByOf,
-  type OrderTermOf,
-  type WhereOf,
-} from "../fixtures/generated-camel.ts";
+import { schema as camel } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
 
 declare const client: SupabaseClient;

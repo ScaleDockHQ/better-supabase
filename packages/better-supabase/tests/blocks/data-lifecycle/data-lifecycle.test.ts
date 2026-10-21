@@ -236,9 +236,9 @@ describe("createDataLifecycle", () => {
 
     expect(deletion.purgeAfter.toString()).toBe("2026-11-05T12:00:00Z");
     await lifecycle.requestOrganizationDeletion("org-1").orThrow();
-    expect(await lifecycle.cancelOrganizationDeletion("org-1").orThrow()).toBe(
-      undefined,
-    );
+    expect(
+      await lifecycle.cancelOrganizationDeletion("org-1").orThrow(),
+    ).toBeUndefined();
     expect(
       (await lifecycle.organizationDeletion("org-1").orThrow())?.organizationId,
     ).toBe("org-1");
@@ -844,10 +844,7 @@ describe("createOrganizationPurger", () => {
       storage: storage.storage,
       buckets: [
         { bucket: "files", path: "orgs/{organizationId}/files/" },
-        {
-          bucket: "media",
-          path: (id) => [`public/${id}`, `private/${id}`],
-        },
+        { bucket: "media", path: (id) => [`public/${id}`, `private/${id}`] },
       ],
     })
       .purge("org-1")

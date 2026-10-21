@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { SvelteKitHelpers } from "../../src/sveltekit/index.ts";
+
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
-import {
-  createSvelteKit,
-  type SvelteKitHelpers,
-} from "../../src/sveltekit/index.ts";
+import { createSvelteKit } from "../../src/sveltekit/index.ts";
 import {
   betterSupabase,
   env,
@@ -128,10 +127,7 @@ describe("createSvelteKit", () => {
   it("maps errors in handleError and registers load dependencies", () => {
     expect(
       bs.handleError({ error: new DbException(dbError("not_found", "Gone")) }),
-    ).toEqual({
-      message: "Gone",
-      code: "not_found",
-    });
+    ).toEqual({ message: "Gone", code: "not_found" });
     expect(bs.handleError({ error: new Error("secret") }).message).toBeTypeOf(
       "string",
     );

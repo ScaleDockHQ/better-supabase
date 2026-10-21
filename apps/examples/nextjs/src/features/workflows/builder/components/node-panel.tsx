@@ -37,7 +37,10 @@ type Scalar = v.InferOutput<typeof Scalar>;
 
 const Properties = v.looseObject({});
 
-/** A config field as the text an input shows: strings as they are, other values as JSON. */
+/**
+ * A config field as the text an input shows: strings as they are, other values
+ * as JSON.
+ */
 function text(config: NodeConfig, key: string): string {
   const value = config[key];
 
@@ -48,7 +51,10 @@ function text(config: NodeConfig, key: string): string {
   return value === undefined ? "" : JSON.stringify(value);
 }
 
-/** A condition value: a JSON scalar when it parses (`3`, `true`, `"pro"`), the raw text otherwise. */
+/**
+ * A condition value: a JSON scalar when it parses (`3`, `true`, `"pro"`), the
+ * raw text otherwise.
+ */
 function valueOf(raw: string): Scalar {
   try {
     const parsed = v.safeParse(Scalar, JSON.parse(raw));

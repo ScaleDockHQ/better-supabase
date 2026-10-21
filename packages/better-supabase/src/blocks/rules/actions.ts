@@ -6,7 +6,10 @@ import type { Rule, RuleActionHandler } from "./rules.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 
-/** The context `dispatch` passes when rules start approvals or other subject work. */
+/**
+ * The context `dispatch` passes when rules start approvals or other subject
+ * work.
+ */
 export interface RuleSubjectContext {
   readonly organizationId: string;
   readonly subjectType: string;
@@ -242,10 +245,9 @@ export interface RuleWorkflows {
 }
 
 /**
- * The `workflow` handler: starts the workflow definition in
- * `config.definition` on the subject, with the payload as its input:
- * `{ kind: "workflow", config: { definition: "..." } }`. A retried event
- * starts no second run.
+ * The `workflow` handler: starts the workflow definition in `config.definition`
+ * on the subject, with the payload as its input: `{ kind: "workflow", config: {
+ * definition: "..." } }`. A retried event starts no second run.
  */
 export function workflowAction(
   workflows: RuleWorkflows,

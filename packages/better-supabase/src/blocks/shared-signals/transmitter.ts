@@ -1,17 +1,19 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
+import type { BlockOptions } from "../shared.ts";
+import type { SecurityEvent, SetSigner, SubjectIdentifier } from "./set.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   isRecord,
   nullableText,
   readBodyCapped,
@@ -22,15 +24,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { SSF_POLL, SSF_PUSH } from "./methods.ts";
-import {
-  CAEP_EVENTS,
-  mintSet,
-  RISC_EVENTS,
-  type SecurityEvent,
-  type SetSigner,
-  SSF_EVENTS,
-  type SubjectIdentifier,
-} from "./set.ts";
+import { CAEP_EVENTS, mintSet, RISC_EVENTS, SSF_EVENTS } from "./set.ts";
 
 export type SsfDeliveryMethod = "push" | "poll";
 
@@ -59,7 +53,10 @@ export interface SsfStream {
 export interface SsfReceiverIdentity {
   /** A stable id, such as the OAuth client id. */
   readonly receiver: string;
-  /** Scopes the receiver's streams to one tenant's events; `null` for every tenant. */
+  /**
+   * Scopes the receiver's streams to one tenant's events; `null` for every
+   * tenant.
+   */
   readonly tenant?: string | null;
   /** The `aud` of its SETs. Default: `receiver`. */
   readonly audience?: string | readonly string[];
@@ -101,13 +98,16 @@ export interface EmitResult {
 export interface SsfTransmitterOptions extends BlockOptions {
   /** The transmitter's issuer: an https URL, the `iss` of every SET. */
   readonly issuer: string;
-  /** Where the signer's public keys are published, e.g. `signingKeys.jwksResponse`. */
+  /**
+   * Where the signer's public keys are published, e.g.
+   * `signingKeys.jwksResponse`.
+   */
   readonly jwksUri: string;
   /** Signs the SETs: `signingKeys.signer({ type: "ssf", id: "transmitter" })`. */
   readonly signer: SetSigner;
   /**
-   * Authenticates a management or poll request and names its receiver;
-   * `null` answers 401. SSF requires the API to be authorized.
+   * Authenticates a management or poll request and names its receiver; `null`
+   * answers 401. SSF requires the API to be authorized.
    */
   readonly authorize: (
     request: Request,
@@ -120,13 +120,22 @@ export interface SsfTransmitterOptions extends BlockOptions {
   readonly deliveryMethods?: readonly SsfDeliveryMethod[];
   /** Seconds between verification requests per stream. Default: 30. */
   readonly minVerificationInterval?: number;
-  /** Keeps a push stream's `authorization_header` in Vault. Without it, such requests fail. */
+  /**
+   * Keeps a push stream's `authorization_header` in Vault. Without it, such
+   * requests fail.
+   */
   readonly credentials?: Pick<VaultCredentials, "set" | "revoke">;
-  /** `authorization_schemes` in the metadata. Default: OAuth 2.0 (`urn:ietf:rfc:6749`). */
+  /**
+   * `authorization_schemes` in the metadata. Default: OAuth 2.0
+   * (`urn:ietf:rfc:6749`).
+   */
   readonly authorizationSchemes?: readonly { readonly spec_urn: string }[];
   /** The largest management request body, in bytes. Default: 64 KiB. */
   readonly maxBodyBytes?: number;
-  /** `withBlockHooks` hooks around the transmitter's methods; the routes call through them. */
+  /**
+   * `withBlockHooks` hooks around the transmitter's methods; the routes call
+   * through them.
+   */
   readonly hooks?: NoInfer<BlockHooks<SsfTransmitter>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
@@ -161,7 +170,10 @@ export interface SsfTransmitter {
   poll(id: string, request: SsfPollRequest): AsyncResult<SsfPollResponse>;
   /** Deletes replay entries and unpolled SETs past the retention. */
   purge(olderThan?: Temporal.Duration): AsyncResult<number>;
-  /** The well-known metadata, stream management, status, verification and poll routes. */
+  /**
+   * The well-known metadata, stream management, status, verification and poll
+   * routes.
+   */
   handler(): (request: Request) => Promise<Response>;
 }
 
@@ -246,8 +258,8 @@ const strings = (value: unknown): readonly string[] | undefined =>
 
 /**
  * An SSF transmitter: streams and their status live in the `shared-signals`
- * module, push SETs go out through webhooks-out endpoints with format
- * `set`, and poll SETs wait in the module's queue. Service role only.
+ * module, push SETs go out through webhooks-out endpoints with format `set`,
+ * and poll SETs wait in the module's queue. Service role only.
  */
 export function createSsfTransmitter(
   options: SsfTransmitterOptions,

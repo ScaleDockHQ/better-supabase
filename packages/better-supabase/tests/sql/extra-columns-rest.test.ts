@@ -4,10 +4,10 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderModules } from "../../src/sql/render.ts";
 
 /**
- * The modules whose managed table takes `options.extraColumns`: the table
- * that gets the columns, and whether its reads build the row with
- * `jsonb_build_object` (and so return the columns under `fields`) or read
- * the whole row.
+ * The modules whose managed table takes `options.extraColumns`: the table that
+ * gets the columns, and whether its reads build the row with
+ * `jsonb_build_object` (and so return the columns under `fields`) or read the
+ * whole row.
  */
 const MODULES: readonly (readonly [
   module: string,

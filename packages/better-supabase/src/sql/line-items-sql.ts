@@ -4,9 +4,9 @@ import { sqlIdent, sqlString } from "../core/template.ts";
 import { fail, lockTable, triggerGrant } from "./shared.ts";
 
 /**
- * The logical columns of a line table (`<record>_lines`). Every block with
- * line items (deals, quotes, invoices) declares one with these names, so
- * every line table has the same shape.
+ * The logical columns of a line table (`<record>_lines`). Every block with line
+ * items (deals, quotes, invoices) declares one with these names, so every line
+ * table has the same shape.
  */
 const LINE_COLUMNS = {
   id: "id",
@@ -56,9 +56,9 @@ export interface LineItems {
 /**
  * The line table, its totals trigger and `set_<name>(record, lines)`.
  *
- * Every line rounds once: its list amount is quantity times unit amount,
- * the discount is a share of that in basis points, and tax applies to what
- * is left. The record's totals are the sums, so they always add up.
+ * Every line rounds once: its list amount is quantity times unit amount, the
+ * discount is a share of that in basis points, and tax applies to what is left.
+ * The record's totals are the sums, so they always add up.
  */
 export function lineItemsSql(
   ctx: ModuleContext,

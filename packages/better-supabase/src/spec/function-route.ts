@@ -29,9 +29,9 @@ function descriptorOf(fn: unknown): FunctionDescriptor | undefined {
 }
 
 /**
- * The route of a `defineFunction` handler, at `/functions/v1/<name>`: its
- * input is the request body and its output the 200 response. Pass it in
- * `routes`; `basePath` goes in front of it like any other route.
+ * The route of a `defineFunction` handler, at `/functions/v1/<name>`: its input
+ * is the request body and its output the 200 response. Pass it in `routes`;
+ * `basePath` goes in front of it like any other route.
  *
  * ```ts
  * defineApi(bs, { routes: [functionRoute("send-invite", sendInvite)] });

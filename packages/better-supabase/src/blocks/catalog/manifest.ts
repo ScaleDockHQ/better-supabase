@@ -14,9 +14,7 @@ export const catalogBlock: BlockOf<
 > = defineBlock({
   name: "catalog",
   sql: ["catalog"],
-  options: {
-    catalog: catalogSqlOptions,
-  },
+  options: { catalog: catalogSqlOptions },
   events: catalogEvents,
   create: createCatalog,
   category: "commerce",

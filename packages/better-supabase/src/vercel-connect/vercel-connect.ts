@@ -1,3 +1,4 @@
+import type { Result } from "../core/result.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -8,7 +9,7 @@ import type {
 import { isRecord } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
-import { AsyncResult, err, ok, type Result } from "../core/result.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 
 interface ConnectTokenParams {
@@ -62,8 +63,8 @@ const isModule = (value: unknown): value is VercelConnectModule =>
   typeof value["startAuthorization"] === "function";
 
 /**
- * Loads `@vercel/connect` on first use. The specifier is a variable so
- * bundlers leave the optional peer out of apps that don't use it.
+ * Loads `@vercel/connect` on first use. The specifier is a variable so bundlers
+ * leave the optional peer out of apps that don't use it.
  */
 const loadConnect = (): Promise<unknown> =>
   importOptionalPeer("@vercel/connect");
@@ -130,8 +131,8 @@ function connectError(cause: unknown): Result<never> {
 }
 
 /**
- * A `CredentialProvider` over Vercel Connect: OAuth tokens for a connector,
- * for the app or a user, refreshed by Vercel. Needs `@vercel/connect`.
+ * A `CredentialProvider` over Vercel Connect: OAuth tokens for a connector, for
+ * the app or a user, refreshed by Vercel. Needs `@vercel/connect`.
  */
 export function vercelConnectCredentials(
   options: VercelConnectCredentialsOptions = {},

@@ -1,5 +1,7 @@
+import type { Template } from "../core/template.ts";
+
 import { dbError, DbException } from "../core/errors.ts";
-import { parseTemplate, type Template } from "../core/template.ts";
+import { parseTemplate } from "../core/template.ts";
 
 type Values = Readonly<Record<string, string | number | undefined>>;
 
@@ -8,13 +10,19 @@ export interface Layouts {
   readonly sources: readonly string[];
   /** Every placeholder name, in template order. */
   readonly params: readonly string[];
-  /** Builds a path with the template whose placeholders are exactly the keys of `values`. */
+  /**
+   * Builds a path with the template whose placeholders are exactly the keys of
+   * `values`.
+   */
   build(values: Values): string;
   /** The values of the first template that matches `path`, or `null`. */
   match(path: string): Record<string, string> | null;
   /** The folder that every template holding the keys of `values` shares. */
   prefix(values: Values): string;
-  /** The 1-based segment of `param` in every template; throws when it differs or is missing. */
+  /**
+   * The 1-based segment of `param` in every template; throws when it differs or
+   * is missing.
+   */
   segmentOf(param: string, kind: string): number;
   /** Throws when a template lacks `param`. */
   requireParam(param: string, label: string): void;
@@ -172,7 +180,10 @@ export function pathLayouts(
   };
 }
 
-/** Whether matched path values hold every value of `within`; a rest value may sit under it. */
+/**
+ * Whether matched path values hold every value of `within`; a rest value may
+ * sit under it.
+ */
 export function inScope(
   values: Readonly<Record<string, string | number>> | null,
   within: Readonly<Record<string, string | number | undefined>>,

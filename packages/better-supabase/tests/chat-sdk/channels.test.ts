@@ -97,9 +97,7 @@ describe("channelAdapter", () => {
     });
 
     expect(built).toEqual({ token: "xoxb" });
-    expect(getToken).toHaveBeenCalledWith(ref, {
-      subject: { type: "app" },
-    });
+    expect(getToken).toHaveBeenCalledWith(ref, { subject: { type: "app" } });
   });
 });
 
@@ -555,10 +553,7 @@ describe("deliver", () => {
       chat: markdown.chat,
       inbox: markdown.inbox,
       template: () => null,
-    })({
-      message_id: "m1",
-      conversation_id: "c1",
-    });
+    })({ message_id: "m1", conversation_id: "c1" });
     expect(markdown.postMessage).toHaveBeenCalledWith("whatsapp:+3100:+3199", {
       markdown: "**x**",
     });
@@ -611,10 +606,7 @@ describe("deliver", () => {
         chat: custom.chat,
         inbox: custom.inbox,
         adapterFor: () => "teams",
-      })({
-        message_id: "m1",
-        conversation_id: "c1",
-      }),
+      })({ message_id: "m1", conversation_id: "c1" }),
     ).rejects.toThrow(/no adapter/);
   });
 });
@@ -681,9 +673,7 @@ describe("maintain", () => {
     });
     expect(
       call.mock.calls.find(([, fn]) => fn === "purge_inbound_events")?.[2],
-    ).toMatchObject({
-      older_than: "1 day",
-    });
+    ).toMatchObject({ older_than: "1 day" });
     expect(await maintain({ inbox })).toMatchObject({
       replayed: { processed: 0, failed: 0 },
       purgedState: 0,

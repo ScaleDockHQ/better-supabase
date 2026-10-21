@@ -7,6 +7,7 @@ import type {
 
 import type { CacheAdapter } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
 import type {
   CursorPage,
   CursorPageArgs,
@@ -44,13 +45,17 @@ import type {
   UniqueWhere,
   Update,
 } from "../schema/types.ts";
+import type { BetterQueryMeta } from "./invalidate.ts";
 
 import { isPlainObject } from "../core/clone.ts";
-import { type DbError, DbException } from "../core/errors.ts";
+import { DbException } from "../core/errors.ts";
 import { invalidationTargets } from "../ir/tables.ts";
-import { type BetterQueryMeta, invalidateTables } from "./invalidate.ts";
+import { invalidateTables } from "./invalidate.ts";
 
-/** Query errors stay `DbException`s, even for an `betterSupabase` with `mapError()`. */
+/**
+ * Query errors stay `DbException`s, even for an `betterSupabase` with
+ * `mapError()`.
+ */
 const asException = (error: DbError) => new DbException(error);
 
 /**
@@ -100,7 +105,10 @@ type QueryFnOf<T> =
   | ((context: { readonly signal: AbortSignal }) => Promise<T>)
   | SkipToken;
 
-/** Options for `useQuery`, `createQuery`, `injectQuery`, `queryClient.fetchQuery` and `prefetchQuery`. */
+/**
+ * Options for `useQuery`, `createQuery`, `injectQuery`,
+ * `queryClient.fetchQuery` and `prefetchQuery`.
+ */
 export interface QueryOptionsOf<T> {
   readonly queryKey: QueryKeyOf<T>;
   readonly queryFn: QueryFnOf<T>;
@@ -108,7 +116,10 @@ export interface QueryOptionsOf<T> {
   readonly staleTime?: number;
 }
 
-/** Options for infinite queries over cursor (`string | null`) or offset (`number`) pages. */
+/**
+ * Options for infinite queries over cursor (`string | null`) or offset
+ * (`number`) pages.
+ */
 export interface InfiniteOptionsOf<P, Param> {
   readonly queryKey: DataTag<readonly unknown[], InfiniteData<P>, DbException>;
   readonly queryFn: (context: {
@@ -117,7 +128,10 @@ export interface InfiniteOptionsOf<P, Param> {
   }) => Promise<P>;
   readonly initialPageParam: Param;
   readonly getNextPageParam: (last: P) => Param | undefined;
-  /** Set on numbered pages, so a window trimmed by `maxPages` can load backwards. */
+  /**
+   * Set on numbered pages, so a window trimmed by `maxPages` can load
+   * backwards.
+   */
   readonly getPreviousPageParam?: (first: P) => Param | undefined;
   readonly maxPages?: number;
   readonly meta: BetterQueryMeta;
@@ -218,7 +232,10 @@ type RpcArgsOf<F extends AnyFunctions, N extends keyof F> = F[N]["Args"];
 export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
   /** Prefix of every better-supabase key. */
   readonly $key: readonly ["bs"];
-  /** Query options for a `QuerySpec`, for example one sent from a Server Component. */
+  /**
+   * Query options for a `QuerySpec`, for example one sent from a Server
+   * Component.
+   */
   $spec<S extends QuerySpec<TableKey<M>>>(
     spec: S | SkipToken,
   ): QueryOptionsOf<InferResult<S>>;
@@ -227,13 +244,19 @@ export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
     queryClient: QueryClient,
     spec: QuerySpec<TableKey<M>>,
   ): Promise<void>;
-  /** Query options for a database function. `tables` lists what it reads, for invalidation. */
+  /**
+   * Query options for a database function. `tables` lists what it reads, for
+   * invalidation.
+   */
   $rpc<N extends Extract<keyof F, string>>(
     name: N,
     args?: RpcArgsOf<F, N> | SkipToken,
     options?: { readonly tables?: readonly TableKey<M>[] },
   ): QueryOptionsOf<F[N]["Returns"]>;
-  /** Mutation options for a database function; invalidates what `betterSupabase.defineRpc` declared. */
+  /**
+   * Mutation options for a database function; invalidates what
+   * `betterSupabase.defineRpc` declared.
+   */
   $rpcMutation<N extends Extract<keyof F, string>>(
     name: N,
   ): MutationOptionsOf<RpcArgsOf<F, N>, F[N]["Returns"]>;
@@ -249,8 +272,8 @@ export type BetterQueries<
 
 export interface QueriesOptions {
   /**
-   * `staleTime` for every query option. Set it above zero when rendering on
-   * the server so hydrated data isn't refetched on mount.
+   * `staleTime` for every query option. Set it above zero when rendering on the
+   * server so hydrated data isn't refetched on mount.
    */
   readonly staleTime?: number;
   /**
@@ -391,9 +414,9 @@ function tableQueries(
     runtime.betterSupabase.meta.tables[table]?.primaryKey ?? [];
 
   /**
-   * The `findById(id)` entry for a full row a write returned, so a detail
-   * view opened next renders without a request. Only writes without read
-   * args return the shape `findById(id)` caches.
+   * The `findById(id)` entry for a full row a write returned, so a detail view
+   * opened next renders without a request. Only writes without read args return
+   * the shape `findById(id)` caches.
    */
   const seed = (
     client: QueryClient,
@@ -544,15 +567,17 @@ function tableQueries(
 }
 
 /**
- * TanStack Query option factories for every table, framework-neutral: pass
- * them to `useQuery` (React), `createQuery` (Svelte, Solid), `useQuery`
- * (Vue) or `injectQuery` (Angular). Payload types flow into the cache, errors
- * are `DbException`s, and mutations invalidate every query that read a
- * changed table.
+ * TanStack Query option factories for every table, framework-neutral: pass them
+ * to `useQuery` (React), `createQuery` (Svelte, Solid), `useQuery` (Vue) or
+ * `injectQuery` (Angular). Payload types flow into the cache, errors are
+ * `DbException`s, and mutations invalidate every query that read a changed
+ * table.
  *
  * ```ts
  * const q = createQueries(betterSupabase, () => bs.db);
- * const { data } = useQuery(q.customers.findMany({ select: ['id', 'name'] }));
+ * const { data } = useQuery(
+ *   q.customers.findMany({ select: ["id", "name"] }),
+ * );
  * ```
  */
 export function createQueries<
@@ -653,7 +678,10 @@ export function queryCache(client: QueryClient): CacheAdapter {
   };
 }
 
-/** Invalidates affected queries for every mutation and declared RPC `betterSupabase` performs in this runtime. */
+/**
+ * Invalidates affected queries for every mutation and declared RPC
+ * `betterSupabase` performs in this runtime.
+ */
 export function invalidateOnMutation<
   M extends AnyModels,
   D,

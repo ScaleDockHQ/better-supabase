@@ -79,7 +79,10 @@ function fakeClient(
   };
 }
 
-/** Unsubscribes under fake timers: leaving waits a tick before removing the channel. */
+/**
+ * Unsubscribes under fake timers: leaving waits a tick before removing the
+ * channel.
+ */
 async function leaveFaked(live: { unsubscribe(): Promise<void> }) {
   const left = live.unsubscribe();
   await vi.advanceTimersByTimeAsync(1);
@@ -197,7 +200,7 @@ describe("liveQuery join states", () => {
       let attempt = 0;
 
       const { client, raw } = fakeClient(() =>
-        attempt++ < 2 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
+        (attempt += 1) <= 2 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
       );
 
       const statuses: string[] = [];
@@ -243,7 +246,7 @@ describe("liveQuery join states", () => {
 
       await expect(once.ready).rejects.toThrow(/timed_out/);
       await vi.advanceTimersByTimeAsync(5000);
-      expect(raw.channel).toHaveBeenCalledTimes(1);
+      expect(raw.channel).toHaveBeenCalledOnce();
       await leaveFaked(once);
 
       const left = liveQuery(betterSupabase, client, ["notes"], {
@@ -263,7 +266,7 @@ describe("liveQuery join states", () => {
     let attempt = 0;
 
     const { client, raw } = fakeClient(() =>
-      attempt++ === 0 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
+      (attempt += 1) === 1 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
     );
 
     const failed = liveQuery(betterSupabase, client, ["notes"], {
@@ -273,7 +276,7 @@ describe("liveQuery join states", () => {
     await expect(failed.ready).rejects.toThrow(
       "Realtime timed_out on bs:t:public.notes",
     );
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
 
     const retried = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
@@ -366,7 +369,7 @@ describe("liveQuery join states", () => {
     await live.unsubscribe();
     await wait(15);
     expect(onChange).not.toHaveBeenCalled();
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
     expect(statuses.filter((status) => status === "closed")).toHaveLength(1);
   });
 
@@ -381,7 +384,7 @@ describe("liveQuery join states", () => {
     }
 
     await wait(1);
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
   });
 });
 
@@ -413,13 +416,12 @@ describe("liveQuery", () => {
     emit("bs:t:public.notes");
     emit("bs:t:public.notes");
     await wait(20);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith(["customers", "notes"]);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(["customers", "notes"]);
 
     await live.unsubscribe();
     emit("bs:t:public.notes");
     await wait(20);
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledOnce();
     expect(statuses).toEqual(["joining", "subscribed", "closed"]);
   });
 
@@ -438,18 +440,18 @@ describe("liveQuery", () => {
       debounceMs: 1,
     });
 
-    expect(raw.channel).toHaveBeenCalledTimes(1);
+    expect(raw.channel).toHaveBeenCalledOnce();
     await Promise.all([a.ready, b.ready]);
 
     emit("bs:t:public.notes");
     await wait(10);
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledOnce();
 
     await a.unsubscribe();
     expect(raw.removeChannel).not.toHaveBeenCalled();
     await b.unsubscribe();
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("keeps the channel when a subscriber re-joins in the same tick", async () => {
@@ -470,13 +472,13 @@ describe("liveQuery", () => {
 
     await leaving;
     expect(raw.removeChannel).not.toHaveBeenCalled();
-    expect(raw.channel).toHaveBeenCalledTimes(1);
+    expect(raw.channel).toHaveBeenCalledOnce();
     await second.ready;
     emit("bs:t:public.notes");
     await wait(10);
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledOnce();
     await second.unsubscribe();
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("refetches once after the channel rejoins", async () => {
@@ -495,8 +497,7 @@ describe("liveQuery", () => {
     status("bs:t:public.notes", "CHANNEL_ERROR");
     status("bs:t:public.notes", "SUBSCRIBED");
     await wait(10);
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith(["notes"]);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(["notes"]);
     await live.unsubscribe();
   });
 });
@@ -619,7 +620,7 @@ describe("liveCount", () => {
     await wait(5);
     emit("bs:t:public.customers:o1");
     await wait(5);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(counts).toEqual([]);
     expect(statuses).toEqual(["joining", "subscribed", "closed"]);
   });
@@ -635,7 +636,7 @@ describe("liveCount", () => {
 
     await live.ready;
     await wait(1);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(onCount).not.toHaveBeenCalled();
     await live.unsubscribe();
   });

@@ -104,9 +104,7 @@ describe("renderModules", () => {
   });
 
   it("writes pgtap to the tests directory with a managed header", () => {
-    const [file] = renderModules(["pgtap"], {
-      testsDir: "db/tests/",
-    });
+    const [file] = renderModules(["pgtap"], { testsDir: "db/tests/" });
 
     expect(file!.path).toBe("db/tests/000_better_supabase_pgtap.test.sql");
     expect(file!.contents).toMatch(/^-- better-supabase module: pgtap\n/);
@@ -429,10 +427,7 @@ describe("sameModuleFile", () => {
       toStandardJsonSchema(v.object({ source: v.string() })),
     );
 
-    expect(schema).toMatchObject({
-      type: "object",
-      required: ["source"],
-    });
+    expect(schema).toMatchObject({ type: "object", required: ["source"] });
     expect(resolveJsonSchema({ type: "array" })).toEqual({ type: "array" });
 
     const [file] = renderModules(["jsonb-schemas"], {

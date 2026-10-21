@@ -14,9 +14,9 @@ export const SUPPORT_SESSION_APPROVAL = "support-session";
 /** A request whose approver the provider decides, as SQL expressions. */
 export interface ApprovalRequestSql {
   /**
-   * A text literal such as `AI_TOOL_APPROVAL`, quoted by `approverCheck`, or
-   * `{ sql }` for a text expression (the approvals block's
-   * `<subject type>.<action>`).
+   * A text literal such as `AI_TOOL_APPROVAL`, quoted by `approverCheck`, or `{
+   * sql }` for a text expression (the approvals block's `<subject
+   * type>.<action>`).
    */
   readonly kind: string | { readonly sql: string };
   /** A text expression. */
@@ -42,8 +42,8 @@ export interface ApproverCheck {
  * `provider` access model decides and the provider sets it. Tool calls fall
  * back to the deprecated `canApprove`, where `{tool}` is the subject and
  * `approvals.distinctApprover` decides whether the requester is refused;
- * `isApprover` always refuses the requester. `undefined` leaves the module
- * on its built-in approver.
+ * `isApprover` always refuses the requester. `undefined` leaves the module on
+ * its built-in approver.
  */
 export function approverCheck(
   ctx: ModuleContext,

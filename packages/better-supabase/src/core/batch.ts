@@ -1,8 +1,9 @@
 import type { Operation } from "../ir/types.ts";
 import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
+import type { Result } from "./result.ts";
 
 import { dbError } from "./errors.ts";
-import { err, type Result, toDbError } from "./result.ts";
+import { err, toDbError } from "./result.ts";
 
 interface Pending {
   readonly op: Operation;
@@ -11,9 +12,9 @@ interface Pending {
 }
 
 /**
- * A signal that aborts once every reader's signal has, so one reader giving
- * up never cancels the operations of the others. `undefined` when a reader
- * has no signal.
+ * A signal that aborts once every reader's signal has, so one reader giving up
+ * never cancels the operations of the others. `undefined` when a reader has no
+ * signal.
  */
 function allAborted(
   signals: readonly (AbortSignal | undefined)[],
@@ -90,7 +91,7 @@ export function batchingExecutor(
       )
       .then(
         (results) => {
-          items.forEach((item, index) => {
+          for (const [index, item] of items.entries()) {
             item.resolve(
               results[index] ??
                 err(
@@ -101,7 +102,7 @@ export function batchingExecutor(
                   ),
                 ),
             );
-          });
+          }
         },
         (cause: unknown) => {
           for (const item of items) {

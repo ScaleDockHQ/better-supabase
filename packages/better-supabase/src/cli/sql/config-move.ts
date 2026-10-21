@@ -1,6 +1,6 @@
 /**
- * The 0.9 config move: `sql.modules` becomes the top-level `blocks` key.
- * The edit is textual, like the rest of `config-edit.ts`, so comments and
+ * The 0.9 config move: `sql.modules` becomes the top-level `blocks` key. The
+ * edit is textual, like the rest of `config-edit.ts`, so comments and
  * formatting around the moved property survive.
  */
 
@@ -19,7 +19,10 @@ import {
 interface Span {
   readonly start: number;
   readonly end: number;
-  /** From the first leading comment line to the value, then a trailing same-line comment. */
+  /**
+   * From the first leading comment line to the value, then a trailing same-line
+   * comment.
+   */
   readonly value: string;
   /** Where the key starts in `value`. */
   readonly keyAt: number;
@@ -198,11 +201,11 @@ function sortBlocksKey(source: string): string {
 }
 
 /**
- * `source` with `sql.modules` moved to a top-level `blocks` key, placed
- * right after `sql`, or in sorted position when the config's top-level keys
- * are sorted. `sql` is dropped when nothing else is left in it. A config
- * without `sql.modules` comes back unchanged; one that also sets `blocks` is
- * refused, because the two need a merge by hand.
+ * `source` with `sql.modules` moved to a top-level `blocks` key, placed right
+ * after `sql`, or in sorted position when the config's top-level keys are
+ * sorted. `sql` is dropped when nothing else is left in it. A config without
+ * `sql.modules` comes back unchanged; one that also sets `blocks` is refused,
+ * because the two need a merge by hand.
  */
 export function moveSqlModulesToBlocks(source: string): ConfigEdit {
   const edit = moveSqlModules(source);

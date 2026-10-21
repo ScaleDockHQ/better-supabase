@@ -2,11 +2,10 @@ import type * as ReactModule from "react";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { ClientLike } from "../../../../src/react/hooks.ts";
+
 import { useCalendar } from "../../../../src/blocks/calendar/react/index.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../../../src/react/hooks.ts";
 import { renderHook } from "../../../fixtures/hook-runtime.ts";
 
 const rpc = vi.hoisted(() => {
@@ -39,7 +38,7 @@ vi.mock("react", async (importOriginal) => ({
 const client = { supabase: rpc.client } as unknown as ClientLike;
 
 const provide = (): void => {
-  BetterSupabaseProvider({ client });
+  void BetterSupabaseProvider({ client });
 };
 
 const SERIES = {

@@ -22,10 +22,10 @@ const quotedTarget = (target: string): string => {
 };
 
 /**
- * A copy of the table's columns with their defaults, without constraints or
- * NOT NULL, so `default values` and type-shaped values always insert. The
- * copy carries the same registration as the table, so the trigger writes
- * the same entries the table's rows would.
+ * A copy of the table's columns with their defaults, without constraints or NOT
+ * NULL, so `default values` and type-shaped values always insert. The copy
+ * carries the same registration as the table, so the trigger writes the same
+ * entries the table's rows would.
  */
 const probe = (
   table: AuditedTable,
@@ -72,10 +72,9 @@ end;
 $$;`;
 
 /**
- * The pgTAP file for one audited table: the trigger and registration match
- * the `audit()` call, and inserts, updates and deletes on a copy of the
- * table write entries without the ignored columns and with the redacted
- * values masked.
+ * The pgTAP file for one audited table: the trigger and registration match the
+ * `audit()` call, and inserts, updates and deletes on a copy of the table write
+ * entries without the ignored columns and with the redacted values masked.
  */
 function auditTableTest(
   ctx: ModuleContext,

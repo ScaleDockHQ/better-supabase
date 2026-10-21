@@ -195,9 +195,9 @@ describe("buildApiModel: dataApi", () => {
         (entry) =>
           entry.source.kind === "data-api" &&
           entry.source.operation === "select",
-      ).length,
-    ).toBe(Object.keys(schema.meta.tables).length);
-    expect(rpcs.length).toBe(Object.keys(schema.meta.functions).length);
+      ),
+    ).toHaveLength(Object.keys(schema.meta.tables).length);
+    expect(rpcs).toHaveLength(Object.keys(schema.meta.functions).length);
   });
 
   it("maps Postgres types the way PostgREST writes them", () => {

@@ -1,10 +1,6 @@
-import {
-  type AnyEntry,
-  bufferRequest,
-  type Contributions,
-  pipeline,
-  seedContext,
-} from "@supabase/middleware";
+import type { AnyEntry, Contributions } from "@supabase/middleware";
+
+import { bufferRequest, pipeline, seedContext } from "@supabase/middleware";
 
 import type { Validated } from "./shared.ts";
 
@@ -13,7 +9,10 @@ export interface EdgeExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
 }
 
-/** `Deno.serve` passes `(request, info)`, Workers `fetch` passes `(request, env, ctx)`. */
+/**
+ * `Deno.serve` passes `(request, info)`, Workers `fetch` passes `(request, env,
+ * ctx)`.
+ */
 export type EdgeHandler = (
   request: Request,
   env?: unknown,
@@ -26,8 +25,11 @@ export type EdgeHandler = (
  * context, so on Workers `getEnv` inside the entries reads the bindings.
  *
  * ```ts
- * Deno.serve(toEdge([withBetterSupabase(server)], async (req, ctx) =>
- *   Response.json(await ctx.db.notes.findMany().orThrow())))
+ * Deno.serve(
+ *   toEdge([withBetterSupabase(server)], async (req, ctx) =>
+ *     Response.json(await ctx.db.notes.findMany().orThrow()),
+ *   ),
+ * );
  * ```
  */
 export function toEdge<const Entries extends readonly AnyEntry[]>(

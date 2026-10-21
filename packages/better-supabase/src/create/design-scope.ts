@@ -4,7 +4,10 @@ import type { SchemaColumn } from "./schema.ts";
 
 export const AUTH_USERS = "auth.users";
 
-/** The column that scopes an app table's rows, or `null` for `scope: "none"` and unscoped presets. */
+/**
+ * The column that scopes an app table's rows, or `null` for `scope: "none"` and
+ * unscoped presets.
+ */
 export function scopeColumnOf(
   table: AppTable,
   preset: Pick<Preset, "scope" | "tenantName" | "idType">,

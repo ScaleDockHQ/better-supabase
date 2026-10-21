@@ -1,9 +1,11 @@
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
+import type { ReadSet } from "../index.ts";
+import type { CompiledReadSet } from "../sql/index.ts";
 
-import { isReadSet, type ReadSet } from "../index.ts";
-import { type CompiledReadSet, compileReadSets } from "../sql/index.ts";
+import { isReadSet } from "../index.ts";
+import { compileReadSets } from "../sql/index.ts";
 import { CliError } from "./core/errors.ts";
 import { importFresh } from "./fresh-import.ts";
 

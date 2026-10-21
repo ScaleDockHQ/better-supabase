@@ -11,9 +11,7 @@ export const bulkBlock: BlockOf<"bulk", typeof createBulk, BulkEvents> =
   defineBlock({
     name: "bulk",
     sql: ["bulk"],
-    options: {
-      bulk: bulkSqlOptions,
-    },
+    options: { bulk: bulkSqlOptions },
     events: bulkEvents,
     create: createBulk,
     category: "work",

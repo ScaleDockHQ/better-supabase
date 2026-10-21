@@ -8,10 +8,7 @@ const sqlOf = (
   extra: Readonly<Record<string, unknown>> = {},
 ): string =>
   renderModules(names, {
-    modules: {
-      ...(options ? { sso: { options } } : {}),
-      ...extra,
-    },
+    modules: { ...(options ? { sso: { options } } : {}), ...extra },
   })
     .filter((file) => file.module === "sso")
     .map((file) => file.contents)

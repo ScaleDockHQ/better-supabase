@@ -2,9 +2,9 @@ import type { AuthState } from "../../auth/resolve.ts";
 import type { RequestContext } from "../plugin.ts";
 
 /**
- * An email address or chat user, as a bot or a mail webhook sees it. The
- * value is what the platform reports; it names no one until an identity
- * link maps it to a user or a contact.
+ * An email address or chat user, as a bot or a mail webhook sees it. The value
+ * is what the platform reports; it names no one until an identity link maps it
+ * to a user or a contact.
  */
 export interface IdentityRef {
   readonly kind: "email" | "chat";
@@ -23,8 +23,8 @@ export type IdentityTarget =
 
 /**
  * Looks up the verified link for an identity. `null` for an identity no
- * signed-in link flow or verified address created; the caller then treats
- * the author as anonymous.
+ * signed-in link flow or verified address created; the caller then treats the
+ * author as anonymous.
  */
 export type PrincipalByIdentity = (
   identity: IdentityRef,
@@ -42,9 +42,9 @@ export interface SubscriberEvent {
 }
 
 /**
- * A subscription a fan-out may deliver to. `principal` is the user who owns
- * it, or the id of the service principal an organization-owned subscription
- * runs as (`kind: "service"`).
+ * A subscription a fan-out may deliver to. `principal` is the user who owns it,
+ * or the id of the service principal an organization-owned subscription runs as
+ * (`kind: "service"`).
  */
 export interface Subscriber {
   readonly principal: string;
@@ -53,9 +53,9 @@ export interface Subscriber {
 
 /**
  * Narrows a fan-out to the subscribers that may read the event: webhook
- * endpoints, outbox consumers, realtime members and notification
- * recipients. It returns a subset of `subscribers`; a subscriber it leaves
- * out gets nothing, and a throw or rejection delivers to no one.
+ * endpoints, outbox consumers, realtime members and notification recipients. It
+ * returns a subset of `subscribers`; a subscriber it leaves out gets nothing,
+ * and a throw or rejection delivers to no one.
  */
 export type SubscriberPolicy = <S extends Subscriber>(
   event: SubscriberEvent,
@@ -80,10 +80,10 @@ export interface Approver {
 }
 
 /**
- * Whether `approver` may decide `request`. The SQL side is the
- * `isApprover` template of the authorization provider; this is the same
- * decision for server code. A throw counts as `false`, and better-supabase
- * refuses the requester before it asks.
+ * Whether `approver` may decide `request`. The SQL side is the `isApprover`
+ * template of the authorization provider; this is the same decision for server
+ * code. A throw counts as `false`, and better-supabase refuses the requester
+ * before it asks.
  */
 export type ApproverOf = (
   approver: Approver,
@@ -108,11 +108,11 @@ export interface AutomationHooks {
     },
   ) => boolean | Promise<boolean>;
   /**
-   * The claims a step of a published version runs with: the publisher's
-   * current claims narrowed to `permissions`, or the service principal's
-   * for an organization-owned automation. `null` when the publisher is
-   * gone, suspended or no longer holds a stored permission; the step then
-   * fails and never falls back to the service role.
+   * The claims a step of a published version runs with: the publisher's current
+   * claims narrowed to `permissions`, or the service principal's for an
+   * organization-owned automation. `null` when the publisher is gone, suspended
+   * or no longer holds a stored permission; the step then fails and never falls
+   * back to the service role.
    */
   readonly runAs?: (
     automation: AutomationRef,
@@ -125,15 +125,18 @@ export interface AutomationHooks {
 /**
  * Turns an opaque run ticket back into the context a job or a workflow step
  * runs as. `null` or a throw refuses the ticket (expired, revoked, or for a
- * principal that is gone), and the run fails instead of running as anyone
- * else. The ticket is stored in plain text as a run attribute, so it is an
- * id the provider looks up, never a bearer secret.
+ * principal that is gone), and the run fails instead of running as anyone else.
+ * The ticket is stored in plain text as a run attribute, so it is an id the
+ * provider looks up, never a bearer secret.
  */
 export type TicketSubject = (
   ticket: string,
 ) => RequestContext | null | Promise<RequestContext | null>;
 
-/** A delegated token, as `forContext` sees it: an OAuth client or agent acting for a user. */
+/**
+ * A delegated token, as `forContext` sees it: an OAuth client or agent acting
+ * for a user.
+ */
 export interface DelegationRef {
   readonly userId: string;
   readonly tenant?: string;
@@ -149,10 +152,10 @@ export interface DelegationRef {
 }
 
 /**
- * The permission keys a delegated token may use, for scopes the provider
- * maps at runtime (`authorization.delegation.scopes` is the static form in
- * SQL). `forContext` caps the work to them, narrowed by its own
- * `permissions`; a throw grants nothing.
+ * The permission keys a delegated token may use, for scopes the provider maps
+ * at runtime (`authorization.delegation.scopes` is the static form in SQL).
+ * `forContext` caps the work to them, narrowed by its own `permissions`; a
+ * throw grants nothing.
  */
 export type DelegationPermissions = (
   delegation: DelegationRef,
@@ -168,9 +171,9 @@ export interface ChatAction {
 }
 
 /**
- * Decides a chat action for its linked author: `undefined` when the
- * provider does not handle the action. An approval button is decided here,
- * through the provider; an unlinked author is refused.
+ * Decides a chat action for its linked author: `undefined` when the provider
+ * does not handle the action. An approval button is decided here, through the
+ * provider; an unlinked author is refused.
  */
 export type ChatActionHook = (
   action: ChatAction,
@@ -196,8 +199,8 @@ export interface SupportAuthorizeInput {
 /**
  * `true` allows a support start that still needs a second approver unless
  * approval is off; `{ approvedBy }` allows it and names the distinct approver
- * the provider checked. `false`, a throw and an `approvedBy` equal to the
- * admin refuse it.
+ * the provider checked. `false`, a throw and an `approvedBy` equal to the admin
+ * refuse it.
  */
 export type SupportDecision = boolean | { readonly approvedBy: string };
 
@@ -208,11 +211,11 @@ export type SupportAuthorize = (
 
 /**
  * The runtime half of an authorization provider (`apiVersion: 1`). The
- * `authorization` config key is plain data for SQL; these hooks decide the
- * same things in server code, so one provider can own automations,
- * support sessions, delivery, identity links, chat actions, approvals and
- * delegated tokens end to end. Every hook is optional, and a slot passed to a block directly
- * wins over the hook.
+ * `authorization` config key is plain data for SQL; these hooks decide the same
+ * things in server code, so one provider can own automations, support sessions,
+ * delivery, identity links, chat actions, approvals and delegated tokens end to
+ * end. Every hook is optional, and a slot passed to a block directly wins over
+ * the hook.
  */
 export interface AuthorizationHooks {
   readonly apiVersion: 1;
@@ -226,9 +229,7 @@ export interface AuthorizationHooks {
     /** Notification recipients. */
     readonly audience?: SubscriberPolicy;
   };
-  readonly identities?: {
-    readonly principalByIdentity: PrincipalByIdentity;
-  };
+  readonly identities?: { readonly principalByIdentity: PrincipalByIdentity };
   readonly chat?: { readonly onAction?: ChatActionHook };
   readonly approverOf?: ApproverOf;
   readonly tickets?: { readonly subject: TicketSubject };
@@ -242,10 +243,7 @@ export function defineAuthorizationHooks<const H extends AuthorizationHooks>(
   return Object.freeze(hooks);
 }
 
-/**
- * The error for hooks built for another API version, or `undefined` for
- * version 1.
- */
+/** The error for hooks built for another API version, or `undefined` for version 1. */
 export function hooksApiProblem(hooks: {
   readonly name?: unknown;
   readonly apiVersion?: unknown;

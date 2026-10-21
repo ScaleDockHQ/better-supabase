@@ -14,7 +14,7 @@ const segment = (value: unknown): string =>
   btoa(JSON.stringify(value))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 
 describe(`JWS with fully specified algorithms (RFC 9864, ${SPEC_PINS.rfc9864})`, () => {
   it("signs and verifies an Ed25519 key under both EdDSA and Ed25519", async () => {

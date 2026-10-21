@@ -1,6 +1,8 @@
 "use server";
 
-import { type Result, dbError, err, ok } from "better-supabase";
+import type { Result } from "better-supabase";
+
+import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";

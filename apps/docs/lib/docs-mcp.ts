@@ -1,4 +1,6 @@
-import { McpServer, type ToolAnnotations } from "@modelcontextprotocol/server";
+import type { ToolAnnotations } from "@modelcontextprotocol/server";
+
+import { McpServer } from "@modelcontextprotocol/server";
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 

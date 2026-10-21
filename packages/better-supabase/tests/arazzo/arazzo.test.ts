@@ -31,10 +31,7 @@ const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
   id: "onboardCustomer",
   summary: "Create a customer and read it",
   description: "Two steps",
-  inputs: standard({
-    type: "object",
-    properties: { row: { type: "object" } },
-  }),
+  inputs: standard({ type: "object", properties: { row: { type: "object" } } }),
   steps: [
     {
       id: "create",

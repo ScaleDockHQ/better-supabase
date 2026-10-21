@@ -2,6 +2,8 @@ import type { ModelMessage, UIMessage } from "ai";
 
 import { describe, expect, it } from "vitest";
 
+import type { AiMessage } from "../../src/blocks/ai-chat/index.ts";
+
 import {
   AI_SDK_UI_FORMAT,
   DENIED_TOOL_OUTPUT,
@@ -11,7 +13,7 @@ import {
   toUIMessage,
   toUIMessages,
 } from "../../src/ai-sdk/index.ts";
-import { type AiMessage, isAiMessage } from "../../src/blocks/ai-chat/index.ts";
+import { isAiMessage } from "../../src/blocks/ai-chat/index.ts";
 
 const meta = { openai: { itemId: "i1" } };
 
@@ -330,11 +332,7 @@ describe("toUIMessages", () => {
           { type: "tool-result", toolCallId: "t", toolName: "get", output: 3 },
         ],
       },
-      {
-        id: "n",
-        role: "assistant",
-        parts: [{ type: "text", text: "done" }],
-      },
+      { id: "n", role: "assistant", parts: [{ type: "text", text: "done" }] },
     ];
 
     const out = toUIMessages(history);
@@ -486,12 +484,7 @@ describe("fromModelMessages", () => {
   it("converts an agent's turn into one canonical answer", () => {
     const message = fromModelMessages("m1", turn, {
       sources: [
-        {
-          sourceType: "url",
-          id: "s1",
-          url: "https://a.b",
-          title: "A",
-        },
+        { sourceType: "url", id: "s1", url: "https://a.b", title: "A" },
         {
           sourceType: "document",
           id: "s2",

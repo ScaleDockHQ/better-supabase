@@ -90,9 +90,7 @@ session option, for a job that runs one long query on a shared pool:
 ```ts
 await postgres.transaction(
   (tx) => tx.queryRaw("refresh materialized view stats"),
-  {
-    statementTimeout: 120_000,
-  },
+  { statementTimeout: 120_000 },
 );
 const reports = postgres.executorFor(claims, { statementTimeout: 20_000 });
 ```

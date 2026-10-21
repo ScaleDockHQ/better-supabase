@@ -46,6 +46,15 @@ import {
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type {
+  MemberOption,
+  SavedViewOption,
+  StageColumn,
+  WorkGridQuery,
+  WorkItemRow,
+  WorkItemSort,
+} from "../work-types";
+
 import {
   stateBadgeVariant,
   usePriorityLabel,
@@ -59,14 +68,8 @@ import {
   setWorkItemStage,
 } from "../work-actions";
 import {
-  type MemberOption,
-  type SavedViewOption,
-  type StageColumn,
-  type WorkGridQuery,
-  type WorkItemRow,
   WORK_ITEM_SORTS,
   WORK_ITEM_STATES,
-  type WorkItemSort,
   workGridSearch,
 } from "../work-types";
 import { BulkActionBar } from "./bulk-action-bar";
@@ -174,9 +177,9 @@ function SaveViewDialog({ query }: { query: WorkGridQuery }) {
 
 // #region recipe:work-item-grid
 /**
- * Work items as a table. The search, state filter and sort live in the URL
- * and can be saved as named views. State and assignee edit in place, and
- * the checkboxes feed the bulk action bar.
+ * Work items as a table. The search, state filter and sort live in the URL and
+ * can be saved as named views. State and assignee edit in place, and the
+ * checkboxes feed the bulk action bar.
  */
 export function WorkItemGrid({
   rows,
@@ -251,16 +254,10 @@ export function WorkItemGrid({
 
   const memberItems = [
     { value: UNASSIGNED, label: t("Unassigned") },
-    ...members.map((member) => ({
-      value: member.userId,
-      label: member.name,
-    })),
+    ...members.map((member) => ({ value: member.userId, label: member.name })),
   ];
 
-  const viewItems = views.map((view) => ({
-    value: view.id,
-    label: view.name,
-  }));
+  const viewItems = views.map((view) => ({ value: view.id, label: view.name }));
 
   const activeView = views.find(
     (view) => workGridSearch(view.query) === workGridSearch(query),

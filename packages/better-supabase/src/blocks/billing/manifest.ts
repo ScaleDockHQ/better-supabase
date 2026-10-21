@@ -14,9 +14,7 @@ export const billingBlock: BlockOf<
 > = defineBlock({
   name: "billing",
   sql: ["billing"],
-  options: {
-    billing: billingSqlOptions,
-  },
+  options: { billing: billingSqlOptions },
   events: billingEvents,
   create: createBilling,
   category: "commerce",

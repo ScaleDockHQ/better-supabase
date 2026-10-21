@@ -102,7 +102,10 @@ export const storedEventRow: Row = {
   received_at: AT,
 };
 
-/** A transport that answers each function from `answers` (a value, or a function of the arguments) and records the calls. */
+/**
+ * A transport that answers each function from `answers` (a value, or a function
+ * of the arguments) and records the calls.
+ */
 export function fakeTransport(answers: Readonly<Record<string, unknown>>): {
   readonly transport: BlockTransport;
   readonly call: ReturnType<typeof vi.fn>;

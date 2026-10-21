@@ -95,10 +95,7 @@ describe("defineChecklist", () => {
     expect(call).toHaveBeenCalledWith(
       "better_supabase",
       "onboarding_progress",
-      {
-        checklist: "profile",
-        tenant: null,
-      },
+      { checklist: "profile", tenant: null },
     );
     expect(progress).toMatchObject({ done: true, next: undefined });
   });

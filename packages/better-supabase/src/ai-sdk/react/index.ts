@@ -1,15 +1,15 @@
 "use client";
 
-import { type UseChatHelpers, useChat } from "@ai-sdk/react";
-import {
-  type ChatOnFinishCallback,
-  type ChatTransport,
-  DefaultChatTransport,
-  type UIMessage,
-} from "ai";
+import type { UseChatHelpers } from "@ai-sdk/react";
+import type { ChatOnFinishCallback, ChatTransport, UIMessage } from "ai";
+
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { useCallback, useMemo } from "react";
 
-import { type AssistantTransportConfig, assistantBody } from "./body.ts";
+import type { AssistantTransportConfig } from "./body.ts";
+
+import { assistantBody } from "./body.ts";
 
 export type { AssistantTransportConfig } from "./body.ts";
 
@@ -32,9 +32,9 @@ export interface UseAssistantOptions {
   /** Custom throttle wait in ms for message updates. */
   readonly throttle?: number;
   /**
-   * Makes the transport instead of the default one, such as
-   * `durableTransport` from `better-supabase/ai-sdk/workflow/react`. Pass a
-   * function defined outside the component, so the transport is kept.
+   * Makes the transport instead of the default one, such as `durableTransport`
+   * from `better-supabase/ai-sdk/workflow/react`. Pass a function defined
+   * outside the component, so the transport is kept.
    */
   readonly transport?: (
     config: AssistantTransportConfig,
@@ -69,8 +69,8 @@ export type AssistantState = UseChatHelpers<UIMessage> & {
 
 /**
  * `useChat` wired to `createAssistant`: it sends only the new message (the
- * server keeps the history), resumes a running answer after a reload and
- * stops it on the server.
+ * server keeps the history), resumes a running answer after a reload and stops
+ * it on the server.
  */
 export function useAssistant(options: UseAssistantOptions): AssistantState {
   const api = options.api ?? "/api/chat";

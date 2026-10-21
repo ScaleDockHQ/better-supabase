@@ -2,25 +2,28 @@ import type { Money } from "../../commerce/money.ts";
 import type { Payment, PaymentProvider } from "../../commerce/payments.ts";
 import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
 import { money } from "../../commerce/money.ts";
-import { type ConformanceReport, conform, expect } from "../conformance.ts";
+import { conform, expect } from "../conformance.ts";
 
 export interface TestPaymentProviderOptions {
   /** What the kit charges. Defaults to 10.00 EUR. */
   readonly amount?: Money;
   /**
-   * Has the customer approve a `manual` payment, so it reaches
-   * `authorized` (with Stripe, confirm it with a test card). Without it
-   * the capture and refund checks are skipped.
+   * Has the customer approve a `manual` payment, so it reaches `authorized`
+   * (with Stripe, confirm it with a test card). Without it the capture and
+   * refund checks are skipped.
    */
   readonly authorize?: (payment: Payment) => void | Promise<void>;
   /**
-   * A delivery the provider's endpoint would receive for `payment`, signed
-   * with the provider's secret, and the same delivery with its body
-   * changed. Without it the webhook checks are skipped.
+   * A delivery the provider's endpoint would receive for `payment`, signed with
+   * the provider's secret, and the same delivery with its body changed. Without
+   * it the webhook checks are skipped.
    */
-  readonly webhook?: (payment: Payment) => Promise<{
+  readonly webhook?: (
+    payment: Payment,
+  ) => Promise<{
     readonly valid: WebhookInput;
     readonly tampered: WebhookInput;
   }>;
@@ -36,11 +39,11 @@ const half = (value: Money): Money => ({
 
 /**
  * Runs the `PaymentProvider` contract against `provider`: the API version,
- * refused amounts, a created payment and its fields, an idempotency key
- * that pays once, `not_found` for an unknown payment, and, with the
- * options that drive them, capture and refunds of an authorized payment
- * and webhook verification. Every call carries a fresh reference, so the
- * kit runs against a test account without cleanup.
+ * refused amounts, a created payment and its fields, an idempotency key that
+ * pays once, `not_found` for an unknown payment, and, with the options that
+ * drive them, capture and refunds of an authorized payment and webhook
+ * verification. Every call carries a fresh reference, so the kit runs against a
+ * test account without cleanup.
  */
 export function testPaymentProvider(
   provider: PaymentProvider,

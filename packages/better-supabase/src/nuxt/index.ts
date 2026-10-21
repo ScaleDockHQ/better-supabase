@@ -97,14 +97,15 @@ function setup(inline: NuxtModuleOptions | undefined, nuxt: NuxtLike): void {
 }
 
 /**
- * Registers the app's entries as Nitro server middleware (every
- * contribution on `event.context`) and auto-imports the Vue composables.
+ * Registers the app's entries as Nitro server middleware (every contribution on
+ * `event.context`) and auto-imports the Vue composables.
  *
- * ```ts title="nuxt.config.ts"
+ * ```ts
+ * // nuxt.config.ts
  * export default defineNuxtConfig({
- *   modules: ['better-supabase/nuxt'],
- *   betterSupabase: { server: '~~/server/better-supabase' },
- * })
+ *   modules: ["better-supabase/nuxt"],
+ *   betterSupabase: { server: "~~/server/better-supabase" },
+ * });
  * ```
  */
 const betterSupabaseNuxt: BetterSupabaseNuxtModule = Object.assign(setup, {

@@ -49,7 +49,10 @@ export interface ArazzoSourceOptions {
 export interface ArazzoFormatOptions {
   /** The OpenAPI document; its URL defaults to `openapi.json`. */
   readonly openapi?: ArazzoSourceOptions;
-  /** The AsyncAPI document channel steps use; defaults to `events` at `asyncapi.json`. */
+  /**
+   * The AsyncAPI document channel steps use; defaults to `events` at
+   * `asyncapi.json`.
+   */
   readonly asyncapi?: ArazzoSourceOptions;
 }
 
@@ -382,7 +385,8 @@ function lintWorkflow(
   const pointer = `/workflows/${String(index)}`;
   const stepIndex = new Map<string, number>();
   const outputsOf = new Map<string, ReadonlySet<string>>();
-  workflow.steps.forEach((step, position) => {
+
+  for (const [position, step] of workflow.steps.entries()) {
     if (stepIndex.has(step.stepId)) {
       diagnostics.push({
         code: "arazzo-step-id-duplicate",
@@ -395,7 +399,8 @@ function lintWorkflow(
     }
 
     outputsOf.set(step.stepId, new Set(Object.keys(step.outputs ?? {})));
-  });
+  }
+
   const inputs = inputNames(workflow.inputs);
 
   const checkExpressions = (
@@ -453,7 +458,7 @@ function lintWorkflow(
     }
   };
 
-  workflow.steps.forEach((step, position) => {
+  for (const [position, step] of workflow.steps.entries()) {
     const where = `${pointer}/steps/${String(position)}`;
 
     if (!ID.test(step.stepId)) {
@@ -528,14 +533,16 @@ function lintWorkflow(
         });
       }
     }
-  });
+  }
+
   checkExpressions(workflow.outputs, `${pointer}/outputs`);
 }
 
 function lintArazzo(document: AnyArazzoDocument): SpecDiagnostic[] {
   const diagnostics: SpecDiagnostic[] = [];
   const workflowIds = new Set<string>();
-  document.workflows.forEach((workflow, index) => {
+
+  for (const [index, workflow] of document.workflows.entries()) {
     if (!ID.test(workflow.workflowId)) {
       diagnostics.push({
         code: "arazzo-id-invalid",
@@ -555,23 +562,23 @@ function lintArazzo(document: AnyArazzoDocument): SpecDiagnostic[] {
     }
 
     workflowIds.add(workflow.workflowId);
-  });
+  }
 
   const sourceNames = new Set(
     document.sourceDescriptions.map((source) => source.name),
   );
 
-  document.workflows.forEach((workflow, index) => {
+  for (const [index, workflow] of document.workflows.entries()) {
     lintWorkflow(workflow, index, workflowIds, sourceNames, diagnostics);
-  });
+  }
 
   return diagnostics;
 }
 
 /**
- * An Arazzo format whose source descriptions point at your OpenAPI and
- * AsyncAPI URLs. `arazzoFormat` is this with the defaults: `api` at the
- * model's `self` or `openapi.json`, and `events` at `asyncapi.json`.
+ * An Arazzo format whose source descriptions point at your OpenAPI and AsyncAPI
+ * URLs. `arazzoFormat` is this with the defaults: `api` at the model's `self`
+ * or `openapi.json`, and `events` at `asyncapi.json`.
  */
 export function createArazzoFormat(
   options: ArazzoFormatOptions = {},
@@ -596,8 +603,8 @@ export function createArazzoFormat(
 
 /**
  * Arazzo as a `DocumentFormat`, for the model's `workflows`. 1.0 is the
- * default; channel steps (AsyncAPI send and receive) and action
- * `parameters` need 1.1.
+ * default; channel steps (AsyncAPI send and receive) and action `parameters`
+ * need 1.1.
  */
 export const arazzoFormat: DocumentFormat<
   "arazzo",

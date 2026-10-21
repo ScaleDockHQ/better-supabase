@@ -1,14 +1,17 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { Result } from "../../core/result.ts";
+import type {
+  CredentialProvider,
+  CredentialRef,
+  CredentialSubject,
+} from "../../credentials/provider.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { LifecycleBucket, LifecycleStorage } from "./data-lifecycle.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
-import {
-  credentialRefInTenant,
-  type CredentialProvider,
-  type CredentialRef,
-  type CredentialSubject,
-} from "../../credentials/provider.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
+import { credentialRefInTenant } from "../../credentials/provider.ts";
 import {
   applyTemporal,
   blockCall,
@@ -17,25 +20,25 @@ import {
   recordOf,
   recordsOf,
   textOf,
-  type BlockTemporalOptions,
 } from "../shared.ts";
-import {
-  deletionOf,
-  stored,
-  type LifecycleBucket,
-  type LifecycleStorage,
-} from "./data-lifecycle.ts";
+import { deletionOf, stored } from "./data-lifecycle.ts";
 
 export interface OrganizationPurgerOptions extends BlockTemporalOptions {
-  /** A service-role transport: `purge_organization()` is granted to `service_role` only. */
+  /**
+   * A service-role transport: `purge_organization()` is granted to
+   * `service_role` only.
+   */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to remove each bucket's organization prefix. */
+  /**
+   * A service-role `supabase.storage`, to remove each bucket's organization
+   * prefix.
+   */
   readonly storage?: LifecycleStorage;
   /**
    * Buckets to clear: a name, for a bucket whose paths start with the
-   * organization id (`attachments`), or `{ bucket, path }` with a path
-   * template such as `orgs/{organizationId}/files`, or a function that
-   * returns the prefixes, for buckets laid out another way.
+   * organization id (`attachments`), or `{ bucket, path }` with a path template
+   * such as `orgs/{organizationId}/files`, or a function that returns the
+   * prefixes, for buckets laid out another way.
    */
   readonly buckets?: readonly PurgeBucket[];
   /** `createBilling(...)`, to cancel the subscription first. */
@@ -43,15 +46,15 @@ export interface OrganizationPurgerOptions extends BlockTemporalOptions {
     cancelSubscription(organizationId: string): AsyncResult<unknown>;
   };
   /**
-   * Revokes the `credential_ref`s in the rows the purge deletes (provider
-   * keys, connector servers and grants, workflow credentials) before it
-   * deletes them. Only refs that carry the organization as their `tenant`
-   * are revoked; the rest are returned in `credentials.unrevoked`.
+   * Revokes the `credential_ref`s in the rows the purge deletes (provider keys,
+   * connector servers and grants, workflow credentials) before it deletes them.
+   * Only refs that carry the organization as their `tenant` are revoked; the
+   * rest are returned in `credentials.unrevoked`.
    */
   readonly credentials?: CredentialProvider;
   /**
-   * Also run the `blocks.data-lifecycle.options.anonymize` rules in
-   * `job`, after the due purges. Default false.
+   * Also run the `blocks.data-lifecycle.options.anonymize` rules in `job`,
+   * after the due purges. Default false.
    */
   readonly anonymize?: boolean;
   readonly schema?: string;
@@ -108,9 +111,9 @@ export interface UnrevokedCredential {
   readonly ref: CredentialRef;
   readonly subject: CredentialSubject;
   /**
-   * `foreign`: the ref doesn't carry the organization as its tenant, so it
-   * may name a credential that someone else still uses; `no_provider`: the
-   * purger has no `credentials`; `not_revocable`: the provider can't revoke it.
+   * `foreign`: the ref doesn't carry the organization as its tenant, so it may
+   * name a credential that someone else still uses; `no_provider`: the purger
+   * has no `credentials`; `not_revocable`: the provider can't revoke it.
    */
   readonly reason: "foreign" | "no_provider" | "not_revocable";
 }
@@ -132,11 +135,14 @@ export interface OrganizationPurge {
 export interface OrganizationPurger {
   /**
    * Checks that the deletion is due, cancels billing, revokes the
-   * organization's credentials, removes the Storage prefixes, then deletes
-   * the rows.
+   * organization's credentials, removes the Storage prefixes, then deletes the
+   * rows.
    */
   purge(organizationId: string): AsyncResult<OrganizationPurge>;
-  /** Purges every deletion past its grace period, oldest first; stops at the first error. */
+  /**
+   * Purges every deletion past its grace period, oldest first; stops at the
+   * first error.
+   */
   purgeDue(options?: {
     readonly limit?: number;
   }): AsyncResult<readonly OrganizationPurge[]>;
@@ -148,8 +154,8 @@ export interface OrganizationPurger {
    */
   purgeExports(options?: { readonly limit?: number }): AsyncResult<number>;
   /**
-   * Applies the `options.anonymize` rules to the rows whose time is up, at
-   * most `limit` (1000) per rule; returns the rows anonymized per table.
+   * Applies the `options.anonymize` rules to the rows whose time is up, at most
+   * `limit` (1000) per rule; returns the rows anonymized per table.
    */
   anonymizeDue(options?: {
     readonly limit?: number;

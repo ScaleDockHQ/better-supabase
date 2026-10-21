@@ -392,9 +392,7 @@ const retention = createRetention({ transport: sqlTransport(postgres.admin) });
 await retention.setPolicy("audit", "7 years").orThrow();
 await retention.setPolicy("audit", "1 year", { plan: "free" }).orThrow();
 await retention
-  .setPolicy("outbox", Temporal.Duration.from({ days: 30 }), {
-    organizationId,
-  })
+  .setPolicy("outbox", Temporal.Duration.from({ days: 30 }), { organizationId })
   .orThrow();
 
 const hold = await retention

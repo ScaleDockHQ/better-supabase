@@ -86,10 +86,7 @@ describe("read-only columns", () => {
     const { client, requests } = capturingClient();
     const db = ledger(client);
 
-    const insert = await db.create({
-      id: 1n,
-      code: "a",
-    });
+    const insert = await db.create({ id: 1n, code: "a" });
 
     expect(insert.error).toMatchObject({
       kind: "invalid_request",

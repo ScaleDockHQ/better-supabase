@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { DbStats } from "../../src/core/stats.ts";
-
-import {
-  type BudgetPage,
-  type BudgetRequest,
-  type BudgetResponse,
-  expectDbBudget,
+import type {
+  BudgetPage,
+  BudgetRequest,
+  BudgetResponse,
 } from "../../src/testing/budget.ts";
+
+import { expectDbBudget } from "../../src/testing/budget.ts";
 
 function fakePage(
   renders: Record<string, DbStats>,
@@ -180,11 +180,7 @@ describe("expectDbBudget(response)", () => {
   it("returns the stats within budget", () => {
     expect(
       expectDbBudget(withStats("2;1;5"), { maxCalls: 3, maxWaves: 1 }),
-    ).toEqual({
-      calls: 2,
-      waves: 1,
-      ms: 5,
-    });
+    ).toEqual({ calls: 2, waves: 1, ms: 5 });
     expect(
       expectDbBudget(withStats("9;9;9", "x-db"), { header: "x-db" }).calls,
     ).toBe(9);

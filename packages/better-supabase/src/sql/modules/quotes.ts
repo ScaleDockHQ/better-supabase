@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { QuoteNames } from "./quotes-functions.ts";
 
 import {
   lineTableSpec,
@@ -14,7 +15,7 @@ import {
 } from "../line-items-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { quoteFunctions, type QuoteNames } from "./quotes-functions.ts";
+import { quoteFunctions } from "./quotes-functions.ts";
 
 const QUOTE = [
   "organizationId",

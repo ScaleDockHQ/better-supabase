@@ -60,20 +60,23 @@ export interface WorkflowCondition {
   readonly value?: unknown;
 }
 
-/** A field a filter tests: `id` is the dotted path it reads, such as `input.amount`. */
+/**
+ * A field a filter tests: `id` is the dotted path it reads, such as
+ * `input.amount`.
+ */
 export interface WorkflowFilterField {
   readonly id: string;
   readonly type: FilterFieldType;
   /**
-   * The Postgres type the value compares as. Only dates use it: `date`
-   * compares calendar days, `timestamptz` (the default) instants.
+   * The Postgres type the value compares as. Only dates use it: `date` compares
+   * calendar days, `timestamptz` (the default) instants.
    */
   readonly columnType?: string;
 }
 
 /**
- * A `FilterQuery` tree (the rule builder's and the list filters' format)
- * over the fields its rules name.
+ * A `FilterQuery` tree (the rule builder's and the list filters' format) over
+ * the fields its rules name.
  */
 export interface WorkflowFilterCondition {
   readonly filter: FilterQuery;
@@ -86,8 +89,8 @@ export type WorkflowNodeCondition = WorkflowCondition | WorkflowFilterCondition;
 /**
  * One node of a graph. A `step` node calls the library step `step` with its
  * `config`; a `sleep` node waits `config.duration` (milliseconds, or `30s`,
- * `5m`, `2h`, `1d`); an `approval` node waits for its hook to be resumed;
- * a `condition` node tests `config`: a `WorkflowCondition`, or a
+ * `5m`, `2h`, `1d`); an `approval` node waits for its hook to be resumed; a
+ * `condition` node tests `config`: a `WorkflowCondition`, or a
  * `WorkflowFilterCondition` (`{ filter, fields }`).
  */
 export interface WorkflowGraphNode {
@@ -101,9 +104,9 @@ export interface WorkflowGraphNode {
 }
 
 /**
- * An edge runs its target after its source. From a `condition` or an
- * `approval` node, `branch` picks the outcome it follows (an approval is
- * `true` unless its payload has `approved: false`).
+ * An edge runs its target after its source. From a `condition` or an `approval`
+ * node, `branch` picks the outcome it follows (an approval is `true` unless its
+ * payload has `approved: false`).
  */
 export interface WorkflowGraphEdge {
   readonly id: string;
@@ -183,11 +186,7 @@ function filterFieldOf(
     return undefined;
   }
 
-  return {
-    id,
-    type,
-    ...(columnType === undefined ? {} : { columnType }),
-  };
+  return { id, type, ...(columnType === undefined ? {} : { columnType }) };
 }
 
 const columnTypeOf = (field: WorkflowFilterField): string =>
@@ -252,8 +251,8 @@ export function filterConditionOf(
 }
 
 /**
- * Whether a filter condition holds for `record`. Relative dates resolve
- * against `Date.now()`, which the workflow runtime keeps deterministic.
+ * Whether a filter condition holds for `record`. Relative dates resolve against
+ * `Date.now()`, which the workflow runtime keeps deterministic.
  */
 export function matchesFilter(
   condition: WorkflowFilterCondition,
@@ -276,7 +275,10 @@ export function matchesFilter(
 
 const EVENT_PATH = /^(type|tenant|payload)(\.[^.]+)*$/;
 
-/** The event an event trigger's `config.when` reads: `type`, `tenant` and `payload...`. */
+/**
+ * The event an event trigger's `config.when` reads: `type`, `tenant` and
+ * `payload...`.
+ */
 export interface TriggerEvent {
   readonly type: string;
   readonly tenant?: string | null | undefined;
@@ -284,9 +286,9 @@ export interface TriggerEvent {
 }
 
 /**
- * Whether an event trigger's `config.when` (a `WorkflowFilterCondition`
- * over `type`, `tenant` and `payload...`) lets `event` start a run. True
- * without a `when`; false when `when` isn't a valid one.
+ * Whether an event trigger's `config.when` (a `WorkflowFilterCondition` over
+ * `type`, `tenant` and `payload...`) lets `event` start a run. True without a
+ * `when`; false when `when` isn't a valid one.
  */
 export function triggerMatches(
   config: Readonly<Record<string, unknown>>,
@@ -310,7 +312,10 @@ export function triggerMatches(
   );
 }
 
-/** Why an event trigger's `config.when` can't be used, or `undefined` when it can. */
+/**
+ * Why an event trigger's `config.when` can't be used, or `undefined` when it
+ * can.
+ */
 export function triggerWhenProblem(
   config: Readonly<Record<string, unknown>>,
 ): string | undefined {
@@ -451,9 +456,8 @@ export const approved = (payload: unknown): boolean =>
   !(isGraphRecord(payload) && payload["approved"] === false);
 
 /**
- * The nodes in an order that runs every source before its targets, keeping
- * the graph's order among independent nodes; `undefined` when edges form a
- * cycle.
+ * The nodes in an order that runs every source before its targets, keeping the
+ * graph's order among independent nodes; `undefined` when edges form a cycle.
  */
 export function topologicalOrder(
   graph: WorkflowGraph,
@@ -549,7 +553,10 @@ export function edgeOf(value: unknown): WorkflowGraphEdge | undefined {
   };
 }
 
-/** Node ids reach generated source and SQL; `validate_workflow_graph` uses the same pattern. */
+/**
+ * Node ids reach generated source and SQL; `validate_workflow_graph` uses the
+ * same pattern.
+ */
 const NODE_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
 const BRANCHING: ReadonlySet<WorkflowNodeKind> = new Set([
@@ -558,9 +565,9 @@ const BRANCHING: ReadonlySet<WorkflowNodeKind> = new Set([
 ]);
 
 /**
- * Problems that keep `graph` from running, as messages; empty when it can.
- * Pass the step library's names to check that every step node uses one
- * (`publish` checks it again in SQL).
+ * Problems that keep `graph` from running, as messages; empty when it can. Pass
+ * the step library's names to check that every step node uses one (`publish`
+ * checks it again in SQL).
  */
 export function validateGraph(
   graph: unknown,
@@ -692,11 +699,7 @@ export function validateGraph(
       errors.push(`Edge ${id} leads into the trigger node`);
     }
 
-    edges.push({
-      id,
-      source: value["source"],
-      target: value["target"],
-    });
+    edges.push({ id, source: value["source"], target: value["target"] });
   }
 
   if (
@@ -713,7 +716,10 @@ export interface WorkflowGraphDiff {
   readonly nodes: {
     readonly added: readonly string[];
     readonly removed: readonly string[];
-    /** Nodes whose kind, step, label or config changed; moving one doesn't count. */
+    /**
+     * Nodes whose kind, step, label or config changed; moving one doesn't
+     * count.
+     */
     readonly changed: readonly string[];
   };
   readonly edges: {

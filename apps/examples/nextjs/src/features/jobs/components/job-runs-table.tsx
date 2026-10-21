@@ -39,11 +39,9 @@ import {
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import {
-  type JobRunRow,
-  type JobRunStatus,
-  loadJobRuns,
-} from "../jobs-queries";
+import type { JobRunRow, JobRunStatus } from "../jobs-queries";
+
+import { loadJobRuns } from "../jobs-queries";
 import { JOBS_PERMISSION } from "../jobs-server";
 import { EnqueueTestJobButton, RetryJobButton } from "./job-run-controls";
 
@@ -108,9 +106,9 @@ function JobStatusBadge({ status, t }: { status: JobRunStatus; t: Translate }) {
 }
 
 /**
- * Render inside `<Suspense>`: the organization's latest background jobs
- * across every queue, with a retry button on failed runs. Gated by
- * `audit.read`, since it reads with the database owner.
+ * Render inside `<Suspense>`: the organization's latest background jobs across
+ * every queue, with a retry button on failed runs. Gated by `audit.read`, since
+ * it reads with the database owner.
  */
 export async function JobRunsTable() {
   const [session, t, format] = await Promise.all([

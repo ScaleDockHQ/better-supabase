@@ -8,7 +8,10 @@ import { blockPath } from "@/lib/blocks";
 
 import { BlockIcon } from "./block-icon";
 
-/** One block in a grid: icon, title, package name and the first lines of its description. */
+/**
+ * One block in a grid: icon, title, package name and the first lines of its
+ * description.
+ */
 export function BlockTile({ block }: { block: BlockSummary }) {
   return (
     <SiteLink

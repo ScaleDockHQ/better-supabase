@@ -1,5 +1,7 @@
+import type { DefineApiOptions } from "../spec/api.ts";
 import type { SpecDiagnostic } from "../spec/format.ts";
 import type { ApiSource } from "../spec/options.ts";
+import type { ArazzoFormatOptions } from "./format.ts";
 import type {
   AnyArazzoDocument,
   ArazzoDocuments,
@@ -7,8 +9,8 @@ import type {
   RenderedArazzo,
 } from "./types.ts";
 
-import { type DefineApiOptions, defineApi } from "../spec/api.ts";
-import { type ArazzoFormatOptions, createArazzoFormat } from "./format.ts";
+import { defineApi } from "../spec/api.ts";
+import { createArazzoFormat } from "./format.ts";
 
 export type { WorkflowSource } from "../spec/options.ts";
 
@@ -72,12 +74,11 @@ export interface ArazzoOptions<V extends ArazzoVersion = "1.0", Ref = string>
 }
 
 /**
- * An Arazzo document for the API's workflows: your `defineWorkflow`
- * workflows and the built-ins (`paginationWorkflows()`,
- * `createThenGetWorkflows()`, `authWorkflow()`), checked against the
- * operations the API has. Throws when building or checking the document
- * finds an error; use `defineApi(...).render(arazzoFormat)` to read every
- * finding instead.
+ * An Arazzo document for the API's workflows: your `defineWorkflow` workflows
+ * and the built-ins (`paginationWorkflows()`, `createThenGetWorkflows()`,
+ * `authWorkflow()`), checked against the operations the API has. Throws when
+ * building or checking the document finds an error; use
+ * `defineApi(...).render(arazzoFormat)` to read every finding instead.
  *
  * ```ts
  * const doc = createArazzo(betterSupabase, {

@@ -3,9 +3,7 @@ import { describe, expect, it } from "vitest";
 import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
 const billing = (options?: Record<string, unknown>) =>
-  moduleBody("billing", {
-    modules: options ? { billing: { options } } : {},
-  })!;
+  moduleBody("billing", { modules: options ? { billing: { options } } : {} })!;
 
 describe("billing module", () => {
   it("renders webhook subscriptions with and without a plan catalog", () => {

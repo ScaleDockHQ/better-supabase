@@ -2,22 +2,17 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { ProblemFormat } from "../../core/problem.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { JobHandler } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { sqlTransport } from "../../core/block-transport.ts";
 import { dbError } from "../../core/errors.ts";
-import { type ProblemFormat, problemResponse } from "../../core/problem.ts";
+import { problemResponse } from "../../core/problem.ts";
 import { AsyncResult } from "../../core/result.ts";
-import {
-  type BlockTemporalOptions,
-  blockCall,
-  isRecord,
-  run,
-  seconds,
-  applyTemporal,
-} from "../shared.ts";
+import { blockCall, isRecord, run, seconds, applyTemporal } from "../shared.ts";
 
 // ---------------------------------------------------------------------------
 // Rate limits for route handlers (SQL module `rate-limit`)
@@ -62,8 +57,8 @@ export interface RateLimit {
 export type RateLimitSource =
   | {
       /**
-       * A service-role transport, such as `rpcTransport(adminClient)`, over
-       * the `rate-limit` module's functions.
+       * A service-role transport, such as `rpcTransport(adminClient)`, over the
+       * `rate-limit` module's functions.
        */
       readonly transport: BlockTransport;
       readonly sql?: never;
@@ -75,7 +70,10 @@ export type RateLimitSource =
     };
 
 export interface RateLimitSettings extends BlockTemporalOptions {
-  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  /**
+   * The schema the functions live in, over a transport. Defaults to
+   * `better_supabase`.
+   */
   readonly schema?: string;
   /** Error mappers that run before the built-in ones. */
   readonly mappers?: readonly ErrorMapper[];
@@ -89,9 +87,9 @@ export type RateLimitOptions = RateLimitSource & RateLimitSettings;
 
 /**
  * Fixed-window limits for keys that aren't claims, over the `rate-limit`
- * module's counters. Pass `sql`, a service SQL connection
- * (`ctx.postgresAdmin`, `postgres.admin`), or `transport`, a service-role
- * `BlockTransport` such as `rpcTransport(adminClient)`.
+ * module's counters. Pass `sql`, a service SQL connection (`ctx.postgresAdmin`,
+ * `postgres.admin`), or `transport`, a service-role `BlockTransport` such as
+ * `rpcTransport(adminClient)`.
  */
 export function createRateLimit(options: RateLimitOptions): RateLimit {
   applyTemporal(options);
@@ -168,7 +166,10 @@ const overTransport =
       },
     );
 
-/** One `hit_rate_limit` call: whether the hit is allowed, what is left and when to retry. */
+/**
+ * One `hit_rate_limit` call: whether the hit is allowed, what is left and when
+ * to retry.
+ */
 export async function hitRateLimit(
   sql: SqlClient,
   scope: string,

@@ -117,7 +117,7 @@ describe("incoming destinations", () => {
     const forgetful: IncomingDestination = {
       apiVersion: 1,
       name: "forgetful",
-      deliver: () => Promise.resolve({ id: ++next, duplicate: false }),
+      deliver: () => Promise.resolve({ id: (next += 1), duplicate: false }),
     };
 
     await expect(
@@ -128,9 +128,7 @@ describe("incoming destinations", () => {
   it("refuses a queue backend without sendOnce", async () => {
     const jobs = createJobs({
       backend: onceBackend(false).backend,
-      queues: {
-        leads: v.object({}),
-      },
+      queues: { leads: v.object({}) },
     });
 
     await expect(
@@ -175,10 +173,7 @@ describe("incoming destinations", () => {
         deliver(delivery) {
           delivered.push(delivery);
 
-          return Promise.resolve({
-            id: 1,
-            duplicate: delivered.length > 1,
-          });
+          return Promise.resolve({ id: 1, duplicate: delivered.length > 1 });
         },
       },
     });

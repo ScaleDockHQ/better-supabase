@@ -11,9 +11,7 @@ export const flagsBlock: BlockOf<"flags", typeof createFlags, FlagsEvents> =
   defineBlock({
     name: "flags",
     sql: ["flags"],
-    options: {
-      flags: flagsSqlOptions,
-    },
+    options: { flags: flagsSqlOptions },
     events: flagsEvents,
     create: createFlags,
     category: "growth",

@@ -1,10 +1,13 @@
 /**
- * OAuth helpers for any provider: PKCE, sealed cookies and a session shape,
- * on WebCrypto only. `better-supabase/create/supabase` builds the Supabase
- * flow on them; another provider, such as a deploy target, can reuse them.
+ * OAuth helpers for any provider: PKCE, sealed cookies and a session shape, on
+ * WebCrypto only. `better-supabase/create/supabase` builds the Supabase flow on
+ * them; another provider, such as a deploy target, can reuse them.
  */
 
-/** The HKDF info `seal` and `unseal` use when none is given; cookies sealed with it keep opening. */
+/**
+ * The HKDF info `seal` and `unseal` use when none is given; cookies sealed with
+ * it keep opening.
+ */
 export const DEFAULT_SEAL_INFO = "better-supabase create session";
 
 /** An access token, an optional refresh token and when the access token expires. */
@@ -67,7 +70,7 @@ function base64url(bytes: Uint8Array): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+    .replace(/[=]+$/u, "");
 }
 
 function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
@@ -126,8 +129,8 @@ async function cookieKey(secret: string, info: string): Promise<CryptoKey> {
 
 /**
  * Encrypts `value` as JSON with AES-GCM: base64url of the IV, then the
- * ciphertext. The key comes from `secret` through HKDF with `info`; give
- * each cookie its own `info` so one can't be swapped for another.
+ * ciphertext. The key comes from `secret` through HKDF with `info`; give each
+ * cookie its own `info` so one can't be swapped for another.
  */
 export async function seal(
   value: object,
@@ -150,8 +153,8 @@ export async function seal(
 }
 
 /**
- * The value `seal` wrote with the same `secret` and `info`, or `undefined`
- * when it is missing, tampered with or another shape.
+ * The value `seal` wrote with the same `secret` and `info`, or `undefined` when
+ * it is missing, tampered with or another shape.
  */
 export async function unseal<TValue>(
   sealed: string | undefined,

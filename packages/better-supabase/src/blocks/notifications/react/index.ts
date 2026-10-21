@@ -19,8 +19,8 @@ export interface NotificationsState<T>
 
 /**
  * The signed-in user's notifications, kept current: loads them, then loads
- * again after each broadcast on `topic` and after the channel rejoins. The
- * same hook runs in React DOM and React Native.
+ * again after each broadcast on `topic` and after the channel rejoins. The same
+ * hook runs in React DOM and React Native.
  *
  * ```tsx
  * const { items, count } = useNotifications({

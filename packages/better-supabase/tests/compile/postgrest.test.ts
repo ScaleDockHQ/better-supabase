@@ -120,11 +120,7 @@ const filter = (path: string, operator: string, value: string): PlanFilter => ({
 const orFilter = (
   expression: string,
   referencedTable?: string,
-): PlanFilter => ({
-  kind: "or",
-  expression,
-  referencedTable,
-});
+): PlanFilter => ({ kind: "or", expression, referencedTable });
 
 function invalid(fn: () => unknown): string {
   try {

@@ -1,7 +1,7 @@
 /**
- * What `better-supabase spec` costs per output: a cold render, a cache
- * hit, a render checked against the official schema, and every OpenAPI
- * version at once. Run with `pnpm --filter better-supabase bench`.
+ * What `better-supabase spec` costs per output: a cold render, a cache hit, a
+ * render checked against the official schema, and every OpenAPI version at
+ * once. Run with `pnpm --filter better-supabase bench`.
  */
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,13 +57,13 @@ async function measure(
   work: () => Promise<unknown>,
   runs = RUNS,
 ): Promise<number> {
-  for (let warm = 0; warm < 20; warm++) {
+  for (let warm = 0; warm < 20; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < runs; run++) {
+  for (let run = 0; run < runs; run += 1) {
     await work();
   }
 

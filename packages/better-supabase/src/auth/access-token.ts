@@ -1,23 +1,21 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 
 import type { DbError } from "../core/errors.ts";
+import type { JwksInput, JwksSourceOptions } from "../core/jwks-cache.ts";
+import type { JwsAlgorithm } from "../core/jws.ts";
 import type { Result } from "../core/result.ts";
 import type { AuthResolver, ResolvedState } from "./resolve.ts";
 
 import { base64ToText } from "../core/base64.ts";
 import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
-import {
-  type JwksInput,
-  jwksSource,
-  type JwksSourceOptions,
-} from "../core/jwks-cache.ts";
-import { type JwsAlgorithm, JwsError, verifyCompact } from "../core/jws.ts";
+import { jwksSource } from "../core/jwks-cache.ts";
+import { JwsError, verifyCompact } from "../core/jws.ts";
 
 /**
  * Checks whether an access token was revoked, by its `jti` or by the grant it
- * was issued under. `createOAuthServer` from `better-supabase/blocks/oauth-server`
- * has this shape.
+ * was issued under. `createOAuthServer` from
+ * `better-supabase/blocks/oauth-server` has this shape.
  */
 export interface AccessTokenRevocation {
   isRevoked(
@@ -62,8 +60,8 @@ export interface AccessTokenResolverOptions {
   /** Seconds of clock skew allowed on `exp`, `nbf` and `iat`. Default: 30. */
   readonly clockSkew?: number;
   /**
-   * The Postgres role queries run as, which the token's `role` must match
-   * when it has one. Default: `authenticated`.
+   * The Postgres role queries run as, which the token's `role` must match when
+   * it has one. Default: `authenticated`.
    */
   readonly role?: string;
   /** Checked on every request after the signature; a failure answers 401. */
@@ -275,18 +273,18 @@ function revocationError(error: DbError): ResolvedState {
 }
 
 /**
- * Resolves an OAuth 2.0 access token in the JWT format of RFC 9068, issued
- * by an authorization server the app trusts, to a `user` auth state with
- * `source: "oauth"`. Its claims keep `sub`, `client_id` and `scope`, so
- * queries run as the user under RLS and the access functions narrow the
- * token to the permissions its scopes map to.
+ * Resolves an OAuth 2.0 access token in the JWT format of RFC 9068, issued by
+ * an authorization server the app trusts, to a `user` auth state with `source:
+ * "oauth"`. Its claims keep `sub`, `client_id` and `scope`, so queries run as
+ * the user under RLS and the access functions narrow the token to the
+ * permissions its scopes map to.
  *
  * Only `Authorization: Bearer` tokens with the `typ` header `at+jwt` are
  * claimed; others fall through to the next resolver and the Supabase token
  * check. A claimed token that fails a check answers 401, never anon.
  *
- * `ctx.supabase` forwards the token to PostgREST, which accepts it only
- * when the issuer is registered as Supabase third-party auth.
+ * `ctx.supabase` forwards the token to PostgREST, which accepts it only when
+ * the issuer is registered as Supabase third-party auth.
  */
 export function accessTokenResolver(
   options: AccessTokenResolverOptions,

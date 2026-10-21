@@ -37,7 +37,7 @@ function retryAfterMsOf(details: unknown): number | undefined {
     : undefined;
 }
 
-/** node-postgres error fields to the shape `mapDbError` reads. */
+/** Node-postgres error fields to the shape `mapDbError` reads. */
 export function fromPgError(error: unknown): RawDbError | undefined {
   if (!isPgError(error)) {
     return undefined;

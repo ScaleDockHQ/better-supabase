@@ -40,6 +40,7 @@ const hint = (result: Result<unknown>): string =>
 
 describe.skipIf(!live)("hiring", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("runs a candidate through a job's pipeline to a hire", async () => {

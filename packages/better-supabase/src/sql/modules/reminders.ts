@@ -337,21 +337,13 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },
-    {
-      name: "delete_reminder",
-      args: ["uuid"],
-      returns: "boolean",
-    },
+    { name: "delete_reminder", args: ["uuid"], returns: "boolean" },
     {
       name: "mark_reminder_sent",
       args: ["uuid", "timestamptz"],
       returns: "boolean",
     },
-    {
-      name: "list_reminder_schedule",
-      args: [],
-      returns: "table",
-    },
+    { name: "list_reminder_schedule", args: [], returns: "table" },
   ];
 }
 

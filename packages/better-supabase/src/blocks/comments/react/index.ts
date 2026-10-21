@@ -19,19 +19,26 @@ export interface UseCommentsOptions {
   readonly topic?: string | null;
   /** The most comments to load, default 100, at most 500. */
   readonly limit?: number;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
 }
 
 export interface CommentsState extends CommentsSnapshot, CommentsActions {}
 
 /**
- * One subject's comment thread through the browser client, kept current
- * after `add`, `edit` and `remove`. The same hook runs in React DOM and
- * React Native.
+ * One subject's comment thread through the browser client, kept current after
+ * `add`, `edit` and `remove`. The same hook runs in React DOM and React
+ * Native.
  *
  * ```tsx
- * const { comments, add } = useComments({ organizationId, subjectType: "customer", subjectId });
+ * const { comments, add } = useComments({
+ *   organizationId,
+ *   subjectType: "customer",
+ *   subjectId,
+ * });
  * ```
  */
 export function useComments(options: UseCommentsOptions): CommentsState {

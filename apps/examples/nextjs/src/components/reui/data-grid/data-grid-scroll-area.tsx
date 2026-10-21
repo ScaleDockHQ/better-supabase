@@ -70,10 +70,7 @@ type ObservedElements = {
 type DataGridScrollAreaProps = Omit<
   ScrollAreaPrimitive.Root.Props,
   "children"
-> & {
-  children: ReactNode;
-  orientation?: DataGridScrollAreaOrientation;
-};
+> & { children: ReactNode; orientation?: DataGridScrollAreaOrientation };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

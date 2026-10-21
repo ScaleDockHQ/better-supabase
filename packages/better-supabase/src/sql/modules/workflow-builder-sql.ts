@@ -1,5 +1,6 @@
 import type { OperationTable } from "../../core/operations.ts";
 import type { ModuleContext } from "../context.ts";
+import type { ModuleOperations } from "./access-model.ts";
 
 import {
   OPERATION_PREFIXES,
@@ -14,7 +15,7 @@ import {
   serviceGrant,
   withExtraFields,
 } from "../shared.ts";
-import { moduleOperations, type ModuleOperations } from "./access-model.ts";
+import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
 export type BuilderAction = keyof ModuleOperations<"workflow-builder">;
@@ -77,10 +78,10 @@ export interface BuilderSql {
   readonly allowed: (tenant: string, action: BuilderAction) => string;
   /**
    * Whether the caller may `action` the definition (a uuid expression) in
-   * `tenant`: always when it isn't restricted, else through a grant that
-   * names them, one of their teams or their role (an `edit` grant also
-   * runs), `workflow.admin` in the tenant, or the service role. Combine
-   * it with `allowed`, which checks the tenant permission.
+   * `tenant`: always when it isn't restricted, else through a grant that names
+   * them, one of their teams or their role (an `edit` grant also runs),
+   * `workflow.admin` in the tenant, or the service role. Combine it with
+   * `allowed`, which checks the tenant permission.
    */
   readonly granted: (
     definition: string,
@@ -107,7 +108,10 @@ export interface BuilderSql {
   readonly broadcast: ModuleContext["broadcast"];
 }
 
-/** The steps the provider's `workflow.node.<step>` operations name, with their permission. */
+/**
+ * The steps the provider's `workflow.node.<step>` operations name, with their
+ * permission.
+ */
 function nodeOperationsOf(
   operations: OperationTable | undefined,
 ): Readonly<Record<string, string>> {
@@ -129,7 +133,10 @@ function nodeOperationsOf(
   return steps;
 }
 
-/** The permission of each operation the provider names outside the tool and node prefixes. */
+/**
+ * The permission of each operation the provider names outside the tool and node
+ * prefixes.
+ */
 function operationKeysOf(
   operations: OperationTable | undefined,
 ): Readonly<Record<string, string>> {

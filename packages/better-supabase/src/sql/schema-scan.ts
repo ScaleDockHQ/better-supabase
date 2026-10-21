@@ -34,7 +34,9 @@ function droppedTables(list: string): string[] {
 type Statement = { readonly index: number; readonly apply: () => void };
 
 function inOrder(statements: Statement[][]): void {
-  for (const statement of statements.flat().sort((a, b) => a.index - b.index)) {
+  for (const statement of statements
+    .flat()
+    .toSorted((a, b) => a.index - b.index)) {
     statement.apply();
   }
 }
@@ -72,8 +74,8 @@ export function tableGlobs(globs: readonly string[]): RegExp[] {
 }
 
 /**
- * The tables `files` create (`create table`), as `schema.table`, in the
- * order they first appear. Only tables in `schemas` are kept.
+ * The tables `files` create (`create table`), as `schema.table`, in the order
+ * they first appear. Only tables in `schemas` are kept.
  */
 export function declaredTables(
   files: readonly { readonly text: string }[],
@@ -114,9 +116,9 @@ const RLS_TOGGLE = /* @__PURE__ */ new RegExp(
 );
 
 /**
- * The tables in `schemas` that `files` leave with row level security on:
- * `alter table ... enable row level security`, until a later `disable` or
- * `drop table`.
+ * The tables in `schemas` that `files` leave with row level security on: `alter
+ * table ... enable row level security`, until a later `disable` or `drop
+ * table`.
  */
 export function rlsTables(
   files: readonly { readonly text: string }[],
@@ -183,8 +185,8 @@ const COLUMN_OPTION =
 /**
  * The declared type of each column of each `create table` in `files`, as
  * `schema.table` to unquoted column name to type. A type is lower-cased with
- * its spacing normalised, and a quoted part keeps its case without quotes.
- * Only tables in `schemas` are kept.
+ * its spacing normalised, and a quoted part keeps its case without quotes. Only
+ * tables in `schemas` are kept.
  */
 export function declaredColumnTypes(
   files: readonly { readonly text: string }[],
@@ -264,7 +266,7 @@ export function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
 
-  for (let i = open; i < text.length; i++) {
+  for (let i = open; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -274,9 +276,9 @@ export function closingParen(text: string, open: number): number {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
 
       if (depth === 0) {
         return i;
@@ -293,7 +295,7 @@ export function splitTopLevel(text: string): string[] {
   let quote: string | undefined;
   let start = 0;
 
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -303,9 +305,9 @@ export function splitTopLevel(text: string): string[] {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
     } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, i).trim());
       start = i + 1;
@@ -322,10 +324,10 @@ export function splitTopLevel(text: string): string[] {
 }
 
 /**
- * The privileges the permissive policies in `files` imply, per table and
- * role: `for all` gives the four commands, `to public` (or no `to`) counts
- * for `authenticated` only, so `anon` needs a policy that names it.
- * Restrictive policies grant nothing. Only tables in `schemas` are kept.
+ * The privileges the permissive policies in `files` imply, per table and role:
+ * `for all` gives the four commands, `to public` (or no `to`) counts for
+ * `authenticated` only, so `anon` needs a policy that names it. Restrictive
+ * policies grant nothing. Only tables in `schemas` are kept.
  */
 export function policyGrants(
   files: readonly { readonly text: string }[],
@@ -427,7 +429,7 @@ export function policyGrants(
       role: entry.role,
       privileges: COMMANDS.filter((command) => entry.privileges.has(command)),
     }))
-    .sort((a, b) =>
+    .toSorted((a, b) =>
       a.table === b.table
         ? a.role < b.role
           ? -1

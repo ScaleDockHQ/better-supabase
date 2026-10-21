@@ -1,5 +1,6 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { MiddlewareOptions } from "./respond.ts";
 import type {
   BetterServer,
   ContextOptions,
@@ -9,15 +10,13 @@ import type {
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { refreshFor } from "./refresh.ts";
-import {
-  defaultExpose,
-  guard,
-  type MiddlewareOptions,
-  respond,
-} from "./respond.ts";
+import { defaultExpose, guard, respond } from "./respond.ts";
 
 export interface HandleOptions extends MiddlewareOptions {
-  /** Include error messages in problem responses. Defaults to `NODE_ENV === 'development'`. */
+  /**
+   * Include error messages in problem responses. Defaults to `NODE_ENV ===
+   * 'development'`.
+   */
   readonly expose?: boolean;
   /** Problem Details `instance`. Defaults to the request path. */
   readonly instance?: string;
@@ -31,8 +30,8 @@ export interface HandleOptions extends MiddlewareOptions {
   /** Passed to `server.context()`, e.g. a request-wide stats recorder. */
   readonly context?: Omit<ContextOptions, "refresh">;
   /**
-   * Sees every error the handler throws before it becomes a 500, so
-   * framework control flow (Next's `redirect()`) can be thrown again.
+   * Sees every error the handler throws before it becomes a 500, so framework
+   * control flow (Next's `redirect()`) can be thrown again.
    */
   readonly rethrow?: (cause: unknown) => void;
 }
@@ -47,7 +46,10 @@ export function flushEvents(
   }
 }
 
-/** Runs `run`, then hands pending event sink sends to `waitUntil` even when it throws. */
+/**
+ * Runs `run`, then hands pending event sink sends to `waitUntil` even when it
+ * throws.
+ */
 export async function withFlush<T>(
   server: Pick<BetterServer<AnyModels, AnyFunctions, unknown>, "events">,
   waitUntil: ((promise: Promise<unknown>) => void) | undefined,
@@ -78,14 +80,18 @@ export function unexpectedResponse(
 
 /**
  * Runs `run` as the request's caller, the way every built-in adapter does:
- * resolves the context, applies the guard (401/403 Problem Details), turns
- * the return value into a response with `respond()`, turns other thrown
- * errors into a 500, adds the context's cookies with `ctx.apply()` and
- * hands pending event sink sends to `waitUntil`.
+ * resolves the context, applies the guard (401/403 Problem Details), turns the
+ * return value into a response with `respond()`, turns other thrown errors into
+ * a 500, adds the context's cookies with `ctx.apply()` and hands pending event
+ * sink sends to `waitUntil`.
  *
  * ```ts
- * export default { fetch: (request, env, ctx) =>
- *   handle(server, request, (c) => c.db.notes.findMany(), { waitUntil: (p) => ctx.waitUntil(p) }) }
+ * export default {
+ *   fetch: (request, env, ctx) =>
+ *     handle(server, request, (c) => c.db.notes.findMany(), {
+ *       waitUntil: (p) => ctx.waitUntil(p),
+ *     }),
+ * };
  * ```
  */
 export async function handle<

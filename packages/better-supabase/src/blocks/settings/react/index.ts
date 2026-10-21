@@ -16,7 +16,10 @@ export interface UseSettingsOptions<S extends "user" | "organization"> {
   readonly scope: S;
   /** The organization, for `scope: "organization"`; the page waits without one. */
   readonly organizationId?: string | null;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
 }
 
@@ -24,13 +27,16 @@ export interface SettingsState<E extends SettingEntries>
   extends SettingsSnapshot<E>, SettingsActions<E> {}
 
 /**
- * One scope of a `defineSettings()` definition for a settings page,
- * through the browser client: `fields` to render, generated from the
- * definition, the stored `values`, and `set` and `reset` per key. The same
- * hook runs in React DOM and React Native.
+ * One scope of a `defineSettings()` definition for a settings page, through the
+ * browser client: `fields` to render, generated from the definition, the stored
+ * `values`, and `set` and `reset` per key. The same hook runs in React DOM and
+ * React Native.
  *
  * ```tsx
- * const { fields, values, set } = useSettings(settings, { scope: "organization", organizationId });
+ * const { fields, values, set } = useSettings(settings, {
+ *   scope: "organization",
+ *   organizationId,
+ * });
  * ```
  */
 export function useSettings<

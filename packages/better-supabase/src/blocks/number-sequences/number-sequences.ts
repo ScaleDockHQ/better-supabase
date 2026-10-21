@@ -19,9 +19,9 @@ export interface NumberSequencesOptions {
 
 export interface NumberSequences {
   /**
-   * Allocates the next gapless number. Service role only: a client round
-   * trip would commit the number before the document does. Documents take
-   * their number from the column trigger instead.
+   * Allocates the next gapless number. Service role only: a client round trip
+   * would commit the number before the document does. Documents take their
+   * number from the column trigger instead.
    */
   next(
     organizationId: string,
@@ -29,9 +29,9 @@ export interface NumberSequences {
     at?: string,
   ): AsyncResult<string>;
   /**
-   * The number the next document would get, formatted, without assigning
-   * it. Needs the `assign` permission in the organization; a concurrent
-   * document can still take it first.
+   * The number the next document would get, formatted, without assigning it.
+   * Needs the `assign` permission in the organization; a concurrent document
+   * can still take it first.
    */
   preview(
     organizationId: string,

@@ -1,8 +1,9 @@
 /**
  * A copy of `@supabase/postgrest-typegen`'s `GeneratorMetadata` contract
  * (version 1), so the published types don't reference the package: it is an
- * optional peer that only the CLI loads. `tests/config/generator-metadata.test-d.ts`
- * checks the copy against the pinned version.
+ * optional peer that only the CLI loads.
+ * `tests/config/generator-metadata.test-d.ts` checks the copy against the
+ * pinned version.
  */
 
 export interface PostgresColumn {
@@ -54,7 +55,10 @@ export interface PostgresFunction {
   config_params: { [x: string]: string } | null;
 }
 
-/** A reference to a `types` entry by oid; `null` names when it is not in `types`. */
+/**
+ * A reference to a `types` entry by oid; `null` names when it is not in
+ * `types`.
+ */
 export interface RpcTypeReference {
   type_id: number;
   format: string | null;

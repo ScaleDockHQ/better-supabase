@@ -1,16 +1,17 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -18,7 +19,6 @@ import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   enumOrThrow,
   optionalInstant,
   optionalText,
@@ -121,7 +121,10 @@ export type WorkItemField =
   | "stageId"
   | "closeReason";
 
-/** One cell edit or drag: a built-in field or an extra column. `null` clears the field. */
+/**
+ * One cell edit or drag: a built-in field or an extra column. `null` clears the
+ * field.
+ */
 export interface WorkItemChange<F extends object = Record<never, never>> {
   readonly workItemId: string;
   readonly field: WorkItemField | (keyof F & string);
@@ -436,9 +439,8 @@ const args = (input: object): Record<string, unknown> =>
   );
 
 /**
- * The work-items block: issues and tasks on pipelines, with batched edits
- * for a grid or a Gantt chart, assignees, a progress tree, projects and
- * iterations.
+ * The work-items block: issues and tasks on pipelines, with batched edits for a
+ * grid or a Gantt chart, assignees, a progress tree, projects and iterations.
  */
 export function createWorkItems<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -457,20 +459,22 @@ export function createWorkItems<
     create: (organizationId, input, assigneeIds) => {
       const { fields: extra, ...attrs } = input;
 
-      return fields.args(extra).andThen((checked) =>
-        call(
-          "create_work_item",
-          {
-            tenant: organizationId,
-            attrs: {
-              ...args(attrs),
-              ...(checked === undefined ? {} : { fields: checked }),
+      return fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "create_work_item",
+            {
+              tenant: organizationId,
+              attrs: {
+                ...args(attrs),
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
+              assignees: assigneeIds === undefined ? null : [...assigneeIds],
             },
-            assignees: assigneeIds === undefined ? null : [...assigneeIds],
-          },
-          itemOf,
-        ).andThen(fields.row),
-      );
+            itemOf,
+          ).andThen(fields.row),
+        );
     },
     update: (changes) =>
       AsyncResult.from(async () => {
@@ -582,8 +586,8 @@ export function createWorkItems<
 
 /**
  * The `config.subjects` entry for work items, so comments, tags, files,
- * relations (`blocks` for Gantt dependencies), rank and search attach.
- * The board moves an item by its stage id.
+ * relations (`blocks` for Gantt dependencies), rank and search attach. The
+ * board moves an item by its stage id.
  */
 export function workItemsSubjects(
   options: { readonly schema?: string; readonly url?: string } = {},

@@ -1,3 +1,4 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
@@ -7,13 +8,12 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
   allWithFields,
-  type BlockFields,
   blockFields,
   extraFieldsArg,
-  type FieldsOf,
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -22,7 +22,6 @@ import { AsyncResult, err } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   optionalText,
   recordOf,
   recordsOf,
@@ -34,13 +33,16 @@ export interface ApprovalsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the request columns the app adds
-   * (`blocks.approvals.options.extraColumns`), keyed by column name. It
-   * types and parses them on every read, and validates them on `request`,
-   * which returns a `validation` error for a bad value.
+   * (`blocks.approvals.options.extraColumns`), keyed by column name. It types
+   * and parses them on every read, and validates them on `request`, which
+   * returns a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -50,8 +52,8 @@ export interface ApprovalsOptions<
   readonly mappers?: readonly ErrorMapper[];
   /**
    * The authorization hooks. `approverOf` sees every approve, reject and
-   * delegate with kind `<subject type>.<action>` and the subject id, after
-   * the SQL eligibility check, and can only refuse. Needs `approver`.
+   * delegate with kind `<subject type>.<action>` and the subject id, after the
+   * SQL eligibility check, and can only refuse. Needs `approver`.
    */
   readonly authorization?: Pick<AuthorizationHooks, "approverOf">;
   /** The signed-in user the transport runs as, for `approverOf`. */
@@ -310,7 +312,10 @@ export function createApprovals<
     hint: "APPROVAL_FORBIDDEN",
   });
 
-  /** Runs `then` once `approverOf` allows the caller on request `id`; the SQL check runs as well. */
+  /**
+   * Runs `then` once `approverOf` allows the caller on request `id`; the SQL
+   * check runs as well.
+   */
   const asApprover = <T>(
     id: string,
     then: () => AsyncResult<T>,

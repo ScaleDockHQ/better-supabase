@@ -1,8 +1,9 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type { AiMessagePartType } from "../../../src/blocks/ai-chat/message.ts";
+
 import {
   AI_MESSAGE_PART_TYPES,
-  type AiMessagePartType,
   AI_MESSAGE_SCHEMA_ID,
   aiMessageSchema,
   isAiMessage,

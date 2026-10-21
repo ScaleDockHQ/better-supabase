@@ -1,15 +1,36 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getEnv, pipeline, seedContext } from "@supabase/middleware";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
+import type { AuthResolution, AuthState } from "../auth/resolve.ts";
+import type { SessionEncoding } from "../auth/session.ts";
+import type {
+  DelegationPermissions,
+  TicketSubject,
+} from "../core/contracts/authorization-hooks.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { PostgrestClientLike } from "../core/postgrest-executor.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { Result } from "../core/result.ts";
+import type { BetterSupabaseEnv, EnvSource } from "../env/index.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type { SessionOptions, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { CallState, ServerCore } from "./entries/core.ts";
+import type { ReplicaState } from "./replicas.ts";
+import type { RequestIds } from "./request-ids.ts";
+import type {
+  AdminDb,
+  BetterServer,
+  ContextOptions,
+  ServerContext,
+  ServerKeys,
+  ServerOptions,
+} from "./server-types.ts";
 import type { ActiveSupport } from "./support.ts";
 
 import { authContext } from "../auth/context.ts";
@@ -19,43 +40,20 @@ import {
   narrowCap,
 } from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
-import {
-  prefetchJwks,
-  resolveAuth,
-  type AuthResolution,
-  type AuthState,
-} from "../auth/resolve.ts";
-import { sessionCookieName, type SessionEncoding } from "../auth/session.ts";
-import {
-  type DelegationPermissions,
-  hooksApiProblem,
-  type TicketSubject,
-} from "../core/contracts/authorization-hooks.ts";
+import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
+import { sessionCookieName } from "../auth/session.ts";
+import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
-import {
-  postgrestExecutor,
-  type PostgrestClientLike,
-} from "../core/postgrest-executor.ts";
-import { AsyncResult, err, ok, type Result } from "../core/result.ts";
+import { postgrestExecutor } from "../core/postgrest-executor.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import { StatsRecorder } from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
-import {
-  loadEnv,
-  type BetterSupabaseEnv,
-  type EnvSource,
-} from "../env/index.ts";
+import { loadEnv } from "../env/index.ts";
 import { serverAudit } from "./audit.ts";
 import { createClients } from "./clients.ts";
 import { deleteAccount } from "./delete-account.ts";
 import { withServerContext } from "./entries/context.ts";
-import {
-  CALL,
-  callOf,
-  registerCore,
-  shareCore,
-  type CallState,
-  type ServerCore,
-} from "./entries/core.ts";
+import { CALL, callOf, registerCore, shareCore } from "./entries/core.ts";
 import { withSession } from "./entries/session.ts";
 import { withSupport } from "./entries/support.ts";
 import { withTenant } from "./entries/tenant.ts";
@@ -68,23 +66,10 @@ import {
   replicaState,
   routedExecutor,
   withPrimaryPin,
-  type ReplicaState,
 } from "./replicas.ts";
-import {
-  requestIdPolicy,
-  sessionWith,
-  type RequestIds,
-} from "./request-ids.ts";
+import { requestIdPolicy, sessionWith } from "./request-ids.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
-import {
-  TENANT_HEADER,
-  type AdminDb,
-  type BetterServer,
-  type ContextOptions,
-  type ServerContext,
-  type ServerKeys,
-  type ServerOptions,
-} from "./server-types.ts";
+import { TENANT_HEADER } from "./server-types.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
 import { endSessions, suspendAccount } from "./suspend-account.ts";
@@ -112,7 +97,10 @@ function envOf(env: ServerOptions["env"]): BetterSupabaseEnv {
   return isLoadedEnv(env) ? env : loadEnv(env);
 }
 
-/** An `EnvSource` holds only strings, so a `URL` in `jwksUrl` means a loaded env. */
+/**
+ * An `EnvSource` holds only strings, so a `URL` in `jwksUrl` means a loaded
+ * env.
+ */
 function isLoadedEnv(
   env: BetterSupabaseEnv | EnvSource,
 ): env is BetterSupabaseEnv {
@@ -127,8 +115,8 @@ const needsPostgres = (method: string) =>
 
 /**
  * A framework adapter's server: `server` plus the adapter's own methods,
- * without reading the lazy `env` getter. `extra` can't replace a
- * `BetterServer` method.
+ * without reading the lazy `env` getter. `extra` can't replace a `BetterServer`
+ * method.
  */
 export function extendServer<R extends object>(
   server: object,
@@ -149,8 +137,8 @@ export function extendServer<R extends object>(
 }
 
 /**
- * Server-side entry point for APIs, jobs, MCP servers and framework
- * adapters. Holds the secrets; `betterSupabase` stays isomorphic.
+ * Server-side entry point for APIs, jobs, MCP servers and framework adapters.
+ * Holds the secrets; `betterSupabase` stays isomorphic.
  */
 export function createServer<
   M extends AnyModels,
@@ -308,9 +296,9 @@ export function createServer<
     : supportOff;
 
   /**
-   * The target's context in a support session. Queries run over direct
-   * Postgres with the target's claims plus `act`, read-only unless the
-   * session allows writes; nothing reaches Supabase with the admin's token.
+   * The target's context in a support session. Queries run over direct Postgres
+   * with the target's claims plus `act`, read-only unless the session allows
+   * writes; nothing reaches Supabase with the admin's token.
    */
   const supportContextFor = (
     resolution: AuthResolution<C, P>,
@@ -504,7 +492,10 @@ export function createServer<
     };
   };
 
-  /** Clients and repositories are built on first access: most scopes use one of them. */
+  /**
+   * Clients and repositories are built on first access: most scopes use one of
+   * them.
+   */
   const contextFor = (
     resolution: AuthResolution<C, P>,
     requestHeaders: Readonly<Record<string, string>>,
@@ -720,7 +711,10 @@ export function createServer<
     return resolution;
   };
 
-  /** One context per request and `refresh`/`cookies` pair: Server Components ask repeatedly. */
+  /**
+   * One context per request and `refresh`/`cookies` pair: Server Components ask
+   * repeatedly.
+   */
   const contextMemo = new WeakMap<
     Request,
     Map<string, Promise<ServerContext<M, F, E, C, P, B>>>
@@ -1015,9 +1009,8 @@ export function createServer<
 
 /**
  * The permission keys the provider's `delegation.permissions` hook grants a
- * delegated context, `undefined` for a context that is not delegated or
- * without the hook. A throw or an answer that is not a list of strings
- * grants nothing.
+ * delegated context, `undefined` for a context that is not delegated or without
+ * the hook. A throw or an answer that is not a list of strings grants nothing.
  */
 async function delegationCap(
   context: RequestContext,
@@ -1057,10 +1050,10 @@ async function delegationCap(
 }
 
 /**
- * The context `forContext` runs as: `context` itself, or for a context
- * with a ticket, the context `resolve` returns for it. A ticket without a
- * resolver, a `null` answer and a throw are `forbidden`; none of them fall
- * back to the recorded actor.
+ * The context `forContext` runs as: `context` itself, or for a context with a
+ * ticket, the context `resolve` returns for it. A ticket without a resolver, a
+ * `null` answer and a throw are `forbidden`; none of them fall back to the
+ * recorded actor.
  */
 async function ticketSubject(
   context: RequestContext,

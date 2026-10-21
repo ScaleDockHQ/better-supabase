@@ -15,8 +15,8 @@ import { Link } from "@/i18n/navigation";
 
 /**
  * Renders `children` only when the active organization's plan includes
- * `feature`, read from the session's `features` claim; otherwise a link to
- * the plans. UX only: RLS and the route behind it check the feature too.
+ * `feature`, read from the session's `features` claim; otherwise a link to the
+ * plans. UX only: RLS and the route behind it check the feature too.
  */
 export function FeatureGate({
   feature,

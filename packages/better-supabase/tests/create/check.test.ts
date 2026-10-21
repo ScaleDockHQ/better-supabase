@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { CreateDesign } from "../../src/preset/index.ts";
+
 import { checkDesign } from "../../src/create/index.ts";
 import {
-  type CreateDesign,
   encodeDesign,
   encodePreset,
   namedPreset,

@@ -27,10 +27,10 @@ const leave = (url: string): void => {
 };
 
 /**
- * The page Supabase Auth's OAuth server sends users to
- * (`[auth.oauth_server] authorization_url_path`). The proxy has already sent
- * a signed-out visitor to sign-in with this URL as `next`. The browser only
- * ever leaves for a `redirect_url` that Auth returned.
+ * The page Supabase Auth's OAuth server sends users to (`[auth.oauth_server]
+ * authorization_url_path`). The proxy has already sent a signed-out visitor to
+ * sign-in with this URL as `next`. The browser only ever leaves for a
+ * `redirect_url` that Auth returned.
  */
 export function OAuthConsentForm() {
   const t = useExtracted("oauth");

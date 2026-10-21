@@ -6,12 +6,9 @@ import type {
   ResolvedProviderKey,
 } from "../blocks/ai-providers/ai-providers.ts";
 import type { AsyncResult } from "../core/result.ts";
+import type { GatewayContext, GatewayOptions } from "./gateway.ts";
 
-import {
-  gatewayOptions,
-  type GatewayContext,
-  type GatewayOptions,
-} from "./gateway.ts";
+import { gatewayOptions } from "./gateway.ts";
 
 /** The `settings` key that names the credential field, `apiKey` unless set. */
 export const BYOK_FIELD = "credentialField";
@@ -22,9 +19,9 @@ function jsonOf(value: unknown): JSONValue {
 }
 
 /**
- * The AI Gateway's `byok` option for a tenant's resolved keys: each key
- * becomes `{ apiKey: token, ...settings }` under its provider, in order. A
- * provider whose credential field isn't `apiKey` names it in the key's
+ * The AI Gateway's `byok` option for a tenant's resolved keys: each key becomes
+ * `{ apiKey: token, ...settings }` under its provider, in order. A provider
+ * whose credential field isn't `apiKey` names it in the key's
  * `settings.credentialField`.
  */
 export function byokOptions(

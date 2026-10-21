@@ -1,12 +1,6 @@
-import {
-  generateText,
-  jsonSchema,
-  type JSONSchema7,
-  type LanguageModel,
-  Output,
-  type Tool,
-  tool,
-} from "ai";
+import type { JSONSchema7, LanguageModel, Tool } from "ai";
+
+import { generateText, jsonSchema, Output, tool } from "ai";
 
 import type { JobHandler } from "../../blocks/jobs/types.ts";
 import type {
@@ -121,8 +115,8 @@ export function memoryTool(
 }
 
 /**
- * The part of `anthropic.tools` this needs, typed structurally so the
- * Anthropic provider stays the app's dependency.
+ * The part of `anthropic.tools` this needs, typed structurally so the Anthropic
+ * provider stays the app's dependency.
  */
 export interface AnthropicMemoryTools {
   memory_20250818(options: {
@@ -131,8 +125,8 @@ export interface AnthropicMemoryTools {
 }
 
 /**
- * Anthropic's built-in memory tool (`anthropic.tools.memory_20250818`)
- * backed by the memory block: `anthropicMemory(anthropic.tools, memory, orgId)`.
+ * Anthropic's built-in memory tool (`anthropic.tools.memory_20250818`) backed
+ * by the memory block: `anthropicMemory(anthropic.tools, memory, orgId)`.
  */
 export function anthropicMemory(
   tools: AnthropicMemoryTools,
@@ -192,10 +186,7 @@ export function recallTool(
         : found.data;
 
       return {
-        memories: hits.map((hit) => ({
-          id: hit.id,
-          content: hit.content,
-        })),
+        memories: hits.map((hit) => ({ id: hit.id, content: hit.content })),
       };
     },
   });
@@ -246,8 +237,8 @@ const EXTRACT_INSTRUCTIONS =
   "Extract durable facts about the user from the conversation: preferences, background, goals and decisions that will still matter in later conversations. Write each fact as one short sentence in the third person. Skip small talk, one-off requests and anything secret. Return an empty list when there is nothing to remember.";
 
 /**
- * A job handler that asks a model for facts in a conversation and saves
- * those not already remembered (`memory.saveExtracted`).
+ * A job handler that asks a model for facts in a conversation and saves those
+ * not already remembered (`memory.saveExtracted`).
  */
 export function extractMemories(
   options: ExtractMemoriesOptions,

@@ -1,8 +1,9 @@
 import type { PresetName } from "better-supabase/preset";
+import type { PoolClient } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
 import { moduleLayout, renderModules } from "better-supabase/sql";
-import { DatabaseError, Pool, type PoolClient } from "pg";
+import { DatabaseError, Pool } from "pg";
 
 // `pnpm env:local` writes it (the CLI picks the ports per checkout); without
 // it the suites skip, like they do when the stack is down.
@@ -31,8 +32,8 @@ export async function reachable(): Promise<boolean> {
 }
 
 /**
- * The module files `sql add` writes for a config with only `preset`:
- * schema files, then data files, then the pgTAP files with `tests`.
+ * The module files `sql add` writes for a config with only `preset`: schema
+ * files, then data files, then the pgTAP files with `tests`.
  */
 export function presetFiles(
   preset: PresetName,
@@ -51,9 +52,9 @@ export function presetFiles(
 }
 
 /**
- * Installs the files as one migration and rolls it back. Other suites
- * install modules on the same stack, and Postgres resolves a deadlock
- * between two installs by aborting one; the aborted install starts over.
+ * Installs the files as one migration and rolls it back. Other suites install
+ * modules on the same stack, and Postgres resolves a deadlock between two
+ * installs by aborting one; the aborted install starts over.
  */
 export async function installAndRollBack(
   pool: Pool,

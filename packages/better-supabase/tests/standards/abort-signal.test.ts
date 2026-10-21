@@ -33,9 +33,7 @@ function hangingClient() {
         () => {
           reject(signal.reason);
         },
-        {
-          once: true,
-        },
+        { once: true },
       );
     });
   };

@@ -1,14 +1,16 @@
 /**
- * Shell completion. `completion <shell>` prints a script that calls the
- * hidden `__complete` with the words typed so far; `__complete` answers
- * from the command tree and loads only the one command it completes.
+ * Shell completion. `completion <shell>` prints a script that calls the hidden
+ * `__complete` with the words typed so far; `__complete` answers from the
+ * command tree and loads only the one command it completes.
  */
 
 import type { ArgDef, ArgsDef } from "citty";
 
+import type { CommandNode } from "./parse.ts";
+
 import { completionValues, GLOBAL_ARGS, listArgs } from "./command.ts";
 import { COMPLETE_COMMAND } from "./manifest.ts";
-import { type CommandNode, commandArgs, isVariadic } from "./parse.ts";
+import { commandArgs, isVariadic } from "./parse.ts";
 
 export const SHELLS = ["bash", "zsh", "fish"] as const;
 
@@ -30,7 +32,10 @@ export interface Candidate {
 
 export interface Completion {
   readonly candidates: readonly Candidate[];
-  /** The word is a free-form value (a path, a name), so the shell adds file names. */
+  /**
+   * The word is a free-form value (a path, a name), so the shell adds file
+   * names.
+   */
   readonly files: boolean;
 }
 
@@ -60,7 +65,10 @@ const firstWord = (words: readonly string[]): number =>
     (word, at) => !word.startsWith("-") && !valueFlag(GLOBALS, words[at - 1]),
   );
 
-/** Fixed values for an option: an enum's options, or a `valueHint` like `auto|yes|no`. */
+/**
+ * Fixed values for an option: an enum's options, or a `valueHint` like
+ * `auto|yes|no`.
+ */
 function fixedValues(definition: ArgDef): readonly string[] | undefined {
   if (definition.type === "enum" && definition.options) {
     return definition.options;
@@ -123,8 +131,8 @@ function valueCompletion(
 }
 
 /**
- * The candidates for the last of `words` (the words after the bin, the last
- * one being typed, possibly empty).
+ * The candidates for the last of `words` (the words after the bin, the last one
+ * being typed, possibly empty).
  */
 export async function complete(
   tree: ReadonlyMap<string, CommandNode>,
@@ -243,7 +251,10 @@ export async function complete(
   return hook ? valueCompletion(definition, hook, current, false) : FILE_NAMES;
 }
 
-/** `__complete` output: one `value<TAB>description` line per candidate, then `:files` when file names fit. */
+/**
+ * `__complete` output: one `value<TAB>description` line per candidate, then
+ * `:files` when file names fit.
+ */
 export function completionLines(completion: Completion): string {
   return [
     ...completion.candidates.map((candidate) =>

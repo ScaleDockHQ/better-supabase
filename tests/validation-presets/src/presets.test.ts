@@ -68,6 +68,7 @@ describe("named presets", () => {
 
 describe.skipIf(!live)("installing a named preset", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it.each(PRESET_NAMES)(

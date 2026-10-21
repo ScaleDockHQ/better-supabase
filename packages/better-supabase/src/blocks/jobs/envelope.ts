@@ -1,4 +1,5 @@
 import type { Actor, RequestContext } from "../../core/plugin.ts";
+import type { Result } from "../../core/result.ts";
 import type { JobContext } from "./types.ts";
 
 import {
@@ -11,7 +12,7 @@ import { impersonatorClaim, impersonatorOf } from "../../auth/impersonation.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
-import { err, ok, type Result } from "../../core/result.ts";
+import { err, ok } from "../../core/result.ts";
 
 /** Marks a payload that carries a job context; pgmq stores it as the payload. */
 const ENVELOPE = "$bs";
@@ -43,10 +44,10 @@ function ticketOf(
 }
 
 /**
- * The context a job records: the actor, the tenant, the ticket, and the
- * `act` chain and delegation of the token, so a job an OAuth or MCP client
- * queued runs with that client's scopes, never the user's full rights.
- * An invalid `act` chain or malformed delegation is `forbidden`.
+ * The context a job records: the actor, the tenant, the ticket, and the `act`
+ * chain and delegation of the token, so a job an OAuth or MCP client queued
+ * runs with that client's scopes, never the user's full rights. An invalid
+ * `act` chain or malformed delegation is `forbidden`.
  */
 function recordContext(
   context: RequestContext | undefined,

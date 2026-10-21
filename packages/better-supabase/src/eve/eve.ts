@@ -3,10 +3,11 @@ import type {
   KnowledgeSearchOptions,
 } from "../blocks/knowledge/knowledge.ts";
 import type { Memory, MemoryNamespace } from "../blocks/memory/memory.ts";
+import type { DbError } from "../core/errors.ts";
 import type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
-import { type DbError, DbException } from "../core/errors.ts";
+import { DbException } from "../core/errors.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 
@@ -51,7 +52,7 @@ export type { EveSessionAuth, EveSessionContext } from "./types.ts";
 // ---------------------------------------------------------------------------
 // File memory backend
 
-/** eve's `MemoryDocumentConflictError`, matched by name. */
+/** Eve's `MemoryDocumentConflictError`, matched by name. */
 export class MemoryDocumentConflictError extends Error {
   override readonly name = "MemoryDocumentConflictError";
   readonly key: string;
@@ -169,7 +170,10 @@ export interface EveRecallResult {
   readonly messages: readonly EveRecallMessage[];
 }
 
-/** A provider for eve's `defineMemory({ provider })`; pass it through `defineMemoryProvider`. */
+/**
+ * A provider for eve's `defineMemory({ provider })`; pass it through
+ * `defineMemoryProvider`.
+ */
 export interface EveMemoryProvider {
   readonly recall: {
     "turn.started"(ctx: EveMemoryContext): Promise<EveRecallResult | null>;
@@ -190,14 +194,17 @@ export interface EveMemoryTool {
 }
 
 export interface SupabaseMemoryOptions {
-  /** `createMemory` on a service transport: eve calls the provider outside a user request. */
+  /**
+   * `createMemory` on a service transport: eve calls the provider outside a
+   * user request.
+   */
   readonly memory: Memory;
   /** Tenant documents to search alongside the memories. */
   readonly knowledge?: Knowledge;
   /**
-   * The knowledge scopes to search. Defaults to the tenant's shared
-   * documents: the provider searches as the service role, so a wider scope
-   * can show one user's documents to another.
+   * The knowledge scopes to search. Defaults to the tenant's shared documents:
+   * the provider searches as the service role, so a wider scope can show one
+   * user's documents to another.
    */
   readonly knowledgeScopes?: KnowledgeSearchOptions["scopes"];
   /** Archival memories and knowledge chunks to recall per turn. Defaults to 5. */
@@ -205,8 +212,8 @@ export interface SupabaseMemoryOptions {
   /** The tenant of a principal. Defaults to `attributes.tenantId`. */
   readonly organizationOf?: (auth: EveSessionAuth) => string | undefined;
   /**
-   * Facts to keep from a finished turn (an LLM call of yours). Without it
-   * the provider stores only what the model saves with its `remember` tool.
+   * Facts to keep from a finished turn (an LLM call of yours). Without it the
+   * provider stores only what the model saves with its `remember` tool.
    */
   readonly extract?: (
     messages: readonly EveModelMessage[],
@@ -241,8 +248,8 @@ const isToolsModule = (value: unknown): value is EveToolsModule =>
   isRecord(value) && typeof value["defineTool"] === "function";
 
 /**
- * Loads `eve/tools` when the provider first builds its tools. The specifier
- * is a variable so bundlers leave the optional peer out.
+ * Loads `eve/tools` when the provider first builds its tools. The specifier is
+ * a variable so bundlers leave the optional peer out.
  */
 const loadTools = (): Promise<unknown> => importOptionalPeer("eve/tools");
 
@@ -254,10 +261,10 @@ const isRecallResult = (value: unknown): value is EveRecallResult =>
   );
 
 /**
- * An eve memory provider over the memory and knowledge blocks. Every read
- * and write is partitioned by the scope key and the signed-in user; recall
- * stores its answer under the operation id, so a replayed recall returns the
- * same messages.
+ * An eve memory provider over the memory and knowledge blocks. Every read and
+ * write is partitioned by the scope key and the signed-in user; recall stores
+ * its answer under the operation id, so a replayed recall returns the same
+ * messages.
  */
 export function supabaseMemory(
   options: SupabaseMemoryOptions,
@@ -444,10 +451,7 @@ export function supabaseMemory(
                 OPS_SCOPE,
                 marker,
                 "{}",
-                {
-                  expectedVersion: null,
-                  expiresIn: OP_TTL_SECONDS,
-                },
+                { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
               );
 
               if (!written.ok && !isConflict(written.error)) {

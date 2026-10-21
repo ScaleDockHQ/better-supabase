@@ -30,10 +30,10 @@ async function load(importer: () => Promise<unknown>): Promise<JsonPathEngine> {
 const cachedEngine = memoized(() => load(importEngine));
 
 /**
- * Loads the optional `jsonpath-rfc9535` peer, an RFC 9535 implementation
- * that passes the JSONPath Compliance Test Suite, for `applyOverlay`.
- * Rejects with an install message when the package is missing. The engine
- * is loaded once per module; `importer` replaces the import in tests.
+ * Loads the optional `jsonpath-rfc9535` peer, an RFC 9535 implementation that
+ * passes the JSONPath Compliance Test Suite, for `applyOverlay`. Rejects with
+ * an install message when the package is missing. The engine is loaded once per
+ * module; `importer` replaces the import in tests.
  */
 export function loadJsonPath(
   importer?: () => Promise<unknown>,

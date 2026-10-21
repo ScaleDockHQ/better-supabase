@@ -85,10 +85,7 @@ export const decideAccessRequest = bs.action(
 
 /** Withdraws the caller's own pending request. */
 export const cancelAccessRequest = bs.action(
-  {
-    input: v.object({ approvalId: ID }),
-    requireTenant: true,
-  },
+  { input: v.object({ approvalId: ID }), requireTenant: true },
   async ({ approvalId }, { supabase, auth }) => {
     const cancelled = await blocks(supabase).approvals.cancel(approvalId);
 
@@ -104,10 +101,7 @@ export const cancelAccessRequest = bs.action(
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
 export const endAccess = bs.action(
-  {
-    input: v.object({ id: ID }),
-    requireTenant: true,
-  },
+  { input: v.object({ id: ID }), requireTenant: true },
   async ({ id }, { supabase, auth }) => {
     const ended = await blocks(supabase).accessRequests.end(id);
 

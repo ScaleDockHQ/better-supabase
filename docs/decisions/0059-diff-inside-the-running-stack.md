@@ -35,7 +35,7 @@ Three pieces, all in the CLI:
   running stack: it copies the schema into a temporary database with
   `pg_dump` and `psql`, replaces the objects the declarative files manage
   with the files, and runs `supabase db diff --use-pg-delta --from local
---to <copy>` (`src/cli/in-stack-diff.ts`). The temporary database is
+  --to <copy>` (`src/cli/in-stack-diff.ts`). The temporary database is
   always dropped.
 
 ## Alternatives considered

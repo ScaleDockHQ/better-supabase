@@ -1,17 +1,17 @@
+import type { Entry, SingleKeyEntry } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  defineComposite,
-  type Entry,
-  type SingleKeyEntry,
-} from "@supabase/middleware";
+import { defineComposite } from "@supabase/middleware";
 
 import type { AuthResolution, AuthState } from "../auth/resolve.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ServerContextIn } from "./entries/context.ts";
+import type { ServerCore } from "./entries/core.ts";
+import type { GuardEntryConfig } from "./entries/guard.ts";
+import type { SessionEntryConfig } from "./entries/session.ts";
 import type { SqlIn } from "./entries/sql.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { GuardOptions } from "./respond.ts";
@@ -29,11 +29,11 @@ import {
   withUserClaims,
 } from "../auth/claims.ts";
 import { withServerContext } from "./entries/context.ts";
-import { type ServerCore, serverCore } from "./entries/core.ts";
+import { serverCore } from "./entries/core.ts";
 import { withDb } from "./entries/db.ts";
-import { type GuardEntryConfig, withGuard } from "./entries/guard.ts";
+import { withGuard } from "./entries/guard.ts";
 import { withReplica } from "./entries/replica.ts";
-import { type SessionEntryConfig, withSession } from "./entries/session.ts";
+import { withSession } from "./entries/session.ts";
 import { withSql } from "./entries/sql.ts";
 import { withSupport } from "./entries/support.ts";
 import { withTenant } from "./entries/tenant.ts";
@@ -52,7 +52,10 @@ export interface BetterSupabaseContributions<
   P = unknown,
   B = unknown,
 > {
-  /** The full request context: `auth`, `supabase`, `stats()`, `apply()` and the rest. */
+  /**
+   * The full request context: `auth`, `supabase`, `stats()`, `apply()` and the
+   * rest.
+   */
   bs: ServerContext<M, F, E, C, P, B>;
   /** The verified token's payload, or `null`; the key `withSupabase` uses. */
   jwtClaims: (JWTClaims & C) | null;
@@ -60,14 +63,20 @@ export interface BetterSupabaseContributions<
   authMode: AuthMode;
   /** Repositories over PostgREST as the caller. */
   db: Db<M, F, E, SupabaseClient, B>;
-  /** Repositories over direct Postgres as the caller, when Postgres is configured or upstream. */
+  /**
+   * Repositories over direct Postgres as the caller, when Postgres is
+   * configured or upstream.
+   */
   sql: Db<M, F, E, undefined, B> | undefined;
   tenant: string | undefined;
   support: ActiveSupport | undefined;
   replica: ReplicaState | undefined;
 }
 
-/** The entry `withBetterSupabase` returns, for `pipeline` and the framework bridges. */
+/**
+ * The entry `withBetterSupabase` returns, for `pipeline` and the framework
+ * bridges.
+ */
 export type BetterSupabaseEntry<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -207,20 +216,23 @@ function isDefinition<
  * The whole better-supabase server as one `@supabase/middleware` entry: it
  * verifies the caller (bearer token or session cookie), refuses callers the
  * guard rejects with Problem Details, and contributes `ctx.db`, `ctx.sql`,
- * `ctx.bs` and the `withSupabase` keys (`jwtClaims`, `userClaims`,
- * `authMode`), so `withPostgresClient` and `withOpenFeature` compose after
- * it. Refreshed cookies and `bs-primary-until` go out on the response.
+ * `ctx.bs` and the `withSupabase` keys (`jwtClaims`, `userClaims`, `authMode`),
+ * so `withPostgresClient` and `withOpenFeature` compose after it. Refreshed
+ * cookies and `bs-primary-until` go out on the response.
  *
  * ```ts
  * export default {
- *   fetch: pipeline([withBetterSupabase(betterSupabase)], async (req, ctx) =>
- *     Response.json(await ctx.db.notes.findMany().orThrow())),
- * }
+ *   fetch: pipeline(
+ *     [withBetterSupabase(betterSupabase)],
+ *     async (req, ctx) =>
+ *       Response.json(await ctx.db.notes.findMany().orThrow()),
+ *   ),
+ * };
  * ```
  *
- * Pass a server from `createServer` to share its clients and JWKS cache
- * with the rest of the app; pass the definition to build one with
- * `config`'s server options.
+ * Pass a server from `createServer` to share its clients and JWKS cache with
+ * the rest of the app; pass the definition to build one with `config`'s server
+ * options.
  */
 export function withBetterSupabase<
   M extends AnyModels,

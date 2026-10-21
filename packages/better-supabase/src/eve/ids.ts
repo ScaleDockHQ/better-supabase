@@ -1,4 +1,9 @@
-/** A UUID (version 8) from the SHA-256 of `input`, so the same input always gets the same id. */
+/* oxlint-disable eslint/no-bitwise -- RFC 9562 sets the version and variant bits with masks. */
+
+/**
+ * A UUID (version 8) from the SHA-256 of `input`, so the same input always gets
+ * the same id.
+ */
 export async function stableUuid(input: string): Promise<string> {
   const bytes = new Uint8Array(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)),

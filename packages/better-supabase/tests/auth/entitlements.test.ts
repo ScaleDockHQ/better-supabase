@@ -1,11 +1,9 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type { EntitlementKey } from "../../src/auth/entitlements.ts";
 import type { AuthSession } from "../../src/auth/view.ts";
 
-import {
-  type EntitlementKey,
-  hasEntitlement,
-} from "../../src/auth/entitlements.ts";
+import { hasEntitlement } from "../../src/auth/entitlements.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
 const GLOBEX = "00000000-0000-4000-8000-000000000002";

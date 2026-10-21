@@ -72,8 +72,8 @@ export const deleteField = bs.action(
 );
 
 /**
- * Moves a field one place up or down. Fields saved before any reorder have
- * no rank key yet, so the first move ranks the whole list in its new order.
+ * Moves a field one place up or down. Fields saved before any reorder have no
+ * rank key yet, so the first move ranks the whole list in its new order.
  */
 export const moveField = bs.action(
   {

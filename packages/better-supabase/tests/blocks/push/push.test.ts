@@ -40,12 +40,7 @@ function expoFetch(
     const body: unknown = JSON.parse(String(init?.body));
     calls.push({ path, body, headers: new Headers(init?.headers) });
 
-    return Response.json(
-      { data: answer(path, body) },
-      {
-        status,
-      },
-    );
+    return Response.json({ data: answer(path, body) }, { status });
   });
 
   return { calls, fetch };
@@ -226,7 +221,7 @@ describe("registerDevice", () => {
         request: false,
       }).orThrow(),
     ).toBeNull();
-    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledOnce();
     expect(
       await registerDevice({
         notifications,
@@ -284,7 +279,7 @@ describe("unregisterOnSignOut", () => {
       devices,
       token: () => null,
     })();
-    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(unregister).toHaveBeenCalledOnce();
   });
 });
 

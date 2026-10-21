@@ -44,14 +44,10 @@ describe("profiles module", () => {
       `"avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end`,
     );
     expect(() =>
-      body({
-        profiles: { options: { metadata: { picture: "avatar_path" } } },
-      }),
+      body({ profiles: { options: { metadata: { picture: "avatar_path" } } } }),
     ).toThrow(/avatar_path holds a Storage object path/);
     expect(
-      body({
-        profiles: { options: { metadata: { picture: "avatar_url" } } },
-      }),
+      body({ profiles: { options: { metadata: { picture: "avatar_url" } } } }),
     ).toContain("meta ->> 'picture'");
 
     const adopted = body({
@@ -312,11 +308,7 @@ describe("profiles module", () => {
       }).map((module) => module.name),
     ).toContain("access");
     expect(
-      body({
-        profiles: {
-          options: { usernameFrom: [{ names: ["nick"] }] },
-        },
-      }),
+      body({ profiles: { options: { usernameFrom: [{ names: ["nick"] }] } } }),
     ).toContain("concat_ws('_', nullif(btrim(coalesce(meta ->> 'nick')), ''))");
     expect(() =>
       body({ profiles: { options: { readPolicy: { members: "yes" } } } }),
@@ -365,9 +357,7 @@ describe("profiles module", () => {
     expect(body({})).toContain("'[^a-z0-9_]+'");
     expect(() =>
       body({
-        profiles: {
-          options: { usernameFrom: [{ columns: ["username"] }] },
-        },
+        profiles: { options: { usernameFrom: [{ columns: ["username"] }] } },
       }),
     ).toThrow(/is not a profile column sync_profile fills/);
   });

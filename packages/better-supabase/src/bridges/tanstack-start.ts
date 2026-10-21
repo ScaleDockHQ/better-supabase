@@ -1,13 +1,13 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import {
-  around,
-  type Around,
-  bufferInPlace,
-  type Validated,
-} from "./shared.ts";
+import type { Around, Validated } from "./shared.ts";
 
-/** The `response` of a request middleware's `next()` result; server function results have none. */
+import { around, bufferInPlace } from "./shared.ts";
+
+/**
+ * The `response` of a request middleware's `next()` result; server function
+ * results have none.
+ */
 function responseOf(result: object): Response | undefined {
   return "response" in result && result.response instanceof Response
     ? result.response
@@ -29,15 +29,20 @@ export interface ToTanStackStartOptions {
 
 /**
  * Runs an entry array as the `.server()` callback of a TanStack Start
- * middleware. Every contributed key lands on `context`. On request
- * middleware the response passes back through the entries, so refreshed
- * session cookies reach it; on server function middleware the context still
- * flows, and a short circuit (a 401 from the guard) is thrown as a
- * `Response`, which TanStack Start sends.
+ * middleware. Every contributed key lands on `context`. On request middleware
+ * the response passes back through the entries, so refreshed session cookies
+ * reach it; on server function middleware the context still flows, and a short
+ * circuit (a 401 from the guard) is thrown as a `Response`, which TanStack
+ * Start sends.
  *
- * ```ts title="src/start.ts"
- * const supabase = createMiddleware().server(toTanStackStart([withBetterSupabase(server)]))
- * export const startInstance = createStart(() => ({ requestMiddleware: [supabase] }))
+ * ```ts
+ * // src/start.ts
+ * const supabase = createMiddleware().server(
+ *   toTanStackStart([withBetterSupabase(server)]),
+ * );
+ * export const startInstance = createStart(() => ({
+ *   requestMiddleware: [supabase],
+ * }));
  * ```
  */
 export function toTanStackStart<const Entries extends readonly AnyEntry[]>(
@@ -55,7 +60,10 @@ export function toTanStackStart<const Entries extends readonly AnyEntry[]>(
   );
 }
 
-/** The `.server()` callback over a folded pipeline, with the context `toContext` builds. */
+/**
+ * The `.server()` callback over a folded pipeline, with the context `toContext`
+ * builds.
+ */
 export function tanStackStartServer<Context>(
   run: Around,
   env: ((request: Request) => unknown) | undefined,

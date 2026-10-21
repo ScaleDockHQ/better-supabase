@@ -3,9 +3,9 @@ import type { CalendarEvent, CalendarOccurrence } from "./occurrences.ts";
 import { temporal } from "../../core/temporal-required.ts";
 
 /**
- * The event shape of a headless event calendar such as ReUI's Event
- * Calendar (`CalendarEvent`), typed structurally: better-supabase imports
- * no UI library.
+ * The event shape of a headless event calendar such as ReUI's Event Calendar
+ * (`CalendarEvent`), typed structurally: better-supabase imports no UI
+ * library.
  */
 export interface EventCalendarEvent<TData = unknown> {
   readonly id: string;

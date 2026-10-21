@@ -7,16 +7,16 @@ export type SearchArgs<M extends AnyModels, T extends keyof M> = Pick<
   "select" | "include" | "where" | "signal"
 > & {
   /**
-   * The query embedding, as numbers or pgvector text (`'[0.1,0.2]'`). Leave
-   * it out (or pass `null`) with `text` on a `hybrid` entry to rank by
-   * full-text search alone, such as when the embedding call failed.
+   * The query embedding, as numbers or pgvector text (`'[0.1,0.2]'`). Leave it
+   * out (or pass `null`) with `text` on a `hybrid` entry to rank by full-text
+   * search alone, such as when the embedding call failed.
    */
   readonly vector?: readonly number[] | string | null;
   /** Rows to return. Defaults to 10. */
   readonly k?: number;
   /**
-   * Values for the entry's `prefilter` columns, applied before ranking: a
-   * value or a list (`null` matches a null column).
+   * Values for the entry's `prefilter` columns, applied before ranking: a value
+   * or a list (`null` matches a null column).
    */
   readonly filter?: Readonly<Record<string, unknown>>;
   /** The text query a `hybrid` entry ranks with full-text search. */
@@ -42,7 +42,7 @@ export interface SearchInput {
   readonly signal?: AbortSignal;
 }
 
-/** pgvector's text form, or `undefined` for anything that isn't a finite vector. */
+/** Pgvector's text form, or `undefined` for anything that isn't a finite vector. */
 export function vectorLiteral(
   vector: readonly number[] | string,
 ): string | undefined {

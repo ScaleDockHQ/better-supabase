@@ -20,10 +20,7 @@ export const site = {
   signIn: `${cloudUrl}/sign-in`,
 } as const;
 
-export type NavLink = {
-  readonly href: string;
-  readonly label: string;
-};
+export type NavLink = { readonly href: string; readonly label: string };
 
 export const navLinks: readonly NavLink[] = [
   { href: "/docs", label: "Docs" },

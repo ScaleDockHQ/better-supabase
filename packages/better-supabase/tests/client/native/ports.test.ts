@@ -62,7 +62,7 @@ describe("nativeDeepLinks", () => {
     listener?.({ url: "app://next" });
     expect(seen).toHaveBeenCalledWith("app://next");
     stop();
-    expect(remove).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledWith();
   });
 });
 
@@ -85,10 +85,7 @@ describe("nativeFilePicker", () => {
     const [file] = await nativeFilePicker(
       { getDocumentAsync },
       read,
-    )({
-      accept: ["application/pdf"],
-      multiple: true,
-    });
+    )({ accept: ["application/pdf"], multiple: true });
 
     expect(getDocumentAsync).toHaveBeenCalledWith({
       type: ["application/pdf"],
@@ -155,7 +152,7 @@ describe("nativePorts", () => {
       },
     });
 
-    expect(Object.keys(ports).sort()).toEqual([
+    expect(Object.keys(ports).toSorted()).toEqual([
       "files",
       "links",
       "push",

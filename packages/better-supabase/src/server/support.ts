@@ -1,32 +1,35 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { SupportCookieOptions } from "../auth/support-cookie.ts";
+import type {
+  SupportListFilter,
+  SupportRequest,
+  SupportSession,
+  SupportSessionStore,
+} from "../auth/support.ts";
 import type { SupportSessionsEvents } from "../blocks/support-sessions/events.ts";
+import type { SupportEventData } from "../core/block-events.ts";
 import type {
   AuthorizationHooks,
   SupportAuthorize,
   SupportAuthorizeInput,
   SupportDecision,
 } from "../core/contracts/authorization-hooks.ts";
+import type { DbError } from "../core/errors.ts";
 import type { EventHub } from "../core/events.ts";
+import type { ProblemFormat } from "../core/problem.ts";
 
 import {
   clearSupportCookie,
-  type SupportCookieOptions,
   supportCookie,
   supportCookieValue,
 } from "../auth/support-cookie.ts";
-import {
-  supportClaims,
-  type SupportListFilter,
-  type SupportRequest,
-  type SupportSession,
-  type SupportSessionStore,
-} from "../auth/support.ts";
-import { emitBlockEvent, type SupportEventData } from "../core/block-events.ts";
+import { supportClaims } from "../auth/support.ts";
+import { emitBlockEvent } from "../core/block-events.ts";
 import { cronRoute } from "../core/cron-route.ts";
-import { type DbError, dbError, mapDbError } from "../core/errors.ts";
-import { type ProblemFormat, problemResponse } from "../core/problem.ts";
+import { dbError, mapDbError } from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { boundedTtlCache } from "../core/ttl-cache.ts";
@@ -34,7 +37,10 @@ import { fromPgError } from "../postgres/pg-error.ts";
 
 type UserAuth = Extract<AuthState, { kind: "user" }>;
 
-/** The `kind` an `approverOf` hook sees for a support request; the SQL `isApprover` sees the same. */
+/**
+ * The `kind` an `approverOf` hook sees for a support request; the SQL
+ * `isApprover` sees the same.
+ */
 const SUPPORT_SESSION_APPROVAL = "support-session";
 
 export interface SupportPolicy {
@@ -52,9 +58,9 @@ export interface SupportPolicy {
   /**
    * `distinct` (the default): a start needs a request that another admin
    * approved (`support.request`, then `support.approve`), or an `authorize`
-   * decision of `{ approvedBy }` naming someone else. `none`: no second
-   * admin. Set `blocks.support-sessions.options.approval` to the same
-   * value, because the SQL store checks it again.
+   * decision of `{ approvedBy }` naming someone else. `none`: no second admin.
+   * Set `blocks.support-sessions.options.approval` to the same value, because
+   * the SQL store checks it again.
    */
   readonly approval?: "distinct" | "none";
 }
@@ -65,10 +71,10 @@ export interface SupportOptions {
   readonly store: SupportSessionStore;
   /**
    * Whether `admin` may view the app as the target. Without it, the
-   * authorization hooks' `support.authorize` decides, and without those
-   * every start is refused (`SUPPORT_FORBIDDEN`). A throw or rejection
-   * counts as a deny. `true` still needs a second admin under
-   * `policy.approval: 'distinct'`; `{ approvedBy }` names that admin.
+   * authorization hooks' `support.authorize` decides, and without those every
+   * start is refused (`SUPPORT_FORBIDDEN`). A throw or rejection counts as a
+   * deny. `true` still needs a second admin under `policy.approval:
+   * 'distinct'`; `{ approvedBy }` names that admin.
    *
    * `'store'` hands the decision to the store alone: the SQL store checks
    * `is_platform(blocks["support-sessions"].permissions.start)` and nothing
@@ -76,8 +82,8 @@ export interface SupportOptions {
    */
   readonly authorize?: SupportAuthorize | "store";
   /**
-   * The claims the target gets. Defaults to `store.claims` (the SQL store
-   * runs your custom access token hook), then `{ role: 'authenticated' }`.
+   * The claims the target gets. Defaults to `store.claims` (the SQL store runs
+   * your custom access token hook), then `{ role: 'authenticated' }`.
    */
   readonly claims?: (
     targetUserId: string,
@@ -125,16 +131,16 @@ export interface ActiveSupport {
 /** `bs.support`: start, stop and inspect support sessions. */
 export interface SupportApi {
   /**
-   * Starts a session for a signed-in admin and returns it with the
-   * `Set-Cookie` value that switches the admin's next requests to the target.
+   * Starts a session for a signed-in admin and returns it with the `Set-Cookie`
+   * value that switches the admin's next requests to the target.
    */
   start(
     admin: AuthState,
     request: SupportStartRequest,
   ): AsyncResult<{ readonly session: SupportSession; readonly cookie: string }>;
   /**
-   * Asks for a session that a second admin approves with `approve`; the
-   * policy checks of `start` apply. `ttl` is not stored: `start` passes it.
+   * Asks for a session that a second admin approves with `approve`; the policy
+   * checks of `start` apply. `ttl` is not stored: `start` passes it.
    */
   request(
     admin: AuthState,
@@ -142,12 +148,15 @@ export interface SupportApi {
   ): AsyncResult<SupportRequest>;
   /**
    * Approves a request as `approver`, who is never the admin who asked. With
-   * the hooks' `approverOf`, it decides who may approve; otherwise the
-   * store does (the SQL store: the provider's `isApprover`, else the start
+   * the hooks' `approverOf`, it decides who may approve; otherwise the store
+   * does (the SQL store: the provider's `isApprover`, else the start
    * permission).
    */
   approve(approver: AuthState, requestId: string): AsyncResult<SupportRequest>;
-  /** Ends the admin's own session and returns the `Set-Cookie` that clears the cookie. */
+  /**
+   * Ends the admin's own session and returns the `Set-Cookie` that clears the
+   * cookie.
+   */
   stop(
     admin: AuthState,
     sessionId: string,
@@ -165,7 +174,8 @@ export interface SupportApi {
   /**
    * The running session `sessionId` for the admin in `auth`, if any. Use it
    * when the app keeps the session id in its own request context; pass the
-   * result to `contextFor(auth, { support })` or `dbFor(auth, context, { support })`.
+   * result to `contextFor(auth, { support })` or `dbFor(auth, context, {
+   * support })`.
    */
   resolve(
     sessionId: string,
@@ -178,8 +188,8 @@ export interface SupportApi {
   ): AsyncResult<readonly SupportSession[]>;
   /**
    * Ends every session past its expiry through the store and emits
-   * `support.ended` with `endedBy: "expired"` for each; the SQL store runs
-   * over `postgres.admin`. Returns the sessions it ended.
+   * `support.ended` with `endedBy: "expired"` for each; the SQL store runs over
+   * `postgres.admin`. Returns the sessions it ended.
    */
   expire(): AsyncResult<readonly SupportSession[]>;
   /**
@@ -195,7 +205,10 @@ export interface SupportApi {
   clearCookie(): string;
 }
 
-/** How long a support target's claims are reused; a role change applies within it. */
+/**
+ * How long a support target's claims are reused; a role change applies within
+ * it.
+ */
 const CLAIMS_TTL_MS = 60_000;
 const CLAIMS_CACHE_SIZE = 1000;
 
@@ -216,8 +229,8 @@ export interface SupportSessions {
   readonly options: SupportOptions;
   /**
    * Builds `bs.support`; `createServer` calls it once, with the definition's
-   * `temporal`, which goes on to the store's `withTemporal`, and the
-   * server's authorization hooks.
+   * `temporal`, which goes on to the store's `withTemporal`, and the server's
+   * authorization hooks.
    */
   readonly create: (
     events: EventHub,
@@ -292,7 +305,10 @@ function createSupport(
     return { role: "authenticated" };
   };
 
-  /** Target claims per support session; the session itself is loaded every time, so revoking stays immediate. */
+  /**
+   * Target claims per support session; the session itself is loaded every time,
+   * so revoking stays immediate.
+   */
   const claimsCache = boundedTtlCache<
     string,
     Readonly<Record<string, unknown>>
@@ -398,7 +414,10 @@ function createSupport(
     }
   };
 
-  /** The approved request a start uses: recorded now for an `{ approvedBy }` decision, else looked up. */
+  /**
+   * The approved request a start uses: recorded now for an `{ approvedBy }`
+   * decision, else looked up.
+   */
   const approvedRequest = async (
     admin: UserAuth,
     request: SupportStartRequest,

@@ -1,15 +1,9 @@
 "use client";
 
+import type { DynamicToolUIPart, FileUIPart, ToolUIPart, UIMessage } from "ai";
 import type { AssistantState } from "better-supabase/ai-sdk/react";
 
-import {
-  type DynamicToolUIPart,
-  type FileUIPart,
-  getToolName,
-  isToolUIPart,
-  type ToolUIPart,
-  type UIMessage,
-} from "ai";
+import { getToolName, isToolUIPart } from "ai";
 import {
   ArrowUpIcon,
   CheckIcon,
@@ -72,7 +66,10 @@ async function uploadAttachment(
   }
 }
 
-/** A tool call in an answer; one that waits for approval shows the decision buttons. */
+/**
+ * A tool call in an answer; one that waits for approval shows the decision
+ * buttons.
+ */
 function ToolCall({
   part,
   chat,
@@ -138,8 +135,8 @@ function ToolCall({
 
 /**
  * The messages and composer of one chat. The caller picks the hook:
- * `useAssistant` for a request-bound answer, `useDurableAssistant` for one
- * that runs as a workflow.
+ * `useAssistant` for a request-bound answer, `useDurableAssistant` for one that
+ * runs as a workflow.
  */
 export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
   const t = useExtracted("assistant");

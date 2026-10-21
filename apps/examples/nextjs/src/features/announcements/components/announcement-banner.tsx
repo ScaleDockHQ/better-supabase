@@ -14,9 +14,9 @@ import {
 import { Button } from "@/components/ui/button";
 
 /**
- * The newest live announcement for this user and organization. Loads in
- * the browser and reloads on the module's broadcast, so it adds nothing to
- * the server render.
+ * The newest live announcement for this user and organization. Loads in the
+ * browser and reloads on the module's broadcast, so it adds nothing to the
+ * server render.
  */
 export function AnnouncementBanner({
   organizationId,

@@ -3,8 +3,9 @@ import { Pool } from "pg";
 import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Logger } from "../core/logger.ts";
+import type { SqlClient } from "./executor.ts";
 
-import { postgresExecutor, type SqlClient } from "./executor.ts";
+import { postgresExecutor } from "./executor.ts";
 import { watchPoolErrors } from "./pool-errors.ts";
 
 /** The part of a `pg` pool client `createPostgres` uses. */
@@ -23,7 +24,10 @@ export interface PgPool {
 
 /** Statement timeouts in milliseconds by the role a transaction runs as. */
 export interface PostgresTimeouts {
-  /** The connection-string role (`admin` and `transaction` without claims). Unset by default. */
+  /**
+   * The connection-string role (`admin` and `transaction` without claims).
+   * Unset by default.
+   */
   readonly admin?: number;
   /** Defaults to 8000, Supabase's setting for the role. */
   readonly authenticated?: number;
@@ -41,17 +45,17 @@ export interface PostgresOptions {
   readonly pool?: PgPool;
   readonly max?: number;
   /**
-   * Statement timeout in milliseconds, applied per transaction: one value
-   * for every role, or one per role. `set role` doesn't apply the role's own
-   * `statement_timeout`, so `authenticated` and `anon` get Supabase's 8 s
-   * and 3 s unless you set them.
+   * Statement timeout in milliseconds, applied per transaction: one value for
+   * every role, or one per role. `set role` doesn't apply the role's own
+   * `statement_timeout`, so `authenticated` and `anon` get Supabase's 8 s and 3
+   * s unless you set them.
    */
   readonly statementTimeout?: number | PostgresTimeouts;
   /**
    * Ends a session that stays idle inside a transaction this long, in
-   * milliseconds, so `transaction(fn)` can't hold a connection while `fn`
-   * waits on something else. Defaults to 15000; `0` turns it off. Statements
-   * outside a transaction don't set it.
+   * milliseconds, so `transaction(fn)` can't hold a connection while `fn` waits
+   * on something else. Defaults to 15000; `0` turns it off. Statements outside
+   * a transaction don't set it.
    */
   readonly idleInTransactionTimeout?: number;
   /** How long `connect` waits for a connection, in milliseconds. Defaults to 10000. */
@@ -63,7 +67,10 @@ export interface PostgresOptions {
    * an `error` event instead of crashing the process.
    */
   readonly events?: EventHub;
-  /** Where idle-connection errors go without `error` handlers. Defaults to the console. */
+  /**
+   * Where idle-connection errors go without `error` handlers. Defaults to the
+   * console.
+   */
   readonly logger?: Logger;
 }
 
@@ -77,10 +84,7 @@ const CONNECTION_VARIABLES = [
   "POSTGRES_URL_NON_POOLING",
 ] as const;
 
-const DEFAULT_TIMEOUTS: PostgresTimeouts = {
-  authenticated: 8000,
-  anon: 3000,
-};
+const DEFAULT_TIMEOUTS: PostgresTimeouts = { authenticated: 8000, anon: 3000 };
 
 /** JWT claims to run as. `role` must be `authenticated` or `anon`. */
 export interface SqlClaims {
@@ -92,16 +96,16 @@ export interface SqlClaims {
 /** What every transaction of a user session sets besides the claims and role. */
 export interface SessionOptions {
   /**
-   * Transaction-local settings, e.g. `{ 'better_supabase.tenant': id }`.
-   * Names need a dot (custom settings); `role` and `request.jwt.claims` are
-   * set from the claims.
+   * Transaction-local settings, e.g. `{ 'better_supabase.tenant': id }`. Names
+   * need a dot (custom settings); `role` and `request.jwt.claims` are set from
+   * the claims.
    */
   readonly settings?: Readonly<Record<string, string>>;
   /** Runs every transaction with `begin read only`: writes fail with 25006. */
   readonly readOnly?: boolean;
   /**
-   * Statement timeout in milliseconds for this session's transactions,
-   * instead of the role's `statementTimeout` from `createPostgres`.
+   * Statement timeout in milliseconds for this session's transactions, instead
+   * of the role's `statementTimeout` from `createPostgres`.
    */
   readonly statementTimeout?: number;
 }
@@ -114,14 +118,14 @@ export interface BetterPostgres {
   /** Runs every query as `anon`. */
   readonly anon: SqlClient;
   /**
-   * Repositories' executor as the given user (`postgresExecutor(asUser(claims))`).
-   * `createServer` calls it for `ctx.sql`, so only apps that pass `postgres`
-   * bundle the SQL compiler.
+   * Repositories' executor as the given user
+   * (`postgresExecutor(asUser(claims))`). `createServer` calls it for
+   * `ctx.sql`, so only apps that pass `postgres` bundle the SQL compiler.
    */
   executorFor(claims: SqlClaims, options?: SessionOptions): Executor;
   /**
-   * Runs `fn` in one transaction. Pass claims to run it as a user; the
-   * session options apply with or without them.
+   * Runs `fn` in one transaction. Pass claims to run it as a user; the session
+   * options apply with or without them.
    */
   transaction<T>(
     fn: (client: SqlClient) => Promise<T>,
@@ -164,7 +168,10 @@ function openPool(options: PostgresOptions): PgPool {
   });
 }
 
-/** Claims and role are both set for a user session, and both unset for the connection role. */
+/**
+ * Claims and role are both set for a user session, and both unset for the
+ * connection role.
+ */
 interface Session extends SessionOptions {
   readonly claims?: SqlClaims;
   readonly role?: string;
@@ -187,8 +194,8 @@ function checkSettings(settings: Readonly<Record<string, string>> = {}): void {
 /**
  * A pooled Postgres connection for jobs, scripts and tests. Each query (or
  * transaction) runs in its own transaction; claims and role are
- * transaction-local, so nothing leaks back into the pool. An `admin` query
- * with no timeout to set runs on its own, without `begin` and `commit`.
+ * transaction-local, so nothing leaks back into the pool. An `admin` query with
+ * no timeout to set runs on its own, without `begin` and `commit`.
  */
 export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   const pool = options.pool ?? openPool(options);
@@ -240,7 +247,10 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     return settings;
   }
 
-  /** Opens the transaction, then sets the timeouts, claims and role in one round trip. */
+  /**
+   * Opens the transaction, then sets the timeouts, claims and role in one round
+   * trip.
+   */
   async function begin(
     client: PgPoolClient,
     session: Session,
@@ -266,7 +276,10 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     );
   }
 
-  /** One statement on a pooled connection in autocommit, for sessions that set nothing. */
+  /**
+   * One statement on a pooled connection in autocommit, for sessions that set
+   * nothing.
+   */
   async function single<R>(text: string, params?: unknown[]): Promise<R[]> {
     const client = await pool.connect();
 

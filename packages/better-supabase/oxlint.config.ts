@@ -28,8 +28,8 @@ export default defineConfig({
     // decoders take `unknown`, branch on `typeof` and build rows as
     // dictionaries. Findings when measured in `src` (core plus CLI):
     // no-runtime-typeof 1,152, no-unsafe-dictionary-type 908,
-    // no-unknown-parameters 871, no-unknown-returns 277,
-    // no-known-value-widening 447 and no-object-parameters 72.
+    // no-unknown-parameters 871. With the tests: no-known-value-widening 645,
+    // no-unknown-returns 466 and no-object-parameters 147.
     // Backlog in docs/decisions/0002.
     "anti-slop/no-runtime-typeof": "off",
     "anti-slop/no-unsafe-dictionary-type": "off",
@@ -43,6 +43,31 @@ export default defineConfig({
     "anti-slop/no-conditional-empty-object-spread": "off",
   },
   overrides: [
+    {
+      // These suites replace React, Next.js, Workflow and SDK modules with
+      // partial, loosely typed fakes. `vi.mock(import(...))` checks each fake
+      // against the real module's generic signatures; 49 type errors in 27
+      // files when measured.
+      files: [
+        "tests/ai-sdk/react/use-assistant.test.ts",
+        "tests/ai-sdk/workflow/react/use-durable-assistant.test.ts",
+        "tests/ai-sdk/workflow/server.test.ts",
+        "tests/blocks/*/react/*.test.ts",
+        "tests/blocks/react-controller.test.ts",
+        "tests/cli/doctor/advisors.test.ts",
+        "tests/cli/prompts.test.ts",
+        "tests/client/index.test.ts",
+        "tests/expo/expo.test.ts",
+        "tests/next/{bearer,client,next,resources,scopes,support}.test.ts",
+        "tests/react/hooks.test.ts",
+        "tests/standards/w3c-server-timing.test.ts",
+        "tests/stripe/stripe.test.ts",
+        "tests/workflow-sdk/{approval-waiter,builder,workflow-sdk}.test.ts",
+        "tests/workflow-sdk/world/world.test.ts",
+      ],
+      plugins: ["vitest"],
+      rules: { "vitest/prefer-import-in-mock": "off" },
+    },
     {
       // The React hook and React Compiler rules assume React components;
       // these bindings run under Vue, Solid and Svelte, where setup()
@@ -161,9 +186,7 @@ export default defineConfig({
       // ESLint and oxlint load plugins from the module's default export, and
       // WORKFLOW_TARGET_WORLD loads a World factory from it.
       files: ["src/lint/index.ts", "src/workflow-sdk/world/index.ts"],
-      rules: {
-        "import/no-default-export": "off",
-      },
+      rules: { "import/no-default-export": "off" },
     },
   ],
 });

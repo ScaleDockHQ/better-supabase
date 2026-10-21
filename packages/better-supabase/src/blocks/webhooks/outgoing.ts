@@ -5,6 +5,7 @@ import type { CredentialRef } from "../../credentials/provider.ts";
 import type { CloudEvent } from "../../events/index.ts";
 import type { WebhookEncoder } from "./encoders.ts";
 import type { WebhooksEvents } from "./events.ts";
+import type { WebhookResponse, WebhookTransport } from "./http.ts";
 import type {
   DeliverWebhooksOptions,
   DeliverWebhooksResult,
@@ -45,12 +46,7 @@ import {
   isRecord,
 } from "../shared.ts";
 import { encoderRegistry, WEBHOOK_FORMAT } from "./encoders.ts";
-import {
-  WebhookPolicyError,
-  fetchTransport,
-  type WebhookResponse,
-  type WebhookTransport,
-} from "./http.ts";
+import { WebhookPolicyError, fetchTransport } from "./http.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
 import { publicUrl } from "./url-policy.ts";
@@ -282,9 +278,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       status === "retrying"
         ? temporal()
             .Now.instant()
-            .add({
-              seconds: Math.max(backoff(delivery.attempt), retryAfter),
-            })
+            .add({ seconds: Math.max(backoff(delivery.attempt), retryAfter) })
             .toString()
         : undefined;
 
@@ -385,7 +379,10 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     return ok(encoder.authorize?.(token.data) ?? token.data.headers);
   }
 
-  /** The Standard Webhooks headers, from the endpoint's secrets or `asymmetricSigner`. */
+  /**
+   * The Standard Webhooks headers, from the endpoint's secrets or
+   * `asymmetricSigner`.
+   */
   async function signatureHeaders(
     deliveries: readonly WebhookDelivery[],
     body: string,

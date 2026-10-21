@@ -13,9 +13,7 @@ export const knowledgeBlock: BlockOf<
 > = defineBlock({
   name: "knowledge",
   sql: ["knowledge"],
-  options: {
-    knowledge: knowledgeSqlOptions,
-  },
+  options: { knowledge: knowledgeSqlOptions },
   consumes: { files: "optional" },
   create: createKnowledge,
   category: "ai",

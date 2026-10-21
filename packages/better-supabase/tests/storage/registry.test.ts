@@ -1,12 +1,12 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
+import type { StoragePath } from "../../src/storage/index.ts";
 
 import {
   avatarBucket,
   defineBucket,
   defineBuckets,
-  type StoragePath,
 } from "../../src/storage/index.ts";
 import { fakeStorage } from "../fixtures/fake-storage.ts";
 

@@ -8,7 +8,10 @@ import { DbException } from "../../core/errors.ts";
 import { chunksOf, isRecord } from "../shared.ts";
 
 export interface AuditSinkOptions {
-  /** The type prefix stripped from each event's `type`. Defaults to `dev.better-supabase`. */
+  /**
+   * The type prefix stripped from each event's `type`. Defaults to
+   * `dev.better-supabase`.
+   */
   readonly typePrefix?: string;
   /**
    * The category for an event type (without the prefix), from the categories
@@ -26,7 +29,10 @@ const defaultCategory = (eventType: string): AuditCategory | undefined =>
     ? "security"
     : undefined;
 
-/** The impersonation fields of a `support.*` event: its session, admin and reason. */
+/**
+ * The impersonation fields of a `support.*` event: its session, admin and
+ * reason.
+ */
 function supportFields(
   eventType: string,
   data: Readonly<Record<string, unknown>> | undefined,
@@ -50,12 +56,12 @@ function supportFields(
 }
 
 /**
- * The audit entry for one CloudEvent: its type without the prefix, its
- * subject as the record, the tenant from the `tenant` or `partitionkey`
- * extension (or `data.organizationId`), and the data as metadata. The
- * idempotency key is the event's source and id, so a redelivery records once.
- * A `support.*` event also fills the impersonation columns from its
- * `sessionId`, `adminId` and `reason`.
+ * The audit entry for one CloudEvent: its type without the prefix, its subject
+ * as the record, the tenant from the `tenant` or `partitionkey` extension (or
+ * `data.organizationId`), and the data as metadata. The idempotency key is the
+ * event's source and id, so a redelivery records once. A `support.*` event also
+ * fills the impersonation columns from its `sessionId`, `adminId` and
+ * `reason`.
  */
 export function auditEventOf(
   event: CloudEvent,
@@ -93,11 +99,10 @@ export function auditEventOf(
 }
 
 /**
- * An `EventSink` that records CloudEvents in the audit log, one
- * `recordMany` call per chunk of at most `MAX_BATCH` events. `send` throws
- * the first failure once every chunk ran, so an outbox relay retries the
- * batch; the idempotency key keeps the entries already written from
- * repeating.
+ * An `EventSink` that records CloudEvents in the audit log, one `recordMany`
+ * call per chunk of at most `MAX_BATCH` events. `send` throws the first failure
+ * once every chunk ran, so an outbox relay retries the batch; the idempotency
+ * key keeps the entries already written from repeating.
  */
 export function auditSink(
   recordMany: (

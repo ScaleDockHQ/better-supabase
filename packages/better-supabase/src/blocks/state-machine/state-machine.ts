@@ -1,13 +1,12 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
-  type CursorPageOptions,
   instantArg,
   optionalInstant,
   optionalText,
@@ -79,9 +78,9 @@ export interface StatusStage {
 
 export interface StateMachine<S extends string = string> {
   /**
-   * Sets the status as the caller: the record table's policies decide
-   * whether they may update it, and the trigger rejects a change the
-   * machine does not allow. `not_found` for a record they can't see.
+   * Sets the status as the caller: the record table's policies decide whether
+   * they may update it, and the trigger rejects a change the machine does not
+   * allow. `not_found` for a record they can't see.
    */
   transition(
     subjectType: S,
@@ -90,20 +89,20 @@ export interface StateMachine<S extends string = string> {
     reason?: string,
   ): AsyncResult<boolean>;
   /**
-   * Pauses the record (`lifecycle: true`): transitions fail with
-   * `STATE_PAUSED` until `until` passes, or until `resume()` without one.
+   * Pauses the record (`lifecycle: true`): transitions fail with `STATE_PAUSED`
+   * until `until` passes, or until `resume()` without one.
    */
   pause(
     subjectType: S,
     subjectId: string,
-    options?: {
-      readonly until?: Temporal.Instant;
-      readonly reason?: string;
-    },
+    options?: { readonly until?: Temporal.Instant; readonly reason?: string },
   ): AsyncResult<boolean>;
   /** Ends a pause; `false` when the record wasn't paused. */
   resume(subjectType: S, subjectId: string): AsyncResult<boolean>;
-  /** Turns a flag the machine lists in `flags` on or off; `false` when it already was. */
+  /**
+   * Turns a flag the machine lists in `flags` on or off; `false` when it
+   * already was.
+   */
   setFlag(
     subjectType: S,
     subjectId: string,
@@ -112,13 +111,19 @@ export interface StateMachine<S extends string = string> {
   ): AsyncResult<boolean>;
   /** The record's status, progress, flags, pause and pinned version. */
   state(subjectType: S, subjectId: string): AsyncResult<StatusState>;
-  /** Status changes, newest first; page with the last `createdAt` as `cursor`. Default 50, at most 500. */
+  /**
+   * Status changes, newest first; page with the last `createdAt` as `cursor`.
+   * Default 50, at most 500.
+   */
   history(
     subjectType: S,
     subjectId: string,
     page?: CursorPageOptions<Temporal.Instant>,
   ): AsyncResult<readonly StatusChange[]>;
-  /** The stages timeline in display order; empty for a machine without `stages: true`. */
+  /**
+   * The stages timeline in display order; empty for a machine without `stages:
+   * true`.
+   */
   stages(
     subjectType: S,
     subjectId: string,

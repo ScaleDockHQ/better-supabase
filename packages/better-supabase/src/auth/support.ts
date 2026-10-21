@@ -41,8 +41,8 @@ export interface SupportStartInput {
 }
 
 /**
- * A request for a support session that waits for a second admin. A start
- * uses an approved request once; `approvedBy` is never `adminId`.
+ * A request for a support session that waits for a second admin. A start uses
+ * an approved request once; `approvedBy` is never `adminId`.
  */
 export interface SupportRequest {
   readonly id: string;
@@ -78,7 +78,10 @@ export interface SupportRequestInput {
   readonly approvedBy?: string;
 }
 
-/** Who approves a request: with `claims` the store runs as them and decides eligibility itself. */
+/**
+ * Who approves a request: with `claims` the store runs as them and decides
+ * eligibility itself.
+ */
 export interface SupportApprover {
   readonly id: string;
   readonly claims?: SupportCallerClaims;
@@ -112,12 +115,15 @@ export interface SupportListFilter {
 export interface SupportSessionStore {
   readonly apiVersion: 1;
   readonly name: string;
-  /** Starts a session and ends the admin's previous one. Rejects when the store refuses. */
+  /**
+   * Starts a session and ends the admin's previous one. Rejects when the store
+   * refuses.
+   */
   start(input: SupportStartInput): Promise<SupportSession>;
   /**
-   * The admin's session while it is running; `undefined` once ended or
-   * expired. With the admin's `claims`, the store also checks that the admin
-   * may still start sessions.
+   * The admin's session while it is running; `undefined` once ended or expired.
+   * With the admin's `claims`, the store also checks that the admin may still
+   * start sessions.
    */
   get(
     sessionId: string,
@@ -125,8 +131,8 @@ export interface SupportSessionStore {
     claims?: SupportCallerClaims,
   ): Promise<SupportSession | undefined>;
   /**
-   * `false` when it was not running. With `claims`, it runs as that caller:
-   * the session's admin, or staff with the revoke permission.
+   * `false` when it was not running. With `claims`, it runs as that caller: the
+   * session's admin, or staff with the revoke permission.
    */
   end(
     sessionId: string,
@@ -141,8 +147,8 @@ export interface SupportSessionStore {
   /** The claims `targetUserId` would get, when the store can build them. */
   claims?(targetUserId: string): Promise<Readonly<Record<string, unknown>>>;
   /**
-   * Ends every running session past its expiry with `endedBy: "expired"`
-   * and returns them. Optional; `support.expire()` fails without it.
+   * Ends every running session past its expiry with `endedBy: "expired"` and
+   * returns them. Optional; `support.expire()` fails without it.
    */
   expire?(): Promise<readonly SupportSession[]>;
   /**
@@ -152,9 +158,9 @@ export interface SupportSessionStore {
    */
   withTemporal?(namespace: typeof Temporal): SupportSessionStore;
   /**
-   * Records a request for a session that waits for a second admin.
-   * Optional; without it and the two methods below, starts that need an
-   * approval are refused.
+   * Records a request for a session that waits for a second admin. Optional;
+   * without it and the two methods below, starts that need an approval are
+   * refused.
    */
   request?(input: SupportRequestInput): Promise<SupportRequest>;
   /** A request by id, or `undefined`. */
@@ -254,17 +260,17 @@ export interface SqlSupportStoreOptions {
   /** `blocks.support-sessions.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /**
-   * The Temporal namespace for the sessions' time values, for runtimes
-   * without a global one. Defaults to the one `createServer` passes from the
+   * The Temporal namespace for the sessions' time values, for runtimes without
+   * a global one. Defaults to the one `createServer` passes from the
    * definition, then the provided or global Temporal.
    */
   readonly temporal?: typeof Temporal;
 }
 
 /**
- * Support sessions in the `support-sessions` SQL module. `start` runs
- * as the admin, so the module's `is_platform()` gate applies; the reads run
- * on the admin connection.
+ * Support sessions in the `support-sessions` SQL module. `start` runs as the
+ * admin, so the module's `is_platform()` gate applies; the reads run on the
+ * admin connection.
  */
 export function sqlSupportStore(
   postgres: Pick<BetterPostgres, "admin" | "asUser">,
@@ -441,8 +447,8 @@ async function oneRequest(
 }
 
 /**
- * The claims a support session runs with: the target's, plus `act` naming
- * the admin, the reason and the session (the audit module records all three),
+ * The claims a support session runs with: the target's, plus `act` naming the
+ * admin, the reason and the session (the audit module records all three),
  * marked `kind: "support"` so `actorOf` never reads it as an OAuth client.
  * `role` falls back to `authenticated`; the admin's claims never leak in.
  */

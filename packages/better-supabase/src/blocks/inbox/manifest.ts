@@ -11,9 +11,7 @@ export const inboxBlock: BlockOf<"inbox", typeof createInbox, InboxEvents> =
   defineBlock({
     name: "inbox",
     sql: ["inbox", "chat-sdk-state"],
-    options: {
-      inbox: inboxSqlOptions,
-    },
+    options: { inbox: inboxSqlOptions },
     events: inboxEvents,
     create: createInbox,
     client: "inbox",

@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ExecuteResult, Executor } from "../../src/core/executor.ts";
+import type { Result } from "../../src/core/result.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
 import { batchingExecutor } from "../../src/core/batch.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
-import { ok, type Result } from "../../src/core/result.ts";
+import { ok } from "../../src/core/result.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { compileReadSet, compileReadSets } from "../../src/sql/read-sets.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -152,7 +153,7 @@ describe("defineReadSet", () => {
   });
 
   it("lists every table the set reads", () => {
-    expect(readSetTables(chrome).sort()).toEqual(["customers", "notes"]);
+    expect(readSetTables(chrome).toSorted()).toEqual(["customers", "notes"]);
   });
 });
 
@@ -183,9 +184,7 @@ describe("compileReadSet", () => {
       betterSupabase,
       "open",
       { roles: ["anon"] },
-      (s) => ({
-        tags: s.tags.count(),
-      }),
+      (s) => ({ tags: s.tags.count() }),
     );
 
     expect((await compileReadSet(open)).sql).toContain(
@@ -198,9 +197,7 @@ describe("compileReadSet", () => {
       betterSupabase,
       "wrong",
       { params: { id: "uuid" } },
-      (s, p) => ({
-        one: s.customers.count({ where: { id: { in: [p.id] } } }),
-      }),
+      (s, p) => ({ one: s.customers.count({ where: { id: { in: [p.id] } } }) }),
     );
 
     await expect(compileReadSet(wrong)).rejects.toThrow(/used as/);
@@ -256,9 +253,7 @@ describe("compileReadSet", () => {
       "nested",
       { params: { id: "uuid" } },
       (s, p) => ({
-        one: s.customers.count({
-          where: { id: { in: [p.id, "x"] } },
-        }),
+        one: s.customers.count({ where: { id: { in: [p.id, "x"] } } }),
       }),
     );
 
@@ -329,10 +324,7 @@ describe("auth.uid", () => {
 
   it("sends no user id over PostgREST", async () => {
     const { client, requests } = capturingClient(() => ({
-      body: {
-        mine: { rows: [], count: 2 },
-        named: { rows: [], count: 0 },
-      },
+      body: { mine: { rows: [], count: 2 }, named: { rows: [], count: 0 } },
     }));
 
     const result = await betterSupabase.connect(client).$many(mine, {});
@@ -475,11 +467,13 @@ describe("db.$many with Executor.batch", () => {
   it("binds read-set parameters instead of calling a function", async () => {
     const executor = fakeExecutor();
 
-    const result = await betterSupabase.connect(executor).$many(chrome, {
-      organizationId: USER,
-      kinds: ["call", "email"],
-      search: "ac",
-    });
+    const result = await betterSupabase
+      .connect(executor)
+      .$many(chrome, {
+        organizationId: USER,
+        kinds: ["call", "email"],
+        search: "ac",
+      });
 
     expect(result.ok).toBe(true);
     expect(executor.batches).toHaveLength(1);

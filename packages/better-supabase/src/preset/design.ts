@@ -7,6 +7,7 @@ import type {
 } from "../config/types/app-tables.ts";
 import type { PresetCatalog } from "./catalog-types.ts";
 import type { Preset } from "./fields.ts";
+import type { ConfigSourceKeys } from "./render.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
@@ -14,7 +15,6 @@ import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { encodePreset } from "./code.ts";
 import { presetConfig, presetOf } from "./config.ts";
 import {
-  type ConfigSourceKeys,
   configSource,
   createUrl,
   presetApplyCommand,
@@ -22,14 +22,17 @@ import {
 } from "./render.ts";
 
 /**
- * What the `/create` canvas adds to a preset (ADR 0040): tables the app
- * owns, extra columns on block tables, and where each table sits on the
- * canvas. It travels in the `&design=` parameter of a `/create` URL.
+ * What the `/create` canvas adds to a preset (ADR 0040): tables the app owns,
+ * extra columns on block tables, and where each table sits on the canvas. It
+ * travels in the `&design=` parameter of a `/create` URL.
  */
 export interface CreateDesign {
   /** `config.appTables`. */
   readonly appTables?: Readonly<Record<string, AppTableConfig>>;
-  /** `blocks.<module>.options.extraColumns`: column name to SQL type, per module. */
+  /**
+   * `blocks.<module>.options.extraColumns`: column name to SQL type, per
+   * module.
+   */
   readonly extraColumns?: Readonly<
     Record<string, Readonly<Record<string, string>>>
   >;
@@ -38,22 +41,22 @@ export interface CreateDesign {
 }
 
 /**
- * The first character of a design code: how it is encoded. `0` is
- * deflate-raw compressed JSON in base64url. Preset codes never start with
- * `0` (their first character is the preset version, from 1), and preset
- * names never start with a digit. The JSON's own format is `DESIGN_FORMAT`.
+ * The first character of a design code: how it is encoded. `0` is deflate-raw
+ * compressed JSON in base64url. Preset codes never start with `0` (their first
+ * character is the preset version, from 1), and preset names never start with a
+ * digit. The JSON's own format is `DESIGN_FORMAT`.
  */
 const DESIGN_VERSION = "0";
 
 /**
- * The newest format of the design JSON, in its `version` key (ADR 0042).
- * A code carries the lowest format that reads it, and none for format 0,
- * so a design without format 1 keys still opens in an older release.
- * Format 1 adds column `format`, `options`, `min`, `max`, `comment` and
- * `identity`, and table `id`, `unique`, `indexes` and `comment`. Format 2
- * adds table `subject` (ADR 0043). Format 3 adds table `rollups` and
- * `lookups` (ADR 0044). Format 4 adds table `events` (ADR 0048) and
- * subject `versions`. Format 5 adds column `access` (ADR 0051).
+ * The newest format of the design JSON, in its `version` key (ADR 0042). A code
+ * carries the lowest format that reads it, and none for format 0, so a design
+ * without format 1 keys still opens in an older release. Format 1 adds column
+ * `format`, `options`, `min`, `max`, `comment` and `identity`, and table `id`,
+ * `unique`, `indexes` and `comment`. Format 2 adds table `subject` (ADR 0043).
+ * Format 3 adds table `rollups` and `lookups` (ADR 0044). Format 4 adds table
+ * `events` (ADR 0048) and subject `versions`. Format 5 adds column `access`
+ * (ADR 0051).
  */
 export const DESIGN_FORMAT = 5;
 
@@ -160,15 +163,18 @@ export type DesignErrorCode =
 export interface DesignParseIssue {
   readonly code: DesignErrorCode;
   /**
-   * A JSON Pointer (RFC 6901) to the key at fault in the value that was
-   * read, such as `/appTables/tasks/columns/title`. `""` is the value
-   * itself. When the key is missing, it points to the nearest parent.
+   * A JSON Pointer (RFC 6901) to the key at fault in the value that was read,
+   * such as `/appTables/tasks/columns/title`. `""` is the value itself. When
+   * the key is missing, it points to the nearest parent.
    */
   readonly path: string;
   readonly message: string;
 }
 
-/** What `parseDesign`, `decodeDesign`, `designFileSource` and `readDesignFile` throw. */
+/**
+ * What `parseDesign`, `decodeDesign`, `designFileSource` and `readDesignFile`
+ * throw.
+ */
 export class DesignParseError extends TypeError implements DesignParseIssue {
   readonly code: DesignErrorCode;
   readonly path: string;
@@ -203,8 +209,8 @@ export const jsonPointer = (
     .join("");
 
 /**
- * What `encodeDesign` throws when a valid design is too long for a URL, so
- * a caller can offer the config download instead of a fix.
+ * What `encodeDesign` throws when a valid design is too long for a URL, so a
+ * caller can offer the config download instead of a fix.
  */
 export class DesignTooLongError extends DesignParseError {
   /** The length the code would have. */
@@ -389,10 +395,10 @@ function positionsOf(value: unknown): CreateDesign["positions"] {
 }
 
 /**
- * Checks a design object, such as one from storage or a request body, and
- * drops its empty parts. It runs the same checks as `decodeDesign`, without
- * the code. Throws a `DesignParseError` naming the first problem;
- * `safeParseDesign` returns it instead.
+ * Checks a design object, such as one from storage or a request body, and drops
+ * its empty parts. It runs the same checks as `decodeDesign`, without the code.
+ * Throws a `DesignParseError` naming the first problem; `safeParseDesign`
+ * returns it instead.
  */
 export function parseDesign(value: unknown): CreateDesign {
   return designOfValue(value);
@@ -415,8 +421,8 @@ function issuesOf(error: unknown): readonly DesignParseIssue[] {
 }
 
 /**
- * `parseDesign` without the throw: the design, or the issue that stopped
- * it, with a stable `code` and a JSON Pointer `path`.
+ * `parseDesign` without the throw: the design, or the issue that stopped it,
+ * with a stable `code` and a JSON Pointer `path`.
  */
 export function safeParseDesign(
   value: unknown,
@@ -438,10 +444,10 @@ const pointerKeys = (path: string): readonly string[] =>
         .map((key) => key.replaceAll("~1", "/").replaceAll("~0", "~"));
 
 /**
- * A Standard Schema (v1) for a design, so a form library, a router or an
- * AI SDK tool can validate one with the same rules as `parseDesign`. The
- * output drops the empty parts; each issue's `path` lists the keys of its
- * JSON Pointer. `schemas/design-v1.json` is the JSON Schema of its shape.
+ * A Standard Schema (v1) for a design, so a form library, a router or an AI SDK
+ * tool can validate one with the same rules as `parseDesign`. The output drops
+ * the empty parts; each issue's `path` lists the keys of its JSON Pointer.
+ * `schemas/design-v1.json` is the JSON Schema of its shape.
  */
 export const designSchema: StandardSchemaV1<unknown, CreateDesign> = {
   "~standard": {
@@ -481,9 +487,9 @@ function keyAt(
 }
 
 /**
- * The JSON Pointer for an `appTablesOf` message, which starts with the
- * dotted path it rejects (`appTables.tasks.columns.title must be...`). It
- * walks `value` so a key with a dot or a space still resolves.
+ * The JSON Pointer for an `appTablesOf` message, which starts with the dotted
+ * path it rejects (`appTables.tasks.columns.title must be...`). It walks
+ * `value` so a key with a dot or a space still resolves.
  */
 function appTablesPointer(message: string, value: unknown): string {
   const segments: (string | number)[] = ["appTables"];
@@ -681,7 +687,7 @@ function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
@@ -691,10 +697,10 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
 }
 
 /**
- * The design as a code for the `&design=` parameter: `0`, then its JSON
- * (with `version` set to `designFormat` when it is above 0) compressed with
- * deflate-raw, in base64url. An empty design is `""`.
- * Throws a `DesignParseError` when the design is invalid, and a `DesignTooLongError`
+ * The design as a code for the `&design=` parameter: `0`, then its JSON (with
+ * `version` set to `designFormat` when it is above 0) compressed with
+ * deflate-raw, in base64url. An empty design is `""`. Throws a
+ * `DesignParseError` when the design is invalid, and a `DesignTooLongError`
  * when the code would be longer than `MAX_DESIGN_CODE_LENGTH`.
  */
 export async function encodeDesign(design: CreateDesign): Promise<string> {
@@ -781,8 +787,8 @@ export async function designOf(
 
 /**
  * The config keys a preset with a design sets: `presetConfig`, with each
- * block's `options.extraColumns` and `appTables`. Throws a `DesignParseError` when the
- * design adds columns to a block the preset doesn't install.
+ * block's `options.extraColumns` and `appTables`. Throws a `DesignParseError`
+ * when the design adds columns to a block the preset doesn't install.
  */
 export function designConfig(
   resolved: ResolvedPreset,
@@ -839,9 +845,8 @@ export function designConfigSource(
 }
 
 /**
- * The command that starts a project from the preset and design: `init` with
- * the quoted `/create` URL, or `presetInstallCommand` when `designCode` is
- * empty.
+ * The command that starts a project from the preset and design: `init` with the
+ * quoted `/create` URL, or `presetInstallCommand` when `designCode` is empty.
  */
 export function designInstallCommand(
   resolved: ResolvedPreset,
@@ -865,8 +870,8 @@ export interface DesignFile {
 
 /**
  * The design file for a preset and design, as JSON text. Throws a
- * `DesignParseError` when the design is invalid; `safeDesignFileSource`
- * returns it instead. It has no length limit.
+ * `DesignParseError` when the design is invalid; `safeDesignFileSource` returns
+ * it instead. It has no length limit.
  */
 export function designFileSource(
   resolved: ResolvedPreset,
@@ -900,9 +905,9 @@ export function safeDesignFileSource(
 
 /**
  * Reads a design file's text. Each `DesignParseError` path points into the
- * file, so a design problem starts with `/design`. Throws one naming the
- * first problem:
- * text that isn't JSON, a missing or invalid preset, or an invalid design.
+ * file, so a design problem starts with `/design`. Throws one naming the first
+ * problem: text that isn't JSON, a missing or invalid preset, or an invalid
+ * design.
  */
 export function readDesignFile(text: string): {
   readonly preset: Preset;

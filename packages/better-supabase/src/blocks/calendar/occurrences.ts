@@ -77,10 +77,10 @@ function overlaps(
 
 /**
  * Expands events into the occurrences that overlap `[from, until)`. Series
- * expand with the reminders block's `expandRule` in their own zone, so a
- * weekly 09:00 meeting stays at 09:00 across DST. `EXDATE`s drop
- * occurrences, and overrides replace the occurrence they name, also when
- * they move it out of the range.
+ * expand with the reminders block's `expandRule` in their own zone, so a weekly
+ * 09:00 meeting stays at 09:00 across DST. `EXDATE`s drop occurrences, and
+ * overrides replace the occurrence they name, also when they move it out of the
+ * range.
  */
 export function expandOccurrences(
   events: readonly CalendarEvent[],
@@ -228,8 +228,8 @@ const joinRule = (parts: ReadonlyMap<string, string>): string =>
 
 /**
  * Splits a series for "this and following": the first rule ends one second
- * before `at` (RFC 5545 forbids `COUNT` with `UNTIL`, so it drops `COUNT`),
- * and the second keeps the occurrences that are left.
+ * before `at` (RFC 5545 forbids `COUNT` with `UNTIL`, so it drops `COUNT`), and
+ * the second keeps the occurrences that are left.
  */
 export function splitRule(
   rrule: string,

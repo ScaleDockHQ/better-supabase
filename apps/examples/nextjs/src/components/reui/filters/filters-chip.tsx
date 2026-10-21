@@ -79,12 +79,16 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-/** Which part of the chip a pointer or key is aimed at. No `field`: the chip's
- *  attribute segment is display only, and only the builder re-picks one. */
+/**
+ * Which part of the chip a pointer or key is aimed at. No `field`: the chip's
+ * attribute segment is display only, and only the builder re-picks one.
+ */
 type ChipSegment = "operator" | "value" | "menu";
 
-/** The ref half of `autoFocusProps`: a CALLBACK ref, the one shape an editor
- *  can spread onto any element without a cast, and a no-op here. */
+/**
+ * The ref half of `autoFocusProps`: a CALLBACK ref, the one shape an editor can
+ * spread onto any element without a cast, and a no-op here.
+ */
 const noopAutoFocusRef: React.RefCallback<HTMLElement> = () => {};
 
 function defaultValueDisplay<V>(
@@ -94,8 +98,10 @@ function defaultValueDisplay<V>(
   labels: ReturnType<typeof useFilterActions>["labels"],
   // The field's own word for "no value yet", which a generic label cannot beat.
   fieldPlaceholder?: string,
-  /** Whether the value is PICKED rather than typed: a select's search prompt
-   *  and "enter text..." both give way to `labels.selectPlaceholder`. */
+  /**
+   * Whether the value is PICKED rather than typed: a select's search prompt and
+   * "enter text..." both give way to `labels.selectPlaceholder`.
+   */
   optionBacked?: boolean,
 ): string {
   const emptyLabel = optionBacked
@@ -124,9 +130,11 @@ function defaultValueDisplay<V>(
   return resolveOption(String(value))?.label ?? String(value);
 }
 
-/** The same display with the option's own icon in front. A status filter reads
- *  as its colour before its word, so dropping the swatch the picker showed
- *  makes the chip harder to scan than the list it came from. */
+/**
+ * The same display with the option's own icon in front. A status filter reads
+ * as its colour before its word, so dropping the swatch the picker showed makes
+ * the chip harder to scan than the list it came from.
+ */
 function valueWithIcon<V>(
   value: V | undefined,
   text: string,
@@ -148,10 +156,12 @@ function valueWithIcon<V>(
   );
 }
 
-/** The glyph between two ancestors in a nested attribute path, a chevron
- *  because the `pathSeparator` string read as loud as the names it parts.
- *  DECORATIVE: `aria-hidden`, and the plain string is still what
- *  `formatFilterPath` joins for the chip's accessible name and `title`. */
+/**
+ * The glyph between two ancestors in a nested attribute path, a chevron because
+ * the `pathSeparator` string read as loud as the names it parts. DECORATIVE:
+ * `aria-hidden`, and the plain string is still what `formatFilterPath` joins
+ * for the chip's accessible name and `title`.
+ */
 function FilterPathSeparator() {
   return (
     <ChevronRightIcon
@@ -162,10 +172,12 @@ function FilterPathSeparator() {
   );
 }
 
-/** The elided run of a collapsed path, with the FULL path behind it. THE
- *  TOOLTIP IS NOT THE ACCESSIBLE ROUTE: it is hover and focus, so the segment
- *  is `aria-hidden` and the whole path stays in the control's NAME. The host's
- *  own `title` is dropped while collapsed (`pathCollapsed`) or both fire. */
+/**
+ * The elided run of a collapsed path, with the FULL path behind it. THE TOOLTIP
+ * IS NOT THE ACCESSIBLE ROUTE: it is hover and focus, so the segment is
+ * `aria-hidden` and the whole path stays in the control's NAME. The host's own
+ * `title` is dropped while collapsed (`pathCollapsed`) or both fire.
+ */
 function FilterPathEllipsis({ full }: { full: string }) {
   return (
     <TooltipProvider>
@@ -195,28 +207,36 @@ function FilterPathEllipsis({ full }: { full: string }) {
 export interface FilterRuleDisplay {
   pathText: string;
   pathLabel: React.ReactNode;
-  /** Whether `pathLabel` shows fewer names than the path has, so the cell's
-   *  own `title` can step aside for the ellipsis segment's tooltip. */
+  /**
+   * Whether `pathLabel` shows fewer names than the path has, so the cell's own
+   * `title` can step aside for the ellipsis segment's tooltip.
+   */
   pathCollapsed: boolean;
   operatorLabel: string;
   valueLabel: React.ReactNode;
-  /** The same value as PLAIN TEXT, for an accessible name. Never scraped from
-   *  the `renderValue` node: whatever text survives inside avatars and a count
-   *  badge announces "plus one" for two people. Kept separate from
-   *  `valueLabel`, not derived from it: a React node has no honest text to
-   *  read back. A field whose values do not stringify supplies `valueText`
-   *  itself, or the built-in fallback says "[object Object]" to exactly the
-   *  audience the visible display is hiding it from. */
+  /**
+   * The same value as PLAIN TEXT, for an accessible name. Never scraped from
+   * the `renderValue` node: whatever text survives inside avatars and a count
+   * badge announces "plus one" for two people. Kept separate from `valueLabel`,
+   * not derived from it: a React node has no honest text to read back. A field
+   * whose values do not stringify supplies `valueText` itself, or the built-in
+   * fallback says "[object Object]" to exactly the audience the visible display
+   * is hiding it from.
+   */
   valueText: string;
-  /** The same value with any collapsed COUNT spelled out. "3 selected" cannot
-   *  be recovered from, which is fine while the editor opens and not once
-   *  locked, so the control carries this as `title` and, locked, as its name. */
+  /**
+   * The same value with any collapsed COUNT spelled out. "3 selected" cannot be
+   * recovered from, which is fine while the editor opens and not once locked,
+   * so the control carries this as `title` and, locked, as its name.
+   */
   valueFullText: string;
   valueEmpty: boolean;
 }
 
-/** How one rule reads, resolved once and shared by both chromes, so a consumer
- *  `renderValue`, the field's own and the built-in cannot disagree. */
+/**
+ * How one rule reads, resolved once and shared by both chromes, so a consumer
+ * `renderValue`, the field's own and the built-in cannot disagree.
+ */
 export function useFilterRuleDisplay<V, O>(
   rule: FilterRule<V>,
   field: FilterField<V, O> | undefined,
@@ -373,9 +393,11 @@ interface FilterValueEditorProps<V = unknown, O = unknown> {
   onClose: () => void;
 }
 
-/** The value editor - draft, option service, commit - with NO surface of its
- *  own, so surface and wiring can be replaced independently. The draft lives
- *  here, so a text filter dispatches once on commit, not once per keystroke. */
+/**
+ * The value editor - draft, option service, commit - with NO surface of its
+ * own, so surface and wiring can be replaced independently. The draft lives
+ * here, so a text filter dispatches once on commit, not once per keystroke.
+ */
 function FilterValueEditor<V, O>({
   rule,
   field,
@@ -406,10 +428,7 @@ function FilterValueEditor<V, O>({
     value: draft,
     onValueChange: (next) => setDraft(next as V),
     host: "amend",
-    autoFocusProps: {
-      ref: noopAutoFocusRef,
-      autoFocus: true,
-    },
+    autoFocusProps: { ref: noopAutoFocusRef, autoFocus: true },
     commit: (next, commitOptions) => {
       actions.updateRule(rule.id, {
         value: (next === undefined ? draft : next) as V,
@@ -432,24 +451,30 @@ function FilterValueEditor<V, O>({
   return <>{React.createElement(editor, editorProps)}</>;
 }
 
-/** One step of the flow, released when the panel that owes it has LEFT THE
- *  DOM: both popovers keep portal content mounted through the exit transition,
- *  so this unmount IS that moment and nothing is timed. `onRelease` is used AS
- *  the cleanup, so an unmemoized callback fires its step early. */
+/**
+ * One step of the flow, released when the panel that owes it has LEFT THE DOM:
+ * both popovers keep portal content mounted through the exit transition, so
+ * this unmount IS that moment and nothing is timed. `onRelease` is used AS the
+ * cleanup, so an unmemoized callback fires its step early.
+ */
 function FilterStepHandoff({ onRelease }: { onRelease: () => void }) {
   React.useEffect(() => onRelease, [onRelease]);
   return null;
 }
 
-/** The value host: the editor in a popover anchored to the value segment, and
- *  BOTH routes end here. The operator popover used to draw the editor itself,
- *  so a handed-off panel sat a segment's width left of a second press. */
+/**
+ * The value host: the editor in a popover anchored to the value segment, and
+ * BOTH routes end here. The operator popover used to draw the editor itself, so
+ * a handed-off panel sat a segment's width left of a second press.
+ */
 export interface FilterValuePopoverProps<V = unknown, O = unknown> {
   rule: FilterRule<V>;
   field: FilterField<V, O>;
   operator: FilterOperator | undefined;
-  /** The element that opens it, WITH its own children: a chip segment must be
-   *  a direct child of its `ButtonGroup` for the pill to fuse. */
+  /**
+   * The element that opens it, WITH its own children: a chip segment must be a
+   * direct child of its `ButtonGroup` for the pill to fuse.
+   */
   trigger: React.ReactElement;
   className?: string;
 }
@@ -529,11 +554,13 @@ export function FilterValuePopover<V, O>({
    new field invalidates the operator and the value, so "amending" threw both
    away. The builder keeps its picker, where a row reads as a form. */
 
-/** The condition menu, and the step after it. The list is the cascader run
- *  flat: the old hand-rolled one marked the keyboard HIGHLIGHT with
- *  `aria-selected` and had no Home, End or typeahead. It HANDS OFF to the
- *  value popover once its own panel has left the DOM; advancing in place
- *  anchored the editor to the CONDITION segment and doubled up in the row. */
+/**
+ * The condition menu, and the step after it. The list is the cascader run flat:
+ * the old hand-rolled one marked the keyboard HIGHLIGHT with `aria-selected`
+ * and had no Home, End or typeahead. It HANDS OFF to the value popover once its
+ * own panel has left the DOM; advancing in place anchored the editor to the
+ * CONDITION segment and doubled up in the row.
+ */
 export interface FilterOperatorPopoverProps<V = unknown, O = unknown> {
   rule: FilterRule<V>;
   field: FilterField<V, O>;
@@ -552,12 +579,14 @@ export function FilterOperatorPopover<V, O>({
   const autoOpen = useFilterChipAutoOpen(rule.id) === "operator";
   const [open, setOpen] = React.useState(false);
   const locked = isFilterLocked(actions);
-  /** Whether the close this panel is going through IS the step being handed
-   *  on. A ref, so it survives the render that closes the popover. Every OPEN
-   *  clears it, so an Escape or an outside press finds it already lowered and
-   *  spends nothing; `release` leaves it standing because one twin asks again
-   *  later: Radix reads it from `onCloseAutoFocus`, a macrotask after the
-   *  unmount. Clearing it in `release` would break that twin only. */
+  /**
+   * Whether the close this panel is going through IS the step being handed on.
+   * A ref, so it survives the render that closes the popover. Every OPEN clears
+   * it, so an Escape or an outside press finds it already lowered and spends
+   * nothing; `release` leaves it standing because one twin asks again later:
+   * Radix reads it from `onCloseAutoFocus`, a macrotask after the unmount.
+   * Clearing it in `release` would break that twin only.
+   */
   const handoff = React.useRef(false);
   const operators = actions.resolveOperators(field);
   const operator = getFilterOperator(operators, rule.operator);
@@ -589,9 +618,11 @@ export function FilterOperatorPopover<V, O>({
     focusStore.set({ id: rule.id, segment: "operator", autoOpen: false });
   };
 
-  /** The parked step, spent on the frame this panel stops existing. Memoized
-   *  on nothing that changes, and load bearing: `FilterStepHandoff` uses this
-   *  AS its cleanup, so a new identity mid-flow fires the step too early. */
+  /**
+   * The parked step, spent on the frame this panel stops existing. Memoized on
+   * nothing that changes, and load bearing: `FilterStepHandoff` uses this AS
+   * its cleanup, so a new identity mid-flow fires the step too early.
+   */
   const release = React.useCallback(() => {
     if (!handoff.current) return;
     focusStore.set({ id: rule.id, segment: "value", autoOpen: true });
@@ -698,9 +729,11 @@ export function FilterOperatorPopover<V, O>({
   );
 }
 
-/** The keyboard path to a CROSS-GROUP move: Alt+Arrow reorders within the
- *  owning group only and Wrap creates a NEW group, so the drag layer's
- *  cross-group move had no keyboard parity. Numbered in document order. */
+/**
+ * The keyboard path to a CROSS-GROUP move: Alt+Arrow reorders within the owning
+ * group only and Wrap creates a NEW group, so the drag layer's cross-group move
+ * had no keyboard parity. Numbered in document order.
+ */
 export function FilterMoveToMenuItems({ nodeId }: { nodeId: string }) {
   const actions = useFilterActions();
   // A menu ITEM takes the native word: both twins already make `disabled`
@@ -773,13 +806,17 @@ export function FilterMoveToMenuItems({ nodeId }: { nodeId: string }) {
   );
 }
 
-/** The per-rule actions, without the trigger: the chip's kebab and a builder
- *  row's kebab act on the same rule. `allowGrouping` is the CHROME's answer;
- *  "Convert to advanced filter" is the CONSUMER's, and hides itself there. */
+/**
+ * The per-rule actions, without the trigger: the chip's kebab and a builder
+ * row's kebab act on the same rule. `allowGrouping` is the CHROME's answer;
+ * "Convert to advanced filter" is the CONSUMER's, and hides itself there.
+ */
 export function FilterRuleMenuItems({
   ruleId,
-  /** Offer "Wrap in condition group". Off for the chip row, which cannot draw
-   *  a group; on in the builder, the only way to nest without dragging. */
+  /**
+   * Offer "Wrap in condition group". Off for the chip row, which cannot draw a
+   * group; on in the builder, the only way to nest without dragging.
+   */
   allowGrouping = false,
 }: {
   ruleId: string;
@@ -855,9 +892,11 @@ export interface FilterChipProps<V = unknown> {
   index: number;
 }
 
-/** One filter, as a chip. Memoization means something here: the actions
- *  context is stable, the focus store is subscribed to a boolean and the query
- *  shares structure, so editing one filter of forty re-renders one chip. */
+/**
+ * One filter, as a chip. Memoization means something here: the actions context
+ * is stable, the focus store is subscribed to a boolean and the query shares
+ * structure, so editing one filter of forty re-renders one chip.
+ */
 function FilterChipImpl<V, O>({ rule, index }: FilterChipProps<V>) {
   const actions = useFilterActions<V, O>();
   const render = useFilterRender<V, O>();

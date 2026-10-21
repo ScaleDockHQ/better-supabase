@@ -97,9 +97,9 @@ export function CreateFolderDialog({ parentId }: { parentId: string | null }) {
 }
 
 /**
- * Uploads the picked file as soon as it is chosen: the server creates the
- * node and a signed URL, the browser sends the bytes to Storage, and the
- * server commits them.
+ * Uploads the picked file as soon as it is chosen: the server creates the node
+ * and a signed URL, the browser sends the bytes to Storage, and the server
+ * commits them.
  */
 export function UploadFileButton({ parentId }: { parentId: string | null }) {
   const t = useExtracted("drive");

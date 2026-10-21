@@ -1,19 +1,19 @@
+import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { createServer, type Server } from "node:http";
+import { createServer } from "node:http";
 import { env } from "node:process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { SupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
+
 import {
   WORKFLOW_DELIVERY_QUEUE,
   WORKFLOW_VAULT_SECRETS,
 } from "../../src/sql/modules/workflow-sdk-world.ts";
-import {
-  createSupabaseWorld,
-  type SupabaseWorld,
-} from "../../src/workflow-sdk/world/index.ts";
+import { createSupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
 import { dbUrl, reachable } from "./block-session.ts";
 import { installWorld } from "./workflow-world.ts";
 

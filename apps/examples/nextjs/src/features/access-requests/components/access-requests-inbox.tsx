@@ -4,13 +4,15 @@ import { InboxIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { forbidden, unstable_rethrow } from "next/navigation";
 
+import type { BadgeProps } from "@/components/reui/badge";
+
 import {
   Alert,
   AlertAction,
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
-import { Badge, type BadgeProps } from "@/components/reui/badge";
+import { Badge } from "@/components/reui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -40,11 +42,10 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
+import type { AccessRequestsData } from "../access-requests-queries";
+
 import { refreshAccessRequests } from "../access-requests-actions";
-import {
-  type AccessRequestsData,
-  loadAccessRequests,
-} from "../access-requests-queries";
+import { loadAccessRequests } from "../access-requests-queries";
 import {
   AccessRequestActions,
   RequestAccessForm,
@@ -73,9 +74,9 @@ const STATUS_VARIANT: Record<AccessRequestStatus, BadgeProps["variant"]> = {
 
 // #region recipe:access-requests-inbox
 /**
- * Requests for a temporary role in the active organization. Members ask
- * for one; members with `members.update_role` approve or deny it, and the
- * role goes back to the previous one when the duration runs out.
+ * Requests for a temporary role in the active organization. Members ask for
+ * one; members with `members.update_role` approve or deny it, and the role goes
+ * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
   if (!can(await getSession(), "access_requests.create")) {

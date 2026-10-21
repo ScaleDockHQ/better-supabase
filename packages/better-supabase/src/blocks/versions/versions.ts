@@ -1,20 +1,20 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockOptions } from "../shared.ts";
 import type { JsonPatchOperation, JsonValue } from "./json-patch.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   enumOrThrow,
   isRecord,
   optionalText,
@@ -30,9 +30,9 @@ export interface VersionsOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the version's extra columns
-   * (`blocks.versions.options.extraColumns`), keyed by database name. It
-   * types and parses them on `list` and `get`, and validates them on
-   * `snapshot`. `getShared` leaves them out.
+   * (`blocks.versions.options.extraColumns`), keyed by database name. It types
+   * and parses them on `list` and `get`, and validates them on `snapshot`.
+   * `getShared` leaves them out.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -85,7 +85,10 @@ export interface SnapshotResult {
   readonly id: string;
   readonly number: number;
   readonly contentHash: string;
-  /** `true` when the content matched the latest version, which is returned instead. */
+  /**
+   * `true` when the content matched the latest version, which is returned
+   * instead.
+   */
   readonly unchanged: boolean;
 }
 
@@ -113,15 +116,15 @@ export interface Versions<F extends object = Record<never, never>> {
   get(id: string): AsyncResult<Version<F>>;
   /**
    * The version a share link is pinned to, with its content, read with the
-   * token alone (anon). `null` for an unknown, revoked or expired token, or
-   * a link without a version. Needs the share-links module.
+   * token alone (anon). `null` for an unknown, revoked or expired token, or a
+   * link without a version. Needs the share-links module.
    */
   getShared(token: string): AsyncResult<Version | null>;
   /** Writes the version back to its subject and records that as a new version. */
   restore(id: string): AsyncResult<RestoreResult>;
   /**
-   * Writes only `fields` of the version back; the subject's other columns
-   * keep their current values. Needs a subject type with `columns`.
+   * Writes only `fields` of the version back; the subject's other columns keep
+   * their current values. Needs a subject type with `columns`.
    */
   restoreFields(
     id: string,
@@ -205,21 +208,23 @@ export function createVersions<
           : versionOf(value, "get_shared_version"),
       ),
     snapshot: (input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "snapshot_version",
-          {
-            tenant: input.organizationId,
-            subject_type: input.subjectType,
-            subject_id: input.subjectId,
-            content: input.content ?? null,
-            label: input.label ?? null,
-            storage_path: input.storagePath ?? null,
-            fields: checked,
-          },
-          (value) => snapshotOf(value, "snapshot_version"),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "snapshot_version",
+            {
+              tenant: input.organizationId,
+              subject_type: input.subjectType,
+              subject_id: input.subjectId,
+              content: input.content ?? null,
+              label: input.label ?? null,
+              storage_path: input.storagePath ?? null,
+              fields: checked,
+            },
+            (value) => snapshotOf(value, "snapshot_version"),
+          ),
         ),
-      ),
     list: (organizationId, subjectType, subjectId, page = {}) =>
       call(
         "list_versions",

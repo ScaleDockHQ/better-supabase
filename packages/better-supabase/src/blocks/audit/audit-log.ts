@@ -2,13 +2,17 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 import type { UndoToken } from "../undo/undo.ts";
 import type { AuditEntry, OcsfProduct } from "./audit.ts";
+import type { AuditCsvOptions } from "./csv.ts";
+import type { AuditSinkOptions } from "./sink.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   batchResultsOf,
@@ -19,16 +23,18 @@ import {
   optionalText,
   stringsOf,
   textOf,
-  type BlockTemporalOptions,
   applyTemporal,
   pageOf,
 } from "../shared.ts";
 import { undoToken } from "../undo/undo.ts";
 import { toOcsf } from "./audit.ts";
-import { csvPage, revealsDetails, type AuditCsvOptions } from "./csv.ts";
-import { auditSink, type AuditSinkOptions } from "./sink.ts";
+import { csvPage, revealsDetails } from "./csv.ts";
+import { auditSink } from "./sink.ts";
 
-/** The adopted log's own columns, by column name, as `metadataColumns` maps them. */
+/**
+ * The adopted log's own columns, by column name, as `metadataColumns` maps
+ * them.
+ */
 export type AuditColumns = Readonly<Record<string, unknown>>;
 
 /**
@@ -129,8 +135,8 @@ export interface AuditExportOptions<Columns extends AuditColumns = AuditColumns>
     Omit<AuditListOptions, "before" | "limit" | "count">,
     AuditCsvOptions<Columns> {
   /**
-   * `ndjson` (default) writes the records as they are, `csv` a spreadsheet
-   * with a header row, `ocsf` each record mapped with `toOcsf`.
+   * `ndjson` (default) writes the records as they are, `csv` a spreadsheet with
+   * a header row, `ocsf` each record mapped with `toOcsf`.
    */
   readonly format?: "ndjson" | "csv" | "ocsf";
   /** Required for `ocsf`: `metadata.product`. */
@@ -190,10 +196,10 @@ export interface AuditEventInput {
   readonly requestId?: string;
   readonly scope?: string;
   /**
-   * The support session the event belongs to, its admin and their reason,
-   * for the impersonation columns. Honoured for the service role; any other
-   * caller may only name itself as `impersonatedBy`, from a token without an
-   * `act` claim, and otherwise gets the claim's values.
+   * The support session the event belongs to, its admin and their reason, for
+   * the impersonation columns. Honoured for the service role; any other caller
+   * may only name itself as `impersonatedBy`, from a token without an `act`
+   * claim, and otherwise gets the claim's values.
    */
   readonly supportSessionId?: string;
   readonly impersonatedBy?: string;
@@ -207,7 +213,10 @@ export interface AuditLogOptions<
   readonly hooks?: NoInfer<BlockHooks<AuditLog<Columns>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
-  /** `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API schema. */
+  /**
+   * `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API
+   * schema.
+   */
   readonly transport: BlockTransport;
   /** The audit module's schema, or its API schema. Default `better_supabase`. */
   readonly schema?: string;
@@ -242,10 +251,10 @@ function revertedOf(value: unknown): AuditReverted {
 export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   record(event: AuditEventInput): AsyncResult<string>;
   /**
-   * Records up to 1000 events in one `audit_event_many` call, with
-   * `record`'s checks per event: one `Result` per event, in order, so a bad
-   * event never drops the others. The outer result fails only when the
-   * call itself does (more than 1000 events, the network).
+   * Records up to 1000 events in one `audit_event_many` call, with `record`'s
+   * checks per event: one `Result` per event, in order, so a bad event never
+   * drops the others. The outer result fails only when the call itself does
+   * (more than 1000 events, the network).
    */
   recordMany(
     events: readonly AuditEventInput[],
@@ -253,19 +262,22 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   /** A page of the entries the caller can read, newest first. */
   list(options?: AuditListOptions): AsyncResult<AuditPage<Columns>>;
   /**
-   * The restricted details of one entry for a caller with the reveal
-   * permission in its tenant (or platform staff); the reveal is itself
-   * recorded as `audit.revealed`. `not_found` otherwise.
+   * The restricted details of one entry for a caller with the reveal permission
+   * in its tenant (or platform staff); the reveal is itself recorded as
+   * `audit.revealed`. `not_found` otherwise.
    */
   reveal(entryId: string): AsyncResult<AuditDetails>;
   /**
    * Writes the old values of row changes back as the caller, newest entry
-   * first, all or nothing, with `audit.revert` in each entry's tenant.
-   * `raised` with code `ROW_CHANGED_SINCE` when a row no longer holds what
-   * the entry wrote. The undo token reverts the revert.
+   * first, all or nothing, with `audit.revert` in each entry's tenant. `raised`
+   * with code `ROW_CHANGED_SINCE` when a row no longer holds what the entry
+   * wrote. The undo token reverts the revert.
    */
   revert(entryIds: readonly string[]): AsyncResult<AuditReverted>;
-  /** Every matching entry as NDJSON, CSV or OCSF, read page by page as the caller. */
+  /**
+   * Every matching entry as NDJSON, CSV or OCSF, read page by page as the
+   * caller.
+   */
   export(options?: AuditExportOptions<Columns>): ReadableStream<Uint8Array>;
   /**
    * Writes an export to a Storage object, for a job that runs it in the
@@ -277,8 +289,8 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   ): AsyncResult<{ readonly path: string; readonly url: string | undefined }>;
   /**
    * An `EventSink` that records CloudEvents, for `forwardBlockEvents`,
-   * `forwardMutations`, an outbox relay or the server's `audit` option.
-   * Build the log on a service-role transport so the event's actor counts.
+   * `forwardMutations`, an outbox relay or the server's `audit` option. Build
+   * the log on a service-role transport so the event's actor counts.
    */
   sink(options?: AuditSinkOptions): EventSink;
 }
@@ -441,9 +453,9 @@ function eventArgs(event: AuditEventInput): Record<string, unknown> {
 }
 
 /**
- * The audit log over the `audit` module's functions, as the caller: the
- * read policy decides what `list` and `export` return, and column mappings
- * of an adopted log are already applied.
+ * The audit log over the `audit` module's functions, as the caller: the read
+ * policy decides what `list` and `export` return, and column mappings of an
+ * adopted log are already applied.
  */
 export function createAudit<Columns extends AuditColumns = AuditColumns>(
   options: AuditLogOptions<Columns>,
@@ -675,9 +687,7 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
             dbError(
               "raised",
               cause instanceof Error ? cause.message : String(cause),
-              {
-                hint: "AUDIT_EXPORT_FAILED",
-              },
+              { hint: "AUDIT_EXPORT_FAILED" },
             ),
           );
         }

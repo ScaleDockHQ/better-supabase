@@ -17,8 +17,8 @@ type LabsConfig<Schema extends StandardSchemaV1> = ReturnType<
 >;
 
 /**
- * What `supabaseCollectionOptions()` from `@supabase-labs/tanstack-db`
- * returns, without `undefined` in its optional properties, so `createCollection()`
+ * What `supabaseCollectionOptions()` from `@supabase-labs/tanstack-db` returns,
+ * without `undefined` in its optional properties, so `createCollection()`
  * accepts it under `exactOptionalPropertyTypes`.
  */
 export type SupabaseCollectionConfig<Schema extends StandardSchemaV1> = {
@@ -26,11 +26,20 @@ export type SupabaseCollectionConfig<Schema extends StandardSchemaV1> = {
 };
 
 interface BaseOptions<Schema extends StandardSchemaV1> {
-  /** The row schema, in the configured casing: `customersRow` from `standardSchema()`, `zod()` or `valibot()`. */
+  /**
+   * The row schema, in the configured casing: `customersRow` from
+   * `standardSchema()`, `zod()` or `valibot()`.
+   */
   readonly schema: Schema;
-  /** Applies inserts, updates and deletes from other clients through Realtime `postgres_changes`. */
+  /**
+   * Applies inserts, updates and deletes from other clients through Realtime
+   * `postgres_changes`.
+   */
   readonly realtime?: boolean;
-  /** Pushes each live query's filter to the Realtime subscription. Defaults to `false`. */
+  /**
+   * Pushes each live query's filter to the Realtime subscription. Defaults to
+   * `false`.
+   */
   readonly realtimeUseFilter?: boolean;
   readonly queryClient?: QueryClient;
 }
@@ -43,12 +52,18 @@ export type SupabaseCollectionOptions<
 > = BaseOptions<Schema> &
   (
     | {
-        /** Sends writes through the table's repository (the default), so RLS, hooks, events and plugins apply. */
+        /**
+         * Sends writes through the table's repository (the default), so RLS,
+         * hooks, events and plugins apply.
+         */
         readonly writes?: "repository";
         readonly db: Db<M, F, E, unknown> | (() => Db<M, F, E, unknown>);
       }
     | {
-        /** Sends writes straight to PostgREST with the supabase client, like `@supabase-labs/tanstack-db`. */
+        /**
+         * Sends writes straight to PostgREST with the supabase client, like
+         * `@supabase-labs/tanstack-db`.
+         */
         readonly writes: "direct";
         readonly db?: never;
       }

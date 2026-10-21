@@ -1,7 +1,10 @@
 /** The text that replaces a secret in printed output. */
 export const REDACTED = "<redacted>";
 
-/** Keys whose string value is a credential: `accessToken`, `webhookSecret`, `dbPassword`, `apiKey`. */
+/**
+ * Keys whose string value is a credential: `accessToken`, `webhookSecret`,
+ * `dbPassword`, `apiKey`.
+ */
 const SECRET_KEY =
   /(?:token|secret|password|passphrase|api_?key|private_?key)$/i;
 
@@ -58,7 +61,10 @@ export function redact(value: unknown, key = ""): unknown {
   return value;
 }
 
-/** `text` with every value in `secrets` replaced, for logs that may echo a credential. */
+/**
+ * `text` with every value in `secrets` replaced, for logs that may echo a
+ * credential.
+ */
 export function redactText(text: string, secrets: Iterable<string>): string {
   let redacted = text;
 

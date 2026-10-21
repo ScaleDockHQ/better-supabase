@@ -29,8 +29,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
+import type { SsoSettingsData } from "../sso-queries";
+
 import { refreshSso } from "../sso-actions";
-import { loadSsoSettings, type SsoSettingsData } from "../sso-queries";
+import { loadSsoSettings } from "../sso-queries";
 import {
   AddDomainForm,
   AddSamlForm,
@@ -52,9 +54,9 @@ async function loadSettings(): Promise<
 
 // #region recipe:sso-settings
 /**
- * The organization's email domains (claimed with a TXT record, then
- * verified) and its SAML connection. A verified domain sets the role new
- * users at it join with and whether they must sign in with SSO.
+ * The organization's email domains (claimed with a TXT record, then verified)
+ * and its SAML connection. A verified domain sets the role new users at it join
+ * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
   if (!can(await getSession(), "sso.manage")) {

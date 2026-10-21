@@ -33,10 +33,10 @@ import {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Fetches one level. `node` is `null` for the root level, and only
- * `{ value, label: value }`, no `data`, for a level on screen whose node has
- * not loaded: a deep link before the level above loads, or a page-loaded
- * level after a `loadKey` change.
+ * Fetches one level. `node` is `null` for the root level, and only `{ value,
+ * label: value }`, no `data`, for a level on screen whose node has not loaded:
+ * a deep link before the level above loads, or a page-loaded level after a
+ * `loadKey` change.
  */
 export type CascaderGetChildren<T = unknown> = (
   node: CascaderNode<T> | null,
@@ -101,8 +101,10 @@ export interface UseCascaderLoaderOptions<T = unknown> {
   query: string;
   /** Level keys that are currently on screen. Root is `CASCADER_ROOT_KEY`. */
   levels: string[];
-  /** Handed to `onSearch` as its scope and read for nothing else: the
-   * navigation path, or `[]` when the search covers the whole tree. */
+  /**
+   * Handed to `onSearch` as its scope and read for nothing else: the navigation
+   * path, or `[]` when the search covers the whole tree.
+   */
   path: string[];
   /** Current selection, for `resolveValue`. */
   values: string[];
@@ -115,14 +117,15 @@ export interface CascaderLoader<T = unknown> {
   states: ReadonlyMap<string, CascaderLoadState>;
   /**
    * Async search hits, `null` when no `onSearch` is running. EMPTY while the
-   * first request is in flight, so the level behind is not shown as the answer.
+   * first request is in flight, so the level behind is not shown as the
+   * answer.
    */
   searchResults: CascaderNode<T>[] | null;
   searchState: CascaderLoadState | null;
   /**
-   * Fetches a level's FIRST page. No-ops on a `states` entry (in flight,
-   * loaded or failed) or when `items` fills the level. The level effect fires
-   * only for on-screen levels, so a branch merely PRESSED is asked for by hand.
+   * Fetches a level's FIRST page. No-ops on a `states` entry (in flight, loaded
+   * or failed) or when `items` fills the level. The level effect fires only for
+   * on-screen levels, so a branch merely PRESSED is asked for by hand.
    */
   ensureLevel: (parentKey: string, reason: CascaderLoadReason) => void;
   /** Fetches the next page of a level. No-ops unless one is available. */
@@ -187,7 +190,8 @@ function sameLoadState(a: CascaderLoadState, b: CascaderLoadState): boolean {
 
 /**
  * Copy-on-write, and a NO-OP when nothing changed: the merged index is memoised
- * on store identity, so a fresh object for an unchanged state would rebuild it.
+ * on store identity, so a fresh object for an unchanged state would rebuild
+ * it.
  */
 function withLoadState<T>(
   store: CascaderLoaderStore<T>,
@@ -368,7 +372,8 @@ export function useCascaderLoader<T = unknown>({
   /**
    * Values whose resolve failed. They stay `attempted` until the next open
    * rather than the next values pass: with inline `items` every parent render
-   * is one, and an `onLoadError` that set parent state looped at network speed.
+   * is one, and an `onLoadError` that set parent state looped at network
+   * speed.
    */
   const failed = React.useRef(new Set<string>());
   /** Every node the loader has seen, so a level key can name its own node. */

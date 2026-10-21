@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ConsentRequest } from "../core/agent.ts";
 import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 
@@ -17,7 +18,6 @@ import {
   applyPlan,
   hasConflicts,
   changeLines,
-  type FilePlan,
   insideRoot,
   PLAN_ARGS,
   planResult,

@@ -60,7 +60,10 @@ export async function signDelivery(
   return `t=${t},v1=${await hmacHex(secret, `${t}.${job}.${body}`)}`;
 }
 
-/** Whether `header` signs `job` and `body` with `secret` within five minutes of `now`. */
+/**
+ * Whether `header` signs `job` and `body` with `secret` within five minutes of
+ * `now`.
+ */
 export async function verifyDelivery(
   secret: string,
   header: string | null,
@@ -94,7 +97,10 @@ export async function verifyDelivery(
   return timingSafeEqual(await hmacHex(secret, `${t}.${job}.${body}`), v1);
 }
 
-/** Unsigned poll deliveries are accepted only when `NODE_ENV` is `development` or `test`. */
+/**
+ * Unsigned poll deliveries are accepted only when `NODE_ENV` is `development`
+ * or `test`.
+ */
 export function unsignedAllowed(): boolean {
   const mode = env("NODE_ENV");
 

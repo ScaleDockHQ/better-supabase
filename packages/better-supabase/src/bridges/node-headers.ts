@@ -3,7 +3,10 @@ export type NodeIncomingHeaders = Readonly<
   Record<string, string | readonly string[] | undefined>
 >;
 
-/** The part of a Node `IncomingMessage` a URL and headers need; no stream is read. */
+/**
+ * The part of a Node `IncomingMessage` a URL and headers need; no stream is
+ * read.
+ */
 export interface NodeRequestHead {
   readonly method?: string | undefined;
   readonly url?: string | undefined;

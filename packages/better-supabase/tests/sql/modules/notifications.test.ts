@@ -186,7 +186,7 @@ describe("notifications module", () => {
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
     const custom: AnyBlocksConfig = { notifications: { mode: "custom" } };
-    expect(moduleBody("notifications", { modules: custom })).toBe(undefined);
+    expect(moduleBody("notifications", { modules: custom })).toBeUndefined();
     const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
@@ -335,11 +335,7 @@ describe("notifications module", () => {
 
     expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");
 
-    const callerOnly = notify({
-      access: {
-        model: "provider",
-      },
-    });
+    const callerOnly = notify({ access: { model: "provider" } });
 
     expect(callerOnly).not.toContain("better_supabase.member_can(x,");
     expect(callerOnly).toContain(
@@ -400,10 +396,7 @@ describe("notification subjects", () => {
     const subjects = { task: { table: "tasks", cascade: true } };
 
     const sql = body({
-      notifications: {
-        tables: { subscriptions: null },
-        options: { subjects },
-      },
+      notifications: { tables: { subscriptions: null }, options: { subjects } },
     });
 
     expect(sql).toContain("notifications_subject_deleted");

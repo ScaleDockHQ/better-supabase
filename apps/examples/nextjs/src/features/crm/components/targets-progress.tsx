@@ -32,7 +32,10 @@ import { CreateTargetDialog } from "./create-target-dialog";
 import { CrmLoadError } from "./crm-load-error";
 
 // #region recipe:targets-progress
-/** Render inside `<Suspense>`: the targets running today and how far along they are. */
+/**
+ * Render inside `<Suspense>`: the targets running today and how far along they
+ * are.
+ */
 export async function TargetsProgress() {
   const [session, t, format, locale] = await Promise.all([
     getSession(),

@@ -17,10 +17,7 @@ const migration = (version: string, text: string): TextFile => ({
 
 const context = (
   files: readonly TextFile[],
-  extra: Partial<{
-    since: string;
-    applied: readonly string[];
-  }> = {},
+  extra: Partial<{ since: string; applied: readonly string[] }> = {},
 ): DoctorContext =>
   // SAFETY: the rules read only these fields of the context.
   ({

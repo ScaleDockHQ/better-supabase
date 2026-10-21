@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { DealNames } from "./deals-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -22,7 +23,7 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { moduleOperations } from "./access-model.ts";
-import { dealFunctions, type DealNames } from "./deals-functions.ts";
+import { dealFunctions } from "./deals-functions.ts";
 
 const DEAL = [
   "organizationId",
@@ -263,10 +264,10 @@ using (${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.re
 }
 
 /**
- * The guard trigger on deals: a locked deal takes only its note, the open
- * date never moves, a later close date counts as a slip, a closed deal's
- * forecast stays, and an outcome change stamps or clears closed_at and
- * records deal.closed or deal.reopened.
+ * The guard trigger on deals: a locked deal takes only its note, the open date
+ * never moves, a later close date counts as a slip, a closed deal's forecast
+ * stays, and an outcome change stamps or clears closed_at and records
+ * deal.closed or deal.reopened.
  */
 function guard(ctx: ModuleContext, n: DealNames): string {
   const { t, c } = n;

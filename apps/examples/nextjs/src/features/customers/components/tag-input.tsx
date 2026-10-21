@@ -1,10 +1,12 @@
 // #region recipe:tag-input
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useTagInput } from "better-supabase/blocks/tags/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { type SubmitEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,9 +16,8 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
- * A record's tags. Typing a name adds the organization's tag of the
- * subject's kind with that name, or creates it for callers with
- * `tags.manage`.
+ * A record's tags. Typing a name adds the organization's tag of the subject's
+ * kind with that name, or creates it for callers with `tags.manage`.
  */
 export function TagInput({
   organizationId,

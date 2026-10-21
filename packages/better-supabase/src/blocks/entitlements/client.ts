@@ -9,16 +9,25 @@ export interface FeatureGateControllerOptions {
   readonly auth: AuthPort;
   /** The plan feature, such as `exports`: a key of `entitlements.source.plans`. */
   readonly feature: string;
-  /** The organization to check. Default the session's active one, from the tenant claim. */
+  /**
+   * The organization to check. Default the session's active one, from the
+   * tenant claim.
+   */
   readonly organizationId?: string | null;
-  /** `config.claims.features` (default `features`), or `{ claim, keys }` for short codes. */
+  /**
+   * `config.claims.features` (default `features`), or `{ claim, keys }` for
+   * short codes.
+   */
   readonly claim?: string | EntitlementClaimOptions;
   /** The tenant claim, `config.claims.tenant` (default `tenant_id`). */
   readonly tenantClaim?: string;
 }
 
 export interface FeatureGateSnapshot {
-  /** `undefined` while the session loads; false when signed out or outside an organization. */
+  /**
+   * `undefined` while the session loads; false when signed out or outside an
+   * organization.
+   */
   readonly allowed: boolean | undefined;
   /** The organization the check ran for. */
   readonly organizationId: string | undefined;
@@ -35,10 +44,10 @@ export type FeatureGateController = Controller<
 >;
 
 /**
- * Whether the active organization's plan includes `feature`, from the
- * session's plan-features claim. It updates when the session does, so a
- * session refresh after checkout opens the gate. UX only: enforce the
- * feature in RLS with `better_supabase.has_entitlement()`.
+ * Whether the active organization's plan includes `feature`, from the session's
+ * plan-features claim. It updates when the session does, so a session refresh
+ * after checkout opens the gate. UX only: enforce the feature in RLS with
+ * `better_supabase.has_entitlement()`.
  */
 export function createFeatureGateController(
   options: FeatureGateControllerOptions,

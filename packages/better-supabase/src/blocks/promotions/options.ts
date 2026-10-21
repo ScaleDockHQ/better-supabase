@@ -1,11 +1,9 @@
-import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
+
+import { blockOptions, option } from "../options.ts";
 
 /** `blocks.promotions.options`. */
-export type PromotionsSqlOptions = {
-  readonly extraColumns?: unknown;
-};
+export type PromotionsSqlOptions = { readonly extraColumns?: unknown };
 
 export const promotionsSqlOptions: BlockOptionsSchema<PromotionsSqlOptions> =
-  blockOptions<PromotionsSqlOptions>({
-    extraColumns: option.unknown(),
-  });
+  blockOptions<PromotionsSqlOptions>({ extraColumns: option.unknown() });

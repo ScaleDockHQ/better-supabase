@@ -12,8 +12,8 @@ import { aiFiles } from "./assistant-server";
 const MAX_SIZE = 10 * 1024 * 1024;
 
 /**
- * Reserves an attachment for the caller and returns where to upload it.
- * The bucket only accepts the upload at the reserved path.
+ * Reserves an attachment for the caller and returns where to upload it. The
+ * bucket only accepts the upload at the reserved path.
  */
 export const reserveAttachment = bs.action(
   {

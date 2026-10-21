@@ -1,21 +1,21 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import { createServer } from "node:http";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type {
+  ExpressResponse,
+  FastifyReplyLike,
+  FastifyRequestLike,
+  KoaContextLike,
+} from "../../src/node/index.ts";
+
 import { DbException, dbError } from "../../src/core/errors.ts";
 import {
-  type ExpressResponse,
-  type FastifyReplyLike,
-  type FastifyRequestLike,
   fastifyGuard,
   guard,
-  type KoaContextLike,
   koaGuard,
   problemErrorHandler,
   toExpress,
@@ -35,7 +35,7 @@ afterEach(async () => {
 });
 
 async function listen(
-  listener: (req: IncomingMessage, res: ServerResponse) => void,
+  listener: (req: IncomingMessage, res: ServerResponse) => unknown,
 ): Promise<string> {
   const http = createServer(listener);
   await new Promise<void>((resolve) => {
@@ -197,7 +197,9 @@ describe("toExpress", () => {
   });
 });
 
-function fakeReply(raw: ServerResponse): FastifyReplyLike & {
+function fakeReply(
+  raw: ServerResponse,
+): FastifyReplyLike & {
   readonly state: { status: number; payload: unknown; sent: boolean };
 } {
   const state = { status: 200, payload: undefined as unknown, sent: false };

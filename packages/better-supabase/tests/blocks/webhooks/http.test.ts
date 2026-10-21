@@ -61,8 +61,8 @@ describe("fetchTransport", () => {
     const now = Date.parse("2026-10-04T12:00:00Z");
     expect(parseRetryAfter("Sun, 04 Oct 2026 12:01:30 GMT", now)).toBe(90);
     expect(parseRetryAfter("Sun, 04 Oct 2026 11:00:00 GMT", now)).toBe(0);
-    expect(parseRetryAfter("soon", now)).toBe(undefined);
-    expect(parseRetryAfter(null, now)).toBe(undefined);
+    expect(parseRetryAfter("soon", now)).toBeUndefined();
+    expect(parseRetryAfter(null, now)).toBeUndefined();
   });
 
   it("follows allowed redirects and checks each hop", async () => {

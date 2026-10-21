@@ -15,7 +15,10 @@ export const SAMPLE_ROW_COUNT = 8;
 /** Who reads the rows: a signed-in member, or server code with the service role. */
 export type SampleViewer = "member" | "server";
 
-/** The columns of `table` a `viewer` can't select: `access: "server"` ones for a member. */
+/**
+ * The columns of `table` a `viewer` can't select: `access: "server"` ones for a
+ * member.
+ */
 export function hiddenColumns(
   table: AppTable | undefined,
   viewer: SampleViewer,
@@ -60,7 +63,10 @@ function capitalized(value: string): string {
   );
 }
 
-/** The column a table's rows are named by: its subject title, then a likely name column. */
+/**
+ * The column a table's rows are named by: its subject title, then a likely name
+ * column.
+ */
 function titleColumnOf(table: AppTable): string | undefined {
   const text = new Set(
     Object.entries(table.columns ?? {})
@@ -73,7 +79,10 @@ function titleColumnOf(table: AppTable): string | undefined {
   return table.subject?.title ?? TITLE_COLUMNS.find((key) => text.has(key));
 }
 
-/** The name of row `index` of `table`, so a reference shows the row it points at. */
+/**
+ * The name of row `index` of `table`, so a reference shows the row it points
+ * at.
+ */
 function rowTitle(table: string, index: number): string {
   return `${capitalized(singular(table))} ${String(index + 1)}`;
 }

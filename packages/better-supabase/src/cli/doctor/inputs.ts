@@ -4,9 +4,10 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { TextFile } from "../doctor/rules.ts";
+import type { SupabaseToml } from "../supabase-toml.ts";
 
 import { byCodePoint } from "../compare.ts";
-import { schemaPaths, type SupabaseToml } from "../supabase-toml.ts";
+import { schemaPaths } from "../supabase-toml.ts";
 
 export const ENV_FILES: readonly string[] = [
   ".env",
@@ -29,7 +30,10 @@ export async function readText(
     : undefined;
 }
 
-/** The declarative schemas in the diff engine's order, then the migrations newest first. */
+/**
+ * The declarative schemas in the diff engine's order, then the migrations
+ * newest first.
+ */
 export async function sqlFiles(
   root: string,
   toml: SupabaseToml | undefined,
@@ -50,8 +54,8 @@ export async function sqlFiles(
   const migrations = existsSync(migrationsDir)
     ? (await readdir(migrationsDir))
         .filter((name) => name.endsWith(".sql"))
-        .sort()
-        .reverse()
+        .toSorted()
+        .toReversed()
         .map((name) => `${migrationsPath}/${name}`)
     : [];
 
@@ -72,5 +76,5 @@ export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
     });
   }
 
-  return files.sort((a, b) => byCodePoint(a.path, b.path));
+  return files.toSorted((a, b) => byCodePoint(a.path, b.path));
 }

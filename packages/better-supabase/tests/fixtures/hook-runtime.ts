@@ -1,10 +1,9 @@
 /**
- * A synchronous stand-in for React's dispatcher, for hooks built on
- * `useState`, `useRef`, `useMemo`, `useCallback`, `useEffect` and
- * `useSyncExternalStore`. No renderer is
- * installed: effects run after each render, and a state update renders again.
- * A test spreads `reactHooks` into its `vi.mock("react")` factory. This module
- * imports nothing from React, so the factory can load it.
+ * A synchronous stand-in for React's dispatcher, for hooks built on `useState`,
+ * `useRef`, `useMemo`, `useCallback`, `useEffect` and `useSyncExternalStore`.
+ * No renderer is installed: effects run after each render, and a state update
+ * renders again. A test spreads `reactHooks` into its `vi.mock("react")`
+ * factory. This module imports nothing from React, so the factory can load it.
  */
 
 type Deps = readonly unknown[];

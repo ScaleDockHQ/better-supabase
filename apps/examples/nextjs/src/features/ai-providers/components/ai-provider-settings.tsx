@@ -1,10 +1,12 @@
 // #region recipe:ai-provider-settings
 "use client";
 
+import type { SubmitEvent } from "react";
+
 import { useAction } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { type SubmitEvent, useId, useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -79,10 +81,11 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { Provider } from "../ai-provider-options";
 import type { ProviderKeyRow, ProviderKeysRead } from "../ai-provider-queries";
 
 import { addProviderKey, removeProviderKey } from "../ai-provider-actions";
-import { PROVIDERS, type Provider } from "../ai-provider-options";
+import { PROVIDERS } from "../ai-provider-options";
 
 const PROVIDER_LABELS = {
   anthropic: "Anthropic",
@@ -346,9 +349,9 @@ function ProviderRows({ keys }: { keys: readonly ProviderKeyRow[] }) {
 }
 
 /**
- * The organization's own model provider keys (bring your own key), read on
- * the server through `aiProviders.keys.list`, with the model each one
- * calls. Saving a key stores it in Vault first; the row only names it.
+ * The organization's own model provider keys (bring your own key), read on the
+ * server through `aiProviders.keys.list`, with the model each one calls. Saving
+ * a key stores it in Vault first; the row only names it.
  */
 export function AiProviderSettings({ read }: { read: ProviderKeysRead }) {
   const t = useExtracted("aiProviders");

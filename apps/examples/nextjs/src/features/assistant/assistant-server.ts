@@ -1,32 +1,22 @@
 import "server-only";
-import { stepCountIs, streamText, type LanguageModel, type ToolSet } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
+import type { AssistantContext } from "better-supabase/ai-sdk/chat";
+import type { AiChat, AiRuns } from "better-supabase/blocks/ai-chat";
+import type { AiFiles, AiFileStorage } from "better-supabase/blocks/ai-files";
+import type { AiProviders } from "better-supabase/blocks/ai-providers";
+import type { RpcClient } from "better-supabase/blocks/organizations";
+
+import { stepCountIs, streamText } from "ai";
 import { byokOptions } from "better-supabase/ai-sdk";
-import {
-  type AssistantContext,
-  createAssistant,
-} from "better-supabase/ai-sdk/chat";
+import { createAssistant } from "better-supabase/ai-sdk/chat";
 import { searchTool } from "better-supabase/ai-sdk/embeddings";
 import { aiFileDownload } from "better-supabase/ai-sdk/files";
 import { memoryTool, withMemory } from "better-supabase/ai-sdk/memory";
 import { generatedOptions } from "better-supabase/blocks";
-import {
-  type AiChat,
-  type AiRuns,
-  createAiChat,
-} from "better-supabase/blocks/ai-chat";
-import {
-  type AiFiles,
-  type AiFileStorage,
-  createAiFiles,
-} from "better-supabase/blocks/ai-files";
-import {
-  type AiProviders,
-  createAiProviders,
-} from "better-supabase/blocks/ai-providers";
-import {
-  type RpcClient,
-  rpcTransport,
-} from "better-supabase/blocks/organizations";
+import { createAiChat } from "better-supabase/blocks/ai-chat";
+import { createAiFiles } from "better-supabase/blocks/ai-files";
+import { createAiProviders } from "better-supabase/blocks/ai-providers";
+import { rpcTransport } from "better-supabase/blocks/organizations";
 import { vaultCredentials } from "better-supabase/credentials";
 import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
@@ -45,7 +35,10 @@ const DEFAULT_MODEL = "openai/gpt-5-mini";
 /** Without a gateway key the sample answers with a scripted model. */
 const demoMode = (): boolean => !process.env["AI_GATEWAY_API_KEY"];
 
-/** Durable chats call the model inside workflow steps, which can't run the scripted model. */
+/**
+ * Durable chats call the model inside workflow steps, which can't run the
+ * scripted model.
+ */
 export const durableAvailable = (): boolean => !demoMode();
 
 function languageModel(id: string): LanguageModel {
@@ -66,7 +59,10 @@ export function aiChat(supabase: RpcClient): AiChat {
   });
 }
 
-/** The chat's runs, steps and approvals as the caller; engine writes go through the service role. */
+/**
+ * The chat's runs, steps and approvals as the caller; engine writes go through
+ * the service role.
+ */
 export function aiRuns(supabase: RpcClient): AiRuns {
   return aiChat(supabase).runs;
 }
@@ -90,7 +86,10 @@ function aiProviders(): AiProviders {
   return providersInstance;
 }
 
-/** Adds the organization's own keys (BYOK) to the gateway options, when it saved any. */
+/**
+ * Adds the organization's own keys (BYOK) to the gateway options, when it saved
+ * any.
+ */
 async function withTenantKeys<T extends { readonly gateway: object }>(
   providerOptions: T,
   organizationId: string,
@@ -114,7 +113,10 @@ async function withTenantKeys<T extends { readonly gateway: object }>(
 /** The caller's client: RPC for the blocks, Storage for the files. */
 type UserClient = RpcClient & { readonly storage: AiFileStorage };
 
-/** The files block acting as the caller; the service role stores generated files. */
+/**
+ * The files block acting as the caller; the service role stores generated
+ * files.
+ */
 export function aiFiles(supabase: UserClient): AiFiles {
   return createAiFiles({
     ...generatedOptions(blockConfig["ai-files"]),

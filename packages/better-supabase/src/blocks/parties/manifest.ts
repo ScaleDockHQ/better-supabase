@@ -14,9 +14,7 @@ export const partiesBlock: BlockOf<
 > = defineBlock({
   name: "parties",
   sql: ["parties"],
-  options: {
-    parties: partiesSqlOptions,
-  },
+  options: { parties: partiesSqlOptions },
   events: partiesEvents,
   create: createParties,
   category: "crm",

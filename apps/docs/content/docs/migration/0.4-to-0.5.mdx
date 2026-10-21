@@ -60,9 +60,7 @@ claim. Apps that only write the claim keep working. To read only the claim,
 set it explicitly:
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({
-  kits: { access: { activeTenant: "claim" } },
-});
+export default defineConfig({ kits: { access: { activeTenant: "claim" } } });
 ```
 
 See [The active tenant](/docs/blocks/access#the-active-tenant).

@@ -16,6 +16,7 @@ import type {
 } from "./model.ts";
 import type { ApiOptions, ResourceInput } from "./options.ts";
 import type { ErrorResponse, ResourcePlan } from "./resource.ts";
+import type { StandardLike } from "./schemas.ts";
 
 import { isPlainObject } from "../core/clone.ts";
 import { mergeJson, pointerToken } from "./merge.ts";
@@ -28,13 +29,7 @@ import {
 } from "./presets.ts";
 import { pageQuery, pageSchema } from "./resource-schemas.ts";
 import { planResource } from "./resource.ts";
-import {
-  convertStandard,
-  pascal,
-  schemaRef,
-  type StandardLike,
-  tableSchemas,
-} from "./schemas.ts";
+import { convertStandard, pascal, schemaRef, tableSchemas } from "./schemas.ts";
 
 type Json = Record<string, unknown>;
 
@@ -90,7 +85,10 @@ const OPERATION_STATUSES: Readonly<
   delete: [401, 403, 404, 409],
 };
 
-/** Statuses an operation only documents when it can answer with them; other errors apply everywhere. */
+/**
+ * Statuses an operation only documents when it can answer with them; other
+ * errors apply everywhere.
+ */
 const SCOPED_STATUSES: ReadonlySet<number> = new Set([
   400, 401, 403, 404, 409, 422,
 ]);
@@ -125,7 +123,10 @@ function isPlanCarrier<Ref>(
   return typeof input === "object" && "plan" in input;
 }
 
-/** `description` and `deprecated` from comments, read structurally so older metadata still works. */
+/**
+ * `description` and `deprecated` from comments, read structurally so older
+ * metadata still works.
+ */
 function docsOf(value: object | undefined): {
   readonly description?: string;
   readonly deprecated?: true;
@@ -176,7 +177,10 @@ function mutableProperties(schema: Json): Record<string, Json> | undefined {
   return copy;
 }
 
-/** The state one `build` shares across resources and routes, and the helpers that write to it. */
+/**
+ * The state one `build` shares across resources and routes, and the helpers
+ * that write to it.
+ */
 export interface BuildContext<Ref> {
   readonly meta: SchemaMeta;
   readonly options: ApiOptions<Ref>;

@@ -1,4 +1,7 @@
-/** A brand mark as one path on a 24 by 24 grid, the shape `simple-icons` exports. */
+/**
+ * A brand mark as one path on a 24 by 24 grid, the shape `simple-icons`
+ * exports.
+ */
 export interface BrandMark {
   readonly title: string;
   readonly path: string;

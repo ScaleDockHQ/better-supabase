@@ -11,12 +11,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+
 import { runScaffoldScreens } from "../../../src/cli/commands/scaffold.ts";
 import { run } from "../../../src/cli/core/run.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 
 let dir = "";
 

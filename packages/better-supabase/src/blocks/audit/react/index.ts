@@ -21,20 +21,25 @@ export interface UseAuditLogOptions {
   readonly filters?: AuditFilters;
   /** Entries per page, default 50, at most 1000. */
   readonly limit?: number;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
 }
 
 export interface AuditLogState extends AuditLogSnapshot, AuditLogActions {}
 
 /**
- * One organization's audit trail through the browser client, newest first,
- * with filters by actor, action or text and older pages on `loadMore`.
- * The audit module's read policy decides what the caller sees. The same
- * hook runs in React DOM and React Native.
+ * One organization's audit trail through the browser client, newest first, with
+ * filters by actor, action or text and older pages on `loadMore`. The audit
+ * module's read policy decides what the caller sees. The same hook runs in
+ * React DOM and React Native.
  *
  * ```tsx
- * const { entries, filters, setFilters, loadMore } = useAuditLog({ organizationId });
+ * const { entries, filters, setFilters, loadMore } = useAuditLog({
+ *   organizationId,
+ * });
  * ```
  */
 export function useAuditLog(options: UseAuditLogOptions): AuditLogState {

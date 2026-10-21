@@ -10,9 +10,9 @@ const price = (cents: number) =>
   cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)} per month`;
 
 /**
- * The plans with a checkout button each. `choose` posts to the app's own
- * API route, which talks to Stripe, and opens the Checkout URL it returns
- * in the system browser.
+ * The plans with a checkout button each. `choose` posts to the app's own API
+ * route, which talks to Stripe, and opens the Checkout URL it returns in the
+ * system browser.
  */
 export function PlanPicker() {
   const organizationId = tenantOf(useAuth());

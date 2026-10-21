@@ -5,7 +5,10 @@ import type { StorageAdminClient } from "./bucket.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
 
-/** The Iceberg REST catalog of an analytics bucket, from `storage.analytics.from(id)`. */
+/**
+ * The Iceberg REST catalog of an analytics bucket, from
+ * `storage.analytics.from(id)`.
+ */
 export type AnalyticsCatalog = ReturnType<
   SupabaseClient["storage"]["analytics"]["from"]
 >;
@@ -13,7 +16,10 @@ export type AnalyticsCatalog = ReturnType<
 export interface AnalyticsBucketClient {
   /** Creates the bucket when it is missing. Needs the secret key. */
   apply(): AsyncResult<{ readonly created: boolean }>;
-  /** The bucket's Iceberg catalog: namespaces and tables, each call returning `{ data, error }`. */
+  /**
+   * The bucket's Iceberg catalog: namespaces and tables, each call returning `{
+   * data, error }`.
+   */
   catalog(): AnalyticsCatalog;
 }
 

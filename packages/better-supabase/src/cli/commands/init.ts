@@ -6,17 +6,21 @@ import type {
   ResolvedConfig,
   SqlWorkflow,
 } from "../../config/index.ts";
+import type {
+  ConfigConventions,
+  CreateDesign,
+  ResolvedPreset,
+} from "../../preset/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
+import type { InstallTarget, Project } from "../project/detect.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
 import type { TemplateFile } from "../templates.ts";
 
 import { resolveConfig } from "../../config/index.ts";
 import {
-  type ConfigConventions,
   conventionConfig,
-  type CreateDesign,
   designConfig,
   encodePreset,
   glueCommand,
@@ -27,7 +31,6 @@ import {
   presetGlue,
   PRESETS,
   resolvePreset,
-  type ResolvedPreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
 import {
@@ -63,12 +66,7 @@ import {
 } from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { readPresetInput } from "../preset-input.ts";
-import {
-  detectProject,
-  installCommand,
-  type InstallTarget,
-  type Project,
-} from "../project/detect.ts";
+import { detectProject, installCommand } from "../project/detect.ts";
 import { detectWorkspace, suggestedPackage } from "../project/workspace.ts";
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
@@ -130,8 +128,8 @@ const INIT_ARGS = {
 const LITE_VERSION = "0.11";
 
 /**
- * pg (or `@supabase/lite`, with `lite`) and the pinned postgrest-typegen as
- * dev dependencies, the ones the project lacks.
+ * Pg (or `@supabase/lite`, with `lite`) and the pinned postgrest-typegen as dev
+ * dependencies, the ones the project lacks.
  */
 function devPackages(project: Project, lite: boolean): string[][] {
   const database = lite ? "@supabase/lite" : "pg";
@@ -188,9 +186,7 @@ async function initTarget(
       `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
       {
         missing: ["--package"],
-        choices: {
-          "--package": [...new Set([suggested, ...others, "."])],
-        },
+        choices: { "--package": [...new Set([suggested, ...others, "."])] },
       },
     );
   }

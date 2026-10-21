@@ -1,7 +1,7 @@
 /**
  * Renders `schemas/config-v1.json` from the config schema and the options
- * schema of every block, and `schemas/design-v1.json` from the design
- * schema, then formats them with Oxfmt.
+ * schema of every block, and `schemas/design-v1.json` from the design schema,
+ * then formats them with Oxfmt.
  */
 import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";

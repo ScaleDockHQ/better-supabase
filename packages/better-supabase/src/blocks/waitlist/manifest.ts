@@ -14,9 +14,7 @@ export const waitlistBlock: BlockOf<
 > = defineBlock({
   name: "waitlist",
   sql: ["waitlist"],
-  options: {
-    waitlist: waitlistSqlOptions,
-  },
+  options: { waitlist: waitlistSqlOptions },
   events: waitlistEvents,
   create: createWaitlist,
   category: "growth",

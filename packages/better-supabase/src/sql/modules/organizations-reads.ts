@@ -22,8 +22,8 @@ export function organizationExtraColumns(
 
 /**
  * The attribute columns, unquoted: `options.attributes` and
- * `options.extraColumns`. `create_organization` and `update_organization`
- * copy them from `attrs`, and `list_my_organizations` returns them.
+ * `options.extraColumns`. `create_organization` and `update_organization` copy
+ * them from `attrs`, and `list_my_organizations` returns them.
  */
 export function organizationAttributes(ctx: ModuleContext): readonly string[] {
   const listed = ctx.list("attributes", []).map((column) => {

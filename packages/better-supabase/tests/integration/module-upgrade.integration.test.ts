@@ -33,6 +33,7 @@ const MODULES = ["tenant", "audit", "invitations"];
 
 describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("renames the 0.4.0 tables and columns and keeps rows and triggers, and drops the old view", async () => {

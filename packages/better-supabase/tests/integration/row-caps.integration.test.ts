@@ -46,9 +46,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
   });
 
   afterAll(async () => {
-    await admin.tags.deleteMany({
-      where: { name: { startsWith: PREFIX } },
-    });
+    await admin.tags.deleteMany({ where: { name: { startsWith: PREFIX } } });
     await db.close();
   });
 
@@ -88,7 +86,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
 
     const first = await read();
     const ids = first.map((row) => row.id);
-    expect(ids).toEqual([...ids].sort());
+    expect(ids).toEqual(ids.toSorted());
     expect((await read()).map((row) => row.id)).toEqual(ids);
   });
 });

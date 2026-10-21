@@ -1,21 +1,21 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { attrsArg, compact, plainDate } from "../sales-shared.ts";
 import {
   bigintOf,
   applyTemporal,
   blockCall,
-  type BlockOptions,
   isRecord,
   optionalText,
   recordOf,
@@ -24,8 +24,8 @@ import {
 } from "../shared.ts";
 
 /**
- * A metric the database computes, or any other name the app keeps the
- * actual value of itself.
+ * A metric the database computes, or any other name the app keeps the actual
+ * value of itself.
  */
 export type TargetMetric =
   | "deals.won_amount"
@@ -91,8 +91,8 @@ export interface TargetsOptions<
 > extends BlockOptions {
   /**
    * A Standard Schema for the target's extra columns
-   * (`blocks.targets.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `save`.
+   * (`blocks.targets.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `save`.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Targets<FieldsOf<S>>>>;
@@ -117,8 +117,8 @@ function targetOf(value: unknown): Target {
 }
 
 /**
- * The targets block: goals per period for a member, a team or the
- * organization, and their progress.
+ * The targets block: goals per period for a member, a team or the organization,
+ * and their progress.
  */
 export function createTargets<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -133,22 +133,24 @@ export function createTargets<
     save: (organizationId, target) => {
       const { id, goal, actual, fields: extra, ...rest } = target;
 
-      return fields.args(extra).andThen((checked) =>
-        call(
-          "save_target",
-          {
-            tenant: organizationId,
-            target: id ?? null,
-            attrs: {
-              ...attrsArg(rest),
-              ...(goal === undefined ? {} : { goal: goal.toString() }),
-              ...(actual === undefined ? {} : { actual: actual.toString() }),
-              ...(checked === undefined ? {} : { fields: checked }),
+      return fields
+        .args(extra)
+        .andThen((checked) =>
+          call(
+            "save_target",
+            {
+              tenant: organizationId,
+              target: id ?? null,
+              attrs: {
+                ...attrsArg(rest),
+                ...(goal === undefined ? {} : { goal: goal.toString() }),
+                ...(actual === undefined ? {} : { actual: actual.toString() }),
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
             },
-          },
-          targetOf,
-        ).andThen(fields.row),
-      );
+            targetOf,
+          ).andThen(fields.row),
+        );
     },
     progress: (organizationId, progress = {}) =>
       call(

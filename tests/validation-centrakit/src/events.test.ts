@@ -1,16 +1,15 @@
 import type { StandardSchemaV1 } from "better-supabase";
+import type {
+  WebhookRequest,
+  WebhookTransport,
+} from "better-supabase/blocks/webhooks";
 
 import {
   createNotifications,
   sqlTransport,
 } from "better-supabase/blocks/notifications";
 import { createOutbox } from "better-supabase/blocks/outbox";
-import {
-  createWebhooks,
-  hmacSigner,
-  type WebhookRequest,
-  type WebhookTransport,
-} from "better-supabase/blocks/webhooks";
+import { createWebhooks, hmacSigner } from "better-supabase/blocks/webhooks";
 import { createHmac } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -38,6 +37,7 @@ describe.skipIf(!live)(
   "notifications, outbox and webhooks on CentraKit's tables",
   () => {
     const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
     afterAll(() => pool.end());
 
     it("notifies in workflow_events, relays to webhook_deliveries and signs like CentraKit", async () => {

@@ -2,8 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import { defineSupabase } from "better-supabase";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { createCustomersService, type CustomersService } from "./customers.ts";
-import { type Json, schema } from "./generated.ts";
+import type { CustomersService } from "./customers.ts";
+import type { Json } from "./generated.ts";
+
+import { createCustomersService } from "./customers.ts";
+import { schema } from "./generated.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 

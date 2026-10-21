@@ -34,12 +34,18 @@ const SEED: unique symbol = Symbol.for("better-supabase.seed") as never;
 
 export interface Seed<S> {
   readonly [SEED]: true;
-  /** The fixtures as given, so tests can reference `seed.rows.customers.acme.id`. */
+  /**
+   * The fixtures as given, so tests can reference
+   * `seed.rows.customers.acme.id`.
+   */
   readonly rows: S;
   /** One `insert ... on conflict do nothing` per table, parents before children. */
   statements(): string[];
   sql(): string;
-  /** Inserts the fixtures, e.g. in a test's `beforeAll`. Needs a service-role client. */
+  /**
+   * Inserts the fixtures, e.g. in a test's `beforeAll`. Needs a service-role
+   * client.
+   */
   insert(sql: SqlClient): Promise<void>;
 }
 
@@ -248,13 +254,13 @@ function statementsOf(
 }
 
 /**
- * Typed fixtures shared by `supabase/seeds` and your tests. Rows use app
- * casing and Insert types; `better-supabase seed` renders them to SQL.
+ * Typed fixtures shared by `supabase/seeds` and your tests. Rows use app casing
+ * and Insert types; `better-supabase seed` renders them to SQL.
  *
  * ```ts
  * export const seed = defineSeed(betterSupabase, {
- *   organizations: { acme: { id: ACME, name: 'Acme' } },
- *   customers: { first: { organizationId: ACME, name: 'First customer' } },
+ *   organizations: { acme: { id: ACME, name: "Acme" } },
+ *   customers: { first: { organizationId: ACME, name: "First customer" } },
  * });
  * ```
  */
@@ -316,7 +322,9 @@ export function isTenantSeed(value: unknown): value is TenantSeed {
  *
  * ```ts
  * export const seed = defineTenantSeed(betterSupabase, (tenant) => ({
- *   projects: { demo: { organizationId: tenant.id, name: 'Demo project' } },
+ *   projects: {
+ *     demo: { organizationId: tenant.id, name: "Demo project" },
+ *   },
  * }));
  * ```
  */

@@ -2,8 +2,8 @@ import type { Codec, RelationMeta, TableMeta } from "../schema/types.ts";
 
 /**
  * The query IR. Every repository call becomes one of these operations; the
- * executor compiles it to PostgREST or SQL. Column names in the IR are
- * database names; `Selection` carries the app aliases.
+ * executor compiles it to PostgREST or SQL. Column names in the IR are database
+ * names; `Selection` carries the app aliases.
  */
 export type ColumnOp =
   | "eq"
@@ -78,8 +78,8 @@ export interface OrderTerm {
    */
   readonly implicit?: true;
   /**
-   * Sort `aggregate()` groups by this aggregate of `column`; `count` counts
-   * the group's rows and its `column` is `*`.
+   * Sort `aggregate()` groups by this aggregate of `column`; `count` counts the
+   * group's rows and its `column` is `*`.
    */
   readonly aggregate?: AggregateFn | "count";
   /** Sort by `column` of this to-one relation's row (only on the root table). */
@@ -128,8 +128,8 @@ export interface Measure {
 }
 
 /**
- * Aggregates instead of rows. `Selection.columns` become the grouping
- * columns; without any, the result is exactly one row.
+ * Aggregates instead of rows. `Selection.columns` become the grouping columns;
+ * without any, the result is exactly one row.
  */
 export interface Aggregation {
   /** Also return `_count`, the number of rows in each group. */
@@ -157,9 +157,15 @@ export interface SelectOp {
   /** Only count, return no rows. */
   readonly head: boolean;
   readonly single: "one" | "maybe" | undefined;
-  /** `limit` includes one row past the page, which `paginate()` reads to set `hasMore`. */
+  /**
+   * `limit` includes one row past the page, which `paginate()` reads to set
+   * `hasMore`.
+   */
   readonly lookAhead?: boolean;
-  /** `limit` bounds a check, not a page: `findOnly` reads two rows to detect a second match. */
+  /**
+   * `limit` bounds a check, not a page: `findOnly` reads two rows to detect a
+   * second match.
+   */
   readonly unpaged?: boolean;
   /**
    * Read from this set-returning function instead of the table (`db.$search`).
@@ -178,14 +184,16 @@ export interface FunctionSource {
 /** The statement a mutation runs. */
 export type MutationKind = "insert" | "upsert" | "update" | "delete";
 
-/** What the caller asked for: `softDelete` is a `delete` that a plugin turned into an update. */
+/**
+ * What the caller asked for: `softDelete` is a `delete` that a plugin turned
+ * into an update.
+ */
 export type MutationIntent = MutationKind | "softDelete";
 
 interface MutationBase {
   /**
-   * What the caller asked for, when a plugin rewrote the mutation into
-   * another kind. The plugin that rewrites it sets this; mutation events
-   * report it.
+   * What the caller asked for, when a plugin rewrote the mutation into another
+   * kind. The plugin that rewrites it sets this; mutation events report it.
    */
   readonly intent?: MutationIntent;
   /**
@@ -197,8 +205,8 @@ interface MutationBase {
 
 interface BoundedMutation extends MutationBase {
   /**
-   * The most rows the statement may change. More fails with `max_affected`
-   * and writes nothing. Over PostgREST it needs PostgREST 13 or later.
+   * The most rows the statement may change. More fails with `max_affected` and
+   * writes nothing. Over PostgREST it needs PostgREST 13 or later.
    */
   readonly maxAffected?: number;
 }
@@ -216,8 +224,8 @@ export interface InsertOp extends MutationBase {
       }
     | undefined;
   /**
-   * In a multi-row insert, columns some rows leave out become `null`
-   * instead of their column default.
+   * In a multi-row insert, columns some rows leave out become `null` instead of
+   * their column default.
    */
   readonly defaultToNull: boolean;
 }

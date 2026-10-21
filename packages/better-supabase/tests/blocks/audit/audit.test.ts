@@ -287,9 +287,7 @@ describe("exportAuditLog", () => {
     });
     expect(
       toOcsf({ ...entry, eventType: "deal.created" }, { name: "Acme" }),
-    ).toMatchObject({
-      activity_id: 1,
-    });
+    ).toMatchObject({ activity_id: 1 });
   });
 });
 

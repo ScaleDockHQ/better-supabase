@@ -14,9 +14,7 @@ export const aiChatBlock: BlockOf<
 > = defineBlock({
   name: "ai-chat",
   sql: ["ai-chat"],
-  options: {
-    "ai-chat": aiChatSqlOptions,
-  },
+  options: { "ai-chat": aiChatSqlOptions },
   events: aiChatEvents,
   create: createAiChat,
   client: "ai-chat",

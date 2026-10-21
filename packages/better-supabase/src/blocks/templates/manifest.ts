@@ -14,9 +14,7 @@ export const templatesBlock: BlockOf<
 > = defineBlock({
   name: "templates",
   sql: ["templates"],
-  options: {
-    templates: templatesSqlOptions,
-  },
+  options: { templates: templatesSqlOptions },
   events: templatesEvents,
   create: createTemplates,
   category: "content",

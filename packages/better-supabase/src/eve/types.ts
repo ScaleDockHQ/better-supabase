@@ -1,5 +1,5 @@
 /**
- * eve's `SessionAuthContext`, typed structurally so this entry never imports
+ * Eve's `SessionAuthContext`, typed structurally so this entry never imports
  * eve. `attributes` carries `tenantId`, `roles` and `isAnonymous`.
  */
 export interface EveSessionAuth {

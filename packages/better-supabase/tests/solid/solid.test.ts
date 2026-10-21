@@ -38,7 +38,7 @@ import {
 } from "../fixtures/fake-browser.ts";
 
 // Node resolves solid-js to its server build, where effects never run.
-vi.mock("solid-js", () => {
+vi.mock(import("solid-js"), () => {
   const browserBuild = "../../node_modules/solid-js/dist/solid.js";
 
   return import(browserBuild);
@@ -185,7 +185,7 @@ describe("useBroadcast", () => {
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     setAuth(signedIn(USER));
-    expect(client.channel).toHaveBeenCalledTimes(1);
+    expect(client.channel).toHaveBeenCalledOnce();
     await flush();
     expect(view.result()).toBe("subscribed");
     emit("room:r1", "created", {});
@@ -239,9 +239,7 @@ describe("useLiveQuery", () => {
     const view = mount(
       browser,
       () => useLiveQuery(current, { debounceMs: 1 }),
-      {
-        queryClient: cache.queryClient,
-      },
+      { queryClient: cache.queryClient },
     );
 
     await flush();

@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/empty";
 
 /**
- * A thrown error below the app layout: the sidebar stays, `retry()`
- * re-fetches the segment. Expected failures are `ActionResult` errors and
- * never reach this boundary.
+ * A thrown error below the app layout: the sidebar stays, `retry()` re-fetches
+ * the segment. Expected failures are `ActionResult` errors and never reach this
+ * boundary.
  */
 export default function AppError({
   error,

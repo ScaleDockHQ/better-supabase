@@ -43,9 +43,9 @@ interface Enrollment {
 
 /**
  * TOTP through Supabase Auth MFA. The server reads the verified factor
- * (`getTotpFactorId`), so it is in the prefetched page; enrolling and
- * verifying run in the browser. A verified factor raises the session to
- * `aal2`, which `deleteMyAccount` and `DELETE /api/customers/:id` require.
+ * (`getTotpFactorId`), so it is in the prefetched page; enrolling and verifying
+ * run in the browser. A verified factor raises the session to `aal2`, which
+ * `deleteMyAccount` and `DELETE /api/customers/:id` require.
  */
 export function TwoFactorCard({
   initial,
@@ -98,10 +98,7 @@ export function TwoFactorCard({
 
     startTransition(async () => {
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify(
-        {
-          factorId: enrollment.factorId,
-          code,
-        },
+        { factorId: enrollment.factorId, code },
       );
 
       if (verifyError) {

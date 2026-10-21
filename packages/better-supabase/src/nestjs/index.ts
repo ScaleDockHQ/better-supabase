@@ -18,12 +18,12 @@ import {
 
 export type { RouteGuardOptions } from "../server/refusal.ts";
 
-/** The part of Nest's `ArgumentsHost` and `ExecutionContext` the integration reads. */
+/**
+ * The part of Nest's `ArgumentsHost` and `ExecutionContext` the integration
+ * reads.
+ */
 export interface ExecutionContextLike {
-  switchToHttp(): {
-    getRequest(): object;
-    getResponse(): object;
-  };
+  switchToHttp(): { getRequest(): object; getResponse(): object };
 }
 
 /** A Nest guard instance, for `@UseGuards(...)`. */
@@ -31,12 +31,18 @@ export interface CanActivateLike {
   canActivate(context: ExecutionContextLike): Promise<boolean>;
 }
 
-/** A Nest exception filter instance, for `@UseFilters(...)` or `app.useGlobalFilters(...)`. */
+/**
+ * A Nest exception filter instance, for `@UseFilters(...)` or
+ * `app.useGlobalFilters(...)`.
+ */
 export interface ExceptionFilterLike {
   catch(exception: unknown, host: ExecutionContextLike): void;
 }
 
-/** Nest functional middleware: raw Node `req` and `res` under Express and Fastify. */
+/**
+ * Nest functional middleware: raw Node `req` and `res` under Express and
+ * Fastify.
+ */
 export type NestMiddleware = (
   req: IncomingMessage,
   res: ServerResponse,
@@ -45,7 +51,10 @@ export type NestMiddleware = (
 
 const contexts = new WeakMap<object, Record<string, unknown>>();
 
-/** The Node request under an Express request or a Fastify request (`request.raw`). */
+/**
+ * The Node request under an Express request or a Fastify request
+ * (`request.raw`).
+ */
 function rawOf(value: object): object {
   return "raw" in value && typeof value.raw === "object" && value.raw !== null
     ? value.raw
@@ -76,7 +85,10 @@ function requestOf(host: ExecutionContextLike): IncomingMessage {
   return rawOf(host.switchToHttp().getRequest()) as IncomingMessage;
 }
 
-/** The contributions `toNestMiddleware` stored for a request (Express or Fastify), if it ran. */
+/**
+ * The contributions `toNestMiddleware` stored for a request (Express or
+ * Fastify), if it ran.
+ */
 export function contextOf(
   request: object,
 ): Readonly<Record<string, unknown>> | undefined {
@@ -104,14 +116,17 @@ async function continueWith(
 }
 
 /**
- * Nest middleware that runs the entries before the route: a short circuit
- * (a 401, a CORS preflight) is the answer; otherwise the entries' cookies
- * go on the response and `@Ctx()` reads the contributions.
+ * Nest middleware that runs the entries before the route: a short circuit (a
+ * 401, a CORS preflight) is the answer; otherwise the entries' cookies go on
+ * the response and `@Ctx()` reads the contributions.
  *
- * ```ts title="src/app.module.ts"
+ * ```ts
+ * // src/app.module.ts
  * export class AppModule implements NestModule {
  *   configure(consumer: MiddlewareConsumer) {
- *     consumer.apply(toNestMiddleware([withBetterSupabase(server)])).forRoutes('*')
+ *     consumer
+ *       .apply(toNestMiddleware([withBetterSupabase(server)]))
+ *       .forRoutes("*");
  *   }
  * }
  * ```
@@ -171,9 +186,9 @@ const NEST_COMMON = "@nestjs/common";
 let nest: NestCommon | undefined;
 
 /**
- * `@nestjs/common` is an optional peer, loaded on first use with a
- * variable specifier so apps on other frameworks never resolve it. It is
- * required synchronously because decorators run while the class is defined.
+ * `@nestjs/common` is an optional peer, loaded on first use with a variable
+ * specifier so apps on other frameworks never resolve it. It is required
+ * synchronously because decorators run while the class is defined.
  */
 function nestCommon(): NestCommon {
   if (nest) {
@@ -230,8 +245,8 @@ export function Ctx(key?: string): ParameterDecorator {
 }
 
 /**
- * A guard instance that refuses callers outside `options`: Problem Details,
- * or a 303 to `signIn` or `mfa`, thrown as Nest's `HttpException`.
+ * A guard instance that refuses callers outside `options`: Problem Details, or
+ * a 303 to `signIn` or `mfa`, thrown as Nest's `HttpException`.
  *
  * ```ts
  * @UseGuards(guard({ roles: ['admin'] }))
@@ -276,9 +291,9 @@ export function guard(options: RouteGuardOptions = {}): CanActivateLike {
 }
 
 /**
- * An exception filter that answers thrown `DbException`s (from
- * `.orThrow()`) with Problem Details. Register it with `@Catch()` scope in
- * mind: other exceptions are answered the way Nest's base filter does.
+ * An exception filter that answers thrown `DbException`s (from `.orThrow()`)
+ * with Problem Details. Register it with `@Catch()` scope in mind: other
+ * exceptions are answered the way Nest's base filter does.
  */
 export function problemFilter(
   options: { readonly expose?: boolean } = {},

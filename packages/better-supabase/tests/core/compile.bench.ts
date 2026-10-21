@@ -1,7 +1,7 @@
 /**
  * The per-call work the plugin bench skips: compiling an operation to a
- * PostgREST plan, decoding rows with codecs, and running a list query.
- * Run with `pnpm --filter better-supabase bench`.
+ * PostgREST plan, decoding rows with codecs, and running a list query. Run with
+ * `pnpm --filter better-supabase bench`.
  */
 import type { Executor } from "../../src/core/executor.ts";
 import type { Operation, Selection } from "../../src/ir/types.ts";
@@ -16,8 +16,8 @@ import { schema } from "../fixtures/generated-camel.ts";
 const RUNS = 20_000;
 
 /**
- * Each pair may differ by at most this factor. Generous on purpose: the
- * gate catches work that starts scaling with the input, not noise.
+ * Each pair may differ by at most this factor. Generous on purpose: the gate
+ * catches work that starts scaling with the input, not noise.
  */
 const MAX_RATIO = 15;
 
@@ -55,13 +55,13 @@ async function opOf(run: () => PromiseLike<unknown>): Promise<Operation> {
 }
 
 function measure(work: () => unknown): number {
-  for (let warm = 0; warm < 2000; warm++) {
+  for (let warm = 0; warm < 2000; warm += 1) {
     work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     work();
   }
 
@@ -69,13 +69,13 @@ function measure(work: () => unknown): number {
 }
 
 async function measureAsync(work: () => PromiseLike<unknown>): Promise<number> {
-  for (let warm = 0; warm < 2000; warm++) {
+  for (let warm = 0; warm < 2000; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     await work();
   }
 

@@ -9,8 +9,8 @@ import { accessModel } from "./modules/access-model.ts";
 import { quotedTable, splitTable } from "./shared.ts";
 
 /**
- * One subject type a module's rows belong to (`options.subjects`): the
- * table its ids point at, and who may read it.
+ * One subject type a module's rows belong to (`options.subjects`): the table
+ * its ids point at, and who may read it.
  */
 export interface Subject {
   /** `schema.table`, or a table in `public`. */
@@ -18,15 +18,15 @@ export interface Subject {
   /** Default `id`. */
   readonly id?: string;
   /**
-   * The id column's type, such as `uuid` or `bigint`. With it, the stored
-   * text id is cast to that type, so the lookup uses the subject table's
-   * primary key; without it the column is cast to text, which can't.
+   * The id column's type, such as `uuid` or `bigint`. With it, the stored text
+   * id is cast to that type, so the lookup uses the subject table's primary
+   * key; without it the column is cast to text, which can't.
    */
   readonly idType?: string;
   /**
    * The subject's tenant column, default `organization_id`. `false` for a
-   * subject without a tenant (a user's own records), where the subject
-   * table's policies alone decide, in modules that allow it.
+   * subject without a tenant (a user's own records), where the subject table's
+   * policies alone decide, in modules that allow it.
    */
   readonly tenant?: string | false;
   /** A permission the caller also needs in the tenant, e.g. `projects.read`. */
@@ -86,10 +86,10 @@ function fromRegistry(
 }
 
 /**
- * The module's subject entries before they are checked: `options.subjects`
- * as an object (entries for registered types merge onto the registry's), as
- * a list of registered type names, or, when unset, every registered type the
- * module can hold.
+ * The module's subject entries before they are checked: `options.subjects` as
+ * an object (entries for registered types merge onto the registry's), as a list
+ * of registered type names, or, when unset, every registered type the module
+ * can hold.
  */
 function rawSubjects(
   ctx: ModuleContext,
@@ -173,9 +173,9 @@ function withAlways(
 }
 
 /**
- * `blocks.<module>.options.subjects`: subject type to
- * `{ table, id?, tenant?, permission?, cascade? }` plus the `extra` keys the
- * module reads, falling back to the app-wide `config.subjects` registry.
+ * `blocks.<module>.options.subjects`: subject type to `{ table, id?, tenant?,
+ * permission?, cascade? }` plus the `extra` keys the module reads, falling back
+ * to the app-wide `config.subjects` registry.
  */
 export function subjectsOption(
   ctx: ModuleContext,
@@ -289,9 +289,9 @@ export const qualifiedTable = (table: string): string => quotedTable(table);
 const COLUMN_NAME = /^[a-z_][a-z0-9_]*$/;
 
 /**
- * One adopted table a subject carries (`options.subjects.<type>.<key>`),
- * so a module can write per-entity link or history tables instead of one
- * polymorphic table. ADR 0018.
+ * One adopted table a subject carries (`options.subjects.<type>.<key>`), so a
+ * module can write per-entity link or history tables instead of one polymorphic
+ * table. ADR 0018.
  */
 export interface SubjectTableBinding {
   readonly type: string;
@@ -304,8 +304,8 @@ export interface SubjectTableBinding {
 }
 
 /**
- * `options.subjects.<type>.<key>` as `{ table, <column>... }`. Undefined
- * when the subject doesn't set it (the module's polymorphic table is used).
+ * `options.subjects.<type>.<key>` as `{ table, <column>... }`. Undefined when
+ * the subject doesn't set it (the module's polymorphic table is used).
  * `columns` are required; `optional` may be omitted.
  */
 function subjectTableBinding(
@@ -407,9 +407,9 @@ export function subjectTableBindings(
 }
 
 /**
- * Whether the caller may read the subject `type`/`id` in `tenant`: its row
- * is visible to them (the subject table's own policies apply) and they hold
- * its permission. `true` without `subjects`, `false` for an unlisted type.
+ * Whether the caller may read the subject `type`/`id` in `tenant`: its row is
+ * visible to them (the subject table's own policies apply) and they hold its
+ * permission. `true` without `subjects`, `false` for an unlisted type.
  */
 export function subjectReadable(
   ctx: Pick<ModuleContext, "scope" | "naming">,
@@ -438,9 +438,9 @@ export function subjectReadable(
 /**
  * `after delete` triggers on the subject tables with `cascade: true` that
  * delete the module's rows for the deleted subject. `remove` is the SQL that
- * deletes them, with `v_type` and `v_id` (text) in scope. With
- * `tenant: true`, `v_tenant` (text) holds the subject row's tenant, or null
- * for a subject with `tenant: false`.
+ * deletes them, with `v_type` and `v_id` (text) in scope. With `tenant: true`,
+ * `v_tenant` (text) holds the subject row's tenant, or null for a subject with
+ * `tenant: false`.
  */
 export function subjectCascades(
   ctx: ModuleContext,
@@ -505,9 +505,9 @@ ${triggers.join("\n\n")}
 /** The permission checks of a module whose rows belong to subjects. */
 export interface SubjectAccess<A extends string> {
   /**
-   * Whether the caller holds the action's key for a row of subject `type`
-   * and `id` in `tenant`: in the tenant, or on the subject record itself when
-   * its type sets `scope`. One `can()` call per row, for functions.
+   * Whether the caller holds the action's key for a row of subject `type` and
+   * `id` in `tenant`: in the tenant, or on the subject record itself when its
+   * type sets `scope`. One `can()` call per row, for functions.
    */
   canOn(tenant: string, type: string, id: string, action: A): string;
   /**
@@ -522,8 +522,8 @@ export interface SubjectAccess<A extends string> {
 /**
  * The checks for `options.subjects.<type>.permissions` (a key per action in
  * place of the module's) and `options.subjects.<type>.scope` (a scope the
- * authorization provider declares, whose ids are the subject ids, so a grant
- * on the record counts as well as one on the tenant).
+ * authorization provider declares, whose ids are the subject ids, so a grant on
+ * the record counts as well as one on the tenant).
  */
 export function subjectAccess<A extends string>(
   ctx: ModuleContext,

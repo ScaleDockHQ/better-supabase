@@ -14,12 +14,15 @@ const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const RUNS = 2000;
 
 /**
- * A verified token must cost at most this share of a first verification;
- * past it, the per-process memo has stopped working.
+ * A verified token must cost at most this share of a first verification; past
+ * it, the per-process memo has stopped working.
  */
 const MAX_WARM_SHARE = 0.5;
 
-/** A repeat call on the same request must cost at most this share of a verified one. */
+/**
+ * A repeat call on the same request must cost at most this share of a verified
+ * one.
+ */
 const MAX_REPEAT_SHARE = 0.25;
 
 const signer = await createTestSigner();
@@ -49,13 +52,13 @@ const bearer = (): Request =>
   });
 
 async function measure(work: () => Promise<unknown>): Promise<number> {
-  for (let warm = 0; warm < 200; warm++) {
+  for (let warm = 0; warm < 200; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     await work();
   }
 

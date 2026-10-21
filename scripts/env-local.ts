@@ -1,8 +1,8 @@
 /**
- * Writes `.env.development.local` from the running local stack and the
- * Portless URLs, so `pnpm dev:portless` and `pnpm test:integration` need no
- * hosted keys. The CLI picks the stack's ports for each checkout or worktree,
- * so run it again in every worktree.
+ * Writes `.env.development.local` from the running local stack and the Portless
+ * URLs, so `pnpm dev:portless` and `pnpm test:integration` need no hosted keys.
+ * The CLI picks the stack's ports for each checkout or worktree, so run it
+ * again in every worktree.
  */
 import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";

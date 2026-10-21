@@ -29,8 +29,8 @@ import { WorkItemGrid } from "./work-item-grid";
 import { WorkLoadError } from "./work-load-error";
 
 /**
- * Render inside `<Suspense>`: the work items for the URL's search, state
- * filter and sort, with the caller's saved views of the grid.
+ * Render inside `<Suspense>`: the work items for the URL's search, state filter
+ * and sort, with the caller's saved views of the grid.
  */
 export async function WorkGrid({
   searchParams,

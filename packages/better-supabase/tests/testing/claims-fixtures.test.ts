@@ -24,8 +24,9 @@ function user(claims: Readonly<Record<string, unknown>>): AuthState {
 }
 
 describe("supabaseClaimFixtures", () => {
-  for (const [name, fixture] of Object.entries(supabaseClaimFixtures)) {
-    it(`${name}: reads as expected`, () => {
+  it.each(Object.entries(supabaseClaimFixtures))(
+    "%s: reads as expected",
+    (_name, fixture) => {
       expect(actorOf(fixture.claims)).toEqual({
         ok: true,
         actor: fixture.expect.actor,
@@ -42,8 +43,8 @@ describe("supabaseClaimFixtures", () => {
 
       expect(session.impersonator).toEqual(fixture.expect.impersonator);
       expect(session.delegation).toEqual(fixture.expect.delegation);
-    });
-  }
+    },
+  );
 
   it("matches what supportClaims and actClaim mint", () => {
     const { supportSession, supportSessionReadOnly, impersonation } =
@@ -67,10 +68,7 @@ describe("supabaseClaimFixtures", () => {
     }
 
     expect(
-      actClaim({
-        actor: impersonation.expect.actor.id,
-        reason: "ticket 42",
-      }),
+      actClaim({ actor: impersonation.expect.actor.id, reason: "ticket 42" }),
     ).toEqual(impersonation.claims["act"]);
   });
 
@@ -101,26 +99,27 @@ const ACT_CASE_OF = {
 } as const satisfies Record<keyof typeof supabaseInvalidClaimFixtures, string>;
 
 describe("supabaseInvalidClaimFixtures", () => {
-  for (const [name, fixture] of Object.entries(supabaseInvalidClaimFixtures)) {
-    it(`${name}: refuses the session`, () => {
-      expect(actorOf(fixture.claims)).toEqual({
-        ok: false,
-        reason: "invalid-chain",
-      });
+  const invalid = Object.entries(supabaseInvalidClaimFixtures);
 
-      const session = toSession(user(fixture.claims));
-      expect(session).toMatchObject({
-        kind: fixture.expect.kind,
-        reason: fixture.expect.reason,
-        error: { code: fixture.expect.code },
-      });
+  it.each(invalid)("%s: refuses the session", (_name, fixture) => {
+    expect(actorOf(fixture.claims)).toEqual({
+      ok: false,
+      reason: "invalid-chain",
     });
 
-    it(`${name}: act-cases.json refuses the same chain`, () => {
-      const caseName = ACT_CASE_OF[name as keyof typeof ACT_CASE_OF];
-      const actCase = actCases.cases.find((entry) => entry.name === caseName);
-
-      expect(actCase).toMatchObject({ valid: false, kind: null });
+    const session = toSession(user(fixture.claims));
+    expect(session).toMatchObject({
+      kind: fixture.expect.kind,
+      reason: fixture.expect.reason,
+      error: { code: fixture.expect.code },
     });
-  }
+  });
+
+  it.each(invalid)("%s: act-cases.json refuses the same chain", (name) => {
+    // SAFETY: `invalid` comes from the same fixtures ACT_CASE_OF is keyed by.
+    const caseName = ACT_CASE_OF[name as keyof typeof ACT_CASE_OF];
+    const actCase = actCases.cases.find((entry) => entry.name === caseName);
+
+    expect(actCase).toMatchObject({ valid: false, kind: null });
+  });
 });

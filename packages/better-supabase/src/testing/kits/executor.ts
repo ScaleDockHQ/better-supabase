@@ -1,16 +1,11 @@
 import type { BetterSupabase } from "../../core/define.ts";
 import type { ExecuteContext, Executor } from "../../core/executor.ts";
 import type { Operation } from "../../ir/types.ts";
+import type { Check, ConformanceReport } from "../conformance.ts";
 
 import { isList } from "../../core/guards.ts";
 import { ok } from "../../core/result.ts";
-import {
-  conform,
-  expect,
-  same,
-  type Check,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { conform, expect, same } from "../conformance.ts";
 
 // oxlint-disable-next-line typescript/no-explicit-any -- the kit takes any configured client, and its type parameters are invariant
 export type AnySupabase = BetterSupabase<any, any, any, any>;
@@ -34,7 +29,10 @@ export const recorder = (ops: Operation[]): Executor => ({
   },
 });
 
-/** The operation `run` sends to the executor, built by `betterSupabase` without touching a database. */
+/**
+ * The operation `run` sends to the executor, built by `betterSupabase` without
+ * touching a database.
+ */
 export async function captureOp(
   betterSupabase: AnySupabase,
   run: (db: AnyDb) => PromiseLike<unknown>,
@@ -74,22 +72,36 @@ export const hasName = (subject: { readonly name?: unknown }): Check => [
 ];
 
 export interface TestExecutorOptions {
-  /** A definition whose schema matches the executor's database. Install no plugins. */
+  /**
+   * A definition whose schema matches the executor's database. Install no
+   * plugins.
+   */
   readonly betterSupabase: AnySupabase;
-  /** App key of a table with rows the executor can read. Defaults to the first table. */
+  /**
+   * App key of a table with rows the executor can read. Defaults to the first
+   * table.
+   */
   readonly table?: string;
-  /** A row to insert and delete again, to check writes. Skips write checks when omitted. */
+  /**
+   * A row to insert and delete again, to check writes. Skips write checks when
+   * omitted.
+   */
   readonly create?: Readonly<Record<string, unknown>>;
 }
 
 /**
  * Proves an `Executor` meets the contract: rows keyed by the selection's
- * aliases, counts, `aborted` errors, failures returned as `Result`s rather
- * than thrown, and (with `create`) a write round trip and a `deleteMany`
- * that `maxAffected` refuses without deleting anything.
+ * aliases, counts, `aborted` errors, failures returned as `Result`s rather than
+ * thrown, and (with `create`) a write round trip and a `deleteMany` that
+ * `maxAffected` refuses without deleting anything.
  *
  * ```ts
- * it('conforms', () => testExecutor(myExecutor, { betterSupabase, table: 'tags', create: { name: 'x' } }));
+ * it("conforms", () =>
+ *   testExecutor(myExecutor, {
+ *     betterSupabase,
+ *     table: "tags",
+ *     create: { name: "x" },
+ *   }));
  * ```
  */
 export function testExecutor(

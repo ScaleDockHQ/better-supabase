@@ -9,8 +9,8 @@ import { bs } from "@/lib/supabase/server";
 
 /**
  * Call after the browser client signs in or out. `refresh()` from a Server
- * Action clears the client router cache, including every private session
- * read, so the next render sees the new user.
+ * Action clears the client router cache, including every private session read,
+ * so the next render sees the new user.
  */
 // oxlint-disable-next-line typescript/require-await -- Next.js requires Server Actions to be async
 export async function sessionChanged(): Promise<void> {
@@ -50,8 +50,8 @@ const AVATAR_EXTENSIONS = new Map([
 ]);
 
 /**
- * Uploads a new avatar under the caller's id, points the profile at its
- * path (`public.set_my_avatar_path`), then removes the previous object.
+ * Uploads a new avatar under the caller's id, points the profile at its path
+ * (`public.set_my_avatar_path`), then removes the previous object.
  */
 export const uploadAvatar = bs.action(
   {
@@ -105,9 +105,10 @@ export const uploadAvatar = bs.action(
 );
 
 /**
- * Deletes the signed-in user, their avatars and their cached session;
- * the notifications block's rows cascade. Customer logos belong to the organization, so that
- * bucket is left alone. Needs a verified second factor in this session.
+ * Deletes the signed-in user, their avatars and their cached session; the
+ * notifications block's rows cascade. Customer logos belong to the
+ * organization, so that bucket is left alone. Needs a verified second factor in
+ * this session.
  */
 export const deleteMyAccount = bs.action(
   { aal: "aal2" },

@@ -36,6 +36,7 @@ const storage = (files = new Map<string, Blob>()): AttachmentStorage => ({
 
 describe.skipIf(!live)("attachments", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("accepts only expected uploads, hides unscanned files and records scans", async () => {
@@ -696,10 +697,7 @@ describe.skipIf(!live)("attachments", () => {
       });
 
       expect(await scanner.scan(DRIVE, "a/report.pdf").orThrow()).toMatchObject(
-        {
-          status: "clean",
-          bucket: DRIVE,
-        },
+        { status: "clean", bucket: DRIVE },
       );
       await scanner.scan(DRIVE, "a/report.pdf").orThrow();
       expect(scanned).toEqual(["a/report.pdf"]);

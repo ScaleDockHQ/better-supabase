@@ -1,17 +1,16 @@
 import type { AuthResolver, AuthState } from "../../auth/resolve.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import {
-  Violation,
-  conform,
-  expect,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { Violation, conform, expect } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestAuthResolverOptions {
   /** Requests with credentials this resolver owns but that must not verify. */
   readonly invalid: readonly Request[];
-  /** Requests that must resolve to a user or service, optionally with the expected user id. */
+  /**
+   * Requests that must resolve to a user or service, optionally with the
+   * expected user id.
+   */
   readonly valid?: readonly {
     readonly request: Request;
     readonly userId?: string;

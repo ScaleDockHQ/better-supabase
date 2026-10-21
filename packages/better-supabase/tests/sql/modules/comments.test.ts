@@ -7,9 +7,7 @@ const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderModules(names, {
-    modules: options ? { comments: { options } } : {},
-  })
+  renderModules(names, { modules: options ? { comments: { options } } : {} })
     .filter((file) => file.contents.includes("activity_entries"))
     .map((file) => file.contents)
     .join("\n");

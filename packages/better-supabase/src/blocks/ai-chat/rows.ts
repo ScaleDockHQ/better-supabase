@@ -84,7 +84,10 @@ export function projectOf(value: unknown): AiProject {
 
 const PART_TYPES: ReadonlySet<unknown> = new Set(AI_MESSAGE_PART_TYPES);
 
-/** The table's check constraint admits only canonical parts; this keeps the type honest. */
+/**
+ * The table's check constraint admits only canonical parts; this keeps the type
+ * honest.
+ */
 function isPart(value: unknown): value is AiMessagePart {
   return isRecord(value) && PART_TYPES.has(value["type"]);
 }

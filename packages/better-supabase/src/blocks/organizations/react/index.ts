@@ -45,15 +45,21 @@ export interface UseOrganizationsOptions<T> {
   readonly load?: OrganizationSource<T>;
   /** Organizations a server already loaded: the first load is skipped. */
   readonly initial?: readonly T[];
-  /** The active organization a server read from the session, used while the session has no tenant claim. */
+  /**
+   * The active organization a server read from the session, used while the
+   * session has no tenant claim.
+   */
   readonly activeId?: string | null;
   /** The tenant claim, `config.claims.tenant` (default `tenant_id`). */
   readonly claim?: string;
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
   /**
-   * Runs after a switch. Default: refresh the session when the result asks
-   * for it, so the token carries the new tenant claim.
+   * Runs after a switch. Default: refresh the session when the result asks for
+   * it, so the token carries the new tenant claim.
    */
   readonly onSwitched?: (result: SwitchResult) => void | Promise<void>;
 }
@@ -65,9 +71,9 @@ export interface OrganizationsState<T>
 }
 
 /**
- * The caller's organizations and the active one, for an organization
- * switcher: `switchTo` switches, refreshes the session and loads the list
- * again. The same hook runs in React DOM and React Native.
+ * The caller's organizations and the active one, for an organization switcher:
+ * `switchTo` switches, refreshes the session and loads the list again. The same
+ * hook runs in React DOM and React Native.
  *
  * ```tsx
  * const { organizations, active, switchTo } = useOrganizations();
@@ -135,13 +141,16 @@ export interface UseMembersOptions<T> {
   /** The organization; the table waits without one. */
   readonly organizationId: string | null | undefined;
   /**
-   * The members, such as a server action that adds names and avatars.
-   * Default `organizations.members(id)` through the browser client.
+   * The members, such as a server action that adds names and avatars. Default
+   * `organizations.members(id)` through the browser client.
    */
   readonly load?: OrganizationRowSource<T>;
   /** Members a server already loaded: the first load is skipped. */
   readonly initial?: readonly T[];
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
   /** Runs after a role change or a removal committed. */
   readonly onChanged?: (change: MemberChange) => void | Promise<void>;
@@ -153,12 +162,14 @@ export interface MembersState<T extends { readonly role: string }>
   extends MembersSnapshot<T>, MembersActions<T["role"]> {}
 
 /**
- * One organization's members through the browser client, for a members
- * table: `setRole` shows the new role at once, `remove` removes a member.
- * The same hook runs in React DOM and React Native.
+ * One organization's members through the browser client, for a members table:
+ * `setRole` shows the new role at once, `remove` removes a member. The same
+ * hook runs in React DOM and React Native.
  *
  * ```tsx
- * const { members, pending, setRole, remove } = useMembers({ organizationId });
+ * const { members, pending, setRole, remove } = useMembers({
+ *   organizationId,
+ * });
  * ```
  */
 export function useMembers(
@@ -205,11 +216,17 @@ export function useMembers(
 export interface UseInvitationsOptions<T> {
   /** The organization; nothing loads or sends without one. */
   readonly organizationId: string | null | undefined;
-  /** The open invitations. Default `organizations.invitations(id)` through the browser client. */
+  /**
+   * The open invitations. Default `organizations.invitations(id)` through the
+   * browser client.
+   */
   readonly load?: OrganizationRowSource<T>;
   /** Invitations a server already loaded: the first load is skipped. */
   readonly initial?: readonly T[];
-  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `blocks.<module>.api`. */
+  /**
+   * The schema the calls go to: the module schema (default `better_supabase`),
+   * or the API schema from `blocks.<module>.api`.
+   */
   readonly schema?: string;
   /** Runs after an invitation was sent or revoked. */
   readonly onChanged?: (change: InvitationChange) => void | Promise<void>;
@@ -219,12 +236,14 @@ export interface InvitationsState<T>
   extends InvitationsSnapshot<T>, InvitationsActions {}
 
 /**
- * One organization's open invitations through the browser client, for an
- * invite dialog: `invite` sends one and keeps the token for the accept link
- * in `sent`. The same hook runs in React DOM and React Native.
+ * One organization's open invitations through the browser client, for an invite
+ * dialog: `invite` sends one and keeps the token for the accept link in `sent`.
+ * The same hook runs in React DOM and React Native.
  *
  * ```tsx
- * const { invite, inviting, sent, error } = useInvitations({ organizationId });
+ * const { invite, inviting, sent, error } = useInvitations({
+ *   organizationId,
+ * });
  * ```
  */
 export function useInvitations(

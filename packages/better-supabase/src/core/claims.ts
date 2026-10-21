@@ -8,21 +8,30 @@ export const DEFAULT_CLAIMS: ClaimsMeta = {
   memberships: "memberships",
 };
 
-/** Where an adapter reads each claim the SQL modules and the provider's hook write. */
+/**
+ * Where an adapter reads each claim the SQL modules and the provider's hook
+ * write.
+ */
 export interface ClaimPaths {
-  /** The active tenant: the top-level claim, then the same key in `app_metadata`. */
+  /**
+   * The active tenant: the top-level claim, then the same key in
+   * `app_metadata`.
+   */
   readonly tenant: readonly [string, string];
   /** `{ [tenantId]: string[] }` of plan features. */
   readonly features: string;
-  /** The caller's memberships, a list of `{ scope, id, roles }` or a map of tenant id to role. */
+  /**
+   * The caller's memberships, a list of `{ scope, id, roles }` or a map of
+   * tenant id to role.
+   */
   readonly memberships: string;
   /** The `scope` of tenant entries in the memberships list. */
   readonly scope: string;
 }
 
 /**
- * The claim paths for `config.claims`, with defaults. For a generated
- * schema, pass `claimsOf(meta)`.
+ * The claim paths for `config.claims`, with defaults. For a generated schema,
+ * pass `claimsOf(meta)`.
  */
 export function claimPaths(claims?: Partial<ClaimsMeta>): ClaimPaths {
   const resolved = { ...DEFAULT_CLAIMS, ...claims };
@@ -55,7 +64,10 @@ export function claimsOf(
 
 const claimsByMeta = new WeakMap<object, ClaimsMeta>();
 
-/** Where the active tenant is read from: the top-level claim, then `app_metadata`. */
+/**
+ * Where the active tenant is read from: the top-level claim, then
+ * `app_metadata`.
+ */
 export function tenantClaimPaths(
   tenant: string = DEFAULT_CLAIMS.tenant,
 ): readonly [string, string] {
@@ -88,8 +100,8 @@ export function tenantPathsFor(
 
 /**
  * The tenant of a request: `context.tenant`, then the first of `paths` that
- * holds a non-empty string. Every tenant-aware module resolves through this,
- * so they agree on precedence.
+ * holds a non-empty string. Every tenant-aware module resolves through this, so
+ * they agree on precedence.
  */
 export function tenantFrom(
   context: Pick<RequestContext, "tenant" | "claims">,

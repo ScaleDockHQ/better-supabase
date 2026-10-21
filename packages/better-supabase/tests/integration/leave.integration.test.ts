@@ -17,6 +17,7 @@ const day = (text: string): Temporal.PlainDate => Temporal.PlainDate.from(text);
 
 describe.skipIf(!live)("leave", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("books approved leave against a balance and gives it back on cancel", async () => {
@@ -94,10 +95,7 @@ describe.skipIf(!live)("leave", () => {
       expect(week).toMatchObject({ amount: 5, status: "pending" });
       expect(
         await leave
-          .request(tenant, {
-            typeId: vacation.id,
-            startsOn: day("2027-03-03"),
-          })
+          .request(tenant, { typeId: vacation.id, startsOn: day("2027-03-03") })
           .then(hint),
       ).toBe("LEAVE_OVERLAP");
       expect(

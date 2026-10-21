@@ -1,6 +1,9 @@
 import type { UploadBody } from "./bucket.ts";
 
-/** A failed Storage call's `error`, as supabase-js returns it (`StorageApiError`, `StorageUnknownError`). */
+/**
+ * A failed Storage call's `error`, as supabase-js returns it
+ * (`StorageApiError`, `StorageUnknownError`).
+ */
 export interface StorageFailure {
   readonly name: string;
   readonly message: string;
@@ -160,9 +163,9 @@ export type StorageRemoveEntry =
 
 /**
  * One bucket's file API: the methods of supabase-js
- * `supabase.storage.from(bucket)` that bucket clients and blocks call,
- * typed structurally so another implementation (such as `supportStorage`)
- * can stand in for it.
+ * `supabase.storage.from(bucket)` that bucket clients and blocks call, typed
+ * structurally so another implementation (such as `supportStorage`) can stand
+ * in for it.
  */
 export interface StorageBucketApi {
   upload(
@@ -250,7 +253,10 @@ export interface StorageBucketApi {
   ): PromiseLike<StorageResponse<StorageListV2Result>>;
 }
 
-/** Storage's file API: `supabase.storage`, or anything with the same `from(bucket)`. */
+/**
+ * Storage's file API: `supabase.storage`, or anything with the same
+ * `from(bucket)`.
+ */
 export interface StorageApi {
   from(bucket: string): StorageBucketApi;
   /**
@@ -264,7 +270,10 @@ export interface StorageApi {
   ): PromiseLike<StorageResponse<{ readonly path: string }>>;
 }
 
-/** What `bucket.connect()` takes: a `StorageApi`, or a client that carries one as `storage` (a supabase-js client). */
+/**
+ * What `bucket.connect()` takes: a `StorageApi`, or a client that carries one
+ * as `storage` (a supabase-js client).
+ */
 export type StorageClient = StorageApi | { readonly storage: StorageApi };
 
 /** The `StorageApi` of a client, or the client itself. */

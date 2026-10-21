@@ -57,9 +57,9 @@ const TIMESTAMPTZ =
 
 /**
  * `timestamptz` text in UTC as ISO 8601 with a `Z`, from either PostgREST's
- * form (`2026-10-21T07:10:00.123456+00:00`) or Postgres text
- * (`2026-10-21 07:10:00.123456+02`). The fraction keeps every digit it had,
- * so no microsecond is lost; `infinity` and `-infinity` pass through.
+ * form (`2026-10-21T07:10:00.123456+00:00`) or Postgres text (`2026-10-21
+ * 07:10:00.123456+02`). The fraction keeps every digit it had, so no
+ * microsecond is lost; `infinity` and `-infinity` pass through.
  */
 export function utcText(value: unknown): string {
   const text = String(value);

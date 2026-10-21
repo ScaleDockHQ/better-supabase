@@ -21,6 +21,7 @@ const TASK =
 
 describe.skipIf(!live)("project management recipe", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("moves a task through its workflow and notifies its watchers", async () => {
@@ -80,9 +81,7 @@ describe.skipIf(!live)("project management recipe", () => {
       );
 
       const { reminders } = createBlocks(
-        {
-          transport: sqlTransport(s.sql),
-        },
+        { transport: sqlTransport(s.sql) },
         {
           notifications: notificationsBlock.using((options) =>
             createNotifications({ ...options, types: NOTIFICATION_TYPES }),

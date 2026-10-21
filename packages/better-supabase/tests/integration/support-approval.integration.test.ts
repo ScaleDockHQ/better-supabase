@@ -2,14 +2,10 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { renderModules } from "../../src/sql/render.ts";
-import {
-  BlockSession,
-  dbUrl,
-  reachable,
-  type TestUser,
-} from "./block-session.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -25,7 +21,10 @@ interface Request {
   readonly session_id: string | null;
 }
 
-/** Installs `module` from `layout` over what the session already has, its own file only. */
+/**
+ * Installs `module` from `layout` over what the session already has, its own
+ * file only.
+ */
 async function reinstall(
   s: BlockSession,
   modules: readonly string[],
@@ -41,7 +40,10 @@ async function reinstall(
   }
 }
 
-/** A provider whose `isApprover` allows everyone for `kind`, so only the requester check can refuse. */
+/**
+ * A provider whose `isApprover` allows everyone for `kind`, so only the
+ * requester check can refuse.
+ */
 async function providerLayout(
   s: BlockSession,
   kind: string,
@@ -71,6 +73,7 @@ async function providerLayout(
 
 describe.skipIf(!live)("support session approvals as real users", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   async function setUp(s: BlockSession) {
@@ -245,6 +248,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
 
 describe.skipIf(!live)("ai-chat tool approvals through isApprover", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("never lets the chat's owner approve their own tool call", async () => {

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { SolidFetchEvent } from "../../src/solid-start/index.ts";
+
 import { ok } from "../../src/core/result.ts";
-import {
-  createSolidStart,
-  type SolidFetchEvent,
-} from "../../src/solid-start/index.ts";
+import { createSolidStart } from "../../src/solid-start/index.ts";
 import {
   betterSupabase,
   env,

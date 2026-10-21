@@ -10,7 +10,10 @@ import { blocks } from "../lib/blocks";
 const unreadOf = (counts: readonly NotificationCounts[]): number =>
   counts[0]?.unread ?? 0;
 
-/** The unread count, loaded again after each broadcast on `notifications:<user id>`. */
+/**
+ * The unread count, loaded again after each broadcast on `notifications:<user
+ * id>`.
+ */
 export function NotificationBell({
   onPress,
 }: {

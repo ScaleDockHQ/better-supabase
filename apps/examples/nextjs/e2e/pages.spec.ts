@@ -1,14 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
-import {
-  clickSidebar,
-  heading,
-  type Locale,
-  sidebarLink,
-  visibleTestId,
-} from "./nav";
-import { type UserName, users } from "./users";
+import type { Locale } from "./nav";
+import type { UserName } from "./users";
+
+import { clickSidebar, heading, sidebarLink, visibleTestId } from "./nav";
+import { users } from "./users";
 
 interface Route {
   readonly path: string;

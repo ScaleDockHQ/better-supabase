@@ -68,7 +68,8 @@ function toFunction(
 ): CatalogFunction {
   const args: CatalogFunction["args"][number][] = [];
   const table: NonNullable<CatalogFunction["returnsTable"]>[number][] = [];
-  fn.args.forEach((arg, index) => {
+
+  for (const [index, arg] of fn.args.entries()) {
     const type = typeOf(arg.type_id);
     const raw = type?.name ?? "unknown";
     const typeSchema = type ? { typeSchema: type.schema } : {};
@@ -88,7 +89,8 @@ function toFunction(
     if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout") {
       table.push({ name, udt: raw, ...typeSchema });
     }
-  });
+  }
+
   const returnType = typeOf(fn.return_type_id);
   const searchPath = fn.config_params?.["search_path"];
 
@@ -198,7 +200,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
           onUpdate: action?.onUpdate ?? "no action",
         };
       })
-      .sort((a, b) => byCodePoint(a.name, b.name));
+      .toSorted((a, b) => byCodePoint(a.name, b.name));
   };
 
   const build = (
@@ -215,7 +217,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
   ): CatalogTable => {
     const extra = extras.get(entry.id);
 
-    const own = [...(columns.get(entry.id) ?? [])].sort(
+    const own = [...(columns.get(entry.id) ?? [])].toSorted(
       (a, b) => a.ordinal_position - b.ordinal_position,
     );
 
@@ -283,7 +285,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
         updatable: false,
       }),
     ),
-  ].sort(byName);
+  ].toSorted(byName);
 
   const included = new Set(snapshot.schemas);
 
@@ -294,7 +296,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       name: type.name,
       values: type.enums,
     }))
-    .sort(byName);
+    .toSorted(byName);
 
   const types = new Map(meta.types.map((type) => [type.id, type]));
 
@@ -313,7 +315,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
 
       return comment === undefined ? entry : { ...entry, comment };
     })
-    .sort((a, b) => byName(a, b) || byCodePoint(a.signature, b.signature));
+    .toSorted((a, b) => byName(a, b) || byCodePoint(a.signature, b.signature));
 
   return {
     schemas: snapshot.schemas,

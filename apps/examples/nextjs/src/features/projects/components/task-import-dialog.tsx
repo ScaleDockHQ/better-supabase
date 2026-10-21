@@ -37,7 +37,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { TASK_IMPORT_FIELDS, type TaskImportField } from "../project-types";
+import type { TaskImportField } from "../project-types";
+
+import { TASK_IMPORT_FIELDS } from "../project-types";
 import { previewTaskImport, runTaskImport } from "../task-import-actions";
 
 // #region recipe:upsert-import
@@ -62,9 +64,9 @@ function mappedOnly(
 }
 
 /**
- * Imports tasks into the project from pasted CSV: map the columns, preview
- * what the file creates and changes, then run it. A task with the same
- * title in the project is updated instead of added twice.
+ * Imports tasks into the project from pasted CSV: map the columns, preview what
+ * the file creates and changes, then run it. A task with the same title in the
+ * project is updated instead of added twice.
  */
 export function TaskImportDialog({ projectId }: { projectId: string }) {
   const t = useExtracted("projects");

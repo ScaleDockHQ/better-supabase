@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { InvoiceNames } from "./invoices-functions.ts";
 
 import {
   lineTableSpec,
@@ -14,7 +15,7 @@ import {
 } from "../line-items-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { invoiceFunctions, type InvoiceNames } from "./invoices-functions.ts";
+import { invoiceFunctions } from "./invoices-functions.ts";
 
 const INVOICE = [
   "organizationId",
@@ -254,11 +255,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     { name: "void_invoice", args: ["uuid", "text"], returns: "jsonb" },
     { name: "write_off_invoice", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "invoice_aging",
-      args: ["{id}", "text", "date"],
-      returns: "jsonb",
-    },
+    { name: "invoice_aging", args: ["{id}", "text", "date"], returns: "jsonb" },
     ...(ctx.installed("quotes")
       ? [
           {

@@ -1,30 +1,22 @@
 "use client";
 
-import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
-import {
-  type ChatTransport,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  type UIMessage,
-} from "ai";
+import type { ChatTransport, UIMessage } from "ai";
 
-import {
-  type AssistantTransportConfig,
-  assistantBody,
-} from "../../react/body.ts";
-import {
-  type AssistantState,
-  useAssistant,
-  type UseAssistantOptions,
-} from "../../react/index.ts";
+import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+
+import type { AssistantTransportConfig } from "../../react/body.ts";
+import type { AssistantState, UseAssistantOptions } from "../../react/index.ts";
+
+import { assistantBody } from "../../react/body.ts";
+import { useAssistant } from "../../react/index.ts";
 
 export type { AssistantState } from "../../react/index.ts";
 
 /** The decisions in an assistant message whose approvals the user answered. */
-function approvalsOf(message: UIMessage | undefined): {
-  approvalId: string;
-  approved: boolean;
-  reason?: string;
-}[] {
+function approvalsOf(
+  message: UIMessage | undefined,
+): { approvalId: string; approved: boolean; reason?: string }[] {
   if (message?.role !== "assistant") {
     return [];
   }
@@ -46,9 +38,9 @@ function approvalsOf(message: UIMessage | undefined): {
 
 /**
  * The transport for `durableChat`: the Workflow SDK's chat transport, which
- * reconnects until the segment's `finish` when a request drops. It sends
- * the user's newest message, or the answered approvals of the last answer
- * so the waiting turn continues. Pass it as `useAssistant({ transport })`.
+ * reconnects until the segment's `finish` when a request drops. It sends the
+ * user's newest message, or the answered approvals of the last answer so the
+ * waiting turn continues. Pass it as `useAssistant({ transport })`.
  */
 export function durableTransport(
   config: AssistantTransportConfig,
@@ -89,10 +81,9 @@ export function durableTransport(
 export type UseDurableAssistantOptions = Omit<UseAssistantOptions, "transport">;
 
 /**
- * `useAssistant` on `durableChat`. It continues the answer once every
- * approval is answered. `resume` defaults to `false`: pass
- * `chat.activeStreamId !== undefined` from the chat row so a reload picks
- * up the running answer.
+ * `useAssistant` on `durableChat`. It continues the answer once every approval
+ * is answered. `resume` defaults to `false`: pass `chat.activeStreamId !==
+ * undefined` from the chat row so a reload picks up the running answer.
  */
 export function useDurableAssistant(
   options: UseDurableAssistantOptions,

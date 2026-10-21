@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { Jwk, Jwks } from "../../src/core/jws.ts";
+
 import {
   generateSigningKey,
   importSigningKey,
-  type Jwk,
-  type Jwks,
   JwsError,
   jwksOf,
   jwkThumbprint,
@@ -13,9 +13,7 @@ import {
   verifyCompact,
 } from "../../src/core/jws.ts";
 
-const keySet = (kid: string, jwk: Jwk): Jwks => ({
-  keys: [{ ...jwk, kid }],
-});
+const keySet = (kid: string, jwk: Jwk): Jwks => ({ keys: [{ ...jwk, kid }] });
 
 describe("jws", () => {
   it.each(["Ed25519", "ES256"] as const)(

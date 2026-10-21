@@ -1,4 +1,8 @@
 import type {
+  MetricDefinition,
+  MetricGrain,
+} from "../../core/metric-definition.ts";
+import type {
   ModuleContext,
   ModuleContractFunction,
   ModuleNames,
@@ -7,8 +11,6 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import {
   METRIC_GRAINS,
-  type MetricDefinition,
-  type MetricGrain,
   grainDivides,
   metricsOf,
 } from "../../core/metric-definition.ts";
@@ -67,9 +69,9 @@ const qualified = (table: string): string =>
   table.includes(".") ? table : `public.${table}`;
 
 /**
- * The metrics declared in `options.metrics`. A metric over a subject table
- * with `deletedAt` skips soft-deleted rows unless `where` names that column
- * or the metric sets `includeDeleted`.
+ * The metrics declared in `options.metrics`. A metric over a subject table with
+ * `deletedAt` skips soft-deleted rows unless `where` names that column or the
+ * metric sets `includeDeleted`.
  */
 function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
   return metricsOf(ctx.option("metrics")).map((metric) => {
@@ -93,7 +95,10 @@ function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
   });
 }
 
-/** The grains `metric_points` keeps for a metric, none when it is queried directly. */
+/**
+ * The grains `metric_points` keeps for a metric, none when it is queried
+ * directly.
+ */
 function storedGrains(metric: MetricDefinition): readonly MetricGrain[] {
   if (metric.rollup === false) {
     return [];
@@ -111,7 +116,10 @@ const literal = (value: string | number | boolean | null): string =>
       ? sqlString(value)
       : String(value);
 
-/** `select tenant, at, dims, value, count` over the metric's table, one row per source row. */
+/**
+ * `select tenant, at, dims, value, count` over the metric's table, one row per
+ * source row.
+ */
 function rowSource(metric: MetricDefinition): string {
   const t = (name: string): string => `t.${sqlIdent(name)}`;
   const dims = metric.dimensions ?? [];
@@ -245,7 +253,10 @@ function sourceCte(
     )`;
 }
 
-/** The stored grain each requested grain reads from, coarsest first; `null` reads the table. */
+/**
+ * The stored grain each requested grain reads from, coarsest first; `null`
+ * reads the table.
+ */
 function sourceGrainCase(
   metric: MetricDefinition,
   pick: "coarsest" | "finest",

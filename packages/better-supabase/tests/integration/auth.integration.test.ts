@@ -6,12 +6,13 @@ import { createClient } from "@supabase/supabase-js";
 import { QueryClient } from "@tanstack/react-query";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { CookieRecord } from "../../src/auth/session.ts";
+
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { checkSession } from "../../src/auth/revocation.ts";
 import {
   readSession,
   sessionCookieName,
-  type CookieRecord,
   writeSession,
 } from "../../src/auth/session.ts";
 import { createClient as createBetterClient } from "../../src/client/index.ts";

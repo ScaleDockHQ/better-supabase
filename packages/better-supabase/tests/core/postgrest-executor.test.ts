@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
+import type { PostgrestClientLike } from "../../src/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { resolveUrlLengthLimit } from "../../src/core/postgrest-executor.ts";
 import { ok } from "../../src/core/result.ts";
-import {
-  type PostgrestClientLike,
-  postgrestExecutor,
-} from "../../src/index.ts";
+import { postgrestExecutor } from "../../src/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -218,10 +216,9 @@ describe("postgrestExecutor request options", () => {
       },
     }));
 
-    const result = await betterSupabase.connect(client).customers.deleteMany({
-      where: { status: "lead" },
-      maxAffected: 2,
-    });
+    const result = await betterSupabase
+      .connect(client)
+      .customers.deleteMany({ where: { status: "lead" }, maxAffected: 2 });
 
     expect(result).toMatchObject({
       ok: false,
@@ -239,11 +236,13 @@ describe("postgrestExecutor request options", () => {
     const { client, requests } = capturingClient();
     const old = defineSupabase(schema, { postgrestVersion: "12.2" });
 
-    const result = await old.connect(client).customers.updateMany({
-      where: { status: "lead" },
-      data: { status: "active" },
-      maxAffected: 1,
-    });
+    const result = await old
+      .connect(client)
+      .customers.updateMany({
+        where: { status: "lead" },
+        data: { status: "active" },
+        maxAffected: 1,
+      });
 
     expect(result).toMatchObject({
       ok: false,
@@ -259,11 +258,13 @@ describe("postgrestExecutor request options", () => {
       headers: { "content-range": "*/7" },
     }));
 
-    const result = await betterSupabase.connect(client).customers.updateMany({
-      where: { status: "lead" },
-      data: { status: "active" },
-      count: "planned",
-    });
+    const result = await betterSupabase
+      .connect(client)
+      .customers.updateMany({
+        where: { status: "lead" },
+        data: { status: "active" },
+        count: "planned",
+      });
 
     expect(last().headers.get("prefer")).toContain("count=planned");
     expect(result).toMatchObject({ ok: true, data: { count: 7 } });
@@ -368,12 +369,7 @@ describe("postgrestExecutor request options", () => {
 
     const executorLevel = await postgrestExecutor(client, {
       timeout: 5,
-    }).execute(
-      {
-        ...(await captureSelect()),
-      },
-      { errorMappers: [] },
-    );
+    }).execute({ ...(await captureSelect()) }, { errorMappers: [] });
 
     expect(executorLevel).toMatchObject({
       ok: false,

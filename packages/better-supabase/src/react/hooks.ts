@@ -2,10 +2,10 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
+import type { ReactNode } from "react";
 
 import {
   createElement,
-  type ReactNode,
   useContext,
   useEffect,
   useMemo,
@@ -35,6 +35,7 @@ import type {
   TopicHandlers,
 } from "../realtime/index.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
+import type { ContextValue } from "./context.ts";
 
 import {
   countSource,
@@ -48,7 +49,7 @@ import {
 import { sessionUserId, specKey } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
-import { ClientContext, type ContextValue } from "./context.ts";
+import { ClientContext } from "./context.ts";
 import { useSession } from "./session.ts";
 
 export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
@@ -66,7 +67,7 @@ const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
 
 export interface BetterSupabaseProviderProps {
   readonly client: ClientLike;
-  /** better-supabase queries are removed when the user signs out or changes. */
+  /** Better-supabase queries are removed when the user signs out or changes. */
   readonly queryClient?: QueryClient;
   readonly children?: ReactNode;
 }
@@ -104,7 +105,10 @@ function useClient(): ClientLike {
   return useClientContext().client;
 }
 
-/** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */
+/**
+ * The session state for UI: `loading`, `signed-out` or `signed-in` with the
+ * user and claims.
+ */
 export function useAuth(): AuthSnapshot {
   const client = useClient();
 
@@ -120,13 +124,22 @@ export function useSupabase(): SupabaseClient {
 }
 
 export interface BetterHooks<B extends ClientLike> {
-  /** Repositories bound to the current session. Re-renders when the user changes. */
+  /**
+   * Repositories bound to the current session. Re-renders when the user
+   * changes.
+   */
   readonly useDb: () => B["db"];
-  /** TanStack Query option factories: `useQuery(useQueries().customers.findMany())`. */
+  /**
+   * TanStack Query option factories:
+   * `useQuery(useQueries().customers.findMany())`.
+   */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => AuthSnapshot;
-  /** `useSession()` typed by the client's `betterSupabase.claims(schema)` and `betterSupabase.userMetadata(schema)`. */
+  /**
+   * `useSession()` typed by the client's `betterSupabase.claims(schema)` and
+   * `betterSupabase.userMetadata(schema)`.
+   */
   readonly useSession: () => AuthSession<ClaimsOf<B>, ProfileOf<B>>;
 }
 
@@ -162,7 +175,12 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
  * resubscribes when the topic or the signed-in user changes.
  *
  * ```ts
- * useBroadcast(customersTopic, organizationId ? { organizationId } : null, {}, { invalidate: ['customers'] });
+ * useBroadcast(
+ *   customersTopic,
+ *   organizationId ? { organizationId } : null,
+ *   {},
+ *   { invalidate: ["customers"] },
+ * );
  * ```
  */
 export function useBroadcast<P extends string, E extends EventSchemas>(
@@ -220,16 +238,13 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   return status;
 }
 
-const SIGNED_OUT_CALLER = {
-  status: "signed-out",
-  userId: null,
-} as const;
+const SIGNED_OUT_CALLER = { status: "signed-out", userId: null } as const;
 
 const NO_AUTH = (): (() => void) => () => undefined;
 
 /**
- * The user `useBroadcast` subscribes as: the provider's auth snapshot, or
- * for a plain supabase-js client, its auth state.
+ * The user `useBroadcast` subscribes as: the provider's auth snapshot, or for a
+ * plain supabase-js client, its auth state.
  */
 export function useBroadcastAuth(
   client: ClientLike | undefined,
@@ -276,8 +291,8 @@ export function useBroadcastAuth(
 }
 
 /**
- * The spec from the render whose key last changed, so effects keep the
- * original values (`bigint`, Temporal) and only rerun on a different query.
+ * The spec from the render whose key last changed, so effects keep the original
+ * values (`bigint`, Temporal) and only rerun on a different query.
  */
 function useHeldSpec<S extends QuerySpec>(
   spec: S | null | undefined,
@@ -301,7 +316,9 @@ function useHeldSpec<S extends QuerySpec>(
  * resubscribes when the spec, tenant or user changes.
  *
  * ```ts
- * const spec = betterSupabase.spec.customers.findMany({ include: { notes: true } });
+ * const spec = betterSupabase.spec.customers.findMany({
+ *   include: { notes: true },
+ * });
  * const { data } = useQuery(q.$spec(spec));
  * useLiveQuery(spec);
  * ```
@@ -360,10 +377,10 @@ export interface LiveCount {
 }
 
 /**
- * A count that stays current: refetches only the `count` spec (a HEAD
- * request) after each debounced change to a table it reads, and after the
- * channel rejoins. Takes a spec or a `bs.liveCount()` seed; pass `null` to
- * pause. Doesn't need a `QueryClient`.
+ * A count that stays current: refetches only the `count` spec (a HEAD request)
+ * after each debounced change to a table it reads, and after the channel
+ * rejoins. Takes a spec or a `bs.liveCount()` seed; pass `null` to pause.
+ * Doesn't need a `QueryClient`.
  *
  * ```tsx
  * const { count } = useLiveCount(seed); // seed = await bs.liveCount(spec)

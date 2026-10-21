@@ -2,7 +2,9 @@ import { existsSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { detectProject, type Project } from "./detect.ts";
+import type { Project } from "./detect.ts";
+
+import { detectProject } from "./detect.ts";
 
 /** One package of a pnpm, npm, yarn or bun workspace. */
 export interface WorkspacePackage {
@@ -12,7 +14,10 @@ export interface WorkspacePackage {
 }
 
 export interface Workspace {
-  /** The file that declares the packages: `pnpm-workspace.yaml` or `package.json`. */
+  /**
+   * The file that declares the packages: `pnpm-workspace.yaml` or
+   * `package.json`.
+   */
   readonly file: string;
   readonly packages: readonly WorkspacePackage[];
 }
@@ -91,9 +96,9 @@ async function matches(root: string, pattern: string): Promise<string[]> {
 }
 
 /**
- * The workspace declared at `root` by `pnpm-workspace.yaml` or the
- * `workspaces` field of `package.json`, with its packages in path order.
- * `undefined` when `root` declares none.
+ * The workspace declared at `root` by `pnpm-workspace.yaml` or the `workspaces`
+ * field of `package.json`, with its packages in path order. `undefined` when
+ * `root` declares none.
  */
 export async function detectWorkspace(
   root: string,
@@ -148,7 +153,7 @@ export async function detectWorkspace(
 
   const dirs = [...included]
     .filter((dir) => dir !== "." && !excluded.has(dir))
-    .sort();
+    .toSorted();
 
   const packages = await Promise.all(
     dirs.map(async (dir) => ({
@@ -160,7 +165,10 @@ export async function detectWorkspace(
   return { file, packages };
 }
 
-/** The package `init` suggests: one that uses better-supabase, then one with a framework. */
+/**
+ * The package `init` suggests: one that uses better-supabase, then one with a
+ * framework.
+ */
 export function suggestedPackage(workspace: Workspace): string | undefined {
   const packages = workspace.packages;
 

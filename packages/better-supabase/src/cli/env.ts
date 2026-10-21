@@ -7,7 +7,10 @@ import { CliError } from "./core/errors.ts";
 export interface CliEnv {
   /** Postgres connection string for gen, introspect, doctor and seed. */
   readonly DATABASE_URL?: string | undefined;
-  /** The Supabase name for the same connection string, read when `DATABASE_URL` is unset. */
+  /**
+   * The Supabase name for the same connection string, read when `DATABASE_URL`
+   * is unset.
+   */
   readonly SUPABASE_DB_URL?: string | undefined;
   /** Personal access token for reading a hosted project. */
   readonly SUPABASE_ACCESS_TOKEN?: string | undefined;
@@ -17,28 +20,46 @@ export interface CliEnv {
   readonly SUPABASE_BIN?: string | undefined;
   /** Home directory for `skills install --global`. */
   readonly HOME?: string | undefined;
-  /** Set in CI; prompts never run there, and the config's `ci` environment applies. */
+  /**
+   * Set in CI; prompts never run there, and the config's `ci` environment
+   * applies.
+   */
   readonly CI?: string | undefined;
   /** The config environment to apply when `--env` is not passed. */
   readonly BETTER_SUPABASE_ENV?: string | undefined;
-  /** Agent mode when `--agent` is not passed: auto, yes or no. `run()` reads it before parsing. */
+  /**
+   * Agent mode when `--agent` is not passed: auto, yes or no. `run()` reads it
+   * before parsing.
+   */
   readonly BETTER_SUPABASE_AGENT?: string | undefined;
-  /** The named local stack `db query` and `seed` use when `--stack` is not passed. */
+  /**
+   * The named local stack `db query` and `seed` use when `--stack` is not
+   * passed.
+   */
   readonly BSB_STACK?: string | undefined;
-  /** The directory with `pg_dump` and `psql` for `db diff --in-stack`; found from the stack's postmaster otherwise. */
+  /**
+   * The directory with `pg_dump` and `psql` for `db diff --in-stack`; found
+   * from the stack's postmaster otherwise.
+   */
   readonly BSB_PG_BIN?: string | undefined;
   /** Every variable of the run, for the processes the CLI starts. */
   readonly [PROCESS_ENV]?: Readonly<Record<string, string | undefined>>;
 }
 
-/** The key of the full environment on a `CliEnv`; a symbol, so JSON output never shows it. */
+/**
+ * The key of the full environment on a `CliEnv`; a symbol, so JSON output never
+ * shows it.
+ */
 export const PROCESS_ENV: unique symbol = Symbol("better-supabase.processEnv");
 
 /** Whether `$CI` is set to anything but `false` or `0`. */
 export const isCi = (env: CliEnv): boolean =>
   env.CI !== undefined && env.CI !== "" && env.CI !== "false" && env.CI !== "0";
 
-/** `--env`, then `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set to anything but false. */
+/**
+ * `--env`, then `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set to anything
+ * but false.
+ */
 export function configEnvironment(
   flag: string | undefined,
   env: CliEnv,
@@ -60,7 +81,10 @@ const optionalUrl = v.optional(
   v.pipe(v.string(), v.url("must be a URL, e.g. postgresql://user@host/db")),
 );
 
-/** Parses the variables the CLI reads; an invalid value is a `env_invalid` usage error. */
+/**
+ * Parses the variables the CLI reads; an invalid value is a `env_invalid` usage
+ * error.
+ */
 export function parseEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): CliEnv {

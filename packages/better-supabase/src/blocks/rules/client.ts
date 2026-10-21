@@ -38,8 +38,8 @@ export interface RuleBuilderControllerOptions {
   /** The tree a new rule starts with, such as a fixed first condition. */
   readonly initial?: FilterQuery;
   /**
-   * Node ids the editor may not change, move or remove, such as the fixed
-   * first condition. Only the editor knows them; the stored rule doesn't.
+   * Node ids the editor may not change, move or remove, such as the fixed first
+   * condition. Only the editor knows them; the stored rule doesn't.
    */
   readonly locked?: readonly string[];
   /** Defaults to `RULE_LIMITS`. */
@@ -60,7 +60,10 @@ export interface RuleBuilderSnapshot {
   readonly locked: readonly string[];
   /** Problems in the tree, checked against the fields once they load. */
   readonly issues: readonly ValidationIssue[];
-  /** Whether the name, tree, actions or `stopProcessing` differ from the stored rule. */
+  /**
+   * Whether the name, tree, actions or `stopProcessing` differ from the stored
+   * rule.
+   */
   readonly dirty: boolean;
   readonly loading: boolean;
   readonly saving: boolean;
@@ -91,8 +94,8 @@ export interface RuleBuilderActions {
   /** Drops unsaved edits. */
   readonly reset: () => void;
   /**
-   * Saves the rule, `enabled` turning it on or off with it. The saved rule,
-   * or `undefined` with `error` set.
+   * Saves the rule, `enabled` turning it on or off with it. The saved rule, or
+   * `undefined` with `error` set.
    */
   readonly save: (options?: {
     readonly enabled?: boolean;
@@ -125,8 +128,8 @@ const fieldById = (
 ): RuleField | undefined => fields?.find((field) => field.id === id);
 
 /**
- * The editor state of one rule: the field catalog, the condition tree and
- * the edits to it, with validation, dirty state and save.
+ * The editor state of one rule: the field catalog, the condition tree and the
+ * edits to it, with validation, dirty state and save.
  */
 export function createRuleBuilderController(
   options: RuleBuilderControllerOptions,

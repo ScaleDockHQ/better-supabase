@@ -33,9 +33,9 @@ import { PeopleLoadError } from "./people-load-error";
 
 // #region recipe:hiring-board
 /**
- * Render inside `<Suspense>`: the candidates of one opening as cards in
- * its stage columns. Dragging a card to Hired or Rejected closes the
- * application; to another open stage, moves it. `?job=` picks the opening.
+ * Render inside `<Suspense>`: the candidates of one opening as cards in its
+ * stage columns. Dragging a card to Hired or Rejected closes the application;
+ * to another open stage, moves it. `?job=` picks the opening.
  */
 export async function HiringBoard({
   searchParams,

@@ -53,14 +53,10 @@ import {
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type { FieldEntity, FieldRow, FieldType } from "../custom-fields-types";
+
 import { deleteField, moveField, saveField } from "../custom-fields-actions";
-import {
-  FIELD_ENTITIES,
-  FIELD_TYPES,
-  type FieldEntity,
-  type FieldRow,
-  type FieldType,
-} from "../custom-fields-types";
+import { FIELD_ENTITIES, FIELD_TYPES } from "../custom-fields-types";
 
 function useEntityLabel(): (entity: FieldEntity) => string {
   const t = useExtracted("custom-fields");

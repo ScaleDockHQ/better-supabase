@@ -1,8 +1,9 @@
 import type { SqlClient } from "better-supabase/postgres";
+import type { PoolClient, QueryResultRow } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
 import { moduleLayout, renderModules } from "better-supabase/sql";
-import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
+import { DatabaseError, Pool } from "pg";
 
 import type { Recipe } from "./recipes.ts";
 
@@ -194,7 +195,10 @@ export class Session {
     return "no error";
   }
 
-  /** `SqlClient` for the block transports; each call runs in a savepoint, one at a time. */
+  /**
+   * `SqlClient` for the block transports; each call runs in a savepoint, one at
+   * a time.
+   */
   get sql(): SqlClient {
     return this.sqlClient(false);
   }
@@ -263,7 +267,10 @@ export class Session {
   }
 }
 
-/** Applies the recipe's migration in one transaction, runs `body`, then rolls back. */
+/**
+ * Applies the recipe's migration in one transaction, runs `body`, then rolls
+ * back.
+ */
 export async function withRecipe(
   pool: Pool,
   recipe: Recipe,
@@ -281,9 +288,9 @@ export async function withRecipe(
 }
 
 /**
- * Other suites install modules on the same stack at the same time, and
- * Postgres resolves a deadlock between two installs by aborting one of
- * them. The aborted install starts over.
+ * Other suites install modules on the same stack at the same time, and Postgres
+ * resolves a deadlock between two installs by aborting one of them. The aborted
+ * install starts over.
  */
 async function install(client: PoolClient, sql: string): Promise<void> {
   for (let attempt = 1; ; attempt += 1) {

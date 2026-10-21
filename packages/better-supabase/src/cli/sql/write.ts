@@ -2,16 +2,16 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ModuleFile, ModuleLayout } from "../../sql/index.ts";
 import type { PlannedFile } from "../core/files.ts";
 import type { NextStep } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
+import type { Now } from "./migrations.ts";
 
 import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
-  type ModuleFile,
-  type ModuleLayout,
   moduleTopics,
   renderModules,
   resolveModules,
@@ -27,7 +27,7 @@ import {
   sqlWorkflow,
 } from "../supabase-toml.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import { DATA_NEXT, type Now, writeExtensionsMigration } from "./migrations.ts";
+import { DATA_NEXT, writeExtensionsMigration } from "./migrations.ts";
 import {
   MODULES_SUFFIX,
   renderModuleMigration,
@@ -38,8 +38,8 @@ const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
 
 /**
  * Test files a SQL module wrote for an earlier layout (a table that is no
- * longer audited), for the modules in `names`. With `appTables`, also the
- * app tables files once `appTables` is empty.
+ * longer audited), for the modules in `names`. With `appTables`, also the app
+ * tables files once `appTables` is empty.
  */
 export async function staleModuleTests(
   config: ResolvedConfig,
@@ -207,7 +207,10 @@ export async function nextStep(config: ResolvedConfig): Promise<NextStep> {
       };
 }
 
-/** A note when migra's `schema_paths` is set and misses module files, which `supabase db diff` would then skip. */
+/**
+ * A note when migra's `schema_paths` is set and misses module files, which
+ * `supabase db diff` would then skip.
+ */
 export async function unlistedModuleFiles(
   config: ResolvedConfig,
   names: readonly string[],

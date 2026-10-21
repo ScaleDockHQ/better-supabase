@@ -5,11 +5,9 @@ import * as v from "valibot";
 import { postgres, userClaims } from "@/features/developer/postgres";
 import { bs } from "@/lib/supabase/server";
 
-import {
-  type WebhookDeliveryRow,
-  type WebhookEndpointRow,
-  WebhookStatus,
-} from "./webhook-types";
+import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
+
+import { WebhookStatus } from "./webhook-types";
 
 interface EndpointRecord {
   readonly id: string;
@@ -39,10 +37,10 @@ export interface WebhooksOverview {
 }
 
 /**
- * The organization's endpoints and its 20 latest deliveries. The tables
- * are not on the Data API, so this reads them over Postgres as the caller:
- * RLS lets members with `webhooks.read` see them. A failed read throws, so
- * it is never cached and Retry reads again. `null` without an organization.
+ * The organization's endpoints and its 20 latest deliveries. The tables are not
+ * on the Data API, so this reads them over Postgres as the caller: RLS lets
+ * members with `webhooks.read` see them. A failed read throws, so it is never
+ * cached and Retry reads again. `null` without an organization.
  */
 export async function loadWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";

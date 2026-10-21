@@ -1,4 +1,6 @@
-import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
+import type { SingleKeyEntry } from "@supabase/middleware";
+
+import { defineMiddleware } from "@supabase/middleware";
 
 /**
  * Entry contributing `ctx[key]`: a block service built from the keys the
@@ -9,9 +11,15 @@ import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
  *
  * ```ts
  * pipeline(
- *   [withBetterSupabase(bs), withPostgresAdminClient(), withBlock('jobs', (ctx) => createJobs({ sql: ctx.postgresAdmin, queues }))],
+ *   [
+ *     withBetterSupabase(bs),
+ *     withPostgresAdminClient(),
+ *     withBlock("jobs", (ctx) =>
+ *       createJobs({ sql: ctx.postgresAdmin, queues }),
+ *     ),
+ *   ],
  *   (req, ctx) => ctx.jobs.drainRoute({ secret, handlers })(req),
- * )
+ * );
  * ```
  */
 export function withBlock<const Key extends string, In extends object, Service>(

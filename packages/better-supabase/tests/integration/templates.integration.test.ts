@@ -1,19 +1,19 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { TemplateApplyCall } from "../../src/blocks/templates/index.ts";
+import type {
+  BuilderStartCall,
+  WorkflowGraph,
+} from "../../src/blocks/workflow-builder/index.ts";
 import type { Result } from "../../src/core/result.ts";
 
 import {
   createTemplates,
   defineTemplateType,
   sqlTransport,
-  type TemplateApplyCall,
 } from "../../src/blocks/templates/index.ts";
-import {
-  type BuilderStartCall,
-  createWorkflowBuilder,
-  type WorkflowGraph,
-} from "../../src/blocks/workflow-builder/index.ts";
+import { createWorkflowBuilder } from "../../src/blocks/workflow-builder/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -33,6 +33,7 @@ const GRAPH: WorkflowGraph = {
 
 describe.skipIf(!live)("templates module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("syncs starters, forks them, applies a fork and starts its workflows on the record", async () => {
@@ -131,9 +132,7 @@ describe.skipIf(!live)("templates module", () => {
 
       expect(draft).toMatchObject({ version: 2, publishedAt: undefined });
       expect(await templates.versions.publish(fork.id).orThrow()).toMatchObject(
-        {
-          version: 2,
-        },
+        { version: 2 },
       );
       expect(await templates.versions.publish(fork.id).then(hint)).toBe(
         "TEMPLATE_NO_DRAFT",

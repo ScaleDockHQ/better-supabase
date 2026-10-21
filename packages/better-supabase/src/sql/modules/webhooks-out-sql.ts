@@ -20,8 +20,8 @@ export interface HookNames {
   /** A member check on `tenant` (a SQL expression) for a module action. */
   readonly can: (tenant: string, action: "manage" | "view") => string;
   /**
-   * `tenant in (select tenant_ids_with(...))` for policies: the set is
-   * computed once per query instead of a `can()` call per row.
+   * `tenant in (select tenant_ids_with(...))` for policies: the set is computed
+   * once per query instead of a `can()` call per row.
    */
   readonly member: (tenant: string, action: "manage" | "view") => string;
   /** Clients read and manage endpoints through RLS. */
@@ -37,9 +37,9 @@ export interface HookNames {
   /** `expression` (a status name) as the stored value. */
   readonly stored: (expression: string) => string;
   /**
-   * Whether `user` (a uuid expression) holds `permission` (a text
-   * expression) in `tenant`: the provider's `idsWithFor` when it has one,
-   * else the access contract's `can_user`, else `false`.
+   * Whether `user` (a uuid expression) holds `permission` (a text expression)
+   * in `tenant`: the provider's `idsWithFor` when it has one, else the access
+   * contract's `can_user`, else `false`.
    */
   readonly userMay: (
     user: string,
@@ -155,8 +155,8 @@ function userMay(
 
 /**
  * Columns added in version 3. An adopted table has them only when
- * `blocks.webhooks-out.columns` maps them, so existing adopters keep
- * working without the columns.
+ * `blocks.webhooks-out.columns` maps them, so existing adopters keep working
+ * without the columns.
  */
 export const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   endpoints: ["permissions", "batch", "signing", "format", "credentialRef"],
@@ -395,9 +395,9 @@ ${grants(ctx.fn("publish_webhook_events"), "jsonb", false)}`;
 }
 
 /**
- * Whether endpoint `d`'s owner may read the event being published. Without
- * a tenant column there is nothing to check a permission in, so only events
- * that declare none go out.
+ * Whether endpoint `d`'s owner may read the event being published. Without a
+ * tenant column there is nothing to check a permission in, so only events that
+ * declare none go out.
  */
 function readable(n: HookNames): string {
   const d = (logical: string) => n.col("endpoints", logical);

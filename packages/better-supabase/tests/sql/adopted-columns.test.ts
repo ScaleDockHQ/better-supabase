@@ -61,6 +61,7 @@ describe("adoptedColumnProblems", () => {
       ),
     ).toEqual([]);
   });
+
   it("skips the columns a module adds or does not read under its options", () => {
     const events = {
       text: `create table public.app_events (

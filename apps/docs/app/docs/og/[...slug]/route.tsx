@@ -4,9 +4,7 @@ import { notFound } from "next/navigation";
 import { appName } from "@/lib/shared";
 import { getPageImage, source } from "@/lib/source";
 
-type ImageRouteContext = {
-  params: Promise<{ slug: string[] }>;
-};
+type ImageRouteContext = { params: Promise<{ slug: string[] }> };
 
 export async function GET(
   _req: Request,
@@ -29,7 +27,7 @@ export async function GET(
 }
 
 export function generateStaticParams() {
-  return source.getPages().map((page) => ({
-    slug: getPageImage(page).segments,
-  }));
+  return source
+    .getPages()
+    .map((page) => ({ slug: getPageImage(page).segments }));
 }

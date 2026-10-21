@@ -187,7 +187,7 @@ describe("createNext", () => {
       page({ cookie: cookieFor(stale, "next-1") }),
     );
 
-    expect(fresh).toHaveBeenCalledTimes(1);
+    expect(fresh).toHaveBeenCalledOnce();
     expect(response.headers.getSetCookie()[0]).toMatch(
       new RegExp(`^${NAME}=base64-`),
     );
@@ -428,7 +428,7 @@ describe("createNext", () => {
         endedSession: { redirect: "/login", paths: ["/dashboard"] },
       });
 
-      expect(fresh).toHaveBeenCalledTimes(1);
+      expect(fresh).toHaveBeenCalledOnce();
       expect(listed.status).toBe(307);
     });
   });
@@ -650,9 +650,7 @@ describe("createNext", () => {
           `https://app.test/api/customers/${id}`,
           token ? { headers: { authorization: `Bearer ${token}` } } : {},
         ),
-        {
-          params: Promise.resolve({ id }),
-        },
+        { params: Promise.resolve({ id }) },
       );
 
     const anonymous = await call("1");
@@ -732,11 +730,9 @@ describe("createNext", () => {
 
     await route(
       new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
-      {
-        params: Promise.resolve({}),
-      },
+      { params: Promise.resolve({}) },
     );
-    expect(mocks.after).toHaveBeenCalledTimes(1);
+    expect(mocks.after).toHaveBeenCalledOnce();
     let flushed = false;
     void Promise.resolve(mocks.after.mock.calls[0]![0]()).then(() => {
       flushed = true;
@@ -777,12 +773,12 @@ describe("createNext", () => {
     });
 
     await bs.proxy(page(), { protect });
-    expect(protect).toHaveBeenCalledTimes(1);
-    expect(mocks.after).toHaveBeenCalledTimes(1);
+    expect(protect).toHaveBeenCalledOnce();
+    expect(mocks.after).toHaveBeenCalledOnce();
     release();
     await betterSupabase.events.settled();
     await bs.proxy(page());
-    expect(mocks.after).toHaveBeenCalledTimes(1);
+    expect(mocks.after).toHaveBeenCalledOnce();
   });
 
   it("runs actions with validation, FormData and serializable results", async () => {
@@ -844,11 +840,7 @@ describe("createNext", () => {
     );
 
     const save = bs.action(
-      {
-        input: v.object({ name: v.string() }),
-        requireTenant: true,
-        authorize,
-      },
+      { input: v.object({ name: v.string() }), requireTenant: true, authorize },
       (input, ctx) => {
         const tenant: string = ctx.tenant;
 
@@ -929,7 +921,7 @@ describe("createNext", () => {
     expect(await allowed.json()).toEqual({ tenant: "org-1" });
     const refused = await call(false);
     expect(refused.status).toBe(403);
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledOnce();
   });
 
   it("require() returns the context or throws the matching interrupt", async () => {
@@ -1097,9 +1089,7 @@ describe("createNext", () => {
       "https://app.test/mfa?next=%2Fdashboard",
     );
 
-    const passed = await bs.proxy(page({ cookie: cookie(aal2) }), {
-      protect,
-    });
+    const passed = await bs.proxy(page({ cookie: cookie(aal2) }), { protect });
 
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
@@ -1177,12 +1167,15 @@ describe("createNext", () => {
 
     protect.mockClear();
 
-    const guarded = await bs.proxy(action, {
-      protect,
-      protectMethods: true,
-    });
+    const guarded = await bs.proxy(action, { protect, protectMethods: true });
 
-    expect(protect).toHaveBeenCalled();
+    expect(protect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "user",
+        user: expect.objectContaining({ id: USER }),
+      }),
+      expect.anything(),
+    );
     expect(guarded.status).toBe(307);
   });
 
@@ -1196,7 +1189,7 @@ describe("createNext", () => {
   it("collects database calls per request id when debug is on", async () => {
     const rest = vi
       .spyOn(globalThis, "fetch")
-      .mockImplementation(() => Promise.resolve(Response.json([])));
+      .mockImplementation(async () => Response.json([]));
 
     try {
       const debugged = createNext(defineSupabase(schema), {
@@ -1283,7 +1276,7 @@ describe("createNext", () => {
       .connect(executor)
       .customers.update("c1", { name: "Acme" })
       .orThrow();
-    expect(mocks.updateTag).toHaveBeenCalledTimes(1);
+    expect(mocks.updateTag).toHaveBeenCalledOnce();
     expect(mocks.revalidateTag.mock.calls).toEqual([
       [tagFor("customers"), { expire: 0 }],
       ["bs:customers@*", { expire: 0 }],
@@ -1410,10 +1403,7 @@ describe("next.route conformance", () => {
 describe("next.liveCount", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createNext(betterSupabase, {
-    env,
-    auth: { jwks: signer.jwks },
-  });
+  const bs = createNext(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
   const spec = betterSupabase.spec.notes.count({
     where: { body: { contains: "x" } },
@@ -1524,7 +1514,7 @@ describe("read replicas", () => {
   it("keeps the pin and flushes events when an action or route redirects after a write", async () => {
     const fetch = vi
       .spyOn(globalThis, "fetch")
-      .mockImplementation(() => Promise.resolve(Response.json([{ id: "c1" }])));
+      .mockImplementation(async () => Response.json([{ id: "c1" }]));
 
     const token = await signer.sign({ sub: USER });
     const definition = defineSupabase(schema);
@@ -1565,7 +1555,7 @@ describe("read replicas", () => {
         expect.stringMatching(/^\d+$/),
         expect.objectContaining({ maxAge: 2 }),
       );
-      expect(mocks.after).toHaveBeenCalledTimes(1);
+      expect(mocks.after).toHaveBeenCalledOnce();
       release();
 
       mocks.setCookie.mockReset();
@@ -1587,7 +1577,7 @@ describe("read replicas", () => {
         expect.stringMatching(/^\d+$/),
         expect.objectContaining({ maxAge: 2 }),
       );
-      expect(mocks.after).toHaveBeenCalledTimes(1);
+      expect(mocks.after).toHaveBeenCalledOnce();
       release();
     } finally {
       fetch.mockRestore();

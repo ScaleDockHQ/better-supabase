@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  type AuthorizationRequest,
-  defineAuthorizer,
-} from "../../src/core/authorizer.ts";
+import type { AuthorizationRequest } from "../../src/core/authorizer.ts";
+
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createMcp } from "../../src/mcp/index.ts";
 import {
@@ -150,8 +149,7 @@ describe("checkTool", () => {
     expect(
       (await checkTool(authorizer, { info: { name: "open" } }, {}, {})).ok,
     ).toBe(true);
-    expect(evaluate).toHaveBeenCalledTimes(1);
-    expect(evaluate).toHaveBeenCalledWith(
+    expect(evaluate).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         action: "send",
         resource: { type: "mcp_tool", id: "send", properties: { to: "a" } },
@@ -323,7 +321,7 @@ describe("createMcp authorizer", () => {
     ]);
     await list();
 
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]?.[0]).toContain(
       "createMcp: export has a permission",
     );

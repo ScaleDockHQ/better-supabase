@@ -40,7 +40,10 @@ export interface InstallInput {
 }
 
 export interface ChatInstallationsOptions {
-  /** `sqlTransport(postgres.asService())` or `rpcTransport` with the service role key. */
+  /**
+   * `sqlTransport(postgres.asService())` or `rpcTransport` with the service
+   * role key.
+   */
   readonly transport: BlockTransport;
   /** Revokes the ref a reinstall replaces and the ref an uninstall clears. */
   readonly credentials: CredentialProvider;
@@ -51,9 +54,15 @@ export interface ChatInstallationsOptions {
 export interface ChatInstallations {
   /** Records an install; a reinstall revokes the credential it replaces. */
   install(input: InstallInput): AsyncResult<ChatInstallation>;
-  /** Marks the install removed and revokes its credential; false when none was live. */
+  /**
+   * Marks the install removed and revokes its credential; false when none was
+   * live.
+   */
   uninstall(adapter: string, externalId: string): AsyncResult<boolean>;
-  /** Uninstalls every live install of a tenant before it is purged; returns how many. */
+  /**
+   * Uninstalls every live install of a tenant before it is purged; returns how
+   * many.
+   */
   uninstallTenant(tenant: string): AsyncResult<number>;
   get(
     adapter: string,
@@ -99,8 +108,8 @@ const sameRef = (a: CredentialRef | null, b: CredentialRef | null): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
 /**
- * The `chat_installations` registry with the credential lifecycle: every
- * ref an install drops is revoked through the `CredentialProvider`.
+ * The `chat_installations` registry with the credential lifecycle: every ref an
+ * install drops is revoked through the `CredentialProvider`.
  */
 export function createChatInstallations(
   options: ChatInstallationsOptions,

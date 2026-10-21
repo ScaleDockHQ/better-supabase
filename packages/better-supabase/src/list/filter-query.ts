@@ -42,7 +42,10 @@ export interface FilterRelativeDate {
   readonly offset: number;
 }
 
-/** A date value: an absolute `yyyy-MM-dd` day or a relative token, with an optional `HH:mm`. */
+/**
+ * A date value: an absolute `yyyy-MM-dd` day or a relative token, with an
+ * optional `HH:mm`.
+ */
 export interface FilterDateValue {
   readonly date?: string;
   readonly relative?: FilterRelativeDate;
@@ -51,7 +54,10 @@ export interface FilterDateValue {
 
 export type FilterOperatorArity = "none" | "one" | "many" | "range";
 
-/** The value types a list filter field takes. `date` and `relation` map onto ReUI editors. */
+/**
+ * The value types a list filter field takes. `date` and `relation` map onto
+ * ReUI editors.
+ */
 export type FilterFieldType =
   | "text"
   | "number"
@@ -175,7 +181,10 @@ export interface ListFilterConfig<C extends string = string> {
   /** A subset of the type's operators. */
   readonly operators?: readonly string[];
   readonly defaultOperator?: string;
-  /** Allowed values for `select` and `multiselect`; defaults to the column's enum. */
+  /**
+   * Allowed values for `select` and `multiselect`; defaults to the column's
+   * enum.
+   */
   readonly options?: readonly (
     | string
     | { readonly value: string; readonly label?: string }
@@ -947,7 +956,10 @@ export interface FilterFieldLabels {
   readonly options?: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
 
-/** ReUI value types for each field type; `date` uses an editor, `relation` a select. */
+/**
+ * ReUI value types for each field type; `date` uses an editor, `relation` a
+ * select.
+ */
 const REUI_TYPE = {
   text: "text",
   number: "number",
@@ -1024,10 +1036,13 @@ export function encodeFilterQuery(query: FilterQuery): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
-/** The JSON a `filter` URL parameter holds, or `undefined` when it is not base64url JSON. */
+/**
+ * The JSON a `filter` URL parameter holds, or `undefined` when it is not
+ * base64url JSON.
+ */
 export function decodeFilterQuery(encoded: string): unknown {
   if (!/^[A-Za-z0-9_-]*$/.test(encoded)) {
     return undefined;

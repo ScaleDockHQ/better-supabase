@@ -1,6 +1,7 @@
+import type { GraphStepCall } from "better-supabase/blocks/workflow-builder";
+
 import {
   createWorkflowBuilder,
-  type GraphStepCall,
   rpcTransport,
 } from "better-supabase/blocks/workflow-builder";
 import { createWorkflows } from "better-supabase/blocks/workflows";
@@ -13,7 +14,10 @@ import { getWorkflowMetadata } from "workflow";
 import { serviceNotifications, serviceSupabase } from "../workflow-steps";
 import { stepLibrary } from "./step-library";
 
-/** The service-role builder steps record node status and resolve credentials with. */
+/**
+ * The service-role builder steps record node status and resolve credentials
+ * with.
+ */
 function stepBuilder() {
   const transport = rpcTransport(serviceSupabase(), { schema: "api" });
 
@@ -36,7 +40,10 @@ const SummaryInput = v.fallback(v.object({ text: v.string() }), { text: "" });
 const text = (config: GraphStepCall["config"], key: string): string =>
   v.parse(Text, config[key]);
 
-/** The run's tenant and actor, from the registry: graph steps get no request context. */
+/**
+ * The run's tenant and actor, from the registry: graph steps get no request
+ * context.
+ */
 async function runOwner() {
   const { workflowRunId } = getWorkflowMetadata();
 

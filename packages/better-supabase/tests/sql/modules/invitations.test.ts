@@ -66,10 +66,7 @@ describe("invitations module", () => {
             revokedAt: null,
           },
         },
-        options: {
-          tokenStorage: "plain",
-          requireConfirmedEmail: false,
-        },
+        options: { tokenStorage: "plain", requireConfirmedEmail: false },
       },
     });
 
@@ -130,11 +127,7 @@ describe("invitations module", () => {
   });
 
   it("lets the provider model accept tenant custom roles", () => {
-    const sql = body({
-      access: {
-        model: "provider",
-      },
-    });
+    const sql = body({ access: { model: "provider" } });
 
     expect(sql).toContain("if invitee_role is not null and false then");
     expect(sql).not.toContain(
@@ -175,11 +168,7 @@ describe("invitations module", () => {
 
     expect(accept({})).toContain("better_supabase.can_user(invite.");
 
-    const callerOnly = accept({
-      access: {
-        model: "provider",
-      },
-    });
+    const callerOnly = accept({ access: { model: "provider" } });
 
     expect(callerOnly).not.toContain("better_supabase.can_user(invite.");
     expect(callerOnly).toContain(
@@ -189,11 +178,7 @@ describe("invitations module", () => {
 });
 
 describe("platform invitations under the provider model", () => {
-  const PROVIDER: AnyBlocksConfig = {
-    access: {
-      model: "provider",
-    },
-  };
+  const PROVIDER: AnyBlocksConfig = { access: { model: "provider" } };
 
   const roles = {
     table: "public.user_roles",
@@ -229,12 +214,7 @@ describe("platform invitations under the provider model", () => {
   });
 
   it("checks the inviter at accept with canAssignFor when canAssign reads the caller", () => {
-    const forUser = {
-      ...PROVIDER,
-      access: {
-        model: "provider" as const,
-      },
-    };
+    const forUser = { ...PROVIDER, access: { model: "provider" as const } };
 
     const sql = (platformRoles: Record<string, unknown>) =>
       body(
@@ -242,10 +222,7 @@ describe("platform invitations under the provider model", () => {
         moduleProvider,
       );
 
-    const callerOnly = sql({
-      ...roles,
-      canAssign: "authz.can_grant({role})",
-    });
+    const callerOnly = sql({ ...roles, canAssign: "authz.can_grant({role})" });
 
     expect(callerOnly).toContain(
       "coalesce((authz.can_grant(((invitee_role))::text)), false)",

@@ -9,15 +9,18 @@ import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
+import type {
+  MemberOption,
+  ProjectHistoryField,
+  ProjectOption,
+  ProjectVersion,
+  TaskQuery,
+  TaskRow,
+  TaskStatus,
+  TaskViewOption,
+} from "./project-types";
+
 import {
-  type MemberOption,
-  type ProjectHistoryField,
-  type ProjectOption,
-  type ProjectVersion,
-  type TaskQuery,
-  type TaskRow,
-  type TaskStatus,
-  type TaskViewOption,
   PROJECT_HISTORY_FIELDS,
   PROJECT_SUBJECT,
   TASK_LIST,
@@ -60,8 +63,8 @@ export type Loaded<T> =
   | { readonly kind: "error" };
 
 /**
- * Runs a cached loader. A failed read throws inside the loader, so it is
- * never cached and Retry reads again.
+ * Runs a cached loader. A failed read throws inside the loader, so it is never
+ * cached and Retry reads again.
  */
 export async function settle<T>(
   load: () => Promise<T | null>,
@@ -192,8 +195,8 @@ function historyFields(
 }
 
 /**
- * The project's latest versions with their content, newest first. The
- * versions block keeps one on every change to the configured columns.
+ * The project's latest versions with their content, newest first. The versions
+ * block keeps one on every change to the configured columns.
  */
 export async function getProjectHistory(
   projectId: string,

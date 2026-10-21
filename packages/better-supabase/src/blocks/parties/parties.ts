@@ -1,25 +1,27 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { CursorPageOptions } from "../shared.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readAllFields,
   readFields,
-  type RowFields,
   writeFields,
 } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   blockCall,
-  type CursorPageOptions,
   isRecord,
   optionalText,
   pageOf,
@@ -81,8 +83,8 @@ export interface CompanyPerson extends Person {
 }
 
 /**
- * The fields of a write. Left out keeps the stored value; `null` clears it
- * (a name and a lifecycle can't be cleared).
+ * The fields of a write. Left out keeps the stored value; `null` clears it (a
+ * name and a lifecycle can't be cleared).
  */
 export interface CompanyInput<F extends object = Record<never, never>> {
   /** Leave out to create a company; `name` is then required. */
@@ -94,7 +96,10 @@ export interface CompanyInput<F extends object = Record<never, never>> {
   readonly lifecycle?: string;
   readonly ownerId?: string | null;
   readonly address?: Readonly<Record<string, unknown>> | null;
-  /** Values for the app's extra columns, by column name; `options.fields` checks them. */
+  /**
+   * Values for the app's extra columns, by column name; `options.fields` checks
+   * them.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -127,7 +132,10 @@ export interface Parties<F extends object = Record<never, never>> {
   /** Archives a company, or restores it with `archived: false`. */
   archiveCompany(id: string, archived?: boolean): AsyncResult<boolean>;
   archivePerson(id: string, archived?: boolean): AsyncResult<boolean>;
-  /** Links a person to a company. `primary` replaces the company's primary contact. */
+  /**
+   * Links a person to a company. `primary` replaces the company's primary
+   * contact.
+   */
   linkPerson(
     companyId: string,
     personId: string,
@@ -152,8 +160,8 @@ export interface Parties<F extends object = Record<never, never>> {
   linkInboxContact(personId: string, contactId: string): AsyncResult<boolean>;
   unlinkInboxContact(contactId: string): AsyncResult<boolean>;
   /**
-   * The person an inbox contact is: its link, else the person with its
-   * email (then linked), else with `create` a new lead from the contact.
+   * The person an inbox contact is: its link, else the person with its email
+   * (then linked), else with `create` a new lead from the contact.
    */
   personForInboxContact(
     contactId: string,
@@ -165,7 +173,10 @@ export interface PartiesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the extra columns of the companies table
@@ -279,7 +290,10 @@ function companyPersonOf(value: unknown): CompanyPerson {
   };
 }
 
-/** The attrs of a write: the keys the input sets, `null` included, and its fields. */
+/**
+ * The attrs of a write: the keys the input sets, `null` included, and its
+ * fields.
+ */
 function attrsOf(input: CompanyInput | PersonInput): Record<string, unknown> {
   const { id: _id, fields, ...rest } = input;
 
@@ -298,9 +312,9 @@ function pageFrom<T extends { readonly id: string; readonly name: string }>(
 }
 
 /**
- * The parties block: companies and people an organization works with.
- * Register them in `config.subjects` with `partiesSubjects()` so comments,
- * tags, files, pipelines and deals can point at them.
+ * The parties block: companies and people an organization works with. Register
+ * them in `config.subjects` with `partiesSubjects()` so comments, tags, files,
+ * pipelines and deals can point at them.
  */
 export function createParties<
   S extends StandardSchemaV1 | undefined = undefined,

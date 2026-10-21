@@ -21,7 +21,10 @@ function jobsBackend(ctx: ModuleContext): JobsBackend {
   return backend;
 }
 
-/** `blocks.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
+/**
+ * `blocks.jobs.options.scheduler`: pg_cron, or due schedules run by the drain
+ * route.
+ */
 function jobsScheduler(ctx: ModuleContext): JobsScheduler {
   const scheduler = ctx.text("scheduler", "pg_cron");
 
@@ -52,8 +55,8 @@ drop function if exists better_supabase.schedule_job(text, text, text, jsonb, te
 drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
 
 /**
- * Opens purge_job_archive: nothing goes while a legal hold covers the
- * archive, and a data-lifecycle retention policy replaces both intervals.
+ * Opens purge_job_archive: nothing goes while a legal hold covers the archive,
+ * and a data-lifecycle retention policy replaces both intervals.
  */
 function archiveGuard(ctx: ModuleContext): string {
   const held = ctx.held("job_archive", "null");

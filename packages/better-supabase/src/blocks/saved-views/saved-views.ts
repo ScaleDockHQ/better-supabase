@@ -1,3 +1,8 @@
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper, ValidationIssue } from "../../core/errors.ts";
@@ -7,12 +12,9 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { ListQueryInput } from "../../list/list-query.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readAllFields,
   readFields,
-  type RowFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -70,12 +72,15 @@ export interface SavedViewState<
   readonly columns?: SavedViewColumns;
   readonly grouping?: readonly string[];
   readonly density?: SavedViewDensity;
-  /** Settings of the layout, such as a board's group column or a calendar's date field. */
+  /**
+   * Settings of the layout, such as a board's group column or a calendar's date
+   * field.
+   */
   readonly layout?: Readonly<Record<string, unknown>>;
   /**
    * Keeps the view to the records of a collection
-   * (`better-supabase/blocks/collections`): pass `collections.where(id)` as
-   * the list's `where`.
+   * (`better-supabase/blocks/collections`): pass `collections.where(id)` as the
+   * list's `where`.
    */
   readonly collectionId?: string;
 }
@@ -138,7 +143,10 @@ export interface SavedView<
   readonly fields: RowFields<F>;
 }
 
-/** What `save` and `duplicate` resolve to: the view's id, rank key and extra columns. */
+/**
+ * What `save` and `duplicate` resolve to: the view's id, rank key and extra
+ * columns.
+ */
 export interface SavedViewRef<F extends object = Record<never, never>> {
   readonly id: string;
   readonly rank: string;
@@ -163,7 +171,10 @@ export interface SaveViewInput<
   readonly teamId?: string;
   /** Updates this view instead of adding one. */
   readonly id?: string;
-  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  /**
+   * Values for the app's extra columns (`options.extraColumns`); left out keeps
+   * the stored ones.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -177,8 +188,8 @@ export interface SavedViewsOptions<
   readonly lists?: Readonly<Record<string, SavedViewList>>;
   /**
    * A Standard Schema for the extra columns of the saved views table
-   * (`blocks.saved-views.options.extraColumns`): writes are validated,
-   * reads parsed.
+   * (`blocks.saved-views.options.extraColumns`): writes are validated, reads
+   * parsed.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -199,7 +210,10 @@ export interface SavedViews<F extends object = Record<never, never>> {
   ): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
   /** Moves a view between its neighbours' rank keys. Resolves to its new key. */
   reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
-  /** Makes a view the default of its slot (the user's, the team's or the tenant's). */
+  /**
+   * Makes a view the default of its slot (the user's, the team's or the
+   * tenant's).
+   */
   setDefault(id: string, on?: boolean): AsyncResult<boolean>;
   /**
    * Sets the caller's own flags on a view they see. Omitted flags keep their
@@ -209,7 +223,10 @@ export interface SavedViews<F extends object = Record<never, never>> {
     id: string,
     preference: SavedViewPreferenceInput,
   ): AsyncResult<SavedViewPreference>;
-  /** Copies a view the caller sees as a new view. Resolves to its id and rank key. */
+  /**
+   * Copies a view the caller sees as a new view. Resolves to its id and rank
+   * key.
+   */
   duplicate(
     id: string,
     input?: DuplicateViewInput,
@@ -272,8 +289,8 @@ function columnIssues(value: unknown): ValidationIssue[] {
 }
 
 /**
- * Checks a view's state, and its `query` against `list` when given. An
- * empty list means the state is valid.
+ * Checks a view's state, and its `query` against `list` when given. An empty
+ * list means the state is valid.
  */
 export function savedViewIssues(
   state: unknown,
@@ -536,9 +553,9 @@ export interface DefaultViewCandidate {
 }
 
 /**
- * The view that opens first: the caller's preferred default, then the
- * user's slot default, a team default, the tenant's, then the first view.
- * Views the caller hid are skipped.
+ * The view that opens first: the caller's preferred default, then the user's
+ * slot default, a team default, the tenant's, then the first view. Views the
+ * caller hid are skipped.
  */
 export function defaultView<V extends DefaultViewCandidate>(
   views: readonly V[],

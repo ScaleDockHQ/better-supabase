@@ -1,14 +1,17 @@
+import type {
+  Attributes,
+  Meter,
+  Span,
+  SpanOptions,
+  TextMapPropagator,
+  Tracer,
+} from "@opentelemetry/api";
+
 import {
-  type Attributes,
   context,
-  type Meter,
   propagation,
-  type Span,
-  type SpanOptions,
   SpanStatusCode,
-  type TextMapPropagator,
   trace,
-  type Tracer,
 } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

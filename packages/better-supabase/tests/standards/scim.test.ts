@@ -52,7 +52,10 @@ interface RfcSchema {
   readonly attributes: readonly RfcAttribute[];
 }
 
-/** The JSON array after a §8.7 heading; strings that wrap across lines join with spaces. */
+/**
+ * The JSON array after a §8.7 heading; strings that wrap across lines join with
+ * spaces.
+ */
 async function section(heading: string): Promise<RfcSchema[]> {
   const lines = await rfc(7643);
   const start = lines.findIndex((line) => line.startsWith(heading));
@@ -135,7 +138,10 @@ function compare(
   return problems;
 }
 
-/** Required attributes of an RFC 7643 §8.7.2 schema that `doc` lacks, with sub-attributes. */
+/**
+ * Required attributes of an RFC 7643 §8.7.2 schema that `doc` lacks, with
+ * sub-attributes.
+ */
 function missing(
   doc: Record<string, unknown>,
   attributes: readonly RfcAttribute[],

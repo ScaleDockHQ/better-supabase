@@ -10,8 +10,8 @@ export const hasColumnExclusions = (privilege: string): boolean =>
   /\(\s*\*/.test(privilege);
 
 /**
- * The columns `privilege(*, -a, -b)` leaves out, unquoted. Empty for any
- * other privilege.
+ * The columns `privilege(*, -a, -b)` leaves out, unquoted. Empty for any other
+ * privilege.
  */
 export function excludedColumns(privilege: string): readonly string[] {
   if (!hasColumnExclusions(privilege)) {
@@ -27,9 +27,9 @@ export function excludedColumns(privilege: string): readonly string[] {
 }
 
 /**
- * `grants` with every `privilege(*, -col)` turned into the explicit column
- * list the `create table` in `files` declares, in declaration order. Throws
- * for a table no file declares, or when the exclusions leave no column.
+ * `grants` with every `privilege(*, -col)` turned into the explicit column list
+ * the `create table` in `files` declares, in declaration order. Throws for a
+ * table no file declares, or when the exclusions leave no column.
  */
 export function resolveExposeColumns(
   grants: readonly TableGrant[],

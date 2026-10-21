@@ -3,13 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { SigningJwk } from "../../../src/testing/index.ts";
+
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveAuth } from "../../../src/server/index.ts";
 import {
   createTestSigner,
   signTestJwt,
   signTestJwtWithKey,
-  type SigningJwk,
 } from "../../../src/testing/index.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";

@@ -7,13 +7,22 @@ import type {
 
 import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
+import type { DbError } from "../core/errors.ts";
 import type { AuthOutageEvent, RefreshEvent } from "../core/events.ts";
 import type { Logger } from "../core/logger.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
+import type {
+  CookieOptions,
+  CookieRecord,
+  CookieWrite,
+  SessionEncoding,
+  StoredSession,
+  WriteSessionOptions,
+} from "./session.ts";
 
 import { decodeJwtPayload } from "../core/base64.ts";
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf, invalidActorError } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
@@ -22,23 +31,17 @@ import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
-  type CookieOptions,
-  type CookieRecord,
-  type CookieWrite,
   parseCookies,
   pruneSessionChunks,
   readSession,
   serializeCookie,
   sessionCookieName,
-  type SessionEncoding,
-  type StoredSession,
   writeSession,
-  type WriteSessionOptions,
 } from "./session.ts";
 
 /**
- * Who is calling. `C` is the claims type from `betterSupabase.claims(schema)`; the
- * verified payload keeps every JWT claim and adds the schema's output. `P`
+ * Who is calling. `C` is the claims type from `betterSupabase.claims(schema)`;
+ * the verified payload keeps every JWT claim and adds the schema's output. `P`
  * is the `user_metadata` type from `betterSupabase.userMetadata(schema)`.
  */
 export type AuthState<C = unknown, P = unknown> =
@@ -48,16 +51,16 @@ export type AuthState<C = unknown, P = unknown> =
       readonly claims: JWTClaims & C;
       readonly user: UserClaims;
       /**
-       * Where the token came from: `oauth` for an RFC 9068 access token
-       * from `accessTokenResolver`, which never has a cookie session.
+       * Where the token came from: `oauth` for an RFC 9068 access token from
+       * `accessTokenResolver`, which never has a cookie session.
        */
       readonly source: "bearer" | "cookie" | "oauth" | (string & {});
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
       /**
-       * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`; `undefined`
-       * without a schema or when the metadata fails it. Users can write this
-       * data themselves: use it for display, never for access.
+       * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`;
+       * `undefined` without a schema or when the metadata fails it. Users can
+       * write this data themselves: use it for display, never for access.
        */
       readonly profile?: P;
     }
@@ -79,17 +82,23 @@ export type AuthState<C = unknown, P = unknown> =
       readonly createdAt?: Temporal.Instant;
       /** The user who created the key, when the row records one. */
       readonly createdBy?: string;
-      /** `sub` (the user, or the key for an organization key), `role: authenticated` and `api_key`. */
+      /**
+       * `sub` (the user, or the key for an organization key), `role:
+       * authenticated` and `api_key`.
+       */
       readonly claims: JWTClaims;
     }
   | {
       readonly kind: "anon";
-      /** `expired`: the cookie session needs a refresh that was not allowed here (run the proxy). */
+      /**
+       * `expired`: the cookie session needs a refresh that was not allowed here
+       * (run the proxy).
+       */
       readonly reason: "none" | "expired" | "signed_out" | "refresh_failed";
     }
   /**
-   * Credentials were sent but did not verify (`token`), verified but failed
-   * the claims schema (`claims`), or carry a malformed RFC 8693 `act` chain
+   * Credentials were sent but did not verify (`token`), verified but failed the
+   * claims schema (`claims`), or carry a malformed RFC 8693 `act` chain
    * (`actor`). Answer 401, never downgrade to anon.
    */
   | {
@@ -126,7 +135,10 @@ export interface AuthResolver {
 
 export interface ResolveAuthOptions {
   readonly env: BetterSupabaseEnv;
-  /** Allow refreshing an expiring cookie session. Only where cookies can be written (proxy). */
+  /**
+   * Allow refreshing an expiring cookie session. Only where cookies can be
+   * written (proxy).
+   */
   readonly refresh?: boolean;
   /**
    * With `refresh`, refresh when the token expires within this many seconds.
@@ -138,7 +150,8 @@ export interface ResolveAuthOptions {
   readonly checkSession?: boolean;
   /**
    * Accept `sb_secret_` keys (`apikey` header) as service callers: `true` for
-   * any configured key, or the key names allowed (`['cron']`). Defaults to false.
+   * any configured key, or the key names allowed (`['cron']`). Defaults to
+   * false.
    */
   readonly secret?: boolean | readonly string[];
   readonly audience?: string | string[];
@@ -160,27 +173,27 @@ export interface ResolveAuthOptions {
    */
   readonly cookies?: boolean;
   /**
-   * Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped).
-   * `false` or `null` verifies against no keys and never fetches, ignoring
+   * Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). `false`
+   * or `null` verifies against no keys and never fetches, ignoring
    * `SUPABASE_JWKS` and `SUPABASE_JWKS_URL`.
    */
   readonly jwks?: SupabaseEnv["jwks"] | false;
   /**
    * Verify HS256 tokens without a `kid` locally with this shared secret, the
-   * tokens Supabase Lite issues (`auth.jwt_secret`). Tokens with a `kid`
-   * still verify against the JWKS. `createServer` sets it from
-   * `SUPABASE_JWT_SECRET` with `backend: "lite"`.
+   * tokens Supabase Lite issues (`auth.jwt_secret`). Tokens with a `kid` still
+   * verify against the JWKS. `createServer` sets it from `SUPABASE_JWT_SECRET`
+   * with `backend: "lite"`.
    */
   readonly jwtSecret?: string;
   /**
-   * Validates the verified claims (`betterSupabase.claims(schema)` sets it). A failure
-   * resolves to `{ kind: 'invalid', reason: 'claims' }`.
+   * Validates the verified claims (`betterSupabase.claims(schema)` sets it). A
+   * failure resolves to `{ kind: 'invalid', reason: 'claims' }`.
    */
   readonly claims?: StandardSchemaV1;
   /**
-   * Parses `user_metadata` into `profile` (`betterSupabase.userMetadata(schema)` sets
-   * it). A failure leaves `profile` undefined and warns once; the session
-   * stays valid.
+   * Parses `user_metadata` into `profile`
+   * (`betterSupabase.userMetadata(schema)` sets it). A failure leaves `profile`
+   * undefined and warns once; the session stays valid.
    */
   readonly userMetadata?: StandardSchemaV1;
   /** Receives the `userMetadata` warning. Defaults to `console`. */
@@ -196,9 +209,9 @@ export interface ResolveAuthOptions {
   /** Called after every refresh attempt (metrics, logging). */
   readonly onRefresh?: (event: RefreshEvent) => void;
   /**
-   * With `refresh`, expire session chunks the readable session doesn't use
-   * (a leftover `.2` after a shorter rewrite) on every request, not only
-   * when the session is rewritten. Defaults to true.
+   * With `refresh`, expire session chunks the readable session doesn't use (a
+   * leftover `.2` after a shorter rewrite) on every request, not only when the
+   * session is rewritten. Defaults to true.
    */
   readonly pruneChunks?: boolean;
   readonly fetch?: typeof fetch;
@@ -208,7 +221,10 @@ export interface ResolveAuthOptions {
 
 export interface AuthResolution<C = unknown, P = unknown> {
   readonly auth: AuthState<C, P>;
-  /** Cookie writes for the response. Empty unless the session was refreshed or cleared. */
+  /**
+   * Cookie writes for the response. Empty unless the session was refreshed or
+   * cleared.
+   */
   readonly cookies: readonly CookieWrite[];
   /** No-store headers, set whenever `cookies` is not empty. */
   readonly headers: Readonly<Record<string, string>>;
@@ -216,7 +232,10 @@ export interface AuthResolution<C = unknown, P = unknown> {
   readonly requestCookies: readonly CookieRecord[];
   /** Adds `cookies` and `headers` to a response. */
   apply(response: Response): Response;
-  /** The session was ended server-side (revoked, deleted or banned); the cookies are cleared. */
+  /**
+   * The session was ended server-side (revoked, deleted or banned); the cookies
+   * are cleared.
+   */
   readonly sessionEnded?: boolean;
   /** Why `sessionEnded` is set: `banned` when Auth rejected the user as banned. */
   readonly sessionEndedReason?: "ended" | "banned";
@@ -272,7 +291,10 @@ let memoByJwks = new WeakMap<object, Map<string, Map<string, VerifiedUser>>>();
 /** The most JWT secrets remembered at once; the oldest goes first. */
 const SECRET_IDS_SIZE = 64;
 
-/** A number per JWT secret, so memo keys tell secrets apart. Bounded, and never reuses a number. */
+/**
+ * A number per JWT secret, so memo keys tell secrets apart. Bounded, and never
+ * reuses a number.
+ */
 const secretIds = new Map<string, number>();
 let nextSecretId = 1;
 
@@ -284,7 +306,8 @@ function secretId(secret: string | undefined): number | null {
   let id = secretIds.get(secret);
 
   if (id === undefined) {
-    id = nextSecretId++;
+    id = nextSecretId;
+    nextSecretId += 1;
     secretIds.set(secret, id);
 
     if (secretIds.size > SECRET_IDS_SIZE) {
@@ -301,8 +324,8 @@ function secretId(secret: string | undefined): number | null {
 
 /**
  * Tokens that already verified, until they expire. Every private-cache scope
- * and island resolves the same token again; this skips the signature check.
- * A hit skips the audience and issuer checks too, so both are part of the key.
+ * and island resolves the same token again; this skips the signature check. A
+ * hit skips the audience and issuer checks too, so both are part of the key.
  */
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   const jwks = jwksOf(options);
@@ -388,9 +411,8 @@ const checkedByMemo = new WeakMap<
 >();
 
 /**
- * Tokens that already passed (or failed) the claims and `userMetadata`
- * schemas, per verification memo and schema pair, so a memo hit skips
- * validation too.
+ * Tokens that already passed (or failed) the claims and `userMetadata` schemas,
+ * per verification memo and schema pair, so a memo hit skips validation too.
  */
 function checkedFor(
   memo: object,
@@ -547,9 +569,7 @@ async function checkClaims(
       error: dbError(
         "unauthorized",
         `The token claims are invalid (${issues})`,
-        {
-          code: "CLAIMS_INVALID",
-        },
+        { code: "CLAIMS_INVALID" },
       ),
     };
   }
@@ -563,7 +583,10 @@ async function checkClaims(
 
 const warnedMetadata = new WeakSet<StandardSchemaV1>();
 
-/** Claims first, then `user_metadata`, whose failure never invalidates the session. */
+/**
+ * Claims first, then `user_metadata`, whose failure never invalidates the
+ * session.
+ */
 async function checkUser(
   state: AuthState,
   options: ResolveAuthOptions,
@@ -620,13 +643,13 @@ function base64url(text: string): string {
   return btoa(text)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 /**
- * Loads the remote JWKS into the verifier's cache so the first request
- * doesn't wait for it. Never throws; a failure leaves the first request to
- * fetch it as before.
+ * Loads the remote JWKS into the verifier's cache so the first request doesn't
+ * wait for it. Never throws; a failure leaves the first request to fetch it as
+ * before.
  */
 export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
   if (!(jwksOf(options) instanceof URL)) {
@@ -785,8 +808,8 @@ const IP = /^[0-9a-f:.]+$/i;
 
 /**
  * The last `x-forwarded-for` hop, the one your own edge appended. Hops to its
- * left come from the client and can be forged. Behind more than one proxy,
- * pass your own reader to `clientIp`.
+ * left come from the client and can be forged. Behind more than one proxy, pass
+ * your own reader to `clientIp`.
  */
 export function clientIp(request: Request): string | undefined {
   const last = request.headers

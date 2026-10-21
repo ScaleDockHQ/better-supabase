@@ -1,9 +1,10 @@
+import type { FlagsSdkEntities } from "better-supabase/flags-sdk";
+
 import { createClient } from "@supabase/supabase-js";
 import { rpcTransport } from "better-supabase/blocks";
 import {
   betterSupabaseAdapter,
   createIdentify,
-  type FlagsSdkEntities,
 } from "better-supabase/flags-sdk";
 import { toSession } from "better-supabase/next";
 import { dedupe, flag } from "flags/next";
@@ -13,8 +14,8 @@ import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bs } from "@/lib/supabase/server";
 
 /**
- * `flag_definitions()` lists every override, so only the service role may
- * call it. Without the secret key every flag answers its `defaultValue`.
+ * `flag_definitions()` lists every override, so only the service role may call
+ * it. Without the secret key every flag answers its `defaultValue`.
  */
 function definitionsSource() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,10 +29,7 @@ function definitionsSource() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  return {
-    transport: rpcTransport(service),
-    schema: blockConfig.flags.api,
-  };
+  return { transport: rpcTransport(service), schema: blockConfig.flags.api };
 }
 
 /** One provider for every flag: the definitions load once per 30 seconds. */
@@ -39,8 +37,8 @@ export const bsFlags = betterSupabaseAdapter(definitionsSource());
 
 /**
  * The user, the active organization with its plans and roles, read from the
- * token in the cookie. The token is verified locally, so this never calls
- * the Auth server, in the proxy or in a page.
+ * token in the cookie. The token is verified locally, so this never calls the
+ * Auth server, in the proxy or in a page.
  */
 const identify = dedupe(
   createIdentify({
@@ -64,8 +62,8 @@ const identify = dedupe(
 
 /**
  * A precomputed flag: the proxy evaluates it and the pricing page reads the
- * result from its `[code]` segment, so the page stays static. Target it by
- * plan with a `plans` rule on `pricing-banner`.
+ * result from its `[code]` segment, so the page stays static. Target it by plan
+ * with a `plans` rule on `pricing-banner`.
  */
 export const pricingBanner = flag<boolean, FlagsSdkEntities>({
   key: "pricing-banner",
@@ -80,8 +78,8 @@ export const pricingBanner = flag<boolean, FlagsSdkEntities>({
 });
 
 /**
- * A dynamic flag, read in a page at request time. It is the same flag the
- * beta page checks through `flag_enabled`, so both answer alike.
+ * A dynamic flag, read in a page at request time. It is the same flag the beta
+ * page checks through `flag_enabled`, so both answer alike.
  */
 export const betaPage = flag<boolean, FlagsSdkEntities>({
   key: "beta-page",

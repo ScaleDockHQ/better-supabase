@@ -1,8 +1,9 @@
 import type { ReactElement } from "react";
+import type { ListRenderItem } from "react-native";
 
 import { router } from "expo-router";
 import { memo } from "react";
-import { FlatList, type ListRenderItem, Pressable, Text } from "react-native";
+import { FlatList, Pressable, Text } from "react-native";
 
 interface Row {
   readonly id: string;

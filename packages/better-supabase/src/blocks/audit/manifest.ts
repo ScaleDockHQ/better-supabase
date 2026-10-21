@@ -11,9 +11,7 @@ export const auditBlock: BlockOf<"audit", typeof createAudit, AuditEvents> =
   defineBlock({
     name: "audit",
     sql: ["audit"],
-    options: {
-      audit: auditSqlOptions,
-    },
+    options: { audit: auditSqlOptions },
     events: auditEvents,
     create: createAudit,
     category: "admin",

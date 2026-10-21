@@ -45,6 +45,7 @@ async function verified(
 
 describe.skipIf(!live)("sso", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("claims and verifies domains for one organization", async () => {
@@ -220,9 +221,7 @@ describe.skipIf(!live)("sso", () => {
       });
       expect(
         await check(outsider.id, { authentication_method: "password" }),
-      ).toMatchObject({
-        user_id: outsider.id,
-      });
+      ).toMatchObject({ user_id: outsider.id });
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 and type = 'organization.member_added'",

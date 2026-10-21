@@ -157,10 +157,10 @@ function fieldConflicts(preset: Preset): PresetConflict[] {
 }
 
 /**
- * The full block set for a preset: the selected blocks and what they
- * require, a reason per block, the soft integrations active between them,
- * and what can't install. It reads the generated catalog, never the SQL
- * renderers, so it runs in the browser.
+ * The full block set for a preset: the selected blocks and what they require, a
+ * reason per block, the soft integrations active between them, and what can't
+ * install. It reads the generated catalog, never the SQL renderers, so it runs
+ * in the browser.
  */
 export function resolvePreset(
   preset: Preset,

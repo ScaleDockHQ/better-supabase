@@ -13,8 +13,8 @@ const SIZES = {
 } as const;
 
 /**
- * The block's own icon on its category's soft hue, so the shape names the
- * block and the color names the category. Decorative: the title sits next to it.
+ * The block's own icon on its category's soft hue, so the shape names the block
+ * and the color names the category. Decorative: the title sits next to it.
  */
 export function BlockIcon({
   name,

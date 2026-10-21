@@ -14,6 +14,7 @@ interface Node {
 
 describe.skipIf(!live)("drive on CentraKit's file tree", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("shares a folder with a team and inherits the grant", async () => {

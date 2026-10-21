@@ -1,6 +1,9 @@
 import type { SpecDiagnostic } from "../spec/format.ts";
 
-/** The Overlay versions `applyOverlay` reads. Patch versions are ignored (Overlay § 4.1). */
+/**
+ * The Overlay versions `applyOverlay` reads. Patch versions are ignored
+ * (Overlay § 4.1).
+ */
 export type OverlayVersion = "1.0.0" | "1.1.0" | "1.2.0";
 
 /** Specification extensions: fields that start with `x-` (Overlay 1.2 § 4.7). */
@@ -18,13 +21,16 @@ export type OverlayInfo = {
 /** Fields every action kind shares. */
 interface ActionFields {
   readonly description?: string;
-  /** Merged into objects, concatenated or appended to arrays, or replaces primitives. */
+  /**
+   * Merged into objects, concatenated or appended to arrays, or replaces
+   * primitives.
+   */
   readonly update?: unknown;
   /** When `true`, every selected node is removed. Wins over `update` and `copy`. */
   readonly remove?: boolean;
   /**
-   * Accept a target that selects nothing. Without it, `applyOverlay`
-   * reports `overlay-no-match` as an error.
+   * Accept a target that selects nothing. Without it, `applyOverlay` reports
+   * `overlay-no-match` as an error.
    */
   readonly "x-better-supabase-allow-empty"?: boolean;
 }
@@ -90,10 +96,10 @@ export type Overlay12 = OverlayBase & {
 export type Overlay = Overlay10 | Overlay11 | Overlay12;
 
 /**
- * The JSONPath engine `applyOverlay` runs targets with. `paths` returns the
- * RFC 9535 normalized paths (`$['paths']['/a'][0]`) of the selected nodes
- * and throws for an invalid query. `loadJsonPath()` returns the
- * `jsonpath-rfc9535` engine; any RFC 9535 implementation fits.
+ * The JSONPath engine `applyOverlay` runs targets with. `paths` returns the RFC
+ * 9535 normalized paths (`$['paths']['/a'][0]`) of the selected nodes and
+ * throws for an invalid query. `loadJsonPath()` returns the `jsonpath-rfc9535`
+ * engine; any RFC 9535 implementation fits.
  */
 export interface JsonPathEngine {
   paths(document: unknown, expression: string): readonly string[];
@@ -108,6 +114,9 @@ export interface ApplyOverlayOptions {
 export interface OverlayResult<T> {
   /** A new document; the input is never changed. */
   readonly document: T;
-  /** Errors, warnings and notes, in action order. Callers decide what fails a build. */
+  /**
+   * Errors, warnings and notes, in action order. Callers decide what fails a
+   * build.
+   */
   readonly diagnostics: readonly SpecDiagnostic[];
 }

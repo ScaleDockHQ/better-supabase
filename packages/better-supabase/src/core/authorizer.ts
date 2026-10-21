@@ -1,21 +1,26 @@
+import type { DbErrorOf } from "./errors.ts";
 import type { RequestContext } from "./plugin.ts";
+import type { Result } from "./result.ts";
 
 import { cloneValue, deepFreeze, isPlainObject } from "./clone.ts";
-import { dbError, type DbErrorOf } from "./errors.ts";
-import { err, ok, type Result } from "./result.ts";
+import { dbError } from "./errors.ts";
+import { err, ok } from "./result.ts";
 
 type JsonObject = Readonly<Record<string, unknown>>;
 
 /** Who asks (AuthZEN Subject). Always built from the verified request context. */
 export interface AuthorizationSubject {
-  /** `user`, `service`, `anon`, or `agent` for a delegated token with an `act` chain. */
+  /**
+   * `user`, `service`, `anon`, or `agent` for a delegated token with an `act`
+   * chain.
+   */
   readonly type: string;
   readonly id: string;
   /**
    * `role`, `email` and `impersonator` when set, and `claims`: the verified
-   * access-token claims (a frozen copy, including what a token hook wrote,
-   * such as `memberships`, `roles` and `act`). The client never supplies
-   * them. Anonymous subjects have no properties.
+   * access-token claims (a frozen copy, including what a token hook wrote, such
+   * as `memberships`, `roles` and `act`). The client never supplies them.
+   * Anonymous subjects have no properties.
    */
   readonly properties?: JsonObject;
 }
@@ -29,9 +34,9 @@ export interface AuthorizationResource {
 }
 
 /**
- * One access request, in the AuthZEN Authorization API 1.0 information
- * model (`SPEC_PINS.authzen`): subject, action, resource and context.
- * `action` is the permission reference the authorizer understands.
+ * One access request, in the AuthZEN Authorization API 1.0 information model
+ * (`SPEC_PINS.authzen`): subject, action, resource and context. `action` is the
+ * permission reference the authorizer understands.
  */
 export interface AuthorizationRequest<Ref = string> {
   readonly subject: AuthorizationSubject;
@@ -55,21 +60,27 @@ export type AuthorizationOutcome =
     };
 
 /**
- * A runtime authorization decision point (API v1). Authorization libraries
- * ship an adapter that implements it; better-supabase builds every request
- * and fails closed on anything but `granted`.
+ * A runtime authorization decision point (API v1). Authorization libraries ship
+ * an adapter that implements it; better-supabase builds every request and fails
+ * closed on anything but `granted`.
  */
 export interface Authorizer<Ref = string> {
   readonly apiVersion: 1;
   readonly name: string;
   /** The stable key of a permission reference, for specs, SQL and messages. */
   key(ref: Ref): string;
-  /** The default permission for a table operation; lets `permissions: true` work. */
+  /**
+   * The default permission for a table operation; lets `permissions: true`
+   * work.
+   */
   forOperation?(table: string, operation: string): Ref | undefined;
   evaluate(
     request: AuthorizationRequest<Ref>,
   ): AuthorizationOutcome | Promise<AuthorizationOutcome>;
-  /** The batch form (AuthZEN Access Evaluations); results keep the request order. */
+  /**
+   * The batch form (AuthZEN Access Evaluations); results keep the request
+   * order.
+   */
   evaluations?(
     requests: readonly AuthorizationRequest<Ref>[],
   ): Promise<readonly AuthorizationOutcome[]>;
@@ -83,9 +94,7 @@ export type PermissionRef<A> = A extends Authorizer<infer R> ? R : string;
 
 /** Identity helper that fixes `apiVersion` and infers `Ref`. */
 export function defineAuthorizer<Ref = string>(
-  authorizer: Omit<Authorizer<Ref>, "apiVersion"> & {
-    readonly apiVersion?: 1;
-  },
+  authorizer: Omit<Authorizer<Ref>, "apiVersion"> & { readonly apiVersion?: 1 },
 ): Authorizer<Ref> {
   return { ...authorizer, apiVersion: 1 };
 }
@@ -170,10 +179,7 @@ function outcomeError(
     return dbError(
       "forbidden",
       `The authorizer gave no decision for ${permission}`,
-      {
-        code: "PERMISSION_DENIED",
-        permission,
-      },
+      { code: "PERMISSION_DENIED", permission },
     );
   }
 
@@ -214,8 +220,8 @@ export interface CheckOptions<Ref> {
 }
 
 /**
- * Checks one permission and fails closed: a missing authorizer, a throw or
- * an unknown outcome all deny. Never throws (invariant 4).
+ * Checks one permission and fails closed: a missing authorizer, a throw or an
+ * unknown outcome all deny. Never throws (invariant 4).
  */
 export async function checkPermission<Ref>(
   options: CheckOptions<Ref>,
@@ -227,9 +233,7 @@ export async function checkPermission<Ref>(
       dbError(
         "forbidden",
         "A permission is declared, but no authorizer is set",
-        {
-          code: "PERMISSION_DENIED",
-        },
+        { code: "PERMISSION_DENIED" },
       ),
     );
   }
@@ -268,9 +272,8 @@ export async function checkPermission<Ref>(
 }
 
 /**
- * Checks one permission per resource, with `evaluations` when the
- * authorizer has it. Returns whether each one is granted, in order; any
- * failure denies.
+ * Checks one permission per resource, with `evaluations` when the authorizer
+ * has it. Returns whether each one is granted, in order; any failure denies.
  */
 export async function checkEach<Ref>(
   authorizer: Authorizer<Ref> | undefined,

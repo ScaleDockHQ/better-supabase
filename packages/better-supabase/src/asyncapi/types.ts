@@ -5,7 +5,10 @@ type Json = Record<string, unknown>;
 /** The AsyncAPI versions `asyncapiFormat` renders. */
 export type AsyncApiVersion = "3.0" | "3.1";
 
-/** The file name `asyncapiFormat` writes; Arazzo source descriptions point at it. */
+/**
+ * The file name `asyncapiFormat` writes; Arazzo source descriptions point at
+ * it.
+ */
 export const ASYNCAPI_FILE_NAME = "asyncapi.json";
 
 export interface AsyncApiInfo {

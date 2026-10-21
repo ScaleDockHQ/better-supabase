@@ -10,8 +10,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { DbDiffDeps } from "../../../src/cli/commands/db.ts";
+import type { InStackDiffOptions } from "../../../src/cli/in-stack-diff.ts";
+
 import {
-  type DbDiffDeps,
   dbDiffCommand,
   dbQueryCommand,
   runDbDiff,
@@ -19,10 +21,7 @@ import {
 } from "../../../src/cli/commands/db.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { run } from "../../../src/cli/core/run.ts";
-import {
-  type InStackDiffOptions,
-  MIGRATION_HEADER,
-} from "../../../src/cli/in-stack-diff.ts";
+import { MIGRATION_HEADER } from "../../../src/cli/in-stack-diff.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 

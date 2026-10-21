@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  type AppStateLike,
-  autoRefreshOnForeground,
-} from "../../../src/client/native/auto-refresh.ts";
+import type { AppStateLike } from "../../../src/client/native/auto-refresh.ts";
+
+import { autoRefreshOnForeground } from "../../../src/client/native/auto-refresh.ts";
 
 function fakeAppState(currentState: string) {
   const listeners = new Set<(state: string) => void>();

@@ -17,8 +17,8 @@ export interface WebhookResponse {
 }
 
 /**
- * Sends one signed webhook request. Throw `WebhookPolicyError` when the
- * request must never be retried (a blocked URL); any other error retries.
+ * Sends one signed webhook request. Throw `WebhookPolicyError` when the request
+ * must never be retried (a blocked URL); any other error retries.
  */
 export interface WebhookTransport {
   readonly apiVersion: 1;
@@ -36,8 +36,8 @@ export interface FetchTransportOptions {
   /** Checked before the first request and before each redirect. */
   readonly allowUrl?: AllowUrl;
   /**
-   * Defaults to 0: a redirect fails the delivery without a retry. Each hop
-   * you allow is checked with `allowUrl` first.
+   * Defaults to 0: a redirect fails the delivery without a retry. Each hop you
+   * allow is checked with `allowUrl` first.
    */
   readonly maxRedirects?: number;
   /** Per request. Defaults to 10 seconds. */
@@ -103,8 +103,8 @@ async function readCapped(response: Response, limit: number): Promise<string> {
 }
 
 /**
- * A check that threw (a DNS lookup that timed out) is not a refusal: it
- * throws `UrlCheckError`, which the delivery retries.
+ * A check that threw (a DNS lookup that timed out) is not a refusal: it throws
+ * `UrlCheckError`, which the delivery retries.
  */
 async function allowed(allowUrl: AllowUrl, url: URL): Promise<boolean> {
   try {
@@ -137,7 +137,7 @@ export function fetchTransport(
 
       let url = new URL(request.url);
 
-      for (let hop = 0; ; hop++) {
+      for (let hop = 0; ; hop += 1) {
         if (options.allowUrl && !(await allowed(options.allowUrl, url))) {
           throw new WebhookPolicyError(
             `Endpoint URL is not allowed: ${url.host}`,

@@ -1,14 +1,12 @@
 import type { AuthState } from "../auth/resolve.ts";
+import type { AnyAuthorizer } from "../core/authorizer.ts";
+import type { DbError } from "../core/errors.ts";
 import type { OperationTable } from "../core/operations.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Result } from "../core/result.ts";
 
-import {
-  type AnyAuthorizer,
-  checkEach,
-  checkPermission,
-} from "../core/authorizer.ts";
-import { type DbError, dbError } from "../core/errors.ts";
+import { checkEach, checkPermission } from "../core/authorizer.ts";
+import { dbError } from "../core/errors.ts";
 import { OPERATION_PREFIXES, operationPermission } from "../core/operations.ts";
 import { ok } from "../core/result.ts";
 import { hasRole } from "../server/kit.ts";
@@ -42,9 +40,8 @@ export function missingRole(
 }
 
 /**
- * The permission a tool needs: the provider's entry for the tool's
- * `operation` (default `mcp.tool.<name>`) first, then the tool's own
- * `permission`.
+ * The permission a tool needs: the provider's entry for the tool's `operation`
+ * (default `mcp.tool.<name>`) first, then the tool's own `permission`.
  */
 export function toolPermission(
   operations: OperationTable | undefined,
@@ -119,8 +116,8 @@ export async function checkTool(
 }
 
 /**
- * Which tools the caller may see, in `tools` order: one batch per
- * permission, and a tool without a permission is always shown.
+ * Which tools the caller may see, in `tools` order: one batch per permission,
+ * and a tool without a permission is always shown.
  */
 export async function permittedTools(
   authorizer: AnyAuthorizer | undefined,

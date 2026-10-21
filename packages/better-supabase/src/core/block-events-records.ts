@@ -13,8 +13,8 @@ export interface PartyEventData {
 }
 
 /**
- * Events from the engagements module. `subjectType` and `subjectId` name
- * the engagement's main record; `subjects` lists every record it is on.
+ * Events from the engagements module. `subjectType` and `subjectId` name the
+ * engagement's main record; `subjects` lists every record it is on.
  */
 export interface EngagementEventData extends SubjectEventData {
   readonly organizationId: string;
@@ -157,9 +157,9 @@ export interface EmployeeEventData extends SubjectEventData {
 }
 
 /**
- * Events from the pipelines module. `pipeline.stage_changed` carries the
- * record that moved as `subjectType` and `subjectId`; the configuration
- * events (`pipeline.created`, `pipeline_stage.saved`) carry none.
+ * Events from the pipelines module. `pipeline.stage_changed` carries the record
+ * that moved as `subjectType` and `subjectId`; the configuration events
+ * (`pipeline.created`, `pipeline_stage.saved`) carry none.
  */
 export interface PipelineEventData {
   readonly organizationId: string;

@@ -25,7 +25,7 @@ describe("loadJsonPath", () => {
 
   it("retries the import after a failed load", async () => {
     vi.resetModules();
-    vi.doMock("jsonpath-rfc9535", () => {
+    vi.doMock(import("jsonpath-rfc9535"), () => {
       throw new Error("Cannot find package 'jsonpath-rfc9535'");
     });
     const fresh = await import("../../src/overlay/load.ts");

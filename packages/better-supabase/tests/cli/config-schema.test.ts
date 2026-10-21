@@ -174,9 +174,7 @@ describe("configIssues", () => {
       }),
     ).toEqual([]);
     expect(
-      configIssues({
-        blocks: { organizations: { model: "catalog" } },
-      }),
+      configIssues({ blocks: { organizations: { model: "catalog" } } }),
     ).toEqual([
       expect.stringMatching(/^blocks\.organizations\.model: Invalid key/),
     ]);
@@ -225,9 +223,7 @@ describe("configIssues for authorization", () => {
       issues({ delegation: { scopes: { "posts:write": ["posts.*"] } } }),
     ).toEqual([]);
     expect(
-      configIssues({
-        blocks: { access: { scopes: { "mcp:read": ["*"] } } },
-      }),
+      configIssues({ blocks: { access: { scopes: { "mcp:read": ["*"] } } } }),
     ).toEqual([]);
     expect(
       issues({ delegation: { scopes: { "posts:write": "posts.*" } } }).join(
@@ -254,9 +250,9 @@ describe("configIssues for authorization", () => {
       }),
     ).toEqual([]);
     expect(
-      issues({
-        operations: { "mcp.tool.search": { permission: "" } },
-      }).join("\n"),
+      issues({ operations: { "mcp.tool.search": { permission: "" } } }).join(
+        "\n",
+      ),
     ).toMatch(/operations/);
     expect(
       issues({

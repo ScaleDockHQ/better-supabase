@@ -6,12 +6,13 @@ import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
+import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import { createOrpc, type OrpcRequestContext } from "../../src/orpc/index.ts";
+import { createOrpc } from "../../src/orpc/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

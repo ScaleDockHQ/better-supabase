@@ -5,8 +5,8 @@ import { getSession } from "@/features/user/user-queries";
 import { SettingsLayout } from "./settings-layout";
 
 /**
- * Render inside `<Suspense>`. The settings module checks `settings.update`
- * on every write; the session decides which controls are enabled.
+ * Render inside `<Suspense>`. The settings module checks `settings.update` on
+ * every write; the session decides which controls are enabled.
  */
 export async function Preferences() {
   const session = await getSession();

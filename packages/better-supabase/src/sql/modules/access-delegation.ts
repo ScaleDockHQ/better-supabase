@@ -3,25 +3,25 @@ import type { ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 
-/** The cap check for the caller; a question about another user isn't narrowed by the caller's token. */
+/**
+ * The cap check for the caller; a question about another user isn't narrowed by
+ * the caller's token.
+ */
 export const capFor = (member: string, permission: string): string =>
   `(${member} is distinct from auth.uid() or better_supabase.cap_allows(${permission}))`;
 
 /**
- * `scope_permissions` and `cap_allows`: a delegated token (a `client_id`, or
- * an `act` chain that is not a support or impersonation level) holds only
- * the keys its scopes map to, and a `forContext({ permissions })` cap holds
- * only its keys. The access functions apply both, so every policy and
- * module that asks them is narrowed without calling `token_scope_allows`.
+ * `scope_permissions` and `cap_allows`: a delegated token (a `client_id`, or an
+ * `act` chain that is not a support or impersonation level) holds only the keys
+ * its scopes map to, and a `forContext({ permissions })` cap holds only its
+ * keys. The access functions apply both, so every policy and module that asks
+ * them is narrowed without calling `token_scope_allows`.
  */
 export function delegationSql(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ): string {
-  const scopes = {
-    ...layout.delegationScopes,
-    ...ctx.modules.access?.scopes,
-  };
+  const scopes = { ...layout.delegationScopes, ...ctx.modules.access?.scopes };
 
   const entries = Object.entries(scopes);
 

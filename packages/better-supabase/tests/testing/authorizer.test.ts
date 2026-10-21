@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  AuthorizationRequest,
+  Authorizer,
+} from "../../src/core/authorizer.ts";
+
 import {
-  type AuthorizationRequest,
-  type Authorizer,
   checkPermission,
   defineAuthorizer,
 } from "../../src/core/authorizer.ts";
@@ -135,7 +138,7 @@ describe("testAuthorizer", () => {
 
     const unstable = defineAuthorizer({
       name: "unstable",
-      key: (ref) => `${ref}:${calls++}`,
+      key: (ref) => `${ref}:${(calls += 1)}`,
       evaluate: () => ({ outcome: "granted" }),
     });
 
@@ -196,10 +199,7 @@ describe("staticAuthorizer", () => {
       outcome: "denied",
     });
     expect(
-      await decide({
-        action: "purge",
-        subject: { type: "user", id: USER },
-      }),
+      await decide({ action: "purge", subject: { type: "user", id: USER } }),
     ).toEqual({ outcome: "granted" });
     expect(
       await decide({ subject: { type: "anon", id: "anonymous" } }),

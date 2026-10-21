@@ -1,12 +1,11 @@
 // #region recipe:document-editor
 "use client";
 
+import type { DocumentProviderStatus } from "better-supabase/yjs";
+
 import { rpcTransport } from "better-supabase/blocks";
 import { createDocuments } from "better-supabase/blocks/documents";
-import {
-  createDocumentProvider,
-  type DocumentProviderStatus,
-} from "better-supabase/yjs";
+import { createDocumentProvider } from "better-supabase/yjs";
 import { TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
@@ -87,9 +86,9 @@ interface DocumentTarget {
 }
 
 /**
- * The customer's notes as a Yjs document: a title and a body. Edits are
- * stored as updates through the documents block and reach the other
- * editors over the document's realtime topic.
+ * The customer's notes as a Yjs document: a title and a body. Edits are stored
+ * as updates through the documents block and reach the other editors over the
+ * document's realtime topic.
  */
 export function DocumentEditor(target: DocumentTarget) {
   const [attempt, setAttempt] = useState(0);

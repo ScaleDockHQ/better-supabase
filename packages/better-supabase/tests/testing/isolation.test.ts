@@ -48,9 +48,9 @@ interface Logged {
 }
 
 /**
- * An in-memory PostgREST with a tenant policy on every table: a user only
- * sees and writes rows whose `organization_id` matches its `tenant_id`
- * claim. `leaks` drops the policy for a command.
+ * An in-memory PostgREST with a tenant policy on every table: a user only sees
+ * and writes rows whose `organization_id` matches its `tenant_id` claim.
+ * `leaks` drops the policy for a command.
  */
 function fakePostgrest(
   options: {
@@ -383,11 +383,7 @@ describe("expectTenantIsolation", () => {
     } as never);
 
     await expect(
-      expectTenantIsolation(keyless, {
-        stack,
-        tenants,
-        tables: { tags },
-      }),
+      expectTenantIsolation(keyless, { stack, tenants, tables: { tags } }),
     ).rejects.toThrow(
       'expectTenantIsolation: "tags" is not a table with a primary key',
     );

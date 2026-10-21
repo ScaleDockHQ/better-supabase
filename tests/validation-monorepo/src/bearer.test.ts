@@ -51,8 +51,8 @@ afterEach(() => {
 
 describe("bearer callers through the runtime", () => {
   it("hands the domain code the acting client and its scopes", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(Response.json([])),
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      Response.json([]),
     );
 
     const token = await signer.sign({
@@ -71,8 +71,8 @@ describe("bearer callers through the runtime", () => {
   });
 
   it("passes the act chain along with the current actor", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(Response.json([])),
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      Response.json([]),
     );
     const act = { sub: "agent-runner", act: { sub: "mcp-client-42" } };
 

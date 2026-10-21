@@ -44,8 +44,8 @@ export interface SearchQuery {
   readonly limit?: number;
   /**
    * The query's embedding, when the index keeps embeddings
-   * (`blocks.search.options.dimensions` and `vector-search`): the
-   * results fuse full-text and nearest-neighbour ranks.
+   * (`blocks.search.options.dimensions` and `vector-search`): the results fuse
+   * full-text and nearest-neighbour ranks.
    */
   readonly embedding?: readonly number[] | null;
 }
@@ -84,8 +84,8 @@ export type Embedder = (
 export interface Search {
   /**
    * Searches as the caller: `websearch_to_tsquery` syntax (`"exact phrase"`,
-   * `-word`, `or`), prefixes for typeahead and trigram matches for typos.
-   * Rows the caller can't read, and trashed rows, are left out.
+   * `-word`, `or`), prefixes for typeahead and trigram matches for typos. Rows
+   * the caller can't read, and trashed rows, are left out.
    */
   search(q: string, query?: SearchQuery): AsyncResult<readonly SearchHit[]>;
   /** The caller's recently opened subjects, newest first. */
@@ -119,8 +119,8 @@ export interface Search {
     embedding: readonly number[],
   ): AsyncResult<boolean>;
   /**
-   * Embeds up to `limit` pending documents with `embed` and stores them.
-   * Run it from a job or cron. Service only. Resolves to the number stored.
+   * Embeds up to `limit` pending documents with `embed` and stores them. Run it
+   * from a job or cron. Service only. Resolves to the number stored.
    */
   embedPending(embed: Embedder, limit?: number): AsyncResult<number>;
 }
@@ -169,9 +169,9 @@ function pendingOf(row: Record<string, unknown>): PendingEmbedding {
 }
 
 /**
- * The `search` SQL module as typed calls. Build it with the caller's
- * transport for `search`, `recents` and `favorites`, and pass `service` for
- * the index maintenance methods.
+ * The `search` SQL module as typed calls. Build it with the caller's transport
+ * for `search`, `recents` and `favorites`, and pass `service` for the index
+ * maintenance methods.
  */
 export function createSearch(options: SearchOptions): Search {
   const call = blockCall(options.transport, options.schema, options.mappers);

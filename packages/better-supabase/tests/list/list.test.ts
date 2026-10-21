@@ -463,9 +463,7 @@ describe("defineListQuery", () => {
 
   it("reports issues through the Standard Schema", async () => {
     expect(await list.schema["~standard"].validate({ sort: "oldest" })).toEqual(
-      {
-        issues: [{ message: "Must be one of: name, newest", path: ["sort"] }],
-      },
+      { issues: [{ message: "Must be one of: name, newest", path: ["sort"] }] },
     );
   });
 
@@ -502,9 +500,7 @@ describe("defineListQuery", () => {
       const select = request.params.get("select");
 
       if (select?.startsWith("status")) {
-        return {
-          body: [{ status: "lead", _count: 2 }, { status: "active" }],
-        };
+        return { body: [{ status: "lead", _count: 2 }, { status: "active" }] };
       }
 
       if (select?.startsWith("kvk")) {

@@ -66,9 +66,7 @@ describe("time-tracking module", () => {
     const custom = sqlOf(BASE, {
       modules: {
         "time-tracking": {
-          options: {
-            policy: { steps: [{ approvers: { role: "manager" } }] },
-          },
+          options: { policy: { steps: [{ approvers: { role: "manager" } }] } },
         },
       },
     });

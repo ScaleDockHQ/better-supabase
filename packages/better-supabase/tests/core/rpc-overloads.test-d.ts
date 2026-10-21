@@ -4,22 +4,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { Schema } from "../../src/schema/types.ts";
+import type {
+  Database,
+  Functions as FixtureFunctions,
+  Models,
+} from "../fixtures/generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  schema as camel,
-  type Database,
-  type Functions as FixtureFunctions,
-  type Models,
-} from "../fixtures/generated-camel.ts";
+import { schema as camel } from "../fixtures/generated-camel.ts";
 
 /** The shape `better-supabase gen` emits for overloaded functions. */
 type Functions = FixtureFunctions & {
   area:
-    | {
-        Args: Record<PropertyKey, never>;
-        Returns: boolean | null;
-      }
+    | { Args: Record<PropertyKey, never>; Returns: boolean | null }
     | {
         Args: { label: string | null; scale?: number | null };
         Returns: string | null;

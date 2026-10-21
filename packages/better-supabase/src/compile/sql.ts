@@ -23,9 +23,9 @@ export interface SqlQuery {
 }
 
 /**
- * The SQL for one operation. `rows` returns a `row` json column per result
- * row; `count` returns one `count` column. Either may be absent: a HEAD read
- * only counts, a filter that can never match runs nothing.
+ * The SQL for one operation. `rows` returns a `row` json column per result row;
+ * `count` returns one `count` column. Either may be absent: a HEAD read only
+ * counts, a filter that can never match runs nothing.
  */
 export interface SqlPlan {
   readonly rows: SqlQuery | undefined;
@@ -38,21 +38,21 @@ export interface SqlPlan {
    */
   readonly chunks?: readonly SqlPlan[];
   /**
-   * `explain (format json)` of the counted rows, for a `planned` or
-   * `estimated` count. The executor reads the top node's `Plan Rows`.
+   * `explain (format json)` of the counted rows, for a `planned` or `estimated`
+   * count. The executor reads the top node's `Plan Rows`.
    */
   readonly plannedCount?: SqlQuery;
   /**
-   * Set for an `estimated` count: `count` stops at this many rows plus one,
-   * and above it the executor answers with the planner's estimate.
+   * Set for an `estimated` count: `count` stops at this many rows plus one, and
+   * above it the executor answers with the planner's estimate.
    */
   readonly countThreshold?: number;
 }
 
 export interface CompileSqlOptions {
   /**
-   * Where an `estimated` count switches from exact to planned, like
-   * PostgREST's `db-max-rows`. Defaults to 1000, Supabase's `max_rows`.
+   * Where an `estimated` count switches from exact to planned, like PostgREST's
+   * `db-max-rows`. Defaults to 1000, Supabase's `max_rows`.
    */
   readonly estimatedCountThreshold?: number;
 }
@@ -121,11 +121,13 @@ function comparedValue(table: TableMeta, condition: ColumnCondition): unknown {
 }
 
 /**
- * `a > x or (a = x and b > y) or ...` as `(a, b) > (x, y)`, which an index
- * on `(a, b)` serves. Both forms give the same result under SQL's
- * three-valued logic, nulls included.
+ * `a > x or (a = x and b > y) or ...` as `(a, b) > (x, y)`, which an index on
+ * `(a, b)` serves. Both forms give the same result under SQL's three-valued
+ * logic, nulls included.
  */
-function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
+function rowComparison(
+  condition: Extract<Condition, { kind: "or" }>,
+): {
   readonly columns: string[];
   readonly op: "gt" | "lt";
   readonly values: unknown[];
@@ -419,8 +421,8 @@ class SqlCompiler {
   }
 
   /**
-   * A column, an aggregate of the group, or the column of a to-one
-   * relation's row as a scalar subquery.
+   * A column, an aggregate of the group, or the column of a to-one relation's
+   * row as a scalar subquery.
    */
   private sortKey(term: OrderTerm, alias: string, table?: TableMeta): string {
     if (term.aggregate === "count") {
@@ -612,9 +614,8 @@ type CountParts = Pick<SqlPlan, "count" | "plannedCount" | "countThreshold">;
 
 /**
  * The count queries for a mode. `exact` counts every row; `planned` asks the
- * planner; `estimated` counts up to the threshold and asks the planner past
- * it, the way PostgREST does. Counts are `bigint`, which the executor
- * decodes.
+ * planner; `estimated` counts up to the threshold and asks the planner past it,
+ * the way PostgREST does. Counts are `bigint`, which the executor decodes.
  */
 function countPlan(
   mode: CountMode | undefined,
@@ -921,11 +922,11 @@ function maxAffectedOf(op: UpdateOp | DeleteOp): number | undefined {
 }
 
 /**
- * The statement's row count, or a cast error naming it when it is above
- * `max`. The cast depends on `count(*)`, so the planner can't fold it into
- * an error for every call; the failed statement rolls its writes back. A
- * query returning rows must use the count (`where c.n >= 0`), or Postgres
- * drops the unused column and never runs the check.
+ * The statement's row count, or a cast error naming it when it is above `max`.
+ * The cast depends on `count(*)`, so the planner can't fold it into an error
+ * for every call; the failed statement rolls its writes back. A query returning
+ * rows must use the count (`where c.n >= 0`), or Postgres drops the unused
+ * column and never runs the check.
  */
 function guardedCount(max: number): string {
   return `case when count(*) > ${max} then ('${MAX_AFFECTED_MARKER}:' || count(*))::bigint else count(*)::bigint end`;

@@ -1,19 +1,18 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { createClient } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { SqlClient } from "../postgres/executor.ts";
 import type { BetterPostgres } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { SigningJwk, TestJwtClaims } from "./jwt.ts";
 
 import { ENV_VARIABLES } from "../env/index.ts";
-import { postgresExecutor, type SqlClient } from "../postgres/executor.ts";
-import {
-  type SigningJwk,
-  signTestJwt,
-  signTestJwtWithKey,
-  type TestJwtClaims,
-} from "./jwt.ts";
+import { postgresExecutor } from "../postgres/executor.ts";
+import { signTestJwt, signTestJwtWithKey } from "./jwt.ts";
 import { localSigningKey } from "./local-key.ts";
 
 /** The local CLI stack's default JWT secret. */
@@ -26,27 +25,35 @@ export interface LocalStack {
   /** Defaults to `$SUPABASE_PUBLISHABLE_KEY`, then `$SUPABASE_ANON_KEY`. */
   readonly publishableKey?: string;
   /**
-   * `ES256` (default) signs with the key `better-supabase keys` wrote, as
-   * the hosted project's asymmetric keys do. `HS256` signs with the shared
-   * JWT secret and only works against a local stack.
+   * `ES256` (default) signs with the key `better-supabase keys` wrote, as the
+   * hosted project's asymmetric keys do. `HS256` signs with the shared JWT
+   * secret and only works against a local stack.
    */
   readonly alg?: "ES256" | "HS256";
   /** The private ES256 key. Defaults to the first key in `signingKeysPath`. */
   readonly signingKey?: SigningJwk;
-  /** Defaults to `$SUPABASE_SIGNING_KEYS_PATH`, then `signing_keys_path` in `supabase/config.toml`. */
+  /**
+   * Defaults to `$SUPABASE_SIGNING_KEYS_PATH`, then `signing_keys_path` in
+   * `supabase/config.toml`.
+   */
   readonly signingKeysPath?: string;
-  /** For `alg: 'HS256'`. Defaults to `$SUPABASE_JWT_SECRET`, then the CLI default. */
+  /**
+   * For `alg: 'HS256'`. Defaults to `$SUPABASE_JWT_SECRET`, then the CLI
+   * default.
+   */
   readonly jwtSecret?: string;
-  /** Service-role key for `expectTenantIsolation`; defaults to `$SUPABASE_SECRET_KEY`. */
+  /**
+   * Service-role key for `expectTenantIsolation`; defaults to
+   * `$SUPABASE_SECRET_KEY`.
+   */
   readonly secretKey?: string;
   /** Enables `sql`: the same user over direct Postgres. */
   readonly postgres?: BetterPostgres;
   /** `fetch` for the user's supabase-js client, e.g. `liteStack().fetch`. */
   readonly fetch?: typeof fetch;
   /**
-   * supabase-js warns when its trace propagation option is on and the
-   * runtime has no OpenTelemetry. Test users switch it off; set `true` to
-   * keep it.
+   * Supabase-js warns when its trace propagation option is on and the runtime
+   * has no OpenTelemetry. Test users switch it off; set `true` to keep it.
    */
   readonly tracePropagation?: boolean;
 }
@@ -59,7 +66,7 @@ export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
    * that call a command or handler directly with `{ supabase, db, context }`.
    */
   readonly context: RequestContext;
-  /** supabase-js signed in as the user (storage, realtime, functions). */
+  /** Supabase-js signed in as the user (storage, realtime, functions). */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the user; RLS applies. */
   readonly db: Db<M, F, E, SupabaseClient>;
@@ -67,7 +74,10 @@ export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
   readonly sql: Db<M, F, E, unknown> | undefined;
 }
 
-/** What `withRollback` needs from a user: the stack's pool and the user's identity. */
+/**
+ * What `withRollback` needs from a user: the stack's pool and the user's
+ * identity.
+ */
 export interface UserInternals {
   /** The user's repositories over the given client, typed by `withRollback`. */
   readonly connect: (client: SqlClient) => unknown;
@@ -78,7 +88,10 @@ export interface UserInternals {
 
 const internals = new WeakMap<object, UserInternals>();
 
-/** The pool and identity behind a user from `asUser`, or `undefined` for any other object. */
+/**
+ * The pool and identity behind a user from `asUser`, or `undefined` for any
+ * other object.
+ */
 export function internalsOf(user: object): UserInternals | undefined {
   return internals.get(user);
 }
@@ -142,13 +155,16 @@ async function signFor(
 }
 
 /**
- * A test user against the local stack: a signed token and repositories that
- * run as that user, for live RLS tests. The token is ES256-signed with the
- * key from `better-supabase keys`; pass `{ alg: 'HS256' }` for a stack that
- * still uses the shared JWT secret.
+ * A test user against the local stack: a signed token and repositories that run
+ * as that user, for live RLS tests. The token is ES256-signed with the key from
+ * `better-supabase keys`; pass `{ alg: 'HS256' }` for a stack that still uses
+ * the shared JWT secret.
  *
  * ```ts
- * const alice = await asUser(betterSupabase, { sub: aliceId, tenant_id: acme });
+ * const alice = await asUser(betterSupabase, {
+ *   sub: aliceId,
+ *   tenant_id: acme,
+ * });
  * expect(await alice.db.customers.count().orThrow()).toBe(3);
  * ```
  */

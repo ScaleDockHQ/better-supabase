@@ -1,8 +1,8 @@
 /**
  * The only module that imports `@supabase/postgrest-typegen`. It is alpha, so
  * every use goes through here. It is an optional peer that accepts a range of
- * releases; the CLI is tested against `TYPEGEN_VERSION` and prints a notice
- * for any other. Without it, the functions here throw an install message.
+ * releases; the CLI is tested against `TYPEGEN_VERSION` and prints a notice for
+ * any other. Without it, the functions here throw an install message.
  */
 import type * as Generation from "@supabase/postgrest-typegen/generation";
 import type * as Oxfmt from "oxfmt";
@@ -34,11 +34,11 @@ const missing = (): never => {
 };
 
 /**
- * `/generation` is light and its functions are synchronous (`buildModel`
- * calls `tsTypeOf`), so it loads with this module, which the commands that
- * need it import on demand. The package root and `/introspection` build
- * their arktype schemas on import (about 90 ms), so they load when a command
- * reads or validates metadata, not for `--help`.
+ * `/generation` is light and its functions are synchronous (`buildModel` calls
+ * `tsTypeOf`), so it loads with this module, which the commands that need it
+ * import on demand. The package root and `/introspection` build their arktype
+ * schemas on import (about 90 ms), so they load when a command reads or
+ * validates metadata, not for `--help`.
  */
 const generation: typeof Generation | undefined =
   await import("@supabase/postgrest-typegen/generation").catch(() => undefined);
@@ -54,7 +54,10 @@ export async function typegenVersion(): Promise<string | undefined> {
   return versionAt(fileURLToPath(import.meta.resolve(`${TYPEGEN}/generation`)));
 }
 
-/** Notice for a postgrest-typegen release other than the one this CLI is tested against. */
+/**
+ * Notice for a postgrest-typegen release other than the one this CLI is tested
+ * against.
+ */
 export function typegenVersionNotice(
   installed: string | undefined,
 ): string | undefined {
@@ -77,7 +80,10 @@ export type {
   PostgresFunction,
 } from "../../config/index.ts";
 
-/** A connection `introspect()` reads the catalog through, as postgrest-typegen types it. */
+/**
+ * A connection `introspect()` reads the catalog through, as postgrest-typegen
+ * types it.
+ */
 export interface Queryable {
   // oxlint-disable-next-line typescript/no-explicit-any -- matches postgrest-typegen's own signature.
   query(sql: string): Promise<{ rows: any[] }>;
@@ -109,9 +115,9 @@ const sqlLiteral = (value: string): string =>
   `'${value.replaceAll("'", "''")}'`;
 
 /**
- * The argument order postgrest-typegen loses: its catalog query aggregates
- * the arguments without an order, so two unnamed arguments (pgvector's
- * operators, citext casts) swap places between database resets.
+ * The argument order postgrest-typegen loses: its catalog query aggregates the
+ * arguments without an order, so two unnamed arguments (pgvector's operators,
+ * citext casts) swap places between database resets.
  */
 function argumentPositionsSql(schemas: readonly string[]): string {
   return `select p.oid::int8 as id,
@@ -156,7 +162,8 @@ export function orderArgsByPosition(
 
       const pending = [...fn.args];
       const ordered: (typeof fn.args)[number][] = [];
-      row.types.forEach((type, index) => {
+
+      for (const [index, type] of row.types.entries()) {
         const name = row.names?.[index] ?? "";
 
         const at = pending.findIndex(
@@ -166,7 +173,7 @@ export function orderArgsByPosition(
         if (at !== -1) {
           ordered.push(...pending.splice(at, 1));
         }
-      });
+      }
 
       return { ...fn, args: [...ordered, ...pending] };
     }),
@@ -179,8 +186,8 @@ const FIRST_NORMAL_OID = 16_384;
 /**
  * Replaces the oids of user objects with ids derived from their names and
  * zeroes size estimates, so a snapshot of the same schema is byte-identical
- * after `supabase db reset` or on another machine. Returns the id mapping
- * for data keyed by the old oids.
+ * after `supabase db reset` or on another machine. Returns the id mapping for
+ * data keyed by the old oids.
  */
 export function stabilizeMetadata(metadata: GeneratorMetadata): {
   metadata: GeneratorMetadata;
@@ -192,13 +199,13 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     base: number,
     entries: readonly { id: number; key: string }[],
   ): void => {
-    [...entries]
-      .sort((a, b) => byCodePoint(a.key, b.key))
-      .forEach((entry, index) => {
-        if (entry.id >= FIRST_NORMAL_OID) {
-          ids.set(entry.id, base + index);
-        }
-      });
+    const sorted = entries.toSorted((a, b) => byCodePoint(a.key, b.key));
+
+    for (const [index, entry] of sorted.entries()) {
+      if (entry.id >= FIRST_NORMAL_OID) {
+        ids.set(entry.id, base + index);
+      }
+    }
   };
 
   assign(
@@ -309,9 +316,9 @@ export class MetadataRejectedError extends Error {
 }
 
 /**
- * Parses the JSON document an out-of-process generator reads on stdin,
- * checking its `version` against the `GENERATOR_METADATA_VERSION` this
- * release of `@supabase/postgrest-typegen` writes.
+ * Parses the JSON document an out-of-process generator reads on stdin, checking
+ * its `version` against the `GENERATOR_METADATA_VERSION` this release of
+ * `@supabase/postgrest-typegen` writes.
  */
 export async function parseMetadataDocument(
   text: string,
@@ -377,8 +384,8 @@ export async function serializeGenerator(
 }
 
 /**
- * Keeps only what belongs to `schemas`, so the Database type matches
- * `supabase gen types --schema ...` for exactly those schemas.
+ * Keeps only what belongs to `schemas`, so the Database type matches `supabase
+ * gen types --schema ...` for exactly those schemas.
  */
 export function restrictSchemas(
   metadata: GeneratorMetadata,
@@ -413,7 +420,10 @@ export interface DatabaseTypesOptions {
 
 let oxfmt: Promise<typeof Oxfmt | undefined> | undefined;
 
-/** oxfmt is an optional peer, loaded on demand; `undefined` when it is not installed. */
+/**
+ * Oxfmt is an optional peer, loaded on demand; `undefined` when it is not
+ * installed.
+ */
 function loadOxfmt(): Promise<typeof Oxfmt | undefined> {
   oxfmt ??= import("oxfmt").catch(() => undefined);
 
@@ -436,10 +446,7 @@ async function formatTypes(code: string): Promise<string> {
   const { code: formatted, errors } = await formatter.format(
     "output.ts",
     code,
-    {
-      semi: false,
-      printWidth: 80,
-    },
+    { semi: false, printWidth: 80 },
   );
 
   if (errors.length > 0) {
@@ -504,8 +511,8 @@ export function tsTypeOf(
 
 /**
  * `introspect()` returns every type in the database (hundreds of built-ins).
- * Keep the ones in the read schemas and those referenced by columns,
- * functions and composite attributes; built-in scalars resolve by name.
+ * Keep the ones in the read schemas and those referenced by columns, functions
+ * and composite attributes; built-in scalars resolve by name.
  */
 function pruneTypes(
   metadata: GeneratorMetadata,

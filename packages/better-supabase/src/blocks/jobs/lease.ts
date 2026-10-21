@@ -9,7 +9,10 @@ export interface LeaseOptions {
   /** How long the lease holds without an `extend`. Defaults to 60 seconds. */
   readonly seconds?: number;
   readonly scope?: string;
-  /** The schema the functions live in, over a transport. Defaults to `better_supabase`. */
+  /**
+   * The schema the functions live in, over a transport. Defaults to
+   * `better_supabase`.
+   */
   readonly schema?: string;
 }
 
@@ -91,9 +94,9 @@ function transportCalls(transport: BlockTransport, schema: string): LeaseCalls {
  * Runs `fn` while holding the lease on `key`, one holder at a time, and
  * releases it afterwards, also when `fn` throws. `{ acquired: false }` while
  * another holder has it. A lease that expires mid-run is taken by the next
- * caller; call `lease.extend()` for long work. Takes a service SQL
- * connection, or a service-role `rpcTransport` over the wrappers
- * `blocks.idempotency.api` writes.
+ * caller; call `lease.extend()` for long work. Takes a service SQL connection,
+ * or a service-role `rpcTransport` over the wrappers `blocks.idempotency.api`
+ * writes.
  */
 export function withLease<T>(
   source: SqlClient | BlockTransport,

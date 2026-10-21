@@ -37,8 +37,8 @@ export const CASCADER_LIST_HEIGHT_CLASS =
 
 /**
  * Each style's list padding: rows take it as `padding`, the scrollport as
- * `scroll-padding` floored at 4px so lyra's `0` does not strand a row.
- * Mirrored per style from `registry/styles/style-*.css`; keep them in step.
+ * `scroll-padding` floored at 4px so lyra's `0` does not strand a row. Mirrored
+ * per style from `registry/styles/style-*.css`; keep them in step.
  */
 export const CASCADER_LIST_PAD_CLASS = "[--cascader-list-pad:4px]";
 
@@ -56,7 +56,8 @@ export const CASCADER_ROWS_CLASS = "p-(--cascader-list-pad,4px) data-empty:p-0";
 /**
  * What counts as a keyboard stop. Base UI's ScrollArea viewport makes ITSELF
  * tabbable when content overflows (`hiddenState.x && hiddenState.y ? -1 : 0`),
- * an unnamed stop per level that `ui/scroll-area.tsx` will not let us suppress.
+ * an unnamed stop per level that `ui/scroll-area.tsx` will not let us
+ * suppress.
  */
 const CASCADER_TAB_STOP_SELECTOR =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -138,7 +139,8 @@ export function getCascaderTabTarget(
 
 /**
  * The writing direction at `element`. `DirectionProvider` may only vote yes:
- * unmounted it answers `"ltr"`, which would override a real `<html dir="rtl">`.
+ * unmounted it answers `"ltr"`, which would override a real `<html
+ * dir="rtl">`.
  */
 export function isCascaderRtl(element: Element, provided: string): boolean {
   if (provided === "rtl") return true;
@@ -290,7 +292,8 @@ function asCascaderBranch<T>(node: CascaderNode<T>): CascaderNode<T> {
 /**
  * Folds loaded pages into an index built from `items`, so a re-render with a
  * new `items` array keeps what the user drilled into. Static `items` wins;
- * `detached` is `byValue` ONLY, or deep search doubles it and `childrenOf` lies.
+ * `detached` is `byValue` ONLY, or deep search doubles it and `childrenOf`
+ * lies.
  *
  * A resolved chain node in `links` that no page placed still gets its parent,
  * so the trigger keeps its path. While its parent's level is unloaded it is
@@ -435,8 +438,8 @@ export function getCascaderListedValues<T>(
 
 /**
  * A level's rows plus its paging row, placed BEFORE the `pinned` rows, which
- * sit last: the first row a page appends then takes the paging row's index,
- * so the highlight Base UI keeps by index lands on it.
+ * sit last: the first row a page appends then takes the paging row's index, so
+ * the highlight Base UI keeps by index lands on it.
  */
 export function withCascaderMoreRow<T>(
   rows: readonly CascaderNode<T>[],
@@ -535,7 +538,8 @@ export function getCascaderPath<T>(
 
 /**
  * `toLocaleLowerCase`, not `toLowerCase`: the invariant mapping turns Turkish
- * "I" into "i" not "ı", so "ışık" would never match "IŞIK". Both sides fold here.
+ * "I" into "i" not "ı", so "ışık" would never match "IŞIK". Both sides fold
+ * here.
  */
 export function foldCascaderText(text: string): string {
   return text.toLocaleLowerCase();
@@ -783,8 +787,8 @@ export function collectCascaderSubtree<T>(
  * Toggles `value` with its known subtree (loaded, or on a resolved chain), then
  * reconciles ancestors. One flat array, no hidden "checked" state: a branch is
  * in the selection exactly when every selectable known child of it is, which
- * keeps a row's checked state an O(1) lookup. Nodes `isSelectable` rejects are skipped down AND ignored up,
- * the pressed node excepted.
+ * keeps a row's checked state an O(1) lookup. Nodes `isSelectable` rejects are
+ * skipped down AND ignored up, the pressed node excepted.
  */
 export function applyCascadeSelection<T>(
   index: CascaderIndex<T>,

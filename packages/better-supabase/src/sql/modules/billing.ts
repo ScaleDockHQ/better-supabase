@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { PlanLookup } from "./billing-platform.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -19,7 +20,7 @@ import {
   raise,
 } from "../shared.ts";
 import { moduleOperations, modulePermission } from "./access-model.ts";
-import { type PlanLookup, platformLists } from "./billing-platform.ts";
+import { platformLists } from "./billing-platform.ts";
 import {
   subscriptionSourceOf,
   webhookSubscriptions,
@@ -71,14 +72,17 @@ interface PlanCatalog {
   readonly key: string;
   /** The Stripe price id column, default `stripe_price_id`. */
   readonly price: string;
-  /** A billing interval column (`month`, `year`), when plans have several prices. */
+  /**
+   * A billing interval column (`month`, `year`), when plans have several
+   * prices.
+   */
   readonly interval?: string;
   /** A boolean column; only rows where it is true are offered. */
   readonly active?: string;
   /**
-   * A variant column, when a plan key has several prices besides the
-   * interval, such as credit packs (`1000`, `5000`) or seat tiers. The row
-   * without a variant is the plan's default.
+   * A variant column, when a plan key has several prices besides the interval,
+   * such as credit packs (`1000`, `5000`) or seat tiers. The row without a
+   * variant is the plan's default.
    */
   readonly variant?: string;
 }
@@ -195,8 +199,8 @@ grant execute on function ${fn}(text, text, text) to authenticated, service_role
 
 /**
  * The tenant row `billing_customers` references: `options.tenantKey`
- * (`schema.table.column`, `false` for none), else the organizations
- * module's table when it is installed.
+ * (`schema.table.column`, `false` for none), else the organizations module's
+ * table when it is installed.
  */
 function tenantReference(ctx: ModuleContext): string | undefined {
   const configured = ctx.option("tenantKey");

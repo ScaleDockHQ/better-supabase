@@ -16,7 +16,10 @@ import type {
 import { isAction, isObject, resolveReference } from "./apply.ts";
 import { decodePointerToken } from "./path.ts";
 
-/** What `defineOverlay` accepts: an Overlay document whose `overlay` field is optional. */
+/**
+ * What `defineOverlay` accepts: an Overlay document whose `overlay` field is
+ * optional.
+ */
 export type OverlayInput = {
   readonly overlay?: OverlayVersion;
   readonly info: OverlayInfo;
@@ -62,22 +65,25 @@ const isPlain = (
 /**
  * Defines an Overlay document with checks a schema cannot make. `overlay`
  * defaults to `1.1.0`, or to `1.2.0` when the input uses a 1.2 feature
- * (`components`, `$self` or a reusable action reference), and the return
- * type follows it.
+ * (`components`, `$self` or a reusable action reference), and the return type
+ * follows it.
  *
- * Throws a `TypeError` when there are no actions, when a feature needs a
- * newer version than the one set (`copy` needs 1.1, reusable actions and
- * `$self` need 1.2), when a reference names a missing reusable action, or
- * when `extends` or `$self` contains a fragment.
+ * Throws a `TypeError` when there are no actions, when a feature needs a newer
+ * version than the one set (`copy` needs 1.1, reusable actions and `$self` need
+ * 1.2), when a reference names a missing reusable action, or when `extends` or
+ * `$self` contains a fragment.
  *
  * @example
- * const overlay = defineOverlay({
- *   info: { title: "Public API", version: "1.0.0" },
- *   actions: [
- *     { target: "$.paths['/customers'].get", update: { summary: "List customers" } },
- *     { target: "$.paths[?@['x-internal'] == true]", remove: true },
- *   ],
- * });
+ *   const overlay = defineOverlay({
+ *     info: { title: "Public API", version: "1.0.0" },
+ *     actions: [
+ *       {
+ *         target: "$.paths['/customers'].get",
+ *         update: { summary: "List customers" },
+ *       },
+ *       { target: "$.paths[?@['x-internal'] == true]", remove: true },
+ *     ],
+ *   });
  */
 export function defineOverlay<const I extends OverlayInput>(
   input: I,

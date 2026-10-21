@@ -8,7 +8,10 @@ export {
   type CommandSearchItem,
 } from "../groups.ts";
 
-/** The `react-server` build of `useCommandSearch`: call `search.search()` instead. */
+/**
+ * The `react-server` build of `useCommandSearch`: call `search.search()`
+ * instead.
+ */
 export const useCommandSearch: (
   options?: UseCommandSearchOptions,
 ) => CommandSearchState = () => {

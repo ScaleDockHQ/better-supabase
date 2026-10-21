@@ -39,8 +39,8 @@ const ENTRY_KEYS: readonly (readonly [string, string])[] = [
 ];
 
 /**
- * `list_audit_events` for the TypeScript side: a page of entries the caller
- * can read (security invoker, so the read policy decides), newest first.
+ * `list_audit_events` for the TypeScript side: a page of entries the caller can
+ * read (security invoker, so the read policy decides), newest first.
  */
 export function listEntries(
   ctx: ModuleContext,

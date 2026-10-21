@@ -7,6 +7,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("can_subject_for", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("answers for another user through the subject's read key", async () => {

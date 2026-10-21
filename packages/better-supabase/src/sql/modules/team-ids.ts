@@ -4,7 +4,10 @@ import type { ModuleLayout } from "../module-types.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { accessModel } from "./access-model.ts";
 
-/** `authorization.functions.teamIdsOf` for `user`, when the provider model is on and sets it. */
+/**
+ * `authorization.functions.teamIdsOf` for `user`, when the provider model is on
+ * and sets it.
+ */
 export function providerTeamIds(
   ctx: ModuleContext,
   layout: ModuleLayout,
@@ -22,8 +25,8 @@ export function providerTeamIds(
 
 /**
  * The caller's team ids as text, for `value in (<this>)`: the provider's
- * `teamIdsOf` when set, else the teams module's `team_ids_of()`, else `""`
- * (no teams).
+ * `teamIdsOf` when set, else the teams module's `team_ids_of()`, else `""` (no
+ * teams).
  */
 export function callerTeamIdsSql(
   ctx: ModuleContext,

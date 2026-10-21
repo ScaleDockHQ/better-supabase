@@ -4,8 +4,8 @@
  * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it. It also
  * writes the preset catalog (`src/preset/catalog.generated.ts`), which
  * `better-supabase/preset` resolves against without importing the SQL
- * renderers. That file is committed, and `pnpm catalog:check` (`--check`,
- * part of `pnpm verify`) fails when it is stale.
+ * renderers. That file is committed, and `pnpm catalog:check` (`--check`, part
+ * of `pnpm verify`) fails when it is stale.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -27,6 +27,7 @@ import type {
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
 import type { ModuleContext } from "../packages/better-supabase/src/sql/context.ts";
+import type { SqlModule } from "../packages/better-supabase/src/sql/index.ts";
 import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
@@ -34,7 +35,6 @@ import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fiel
 import {
   renderModules,
   SQL_MODULES,
-  type SqlModule,
 } from "../packages/better-supabase/src/sql/index.ts";
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
 import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
@@ -107,9 +107,15 @@ export interface CatalogBlock {
   readonly modes: readonly string[];
   /** Outbox event types the module emits when the outbox is installed. */
   readonly events: readonly string[];
-  /** The `better-supabase/blocks/<name>` subpath, when the block has a TypeScript side. */
+  /**
+   * The `better-supabase/blocks/<name>` subpath, when the block has a
+   * TypeScript side.
+   */
   readonly subpath: string | null;
-  /** The `better-supabase/blocks/<name>/react` entry and its source file, when there is one. */
+  /**
+   * The `better-supabase/blocks/<name>/react` entry and its source file, when
+   * there is one.
+   */
   readonly react: { readonly subpath: string; readonly source: string } | null;
   /** The docs page that covers the module. */
   readonly docs: string;
@@ -200,9 +206,9 @@ function exportsOf(): ReadonlyMap<string, string> {
 }
 
 /**
- * Event types from the module's file rendered next to the outbox. A module
- * that needs options to render (`entitlements` needs a customer column) gets
- * the managed organizations module, which supplies the default.
+ * Event types from the module's file rendered next to the outbox. A module that
+ * needs options to render (`entitlements` needs a customer column) gets the
+ * managed organizations module, which supplies the default.
  */
 function eventsOf(module: SqlModule): readonly string[] {
   const attempts = [
@@ -276,8 +282,8 @@ const ACCESS_MODELS: readonly PresetAccess[] = [
 ];
 
 /**
- * Each manifest's export name and folder: the registry imports every
- * manifest by name from `./<folder>/manifest.ts` and lists the names in
+ * Each manifest's export name and folder: the registry imports every manifest
+ * by name from `./<folder>/manifest.ts` and lists the names in
  * `BLOCK_MANIFESTS` in the array's order.
  */
 function manifestExports(): ReadonlyMap<
@@ -362,9 +368,9 @@ const isPortName = (name: string): name is PortName =>
   PORT_NAMES.some((port) => port === name);
 
 /**
- * The logical table `blocks.<name>.options.extraColumns` adds columns to,
- * read by rendering the module with a copy of its context (plain closures,
- * no getters) that records the table it passes to `ctx.extraColumns`.
+ * The logical table `blocks.<name>.options.extraColumns` adds columns to, read
+ * by rendering the module with a copy of its context (plain closures, no
+ * getters) that records the table it passes to `ctx.extraColumns`.
  */
 function extraColumnsTable(module: SqlModule): string | undefined {
   if (module.names?.options?.includes("extraColumns") !== true) {
@@ -421,9 +427,7 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
 
   const byAccess = Object.fromEntries(
     ACCESS_MODELS.flatMap((model) => {
-      const needs = module.dependencies?.({
-        modules: { access: { model } },
-      });
+      const needs = module.dependencies?.({ modules: { access: { model } } });
 
       return needs === undefined || needs.join(",") === requires.join(",")
         ? []

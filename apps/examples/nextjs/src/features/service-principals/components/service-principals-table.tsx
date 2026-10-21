@@ -39,10 +39,9 @@ import {
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
-import {
-  loadServicePrincipals,
-  type ServicePrincipalRow,
-} from "../service-principals-queries";
+import type { ServicePrincipalRow } from "../service-principals-queries";
+
+import { loadServicePrincipals } from "../service-principals-queries";
 import {
   CreateServicePrincipalDialog,
   DisableServicePrincipalButton,
@@ -75,9 +74,9 @@ async function retry() {
 }
 
 /**
- * Render inside `<Suspense>`: the machine identities workflows and webhooks
- * run as, with their role. Members with `service_principals.manage` add
- * and disable them. Members without `service_principals.read` see nothing.
+ * Render inside `<Suspense>`: the machine identities workflows and webhooks run
+ * as, with their role. Members with `service_principals.manage` add and disable
+ * them. Members without `service_principals.read` see nothing.
  */
 export async function ServicePrincipalsTable() {
   const [session, t, format] = await Promise.all([

@@ -1,9 +1,10 @@
 import type { DbError } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Tag, Tags } from "./tags.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { err, ok, type Result, toDbError } from "../../core/result.ts";
+import { err, ok, toDbError } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
 /** A tag change on the subject that committed, for `onChanged`. */
@@ -43,8 +44,8 @@ export interface TagInputActions {
   /** Removes a tag, hidden at once and put back when it fails. */
   readonly remove: (tagId: string) => Promise<Result<boolean>>;
   /**
-   * Adds the tag called `name`: an existing one of the kind with the same
-   * name (ignoring case), or a new one, which needs `tags.manage`.
+   * Adds the tag called `name`: an existing one of the kind with the same name
+   * (ignoring case), or a new one, which needs `tags.manage`.
    */
   readonly create: (name: string) => Promise<Result<Tag>>;
   readonly refresh: () => Promise<void>;
@@ -59,9 +60,9 @@ const noOrganization = (): Result<never> =>
   err(dbError("invalid_input", "No organization is active"));
 
 /**
- * One subject's tags for a tag input: the tags on it, every tag of the
- * kind for suggestions, and `add`, `remove` and `create`, which show the
- * change at once.
+ * One subject's tags for a tag input: the tags on it, every tag of the kind for
+ * suggestions, and `add`, `remove` and `create`, which show the change at
+ * once.
  */
 export function createTagInputController(
   options: TagInputControllerOptions,
@@ -78,7 +79,8 @@ export function createTagInputController(
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const [tags, available] = await Promise.all([
           client.forSubject(organizationId, subjectType, subjectId),

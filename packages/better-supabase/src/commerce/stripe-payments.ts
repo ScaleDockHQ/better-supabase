@@ -1,20 +1,22 @@
+import type { StripeSource } from "../blocks/stripe.ts";
+import type { Result } from "../core/result.ts";
 import type { Money } from "./money.ts";
+import type {
+  Payment,
+  PaymentEvent,
+  PaymentEventType,
+  PaymentProvider,
+  PaymentStatus,
+  Refund,
+  RefundStatus,
+} from "./payments.ts";
 
-import { lazyStripe, type StripeSource } from "../blocks/stripe.ts";
+import { lazyStripe } from "../blocks/stripe.ts";
 import { verifyStripeWebhook } from "../blocks/webhooks/verify.ts";
 import { dbError } from "../core/errors.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
-import {
-  invalidPaymentAmount,
-  type Payment,
-  type PaymentEvent,
-  type PaymentEventType,
-  type PaymentProvider,
-  type PaymentStatus,
-  type Refund,
-  type RefundStatus,
-} from "./payments.ts";
+import { invalidPaymentAmount } from "./payments.ts";
 import {
   fromStripeAmount,
   idempotency,
@@ -53,8 +55,8 @@ export interface StripeRefund {
 }
 
 /**
- * The part of the Stripe SDK `stripePayments` calls, typed structurally so
- * the block never imports `stripe`.
+ * The part of the Stripe SDK `stripePayments` calls, typed structurally so the
+ * block never imports `stripe`.
  */
 export interface StripePaymentsClient {
   readonly paymentIntents: {
@@ -85,8 +87,9 @@ export interface StripePaymentsClient {
 
 export interface StripePaymentsOptions {
   /**
-   * A client, a factory such as `stripeFromKey()` from `better-supabase/stripe`,
-   * or `{ secretKey }` to create one from `stripe` in plain Node.
+   * A client, a factory such as `stripeFromKey()` from
+   * `better-supabase/stripe`, or `{ secretKey }` to create one from `stripe` in
+   * plain Node.
    */
   readonly stripe: StripeSource<StripePaymentsClient>;
   /** The endpoint's `whsec_` secret; several while it rotates. */
@@ -94,8 +97,8 @@ export interface StripePaymentsOptions {
   /** Defaults to `stripe`. */
   readonly name?: string;
   /**
-   * Extra PaymentIntent parameters, such as `{ automatic_payment_methods:
-   * { enabled: true } }` (the default) or `payment_method_types`.
+   * Extra PaymentIntent parameters, such as `{ automatic_payment_methods: {
+   * enabled: true } }` (the default) or `payment_method_types`.
    */
   readonly paymentIntent?: Params;
   /** Seconds a webhook timestamp may be off. Defaults to 300. */
@@ -201,9 +204,9 @@ const text = (value: unknown): string | undefined =>
   typeof value === "string" && value.length > 0 ? value : undefined;
 
 /**
- * The payment events in a verified Stripe event, such as one the webhook
- * inbox stored with `stripeInboxVerify`. Event types the contract doesn't
- * cover give none. Needs `Temporal`.
+ * The payment events in a verified Stripe event, such as one the webhook inbox
+ * stored with `stripeInboxVerify`. Event types the contract doesn't cover give
+ * none. Needs `Temporal`.
  */
 export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
   const envelope = objectOf(event);
@@ -289,9 +292,9 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
 }
 
 /**
- * A `PaymentProvider` on Stripe PaymentIntents. `stripe` is an optional
- * peer, loaded on first use when `stripe` is `{ secretKey }`; webhooks are
- * verified with WebCrypto, without it.
+ * A `PaymentProvider` on Stripe PaymentIntents. `stripe` is an optional peer,
+ * loaded on first use when `stripe` is `{ secretKey }`; webhooks are verified
+ * with WebCrypto, without it.
  */
 export function stripePayments(
   options: StripePaymentsOptions,
@@ -435,9 +438,7 @@ export function stripePayments(
           name,
           await (
             await client()
-          ).paymentIntents.retrieve(paymentId, {
-            ...EXPAND,
-          }),
+          ).paymentIntents.retrieve(paymentId, { ...EXPAND }),
         ),
       ),
     parseWebhook: (input) =>

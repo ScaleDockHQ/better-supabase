@@ -28,7 +28,10 @@ export interface CommandSearchOptions {
 export interface CommandSearchSnapshot {
   readonly open: boolean;
   readonly query: string;
-  /** Favorites and recents for an empty query, otherwise the matches by subject type. */
+  /**
+   * Favorites and recents for an empty query, otherwise the matches by subject
+   * type.
+   */
   readonly groups: readonly CommandSearchGroup[];
   readonly results: readonly SearchHit[];
   readonly recents: readonly SearchUserItem[];
@@ -112,7 +115,8 @@ export function createCommandSearchController(
       };
 
       const loadLists = async (): Promise<void> => {
-        const request = ++listTicket;
+        listTicket += 1;
+        const request = listTicket;
 
         const [recent, starred] = await Promise.all([
           client.recents(list),
@@ -141,7 +145,8 @@ export function createCommandSearchController(
       };
 
       const schedule = (): void => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         clearTimeout(timer);
         timer = undefined;
         const trimmed = query.trim();

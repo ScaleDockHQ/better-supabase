@@ -14,6 +14,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("caches entries with a capped TTL and purges expired ones", async () => {

@@ -1,7 +1,10 @@
-import { jsonSchema, tool, type ToolSet } from "ai";
+import type { ToolSet } from "ai";
+
+import { jsonSchema, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AgentRuntimeOptions } from "../../../src/ai-sdk/agents/index.ts";
 import type { Agent } from "../../../src/blocks/agents/index.ts";
 import type {
   Knowledge,
@@ -13,7 +16,6 @@ import {
   agentClaims,
   agentRunContext,
   agentToolOperation,
-  type AgentRuntimeOptions,
   assertToolDelegated,
   createAgentRuntime,
   toolDelegated,
@@ -382,9 +384,7 @@ describe("createAgentRuntime results filter", () => {
 });
 
 describe("createAgentRuntime tool operations", () => {
-  const operations = {
-    "ai.tool.a": { permission: "docs.write_all" },
-  };
+  const operations = { "ai.tool.a": { permission: "docs.write_all" } };
 
   it("checks the provider's permission over the tool's own", async () => {
     const authorizeTool = vi.fn(() => true);

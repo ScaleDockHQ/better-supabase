@@ -4,7 +4,10 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import { CACHE_DIR, writeAtomic } from "../introspect/cache.ts";
 
-/** The files the last `gen` wrote, so the next one can remove those it no longer writes. */
+/**
+ * The files the last `gen` wrote, so the next one can remove those it no longer
+ * writes.
+ */
 const MANIFEST = `${CACHE_DIR}/gen-manifest.json`;
 
 export const manifestPath = (root: string, path: string): string =>
@@ -31,7 +34,10 @@ async function readManifest(root: string): Promise<readonly string[]> {
   );
 }
 
-/** Files in the last manifest that this run doesn't generate and that still exist inside the root. */
+/**
+ * Files in the last manifest that this run doesn't generate and that still
+ * exist inside the root.
+ */
 export async function leftoverFiles(
   root: string,
   generated: readonly string[],
@@ -57,5 +63,5 @@ export const writeManifest = (
 ): Promise<void> =>
   writeAtomic(
     resolve(root, MANIFEST),
-    `${JSON.stringify({ version: 1, files: [...files].sort() }, null, 2)}\n`,
+    `${JSON.stringify({ version: 1, files: files.toSorted() }, null, 2)}\n`,
   ).catch(() => undefined);

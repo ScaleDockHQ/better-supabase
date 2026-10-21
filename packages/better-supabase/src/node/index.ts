@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { Validated } from "../bridges/shared.ts";
 import type { RouteGuardOptions } from "../server/refusal.ts";
+import type { WebRequestOptions } from "./http.ts";
 
 import { beforeRoute } from "../bridges/before-route.ts";
 import { applyWebHeaders } from "../bridges/node-headers.ts";
@@ -12,11 +13,7 @@ import {
   guardedLocals,
   routeRefusal,
 } from "../server/refusal.ts";
-import {
-  sendWebResponse,
-  toWebRequest,
-  type WebRequestOptions,
-} from "./http.ts";
+import { sendWebResponse, toWebRequest } from "./http.ts";
 
 export { applyWebHeaders, toWebHeaders } from "../bridges/node-headers.ts";
 
@@ -32,17 +29,24 @@ export interface ToNodeOptions<Req = IncomingMessage> extends Omit<
   WebRequestOptions,
   "body"
 > {
-  /** The host's env object for `getEnv`; defaults to `process.env` through `getEnv`. */
+  /**
+   * The host's env object for `getEnv`; defaults to `process.env` through
+   * `getEnv`.
+   */
   readonly env?: (req: Req) => unknown;
 }
 
 /**
  * A `node:http` request listener running the entries around `handler`.
- * Response-phase entries see the handler's response, so refreshed cookies
- * and `withDbStats` totals reach the client.
+ * Response-phase entries see the handler's response, so refreshed cookies and
+ * `withDbStats` totals reach the client.
  *
  * ```ts
- * createServer(toNodeHandler([withBetterSupabase(server)], (request, { db }) => db.notes.findMany()))
+ * createServer(
+ *   toNodeHandler([withBetterSupabase(server)], (request, { db }) =>
+ *     db.notes.findMany(),
+ *   ),
+ * );
  * ```
  */
 export function toNodeHandler<const Entries extends readonly AnyEntry[]>(
@@ -115,8 +119,10 @@ export type ExpressErrorHandler = (
  * (`res.locals.db`, `res.locals.bs`). Mount it before the routes.
  *
  * ```ts
- * app.use(toExpress([withBetterSupabase(server)]))
- * app.get('/notes', async (req, res) => res.json(await res.locals.db.notes.findMany().orThrow()))
+ * app.use(toExpress([withBetterSupabase(server)]));
+ * app.get("/notes", async (req, res) =>
+ *   res.json(await res.locals.db.notes.findMany().orThrow()),
+ * );
  * ```
  */
 export function toExpress<const Entries extends readonly AnyEntry[]>(
@@ -152,11 +158,11 @@ export function toExpress<const Entries extends readonly AnyEntry[]>(
 }
 
 /**
- * Express route middleware that refuses callers outside `options`:
- * Problem Details, or a redirect to `signIn` or `mfa`. Runs after `toExpress`.
+ * Express route middleware that refuses callers outside `options`: Problem
+ * Details, or a redirect to `signIn` or `mfa`. Runs after `toExpress`.
  *
  * ```ts
- * app.get('/admin', guard({ roles: ['admin'] }), handler)
+ * app.get("/admin", guard({ roles: ["admin"] }), handler);
  * ```
  */
 export function guard(options: RouteGuardOptions = {}): ExpressMiddleware {
@@ -186,8 +192,8 @@ export function guard(options: RouteGuardOptions = {}): ExpressMiddleware {
 
 /**
  * An Express error handler that answers thrown `DbException`s (from
- * `.orThrow()`) with Problem Details and passes every other error on.
- * Register it after the routes.
+ * `.orThrow()`) with Problem Details and passes every other error on. Register
+ * it after the routes.
  */
 export function problemErrorHandler(
   options: { readonly expose?: boolean } = {},
@@ -262,13 +268,15 @@ async function sendReply(
 }
 
 /**
- * A Fastify `onRequest` hook that puts every contribution on
- * `request.locals`. Declare `locals` with `app.decorateRequest('locals', null)`.
+ * A Fastify `onRequest` hook that puts every contribution on `request.locals`.
+ * Declare `locals` with `app.decorateRequest('locals', null)`.
  *
  * ```ts
- * app.decorateRequest('locals', null)
- * app.addHook('onRequest', toFastify([withBetterSupabase(server)]))
- * app.get('/notes', (request) => request.locals.db.notes.findMany().orThrow())
+ * app.decorateRequest("locals", null);
+ * app.addHook("onRequest", toFastify([withBetterSupabase(server)]));
+ * app.get("/notes", (request) =>
+ *   request.locals.db.notes.findMany().orThrow(),
+ * );
  * ```
  */
 export function toFastify<const Entries extends readonly AnyEntry[]>(
@@ -351,12 +359,14 @@ async function sendKoa(ctx: KoaContextLike, response: Response): Promise<void> {
 }
 
 /**
- * Koa middleware that puts every contribution on `ctx.state`, then awaits
- * the rest of the chain. Thrown `DbException`s become Problem Details.
+ * Koa middleware that puts every contribution on `ctx.state`, then awaits the
+ * rest of the chain. Thrown `DbException`s become Problem Details.
  *
  * ```ts
- * app.use(toKoa([withBetterSupabase(server)]))
- * app.use(async (ctx) => { ctx.body = await ctx.state.db.notes.findMany().orThrow() })
+ * app.use(toKoa([withBetterSupabase(server)]));
+ * app.use(async (ctx) => {
+ *   ctx.body = await ctx.state.db.notes.findMany().orThrow();
+ * });
  * ```
  */
 export function toKoa<const Entries extends readonly AnyEntry[]>(

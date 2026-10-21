@@ -198,11 +198,10 @@ export interface FilterField<V = unknown, O = unknown> {
    *
    * - `"none"` (default) keeps declaration order. Not alphabetical, because
    *   option order is usually semantic (To do, In progress, Done).
-   * - `"label"` sorts with `localeCompare`, so "Ålesund" files next to
-   *   "Alesund" rather than after "Zurich".
-   * - `"snapshot"` keeps declaration order too, and freezes the partition as
-   *   the menu opened it: a steady pointer target where the other two re-pin
-   *   live.
+   * - `"label"` sorts with `localeCompare`, so "Ålesund" files next to "Alesund"
+   *   rather than after "Zurich".
+   * - `"snapshot"` keeps declaration order too, and freezes the partition as the
+   *   menu opened it: a steady pointer target where the other two re-pin live.
    */
   sortSelected?: "none" | "label" | "snapshot";
   /**
@@ -277,10 +276,7 @@ export interface FilterEditorProps<V = unknown, O = unknown> {
    * to every element's own ref prop, so it spreads onto an input, a slider or a
    * button without a cast.
    */
-  autoFocusProps: {
-    ref: React.RefCallback<HTMLElement>;
-    autoFocus: boolean;
-  };
+  autoFocusProps: { ref: React.RefCallback<HTMLElement>; autoFocus: boolean };
   /** Accept the draft. `{ close: false }` writes through without dismissing. */
   commit: (value?: V, options?: FilterCommitOptions) => void;
   cancel: () => void;
@@ -352,9 +348,11 @@ export interface FilterIndex<V = unknown, O = unknown> {
   childrenOf: Map<string, FilterField<V, O>[]>;
   /** Parent path by path. Empty string for a root field. */
   parentOf: Map<string, string>;
-  /** Every field in stable, depth-first order. Deep search walks it, and the
+  /**
+   * Every field in stable, depth-first order. Deep search walks it, and the
    * builder seeds a new row from the FIRST pickable entry, so order is load
-   * bearing, not incidental. */
+   * bearing, not incidental.
+   */
   all: { field: FilterField<V, O>; path: string[] }[];
   /** Top level fields, in input order. */
   roots: FilterField<V, O>[];
@@ -376,8 +374,10 @@ export type FilterDraftStep = "field" | "operator" | "value";
  */
 export interface FilterDraft<V = unknown> {
   step: FilterDraftStep;
-  /** `"ready"` = complete: the host writes it into the query and closes. The
-   * pure reducer decides that, not a click handler. */
+  /**
+   * `"ready"` = complete: the host writes it into the query and closes. The
+   * pure reducer decides that, not a click handler.
+   */
   status: "editing" | "ready";
   /** Set when amending an existing rule, null when creating a new one. */
   ruleId: string | null;
@@ -405,9 +405,11 @@ export interface FilterLabels {
   /** Appends a condition to the root group, from the builder's footer. */
   addCondition: string;
   addConditionGroup: string;
-  /** A group's own add button: the only keyboard route into a nested group. It
+  /**
+   * A group's own add button: the only keyboard route into a nested group. It
    * NAMES a button that shows `addCondition`, so a translation must contain
-   * that string, which is what WCAG Label in Name asks for. */
+   * that string, which is what WCAG Label in Name asks for.
+   */
   addToGroup: string;
   removeGroup: string;
   wrapInGroup: string;
@@ -434,9 +436,11 @@ export interface FilterLabels {
     position: number,
     total: number,
   ) => string;
-  /** A cross-PARENT move; a plain reorder announcement cannot be told apart.
+  /**
+   * A cross-PARENT move; a plain reorder announcement cannot be told apart.
    * `destination` is the group's own headline, or the bar's label at the top
-   * level. */
+   * level.
+   */
   moveAnnouncement: (
     label: string,
     destination: string,
@@ -465,8 +469,10 @@ export interface FilterLabels {
   or: string;
   /** Accessible name of the combinator toggle between two chips. */
   combinator: string;
-  /** Builder combinator toggle. English "and" wants 58.72px of a 64px track,
-   * so the name must CONTAIN the word: truncated, the pill shows "a...". */
+  /**
+   * Builder combinator toggle. English "and" wants 58.72px of a 64px track, so
+   * the name must CONTAIN the word: truncated, the pill shows "a...".
+   */
   combinatorLabel: (word: string) => string;
   duplicate: string;
   negate: string;
@@ -479,8 +485,10 @@ export interface FilterLabels {
   filterLabel: (condition: string) => string;
   /** Prose, not ARIA: `aria-readonly` is invalid on toolbar, group and button. */
   readOnly: string;
-  /** Joins ancestors in a nested field path, "Name > First", for the names
-   * `formatFilterPath` builds. The chip draws a decorative chevron instead. */
+  /**
+   * Joins ancestors in a nested field path, "Name > First", for the names
+   * `formatFilterPath` builds. The chip draws a decorative chevron instead.
+   */
   pathSeparator: string;
   valuePlaceholder: string;
   /** Empty word for an OPTION value; `placeholder` is the search prompt. */
@@ -493,8 +501,10 @@ export interface FilterLabels {
   incomplete: string;
   /** Appended to a branch row's accessible name in the field picker. */
   branchAffordance: string;
-  /** A FRAGMENT, appended after a comma to an exclusive row's accessible name.
-   * Warns before the press; `exclusiveAnnouncement` is the receipt after. */
+  /**
+   * A FRAGMENT, appended after a comma to an exclusive row's accessible name.
+   * Warns before the press; `exclusiveAnnouncement` is the receipt after.
+   */
   exclusiveHint: string;
   /** The clearing moves nothing on screen, so it is otherwise silent. */
   exclusiveAnnouncement: (label: string, cleared: number) => string;

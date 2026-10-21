@@ -1,4 +1,5 @@
 import type { ModuleContext } from "../context.ts";
+import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -18,14 +19,13 @@ import {
   platformTable,
   raise,
   tenantTable,
-  type InviteTable,
 } from "./invitations-tables.ts";
 import { assignableRole } from "./organizations-roles.ts";
 
 /**
  * The invitation's organization: its id plus
- * `blocks.invitations.options.previewColumns` when the organizations
- * module is installed.
+ * `blocks.invitations.options.previewColumns` when the organizations module is
+ * installed.
  */
 export function organizationJson(ctx: ModuleContext, tenant: string): string {
   if (!ctx.installed("organizations")) {
@@ -50,9 +50,9 @@ export function organizationJson(ctx: ModuleContext, tenant: string): string {
 }
 
 /**
- * The inviter's id and public profile fields (as in `notification_actors`)
- * when the profiles module is installed and the table has `invitedBy`;
- * `undefined` otherwise.
+ * The inviter's id and public profile fields (as in `notification_actors`) when
+ * the profiles module is installed and the table has `invitedBy`; `undefined`
+ * otherwise.
  */
 function inviterJson(
   ctx: ModuleContext,
@@ -82,8 +82,8 @@ const extraHook = (ctx: ModuleContext): string =>
   sqlString(`${ctx.hookTarget("invitation_preview_extra")}(uuid)`);
 
 /**
- * `invitation_extra(invitation)`: the keys the app's
- * `invitation_preview_extra` hook returns, or `{}` without the hook.
+ * `invitation_extra(invitation)`: the keys the app's `invitation_preview_extra`
+ * hook returns, or `{}` without the hook.
  */
 export function invitationExtra(ctx: ModuleContext): string {
   return `
@@ -114,9 +114,9 @@ revoke execute on function ${ctx.fn("invitation_extra")}(uuid) from public, anon
 }
 
 /**
- * The invitation as returned to the inviter and the invitee, with the
- * inviter's profile fields and the `invitation_preview_extra` keys; the
- * token only right after creating it.
+ * The invitation as returned to the inviter and the invitee, with the inviter's
+ * profile fields and the `invitation_preview_extra` keys; the token only right
+ * after creating it.
  */
 export function inviteJson(
   ctx: ModuleContext,
@@ -148,8 +148,8 @@ export function inviteJson(
 }
 
 /**
- * `my_invitations()`: the caller's open invitations without their tokens,
- * with the organization and the `invitation_preview_extra` keys.
+ * `my_invitations()`: the caller's open invitations without their tokens, with
+ * the organization and the `invitation_preview_extra` keys.
  */
 export function myInvitations(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
@@ -207,9 +207,9 @@ $$;
 }
 
 /**
- * `update_invitation`: a new email, role or prefill for an open invitation
- * that has not expired, with the checks `invite_member` makes. The token and
- * expiry stay.
+ * `update_invitation`: a new email, role or prefill for an open invitation that
+ * has not expired, with the checks `invite_member` makes. The token and expiry
+ * stay.
  */
 export function updateInvitation(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
@@ -224,8 +224,8 @@ export function updateInvitation(ctx: ModuleContext): string {
   const open = openFilter(t, "i");
 
   /**
-   * Writes the changes into row variable `next`, a copy of the current row,
-   * so each value takes the column's own type, then updates the row from it.
+   * Writes the changes into row variable `next`, a copy of the current row, so
+   * each value takes the column's own type, then updates the row from it.
    */
   const write = (
     table: InviteTable,

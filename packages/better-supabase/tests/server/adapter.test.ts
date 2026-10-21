@@ -2,6 +2,8 @@ import { os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { describe, expect, it, vi } from "vitest";
 
+import type { OrpcRequestContext } from "../../src/orpc/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
@@ -9,7 +11,7 @@ import { createEdge } from "../../src/edge/index.ts";
 import { createExpo } from "../../src/expo/index.ts";
 import { createHono } from "../../src/hono/index.ts";
 import { createMcp } from "../../src/mcp/index.ts";
-import { createOrpc, type OrpcRequestContext } from "../../src/orpc/index.ts";
+import { createOrpc } from "../../src/orpc/index.ts";
 import {
   createServer,
   flushEvents,

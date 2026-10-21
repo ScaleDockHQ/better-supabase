@@ -49,10 +49,16 @@ interface DataGridColumnHeaderProps<
   TValue,
 > extends HTMLAttributes<HTMLDivElement> {
   column: Column<DataGridFeatures, TData, TValue>;
-  /** When omitted, uses `column.columnDef.meta.headerTitle`, then a string `columnDef.header`, then `column.id`. */
+  /**
+   * When omitted, uses `column.columnDef.meta.headerTitle`, then a string
+   * `columnDef.header`, then `column.id`.
+   */
   title?: string;
   icon?: ReactNode;
-  /** Reserved; pin controls are gated by tableLayout.columnsPinnable + column.getCanPin(). */
+  /**
+   * Reserved; pin controls are gated by tableLayout.columnsPinnable +
+   * column.getCanPin().
+   */
   pinnable?: boolean;
   filter?: ReactNode;
   visibility?: boolean;
@@ -154,8 +160,10 @@ function DataGridColumnHeaderInner<TData extends object, TValue>({
   const canMoveLeft = leftNeighbour !== undefined;
   const canMoveRight = rightNeighbour !== undefined;
 
-  /** Re-seats this column, with the leaves its header spans, beside a rendered
-   * neighbour; every other column, hidden or pinned, keeps its place. */
+  /**
+   * Re-seats this column, with the leaves its header spans, beside a rendered
+   * neighbour; every other column, hidden or pinned, keeps its place.
+   */
   const moveBeside = (neighbour: string[], side: "before" | "after") => {
     const moving = renderedPeers[renderedIndex] ?? [column.id];
     const newOrder = columnOrder.filter((id) => !moving.includes(id));
@@ -486,7 +494,10 @@ const DataGridColumnHeaderMemo = memo(DataGridColumnHeaderInner) as <
   TValue,
 >(
   props: DataGridColumnHeaderProps<TData, TValue> & {
-    /** Internal: the state slices the header re-renders on. Not part of the public API. */
+    /**
+     * Internal: the state slices the header re-renders on. Not part of the
+     * public API.
+     */
     subscribedState?: unknown;
   },
 ) => ReactNode;
@@ -497,8 +508,8 @@ const DataGridColumnHeaderMemo = memo(DataGridColumnHeaderInner) as <
  * renders, so anything memoized against it (the `memo` below, or a consumer's
  * compiled header template) never re-runs those reads: frozen sort arrows and
  * pin controls. The `Subscribe` below turns the slices this header actually
- * reads into a real reactive dependency, and threading the selection through
- * as a prop is what lets it past the `memo`.
+ * reads into a real reactive dependency, and threading the selection through as
+ * a prop is what lets it past the `memo`.
  */
 function DataGridColumnHeader<TData extends object, TValue>(
   props: DataGridColumnHeaderProps<TData, TValue>,

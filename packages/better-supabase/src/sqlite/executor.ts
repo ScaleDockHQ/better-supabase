@@ -1,31 +1,26 @@
 import type {
+  SqliteColumn,
+  SqliteCompilerOptions,
+  SqliteInsertPlan,
+  SqliteKeyedPlan,
+  SqliteKeys,
+  SqlitePlan,
+  SqliteQuery,
+  SqliteValue,
+} from "../compile/sqlite.ts";
+import type { DbError, ErrorMapper, RawDbError } from "../core/errors.ts";
+import type {
   ExecuteContext,
   ExecuteResult,
   Executor,
 } from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
 import type { InsertOp, Operation } from "../ir/types.ts";
 import type { TableMeta } from "../schema/types.ts";
 
-import {
-  compileSqlite,
-  keyPages,
-  type SqliteColumn,
-  type SqliteCompilerOptions,
-  type SqliteInsertPlan,
-  type SqliteKeyedPlan,
-  type SqliteKeys,
-  type SqlitePlan,
-  type SqliteQuery,
-  type SqliteValue,
-} from "../compile/sqlite.ts";
-import {
-  type DbError,
-  dbError,
-  mapDbError,
-  type ErrorMapper,
-  type RawDbError,
-} from "../core/errors.ts";
-import { err, ok, type Result, toDbError } from "../core/result.ts";
+import { compileSqlite, keyPages } from "../compile/sqlite.ts";
+import { dbError, mapDbError } from "../core/errors.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 
 /** What a SQLite database, transaction or lock context can run. */
 export interface SqliteContextLike {
@@ -33,7 +28,10 @@ export interface SqliteContextLike {
   execute(sql: string, parameters?: unknown[]): Promise<unknown>;
 }
 
-/** What a SQLite database the executor can run on provides: reads, writes and write transactions. */
+/**
+ * What a SQLite database the executor can run on provides: reads, writes and
+ * write transactions.
+ */
 export interface SqliteDatabaseLike extends SqliteContextLike {
   writeTransaction<T>(
     callback: (tx: SqliteContextLike) => Promise<T>,
@@ -47,15 +45,15 @@ export interface SqliteDatabaseLike extends SqliteContextLike {
 export interface SqliteExecutorOptions extends SqliteCompilerOptions {
   /**
    * A primary key for an insert that leaves it out. Offline-first tables key on
-   * a text `id` that the client creates. Defaults to
-   * `crypto.randomUUID()`, else SQLite's `uuid()`.
+   * a text `id` that the client creates. Defaults to `crypto.randomUUID()`,
+   * else SQLite's `uuid()`.
    */
   readonly newId?: (table: TableMeta) => string | Promise<string>;
   /**
-   * Runs what SQLite can't, usually `postgrestExecutor(supabase)`: reads
-   * that compile to `unsupported` (includes, full-text search, function
-   * sources) and `db.$rpc`. Writes never fall back, so the upload
-   * queue stays the only write path. Offline, the fallback's error comes back.
+   * Runs what SQLite can't, usually `postgrestExecutor(supabase)`: reads that
+   * compile to `unsupported` (includes, full-text search, function sources) and
+   * `db.$rpc`. Writes never fall back, so the upload queue stays the only write
+   * path. Offline, the fallback's error comes back.
    */
   readonly fallback?: Executor;
 }
@@ -68,8 +66,8 @@ const unqualified = (column: string): string =>
   column.trim().replace(/^[^.]+\./, "");
 
 /**
- * A SQLite constraint error in the shape `mapDbError` reads from Postgres:
- * its SQLSTATE, and the columns in Postgres's `Key (...)` detail format.
+ * A SQLite constraint error in the shape `mapDbError` reads from Postgres: its
+ * SQLSTATE, and the columns in Postgres's `Key (...)` detail format.
  */
 export function fromSqliteError(cause: unknown): RawDbError | undefined {
   if (!(cause instanceof Error)) {
@@ -284,7 +282,10 @@ async function runInsert(
   return { rows, count: written.length };
 }
 
-/** Thrown inside the write transaction so it rolls back; mapped to `max_affected`. */
+/**
+ * Thrown inside the write transaction so it rolls back; mapped to
+ * `max_affected`.
+ */
 class MaxAffected extends Error {
   readonly error: DbError;
 
@@ -502,16 +503,16 @@ function mapped(cause: unknown, mappers: readonly ErrorMapper[]): DbError {
 
 /**
  * Runs repository operations on a local SQLite database, so the same
- * repositories and list definitions work offline on native. Reads
- * return rows in the PostgREST shape (booleans, parsed JSON, ISO
- * timestamps); writes go through the database's upload queue. What SQLite
- * can't express (includes, full-text search, function sources) and
- * `db.$rpc` return a `DbError` of kind `unsupported` without running
- * anything, or run on `options.fallback` when you pass one.
- * `maxAffected` is checked against the selected keys before any write; a
- * call's `timeout` and `signal` are checked before the statements start,
- * and `retry` does nothing here. A `bigint` beyond `Number.MAX_SAFE_INTEGER`
- * comes back as its decimal string instead of a rounded number.
+ * repositories and list definitions work offline on native. Reads return rows
+ * in the PostgREST shape (booleans, parsed JSON, ISO timestamps); writes go
+ * through the database's upload queue. What SQLite can't express (includes,
+ * full-text search, function sources) and `db.$rpc` return a `DbError` of kind
+ * `unsupported` without running anything, or run on `options.fallback` when you
+ * pass one. `maxAffected` is checked against the selected keys before any
+ * write; a call's `timeout` and `signal` are checked before the statements
+ * start, and `retry` does nothing here. A `bigint` beyond
+ * `Number.MAX_SAFE_INTEGER` comes back as its decimal string instead of a
+ * rounded number.
  */
 export function sqliteExecutor(
   db: SqliteDatabaseLike,

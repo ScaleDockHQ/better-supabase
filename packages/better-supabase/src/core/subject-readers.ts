@@ -14,7 +14,10 @@ export interface SubjectReadersOptions {
   readonly action?: string;
 }
 
-/** A registered subject's type and id, from `subjects/<type>/<id>` or `<type>/<id>`. */
+/**
+ * A registered subject's type and id, from `subjects/<type>/<id>` or
+ * `<type>/<id>`.
+ */
 function parseSubject(
   subject: string,
   types: ReadonlySet<string>,
@@ -37,13 +40,13 @@ function parseSubject(
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The default subscriber policy under an authorization provider: a
- * subscriber gets an event about a subject in `config.subjects` only when
+ * The default subscriber policy under an authorization provider: a subscriber
+ * gets an event about a subject in `config.subjects` only when
  * `can_subject_for` says it may `read` the subject (the key in
  * `config.subjects.<type>.permissions`, never a share-link grant). Events
  * without a subject, or about a type the registry doesn't list, keep every
- * subscriber, so the block's own tenant check decides them. `transport`
- * must run as the service role.
+ * subscriber, so the block's own tenant check decides them. `transport` must
+ * run as the service role.
  */
 export function subjectReaders(
   transport: BlockTransport,

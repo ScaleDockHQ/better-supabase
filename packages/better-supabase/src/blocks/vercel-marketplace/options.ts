@@ -1,8 +1,13 @@
-import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
+
+import { blockOptions, option } from "../options.ts";
 
 /** `blocks.vercel-marketplace.options`. */
 export type VercelMarketplaceSqlOptions = {
-  /** The currency an invoice takes when the webhook names none (ISO 4217, lowercase). */
+  /**
+   * The currency an invoice takes when the webhook names none (ISO 4217,
+   * lowercase).
+   */
   readonly currency?: string;
 };
 

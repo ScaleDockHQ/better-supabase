@@ -32,7 +32,10 @@ export type IncomingWebhooksEvents = {
   readonly "incoming_webhook.deleted": IncomingWebhookEventData;
 };
 
-/** The `incoming-webhooks` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `incoming-webhooks` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const incomingWebhooksEvents: Events<IncomingWebhooksEvents> =
   defineEvents({
     "incoming_webhook.created": event<IncomingWebhookEventData>(),

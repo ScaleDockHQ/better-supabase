@@ -1,7 +1,8 @@
 import type { RequestContext } from "../core/plugin.ts";
+import type { ActClaim } from "./actor.ts";
 
 import { isRecord } from "../core/guards.ts";
-import { actorOf, type ActClaim } from "./actor.ts";
+import { actorOf } from "./actor.ts";
 import { actClaim, impersonatorClaim } from "./impersonation.ts";
 
 /** One RFC 9396 `authorization_details` entry. */
@@ -11,11 +12,11 @@ export interface AuthorizationDetail {
 }
 
 /**
- * What a delegated token carries, under its wire names: the OAuth client,
- * the scopes the user granted it (space-separated), its RFC 9396
- * authorization details and the RFC 8693 `act` chain of an OAuth client or
- * agent. Jobs and workflows record it so the work they run stays as
- * narrow as the token that queued it.
+ * What a delegated token carries, under its wire names: the OAuth client, the
+ * scopes the user granted it (space-separated), its RFC 9396 authorization
+ * details and the RFC 8693 `act` chain of an OAuth client or agent. Jobs and
+ * workflows record it so the work they run stays as narrow as the token that
+ * queued it.
  */
 export interface DelegatedClaims {
   readonly client_id?: string;
@@ -32,13 +33,16 @@ export type DelegatedClaimsOutcome =
     };
 
 /**
- * The claim `forContext({ permissions })` sets: the permission keys the
- * work may use. `better_supabase.cap_allows` refuses every other key, and
- * a job queued under a cap keeps it.
+ * The claim `forContext({ permissions })` sets: the permission keys the work
+ * may use. `better_supabase.cap_allows` refuses every other key, and a job
+ * queued under a cap keeps it.
  */
 export const PERMISSION_CAP_CLAIM = "bs_permission_cap";
 
-/** The claims a delegated token adds; `contextClaims` never takes them from `claimsFor`. */
+/**
+ * The claims a delegated token adds; `contextClaims` never takes them from
+ * `claimsFor`.
+ */
 export const DELEGATION_CLAIMS: readonly string[] = [
   "act",
   "client_id",
@@ -47,7 +51,10 @@ export const DELEGATION_CLAIMS: readonly string[] = [
   PERMISSION_CAP_CLAIM,
 ];
 
-/** `*` grants every key and `prefix.*` every key under prefix, as `permission_matches` in SQL. */
+/**
+ * `*` grants every key and `prefix.*` every key under prefix, as
+ * `permission_matches` in SQL.
+ */
 export function permissionMatches(granted: string, wanted: string): boolean {
   return (
     granted === "*" ||
@@ -57,8 +64,8 @@ export function permissionMatches(granted: string, wanted: string): boolean {
 }
 
 /**
- * The permission cap in `claims`: `undefined` without one, `false` for a
- * cap that is not a list of strings.
+ * The permission cap in `claims`: `undefined` without one, `false` for a cap
+ * that is not a list of strings.
  */
 export function permissionCapOf(
   claims: Readonly<Record<string, unknown>>,
@@ -128,13 +135,13 @@ function scopeOf(value: unknown): string | false | undefined {
 }
 
 /**
- * The delegation in `claims`, for a token an OAuth client or agent acts
- * with: a `client_id`, or an `act` chain that is not a support or
- * impersonation level. `{ ok: true }` without `delegation` for any other
- * session. An invalid `act` chain, a `client_id` that is not a non-empty
- * string, a `scope` that is neither a string nor a list of strings, and
- * `authorization_details` that are not objects with a `type` are
- * `{ ok: false }`: the work must not run as the user alone.
+ * The delegation in `claims`, for a token an OAuth client or agent acts with: a
+ * `client_id`, or an `act` chain that is not a support or impersonation level.
+ * `{ ok: true }` without `delegation` for any other session. An invalid `act`
+ * chain, a `client_id` that is not a non-empty string, a `scope` that is
+ * neither a string nor a list of strings, and `authorization_details` that are
+ * not objects with a `type` are `{ ok: false }`: the work must not run as the
+ * user alone.
  */
 export function delegatedClaims(
   claims: Readonly<Record<string, unknown>>,
@@ -188,7 +195,10 @@ export function delegatedClaims(
   };
 }
 
-/** The claims `forContext` runs with: `sub`, `role` and the context's tenant and delegation win. */
+/**
+ * The claims `forContext` runs with: `sub`, `role` and the context's tenant and
+ * delegation win.
+ */
 export interface RunClaims {
   readonly sub: string;
   readonly role: string;
@@ -217,11 +227,11 @@ export interface ContextClaimsOptions {
 
 /**
  * The SQL claims for the user in a recorded context: the user as
- * `authenticated`, the tenant as `tenant_id`, and the context's delegation,
- * so the access functions (through `cap_allows`), `token_scope_allows` and
- * the TypeScript scope checks narrow the work to what the queuing token
- * held, and to its permission cap. The `act` claim is the support session,
- * else the OAuth client chain, else the impersonating admin.
+ * `authenticated`, the tenant as `tenant_id`, and the context's delegation, so
+ * the access functions (through `cap_allows`), `token_scope_allows` and the
+ * TypeScript scope checks narrow the work to what the queuing token held, and
+ * to its permission cap. The `act` claim is the support session, else the OAuth
+ * client chain, else the impersonating admin.
  */
 export function contextClaims(
   context: RequestContext,

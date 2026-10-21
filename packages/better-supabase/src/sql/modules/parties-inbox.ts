@@ -4,9 +4,9 @@ import type { PartyNames } from "./parties-functions.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 
 /**
- * With the inbox installed: which person an inbox contact is, so a
- * conversation shows the person's company, deals and history. One person
- * has many contacts (an email, a WhatsApp number); a contact has one person.
+ * With the inbox installed: which person an inbox contact is, so a conversation
+ * shows the person's company, deals and history. One person has many contacts
+ * (an email, a WhatsApp number); a contact has one person.
  */
 export function partiesInboxSql(ctx: ModuleContext, names: PartyNames): string {
   if (!ctx.installed("inbox")) {

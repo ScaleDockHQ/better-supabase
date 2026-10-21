@@ -1,15 +1,22 @@
-import {
-  reenqueueActiveRuns,
-  type MessageId,
-  type QueueBatchResult,
-  type QueueOptions,
-  type QueuePayload,
-  type QueuePrefix,
-  type ValidQueueName,
-  type World,
+import type {
+  MessageId,
+  QueueBatchResult,
+  QueueOptions,
+  QueuePayload,
+  QueuePrefix,
+  ValidQueueName,
+  World,
 } from "@workflow/world";
+
+import { reenqueueActiveRuns } from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
+
+import type {
+  ClaimedJob,
+  StoredMessage,
+  SupabaseWorldOptions,
+} from "./types.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { memoized } from "../../core/optional-peer.ts";
@@ -29,16 +36,12 @@ import {
   verifyDelivery,
 } from "./crypto.ts";
 import { env, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
-import {
-  JOB_HEADER,
-  MAX_DELIVERIES,
-  SIGNATURE_HEADER,
-  type ClaimedJob,
-  type StoredMessage,
-  type SupabaseWorldOptions,
-} from "./types.ts";
+import { JOB_HEADER, MAX_DELIVERIES, SIGNATURE_HEADER } from "./types.ts";
 
-/** JSON with Uint8Array values as `{ __type: "Uint8Array", data: <base64> }`, as world-postgres sends them. */
+/**
+ * JSON with Uint8Array values as `{ __type: "Uint8Array", data: <base64> }`, as
+ * world-postgres sends them.
+ */
 function serialize(value: unknown): Buffer {
   return Buffer.from(
     JSON.stringify(value, (_key, inner: unknown) =>
@@ -74,7 +77,10 @@ function deliveryProblem(
   );
 }
 
-/** Retry delay after a failed delivery, as world-postgres (exp(min(attempt, 10)) seconds). */
+/**
+ * Retry delay after a failed delivery, as world-postgres (exp(min(attempt, 10))
+ * seconds).
+ */
 const backoffSeconds = (attempt: number): number =>
   Math.ceil(Math.exp(Math.min(attempt, 10)));
 
@@ -82,15 +88,18 @@ const backoffSeconds = (attempt: number): number =>
 export type SupabaseWorld = World & {
   start(): Promise<void>;
   close(): Promise<void>;
-  /** Claims and delivers the due messages once (poll mode); resolves with how many it delivered. */
+  /**
+   * Claims and delivers the due messages once (poll mode); resolves with how
+   * many it delivered.
+   */
   deliverOnce(): Promise<number>;
 };
 
 /**
  * A Workflow SDK World on Supabase Postgres: the run, step, event, hook and
  * stream tables of `@workflow/world-postgres` (installed by the
- * `workflow-sdk-world` SQL module), with messages in the jobs module's
- * queue instead of graphile-worker.
+ * `workflow-sdk-world` SQL module), with messages in the jobs module's queue
+ * instead of graphile-worker.
  *
  * ```ts
  * // workflow.config or WORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world
@@ -136,7 +145,10 @@ export function createSupabaseWorld(
       : { namespace: options.namespace }),
   });
 
-  /** The Vault secret, `undefined` when no row has the name; a failed read rejects. */
+  /**
+   * The Vault secret, `undefined` when no row has the name; a failed read
+   * rejects.
+   */
   const vault = async (name: string): Promise<string | undefined> => {
     const result = await pool.query<{ secret: string | null }>(
       "select decrypted_secret as secret from vault.decrypted_secrets where name = $1",
@@ -436,7 +448,10 @@ export function createSupabaseWorld(
   const claimInto = async (room: number): Promise<number> => {
     try {
       const jobs = await claim(room);
-      jobs.forEach(track);
+
+      for (const job of jobs) {
+        track(job);
+      }
 
       return jobs.length;
     } catch {
@@ -648,9 +663,8 @@ export function createSupabaseWorld(
  * `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`, and the pool settings
  * `WORKFLOW_POSTGRES_MAX_CONNECTIONS`,
  * `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`,
- * `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`,
- * `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS` and
- * `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
+ * `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`, `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`
+ * and `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
  */
 export function createWorld(): SupabaseWorld {
   return createSupabaseWorld(worldOptionsFromEnv());

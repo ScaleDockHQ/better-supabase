@@ -12,14 +12,17 @@ export interface CurrentOrganization {
   readonly organizationId: string | undefined;
   readonly switching: boolean;
   readonly error: DbError | undefined;
-  /** Makes another organization active, then refreshes the session when its claim changed. */
+  /**
+   * Makes another organization active, then refreshes the session when its
+   * claim changed.
+   */
   readonly switchTo: (organizationId: string) => Promise<void>;
 }
 
 /**
- * The signed-in user's active organization, and a way to switch it. Works
- * in React DOM and React Native: it reads the session from `useAuth()` and
- * calls the organizations block as the user.
+ * The signed-in user's active organization, and a way to switch it. Works in
+ * React DOM and React Native: it reads the session from `useAuth()` and calls
+ * the organizations block as the user.
  */
 export function useCurrentOrganization(): CurrentOrganization {
   const auth = useAuth();

@@ -1,8 +1,9 @@
+import type { Middleware } from "@supabase/middleware";
 import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 import type { PostgresApi } from "@supabase/server/middleware/postgres";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { defineMiddleware, type Middleware } from "@supabase/middleware";
+import { defineMiddleware } from "@supabase/middleware";
 
 import type { BetterSupabase } from "../../core/define.ts";
 import type { RequestContext } from "../../core/plugin.ts";
@@ -59,8 +60,8 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
 /**
  * Entry contributing `ctx.db`: repositories bound to `ctx.supabase`, the
  * caller-scoped client from `withSupabase`. Use it when `withSupabase`
- * authenticates the request (bearer tokens only); `withBetterSupabase`
- * covers cookie sessions too.
+ * authenticates the request (bearer tokens only); `withBetterSupabase` covers
+ * cookie sessions too.
  *
  * ```ts
  * pipeline([withSupabase({ auth: 'user' }), withBetterDb(betterSupabase)()], (req, ctx) => ...)

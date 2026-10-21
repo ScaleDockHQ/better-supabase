@@ -1,8 +1,9 @@
 import type { ModuleContext } from "../context.ts";
+import type { Names } from "./catalog-functions.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant } from "../shared.ts";
-import { type Names, SLUG, amountOf, guard } from "./catalog-functions.ts";
+import { SLUG, amountOf, guard } from "./catalog-functions.ts";
 
 export function priceFunctions(ctx: ModuleContext, names: Names): string {
   const { fn } = names;

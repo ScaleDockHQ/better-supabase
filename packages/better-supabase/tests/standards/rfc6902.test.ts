@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  JsonPatchOperation,
+  JsonValue,
+} from "../../src/blocks/versions/index.ts";
+
 import {
   applyPatch,
   createPatch,
   JsonPatchError,
-  type JsonPatchOperation,
-  type JsonValue,
   jsonEqual,
 } from "../../src/blocks/versions/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
@@ -51,15 +54,9 @@ const APPENDIX_A: readonly Example[] = [
   },
   {
     name: "A.6 moving a value",
-    doc: {
-      foo: { bar: "baz", waldo: "fred" },
-      qux: { corge: "grault" },
-    },
+    doc: { foo: { bar: "baz", waldo: "fred" }, qux: { corge: "grault" } },
     patch: [{ op: "move", from: "/foo/waldo", path: "/qux/thud" }],
-    expected: {
-      foo: { bar: "baz" },
-      qux: { corge: "grault", thud: "fred" },
-    },
+    expected: { foo: { bar: "baz" }, qux: { corge: "grault", thud: "fred" } },
   },
   {
     name: "A.7 moving an array element",
@@ -157,7 +154,7 @@ describe("RFC 6902 JSON Patch", () => {
     expect(applyPatch({ a: 1 }, [{ op: "replace", path: "", value: 2 }])).toBe(
       2,
     );
-    expect(applyPatch({ a: 1 }, [{ op: "remove", path: "" }])).toBe(null);
+    expect(applyPatch({ a: 1 }, [{ op: "remove", path: "" }])).toBeNull();
   });
 
   it.each<readonly [string, JsonValue, JsonPatchOperation]>([

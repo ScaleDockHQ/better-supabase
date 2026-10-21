@@ -4,16 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CliCommand } from "../../../src/cli/core/command.ts";
 import type { CliIo } from "../../../src/cli/core/io.ts";
+import type { Cli } from "../../../src/cli/core/run.ts";
 import type { Prompter } from "../../../src/cli/prompts.ts";
 
-import {
-  type CliCommand,
-  defineCliCommand,
-} from "../../../src/cli/core/command.ts";
+import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { CliError } from "../../../src/cli/core/errors.ts";
 import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
-import { type Cli, createCli } from "../../../src/cli/core/run.ts";
+import { createCli } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
@@ -75,9 +74,7 @@ describe("run", () => {
   it("runs db query and reports a file it cannot read", async () => {
     const result = await createCli().run(
       ["db", "query", "missing.sql", "--cwd", dir],
-      {
-        env: { DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres" },
-      },
+      { env: { DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres" } },
     );
 
     expect(result.code).not.toBe(0);
@@ -301,9 +298,7 @@ describe("run", () => {
 
     const meta = JSON.parse(
       await readFile(join(dir, "meta.json"), "utf-8"),
-    ) as {
-      schemas: unknown[];
-    };
+    ) as { schemas: unknown[] };
 
     expect(meta.schemas).toEqual([]);
   });
@@ -679,9 +674,7 @@ describe("run", () => {
 
     expect(missing.code).toBe(2);
     expect(JSON.parse(missing.stdout)).toMatchObject({
-      error: {
-        code: "config_not_found",
-      },
+      error: { code: "config_not_found" },
     });
   });
 
@@ -788,10 +781,7 @@ describe("run", () => {
     expect(result.code).toBe(2);
     expect(stdin).not.toHaveBeenCalled();
     expect(JSON.parse(result.stdout)).toMatchObject({
-      error: {
-        code: "missing_value",
-        flag: "--db-url-stdin",
-      },
+      error: { code: "missing_value", flag: "--db-url-stdin" },
     });
   });
 

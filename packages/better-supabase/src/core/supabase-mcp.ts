@@ -14,8 +14,8 @@ export type SupabaseMcpFeature =
 /** Which project and tools a Supabase MCP server exposes. */
 export interface SupabaseMcpScope {
   /**
-   * Scopes the server to one project. Without it the tools reach every
-   * project the Management API token can.
+   * Scopes the server to one project. Without it the tools reach every project
+   * the Management API token can.
    */
   readonly projectRef?: string;
   /** Runs SQL read-only and leaves out the tools that write. Defaults to true. */
@@ -45,7 +45,10 @@ export interface SupabaseMcpModule {
   };
 }
 
-/** The part of `@supabase/mcp-server-supabase/platform/api` better-supabase calls. */
+/**
+ * The part of `@supabase/mcp-server-supabase/platform/api` better-supabase
+ * calls.
+ */
 export interface SupabaseMcpPlatformModule {
   createSupabaseApiPlatform(options: {
     accessToken: string;

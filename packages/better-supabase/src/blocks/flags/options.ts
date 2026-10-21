@@ -1,8 +1,10 @@
-import { type BlockOptionsSchema, blockOptions, option } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
+
+import { blockOptions, option } from "../options.ts";
 
 /**
- * A custom context's source: the table and column that hold a tenant's
- * value, and the column with the tenant id (`id` by default).
+ * A custom context's source: the table and column that hold a tenant's value,
+ * and the column with the tenant id (`id` by default).
  */
 export interface FlagContextColumn {
   readonly table: string;
@@ -12,7 +14,10 @@ export interface FlagContextColumn {
 
 /** `blocks.flags.options`. */
 export type FlagsSqlOptions = {
-  /** Custom contexts by name, e.g. `{ brand: { table: "public.organizations", column: "brand_id" } }`. */
+  /**
+   * Custom contexts by name, e.g. `{ brand: { table: "public.organizations",
+   * column: "brand_id" } }`.
+   */
   readonly contexts?: Readonly<Record<string, FlagContextColumn>>;
   readonly extraColumns?: unknown;
 };

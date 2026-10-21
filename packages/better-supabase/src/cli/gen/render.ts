@@ -19,7 +19,10 @@ import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { buildModel, generatorModel } from "./model.ts";
 
 export interface RenderOptions {
-  /** Where the generated module imports the runtime from. Defaults to `better-supabase`. */
+  /**
+   * Where the generated module imports the runtime from. Defaults to
+   * `better-supabase`.
+   */
   readonly runtimeImport?: string;
   /** Writes the metadata into the main module, so it stands alone on stdout. */
   readonly inlineMeta?: boolean;
@@ -34,8 +37,8 @@ export interface Rendered {
 /**
  * Renders every generated file for a snapshot, without touching disk:
  * `database.types.ts` (what `supabase gen types` prints), the main module,
- * `blocks.generated.ts` when the config installs blocks,
- * then each configured generator's files.
+ * `blocks.generated.ts` when the config installs blocks, then each configured
+ * generator's files.
  */
 export async function renderFiles(
   config: ResolvedConfig,

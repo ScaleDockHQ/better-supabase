@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { PoolClient } from "pg";
 
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { NotificationMessage } from "../../src/blocks/notifications/index.ts";
@@ -126,6 +127,7 @@ class Session {
 
 describe.skipIf(!live)("notifications", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("sends, filters, deduplicates and delivers notifications", async () => {
@@ -326,7 +328,7 @@ describe.skipIf(!live)("notifications", () => {
           { user: USERS.member, channel: "email", status: "pending" },
           { user: USERS.member, channel: "in_app", status: "sent" },
           { user: USERS.watcher, channel: "in_app", status: "sent" },
-        ].sort((a, b) =>
+        ].toSorted((a, b) =>
           a.channel === b.channel
             ? a.user.localeCompare(b.user)
             : a.channel.localeCompare(b.channel),
@@ -548,9 +550,7 @@ describe.skipIf(!live)("notifications", () => {
       }
 
       for (const file of renderModules(["organizations", "notifications"], {
-        modules: {
-          notifications: { columns: { events: { key: null } } },
-        },
+        modules: { notifications: { columns: { events: { key: null } } } },
       })) {
         await client.query(file.contents);
       }
@@ -829,11 +829,7 @@ describe.skipIf(!live)("notifications", () => {
       });
       expect(
         await notifications.counts({ tenant: organization }).orThrow(),
-      ).toEqual({
-        unread: 1,
-        actionable: 0,
-        actionableSubjects: 0,
-      });
+      ).toEqual({ unread: 1, actionable: 0, actionableSubjects: 0 });
 
       const read = await notifications
         .markRead({ tenant: organization })
@@ -867,6 +863,7 @@ describe.skipIf(!live)("notifications", () => {
       client.release();
     }
   });
+
   it("pages, searches and settles the inbox and reads the caller's settings", async () => {
     const client = await pool.connect();
     const s = new Session(client);

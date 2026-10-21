@@ -12,6 +12,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("delegated jobs under RLS", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   /**
@@ -48,9 +49,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
 
     const jobs = createJobs({
       sql: session.sql,
-      queues: {
-        [queue]: v.object({ id: v.number() }),
-      },
+      queues: { [queue]: v.object({ id: v.number() }) },
     });
 
     await jobs.enqueue(queue, { id: 1 }, { context }).orThrow();

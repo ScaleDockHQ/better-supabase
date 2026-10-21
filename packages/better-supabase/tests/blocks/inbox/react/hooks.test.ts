@@ -4,6 +4,7 @@ import type * as ReactModule from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../../../src/client/index.ts";
+import type { ClientLike } from "../../../../src/react/hooks.ts";
 
 import {
   useConversation,
@@ -12,17 +13,14 @@ import {
 } from "../../../../src/blocks/inbox/react/index.ts";
 import { webStorage } from "../../../../src/client/web-ports.ts";
 import { defineSupabase } from "../../../../src/core/define.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../../../src/react/hooks.ts";
 import { defineSchema } from "../../../../src/schema/define.ts";
 import { schema } from "../../../fixtures/generated-camel.ts";
 
 /**
  * A synchronous hook runtime standing in for React's dispatcher: no DOM
- * renderer is installed, and effects are what these hooks are about.
- * Effects run after each render; state updates re-render.
+ * renderer is installed, and effects are what these hooks are about. Effects
+ * run after each render; state updates re-render.
  */
 const runtime = vi.hoisted(() => {
   interface Slot {
@@ -214,7 +212,7 @@ function renderHook<P, R>(
 
       try {
         if (provider) {
-          BetterSupabaseProvider(provider);
+          void BetterSupabaseProvider(provider);
         }
 
         out.result = hook(props);
@@ -420,7 +418,7 @@ describe("useInbox", () => {
     });
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("waits for an organization and a user, and keeps load errors", async () => {
@@ -518,7 +516,7 @@ describe("useConversation", () => {
     emit("inbox:c1", "typing", { user_id: OTHER });
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("does not join while waiting, and cannot type signed out", async () => {
@@ -535,9 +533,7 @@ describe("useConversation", () => {
     renderHook(
       () => useConversation({ conversationId: null, load: async () => [] }),
       undefined,
-      {
-        client: waiting.browser,
-      },
+      { client: waiting.browser },
     ).unmount();
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
@@ -556,7 +552,7 @@ describe("useConversation", () => {
 
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 });
 
@@ -638,9 +634,7 @@ describe("useInboxWidget", () => {
     const view = renderHook(
       () => useInboxWidget({ ...options, storageKey: null }),
       undefined,
-      {
-        client: bare.browser,
-      },
+      { client: bare.browser },
     );
 
     await view.result.submit("hi");

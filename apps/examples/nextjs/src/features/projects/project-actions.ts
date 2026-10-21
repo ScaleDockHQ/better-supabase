@@ -60,9 +60,9 @@ export const createProject = bs.action(
 );
 
 /**
- * Creates a task from the record form. The table's policies keep the row in
- * the caller's organization, and the composite foreign key keeps the project
- * in it too.
+ * Creates a task from the record form. The table's policies keep the row in the
+ * caller's organization, and the composite foreign key keeps the project in it
+ * too.
  */
 export const createTask = bs.action(
   {
@@ -102,8 +102,8 @@ export const createTask = bs.action(
 );
 
 /**
- * Moves a task between two cards, into a status column. `rank.move` writes
- * the status and the new key in one statement, as the caller.
+ * Moves a task between two cards, into a status column. `rank.move` writes the
+ * status and the new key in one statement, as the caller.
  */
 export const moveTask = bs.action(
   {
@@ -301,9 +301,9 @@ export const saveProjectVersion = bs.action(
 );
 
 /**
- * Writes the chosen fields of a version back to the project and leaves the
- * rest as they are (`versions.restoreFields`). The snapshot trigger already
- * kept the current values, so the restore can be undone from the history.
+ * Writes the chosen fields of a version back to the project and leaves the rest
+ * as they are (`versions.restoreFields`). The snapshot trigger already kept the
+ * current values, so the restore can be undone from the history.
  */
 export const restoreProjectFields = bs.action(
   {

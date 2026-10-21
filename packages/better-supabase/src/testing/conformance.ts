@@ -10,7 +10,10 @@ export interface ConformanceReport {
   readonly checks: readonly ConformanceCheck[];
 }
 
-/** Thrown by a conformance kit when any check fails. Lists every failure, not just the first. */
+/**
+ * Thrown by a conformance kit when any check fails. Lists every failure, not
+ * just the first.
+ */
 export class ConformanceError extends Error {
   readonly report: ConformanceReport;
 

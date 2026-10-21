@@ -14,9 +14,7 @@ export const sharedSignalsBlock: BlockOf<
 > = defineBlock({
   name: "shared-signals",
   sql: ["shared-signals"],
-  options: {
-    "shared-signals": sharedSignalsSqlOptions,
-  },
+  options: { "shared-signals": sharedSignalsSqlOptions },
   events: sharedSignalsEvents,
   create: createSharedSignals,
   category: "developer",

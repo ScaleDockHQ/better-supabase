@@ -1,6 +1,6 @@
 /**
- * The parts of `@supabase/lite` that `liteStack()` uses, typed
- * structurally so the optional peer stays out of the published types.
+ * The parts of `@supabase/lite` that `liteStack()` uses, typed structurally so
+ * the optional peer stays out of the published types.
  */
 export interface LiteConnection {
   createMigrator(sql: string): { migrate(): Promise<unknown> };
@@ -10,7 +10,10 @@ export interface LiteConnection {
 }
 
 export interface PgliteConnection extends LiteConnection {
-  /** The PGlite instance: `exec` runs several statements, `query` returns `{ rows }`. */
+  /**
+   * The PGlite instance: `exec` runs several statements, `query` returns `{
+   * rows }`.
+   */
   readonly driver: {
     exec(sql: string): Promise<unknown>;
     query(sql: string): Promise<{ rows: unknown[] }>;
@@ -42,9 +45,9 @@ export const LITE_INSTALL =
   "Supabase Lite is an optional peer: install it with `pnpm add -D @supabase/lite`";
 
 /**
- * `@supabase/lite` is an optional peer: variable specifiers keep bundlers
- * from resolving it, and a missing install returns `undefined` so callers
- * can say how to add it.
+ * `@supabase/lite` is an optional peer: variable specifiers keep bundlers from
+ * resolving it, and a missing install returns `undefined` so callers can say
+ * how to add it.
  */
 export async function loadLite(): Promise<LiteRuntime | undefined> {
   const root = "@supabase/lite";

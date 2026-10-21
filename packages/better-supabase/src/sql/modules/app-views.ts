@@ -50,15 +50,14 @@ function lookupJoin(
 }
 
 /**
- * `public.<table>_view`: every column of the table, then each rollup and
- * lookup from a lateral join. `security_invoker` runs it with the caller's
- * row level security on every table it reads, so a rollup counts only the
- * rows the caller reaches. The joins also keep Postgres from treating the
- * view as updatable, so `gen` types it read-only. Dropped and created again,
- * since `t.*` fixes the column list when the view is created. `readable`
- * lists the table's columns instead of `t.*` when some have `access:
- * "server"`, which the caller can't select. Empty for a table without
- * rollups or lookups.
+ * `public.<table>_view`: every column of the table, then each rollup and lookup
+ * from a lateral join. `security_invoker` runs it with the caller's row level
+ * security on every table it reads, so a rollup counts only the rows the caller
+ * reaches. The joins also keep Postgres from treating the view as updatable, so
+ * `gen` types it read-only. Dropped and created again, since `t.*` fixes the
+ * column list when the view is created. `readable` lists the table's columns
+ * instead of `t.*` when some have `access: "server"`, which the caller can't
+ * select. Empty for a table without rollups or lookups.
  */
 export function appViewSql(
   name: string,
@@ -103,8 +102,8 @@ comment on view ${view} is ${sqlString(`The rollups and lookups of ${SCHEMA}.${n
 }
 
 /**
- * The pgTAP checks of the view, run as the superuser: it exists, runs as
- * the invoker, and only `authenticated` and `service_role` read it.
+ * The pgTAP checks of the view, run as the superuser: it exists, runs as the
+ * invoker, and only `authenticated` and `service_role` read it.
  */
 export function appViewChecks(name: string, config: AppTableConfig): string[] {
   if (!hasComputed(config)) {
@@ -123,9 +122,9 @@ export function appViewChecks(name: string, config: AppTableConfig): string[] {
 }
 
 /**
- * The check run as a signed-in user who belongs to nothing: they see no
- * rows of the view of a scoped table. Empty for a table in `none` scope,
- * which every signed-in user reads.
+ * The check run as a signed-in user who belongs to nothing: they see no rows of
+ * the view of a scoped table. Empty for a table in `none` scope, which every
+ * signed-in user reads.
  */
 export function appViewBehaviour(
   name: string,

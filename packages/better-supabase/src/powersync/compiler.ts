@@ -1,16 +1,14 @@
+import type { SqliteCompilerOptions, SqlitePlan } from "../compile/sqlite.ts";
 import type { Compiler } from "../core/compiler.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { ExecuteResult, Executor } from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
 import type { ListDefinition, ListQuery } from "../list/list-query.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
-import {
-  compileSqlite,
-  type SqliteCompilerOptions,
-  type SqlitePlan,
-} from "../compile/sqlite.ts";
-import { err, ok, type Result, toDbError } from "../core/result.ts";
+import { compileSqlite } from "../compile/sqlite.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 
 export const sqliteCompiler: Compiler<SqlitePlan> = {
   target: "sqlite",
@@ -19,22 +17,27 @@ export const sqliteCompiler: Compiler<SqlitePlan> = {
 
 export interface CheckSqliteOptions extends SqliteCompilerOptions {
   /**
-   * Return every error instead of the first, one per distinct message. With
-   * a `fallback` executor, these are the reads that run on the server.
+   * Return every error instead of the first, one per distinct message. With a
+   * `fallback` executor, these are the reads that run on the server.
    */
   readonly all?: boolean;
 }
 
 /**
- * Compiles every operation a list definition runs (the page, its count and
- * the facet counts) for SQLite, without a database. Returns the first
- * `unsupported` or `invalid_request` error, so a test or a dev build fails
- * before a native screen does. With `all: true`, returns every error, an
- * empty array when the whole list runs on SQLite.
+ * Compiles every operation a list definition runs (the page, its count and the
+ * facet counts) for SQLite, without a database. Returns the first `unsupported`
+ * or `invalid_request` error, so a test or a dev build fails before a native
+ * screen does. With `all: true`, returns every error, an empty array when the
+ * whole list runs on SQLite.
  *
  * ```ts
- * expect(await checkSqlite(betterSupabase, customerList)).toEqual({ ok: true, data: undefined });
- * expect(await checkSqlite(betterSupabase, customerList, { all: true })).toEqual([]);
+ * expect(await checkSqlite(betterSupabase, customerList)).toEqual({
+ *   ok: true,
+ *   data: undefined,
+ * });
+ * expect(
+ *   await checkSqlite(betterSupabase, customerList, { all: true }),
+ * ).toEqual([]);
  * ```
  */
 export async function checkSqlite<
@@ -110,11 +113,7 @@ export async function checkSqlite<
   }
 
   // SAFETY: the keys come from list.facets, which is keyed by the facet keys Fa.
-  const query = {
-    ...list.defaults,
-    q: "x",
-    facets,
-  } as ListQuery<S, Fa>;
+  const query = { ...list.defaults, q: "x", facets } as ListQuery<S, Fa>;
 
   const db = betterSupabase.connect(probe);
   await list.run(db, query);

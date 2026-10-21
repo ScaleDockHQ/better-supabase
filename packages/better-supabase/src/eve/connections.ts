@@ -1,12 +1,13 @@
+import type { DbError } from "../core/errors.ts";
 import type {
   CredentialProvider,
   CredentialRef,
   CredentialSubject,
 } from "../credentials/provider.ts";
 
-import { type DbError, DbException } from "../core/errors.ts";
+import { DbException } from "../core/errors.ts";
 
-/** eve's `ConnectionAuthorizationRequiredError`, matched by name. */
+/** Eve's `ConnectionAuthorizationRequiredError`, matched by name. */
 export class ConnectionAuthorizationRequiredError extends Error {
   override readonly name = "ConnectionAuthorizationRequiredError";
   readonly connectionName: string;
@@ -22,7 +23,7 @@ export class ConnectionAuthorizationRequiredError extends Error {
   }
 }
 
-/** eve's `ConnectionAuthorizationFailedError`, matched by name. */
+/** Eve's `ConnectionAuthorizationFailedError`, matched by name. */
 export class ConnectionAuthorizationFailedError extends Error {
   override readonly name = "ConnectionAuthorizationFailedError";
   readonly connectionName: string;
@@ -120,7 +121,10 @@ export interface CredentialAuthOptions {
   /** The connection's name in errors. Defaults to the ref's provider. */
   readonly connection?: string;
   readonly scopes?: readonly string[];
-  /** For `user`: let eve send the user to connect the account when the provider can. Defaults to true. */
+  /**
+   * For `user`: let eve send the user to connect the account when the provider
+   * can. Defaults to true.
+   */
   readonly interactive?: boolean;
 }
 
@@ -154,10 +158,10 @@ function connectionError(name: string, error: DbError): Error {
 }
 
 /**
- * An eve connection `authorization` over a better-supabase
- * `CredentialProvider` (Vault, Vercel Connect or your own): tokens come from
- * the provider for the app or for the session's user. A user without a stored
- * credential gets eve's authorization flow when the provider supports one.
+ * An eve connection `authorization` over a better-supabase `CredentialProvider`
+ * (Vault, Vercel Connect or your own): tokens come from the provider for the
+ * app or for the session's user. A user without a stored credential gets eve's
+ * authorization flow when the provider supports one.
  */
 export function credentialAuth(
   options: CredentialAuthOptions,

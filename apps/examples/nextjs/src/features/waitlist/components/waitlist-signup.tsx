@@ -28,8 +28,8 @@ import { joinWaitlist } from "../waitlist-actions";
 
 // #region recipe:waitlist-signup
 /**
- * Joins the waitlist with an email address and shows the place in line.
- * Joining again with the same address shows the same place.
+ * Joins the waitlist with an email address and shows the place in line. Joining
+ * again with the same address shows the same place.
  */
 export function WaitlistSignup() {
   const t = useExtracted("waitlist");

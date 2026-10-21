@@ -7,6 +7,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
@@ -21,7 +22,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
-  type SubjectTableBinding,
   subjectReadable,
   subjectTableBindings,
   subjectsOption,
@@ -33,14 +33,8 @@ const EVENTS: ModuleEvents<TagsEvents> = {
     subject: "tags",
     payload: ["organizationId", "id", "kind", "name"],
   },
-  "tag.updated": {
-    subject: "tags",
-    payload: ["organizationId", "id", "name"],
-  },
-  "tag.deleted": {
-    subject: "tags",
-    payload: ["organizationId", "id"],
-  },
+  "tag.updated": { subject: "tags", payload: ["organizationId", "id", "name"] },
+  "tag.deleted": { subject: "tags", payload: ["organizationId", "id"] },
   "subject.tagged": {
     subject: "subjects",
     payload: ["organizationId", "subjectType", "subjectId", "id"],
@@ -511,7 +505,10 @@ function tagJson(
   return `jsonb_build_object('id', ${col("id")}, 'kind', ${col("kind")}, 'name', ${col("name")}, 'slug', ${col("slug")}, 'color', ${col("color")}, 'description', ${col("description")}${ctx.has("tags", "rank") ? `, 'rank', ${col("rank")}` : ""}${extraFieldsJson(alias, extras)})`;
 }
 
-/** Fills `v_ids` with the tag ids on `subject_tags`' subject, from its link table. */
+/**
+ * Fills `v_ids` with the tag ids on `subject_tags`' subject, from its link
+ * table.
+ */
 function subjectTagIds(
   ctx: ModuleContext,
   bound: readonly SubjectTableBinding[],
@@ -557,11 +554,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },
     { name: "list_tags", args: ["{id}", "text"], returns: "jsonb" },
-    {
-      name: "subject_tags",
-      args: ["{id}", "text", "text"],
-      returns: "jsonb",
-    },
+    { name: "subject_tags", args: ["{id}", "text", "text"], returns: "jsonb" },
     ...(ctx.has("tags", "rank")
       ? [{ name: "rank_tag", args: ["uuid", "text"], returns: "boolean" }]
       : []),

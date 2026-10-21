@@ -26,9 +26,9 @@ const LOCATION_COLUMNS = [
 ] as const;
 
 /**
- * The customer detail page as one embedded select: the customer, its
- * contacts with their contact methods, its locations, and how many quotes
- * and invoices it has. The original page ran a query per section.
+ * The customer detail page as one embedded select: the customer, its contacts
+ * with their contact methods, its locations, and how many quotes and invoices
+ * it has. The original page ran a query per section.
  */
 export function customerDetail(
   db: CrmDb,

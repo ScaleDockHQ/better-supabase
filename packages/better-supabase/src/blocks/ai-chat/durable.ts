@@ -163,8 +163,8 @@ function stepOf(value: unknown): AiRunStep {
 }
 
 /**
- * Run lookups, run steps and the approval inbox: what a durable chat needs
- * to stop or resume a run, and what an activity console shows.
+ * Run lookups, run steps and the approval inbox: what a durable chat needs to
+ * stop or resume a run, and what an activity console shows.
  */
 export function aiRunLookups(
   options: Pick<AiChatOptions, "transport" | "service" | "schema" | "mappers">,
@@ -224,8 +224,8 @@ export function aiRunLookups(
 export type AiHarnessStatus = "active" | "idle" | "stopped" | "error";
 
 /**
- * What a coding-agent harness keeps per chat to pick the conversation up
- * again. The states are the harness's own JSON; nothing here reads them.
+ * What a coding-agent harness keeps per chat to pick the conversation up again.
+ * The states are the harness's own JSON; nothing here reads them.
  */
 export interface AiHarnessSession {
   readonly chatId: string;
@@ -246,10 +246,7 @@ export interface AiHarnessSession {
 export interface AiHarnessSessionPatch {
   readonly resumeState?: unknown;
   readonly continueState?: unknown;
-  /**
-   * Registers the session's sandbox in `ai_sandboxes`; `null` marks it
-   * stopped.
-   */
+  /** Registers the session's sandbox in `ai_sandboxes`; `null` marks it stopped. */
   readonly sandboxId?: string | null;
   /** Who runs the sandbox, such as `vercel`. Defaults to `harness`. */
   readonly sandboxProvider?: string;
@@ -257,8 +254,8 @@ export interface AiHarnessSessionPatch {
 }
 
 /**
- * The experimental harness session store, on the service role: `lock` keeps
- * two turns from driving one sandbox, `save` refuses a session another holder
+ * The experimental harness session store, on the service role: `lock` keeps two
+ * turns from driving one sandbox, `save` refuses a session another holder
  * locked (`AI_HARNESS_LOCKED`).
  */
 export interface AiHarnessSessions {
@@ -322,8 +319,8 @@ function patchFields(patch: AiHarnessSessionPatch): Record<string, unknown> {
 }
 
 /**
- * The harness session store of the `ai-chat` block (experimental). It takes
- * a service transport: harness state stays on the server.
+ * The harness session store of the `ai-chat` block (experimental). It takes a
+ * service transport: harness state stays on the server.
  */
 export function createHarnessSessions(
   options: AiChatOptions,

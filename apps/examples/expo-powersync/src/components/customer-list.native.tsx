@@ -11,7 +11,10 @@ import { customerColumns, customerList } from "../lists";
 import { CustomerRows } from "./customer-rows";
 import { UnreadBadge } from "./unread-badge";
 
-/** iOS and Android: the same list over the synced SQLite database, rerun on every change. */
+/**
+ * IOS and Android: the same list over the synced SQLite database, rerun on
+ * every change.
+ */
 export function CustomerList() {
   const search = useDebouncedSearch();
   const [page, setPage] = useState(1);

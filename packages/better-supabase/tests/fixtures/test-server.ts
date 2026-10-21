@@ -2,16 +2,12 @@ import type { AuthState } from "../../src/auth/resolve.ts";
 import type { BetterSupabase } from "../../src/core/define.ts";
 import type { BetterServer } from "../../src/server/server-types.ts";
 import type { TestSigner } from "../../src/testing/jwt.ts";
+import type { Database, Functions, Models } from "./generated-camel.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
-import {
-  type Database,
-  type Functions,
-  type Models,
-  schema,
-} from "./generated-camel.ts";
+import { schema } from "./generated-camel.ts";
 
 const PROJECT_URL: string = "https://abcdefghijklmnopqrst.supabase.co";
 export const USER: string = "11111111-1111-4111-8111-111111111111";
@@ -29,11 +25,7 @@ export const betterSupabase: BetterSupabase<Models, Database, Functions> =
 
 export const server: BetterServer<Models, Functions, unknown> = createServer(
   betterSupabase,
-  {
-    env,
-    auth: { jwks: signer.jwks },
-    prefetchJwks: false,
-  },
+  { env, auth: { jwks: signer.jwks }, prefetchJwks: false },
 );
 
 /** A request as a signed-in user with `app_metadata`, or anonymous without one. */

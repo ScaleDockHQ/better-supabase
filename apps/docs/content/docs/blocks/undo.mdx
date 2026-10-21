@@ -94,9 +94,7 @@ The work starts on mount, and the controller is disposed with the component.
 <script setup lang="ts">
 import { useUndoStack } from "better-supabase/blocks/undo/vue";
 
-const { state, actions } = useUndoStack({
-  apply: undoAction,
-});
+const { state, actions } = useUndoStack({ apply: undoAction });
 </script>
 
 <template>
@@ -140,9 +138,7 @@ disposed with the owner.
 import { useUndoStack } from "better-supabase/blocks/undo/solid";
 
 export function Component() {
-  const { state, actions } = useUndoStack({
-    apply: undoAction,
-  });
+  const { state, actions } = useUndoStack({ apply: undoAction });
   return (
     <>
       <p>{state().entries.length}</p>

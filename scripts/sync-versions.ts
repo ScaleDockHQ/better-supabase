@@ -24,12 +24,12 @@ const MANIFEST_VERSION = /("version":\s*")[^"]+(")/g;
 const constant = (): string => `export const VERSION = "${version}";\n`;
 
 const manifestVersion = (source: string): string =>
-  source.replace(MANIFEST_VERSION, `$1${version}$2`);
+  source.replaceAll(MANIFEST_VERSION, `$1${version}$2`);
 
 const REGISTRY_RANGE = /("better-supabase@\^)[^"]+(")/g;
 
 const registryRange = (source: string): string =>
-  source.replace(REGISTRY_RANGE, `$1${version}$2`);
+  source.replaceAll(REGISTRY_RANGE, `$1${version}$2`);
 
 const files = {
   "packages/better-supabase/src/core/version.ts": constant,

@@ -14,9 +14,7 @@ export const calendarBlock: BlockOf<
 > = defineBlock({
   name: "calendar",
   sql: ["calendar"],
-  options: {
-    calendar: calendarSqlOptions,
-  },
+  options: { calendar: calendarSqlOptions },
   events: calendarEvents,
   create: createCalendar,
   client: "calendar",

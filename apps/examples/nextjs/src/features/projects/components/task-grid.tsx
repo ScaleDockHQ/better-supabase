@@ -14,10 +14,15 @@ import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
 
+import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type {
+  FilterField,
+  FilterQuery,
+} from "@/components/reui/filters/filters";
+
 import {
   DataGrid,
   DataGridContainer,
-  type DataGridFeatures,
   dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
@@ -27,8 +32,6 @@ import {
   DataGridTableRowSelectAll,
 } from "@/components/reui/data-grid/data-grid-table";
 import {
-  type FilterField,
-  type FilterQuery,
   Filters,
   createFilterQuery,
   createFilterRule,
@@ -57,21 +60,21 @@ import {
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import type {
+  MemberOption,
+  ProjectOption,
+  TaskQuery,
+  TaskRow,
+  TaskViewOption,
+} from "../project-types";
+
 import {
   deleteTaskView,
   runTaskBulkAction,
   saveTaskView,
   setTaskField,
 } from "../project-actions";
-import {
-  type MemberOption,
-  type ProjectOption,
-  type TaskQuery,
-  type TaskRow,
-  type TaskViewOption,
-  TASK_STATUSES,
-  taskSearch,
-} from "../project-types";
+import { TASK_STATUSES, taskSearch } from "../project-types";
 import { useStatusLabel } from "../use-task-labels";
 import { TaskStatusBadge } from "./task-status-badge";
 
@@ -342,8 +345,8 @@ const UNASSIGNED = "unassigned";
 type SetField = "due_on" | "assignee_id";
 
 /**
- * Sets one field on the selected tasks with the bulk block's
- * `appTables.set`. An empty value clears the field.
+ * Sets one field on the selected tasks with the bulk block's `appTables.set`.
+ * An empty value clears the field.
  */
 function SetFieldDialog({
   ids,
@@ -400,9 +403,7 @@ function SetFieldDialog({
               values:
                 field === "due_on"
                   ? { due_on: dueOn === "" ? null : dueOn }
-                  : {
-                      assignee_id: assignee === UNASSIGNED ? null : assignee,
-                    },
+                  : { assignee_id: assignee === UNASSIGNED ? null : assignee },
             });
           }}
         >
@@ -532,8 +533,8 @@ function StatusCell({ row }: GridCell) {
 
 /**
  * Tasks in a ReUI data grid. The checkboxes feed a bulk bar that sets the
- * status of the selected rows, sets another field through the bulk block,
- * or deletes them in one statement.
+ * status of the selected rows, sets another field through the bulk block, or
+ * deletes them in one statement.
  */
 export function TaskGrid({
   rows,

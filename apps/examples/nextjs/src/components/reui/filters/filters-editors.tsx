@@ -372,7 +372,8 @@ const EDITOR_FIELD_GROUP = "w-full";
  * Confirm and cancel, an OUTLINE pair FUSED onto the field's trailing edge.
  * Returns a FRAGMENT: `ButtonGroup` fuses with selectors matching DIRECT
  * children only, so a wrapper div renders three separate boxes. `size="icon"`
- * because every style's icon button at that size is exactly its input's height.
+ * because every style's icon button at that size is exactly its input's
+ * height.
  */
 function EditorCommitButtons({
   onCancel,
@@ -589,8 +590,9 @@ export interface FilterListItem {
 /**
  * Beyond the cascader's own fields: one divider flag, on the first row of a
  * group that is not the first, because grouping happens out here. A separator
- * NODE would join the option ring, and `[data-selected] + :not([data-selected])`
- * reads the LIVE selection, so unticking a pinned row drew a second line.
+ * NODE would join the option ring, and `[data-selected] +
+ * :not([data-selected])` reads the LIVE selection, so unticking a pinned row
+ * drew a second line.
  */
 interface FilterMenuMeta {
   divider?: boolean;

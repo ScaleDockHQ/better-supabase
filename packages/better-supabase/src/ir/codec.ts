@@ -30,7 +30,10 @@ function computeNeedsDecoding(selection: Selection): boolean {
   );
 }
 
-/** PostgREST returns `[{ count }]` for a `(count)` embed; SQL returns the number. */
+/**
+ * PostgREST returns `[{ count }]` for a `(count)` embed; SQL returns the
+ * number.
+ */
 function countOf(value: unknown): number {
   if (Array.isArray(value)) {
     // SAFETY: a count embed is a list of rows with a count field; a missing

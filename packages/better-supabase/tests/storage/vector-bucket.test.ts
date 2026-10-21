@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  defineVectorBucket,
-  type StorageAdminClient,
-} from "../../src/storage/index.ts";
+import type { StorageAdminClient } from "../../src/storage/index.ts";
+
+import { defineVectorBucket } from "../../src/storage/index.ts";
 
 const missing = {
   name: "StorageVectorsApiError",
@@ -31,9 +30,7 @@ function vectorsApi() {
   const index = {
     putVectors: vi.fn(async (_options: unknown) => empty),
     queryVectors: vi.fn(async () => ({
-      data: {
-        vectors: [{ key: "a", distance: 0, metadata: { kind: "x" } }],
-      },
+      data: { vectors: [{ key: "a", distance: 0, metadata: { kind: "x" } }] },
       error: null,
     })),
     getVectors: vi.fn(async () => ({
@@ -207,13 +204,13 @@ describe("defineVectorBucket", () => {
     index.getVectors.mockImplementation((async (options: {
       keys: string[];
     }) => {
-      active++;
+      active += 1;
       peak = Math.max(peak, active);
       // Later batches answer first.
       await new Promise((resolve) => {
         setTimeout(resolve, 20 - Number(options.keys[0]!.slice(1)) / 100);
       });
-      active--;
+      active -= 1;
 
       return {
         data: { vectors: options.keys.map((key) => ({ key })) },

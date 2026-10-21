@@ -9,8 +9,8 @@ import { API_SCHEMA } from "../lib/blocks";
 const ROLES = ["member", "admin"] as const;
 
 /**
- * A button that opens a form to invite a teammate by email with a role,
- * then shows the token for the accept link (the example has no mailer).
+ * A button that opens a form to invite a teammate by email with a role, then
+ * shows the token for the accept link (the example has no mailer).
  */
 export function InviteDialog() {
   const [open, setOpen] = useState(false);

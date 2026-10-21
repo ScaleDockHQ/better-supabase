@@ -53,10 +53,7 @@ describe("sameModuleMigration and migrationHolds", () => {
   const plain = renderModuleMigration({ files });
 
   it("ignores the upgrade steps and the package version", () => {
-    const upgraded = renderModuleMigration({
-      files,
-      upgrade: ["select 1;"],
-    });
+    const upgraded = renderModuleMigration({ files, upgrade: ["select 1;"] });
 
     expect(sameModuleMigration(upgraded, plain)).toBe(true);
 

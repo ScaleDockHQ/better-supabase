@@ -153,7 +153,10 @@ function dayMatches(fields: CronFields, date: Temporal.PlainDate): boolean {
   return true;
 }
 
-/** The first matching minute of `date` after `after`, from `start` on its first day. */
+/**
+ * The first matching minute of `date` after `after`, from `start` on its first
+ * day.
+ */
 function firstRunOn(
   fields: CronFields,
   date: Temporal.PlainDate,
@@ -187,8 +190,8 @@ function firstRunOn(
 
 /**
  * Throws a `TypeError` unless `expression` is a schedule `nextCronRun`
- * understands: five cron fields, a macro such as `@daily`, or an interval
- * such as `30 seconds`.
+ * understands: five cron fields, a macro such as `@daily`, or an interval such
+ * as `30 seconds`.
  */
 export function assertCron(expression: string): void {
   if (!INTERVAL.test(expression.trim())) {
@@ -199,11 +202,11 @@ export function assertCron(expression: string): void {
 /**
  * The first run of `expression` after `after`, in `timeZone`.
  *
- * Accepts five cron fields (lists, ranges and steps; a restricted day of
- * month and day of week match either, as in cron), the macros `@hourly`,
- * `@daily`, `@weekly`, `@monthly` and `@yearly`, and intervals such as
- * `30 seconds`, `5 minutes` or `2 hours`, counted from `after`. A local time
- * that a DST change skips runs at the same offset after the gap.
+ * Accepts five cron fields (lists, ranges and steps; a restricted day of month
+ * and day of week match either, as in cron), the macros `@hourly`, `@daily`,
+ * `@weekly`, `@monthly` and `@yearly`, and intervals such as `30 seconds`, `5
+ * minutes` or `2 hours`, counted from `after`. A local time that a DST change
+ * skips runs at the same offset after the gap.
  */
 export function nextCronRun(
   expression: string,

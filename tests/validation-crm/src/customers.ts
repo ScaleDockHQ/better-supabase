@@ -1,11 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AsyncResult, Db, WhereInput } from "better-supabase";
 
-import {
-  type AsyncResult,
-  type Db,
-  dbError,
-  type WhereInput,
-} from "better-supabase";
+import { dbError } from "better-supabase";
 
 import type { Functions, Models } from "./generated.ts";
 
@@ -55,7 +51,10 @@ const LIST_COLUMNS = [
 const escapeLike = (term: string): string =>
   term.replaceAll(/[%_\\]/g, (match) => `\\${match}`);
 
-/** The overview filter: the original service ran up to four queries for ids before this one. */
+/**
+ * The overview filter: the original service ran up to four queries for ids
+ * before this one.
+ */
 function listWhere(
   organizationId: string,
   filter: CustomerListFilter,
@@ -121,7 +120,10 @@ function listWhere(
 
 export function createCustomersService(db: CrmDb) {
   return {
-    /** One request: filters, sort, page, count, assignees, tags, primary contact and location. */
+    /**
+     * One request: filters, sort, page, count, assignees, tags, primary contact
+     * and location.
+     */
     listCustomers(organizationId: string, filter: CustomerListFilter = {}) {
       return db.customers.paginate({
         select: LIST_COLUMNS,

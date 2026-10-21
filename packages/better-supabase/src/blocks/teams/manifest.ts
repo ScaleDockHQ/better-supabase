@@ -11,9 +11,7 @@ export const teamsBlock: BlockOf<"teams", typeof createTeams, TeamsEvents> =
   defineBlock({
     name: "teams",
     sql: ["teams"],
-    options: {
-      teams: teamsSqlOptions,
-    },
+    options: { teams: teamsSqlOptions },
     events: teamsEvents,
     create: createTeams,
     category: "tenancy",

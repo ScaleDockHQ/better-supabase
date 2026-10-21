@@ -1,19 +1,19 @@
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type ExtraFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockOptions,
   instantArg,
   isRecord,
   nullableInstant,
@@ -66,8 +66,8 @@ export interface CreateShareLinkOptions<
   /** `view` unless set. */
   readonly role?: string;
   /**
-   * Pins the link to one of the subject's versions (the versions module),
-   * which `versions.getShared(token)` reads for anon.
+   * Pins the link to one of the subject's versions (the versions module), which
+   * `versions.getShared(token)` reads for anon.
    */
   readonly versionId?: string;
   /**
@@ -76,8 +76,8 @@ export interface CreateShareLinkOptions<
    */
   readonly expiresAt?: Temporal.Instant;
   /**
-   * How many times `resolve` may open the link. Without it the link opens
-   * until it is revoked or expires.
+   * How many times `resolve` may open the link. Without it the link opens until
+   * it is revoked or expires.
    */
   readonly maxUses?: number;
 }
@@ -108,7 +108,10 @@ export interface ShareLinks<F extends object = Record<never, never>> {
   ): AsyncResult<CreatedShareLink<F>>;
   /** The link's creator, or a member with `share_links.create`. */
   revoke(id: string): AsyncResult<boolean>;
-  /** `null` for an unknown, revoked, expired or used-up token. Each call counts one use. */
+  /**
+   * `null` for an unknown, revoked, expired or used-up token. Each call counts
+   * one use.
+   */
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
   /** A member of the organization records a view. */
   recordView(
@@ -118,7 +121,10 @@ export interface ShareLinks<F extends object = Record<never, never>> {
     viewerKind: string,
     viewer?: string,
   ): AsyncResult<boolean>;
-  /** The links the caller created or may read (`share_links.read`), revoked ones included. */
+  /**
+   * The links the caller created or may read (`share_links.read`), revoked ones
+   * included.
+   */
   list(
     subjectType: string,
     subjectId: string,

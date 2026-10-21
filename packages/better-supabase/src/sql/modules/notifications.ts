@@ -7,6 +7,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -21,11 +22,7 @@ import { subjectCascades, subjectsOption } from "../subjects.ts";
 import { accessModel } from "./access-model.ts";
 import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
-import {
-  functions,
-  type NotifyNames,
-  notifyNames,
-} from "./notifications-sql.ts";
+import { functions, notifyNames } from "./notifications-sql.ts";
 import {
   suppressionContract,
   suppressionsTable,
@@ -644,10 +641,10 @@ $$;`;
 }
 
 /**
- * `options.subjects` with `cascade: true`: deleting a subject row deletes
- * its notifications (recipients and deliveries follow by foreign key) and
- * the subscriptions to it. The deletes match the subject's tenant too, so
- * they use indexes that lead with the tenant column.
+ * `options.subjects` with `cascade: true`: deleting a subject row deletes its
+ * notifications (recipients and deliveries follow by foreign key) and the
+ * subscriptions to it. The deletes match the subject's tenant too, so they use
+ * indexes that lead with the tenant column.
  */
 function subjectCleanup(ctx: ModuleContext, n: NotifyNames): string {
   const subjects = subjectsOption(ctx, [], { tenantless: true, hyphens: true });
@@ -754,11 +751,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       ],
       returns: "jsonb",
     },
-    {
-      name: "notification_counts",
-      args: ["{id}", "text[]"],
-      returns: "jsonb",
-    },
+    { name: "notification_counts", args: ["{id}", "text[]"], returns: "jsonb" },
     {
       name: "mark_notifications_read",
       args: ["uuid[]", "{id}"],

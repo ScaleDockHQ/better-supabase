@@ -125,7 +125,7 @@ describe("publicUrl", () => {
   it("needs a resolver on runtimes without node:dns", () => {
     const builtin = vi
       .spyOn(process, "getBuiltinModule")
-      .mockImplementation(() => undefined);
+      .mockReturnValue(undefined);
 
     try {
       expect(() => publicUrl()).toThrow("needs a resolve option");

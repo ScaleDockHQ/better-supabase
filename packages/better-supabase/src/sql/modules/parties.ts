@@ -6,11 +6,12 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { PartyNames } from "./parties-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { partyFunctions, type PartyNames } from "./parties-functions.ts";
+import { partyFunctions } from "./parties-functions.ts";
 import { partiesInboxSql } from "./parties-inbox.ts";
 
 /** The lifecycle stages `options.companyLifecycles` falls back to. */
@@ -33,10 +34,7 @@ const EVENTS: ModuleEvents<PartiesEvents> = {
   "company.created": { subject: "companies", payload: [...COMPANY] },
   "company.updated": { subject: "companies", payload: [...COMPANY] },
   "company.archived": { subject: "companies", payload: [...COMPANY] },
-  "company.merged": {
-    subject: "companies",
-    payload: [...COMPANY, "mergedId"],
-  },
+  "company.merged": { subject: "companies", payload: [...COMPANY, "mergedId"] },
   "company.person_linked": { subject: "companies", payload: [...LINK] },
   "company.person_unlinked": { subject: "companies", payload: [...LINK] },
   "person.created": { subject: "persons", payload: [...PERSON] },
@@ -267,11 +265,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["uuid", "uuid"],
       returns: "boolean",
     },
-    {
-      name: "archive_company",
-      args: ["uuid", "boolean"],
-      returns: "boolean",
-    },
+    { name: "archive_company", args: ["uuid", "boolean"], returns: "boolean" },
     { name: "archive_person", args: ["uuid", "boolean"], returns: "boolean" },
     { name: "merge_companies", args: ["uuid", "uuid"], returns: "jsonb" },
     { name: "merge_people", args: ["uuid", "uuid"], returns: "jsonb" },

@@ -1,6 +1,8 @@
 "use server";
 
-import { type Result, dbError, err, ok } from "better-supabase";
+import type { Result } from "better-supabase";
+
+import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requirePostgres, sqlResult } from "@/features/developer/postgres";
@@ -45,8 +47,8 @@ export const enqueueTestJob = bs.action(
 );
 
 /**
- * Queues a dead job again with its payload and context. It only replays
- * a dead letter whose recorded tenant is the caller's organization.
+ * Queues a dead job again with its payload and context. It only replays a dead
+ * letter whose recorded tenant is the caller's organization.
  */
 export const retryJobRun = bs.action(
   {

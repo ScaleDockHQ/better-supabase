@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type {
@@ -122,6 +124,7 @@ function fakeHttp(script: Record<string, number[]>) {
 
 describe.skipIf(!live)("webhooks-out", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("fans out, signs, retries, dead-letters, disables and redelivers", async () => {
@@ -384,11 +387,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         "update better_supabase.webhook_deliveries set available_at = now() where status = 'retrying'",
       );
       const second = await webhooks.deliver();
-      expect(second).toMatchObject({
-        succeeded: 2,
-        dead: 1,
-        disabled: 1,
-      });
+      expect(second).toMatchObject({ succeeded: 2, dead: 1, disabled: 1 });
       expect(
         await s.value(
           "(select enabled from better_supabase.webhook_endpoints where id = $1)",

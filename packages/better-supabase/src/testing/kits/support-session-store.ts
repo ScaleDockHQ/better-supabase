@@ -1,11 +1,7 @@
 import type { SupportSessionStore } from "../../auth/support.ts";
+import type { ConformanceReport } from "../conformance.ts";
 
-import {
-  conform,
-  expect,
-  same,
-  type ConformanceReport,
-} from "../conformance.ts";
+import { conform, expect, same } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
 export interface TestSupportSessionStoreOptions {
@@ -19,11 +15,11 @@ export interface TestSupportSessionStoreOptions {
 }
 
 /**
- * Proves a `SupportSessionStore` starts sessions with the input it was
- * given, shows a running session only to its admin, ends the admin's
- * previous session on start, ends a session once, lists sessions and, with
- * `expire`, leaves running sessions alone.
- * It writes sessions to the store; they are all ended when it returns.
+ * Proves a `SupportSessionStore` starts sessions with the input it was given,
+ * shows a running session only to its admin, ends the admin's previous session
+ * on start, ends a session once, lists sessions and, with `expire`, leaves
+ * running sessions alone. It writes sessions to the store; they are all ended
+ * when it returns.
  */
 export function testSupportSessionStore(
   store: SupportSessionStore,

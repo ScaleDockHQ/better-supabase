@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 
 import {
   isProjectRef,
@@ -34,7 +34,7 @@ test("isProjectRef accepts lowercase refs only", () => {
 });
 
 describe("managementClient", () => {
-  test("sends the bearer token and parses projects", async () => {
+  it("sends the bearer token and parses projects", async () => {
     const fetchImpl = respondJson([project]);
 
     await expect(
@@ -49,7 +49,7 @@ describe("managementClient", () => {
     );
   });
 
-  test("creates a project in a smart region group", async () => {
+  it("creates a project in a smart region group", async () => {
     const fetchImpl = respondJson(project, 201);
 
     await managementClient("token", fetchImpl).createProject({
@@ -70,7 +70,7 @@ describe("managementClient", () => {
     });
   });
 
-  test("counts public tables and reads database health", async () => {
+  it("counts public tables and reads database health", async () => {
     await expect(
       managementClient("token", respondJson([{ count: "3" }])).publicTableCount(
         project.ref,
@@ -85,7 +85,7 @@ describe("managementClient", () => {
     ).resolves.toBe(true);
   });
 
-  test("posts the migration by name", async () => {
+  it("posts the migration by name", async () => {
     const fetchImpl = respond("");
 
     await managementClient("token", fetchImpl).applyMigration(
@@ -105,7 +105,7 @@ describe("managementClient", () => {
     });
   });
 
-  test("turns an error body into a ManagementError with the status", async () => {
+  it("turns an error body into a ManagementError with the status", async () => {
     const migration = managementClient(
       "token",
       respondJson({ message: "relation already exists" }, 400),
@@ -118,7 +118,7 @@ describe("managementClient", () => {
     });
   });
 
-  test("handles non-JSON errors and unexpected shapes", async () => {
+  it("handles non-JSON errors and unexpected shapes", async () => {
     await expect(
       managementClient(
         "token",
@@ -134,7 +134,7 @@ describe("managementClient", () => {
     ).rejects.toBeInstanceOf(ManagementError);
   });
 
-  test("reads organizations, a single project and the security lints", async () => {
+  it("reads organizations, a single project and the security lints", async () => {
     await expect(
       managementClient(
         "token",
@@ -160,7 +160,7 @@ describe("managementClient", () => {
     await expect(lints).resolves.toMatchObject([{ level: "ERROR" }]);
   });
 
-  test("rejects malformed rows", async () => {
+  it("rejects malformed rows", async () => {
     for (const body of [
       [{ id: "1" }],
       [{ ...project, status: 1 }],

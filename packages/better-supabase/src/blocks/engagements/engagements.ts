@@ -1,20 +1,17 @@
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
 
-import {
-  type BlockFields,
-  blockFields,
-  type FieldsOf,
-} from "../../core/block-fields.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   instantArg,
   isRecord,
   optionalInstant,
@@ -57,7 +54,10 @@ export interface Engagement<F extends object = Record<never, never>> {
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
-/** The fields of a write. On update, left out keeps the value and `null` clears it. */
+/**
+ * The fields of a write. On update, left out keeps the value and `null` clears
+ * it.
+ */
 export interface EngagementInput<F extends object = Record<never, never>> {
   readonly type?: string;
   readonly title?: string;
@@ -76,7 +76,10 @@ export interface EngagementInput<F extends object = Record<never, never>> {
 
 /** `F` types the engagements' extra columns, from the `fields` schema. */
 export interface Engagements<F extends object = Record<never, never>> {
-  /** Logs an engagement on the records in `subjects`, the first being its main record. */
+  /**
+   * Logs an engagement on the records in `subjects`, the first being its main
+   * record.
+   */
   log(
     organizationId: string,
     input: EngagementInput<F> & {
@@ -123,12 +126,15 @@ export interface EngagementsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`.
+   */
   readonly schema?: string;
   /**
    * A Standard Schema for the engagements' extra columns
-   * (`blocks.engagements.options.extraColumns`), keyed by column name. It
-   * types and parses `fields` on reads and validates them on writes.
+   * (`blocks.engagements.options.extraColumns`), keyed by column name. It types
+   * and parses `fields` on reads and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Engagements<FieldsOf<S>>>>;
@@ -190,9 +196,9 @@ const subjectsArg = (
   subjects.map((subject) => ({ type: subject.type, id: subject.id }));
 
 /**
- * The engagements block: calls, emails, meetings, notes and tasks on any
- * record registered in `config.subjects`, for a record's activity panel, a
- * "next step" and a member's task list.
+ * The engagements block: calls, emails, meetings, notes and tasks on any record
+ * registered in `config.subjects`, for a record's activity panel, a "next step"
+ * and a member's task list.
  */
 export function createEngagements<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -254,11 +260,7 @@ export function createEngagements<
         .andThen((attrs) =>
           call(
             "log_engagement",
-            {
-              tenant: organizationId,
-              attrs,
-              subjects: subjectsArg(subjects),
-            },
+            { tenant: organizationId, attrs, subjects: subjectsArg(subjects) },
             engagementOf,
           ),
         )

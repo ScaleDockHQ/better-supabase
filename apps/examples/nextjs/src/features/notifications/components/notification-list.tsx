@@ -27,8 +27,8 @@ async function loadRows(): Promise<readonly NotificationRow[]> {
 }
 
 /**
- * The caller's latest notifications, loaded again after each broadcast on
- * their private topic `notifications:<user id>`: a new one, or one marked read.
+ * The caller's latest notifications, loaded again after each broadcast on their
+ * private topic `notifications:<user id>`: a new one, or one marked read.
  */
 export function NotificationList() {
   const t = useExtracted("notifications");

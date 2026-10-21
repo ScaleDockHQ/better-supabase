@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 
 import {
   DELIVERY_PARSERS,
@@ -142,7 +142,7 @@ describe("twilioDeliveries", () => {
   });
 });
 
-it("maps adapters to parsers", () => {
+test("maps adapters to parsers", () => {
   expect(DELIVERY_PARSERS["instagram"]).toBe(messengerDeliveries);
   expect(DELIVERY_PARSERS["sms"]).toBe(twilioDeliveries);
 });

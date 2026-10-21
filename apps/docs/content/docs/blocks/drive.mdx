@@ -132,9 +132,7 @@ Load a folder's children with `list(organizationId, { parentId })` as it opens, 
 ```ts title="better-supabase.config.ts"
 import { driveSubject } from "better-supabase/blocks/drive";
 
-export default defineConfig({
-  subjects: { drive_node: driveSubject() },
-});
+export default defineConfig({ subjects: { drive_node: driveSubject() } });
 ```
 
 ## Adopt

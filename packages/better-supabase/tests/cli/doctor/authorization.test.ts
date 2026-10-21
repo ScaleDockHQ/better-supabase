@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogFunction,
@@ -13,11 +14,7 @@ import type { AccessBucketPolicy } from "../../../src/schema/types.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { providerBucketKeys } from "../../../src/cli/doctor/authorization.ts";
-import {
-  type DoctorContext,
-  RULES,
-  runRules,
-} from "../../../src/cli/doctor/rules.ts";
+import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -288,11 +285,7 @@ describe("BS408", () => {
   const config = (
     provider: AuthorizationProvider = stubProvider,
     extra: Parameters<typeof resolveConfig>[0] = {},
-  ) => ({
-    authorization: provider,
-    blocks: ["entitlements"],
-    ...extra,
-  });
+  ) => ({ authorization: provider, blocks: ["entitlements"], ...extra });
 
   it("passes when the provider and the database back the module", async () => {
     expect(
@@ -613,10 +606,7 @@ describe("BS411", () => {
     expect(
       await findings("BS411", config(noAssign), { snapshot }),
     ).toMatchObject([
-      {
-        severity: "warning",
-        target: "blocks.access.functions.canAssign",
-      },
+      { severity: "warning", target: "blocks.access.functions.canAssign" },
     ]);
     expect(
       await findings(
@@ -1005,10 +995,7 @@ describe("BS417", () => {
     ],
   };
 
-  const blocks = {
-    access: { model: "provider" as const },
-    "saved-views": {},
-  };
+  const blocks = { access: { model: "provider" as const }, "saved-views": {} };
 
   it("warns when the provider declares teams without teamIdsOf", async () => {
     expect(

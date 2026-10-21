@@ -2,14 +2,17 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type {
+  InstalledModule,
+  ModuleFile,
+  ModuleLayout,
+} from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
+import type { Now } from "./migrations.ts";
 
 import {
-  type InstalledModule,
-  type ModuleFile,
-  type ModuleLayout,
   moduleFileVersion,
   moduleTopics,
   renderModules,
@@ -22,7 +25,7 @@ import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import { migrationStamp, type Now } from "./migrations.ts";
+import { migrationStamp } from "./migrations.ts";
 import {
   latestMigration,
   migrationModules,
@@ -36,8 +39,8 @@ import { nextStep, write } from "./write.ts";
 
 /**
  * Rewrites the module files of modules behind the current version, and writes
- * their upgrade steps (renames, backfills) as a migration that runs before
- * the one the schema diff creates.
+ * their upgrade steps (renames, backfills) as a migration that runs before the
+ * one the schema diff creates.
  */
 export async function upgrade(
   config: ResolvedConfig,
@@ -208,7 +211,10 @@ async function installedFromFiles(
   return { installed, stale, diffs };
 }
 
-/** The installed versions from the `@bs-module` lines of the newest module migration. */
+/**
+ * The installed versions from the `@bs-module` lines of the newest module
+ * migration.
+ */
 async function installedFromMigration(
   config: ResolvedConfig,
   sqlLayout: ModuleLayout,

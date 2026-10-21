@@ -9,6 +9,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("tags", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("lists the tenant's tags and a readable subject's tags", async () => {

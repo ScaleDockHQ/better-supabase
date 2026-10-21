@@ -5,9 +5,9 @@ import {
   loadSupabaseMcpPlatform,
 } from "../../src/core/supabase-mcp.ts";
 
-vi.mock("@supabase/mcp-server-supabase", () => ({}));
+vi.mock(import("@supabase/mcp-server-supabase"), () => ({}));
 
-vi.mock("@supabase/mcp-server-supabase/platform/api", () => ({}));
+vi.mock(import("@supabase/mcp-server-supabase/platform/api"), () => ({}));
 
 describe("loadSupabaseMcp", () => {
   it("explains how to install the package when it is missing", async () => {

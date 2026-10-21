@@ -3,11 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type {
+  PackageManager,
+  Project,
+} from "../../../src/cli/project/detect.ts";
+
 import {
   detectProject,
   installCommand,
-  type PackageManager,
-  type Project,
   publicPrefix,
 } from "../../../src/cli/project/detect.ts";
 

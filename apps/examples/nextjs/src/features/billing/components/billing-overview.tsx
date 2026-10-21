@@ -73,9 +73,9 @@ export async function CurrentPlan() {
 
 /**
  * The plan catalog from the shared cache, with the organization's plan:
- * `PlanPicker` starts from both. Reading the session first keeps it out of
- * the build's prerender, which has no secret key or database. Render
- * inside `<Suspense>`.
+ * `PlanPicker` starts from both. Reading the session first keeps it out of the
+ * build's prerender, which has no secret key or database. Render inside
+ * `<Suspense>`.
  */
 export async function PlanGrid() {
   const session = await getSession();

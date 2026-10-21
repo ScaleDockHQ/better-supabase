@@ -59,9 +59,9 @@ test("the current section is marked in the navbar", async ({ page }) => {
   await page.goto("/blocks/notifications");
 
   await expect(
-    page.getByRole("navigation", { name: "Main" }).getByRole("link", {
-      name: "Blocks",
-    }),
+    page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Blocks" }),
   ).toHaveAttribute("aria-current", "page");
 });
 

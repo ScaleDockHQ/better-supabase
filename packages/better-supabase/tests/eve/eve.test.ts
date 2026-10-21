@@ -9,6 +9,14 @@ import type { Inbox } from "../../src/blocks/inbox/inbox.ts";
 import type { Knowledge } from "../../src/blocks/knowledge/knowledge.ts";
 import type { Memory } from "../../src/blocks/memory/memory.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
+import type {
+  EveChatMessage,
+  EveChatThread,
+  EveConnectionPrincipal,
+  EveMemoryContext,
+  EveSessionAuth,
+  EveSessionContext,
+} from "../../src/eve/index.ts";
 
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -18,12 +26,6 @@ import {
   ConnectionAuthorizationRequiredError,
   credentialAuth,
   EveAuthRejection,
-  type EveChatMessage,
-  type EveChatThread,
-  type EveConnectionPrincipal,
-  type EveMemoryContext,
-  type EveSessionAuth,
-  type EveSessionContext,
   MemoryDocumentConflictError,
   persistSessions,
   principalOf,
@@ -172,9 +174,7 @@ function token(value: string, expiresAt?: Temporal.Instant) {
 
 function provider(
   overrides: Partial<CredentialProvider> = {},
-): CredentialProvider & {
-  readonly getToken: ReturnType<typeof vi.fn>;
-} {
+): CredentialProvider & { readonly getToken: ReturnType<typeof vi.fn> } {
   return {
     apiVersion: 1,
     name: "test",
@@ -315,9 +315,7 @@ describe("credentialAuth", () => {
     const callbackUrl = "https://app.test/eve/v1/connections/linear/callback";
     expect(
       await auth.startAuthorization?.({ ...request(connected), callbackUrl }),
-    ).toEqual({
-      challenge: { url: "https://linear.app/oauth" },
-    });
+    ).toEqual({ challenge: { url: "https://linear.app/oauth" } });
     expect(start).toHaveBeenCalledWith(ref, {
       subject: { type: "user", id: USER, issuer: user.issuer },
       redirectUri: callbackUrl,
@@ -539,7 +537,7 @@ describe("supabaseMemory", () => {
     );
 
     expect(replay).toEqual(first);
-    expect(memory.render).toHaveBeenCalledTimes(1);
+    expect(memory.render).toHaveBeenCalledOnce();
     expect(memory.archival.search).toHaveBeenCalledWith(
       ORG,
       "what do I like?",
@@ -564,7 +562,7 @@ describe("supabaseMemory", () => {
       ...memory.documents,
       read: () =>
         AsyncResult.ok(
-          reads++ === 0
+          (reads += 1) === 1
             ? undefined
             : { content: JSON.stringify(stored), version: "1" },
         ),
@@ -633,7 +631,7 @@ describe("supabaseMemory", () => {
     await capture?.(memoryCtx(user, "op6"));
     await capture?.(memoryCtx(user, "op6"));
     await capture?.(memoryCtx(null, "op7"));
-    expect(extract).toHaveBeenCalledTimes(1);
+    expect(extract).toHaveBeenCalledOnce();
     expect(memory.saveExtracted).toHaveBeenCalledWith(
       ORG,
       ["drinks tea"],
@@ -716,10 +714,7 @@ function fakeChats(leaf: string | null = "m0") {
       appendUser: record("appendUser", {}),
       saveAssistant: record("saveAssistant", {}),
     },
-    runs: {
-      claim: record("claim", {}),
-      release: record("release", true),
-    },
+    runs: { claim: record("claim", {}), release: record("release", true) },
   };
 
   return { chats: chats as unknown as AiChat, calls };
@@ -922,7 +917,7 @@ describe("routeInbox", () => {
     const subscribe = vi.fn(() => Promise.resolve());
     const thread = { id: "inbox:conv_1", subscribe };
     await b.handlers.mention?.(thread, { text: "hi" });
-    expect(subscribe).toHaveBeenCalled();
+    expect(subscribe).toHaveBeenCalledWith();
     expect(b.send).toHaveBeenCalledWith("hi", {
       thread,
       auth: {
@@ -949,7 +944,7 @@ describe("routeInbox", () => {
       { text: "hi" },
     );
     expect(b.send).not.toHaveBeenCalled();
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledOnce();
   });
 });
 

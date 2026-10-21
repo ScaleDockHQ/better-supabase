@@ -1,12 +1,13 @@
-import {
-  APP_ROLLUP_AGGREGATES,
-  type AppColumnType,
-  type AppLookupConfig,
-  type AppRollupAggregate,
-  type AppRollupConfig,
-  type AppTableConfig,
-  type AppTablesConfig,
+import type {
+  AppColumnType,
+  AppLookupConfig,
+  AppRollupAggregate,
+  AppRollupConfig,
+  AppTableConfig,
+  AppTablesConfig,
 } from "./types/app-tables.ts";
+
+import { APP_ROLLUP_AGGREGATES } from "./types/app-tables.ts";
 
 const IDENT = /^[a-z][a-z0-9_]{0,62}$/;
 
@@ -251,9 +252,9 @@ function entriesOf(where: string, value: unknown): [string, unknown][] {
 }
 
 /**
- * The `rollups` and `lookups` of the app table `name`, checked against
- * every resolved app table. `taken` holds the columns the table already
- * has, which a computed column may not reuse.
+ * The `rollups` and `lookups` of the app table `name`, checked against every
+ * resolved app table. `taken` holds the columns the table already has, which a
+ * computed column may not reuse.
  */
 export function computedOf(
   where: string,

@@ -2,7 +2,10 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
-/** Schemas whose tables Supabase or Postgres own; the event trigger leaves them alone. */
+/**
+ * Schemas whose tables Supabase or Postgres own; the event trigger leaves them
+ * alone.
+ */
 const ENSURE_RLS_SKIPPED_SCHEMAS = [
   "auth",
   "storage",

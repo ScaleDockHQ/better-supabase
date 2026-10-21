@@ -5,15 +5,15 @@ import {
 } from "@supabase/ssr";
 import { describe, expect, it } from "vitest";
 
+import type { CookieWrite, StoredSession } from "../../src/auth/session.ts";
+
 import {
   applyCookieWrites,
-  type CookieWrite,
   clearSessionAtScopes,
   DEFAULT_SESSION_ENCODING,
   pruneSessionChunks,
   readSession,
   sessionEncoding,
-  type StoredSession,
   writeSession,
 } from "../../src/auth/session.ts";
 
@@ -58,9 +58,7 @@ describe("session encoding", () => {
       NAME,
       session(),
       {},
-      {
-        encode: "tokens-only",
-      },
+      { encode: "tokens-only" },
     );
 
     const stored = decoded(writes);
@@ -99,9 +97,7 @@ describe("session encoding", () => {
       NAME,
       big,
       {},
-      {
-        encode: "tokens-only",
-      },
+      { encode: "tokens-only" },
     );
 
     expect(writes.filter((write) => write.options.maxAge === 0)).not.toEqual(
@@ -151,9 +147,7 @@ describe("session encoding", () => {
       NAME,
       session(),
       {},
-      {
-        encode: "tokens-only",
-      },
+      { encode: "tokens-only" },
     );
 
     const client = createServerClient(PROJECT_URL, "sb_publishable_test", {

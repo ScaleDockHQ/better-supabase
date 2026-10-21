@@ -10,7 +10,14 @@ import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
+import type { CorsOptions } from "../server/cors.ts";
+import type {
+  BlockRequireOptions,
+  ResourceLoaderContext,
+} from "../server/kit.ts";
+import type { RateLimitRouteOptions } from "../server/rate-limit.ts";
 import type { ResourceRouteOptions } from "../server/resource-types.ts";
+import type { MiddlewareOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
@@ -24,23 +31,12 @@ import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
-import { type CorsOptions, corsConfig } from "../server/cors.ts";
-import {
-  type BlockRequireOptions,
-  requireCaller,
-  type ResourceLoaderContext,
-} from "../server/kit.ts";
-import {
-  type RateLimitRouteOptions,
-  rateLimitGate,
-} from "../server/rate-limit.ts";
+import { corsConfig } from "../server/cors.ts";
+import { requireCaller } from "../server/kit.ts";
+import { rateLimitGate } from "../server/rate-limit.ts";
 import { defineResource } from "../server/resource.ts";
 import { matchResource } from "../server/resources.ts";
-import {
-  defaultExpose,
-  type MiddlewareOptions,
-  respond,
-} from "../server/respond.ts";
+import { defaultExpose, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
@@ -91,17 +87,23 @@ export interface HonoEnv<
 export interface HonoOptions extends ServerOptions {
   /**
    * An existing server, such as the one `createNext` returned, so both
-   * frameworks share one `createServer`: the same cookies, clients,
-   * credentials and event sinks. The server options are then ignored.
+   * frameworks share one `createServer`: the same cookies, clients, credentials
+   * and event sinks. The server options are then ignored.
    */
   readonly server?: SharedServer;
-  /** Answer preflights and add CORS headers to every route of `app()`. `true` uses Supabase's defaults. */
+  /**
+   * Answer preflights and add CORS headers to every route of `app()`. `true`
+   * uses Supabase's defaults.
+   */
   readonly cors?: boolean | CorsOptions;
-  /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
+  /**
+   * Include error details in problem responses. Defaults to `NODE_ENV ===
+   * 'development'`.
+   */
   readonly exposeErrors?: boolean;
   /**
-   * Keeps the invocation alive for event sink sends a handler started.
-   * Defaults to `c.executionCtx.waitUntil` when the runtime passes one (Workers).
+   * Keeps the invocation alive for event sink sends a handler started. Defaults
+   * to `c.executionCtx.waitUntil` when the runtime passes one (Workers).
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
@@ -116,13 +118,16 @@ export interface BetterHono<
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
-   * The app's Hono `Env`, for `new Hono<typeof bs.Env>()` and
-   * `Context<typeof bs.Env>`. Type only: `undefined` at runtime.
+   * The app's Hono `Env`, for `new Hono<typeof bs.Env>()` and `Context<typeof
+   * bs.Env>`. Type only: `undefined` at runtime.
    */
   readonly Env: HonoEnv<M, F, E, C, P, B>;
   /** `new Hono<typeof bs.Env>()` with `onError(bs.onError)` installed. */
   app(): Hono<HonoEnv<M, F, E, C, P, B>>;
-  /** Resolves the caller, enforces `allow` and sets `c.var.bs`, `c.var.db`, `c.var.auth`. */
+  /**
+   * Resolves the caller, enforces `allow` and sets `c.var.bs`, `c.var.db`,
+   * `c.var.auth`.
+   */
   middleware(
     options?: MiddlewareOptions,
   ): MiddlewareHandler<HonoEnv<M, F, E, C, P, B>>;
@@ -131,7 +136,11 @@ export interface BetterHono<
    * `requireTenant` and `authorize`. A refused caller gets Problem Details.
    *
    * ```ts
-   * app.post('/invites', bs.require({ requireTenant: true, roles: ['admin'] }), handler)
+   * app.post(
+   *   "/invites",
+   *   bs.require({ requireTenant: true, roles: ["admin"] }),
+   *   handler,
+   * );
    * ```
    */
   require: (
@@ -149,10 +158,15 @@ export interface BetterHono<
    * refused request gets a 429 with `Retry-After`.
    *
    * ```ts
-   * app.use('/api/*', bs.rateLimit({
-   *   limiter, scope: 'api', rule: { max: 100, period: '1 minute' },
-   *   key: (c) => c.req.header('x-api-key'),
-   * }))
+   * app.use(
+   *   "/api/*",
+   *   bs.rateLimit({
+   *     limiter,
+   *     scope: "api",
+   *     rule: { max: 100, period: "1 minute" },
+   *     key: (c) => c.req.header("x-api-key"),
+   *   }),
+   * );
    * ```
    */
   rateLimit(
@@ -170,15 +184,15 @@ export interface BetterHono<
     options?: { readonly status?: number },
   ): (c: Context<HonoEnv<M, F, E, C, P, B>>) => Promise<Response>;
   /**
-   * `app.onError(bs.onError)`: `DbException`s (and errors caused by a `DbError`)
-   * become Problem Details, Hono's `HTTPException`s keep their own response,
-   * and anything else is a 500.
+   * `app.onError(bs.onError)`: `DbException`s (and errors caused by a
+   * `DbError`) become Problem Details, Hono's `HTTPException`s keep their own
+   * response, and anything else is a 500.
    */
   readonly onError: ErrorHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
-   * REST routes for a table matching the API model: the collection, the
-   * item and each action's path. Mount with
-   * `app.route('/customers', bs.resource('customers'))` behind `middleware()`.
+   * REST routes for a table matching the API model: the collection, the item
+   * and each action's path. Mount with `app.route('/customers',
+   * bs.resource('customers'))` behind `middleware()`.
    */
   resource<T extends TableKey<M>>(
     table: T,

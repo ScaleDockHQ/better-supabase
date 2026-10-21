@@ -1,6 +1,7 @@
 import type { CliEnv } from "./env.ts";
+import type { RunProcess } from "./exec.ts";
 
-import { type RunProcess, runProcess } from "./exec.ts";
+import { runProcess } from "./exec.ts";
 
 export interface SharedMemorySegment {
   readonly id: string;
@@ -28,10 +29,10 @@ const isDigits = (field: string | undefined): field is string =>
   field !== undefined && DIGITS.test(field);
 
 /**
- * The segments from `ipcs -m -b -p` on macOS
- * (`m <id> <key> <mode> <owner> <group> <segsz> <cpid> <lpid>`, or without
- * `<segsz>` when `-b` is left out) and from `ipcs -m -p` on Linux
- * (`<shmid> <owner> <cpid> <lpid>` under a header).
+ * The segments from `ipcs -m -b -p` on macOS (`m <id> <key> <mode> <owner>
+ * <group> <segsz> <cpid> <lpid>`, or without `<segsz>` when `-b` is left out)
+ * and from `ipcs -m -p` on Linux (`<shmid> <owner> <cpid> <lpid>` under a
+ * header).
  */
 export function parseIpcs(stdout: string): readonly IpcsRow[] {
   const rows: IpcsRow[] = [];
@@ -64,7 +65,10 @@ export function parseIpcs(stdout: string): readonly IpcsRow[] {
   return rows;
 }
 
-/** Segment sizes by id from Linux `ipcs -m` (`<key> <shmid> <owner> <perms> <bytes> <nattch>`). */
+/**
+ * Segment sizes by id from Linux `ipcs -m` (`<key> <shmid> <owner> <perms>
+ * <bytes> <nattch>`).
+ */
 export function parseIpcsSizes(stdout: string): ReadonlyMap<string, number> {
   const sizes = new Map<string, number>();
 
@@ -86,7 +90,10 @@ export function parseIpcsSizes(stdout: string): ReadonlyMap<string, number> {
 
 const STACK_DATA_DIR = /[/\\]\.supabase[/\\]stacks[/\\]([0-9a-f]{12,})[/\\]/;
 
-/** The managed stack id in a postmaster's command line (`-D ~/.supabase/stacks/<id>/...`). */
+/**
+ * The managed stack id in a postmaster's command line (`-D
+ * ~/.supabase/stacks/<id>/...`).
+ */
 export function stackIdOf(command: string): string | undefined {
   return STACK_DATA_DIR.exec(command)?.[1];
 }
@@ -155,10 +162,10 @@ async function segmentRows(
 }
 
 /**
- * The System V shared memory segments in use, each tied to the managed
- * stack whose postmaster created it. Every running Postgres keeps one small
- * segment as an interlock, even with `shared_memory_type = mmap`, so the
- * segment limit caps how many stacks and shadow databases run at once.
+ * The System V shared memory segments in use, each tied to the managed stack
+ * whose postmaster created it. Every running Postgres keeps one small segment
+ * as an interlock, even with `shared_memory_type = mmap`, so the segment limit
+ * caps how many stacks and shadow databases run at once.
  */
 export async function readSharedMemory(
   root: string,

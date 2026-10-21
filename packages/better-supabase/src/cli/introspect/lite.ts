@@ -3,12 +3,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { LiteDriver } from "../../server/index.ts";
+import type { SupabaseToml } from "../supabase-toml.ts";
 import type { IntrospectionSource } from "./source.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
 import { LITE_DRIVERS, loadCliLite } from "../lite.ts";
-import { schemaPaths, type SupabaseToml, tomlGet } from "../supabase-toml.ts";
+import { schemaPaths, tomlGet } from "../supabase-toml.ts";
 import { pgSource } from "./source.ts";
 
 function isLiteDriver(value: unknown): value is LiteDriver {
@@ -16,8 +17,8 @@ function isLiteDriver(value: unknown): value is LiteDriver {
 }
 
 /**
- * `[db] driver` from `supabase/config.toml`. Only Supabase Lite reads this
- * key, so its presence marks a Lite project.
+ * `[db] driver` from `supabase/config.toml`. Only Supabase Lite reads this key,
+ * so its presence marks a Lite project.
  */
 export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
   const driver = tomlGet(toml?.document ?? {}, ["db", "driver"]);
@@ -37,14 +38,17 @@ export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
   );
 }
 
-/** `supabase/migrations/*.sql` in version order, then the declarative schema files. */
+/**
+ * `supabase/migrations/*.sql` in version order, then the declarative schema
+ * files.
+ */
 async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
   const migrations = join(root, toml?.dir ?? "supabase", "migrations");
 
   const files = existsSync(migrations)
     ? (await readdir(migrations))
         .filter((name) => name.endsWith(".sql"))
-        .sort()
+        .toSorted()
         .map((name) => join(migrations, name))
     : [];
 
@@ -58,10 +62,10 @@ async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
 }
 
 /**
- * Where `gen` reads a Supabase Lite project's schema: the `postgres`
- * driver's `[db] url`, or, for `pglite` and `sqlite-postgres`, an in-memory
- * PGlite with Lite's auth schema that `supabase/migrations` and the
- * declarative schema files are replayed into.
+ * Where `gen` reads a Supabase Lite project's schema: the `postgres` driver's
+ * `[db] url`, or, for `pglite` and `sqlite-postgres`, an in-memory PGlite with
+ * Lite's auth schema that `supabase/migrations` and the declarative schema
+ * files are replayed into.
  */
 export async function liteSource(
   root: string,

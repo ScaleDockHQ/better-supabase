@@ -14,9 +14,7 @@ export const bookingsBlock: BlockOf<
 > = defineBlock({
   name: "bookings",
   sql: ["bookings"],
-  options: {
-    bookings: bookingsSqlOptions,
-  },
+  options: { bookings: bookingsSqlOptions },
   events: bookingsEvents,
   create: createBookings,
   client: "bookings",

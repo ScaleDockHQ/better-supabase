@@ -186,11 +186,7 @@ const NAMES: ModuleNames = {
     },
     alertFires: {
       name: "workflow_alert_fires",
-      columns: {
-        alert: "alert_id",
-        run: "run_id",
-        firedAt: "fired_at",
-      },
+      columns: { alert: "alert_id", run: "run_id", firedAt: "fired_at" },
     },
   },
 };
@@ -904,11 +900,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     { name: "workflow_versions_list", args: ["uuid"], returns: "jsonb" },
     { name: "workflow_version_get", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "workflow_start_target",
-      args: ["uuid", "{id}"],
-      returns: "jsonb",
-    },
+    { name: "workflow_start_target", args: ["uuid", "{id}"], returns: "jsonb" },
     {
       name: "workflow_subject_start_target",
       args: ["uuid", "text", "text", "{id}"],

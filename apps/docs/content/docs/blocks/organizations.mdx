@@ -590,9 +590,7 @@ export default defineConfig({
     tenant: {
       mode: "adopt",
       tables: { memberships: "public.organization_users" },
-      columns: {
-        memberships: { tenant: "organization_id", role: "role_id" },
-      },
+      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
     },
     organizations: {
       mode: "adopt",

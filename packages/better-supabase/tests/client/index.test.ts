@@ -40,7 +40,7 @@ function base64url(text: string): string {
   return btoa(text)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 function token(payload: unknown): string {
@@ -254,10 +254,10 @@ describe("createClient", () => {
     emit(session(token({ exp: 1, tenant_id: "t1" }), user));
     const db = browser.db;
     const snapshot = browser.auth.current();
-    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledOnce();
 
     emit(session(token({ exp: 2, iat: 1, jti: "j", tenant_id: "t1" }), user));
-    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledOnce();
     expect(browser.db).toBe(db);
     expect(browser.auth.current()).toBe(snapshot);
 

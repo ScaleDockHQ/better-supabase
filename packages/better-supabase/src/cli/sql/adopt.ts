@@ -1,9 +1,9 @@
 /**
  * Proposes an adopt-mode entry for a block from tables the app already has:
  * each logical table of the module gets an existing table, and each logical
- * column the column that most likely holds it. The proposal is checked the
- * way `sql sync` and doctor check a config, so what can't map is reported
- * before anything is written.
+ * column the column that most likely holds it. The proposal is checked the way
+ * `sql sync` and doctor check a config, so what can't map is reported before
+ * anything is written.
  */
 
 import type { AnyBlocksConfig, BlockConfig } from "../../config/index.ts";
@@ -85,7 +85,10 @@ export function adoptableBlocks(): readonly string[] {
     .map((module) => module.name);
 }
 
-/** `schema.table` from `table` or `schema.table`; an unqualified name is in `public`. */
+/**
+ * `schema.table` from `table` or `schema.table`; an unqualified name is in
+ * `public`.
+ */
 export function qualifiedName(name: string): string {
   return name.includes(".") ? name : `public.${name}`;
 }
@@ -160,16 +163,19 @@ function matchColumns(
 const unique = (names: readonly string[]): string | undefined =>
   names.length === 1 ? names[0] : undefined;
 
-/** The share of logical columns a table matches, so a wide table doesn't win on size. */
+/**
+ * The share of logical columns a table matches, so a wide table doesn't win on
+ * size.
+ */
 const score = (matches: readonly ColumnMatch[]): number =>
   matches.length === 0
     ? 0
     : matches.filter((match) => match.column !== null).length / matches.length;
 
 /**
- * The table each logical table of `block` maps to: the tables in `from`
- * go to the logical tables whose columns they match best, and the rest are
- * looked up by the module's default names in `schemas`.
+ * The table each logical table of `block` maps to: the tables in `from` go to
+ * the logical tables whose columns they match best, and the rest are looked up
+ * by the module's default names in `schemas`.
  */
 function matchTables(
   block: string,
@@ -206,7 +212,7 @@ function matchTables(
           score(matchColumns(names, table)) +
           (table.name === names.name ? 1 : 0),
       }))
-      .sort((left, right) => right.score - left.score)[0];
+      .toSorted((left, right) => right.score - left.score)[0];
 
     if (best === undefined || best.score === 0) {
       errors.push(
@@ -244,7 +250,10 @@ function matchTables(
 const enumType = (column: ExistingTable["columns"][number]): string =>
   `"${column.typeSchema ?? "public"}"."${column.udt}"`;
 
-/** A `create table` per adopted table, with its enum types, for `adoptedColumnProblems`. */
+/**
+ * A `create table` per adopted table, with its enum types, for
+ * `adoptedColumnProblems`.
+ */
 const declaration = (table: ExistingTable): string =>
   [
     ...table.columns
@@ -258,7 +267,10 @@ export interface ProposeOptions {
   readonly from?: readonly string[];
   /** The config's blocks, so the proposal is checked next to them. */
   readonly blocks?: AnyBlocksConfig;
-  /** Schemas searched for the module's default table names. Defaults to `public`. */
+  /**
+   * Schemas searched for the module's default table names. Defaults to
+   * `public`.
+   */
   readonly schemas?: readonly string[];
 }
 

@@ -6,7 +6,10 @@ import {
 } from "../../../../../../features/assistant/durable/durable-server";
 import { bs } from "../../../../../../lib/supabase/server";
 
-/** `GET /api/chat/durable/[id]/stream?startIndex=`: reconnects to the running turn, or 204. */
+/**
+ * `GET /api/chat/durable/[id]/stream?startIndex=`: reconnects to the running
+ * turn, or 204.
+ */
 export const GET = bs.route<{ id: string }, true>(
   (request, { session, tenant, supabase, params }) => {
     if (session.kind !== "user") {

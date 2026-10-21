@@ -29,12 +29,16 @@ export interface SignedUrl {
 const REFRESH_AT = 0.9;
 
 /**
- * A signed URL for an object, signed again before it expires. Pass `null`
- * as the target to pause. Connect the bucket with `cacheSignedUrls: true`
- * so components showing the same object share one URL.
+ * A signed URL for an object, signed again before it expires. Pass `null` as
+ * the target to pause. Connect the bucket with `cacheSignedUrls: true` so
+ * components showing the same object share one URL.
  *
  * ```tsx
- * const { url } = useSignedUrl(avatars, user ? { userId: user.id } : null, { ttl: 'hour' });
+ * const { url } = useSignedUrl(
+ *   avatars,
+ *   user ? { userId: user.id } : null,
+ *   { ttl: "hour" },
+ * );
  * ```
  */
 export function useSignedUrl<T>(
@@ -119,7 +123,10 @@ export type UploadStatus = "idle" | "uploading" | "done" | "error";
 
 export interface Upload<T, R> {
   readonly status: UploadStatus;
-  /** 0 to 1 while uploading; see `UploadOptions.onProgress` for when it is exact. */
+  /**
+   * 0 to 1 while uploading; see `UploadOptions.onProgress` for when it is
+   * exact.
+   */
   readonly progress: number;
   readonly data: R | undefined;
   readonly error: DbError | undefined;

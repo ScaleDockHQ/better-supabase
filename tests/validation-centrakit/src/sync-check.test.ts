@@ -21,6 +21,7 @@ describe("the committed module files", () => {
 
 describe.skipIf(!live)("doctor on the installed fixture", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   afterAll(() => pool.end());
 
   it("reports no findings", async () => {

@@ -200,6 +200,7 @@ async function actions(s: BlockSession): Promise<string> {
 
 describe.skipIf(!live)("audited module actions", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("records each action once in the audit log and once in the outbox", async () => {

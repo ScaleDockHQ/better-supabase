@@ -91,16 +91,18 @@ describe("tableClient", () => {
     const scoped = tableClient(fake as unknown as SupabaseClient, customers);
     const received: unknown[] = [];
 
-    const wrapped = scoped.channel("topic").on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "customers",
-        filter: 'organizationId=eq.o1,name=in.("a,b",c)',
-      },
-      (payload) => received.push(payload.new),
-    );
+    const wrapped = scoped
+      .channel("topic")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "customers",
+          filter: 'organizationId=eq.o1,name=in.("a,b",c)',
+        },
+        (payload) => received.push(payload.new),
+      );
 
     expect(listeners[0]?.filter).toEqual({
       event: "INSERT",

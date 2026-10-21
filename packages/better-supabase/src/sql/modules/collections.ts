@@ -6,6 +6,8 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
+import type { CollectionNames } from "./collections-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -15,10 +17,9 @@ import {
   schemaPreamble,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { type Subject, subjectCascades } from "../subjects.ts";
+import { subjectCascades } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
 import {
-  type CollectionNames,
   collectionExtras,
   collectionFunctions,
   starFunctions,
@@ -28,7 +29,10 @@ import { callerTeamIdsSql } from "./team-ids.ts";
 /** Who sees a collection: its owner, a team, or the whole tenant. */
 const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
 
-/** The most ids one `add_collection_entries` or `remove_collection_entries` call takes. */
+/**
+ * The most ids one `add_collection_entries` or `remove_collection_entries` call
+ * takes.
+ */
 const MAX_COLLECTION_IDS = 1000;
 
 const ENTRY = [

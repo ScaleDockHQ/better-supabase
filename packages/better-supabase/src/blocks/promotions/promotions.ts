@@ -1,15 +1,17 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  BlockFields,
+  FieldsOf,
+  RowFields,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import {
-  type BlockFields,
   blockFields,
-  type FieldsOf,
   readFields,
-  type RowFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -74,7 +76,10 @@ export interface PromotionInput<F extends object = Record<never, never>> {
   readonly minSubtotal?: Money;
   /** Default `order`, the whole cart. */
   readonly scope?: PromotionScope;
-  /** Product, category or collection ids for the other scopes. A category includes its children. */
+  /**
+   * Product, category or collection ids for the other scopes. A category
+   * includes its children.
+   */
   readonly targets?: readonly string[];
   readonly startsAt?: Temporal.Instant;
   readonly endsAt?: Temporal.Instant;
@@ -90,7 +95,10 @@ export interface PromotionInput<F extends object = Record<never, never>> {
   readonly automatic?: boolean;
   /** Default `true`. */
   readonly active?: boolean;
-  /** Values for the app's extra columns (`options.extraColumns`); left out keeps the stored ones. */
+  /**
+   * Values for the app's extra columns (`options.extraColumns`); left out keeps
+   * the stored ones.
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -127,7 +135,10 @@ export interface AppliedCode {
 }
 
 export interface Promotions<F extends object = Record<never, never>> {
-  /** Refused with `PROMOTIONS_INVALID` when the discount, limits or targets don't fit. */
+  /**
+   * Refused with `PROMOTIONS_INVALID` when the discount, limits or targets
+   * don't fit.
+   */
   savePromotion(
     organizationId: string,
     input: PromotionInput<F>,
@@ -136,9 +147,15 @@ export interface Promotions<F extends object = Record<never, never>> {
     promotionId: string,
     active: boolean,
   ): AsyncResult<boolean>;
-  /** Refused with `PROMOTIONS_IN_USE` once an order redeemed it; deactivate it instead. */
+  /**
+   * Refused with `PROMOTIONS_IN_USE` once an order redeemed it; deactivate it
+   * instead.
+   */
   deletePromotion(promotionId: string): AsyncResult<boolean>;
-  /** Codes are stored upper case. Refused with `PROMOTIONS_CODE_TAKEN` for a code the organization has. */
+  /**
+   * Codes are stored upper case. Refused with `PROMOTIONS_CODE_TAKEN` for a
+   * code the organization has.
+   */
   createCodes(
     promotionId: string,
     input: CodesInput,
@@ -197,13 +214,15 @@ function codesOf(value: unknown): readonly PromotionCode[] {
     return [];
   }
 
-  return value.filter(isRecord).map((entry) => ({
-    id: textOf(entry["id"]),
-    code: textOf(entry["code"]),
-  }));
+  return value
+    .filter(isRecord)
+    .map((entry) => ({ id: textOf(entry["id"]), code: textOf(entry["code"]) }));
 }
 
-/** Coupons, codes, usage limits and stacking rules over the `promotions` SQL module; `orders` prices them into carts. */
+/**
+ * Coupons, codes, usage limits and stacking rules over the `promotions` SQL
+ * module; `orders` prices them into carts.
+ */
 export function createPromotions<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: PromotionsOptions<S>): Promotions<FieldsOf<S>> {

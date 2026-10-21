@@ -61,7 +61,8 @@ export function toOrganizationSummaries(
 
 /**
  * The caller's organizations, most recently used first, from
- * `public.my_organizations()` (supabase/schemas/public/functions/my_organizations.sql).
+ * `public.my_organizations()`
+ * (supabase/schemas/public/functions/my_organizations.sql).
  */
 export async function getMyOrganizations(): Promise<
   readonly OrganizationSummary[]
@@ -87,8 +88,8 @@ interface MemberRow {
 }
 
 /**
- * Rows of `public.organization_members(organization)` with their avatar
- * URLs, skipping incomplete ones. The members table's server action uses it too.
+ * Rows of `public.organization_members(organization)` with their avatar URLs,
+ * skipping incomplete ones. The members table's server action uses it too.
  */
 export function toMembers(
   rows: readonly MemberRow[],

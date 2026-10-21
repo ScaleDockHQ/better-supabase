@@ -6,74 +6,53 @@ import type {
   TableKey,
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { CacheAdapter, CacheTarget } from "./cache.ts";
 import type { BucketRegistry } from "./db-buckets.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
+import type { DbError, ErrorMapper } from "./errors.ts";
+import type { EventHandler, EventName } from "./events.ts";
 import type { Executor } from "./executor.ts";
+import type {
+  AnyPlugin,
+  ExtensionOf,
+  RequestContext,
+  WithExtension,
+} from "./plugin.ts";
+import type {
+  PostgrestClientLike,
+  PostgrestExecutorOptions,
+} from "./postgrest-executor.ts";
+import type { ReadSet } from "./read-set.ts";
 import type { Db } from "./repository-types.ts";
+import type { Result, ThrowMapper } from "./result.ts";
 import type { SearchInput } from "./search.ts";
+import type { QuerySpec, Specs } from "./spec.ts";
+import type { StandardSchemaV1 } from "./standard.ts";
+import type { RequestTuning } from "./timeout.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { batchingExecutor } from "./batch.ts";
-import {
-  cacheTargetOf,
-  rpcCacheTargets,
-  type CacheAdapter,
-  type CacheTarget,
-} from "./cache.ts";
+import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { searchTable } from "./db-search.ts";
 import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
-import {
-  DbException,
-  dbError,
-  type DbError,
-  type ErrorMapper,
-} from "./errors.ts";
-import {
-  EventHub,
-  errorEvent,
-  type EventHandler,
-  type EventName,
-} from "./events.ts";
+import { DbException, dbError } from "./errors.ts";
+import { EventHub, errorEvent } from "./events.ts";
 import { isRecord } from "./guards.ts";
-import {
-  orderPlugins,
-  type AnyPlugin,
-  type ExtensionOf,
-  type RequestContext,
-  type WithExtension,
-} from "./plugin.ts";
-import {
-  postgrestExecutor,
-  type PostgrestClientLike,
-  type PostgrestExecutorOptions,
-} from "./postgrest-executor.ts";
+import { orderPlugins } from "./plugin.ts";
+import { postgrestExecutor } from "./postgrest-executor.ts";
 import {
   bindParams,
   checkParams,
   containsPlaceholder,
   isReadSet,
-  type ReadSet,
 } from "./read-set.ts";
 import { createRepository } from "./repository.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  withErrorMapper,
-  type Result,
-  type ThrowMapper,
-} from "./result.ts";
+import { AsyncResult, err, ok, withErrorMapper } from "./result.ts";
 import { decodeRpcResult, rpcFunction, rpcSelect } from "./rpc-result.ts";
 import { OperationRunner } from "./runner.ts";
-import {
-  createSpecs,
-  isQuerySpec,
-  specTables,
-  type QuerySpec,
-  type Specs,
-} from "./spec.ts";
-import { validate, type StandardSchemaV1 } from "./standard.ts";
+import { createSpecs, isQuerySpec, specTables } from "./spec.ts";
+import { validate } from "./standard.ts";
 import { StatsRecorder, recordStats } from "./stats.ts";
 import {
   nowInstant,
@@ -81,7 +60,7 @@ import {
   provideTemporal,
   providedTemporal,
 } from "./temporal.ts";
-import { deadline, invalidTuning, type RequestTuning } from "./timeout.ts";
+import { deadline, invalidTuning } from "./timeout.ts";
 
 /** What a `Db` was connected to: its client, and the `storage` option. */
 interface DbSource {
@@ -92,7 +71,10 @@ interface DbSource {
 const isStorageApi = (value: unknown): value is StorageApi =>
   isRecord(value) && typeof value["from"] === "function";
 
-/** A supabase-js client builds a new storage client on each read of `storage`, so it is read once per connection. */
+/**
+ * A supabase-js client builds a new storage client on each read of `storage`,
+ * so it is read once per connection.
+ */
 const clientStorage = new WeakMap<DbSource, StorageApi>();
 
 function storageOf(source: DbSource): StorageApi {
@@ -197,7 +179,10 @@ export class BetterSupabase<
     return temporal ? () => temporal.Now.instant() : nowInstant;
   }
 
-  /** The `Temporal` this definition uses: the `temporal` option, else the global. */
+  /**
+   * The `Temporal` this definition uses: the `temporal` option, else the
+   * global.
+   */
   get temporal(): typeof Temporal | undefined {
     return this.options.temporal ?? optionalTemporal();
   }
@@ -219,11 +204,14 @@ export class BetterSupabase<
 
   /**
    * Returns a new instance whose servers validate verified JWT claims (custom
-   * access token hook output) with `schema`, and whose sessions are typed by it.
-   * A token that fails it resolves to `{ kind: 'invalid', reason: 'claims' }`.
+   * access token hook output) with `schema`, and whose sessions are typed by
+   * it. A token that fails it resolves to `{ kind: 'invalid', reason: 'claims'
+   * }`.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).claims(z.object({ tenant_id: z.uuid() }));
+   * const betterSupabase = defineSupabase(schema).claims(
+   *   z.object({ tenant_id: z.uuid() }),
+   * );
    * ```
    */
   claims<S extends StandardSchemaV1>(
@@ -238,15 +226,17 @@ export class BetterSupabase<
   }
 
   /**
-   * Returns a new instance whose sessions parse `user_metadata` with
-   * `schema` into a typed `session.profile`. Users can change their metadata
-   * with `auth.updateUser()`, so a failure only leaves `profile` undefined
-   * (with one warning), and no authorization code reads it. It is for
-   * display only: roles, memberships, the tenant and entitlements come from
-   * the verified claims, never from `profile`.
+   * Returns a new instance whose sessions parse `user_metadata` with `schema`
+   * into a typed `session.profile`. Users can change their metadata with
+   * `auth.updateUser()`, so a failure only leaves `profile` undefined (with one
+   * warning), and no authorization code reads it. It is for display only:
+   * roles, memberships, the tenant and entitlements come from the verified
+   * claims, never from `profile`.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).userMetadata(z.object({ display_name: z.string() }));
+   * const betterSupabase = defineSupabase(schema).userMetadata(
+   *   z.object({ display_name: z.string() }),
+   * );
    * ```
    */
   userMetadata<S extends StandardSchemaV1>(
@@ -261,12 +251,14 @@ export class BetterSupabase<
   }
 
   /**
-   * Returns a new instance whose `.orThrow()` throws `mapper(error)` instead
-   * of a `DbException`, and whose results `toBetterResult` maps the same way.
+   * Returns a new instance whose `.orThrow()` throws `mapper(error)` instead of
+   * a `DbException`, and whose results `toBetterResult` maps the same way.
    * Results themselves keep their `DbError`.
    *
    * ```ts
-   * const betterSupabase = defineSupabase(schema).mapError((error) => new AppError(error));
+   * const betterSupabase = defineSupabase(schema).mapError(
+   *   (error) => new AppError(error),
+   * );
    * ```
    */
   mapError(
@@ -313,7 +305,8 @@ export class BetterSupabase<
 
   /**
    * Builds serializable `QuerySpec`s with the same arguments and result types
-   * as the repository: `betterSupabase.spec.customers.findMany({ select: ['id'] })`.
+   * as the repository: `betterSupabase.spec.customers.findMany({ select: ['id']
+   * })`.
    */
   get spec(): Specs<M, E> {
     // SAFETY: createSpecs builds one spec builder per table in meta, which is
@@ -323,7 +316,10 @@ export class BetterSupabase<
     return this.#specs;
   }
 
-  /** App keys of every table a spec reads; mutations of any of them make it stale. */
+  /**
+   * App keys of every table a spec reads; mutations of any of them make it
+   * stale.
+   */
   tablesOf(spec: QuerySpec): string[] {
     return specTables(this.meta, spec);
   }
@@ -345,7 +341,9 @@ export class BetterSupabase<
    * invalidate them after it succeeds.
    *
    * ```ts
-   * betterSupabase.defineRpc('archive_customer', { invalidates: ['customers', 'notes'] });
+   * betterSupabase.defineRpc("archive_customer", {
+   *   invalidates: ["customers", "notes"],
+   * });
    * ```
    */
   defineRpc(
@@ -460,9 +458,9 @@ export class BetterSupabase<
   }
 
   /**
-   * The `postgrestExecutor` options this definition implies
-   * (`urlLengthLimit`, `postgrestVersion`), for adapters that build their
-   * own executor and should chunk reads the same way.
+   * The `postgrestExecutor` options this definition implies (`urlLengthLimit`,
+   * `postgrestVersion`), for adapters that build their own executor and should
+   * chunk reads the same way.
    */
   executorOptions(): PostgrestExecutorOptions {
     const { urlLengthLimit, postgrestVersion } = this.options;
@@ -783,9 +781,9 @@ export class BetterSupabase<
   }
 
   /**
-   * Decodes what a read-set function returned (`{ [key]: { rows, count } }`)
-   * by running each spec against those rows, so casing, codecs and
-   * aggregates come out exactly as from `db.$run`.
+   * Decodes what a read-set function returned (`{ [key]: { rows, count } }`) by
+   * running each spec against those rows, so casing, codecs and aggregates come
+   * out exactly as from `db.$run`.
    */
   async #decodeReadSet(
     source: DbSource,
@@ -967,10 +965,7 @@ export class BetterSupabase<
 
     repository["extend"] = (
       build: (base: Record<string, unknown>) => Record<string, unknown>,
-    ) => ({
-      ...repository,
-      ...build(repository),
-    });
+    ) => ({ ...repository, ...build(repository) });
 
     return repository;
   }
@@ -1159,7 +1154,9 @@ function rpc(
  * Creates the data-layer definition from the generated `schema`.
  *
  * ```ts
- * export const betterSupabase = defineSupabase(schema).use(timestamps()).use(softDelete());
+ * export const betterSupabase = defineSupabase(schema)
+ *   .use(timestamps())
+ *   .use(softDelete());
  * ```
  */
 export function defineSupabase<M extends AnyModels, D, F extends AnyFunctions>(

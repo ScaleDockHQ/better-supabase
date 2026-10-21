@@ -1,15 +1,16 @@
-import {
-  type BuilderWithMiddlewares,
-  COMMON_ERROR_STATUS_MAP,
-  type DecoratedMiddleware,
-  ORPCError,
-  os,
-} from "@orpc/server";
+import type { BuilderWithMiddlewares, DecoratedMiddleware } from "@orpc/server";
+
+import { COMMON_ERROR_STATUS_MAP, ORPCError, os } from "@orpc/server";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
+import type { ProblemDetails } from "../core/problem.ts";
 import type { Result } from "../core/result.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { AuthorizeOptions, ResourceLoaderContext } from "../server/kit.ts";
+import type { RateLimitRouteOptions } from "../server/rate-limit.ts";
+import type { MiddlewareOptions } from "../server/respond.ts";
 import type {
   BetterServer,
   ServerContext,
@@ -18,25 +19,13 @@ import type {
 
 import { tenantOf, toSession } from "../auth/view.ts";
 import { claimsOf } from "../core/claims.ts";
-import { type DbError, dbErrorOf } from "../core/errors.ts";
-import { type ProblemDetails, toProblem } from "../core/problem.ts";
+import { dbErrorOf } from "../core/errors.ts";
+import { toProblem } from "../core/problem.ts";
 import { flushEvents } from "../server/adapter.ts";
-import {
-  authorizeCaller,
-  type AuthorizeOptions,
-  type ResourceLoaderContext,
-} from "../server/kit.ts";
-import {
-  type RateLimitRouteOptions,
-  rateLimitGate,
-} from "../server/rate-limit.ts";
+import { authorizeCaller } from "../server/kit.ts";
+import { rateLimitGate } from "../server/rate-limit.ts";
 import { refreshFor } from "../server/refresh.ts";
-import {
-  defaultExpose,
-  guard,
-  type MiddlewareOptions,
-  settle,
-} from "../server/respond.ts";
+import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
@@ -75,13 +64,16 @@ export interface OrpcOptions extends ServerOptions {
   /** Include internal error messages. Defaults to `NODE_ENV === 'development'`. */
   readonly exposeErrors?: boolean;
   /**
-   * Keeps the invocation alive for event sink sends a procedure started,
-   * e.g. `EdgeRuntime.waitUntil` or Next's `after`. `fetchHandler` calls it.
+   * Keeps the invocation alive for event sink sends a procedure started, e.g.
+   * `EdgeRuntime.waitUntil` or Next's `after`. `fetchHandler` calls it.
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
-/** The part of an oRPC fetch handler (`RPCHandler`, `OpenAPIHandler`) `fetchHandler` calls. */
+/**
+ * The part of an oRPC fetch handler (`RPCHandler`, `OpenAPIHandler`)
+ * `fetchHandler` calls.
+ */
 export interface OrpcFetchHandler {
   handle(
     request: Request,
@@ -172,9 +164,9 @@ export interface BetterOrpc<
 > extends BetterServer<M, F, E, C, P, B> {
   /**
    * Resolves the caller, enforces `allow` and adds `context.db`, `context.auth`
-   * and `context.bs`. Thrown `DbException`s, and errors caused by a
-   * `DbError`, become `ORPCError`s. Serve the router with `fetchHandler` so
-   * refreshed session cookies and `bs-primary-until` reach the response.
+   * and `context.bs`. Thrown `DbException`s, and errors caused by a `DbError`,
+   * become `ORPCError`s. Serve the router with `fetchHandler` so refreshed
+   * session cookies and `bs-primary-until` reach the response.
    */
   middleware(
     options?: OrpcGuardOptions<
@@ -184,12 +176,15 @@ export interface BetterOrpc<
     >,
   ): OrpcMiddleware<M, F, E, C, P, B>;
   /**
-   * A procedure builder behind `middleware(options)`, so each procedure
-   * starts from the caller's context instead of repeating `.use()`:
+   * A procedure builder behind `middleware(options)`, so each procedure starts
+   * from the caller's context instead of repeating `.use()`:
    *
    * ```ts
-   * export const list = bs.authed({ requireTenant: true })
-   *   .handler(({ context }) => bs.unwrap(context.db.customers.findMany()))
+   * export const list = bs
+   *   .authed({ requireTenant: true })
+   *   .handler(({ context }) =>
+   *     bs.unwrap(context.db.customers.findMany()),
+   *   );
    * ```
    */
   authed(
@@ -201,9 +196,9 @@ export interface BetterOrpc<
   ): OrpcAuthed<M, F, E, C, P, B>;
   /**
    * A fetch handler for an oRPC handler: passes `{ request }` as the initial
-   * context, answers 404 when no procedure matched, and applies the cookies
-   * of the request's context (`ctx.apply`). On Workers, pending event sends
-   * go to the `ctx.waitUntil` of `fetch(request, env, ctx)` when
+   * context, answers 404 when no procedure matched, and applies the cookies of
+   * the request's context (`ctx.apply`). On Workers, pending event sends go to
+   * the `ctx.waitUntil` of `fetch(request, env, ctx)` when
    * `OrpcOptions.waitUntil` is unset.
    */
   fetchHandler(
@@ -217,9 +212,9 @@ export interface BetterOrpc<
   /**
    * Counts a hit per call with a rate limiter, such as `createRateLimit()`.
    * `fetchHandler` adds the `RateLimit` (and with `rule`, `RateLimit-Policy`)
-   * fields to the response; a refused call throws `TOO_MANY_REQUESTS` and
-   * the response carries `Retry-After`. Use it after `middleware()` to key
-   * on `context.auth`.
+   * fields to the response; a refused call throws `TOO_MANY_REQUESTS` and the
+   * response carries `Retry-After`. Use it after `middleware()` to key on
+   * `context.auth`.
    */
   rateLimit<TContext extends OrpcRequestContext = OrpcRequestContext>(
     options: RateLimitRouteOptions<OrpcRateLimitInput<TContext>>,
@@ -239,7 +234,7 @@ const CODES = /* @__PURE__ */ new Map<number, string>(
   ]),
 );
 
-/** oRPC code for a `DbError`, from its HTTP status. */
+/** ORPC code for a `DbError`, from its HTTP status. */
 export function orpcCode(error: DbError): string {
   return (
     CODES.get(error.status) ??
@@ -264,7 +259,7 @@ function withHeaders(
   return copy;
 }
 
-/** oRPC integration: middleware adding the caller's repositories to `context`. */
+/** ORPC integration: middleware adding the caller's repositories to `context`. */
 export function createOrpc<
   M extends AnyModels,
   D,

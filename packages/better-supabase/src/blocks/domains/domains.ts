@@ -3,6 +3,8 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { TxtResolver } from "../sso/sso.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
@@ -10,7 +12,6 @@ import { err } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   errorText,
   isRecord,
   optionalInstant,
@@ -20,7 +21,7 @@ import {
   textOf,
   toInstant,
 } from "../shared.ts";
-import { dohResolver, type TxtResolver } from "../sso/sso.ts";
+import { dohResolver } from "../sso/sso.ts";
 
 /** The DNS record that proves a custom domain belongs to the organization. */
 export interface HostnameRecord {
@@ -34,7 +35,10 @@ export interface Hostname {
   readonly organizationId: string;
   /** Lowercase, without a trailing dot or a port. */
   readonly hostname: string;
-  /** `subdomain` for one label below `blocks.domains.options.platformDomain`, verified when added. */
+  /**
+   * `subdomain` for one label below `blocks.domains.options.platformDomain`,
+   * verified when added.
+   */
   readonly kind: "custom" | "subdomain";
   readonly verifiedAt: Temporal.Instant | undefined;
   /** The hostname the organization's other hostnames redirect to. */
@@ -57,17 +61,26 @@ export interface HostnameMatch {
 export interface DomainsOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
-  /** `withBlockHooks` hooks around the client's methods, such as a rule on which hostnames a plan may add. */
+  /**
+   * `withBlockHooks` hooks around the client's methods, such as a rule on which
+   * hostnames a plan may add.
+   */
   readonly hooks?: BlockHooks<Domains>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
 
 export interface Domains {
-  /** Adds a hostname (needs `domains.manage`); a custom domain comes back with its `record`. */
+  /**
+   * Adds a hostname (needs `domains.manage`); a custom domain comes back with
+   * its `record`.
+   */
   add(organizationId: string, hostname: string): AsyncResult<Hostname>;
   /** The organization's hostnames, primary first (needs `domains.read`). */
   list(organizationId: string): AsyncResult<readonly Hostname[]>;
@@ -76,16 +89,16 @@ export interface Domains {
   /** `false` when the caller manages no hostname with this id. */
   remove(hostnameId: string): AsyncResult<boolean>;
   /**
-   * The organization that serves `host`, such as a request's `Host`
-   * header (the port is ignored). `undefined` unless it is verified.
-   * Works signed out, for the proxy.
+   * The organization that serves `host`, such as a request's `Host` header (the
+   * port is ignored). `undefined` unless it is verified. Works signed out, for
+   * the proxy.
    */
   resolve(host: string): AsyncResult<HostnameMatch | undefined>;
 }
 
 /**
- * A `Host` header as a hostname: lowercase, without the port and the
- * trailing dot. An IPv6 literal comes back in its brackets.
+ * A `Host` header as a hostname: lowercase, without the port and the trailing
+ * dot. An IPv6 literal comes back in its brackets.
  */
 export function normalizeHostname(host: string): string {
   const value = host.trim().toLowerCase();
@@ -170,7 +183,10 @@ export function createDomains(options: DomainsOptions): Domains {
 }
 
 export interface DomainsAdminOptions extends BlockTemporalOptions {
-  /** A service-role transport: `verify_hostname` is granted to `service_role` only. */
+  /**
+   * A service-role transport: `verify_hostname` is granted to `service_role`
+   * only.
+   */
   readonly transport: BlockTransport;
   /** TXT lookups for `verify`. Default `dohResolver()`. */
   readonly resolver?: TxtResolver;
@@ -180,9 +196,9 @@ export interface DomainsAdminOptions extends BlockTemporalOptions {
 
 export interface DomainsAdmin {
   /**
-   * Looks up the hostname's TXT record and marks it verified when the
-   * token is there. With `actorId`, the database checks that they hold
-   * `domains.manage`; omit it for app-owned calls.
+   * Looks up the hostname's TXT record and marks it verified when the token is
+   * there. With `actorId`, the database checks that they hold `domains.manage`;
+   * omit it for app-owned calls.
    */
   verify(
     hostnameId: string,

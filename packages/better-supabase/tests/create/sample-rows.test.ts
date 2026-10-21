@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { Design } from "../../src/create/index.ts";
 
@@ -63,7 +63,7 @@ const events: Design = {
 };
 
 describe("sample rows", () => {
-  test("leaves server-only columns out for a signed-in member", () => {
+  it("leaves server-only columns out for a signed-in member", () => {
     const design = {
       appTables: {
         projects: {
@@ -93,11 +93,11 @@ describe("sample rows", () => {
     ]);
   });
 
-  test("returns nothing for a table the design doesn't have", () => {
+  it("returns nothing for a table the design doesn't have", () => {
     expect(sampleRows({}, "missing")).toEqual({ columns: [], rows: [] });
   });
 
-  test("is deterministic and fills every column", () => {
+  it("is deterministic and fills every column", () => {
     const design = content;
     const first = sampleRows(design, "posts");
 
@@ -114,7 +114,7 @@ describe("sample rows", () => {
     ]);
   });
 
-  test("uses titles, options, formats and references", () => {
+  it("uses titles, options, formats and references", () => {
     const design = content;
     const [row] = sampleRows(design, "posts").rows;
 
@@ -132,7 +132,7 @@ describe("sample rows", () => {
     expect(channels[0]).toMatchObject({ name: "Channel 1", color: "#2563eb" });
   });
 
-  test("leaves some optional cells empty and fills required ones", () => {
+  it("leaves some optional cells empty and fills required ones", () => {
     const design = events;
     const rows = sampleRows(design, "attendees").rows;
 
@@ -147,7 +147,7 @@ describe("sample rows", () => {
     expect(agenda[3]?.["starts_at"]).not.toBeNull();
   });
 
-  test("keeps numbers inside the column's bounds", () => {
+  it("keeps numbers inside the column's bounds", () => {
     const rows = sampleRows(
       {
         appTables: {
@@ -182,7 +182,7 @@ describe("sample rows", () => {
     });
   });
 
-  test("fills phone, uuid, numeric, jsonb and array columns", () => {
+  it("fills phone, uuid, numeric, jsonb and array columns", () => {
     const [row] = sampleRows(
       {
         appTables: {

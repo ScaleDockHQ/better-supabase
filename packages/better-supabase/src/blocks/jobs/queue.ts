@@ -1,6 +1,16 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { Budget } from "../../core/block-helpers.ts";
+import type { BlockTransport } from "../../core/block-transport.ts";
+import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type {
+  QueueBackend,
+  QueueMessageRow,
+  QueueRpcClient,
+  QueueStats,
+} from "./backends.ts";
 import type {
   ClaimOptions,
   DrainResult,
@@ -17,33 +27,14 @@ import type {
   WorkOptions,
 } from "./types.ts";
 
-import {
-  blockCall,
-  budget,
-  leaseHeartbeat,
-  type Budget,
-} from "../../core/block-helpers.ts";
+import { blockCall, budget, leaseHeartbeat } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import {
-  type BlockTransport,
-  rpcTransport,
-} from "../../core/block-transport.ts";
+import { rpcTransport } from "../../core/block-transport.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
-import {
-  dbError,
-  type DbError,
-  DbException,
-  type ErrorMapper,
-} from "../../core/errors.ts";
+import { dbError, DbException } from "../../core/errors.ts";
 import { allTenantsContext } from "../../core/plugin.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  toDbError,
-  type Result,
-} from "../../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
@@ -62,15 +53,14 @@ import {
   sqlOnly,
   sqlQueueBackend,
   transportQueueBackend,
-  type QueueBackend,
-  type QueueMessageRow,
-  type QueueRpcClient,
-  type QueueStats,
 } from "./backends.ts";
 import { nextCronRun } from "./cron.ts";
 import { unwrap, wrapPayload } from "./envelope.ts";
 
-/** Transient claim errors in a row a lane retries, with backoff, before the loop throws. */
+/**
+ * Transient claim errors in a row a lane retries, with backoff, before the loop
+ * throws.
+ */
 const CLAIM_RETRIES = 3;
 
 /** The abort reason of a job whose lease couldn't be extended. */
@@ -245,10 +235,9 @@ export function createJobs<const Q extends QueueSchemas>(
     });
 
   /**
-   * Extends the lease of every job in `held` at half the lease, so jobs
-   * waiting their turn in a claimed batch don't expire before they run.
-   * A job whose lease can't be extended is aborted: another worker may
-   * already hold it.
+   * Extends the lease of every job in `held` at half the lease, so jobs waiting
+   * their turn in a claimed batch don't expire before they run. A job whose
+   * lease can't be extended is aborted: another worker may already hold it.
    */
   const heartbeat = (
     held: ReadonlyMap<Job, AbortController>,
@@ -618,7 +607,10 @@ export function createJobs<const Q extends QueueSchemas>(
     );
   };
 
-  /** The validated payload in its envelope, and the delay, for `enqueue` and `enqueueOnce`. */
+  /**
+   * The validated payload in its envelope, and the delay, for `enqueue` and
+   * `enqueueOnce`.
+   */
   const prepareSend = async (
     queue: string,
     payload: unknown,
@@ -636,11 +628,13 @@ export function createJobs<const Q extends QueueSchemas>(
       return delay;
     }
 
-    const message = wrapPayload(valid.data, enqueueOptions.context, {
-      ...(enqueueOptions.ticket === undefined
+    const message = wrapPayload(
+      valid.data,
+      enqueueOptions.context,
+      enqueueOptions.ticket === undefined
         ? {}
-        : { ticket: enqueueOptions.ticket }),
-    });
+        : { ticket: enqueueOptions.ticket },
+    );
 
     if (!message.ok) {
       return message;

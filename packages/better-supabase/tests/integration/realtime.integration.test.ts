@@ -4,12 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { TopicMessage } from "../../src/realtime/index.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  defineTopic,
-  rowKeys,
-  type TopicMessage,
-} from "../../src/realtime/index.ts";
+import { defineTopic, rowKeys } from "../../src/realtime/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";
@@ -58,10 +56,7 @@ const customers = defineTopic("organization:{organizationId}:customers");
 
 const notifications = defineTopic(
   "organization:{organizationId}:notifications:{userId}",
-  {
-    events: { created: title },
-    send: true,
-  },
+  { events: { created: title }, send: true },
 );
 
 function waitFor<T>(
@@ -106,12 +101,13 @@ describe.skipIf(!live)("Realtime module", async () => {
       }),
     );
   });
+
   afterAll(async () => {
     await pool.query("delete from public.customers where kvk like $1", [
       `${kvk}%`,
     ]);
-    acme.removeAllChannels();
-    other.removeAllChannels();
+    await acme.removeAllChannels();
+    await other.removeAllChannels();
     await pool.end();
   });
 

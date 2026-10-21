@@ -1,4 +1,9 @@
 import type { ResolvedConfig } from "../../config/index.ts";
+import type {
+  Preset,
+  PresetFieldKey,
+  ResolvedPreset,
+} from "../../preset/index.ts";
 import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
@@ -7,13 +12,10 @@ import {
   encodePreset,
   isPresetCode,
   listNames,
-  type Preset,
   PRESET_FIELDS,
   presetConfig,
-  type PresetFieldKey,
   presetOf,
   resolvePreset,
-  type ResolvedPreset,
 } from "../../preset/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";

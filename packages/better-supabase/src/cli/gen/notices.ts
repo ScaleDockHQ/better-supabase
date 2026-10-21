@@ -12,7 +12,10 @@ export const UNFORMATTED =
 
 const METADATA_ONLY = `Notice: the schema came from a GeneratorMetadata document, which has no ${METADATA_GAPS_TEXT}. Unique keys and checks cover single columns, relations have no onDelete, and columns a before-insert trigger fills stay required on insert. Run \`better-supabase gen\` against the database for the full model.`;
 
-/** The formatter, typegen version and metadata-only notices and the config warnings, one line each. */
+/**
+ * The formatter, typegen version and metadata-only notices and the config
+ * warnings, one line each.
+ */
 export async function generationNotices(
   snapshot: Snapshot,
   warnings: readonly string[],

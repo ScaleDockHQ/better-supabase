@@ -14,9 +14,9 @@ import { pricingBanner, pricingFlags } from "@/flags";
 const DEFAULTS = "default";
 
 /**
- * Every combination of the precomputed flags is a static page. Cache
- * Components needs at least one param, so without the secret the page is
- * built once with the flags' defaults.
+ * Every combination of the precomputed flags is a static page. Cache Components
+ * needs at least one param, so without the secret the page is built once with
+ * the flags' defaults.
  */
 export async function generateStaticParams() {
   if (!process.env["FLAGS_SECRET"]) {
@@ -29,9 +29,9 @@ export async function generateStaticParams() {
 }
 
 /**
- * `/pricing` is rewritten here by the proxy, which evaluates the flags for
- * the visitor's organization and plan (`precompute`). The page reads them
- * from the code, so it never reads cookies or headers.
+ * `/pricing` is rewritten here by the proxy, which evaluates the flags for the
+ * visitor's organization and plan (`precompute`). The page reads them from the
+ * code, so it never reads cookies or headers.
  */
 export default async function PricingPage({
   params,

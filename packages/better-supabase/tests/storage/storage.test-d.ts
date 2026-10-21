@@ -2,13 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { describe, expectTypeOf, it } from "vitest";
 
-import {
-  defineBucket,
-  type StorageApi,
-  type StorageBucketApi,
-  type StorageClient,
-  type TemplateParams,
+import type {
+  StorageApi,
+  StorageBucketApi,
+  StorageClient,
+  TemplateParams,
 } from "../../src/storage/index.ts";
+
+import { defineBucket } from "../../src/storage/index.ts";
 
 describe("bucket types", () => {
   it("derives path values from the template", () => {

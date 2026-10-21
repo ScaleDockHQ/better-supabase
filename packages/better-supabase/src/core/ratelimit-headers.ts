@@ -1,7 +1,7 @@
 /**
  * The `RateLimit` and `RateLimit-Policy` response fields of
- * draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), as
- * RFC 9651 Structured Fields Lists.
+ * draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), as RFC
+ * 9651 Structured Fields Lists.
  */
 
 /** One quota policy in `RateLimit-Policy`. */
@@ -110,8 +110,8 @@ const UNIT_SECONDS: Readonly<Record<string, number>> = {
 const INTERVAL = /^\s*(\d+)\s*([a-z]+)\s*$/i;
 
 /**
- * Whole seconds in a period of `count unit` (`1 minute`, `30 seconds`,
- * `2 hours`) or a number of seconds; `undefined` for any other interval.
+ * Whole seconds in a period of `count unit` (`1 minute`, `30 seconds`, `2
+ * hours`) or a number of seconds; `undefined` for any other interval.
  */
 export function periodSeconds(period: number | string): number | undefined {
   if (typeof period === "number") {

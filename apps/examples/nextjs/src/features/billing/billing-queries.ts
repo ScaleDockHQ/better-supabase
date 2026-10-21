@@ -19,9 +19,9 @@ export interface PlanOption {
 
 /**
  * The plan catalog (`public.plans` and `public.plan_features`, which the
- * entitlements module reads). It is the same for every user, so it lives
- * in the shared cache: one user's first visit fills it for everyone, and
- * writes to `plans` expire it through the `plans` tag.
+ * entitlements module reads). It is the same for every user, so it lives in the
+ * shared cache: one user's first visit fills it for everyone, and writes to
+ * `plans` expire it through the `plans` tag.
  */
 export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";

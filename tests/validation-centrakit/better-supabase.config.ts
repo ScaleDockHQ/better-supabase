@@ -21,9 +21,7 @@ export default defineConfig({
     tenant: {
       mode: "adopt",
       tables: { memberships: "centrakit.organization_users" },
-      columns: {
-        memberships: { tenant: "organization_id", role: "role_id" },
-      },
+      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
       options: {
         // The roles table holds the system roles too.
         roleThrough: {
@@ -222,10 +220,7 @@ export default defineConfig({
         },
       },
       idType: "uuid",
-      options: {
-        defaultSource: "domain",
-        blockSource: "domain",
-      },
+      options: { defaultSource: "domain", blockSource: "domain" },
     },
     notifications: {
       mode: "adopt",
@@ -264,21 +259,14 @@ export default defineConfig({
           disabledAt: null,
           disabledReason: null,
         },
-        secrets: {
-          endpoint: "destination_id",
-          vaultId: null,
-          expiresAt: null,
-        },
+        secrets: { endpoint: "destination_id", vaultId: null, expiresAt: null },
         deliveries: {
           endpoint: "destination_id",
           type: "event_kind",
           run: "workflow_run_id",
         },
       },
-      permissions: {
-        manage: "webhook.manage",
-        view: "webhook.view",
-      },
+      permissions: { manage: "webhook.manage", view: "webhook.view" },
       options: {
         secretStorage: "column",
         eventIdType: "uuid",
@@ -354,10 +342,7 @@ export default defineConfig({
     },
     teams: {
       mode: "adopt",
-      tables: {
-        teams: "centrakit.teams",
-        members: "centrakit.team_members",
-      },
+      tables: { teams: "centrakit.teams", members: "centrakit.team_members" },
     },
     tags: {
       mode: "adopt",
@@ -410,10 +395,7 @@ export default defineConfig({
         deliveries: "centrakit.reminder_deliveries",
       },
     },
-    imports: {
-      mode: "adopt",
-      tables: { runs: "centrakit.import_runs" },
-    },
+    imports: { mode: "adopt", tables: { runs: "centrakit.import_runs" } },
     // CentraKit keeps no attachment rows, sort keys or soft deletes on its
     // tree, so the drive adopts the tree and grants and leaves uploads to it.
     drive: {
@@ -504,9 +486,7 @@ export default defineConfig({
       },
     },
     "api-keys": { options: { scopes: "catalog" } },
-    sessions: {
-      options: { policies: true, exclude: ["centrakit.roles"] },
-    },
+    sessions: { options: { policies: true, exclude: ["centrakit.roles"] } },
     "jsonb-schemas": {},
     settings: {
       options: {

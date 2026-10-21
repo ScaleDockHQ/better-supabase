@@ -1,4 +1,6 @@
-import { Pool, type PoolClient } from "pg";
+import type { PoolClient } from "pg";
+
+import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { renderModules } from "../../src/sql/render.ts";
@@ -70,6 +72,7 @@ async function as<T = Record<string, unknown>>(
 
 describe.skipIf(!live)("profiles", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("creates, mirrors and guards profiles", async () => {

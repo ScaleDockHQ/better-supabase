@@ -11,8 +11,8 @@ import {
 
 export interface WebRequestOptions {
   /**
-   * Read the protocol and host from `x-forwarded-proto` and
-   * `x-forwarded-host`. Turn it on behind a proxy you control. Defaults to false.
+   * Read the protocol and host from `x-forwarded-proto` and `x-forwarded-host`.
+   * Turn it on behind a proxy you control. Defaults to false.
    */
   readonly trustProxy?: boolean;
   /** Stream the request body into the `Request`. Defaults to true. */
@@ -20,9 +20,9 @@ export interface WebRequestOptions {
 }
 
 /**
- * A Node `IncomingMessage` as a Web `Request`. Express, Fastify and Koa
- * pass theirs (`req`, `request.raw`, `ctx.req`). With `body: false` the
- * stream stays unread, for middleware that runs before a body parser.
+ * A Node `IncomingMessage` as a Web `Request`. Express, Fastify and Koa pass
+ * theirs (`req`, `request.raw`, `ctx.req`). With `body: false` the stream stays
+ * unread, for middleware that runs before a body parser.
  */
 export function toWebRequest(
   req: IncomingMessage,

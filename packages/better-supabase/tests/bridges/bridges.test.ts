@@ -419,10 +419,7 @@ describe("bridge behavior", () => {
     const signer = await createTestSigner();
 
     const middleware = toTanStackStart([
-      withBetterSupabase(betterSupabase, {
-        env,
-        auth: { jwks: signer.jwks },
-      }),
+      withBetterSupabase(betterSupabase, { env, auth: { jwks: signer.jwks } }),
     ]);
 
     let ran = false;

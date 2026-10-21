@@ -3,8 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 const port = 3467;
 
 /**
- * Smoke tests against a production build. `webServer` builds the site
- * through Turbo, so the catalog and the recipe index are generated first.
+ * Smoke tests against a production build. `webServer` builds the site through
+ * Turbo, so the catalog and the recipe index are generated first.
  */
 export default defineConfig({
   testDir: "e2e",

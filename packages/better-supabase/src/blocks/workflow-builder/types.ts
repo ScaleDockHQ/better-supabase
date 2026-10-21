@@ -34,8 +34,8 @@ export type WorkflowTriggerKind =
   | "chat";
 
 /**
- * `tenant`: belongs to one organization. `system`: the app's, with no
- * tenant; every organization can run it, fork it or opt out of it.
+ * `tenant`: belongs to one organization. `system`: the app's, with no tenant;
+ * every organization can run it, fork it or opt out of it.
  */
 export type WorkflowDefinitionScope = "tenant" | "system";
 
@@ -63,8 +63,8 @@ export interface WorkflowDefinition<F extends object = Record<never, never>> {
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
   /**
-   * The record types a run can belong to (`run({ subject })`); empty means
-   * runs don't take a subject.
+   * The record types a run can belong to (`run({ subject })`); empty means runs
+   * don't take a subject.
    */
   readonly subjectTypes: readonly string[];
   readonly scope: WorkflowDefinitionScope;
@@ -72,7 +72,10 @@ export interface WorkflowDefinition<F extends object = Record<never, never>> {
   readonly forkedFrom: string | undefined;
   /** The source's published version number when it was forked. */
   readonly forkedFromVersion: number | undefined;
-  /** Only admins and grant holders may run or edit it; everyone who can read workflows still sees it. */
+  /**
+   * Only admins and grant holders may run or edit it; everyone who can read
+   * workflows still sees it.
+   */
   readonly restricted: boolean;
   /** The published version's number (lists only). */
   readonly published?: number | undefined;
@@ -80,7 +83,10 @@ export interface WorkflowDefinition<F extends object = Record<never, never>> {
   readonly draft?: boolean;
   /** A fork's source's published version number (lists and `fork`). */
   readonly upstreamVersion?: number | undefined;
-  /** Whether the source published a newer version since the fork (lists and `fork`). */
+  /**
+   * Whether the source published a newer version since the fork (lists and
+   * `fork`).
+   */
   readonly behind?: boolean;
   /** Whether the listed tenant opted out of it (lists with a tenant only). */
   readonly optedOut?: boolean;
@@ -106,7 +112,10 @@ export interface WorkflowVersion {
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly publishedAt: Temporal.Instant | undefined;
-  /** The user who published it; `undefined` for an organization-owned version or one not published. */
+  /**
+   * The user who published it; `undefined` for an organization-owned version or
+   * one not published.
+   */
   readonly publishedBy: string | undefined;
   /**
    * `user` when a user published it (its steps run as that user),
@@ -121,8 +130,8 @@ export interface WorkflowVersion {
   /** What the engine's `compile` returned on publish. */
   readonly compiled?: unknown;
   /**
-   * The JSON Schema of the input a run takes, as `versions.save` stored it;
-   * set by `get`, `save` and `publish` when the version has one.
+   * The JSON Schema of the input a run takes, as `versions.save` stored it; set
+   * by `get`, `save` and `publish` when the version has one.
    */
   readonly inputSchema?: Readonly<Record<string, unknown>>;
 }
@@ -132,8 +141,8 @@ export interface WorkflowTrigger {
   readonly definition: string;
   readonly kind: WorkflowTriggerKind;
   /**
-   * `schedule`: `{ cron, timezone?, input? }`; `event`: `{ type }`; `form`:
-   * `{ schema }`; the others are the app's.
+   * `schedule`: `{ cron, timezone?, input? }`; `event`: `{ type }`; `form`: `{
+   * schema }`; the others are the app's.
    */
   readonly config: Readonly<Record<string, unknown>>;
   readonly enabled: boolean;
@@ -141,7 +150,10 @@ export interface WorkflowTrigger {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** A credential a tenant's steps use, by reference: the row never holds the secret. */
+/**
+ * A credential a tenant's steps use, by reference: the row never holds the
+ * secret.
+ */
 export interface WorkflowCredential {
   readonly id: string;
   readonly tenant: string | undefined;
@@ -166,9 +178,9 @@ export interface WorkflowStepInfo {
   readonly credentialKind?: string | undefined;
   /**
    * The operation a node of this step checks at publish, in place of
-   * `workflow.run`: the provider's entry for it, else the name itself as
-   * the permission key. The provider's `workflow.node.<step>` entry still
-   * takes precedence.
+   * `workflow.run`: the provider's entry for it, else the name itself as the
+   * permission key. The provider's `workflow.node.<step>` entry still takes
+   * precedence.
    */
   readonly operation?: string | undefined;
 }
@@ -190,7 +202,10 @@ export interface WorkflowAlert {
   readonly onEvent: "failed" | "slow";
   /** Seconds a run may stay unfinished (slow alerts). */
   readonly threshold: number | undefined;
-  /** Where the app sends it, e.g. `{ type: "email", to }`; the module only stores it. */
+  /**
+   * Where the app sends it, e.g. `{ type: "email", to }`; the module only
+   * stores it.
+   */
   readonly channel: Readonly<Record<string, unknown>>;
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
@@ -199,7 +214,10 @@ export interface WorkflowAlert {
 /** What `start` gets to start a run of a published version, or a test run. */
 export interface BuilderStartCall {
   readonly definition: WorkflowDefinition;
-  /** The published version (a test run's may be the draft), with its graph and compiled form. */
+  /**
+   * The published version (a test run's may be the draft), with its graph and
+   * compiled form.
+   */
   readonly version: WorkflowVersion;
   readonly input: unknown;
   /** The tenant the run belongs to; for a system definition, the one it runs in. */
@@ -211,7 +229,10 @@ export interface BuilderStartCall {
   readonly trigger?: WorkflowTrigger;
   /** The record the run belongs to. */
   readonly subject?: WorkflowSubject;
-  /** `test` for `test()`: steps return their stubs and don't run. Default `live`. */
+  /**
+   * `test` for `test()`: steps return their stubs and don't run. Default
+   * `live`.
+   */
   readonly mode?: WorkflowRunMode;
   /** The trigger node the run starts at, in a graph with several. */
   readonly triggerNode?: string;
@@ -236,9 +257,9 @@ export interface BuilderOptions<
 > extends BlockTemporalOptions {
   /**
    * A Standard Schema for the definition's extra columns
-   * (`blocks.workflow-builder.options.extraColumns`), keyed by database
-   * name. It types and parses them on the `definitions` reads, and
-   * validates them on `definitions.save`.
+   * (`blocks.workflow-builder.options.extraColumns`), keyed by database name.
+   * It types and parses them on the `definitions` reads, and validates them on
+   * `definitions.save`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `run`, `test` and the methods of each group. */
@@ -248,19 +269,22 @@ export interface BuilderOptions<
   /** The caller's transport: RLS and the module's permissions apply. */
   readonly transport: BlockTransport;
   /**
-   * A service-role transport for the calls only the server makes: webhook
-   * and event targets, `credentials.resolve`, `nodeRuns.record`,
-   * `steps.sync` and `alerts.check`. Defaults to `transport`.
+   * A service-role transport for the calls only the server makes: webhook and
+   * event targets, `credentials.resolve`, `nodeRuns.record`, `steps.sync` and
+   * `alerts.check`. Defaults to `transport`.
    */
   readonly service?: BlockTransport;
-  /** The module schema, or its API schema: `defineBlocks` passes it from `blocks.generated.ts`. Default `better_supabase`. */
+  /**
+   * The module schema, or its API schema: `defineBlocks` passes it from
+   * `blocks.generated.ts`. Default `better_supabase`.
+   */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /** The steps `steps.sync()` writes to the library. */
   readonly steps?: readonly WorkflowStepInfo[];
   /**
-   * Runs on publish and fails it when it throws; the result is stored
-   * through `service`. `better-supabase/workflow-sdk/builder` exports `compileGraph`.
+   * Runs on publish and fails it when it throws; the result is stored through
+   * `service`. `better-supabase/workflow-sdk/builder` exports `compileGraph`.
    */
   readonly compile?: GraphCompiler;
   /** Starts runs; `better-supabase/workflow-sdk/builder` exports `graphStarter`. */
@@ -269,17 +293,16 @@ export interface BuilderOptions<
   readonly credentials?: CredentialProvider | readonly CredentialProvider[];
   /**
    * The provider's runtime hooks, usually `server.authorization`.
-   * `automation.mayPublish` can refuse a publish, and `automation.runAs`
-   * gives the claims `versions.runAs` returns. Without `runAs`, a step runs
-   * as the checked publisher (a user, or the tenant's default service
-   * principal for an organization-owned version) capped to the stored
-   * permissions.
+   * `automation.mayPublish` can refuse a publish, and `automation.runAs` gives
+   * the claims `versions.runAs` returns. Without `runAs`, a step runs as the
+   * checked publisher (a user, or the tenant's default service principal for an
+   * organization-owned version) capped to the stored permissions.
    */
   readonly authorization?: Pick<AuthorizationHooks, "automation">;
   /**
-   * The `workflows` port: the workflows block, which `schedules.sync`
-   * writes a schedule trigger's schedule to. Build it with a transport that
-   * may create schedules, usually the service role. `createBlocks` passes it.
+   * The `workflows` port: the workflows block, which `schedules.sync` writes a
+   * schedule trigger's schedule to. Build it with a transport that may create
+   * schedules, usually the service role. `createBlocks` passes it.
    */
   readonly workflows?: Pick<Workflows, "schedules">;
 }
@@ -294,15 +317,18 @@ export interface PublishOptions {
 
 export interface DefinitionInput<F extends object = Record<never, never>> {
   readonly tenant?: string;
-  /** Lowercase letters, digits and dashes; saving the same slug again renames it. */
+  /**
+   * Lowercase letters, digits and dashes; saving the same slug again renames
+   * it.
+   */
   readonly slug: string;
   readonly name: string;
   readonly description?: string;
   /** The record types its runs can belong to. Left out keeps the stored ones. */
   readonly subjectTypes?: readonly string[];
   /**
-   * `system` needs the service role and no tenant. Fixed once created;
-   * left out keeps the stored one (`tenant` for a new definition).
+   * `system` needs the service role and no tenant. Fixed once created; left out
+   * keeps the stored one (`tenant` for a new definition).
    */
   readonly scope?: WorkflowDefinitionScope;
   /** Changing it needs `workflow.admin`. Left out keeps the stored value. */
@@ -326,7 +352,10 @@ export interface CredentialInput {
   readonly name: string;
   readonly ref: CredentialRef;
   readonly scopes?: readonly string[];
-  /** Stores the secret first, through a provider that can (`vaultCredentials` can). */
+  /**
+   * Stores the secret first, through a provider that can (`vaultCredentials`
+   * can).
+   */
   readonly secret?: string;
 }
 
@@ -356,12 +385,15 @@ export interface RunInput {
   readonly idempotencyKey?: string;
   readonly actor?: string;
   /**
-   * The record the run belongs to: its type must be one of the
-   * definition's `subjectTypes`, and the caller must be able to read it
-   * when the `subjects` module is installed.
+   * The record the run belongs to: its type must be one of the definition's
+   * `subjectTypes`, and the caller must be able to read it when the `subjects`
+   * module is installed.
    */
   readonly subject?: WorkflowSubject;
-  /** The tenant a system definition runs in; ignored for a tenant's own definition. */
+  /**
+   * The tenant a system definition runs in; ignored for a tenant's own
+   * definition.
+   */
   readonly tenant?: string;
 }
 
@@ -373,8 +405,8 @@ export interface TestRunInput {
   readonly triggerNode?: string;
   readonly input?: unknown;
   /**
-   * What each step node returns, by node id. A step without one returns
-   * the example in its `outputSchema` (from the `steps` passed to
+   * What each step node returns, by node id. A step without one returns the
+   * example in its `outputSchema` (from the `steps` passed to
    * `createWorkflowBuilder`: the first `examples` entry, else `default`), else
    * `{ stubbed: true }`. An approval node's stub is its decision (default
    * approved).
@@ -403,14 +435,17 @@ export interface OutboxLikeEvent {
 
 export interface VersionSaveOptions {
   /**
-   * The JSON Schema of the input a run of the version takes. Leave it out
-   * to keep the draft's current one; a new draft starts from the previous
+   * The JSON Schema of the input a run of the version takes. Leave it out to
+   * keep the draft's current one; a new draft starts from the previous
    * version's.
    */
   readonly inputSchema?: Readonly<Record<string, unknown>>;
 }
 
-/** Hooks for `run` and `test`, and for the methods of each group of `WorkflowBuilder`. */
+/**
+ * Hooks for `run` and `test`, and for the methods of each group of
+ * `WorkflowBuilder`.
+ */
 export type WorkflowBuilderHooks<F extends object = Record<never, never>> =
   BlockHooks<Pick<WorkflowBuilder<F>, "run" | "test">> & {
     readonly definitions?: BlockHooks<WorkflowBuilder<F>["definitions"]>;
@@ -427,8 +462,8 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     save(input: DefinitionInput<F>): AsyncResult<WorkflowDefinition<F>>;
     /**
      * The tenant's definitions; with a tenant, the system definitions too,
-     * marked `optedOut` when it opted out. `subjectType` keeps the ones
-     * that run on that record type.
+     * marked `optedOut` when it opted out. `subjectType` keeps the ones that
+     * run on that record type.
      */
     list(
       tenant?: string,
@@ -437,16 +472,19 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     get(id: string): AsyncResult<WorkflowDefinition<F> | undefined>;
     remove(id: string): AsyncResult<boolean>;
     /**
-     * Copies a system definition's (or the tenant's own) published graph
-     * into a new definition in `tenant` as its draft. The fork doesn't opt
-     * the tenant out of the source; call `optOut` for that.
+     * Copies a system definition's (or the tenant's own) published graph into a
+     * new definition in `tenant` as its draft. The fork doesn't opt the tenant
+     * out of the source; call `optOut` for that.
      */
     fork(input: {
       readonly source: string;
       readonly tenant: string;
       readonly slug: string;
     }): AsyncResult<WorkflowDefinition<F>>;
-    /** Opts a tenant out of a definition, or back in with `optedOut: false` (`workflow.admin`). */
+    /**
+     * Opts a tenant out of a definition, or back in with `optedOut: false`
+     * (`workflow.admin`).
+     */
     optOut(input: {
       readonly tenant: string;
       readonly definition: string;
@@ -468,11 +506,11 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     ): AsyncResult<WorkflowVersion>;
     /**
      * Compiles the graph with `compile`, then publishes as the caller; the
-     * previous version is archived. The caller must hold every permission
-     * the step nodes need (`WORKFLOW_PUBLISHER_FORBIDDEN` otherwise), and
+     * previous version is archived. The caller must hold every permission the
+     * step nodes need (`WORKFLOW_PUBLISHER_FORBIDDEN` otherwise), and
      * `authorization.automation.mayPublish` must allow it when set. The
-     * compiled form is stored through `service` only, and not at all
-     * without it.
+     * compiled form is stored through `service` only, and not at all without
+     * it.
      */
     publish(
       version: string,
@@ -483,14 +521,13 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     diff(from: string, to: string): AsyncResult<WorkflowGraphDiff>;
     /**
      * The claims a step of `version` runs with (through `service`): the
-     * publisher's (a user, or the tenant's default service principal),
-     * narrowed to the stored permissions, from
-     * `authorization.automation.runAs` or capped by `bs_permission_cap`
-     * without it. A publisher who is gone or no longer holds a stored
-     * permission, a `runAs` that returns `null`, and an organization-owned
-     * version with no service principal and no `runAs` are a `forbidden`
-     * error (`WORKFLOW_PUBLISHER_REVOKED`); there is no fallback to the
-     * service role. Call it inside every step.
+     * publisher's (a user, or the tenant's default service principal), narrowed
+     * to the stored permissions, from `authorization.automation.runAs` or
+     * capped by `bs_permission_cap` without it. A publisher who is gone or no
+     * longer holds a stored permission, a `runAs` that returns `null`, and an
+     * organization-owned version with no service principal and no `runAs` are a
+     * `forbidden` error (`WORKFLOW_PUBLISHER_REVOKED`); there is no fallback to
+     * the service role. Call it inside every step.
      */
     runAs(
       version: string | undefined,
@@ -498,15 +535,15 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     ): AsyncResult<Readonly<Record<string, unknown>>>;
   };
   /**
-   * Starts a run of the published version: `workflow.run` in its tenant, a
-   * run grant on a restricted definition, and not opted out
+   * Starts a run of the published version: `workflow.run` in its tenant, a run
+   * grant on a restricted definition, and not opted out
    * (`WORKFLOW_OPTED_OUT`).
    */
   run(input: RunInput): AsyncResult<string>;
   /**
    * Starts a test run (`workflow.edit`, and an edit grant on a restricted
-   * definition): mode `test`, steps return their stubs and never run,
-   * sleeps are skipped, and it fires no alerts or outbox events.
+   * definition): mode `test`, steps return their stubs and never run, sleeps
+   * are skipped, and it fires no alerts or outbox events.
    */
   test(input: TestRunInput): AsyncResult<string>;
   readonly triggers: {
@@ -516,8 +553,8 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     /** A new token for a webhook trigger; the old one stops working. Shown once. */
     rotateToken(id: string): AsyncResult<string>;
     /**
-     * A route handler for webhook triggers: the token is the last path
-     * segment or a `Bearer` header, the JSON body is the input, and an
+     * A route handler for webhook triggers: the token is the last path segment
+     * or a `Bearer` header, the JSON body is the input, and an
      * `Idempotency-Key` header keys the start. Answers 202 with `{ runId }`.
      */
     webhook(request: Request): Promise<Response>;
@@ -547,7 +584,10 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     ): AsyncResult<string>;
     /** Deletes the row, then revokes the secret it names. */
     revoke(id: string): AsyncResult<boolean>;
-    /** The token for a credential, with the app subject and the row's scopes (service role; call it inside a step). */
+    /**
+     * The token for a credential, with the app subject and the row's scopes
+     * (service role; call it inside a step).
+     */
     resolve(id: string): AsyncResult<CredentialToken>;
   };
   readonly steps: {
@@ -564,13 +604,16 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
     save(input: AlertInput): AsyncResult<WorkflowAlert>;
     list(definition: string): AsyncResult<readonly WorkflowAlert[]>;
     remove(id: string): AsyncResult<boolean>;
-    /** Fires the slow alerts that are due (service role); returns how many fired. */
+    /**
+     * Fires the slow alerts that are due (service role); returns how many
+     * fired.
+     */
     check(options?: { readonly batch?: number }): AsyncResult<number>;
   };
   /**
    * An outbox consumer handler that passes each event to `triggers.onEvent`,
-   * for `outbox.consume("workflows", builder.sink())`. It
-   * throws when a start fails, so the outbox retries the event.
+   * for `outbox.consume("workflows", builder.sink())`. It throws when a start
+   * fails, so the outbox retries the event.
    */
   sink(): (events: readonly WorkflowSinkEvent[]) => Promise<void>;
 }

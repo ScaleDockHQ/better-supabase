@@ -32,7 +32,10 @@ export function usePushRegistration(): void {
   }, []);
 }
 
-/** Removes this device's token while the session can still do it, then signs out. */
+/**
+ * Removes this device's token while the session can still do it, then signs
+ * out.
+ */
 export const signOut = unregisterOnSignOut({
   signOut: () => supabase.auth.signOut(),
   devices,

@@ -14,9 +14,7 @@ export const inventoryBlock: BlockOf<
 > = defineBlock({
   name: "inventory",
   sql: ["inventory"],
-  options: {
-    inventory: inventorySqlOptions,
-  },
+  options: { inventory: inventorySqlOptions },
   events: inventoryEvents,
   create: createInventory,
   category: "commerce",

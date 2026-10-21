@@ -10,7 +10,10 @@ export type ServicePrincipalsEvents = {
   readonly "service_principal.disabled": SaasEventData;
 };
 
-/** The `service-principals` block's event types, for its manifest and `onBlockEvent`. */
+/**
+ * The `service-principals` block's event types, for its manifest and
+ * `onBlockEvent`.
+ */
 export const servicePrincipalsEvents: Events<ServicePrincipalsEvents> =
   defineEvents({
     "service_principal.created": event<SaasEventData>(),

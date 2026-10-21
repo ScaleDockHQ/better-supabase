@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  defineAnalyticsBucket,
-  type StorageAdminClient,
-} from "../../src/storage/index.ts";
+import type { StorageAdminClient } from "../../src/storage/index.ts";
+
+import { defineAnalyticsBucket } from "../../src/storage/index.ts";
 
 function analyticsApi(names: string[]) {
   const catalog = { listNamespaces: vi.fn() };

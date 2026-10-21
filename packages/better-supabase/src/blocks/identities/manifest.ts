@@ -9,9 +9,7 @@ export const identitiesBlock: BlockOf<"identities", typeof createIdentities> =
   defineBlock({
     name: "identities",
     sql: ["identities"],
-    options: {
-      identities: identitiesSqlOptions,
-    },
+    options: { identities: identitiesSqlOptions },
     create: createIdentities,
     category: "identity",
   });

@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { ReactRouterArgs } from "../../src/react-router/index.ts";
+
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import {
-  createReactRouter,
-  type ReactRouterArgs,
-} from "../../src/react-router/index.ts";
+import { createReactRouter } from "../../src/react-router/index.ts";
 import {
   betterSupabase,
   env,

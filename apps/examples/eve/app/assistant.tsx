@@ -41,6 +41,7 @@ function Chat(): ReactNode {
           <strong>{message.role}</strong>
           {message.parts.map((part, index) =>
             part.type === "text" ? (
+              // oxlint-disable-next-line react-doctor/no-array-index-as-key -- a streamed text part has no id until it finishes, and parts only append
               <p key={part.id ?? index}>{part.text}</p>
             ) : null,
           )}

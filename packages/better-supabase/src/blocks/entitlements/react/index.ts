@@ -10,7 +10,10 @@ import { createFeatureGateController } from "../client.ts";
 export interface UseFeatureGateOptions {
   /** The organization to check. Default the session's active one. */
   readonly organizationId?: string | null;
-  /** `config.claims.features` (default `features`), or `{ claim, keys }` for short codes. */
+  /**
+   * `config.claims.features` (default `features`), or `{ claim, keys }` for
+   * short codes.
+   */
   readonly claim?: string | EntitlementClaimOptions;
   /** The tenant claim, `config.claims.tenant` (default `tenant_id`). */
   readonly tenantClaim?: string;
@@ -20,10 +23,10 @@ export interface FeatureGateState
   extends FeatureGateSnapshot, FeatureGateActions {}
 
 /**
- * Whether the active organization's plan includes `feature`, from the
- * provider session's plan-features claim; `allowed` is `undefined` while
- * the session loads. UX only: RLS enforces the feature. The same hook runs
- * in React DOM and React Native.
+ * Whether the active organization's plan includes `feature`, from the provider
+ * session's plan-features claim; `allowed` is `undefined` while the session
+ * loads. UX only: RLS enforces the feature. The same hook runs in React DOM and
+ * React Native.
  *
  * ```tsx
  * const { allowed } = useFeatureGate("exports");

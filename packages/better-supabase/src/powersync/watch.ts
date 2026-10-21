@@ -7,7 +7,10 @@ import { err, toDbError } from "../core/result.ts";
 import { shareStructure } from "../core/share.ts";
 
 export interface WatchOptions<T> {
-  /** SQLite tables whose changes rerun the query (`sqliteTables()` maps app keys). */
+  /**
+   * SQLite tables whose changes rerun the query (`sqliteTables()` maps app
+   * keys).
+   */
   readonly tables: readonly string[];
   /** Called with the first result, then after every change to `tables`. */
   readonly onResult: (result: Result<T>) => void;
@@ -15,8 +18,8 @@ export interface WatchOptions<T> {
   /** The least time between two runs. Defaults to PowerSync's 30 ms. */
   readonly throttleMs?: number;
   /**
-   * Keeps unchanged rows' object identity across runs and skips `onResult`
-   * when a run returns what the last one did. Defaults to true.
+   * Keeps unchanged rows' object identity across runs and skips `onResult` when
+   * a run returns what the last one did. Defaults to true.
    */
   readonly structuralSharing?: boolean;
   /**
@@ -33,14 +36,14 @@ export interface WatchOptions<T> {
 
 /**
  * Reruns a repository call whenever PowerSync reports a change to one of
- * `tables`: local writes and synced rows alike. The same call works with
- * lists, aggregates and single rows. Unchanged rows keep their identity
- * between runs, and a run that changes nothing calls no `onResult`. Returns
- * a function that stops it.
+ * `tables`: local writes and synced rows alike. The same call works with lists,
+ * aggregates and single rows. Unchanged rows keep their identity between runs,
+ * and a run that changes nothing calls no `onResult`. Returns a function that
+ * stops it.
  *
  * ```ts
  * const stop = watch(powersync, () => customerList.run(db, query), {
- *   tables: ['customers'],
+ *   tables: ["customers"],
  *   onResult: (page) => render(page),
  * });
  * ```
@@ -165,9 +168,9 @@ export function watch<T>(
 }
 
 /**
- * The SQLite table names of app table keys (`customerTags` to
- * `customer_tags`). Pass the executor's `tableName` when it renames tables,
- * so `watch` listens to the names the queries read.
+ * The SQLite table names of app table keys (`customerTags` to `customer_tags`).
+ * Pass the executor's `tableName` when it renames tables, so `watch` listens to
+ * the names the queries read.
  */
 export function sqliteTables(
   betterSupabase: { readonly meta: SchemaMeta },

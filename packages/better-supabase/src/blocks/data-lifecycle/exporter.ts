@@ -1,10 +1,13 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type { BlockTemporalOptions } from "../shared.ts";
+import type { DataExport, LifecycleStorage } from "./data-lifecycle.ts";
 
 import { toCsv } from "../../core/csv.ts";
 import { dbError } from "../../core/errors.ts";
-import { type AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -13,17 +16,14 @@ import {
   optionalText,
   recordOf,
   stringsOf,
-  type BlockTemporalOptions,
 } from "../shared.ts";
-import {
-  exportOf,
-  stored,
-  type DataExport,
-  type LifecycleStorage,
-} from "./data-lifecycle.ts";
+import { exportOf, stored } from "./data-lifecycle.ts";
 
 export interface DataExporterOptions extends BlockTemporalOptions {
-  /** A service-role transport: the export functions are granted to `service_role` only. */
+  /**
+   * A service-role transport: the export functions are granted to
+   * `service_role` only.
+   */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to write the files. */
   readonly storage: LifecycleStorage;
@@ -33,9 +33,9 @@ export interface DataExporterOptions extends BlockTemporalOptions {
   /** The outbox `typePrefix`. Default `dev.better-supabase`. */
   readonly typePrefix?: string;
   /**
-   * `ndjson` (default) writes one JSON object per line; `csv` writes RFC
-   * 4180 CSV with a header row, nested values as JSON and formula-looking
-   * text prefixed with `'`, for people who open exports in a spreadsheet.
+   * `ndjson` (default) writes one JSON object per line; `csv` writes RFC 4180
+   * CSV with a header row, nested values as JSON and formula-looking text
+   * prefixed with `'`, for people who open exports in a spreadsheet.
    */
   readonly format?: "ndjson" | "csv";
   readonly concurrency?: number;
@@ -48,20 +48,20 @@ export interface DataExportJob {
 
 export interface DataExporter {
   /**
-   * Writes one NDJSON file per table, then marks the export ready (which
-   * emits `data_export.completed`). A failure marks it failed and returns the error.
+   * Writes one NDJSON file per table, then marks the export ready (which emits
+   * `data_export.completed`). A failure marks it failed and returns the error.
    */
   run(exportId: string, signal?: AbortSignal): AsyncResult<DataExport>;
   /**
-   * A jobs handler: `queue.work('data-exports', exporter.job)`. An export
-   * that is no longer pending or failed (cancelled, deleted, running or
-   * ready) completes the job; other errors throw so the queue retries.
+   * A jobs handler: `queue.work('data-exports', exporter.job)`. An export that
+   * is no longer pending or failed (cancelled, deleted, running or ready)
+   * completes the job; other errors throw so the queue retries.
    */
   readonly job: JobHandler<DataExportJob>;
   /**
-   * An outbox sink that runs each `data_export.requested` export. An event
-   * for an export that is no longer pending or failed is skipped, so it never
-   * holds up the events behind it; other errors throw so the relay retries.
+   * An outbox sink that runs each `data_export.requested` export. An event for
+   * an export that is no longer pending or failed is skipped, so it never holds
+   * up the events behind it; other errors throw so the relay retries.
    */
   sink(): EventSink;
 }

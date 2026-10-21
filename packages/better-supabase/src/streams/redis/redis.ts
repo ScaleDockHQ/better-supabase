@@ -7,8 +7,8 @@ import { AsyncResult, err, ok } from "../../core/result.ts";
 import { pollingRead } from "../store.ts";
 
 /**
- * The commands the store sends, as node-redis 5 and 6 (`createClient()`)
- * name them. Any client with these methods works.
+ * The commands the store sends, as node-redis 5 and 6 (`createClient()`) name
+ * them. Any client with these methods works.
  */
 export interface RedisStreamClient {
   hSetNX(key: string, field: string, value: string): Promise<unknown>;
@@ -38,7 +38,10 @@ interface RedisStreamSharedOptions {
   readonly keyPrefix?: string;
   /** How long a stream opened without a `ttl` lives. Defaults to `'1 day'`. */
   readonly ttl?: number | string;
-  /** Milliseconds between reads of an idle stream: 250 by default, 2000 with `subscriber`. */
+  /**
+   * Milliseconds between reads of an idle stream: 250 by default, 2000 with
+   * `subscriber`.
+   */
   readonly pollMs?: number;
   /** Chunks per read. Defaults to 1000. */
   readonly batch?: number;
@@ -76,8 +79,8 @@ const isNodeRedis = (
   isRecord(value) && typeof value["createClient"] === "function";
 
 /**
- * Loads `redis` on first use. The specifier is a variable so bundlers leave
- * the optional peer out of apps that pass their own client.
+ * Loads `redis` on first use. The specifier is a variable so bundlers leave the
+ * optional peer out of apps that pass their own client.
  */
 const loadRedis = (): Promise<unknown> => importOptionalPeer("redis");
 
@@ -128,9 +131,9 @@ const text = (value: unknown): string | undefined =>
 /**
  * A `StreamStore` on Redis, for apps that keep live output out of Postgres.
  * Chunks live in a list and the state in a hash, both expiring after the
- * stream's `ttl`, so `purge` has nothing to do and resolves with 0. Redis
- * has no row-level security: check that the caller owns the stream before
- * `read` or `cancel`.
+ * stream's `ttl`, so `purge` has nothing to do and resolves with 0. Redis has
+ * no row-level security: check that the caller owns the stream before `read` or
+ * `cancel`.
  */
 export function redisStreamStore(
   options: RedisStreamStoreOptions,
@@ -316,9 +319,7 @@ export function redisStreamStore(
             dbError(
               "raised",
               `stream ${id} is at chunk ${String(stored)}, not ${String(fromIdx)}`,
-              {
-                hint: "STREAM_GAP",
-              },
+              { hint: "STREAM_GAP" },
             ),
           );
         }

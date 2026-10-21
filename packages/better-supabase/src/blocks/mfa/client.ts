@@ -1,9 +1,10 @@
 import type { Aal } from "../../auth/mfa.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { AuthReply } from "../auth-reply.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 
-import { type DbError, dbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 import { authResult } from "../auth-reply.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
@@ -70,7 +71,10 @@ export interface MfaEnrollment {
 export interface MfaAssurance {
   /** The session's level; `undefined` until the first load. */
   readonly level: Aal | undefined;
-  /** `aal2` when the user has a verified factor, so a challenge can raise the session. */
+  /**
+   * `aal2` when the user has a verified factor, so a challenge can raise the
+   * session.
+   */
   readonly nextLevel: Aal | undefined;
 }
 
@@ -129,7 +133,10 @@ export interface MfaActions {
   readonly enroll: (input?: {
     readonly name?: string;
   }) => Promise<Result<MfaEnrollment>>;
-  /** Confirms `enrollment` with a code from the app; the session is `aal2` after it. */
+  /**
+   * Confirms `enrollment` with a code from the app; the session is `aal2` after
+   * it.
+   */
   readonly verify: (code: string) => Promise<Result<MfaAssurance>>;
   /** Removes the unconfirmed factor of `enrollment`. */
   readonly cancel: () => Promise<void>;
@@ -143,9 +150,9 @@ export interface MfaActions {
 export type MfaController = Controller<MfaSnapshot, MfaActions>;
 
 /**
- * A user's MFA factors for a security settings page: `enroll` shows a QR
- * code, `verify` confirms it with the first code, and `unenroll` removes a
- * factor. The assurance level is read again after each change.
+ * A user's MFA factors for a security settings page: `enroll` shows a QR code,
+ * `verify` confirms it with the first code, and `unenroll` removes a factor.
+ * The assurance level is read again after each change.
  */
 export function createMfaController(
   options: MfaControllerOptions,
@@ -165,7 +172,8 @@ export function createMfaController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const [factors, assurance] = await Promise.all([
           readFactors(mfa),
@@ -303,7 +311,10 @@ export interface StepUpControllerOptions {
 }
 
 export interface StepUpSnapshot extends MfaAssurance {
-  /** The verified factors a code can come from; `undefined` until the first load. */
+  /**
+   * The verified factors a code can come from; `undefined` until the first
+   * load.
+   */
   readonly factors: readonly MfaFactor[] | undefined;
   /** Whether the session is `aal2`. */
   readonly satisfied: boolean;
@@ -313,8 +324,8 @@ export interface StepUpSnapshot extends MfaAssurance {
 
 export interface StepUpActions {
   /**
-   * Challenges a verified factor (the first one by default) with `code`,
-   * then reads the session's level again.
+   * Challenges a verified factor (the first one by default) with `code`, then
+   * reads the session's level again.
    */
   readonly verify: (
     code: string,
@@ -327,9 +338,9 @@ export interface StepUpActions {
 export type StepUpController = Controller<StepUpSnapshot, StepUpActions>;
 
 /**
- * Raises the session to `aal2` before a call that `checkAal` guards: show
- * it when an error passes `needsStepUp`, then retry the call once
- * `satisfied` is true.
+ * Raises the session to `aal2` before a call that `checkAal` guards: show it
+ * when an error passes `needsStepUp`, then retry the call once `satisfied` is
+ * true.
  */
 export function createStepUpController(
   options: StepUpControllerOptions,
@@ -354,7 +365,8 @@ export function createStepUpController(
       });
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const [factors, assurance] = await Promise.all([
           readFactors(mfa),

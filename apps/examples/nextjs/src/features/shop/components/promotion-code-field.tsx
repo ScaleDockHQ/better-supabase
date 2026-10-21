@@ -1,6 +1,8 @@
 "use client";
 
-import { type Money, formatMoney, negateMoney } from "better-supabase/commerce";
+import type { Money } from "better-supabase/commerce";
+
+import { formatMoney, negateMoney } from "better-supabase/commerce";
 import { useAction, useActionForm } from "better-supabase/react";
 import { TicketPercentIcon, XIcon } from "lucide-react";
 import { useExtracted, useLocale } from "next-intl";
@@ -43,9 +45,9 @@ export interface AppliedCode {
 }
 
 /**
- * Applies a promotion code to a draft order's cart. The block checks the
- * code (active, in its window, under its limits) and the cart's totals
- * come back with the discount, which the list below the field shows.
+ * Applies a promotion code to a draft order's cart. The block checks the code
+ * (active, in its window, under its limits) and the cart's totals come back
+ * with the discount, which the list below the field shows.
  */
 export function PromotionCodeField({
   cartId,

@@ -125,7 +125,7 @@ describe("createAuditLogController", () => {
     expect(signedOut.list).not.toHaveBeenCalled();
     signedOut.auth.set(signedIn());
     await flush();
-    expect(signedOut.list).toHaveBeenCalledTimes(1);
+    expect(signedOut.list).toHaveBeenCalledOnce();
     outView.unmount();
   });
 });

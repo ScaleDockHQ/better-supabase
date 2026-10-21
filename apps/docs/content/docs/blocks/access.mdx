@@ -163,11 +163,7 @@ never sees.
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   authorization: authorizationProvider(),
-  blocks: {
-    organizations: {},
-    invitations: {},
-    access: {},
-  },
+  blocks: { organizations: {}, invitations: {}, access: {} },
 });
 ```
 

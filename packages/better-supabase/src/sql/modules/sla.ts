@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -20,10 +21,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
-import {
-  type RegisteredSubject,
-  registeredSubjects,
-} from "../subject-registry.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const CLOCK = [

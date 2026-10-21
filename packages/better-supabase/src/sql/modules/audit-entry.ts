@@ -27,7 +27,10 @@ export function castId(value: string, idType: ModuleIdType): string {
   }
 }
 
-/** Reads the row's audit settings: the trigger argument, or the legacy `audited_tables` row. */
+/**
+ * Reads the row's audit settings: the trigger argument, or the legacy
+ * `audited_tables` row.
+ */
 export function entrySql(): string {
   return `  if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
@@ -57,7 +60,10 @@ export function entrySql(): string {
   end if;`;
 }
 
-/** Resolves the tenant of a row without a tenant column, through its `tenant_path` and `tenant_function`. */
+/**
+ * Resolves the tenant of a row without a tenant column, through its
+ * `tenant_path` and `tenant_function`.
+ */
 export function tenantFallbackSql(idType: ModuleIdType): string {
   const cast = castId("path_value", idType);
 

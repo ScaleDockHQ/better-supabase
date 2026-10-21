@@ -1,9 +1,6 @@
-import {
-  type DbError,
-  DbException,
-  dbError,
-  isDbError,
-} from "../core/errors.ts";
+import type { DbError } from "../core/errors.ts";
+
+import { DbException, dbError, isDbError } from "../core/errors.ts";
 import { toDbError } from "../core/result.ts";
 
 interface StorageFailure {

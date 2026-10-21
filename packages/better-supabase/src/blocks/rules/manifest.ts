@@ -11,9 +11,7 @@ export const rulesBlock: BlockOf<"rules", typeof createRules, RulesEvents> =
   defineBlock({
     name: "rules",
     sql: ["rules"],
-    options: {
-      rules: rulesSqlOptions,
-    },
+    options: { rules: rulesSqlOptions },
     events: rulesEvents,
     create: createRules,
     category: "automation",

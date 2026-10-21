@@ -1,5 +1,7 @@
+import type { Page } from "@playwright/test";
+
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const PAGES = [
   "/",

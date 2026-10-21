@@ -424,10 +424,7 @@ error and isn't saved.
 
 ```ts title="app/api/cron/watchers/route.ts"
 const watchers = watcherHandler(notifications, {
-  types: {
-    "order.paid": "order.paid",
-    "fulfillment.shipped": "order.shipped",
-  },
+  types: { "order.paid": "order.paid", "fulfillment.shipped": "order.shipped" },
 });
 ```
 

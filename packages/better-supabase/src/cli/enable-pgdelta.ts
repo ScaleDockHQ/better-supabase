@@ -11,10 +11,10 @@ import {
 } from "./supabase-toml.ts";
 
 /**
- * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml`
- * when it has no such table, so `supabase db schema declarative sync`
- * runs on pg-delta. A table set to `enabled = false` is left alone, and a
- * project without `config.toml` gets nothing.
+ * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml` when
+ * it has no such table, so `supabase db schema declarative sync` runs on
+ * pg-delta. A table set to `enabled = false` is left alone, and a project
+ * without `config.toml` gets nothing.
  */
 export async function enablePgDelta(
   root: string,

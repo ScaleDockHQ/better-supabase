@@ -15,8 +15,8 @@ export interface ExpoSqliteContextLike {
 }
 
 /**
- * The part of expo-sqlite's `SQLiteDatabase` the executor uses. Typed by
- * shape, so better-supabase doesn't depend on expo-sqlite.
+ * The part of expo-sqlite's `SQLiteDatabase` the executor uses. Typed by shape,
+ * so better-supabase doesn't depend on expo-sqlite.
  */
 export interface ExpoSqliteDatabaseLike extends ExpoSqliteContextLike {
   /** Filters change events to this database when several are open. */
@@ -35,8 +35,8 @@ export interface DatabaseChangeEventLike {
 }
 
 /**
- * expo-sqlite's `addDatabaseChangeListener`. Open the database with
- * `{ enableChangeListener: true }` so it reports changes.
+ * Expo-sqlite's `addDatabaseChangeListener`. Open the database with `{
+ * enableChangeListener: true }` so it reports changes.
  */
 export type AddDatabaseChangeListener = (
   listener: (event: DatabaseChangeEventLike) => void,
@@ -49,7 +49,10 @@ export interface ExpoSqliteOptions extends PowerSyncExecutorOptions {
 
 const DEFAULT_THROTTLE_MS = 30;
 
-/** A UUID v4 from SQLite's `randomblob`, for runtimes without `crypto.randomUUID`. */
+/**
+ * A UUID v4 from SQLite's `randomblob`, for runtimes without
+ * `crypto.randomUUID`.
+ */
 const UUID_SQL =
   "select lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) as id";
 
@@ -116,8 +119,8 @@ function changesOf(
 
 /**
  * An expo-sqlite database in the shape the SQLite executor, `watch()` and
- * `useWatch()` read. Writes run in `withExclusiveTransactionAsync` on
- * native and `withTransactionAsync` on web.
+ * `useWatch()` read. Writes run in `withExclusiveTransactionAsync` on native
+ * and `withTransactionAsync` on web.
  */
 export function expoSqliteDatabase(
   db: ExpoSqliteDatabaseLike,
@@ -168,16 +171,19 @@ function randomId(): string | undefined {
 }
 
 /**
- * Runs repository operations on an expo-sqlite database, without PowerSync:
- * the same repositories and list definitions work on a local database the
- * app owns. Reads return rows in the PostgREST shape; what SQLite can't
- * express returns a `DbError` of kind `unsupported`. An insert that leaves
- * out a text or uuid key gets `crypto.randomUUID()`, else a UUID from
- * SQLite.
+ * Runs repository operations on an expo-sqlite database, without PowerSync: the
+ * same repositories and list definitions work on a local database the app owns.
+ * Reads return rows in the PostgREST shape; what SQLite can't express returns a
+ * `DbError` of kind `unsupported`. An insert that leaves out a text or uuid key
+ * gets `crypto.randomUUID()`, else a UUID from SQLite.
  *
  * ```ts
- * const sqlite = await openDatabaseAsync("app.db", { enableChangeListener: true });
- * const db = betterSupabase.connect(expoSqliteExecutor(sqlite, { addDatabaseChangeListener }));
+ * const sqlite = await openDatabaseAsync("app.db", {
+ *   enableChangeListener: true,
+ * });
+ * const db = betterSupabase.connect(
+ *   expoSqliteExecutor(sqlite, { addDatabaseChangeListener }),
+ * );
  * ```
  */
 export function expoSqliteExecutor(

@@ -5,18 +5,16 @@ import type { FilePlan } from "./core/files.ts";
 import type { CommandResult } from "./core/io.ts";
 import type { Project } from "./project/detect.ts";
 import type { Prompter } from "./prompts.ts";
+import type {
+  Integration,
+  TemplateContext,
+  TemplateFile,
+} from "./templates.ts";
 
 import { INTEGRATION_INFO } from "../config/index.ts";
 import { parseNames } from "./core/errors.ts";
 import { display } from "./core/io.ts";
-import {
-  INTEGRATIONS,
-  isIntegration,
-  type Integration,
-  type TemplateContext,
-  type TemplateFile,
-  TEMPLATES,
-} from "./templates.ts";
+import { INTEGRATIONS, isIntegration, TEMPLATES } from "./templates.ts";
 import { VERSION } from "./version.ts";
 
 export interface WriteFlags {
@@ -26,7 +24,10 @@ export interface WriteFlags {
 
 export const CANCELLED: CommandResult = { code: 1, error: "Cancelled." };
 
-/** `--force`, or the person's answer when files exist; `undefined` when they cancel. */
+/**
+ * `--force`, or the person's answer when files exist; `undefined` when they
+ * cancel.
+ */
 export async function overwrite(
   root: string,
   files: readonly TemplateFile[],
@@ -55,7 +56,10 @@ export async function overwrite(
   );
 }
 
-/** Template files as a plan: each is written once, and an existing file is the app's. */
+/**
+ * Template files as a plan: each is written once, and an existing file is the
+ * app's.
+ */
 export function templatePlan(
   root: string,
   files: readonly TemplateFile[],

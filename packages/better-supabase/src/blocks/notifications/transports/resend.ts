@@ -7,7 +7,10 @@ import type {
 import { isRecord } from "../../shared.ts";
 
 export interface ResendTransportOptions {
-  /** A Resend API key with sending access. Read it from your own env; the library never does. */
+  /**
+   * A Resend API key with sending access. Read it from your own env; the
+   * library never does.
+   */
   readonly apiKey: string;
   /** Defaults to `https://api.resend.com`. */
   readonly baseUrl?: string;
@@ -15,7 +18,10 @@ export interface ResendTransportOptions {
   readonly fetch?: typeof fetch;
 }
 
-/** A failed Resend call. `status` is the HTTP status, 0 when the request never got an answer. */
+/**
+ * A failed Resend call. `status` is the HTTP status, 0 when the request never
+ * got an answer.
+ */
 export class ResendError extends Error {
   readonly status: number;
   /** Resend's error name, such as `validation_error`. */
@@ -30,9 +36,9 @@ export class ResendError extends Error {
 }
 
 /**
- * A `DeliveryTransport` over Resend's `POST /emails`. The delivery
- * id goes in the `Idempotency-Key` header, so a retried delivery sends one
- * email; the message category becomes a `category` tag.
+ * A `DeliveryTransport` over Resend's `POST /emails`. The delivery id goes in
+ * the `Idempotency-Key` header, so a retried delivery sends one email; the
+ * message category becomes a `category` tag.
  */
 export function resendTransport(
   options: ResendTransportOptions,

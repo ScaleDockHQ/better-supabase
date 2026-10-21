@@ -2,13 +2,13 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { ServicePrincipalAuthAdmin } from "../../src/blocks/service-principals/index.ts";
+import type { WorkflowGraph } from "../../src/blocks/workflow-builder/index.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createServicePrincipals } from "../../src/blocks/service-principals/index.ts";
 import {
   createWorkflowBuilder,
   sqlTransport,
-  type WorkflowGraph,
 } from "../../src/blocks/workflow-builder/index.ts";
 import { moduleProvider } from "../fixtures/authorization-provider.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -48,9 +48,13 @@ const LAYOUT: ModuleLayout = {
 
 describe.skipIf(!live)("service principals", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
-  /** An Auth admin that writes the user the way GoTrue would, inside the test's transaction. */
+  /**
+   * An Auth admin that writes the user the way GoTrue would, inside the test's
+   * transaction.
+   */
   function admin(s: BlockSession): ServicePrincipalAuthAdmin {
     return {
       createUser: async (attributes) => {

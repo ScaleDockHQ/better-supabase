@@ -15,9 +15,7 @@ describe("pinWebhookFormat", () => {
 
     expect(pinned?.ok).toBe(true);
     expect(pinned?.ok && JSON.parse(pinned.text)).toMatchObject({
-      blocks: {
-        "webhooks-out": { options: { defaultFormat: "standard" } },
-      },
+      blocks: { "webhooks-out": { options: { defaultFormat: "standard" } } },
     });
 
     for (const block of [

@@ -7,8 +7,8 @@ import { METADATA_GAPS_TEXT } from "../introspect/from-metadata.ts";
  * Rules that read what a `GeneratorMetadata` document leaves out (policies,
  * grants, indexes, triggers, buckets, the realtime publication, foreign key
  * actions, multi-column constraints, role settings, hook functions). On a
- * snapshot built from such a document they would report what is missing
- * from the document, not from the database, so they skip with an info finding.
+ * snapshot built from such a document they would report what is missing from
+ * the document, not from the database, so they skip with an info finding.
  */
 export const EXTRAS_RULES: ReadonlySet<string> = new Set([
   "BS103",
@@ -53,7 +53,10 @@ export const EXTRAS_RULES: ReadonlySet<string> = new Set([
   "BS407",
 ]);
 
-/** The info finding for a rule in `EXTRAS_RULES` that did not run, or `undefined` when it can. */
+/**
+ * The info finding for a rule in `EXTRAS_RULES` that did not run, or
+ * `undefined` when it can.
+ */
 export function skippedForMetadata(
   snapshot: Snapshot,
   rule: Pick<Rule, "code" | "title">,

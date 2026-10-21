@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
+
+import type { CatalogBlock } from "../../lib/blocks";
 
 import { ALL_CATEGORIES, filterBlocks } from "../../lib/block-filter";
 import {
@@ -11,7 +13,6 @@ import {
   blocks,
   blockStaticParams,
   blockSummaries,
-  type CatalogBlock,
   columnLayout,
   configSnippet,
   getBlock,
@@ -23,7 +24,7 @@ const PAGE = join(
 );
 
 describe("blocks catalog", () => {
-  test("every catalog block has a statically generated page", () => {
+  it("every catalog block has a statically generated page", () => {
     const page = readFileSync(PAGE, "utf-8");
     expect(page).toContain("return blockStaticParams();");
     const params = blockStaticParams().map((param) => param.name);
@@ -36,7 +37,7 @@ describe("blocks catalog", () => {
     }
   });
 
-  test("every block has a known category and links to blocks that exist", () => {
+  it("every block has a known category and links to blocks that exist", () => {
     expect(blocks.length).toBeGreaterThan(0);
 
     for (const block of blocks) {
@@ -54,13 +55,13 @@ describe("blocks catalog", () => {
     }
   });
 
-  test("every category has at least one block", () => {
+  it("every category has at least one block", () => {
     for (const category of blockCategories) {
       expect(blocks.some((block) => block.category === category)).toBe(true);
     }
   });
 
-  test("the config snippet lists the dependencies before the block", () => {
+  it("the config snippet lists the dependencies before the block", () => {
     const comments = getBlock("comments");
     expect(comments).toBeDefined();
 
@@ -102,7 +103,7 @@ const bare = (
 });
 
 describe("blockGraphLayout", () => {
-  test("puts requirements left of the block and integrations right of it", () => {
+  it("puts requirements left of the block and integrations right of it", () => {
     const block = bare({
       name: "comments",
       requires: ["tenant", "access"],
@@ -124,7 +125,7 @@ describe("blockGraphLayout", () => {
     ]);
   });
 
-  test("centers the block on the taller column and keeps every box inside the canvas", () => {
+  it("centers the block on the taller column and keeps every box inside the canvas", () => {
     const layout = blockGraphLayout(
       bare({ name: "comments", requires: ["tenant", "access", "updated-at"] }),
     );
@@ -142,7 +143,7 @@ describe("blockGraphLayout", () => {
     }
   });
 
-  test("sizes the boxes to the longest label", () => {
+  it("sizes the boxes to the longest label", () => {
     const short = blockGraphLayout(
       bare({ name: "comments", requires: ["tenant"] }),
     );
@@ -154,7 +155,7 @@ describe("blockGraphLayout", () => {
     expect(long.nodeWidth).toBeGreaterThan(short.nodeWidth);
   });
 
-  test("drops the empty columns of a block with no dependencies", () => {
+  it("drops the empty columns of a block with no dependencies", () => {
     const layout = blockGraphLayout(bare({ name: "comments" }));
 
     expect(layout.nodes).toHaveLength(1);
@@ -162,7 +163,7 @@ describe("blockGraphLayout", () => {
     expect(layout.width).toBe((layout.nodes[0]?.x ?? 0) * 2 + layout.nodeWidth);
   });
 
-  test("draws the wildcard as an unlinked box and a module in both lists once", () => {
+  it("draws the wildcard as an unlinked box and a module in both lists once", () => {
     const layout = blockGraphLayout(
       bare({
         name: "comments",
@@ -185,7 +186,7 @@ describe("blockGraphLayout", () => {
     ]);
   });
 
-  test("links every catalog block node to its page, in its category", () => {
+  it("links every catalog block node to its page, in its category", () => {
     for (const block of blocks) {
       const layout = blockGraphLayout(block);
 
@@ -202,7 +203,7 @@ describe("blockGraphLayout", () => {
 });
 
 describe("columnLayout", () => {
-  test("widens the canvas for an edge between two boxes of one column", () => {
+  it("widens the canvas for an edge between two boxes of one column", () => {
     const spec = (id: string) => ({
       id,
       label: id,
@@ -221,7 +222,7 @@ describe("columnLayout", () => {
     expect(looped.width).toBeGreaterThan(flat.width);
   });
 
-  test("drops edges to boxes that are not in the layout", () => {
+  it("drops edges to boxes that are not in the layout", () => {
     const layout = columnLayout(
       [[{ id: "a", label: "a", category: null, href: null, focus: true }]],
       [{ from: "a", to: "missing", kind: "requires" }],
@@ -232,7 +233,7 @@ describe("columnLayout", () => {
 });
 
 describe("blockGraphSummary", () => {
-  test("names the requirements and the integrations", () => {
+  it("names the requirements and the integrations", () => {
     expect(
       blockGraphSummary(
         bare({
@@ -244,7 +245,7 @@ describe("blockGraphSummary", () => {
     ).toBe("comments requires tenant and access, and works with every module.");
   });
 
-  test("says so when there are none", () => {
+  it("says so when there are none", () => {
     expect(blockGraphSummary(bare({ name: "comments" }))).toBe(
       "comments has no dependencies.",
     );
@@ -254,19 +255,19 @@ describe("blockGraphSummary", () => {
 describe("filterBlocks", () => {
   const summaries = blockSummaries();
 
-  test("returns every block for All and an empty query", () => {
+  it("returns every block for All and an empty query", () => {
     expect(filterBlocks(summaries, ALL_CATEGORIES, "")).toHaveLength(
       summaries.length,
     );
   });
 
-  test("narrows to one category", () => {
+  it("narrows to one category", () => {
     const ai = filterBlocks(summaries, "AI", "");
     expect(ai.length).toBeGreaterThan(0);
     expect(ai.every((block) => block.category === "AI")).toBe(true);
   });
 
-  test("matches every word of the query against name, title and description", () => {
+  it("matches every word of the query against name, title and description", () => {
     const found = filterBlocks(summaries, ALL_CATEGORIES, "COMMENTS replies");
     expect(found.map((block) => block.name)).toContain("comments");
     expect(

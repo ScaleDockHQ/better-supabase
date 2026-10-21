@@ -94,8 +94,8 @@ describe("touched tables", () => {
       where: { organization: { is: { slug: "acme" } } },
     });
 
-    expect(betterSupabase.tablesOf(spec).sort()).toEqual(
-      ["customers", "notes", "organizations"].sort(),
+    expect(betterSupabase.tablesOf(spec).toSorted()).toEqual(
+      ["customers", "notes", "organizations"].toSorted(),
     );
   });
 

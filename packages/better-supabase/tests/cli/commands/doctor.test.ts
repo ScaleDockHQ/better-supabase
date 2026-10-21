@@ -3,19 +3,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DoctorArgs } from "../../../src/cli/commands/doctor.ts";
 import type { CommandResult } from "../../../src/cli/core/io.ts";
+import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
-import {
-  doctorCommand,
-  type DoctorArgs,
-  runDoctor,
-} from "../../../src/cli/commands/doctor.ts";
+import { doctorCommand, runDoctor } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
-import {
-  type BetterSupabaseConfig,
-  resolveConfig,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
@@ -252,18 +247,14 @@ describe("doctor command", () => {
 
     await write("node_modules/dep/index.ts", "db.notes.aggregate({});\n");
 
-    const clean = await doctor(["--only", "BS210", "--json"], {
-      snapshot,
-    });
+    const clean = await doctor(["--only", "BS210", "--json"], { snapshot });
 
     expect(findings(clean)).toEqual([]);
 
     await write("src/z.ts", "\n\ndb.notes.aggregate({});\n");
     await write("src/a.ts", "db.notes.list({ facetCounts: true });\n");
 
-    const result = await doctor(["--only", "BS210", "--json"], {
-      snapshot,
-    });
+    const result = await doctor(["--only", "BS210", "--json"], { snapshot });
 
     expect(findings(result)).toEqual([
       expect.objectContaining({

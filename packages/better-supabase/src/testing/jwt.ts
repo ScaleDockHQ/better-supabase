@@ -60,8 +60,9 @@ export async function signTestJwt(
 
 /**
  * Accepts `signTestJwt` tokens as users, for API servers tested against the
- * local stack: `createServer(betterSupabase, { auth: { resolvers: [localAuth(secret)] } })`.
- * Tokens that are not HS256-signed with `secret` fall through. Test-only.
+ * local stack: `createServer(betterSupabase, { auth: { resolvers:
+ * [localAuth(secret)] } })`. Tokens that are not HS256-signed with `secret`
+ * fall through. Test-only.
  */
 export function localAuth(secret: string): AuthResolver {
   const key = crypto.subtle.importKey(
@@ -125,17 +126,26 @@ export function localAuth(secret: string): AuthResolver {
 }
 
 export interface TestSigner {
-  /** Public JWKS; pass as `jwks` to `resolveAuth` / `createServer({ auth: { jwks } })`. */
+  /**
+   * Public JWKS; pass as `jwks` to `resolveAuth` / `createServer({ auth: { jwks
+   * } })`.
+   */
   readonly jwks: InlineJwks;
   sign(claims: TestJwtClaims): Promise<string>;
 }
 
-/** A private ES256 JWK, as `better-supabase keys` writes to `supabase/signing_keys.json`. */
+/**
+ * A private ES256 JWK, as `better-supabase keys` writes to
+ * `supabase/signing_keys.json`.
+ */
 export interface SigningJwk extends webcrypto.JsonWebKey {
   readonly kid: string;
 }
 
-/** The key type of the global `crypto`, which the DOM lib and `@types/node` both declare. */
+/**
+ * The key type of the global `crypto`, which the DOM lib and `@types/node` both
+ * declare.
+ */
 type SigningKey = Parameters<typeof crypto.subtle.sign>[1];
 
 async function signEs256(
@@ -168,8 +178,8 @@ async function signEs256(
 }
 
 /**
- * Signs an ES256 access token with a private JWK, the way the local stack
- * signs them once `signing_keys_path` is set. Test-only.
+ * Signs an ES256 access token with a private JWK, the way the local stack signs
+ * them once `signing_keys_path` is set. Test-only.
  */
 export async function signTestJwtWithKey(
   key: SigningJwk,
@@ -188,7 +198,10 @@ export async function signTestJwtWithKey(
   return signEs256(privateKey, kid, claims);
 }
 
-/** An in-memory ES256 key pair that signs tokens like Supabase Auth's asymmetric keys. */
+/**
+ * An in-memory ES256 key pair that signs tokens like Supabase Auth's asymmetric
+ * keys.
+ */
 export async function createTestSigner(): Promise<TestSigner> {
   const pair = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },

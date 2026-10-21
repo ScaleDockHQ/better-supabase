@@ -23,7 +23,10 @@ export interface FilterRecordField {
   /** The record key the value is read from, dotted for a nested value. */
   readonly column: string;
   readonly columnMeta: {
-    /** The Postgres type: `date`, `timestamp` and `timestamptz` pick how dates compare. */
+    /**
+     * The Postgres type: `date`, `timestamp` and `timestamptz` pick how dates
+     * compare.
+     */
     readonly type: string;
     readonly nullable: boolean;
   };
@@ -317,7 +320,10 @@ function listOf(value: unknown): readonly string[] | null {
   return Array.isArray(value) ? value.map(String) : null;
 }
 
-/** The truth of an operator before negation, mirroring `filterWhere`'s predicates. */
+/**
+ * The truth of an operator before negation, mirroring `filterWhere`'s
+ * predicates.
+ */
 function positive(
   field: FilterRecordField,
   operator: string,
@@ -451,9 +457,9 @@ function combine(combinator: "and" | "or", parts: readonly Truth[]): Truth {
 }
 
 /**
- * Tests a checked filter tree on one record, with the same operators and
- * null handling as `filterWhere` compiles to SQL. Unfinished rules, unknown
- * fields and empty groups take no part, and a tree with nothing left matches.
+ * Tests a checked filter tree on one record, with the same operators and null
+ * handling as `filterWhere` compiles to SQL. Unfinished rules, unknown fields
+ * and empty groups take no part, and a tree with nothing left matches.
  */
 export function evaluateFilterQuery(
   query: FilterQuery,

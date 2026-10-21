@@ -213,7 +213,7 @@ describe("resource", () => {
       },
       () => "done",
     );
-    bs.require({
+    void bs.require({
       permission: "customers.read",
       resource: (input, ctx) => {
         expectTypeOf(input).toEqualTypeOf<undefined>();

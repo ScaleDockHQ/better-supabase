@@ -2,13 +2,12 @@ import type * as ReactModule from "react";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { ClientLike } from "../../src/react/hooks.ts";
+
 import { defineController } from "../../src/blocks/controller.ts";
 import { useController } from "../../src/blocks/react-controller.ts";
 import { useBlockEnv } from "../../src/blocks/react-env.ts";
-import {
-  BetterSupabaseProvider,
-  type ClientLike,
-} from "../../src/react/hooks.ts";
+import { BetterSupabaseProvider } from "../../src/react/hooks.ts";
 import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
 import { fakeAuth, fakeTopic } from "../fixtures/ports.ts";
@@ -38,7 +37,7 @@ describe("useBlockEnv", () => {
     const own = client({ topic: topic.port });
 
     const view = renderHook(useBlockEnv, undefined, () => {
-      BetterSupabaseProvider({ client: own });
+      void BetterSupabaseProvider({ client: own });
     });
 
     expect(view.result.ports.topic).toBe(topic.port);
@@ -46,7 +45,7 @@ describe("useBlockEnv", () => {
     view.unmount();
 
     const bare = renderHook(useBlockEnv, undefined, () => {
-      BetterSupabaseProvider({ client: client() });
+      void BetterSupabaseProvider({ client: client() });
     });
 
     expect(typeof bare.result.ports.topic).toBe("function");
@@ -80,7 +79,7 @@ describe("useController", () => {
     view.result.add();
     expect(view.result).toMatchObject({ label: "a", count: 1 });
     view.rerender("a");
-    expect(made).toHaveBeenCalledTimes(1);
+    expect(made).toHaveBeenCalledOnce();
     view.rerender("b");
     expect(view.result).toMatchObject({ label: "b", count: 0 });
     view.unmount();

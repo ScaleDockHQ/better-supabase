@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- FNV-1a works on 32-bit integers. */
+
 /** The part of `expo-secure-store` the storage adapter uses. */
 export interface SecureStoreLike {
   getItemAsync(
@@ -13,14 +15,14 @@ export interface SecureStoreLike {
 }
 
 /**
- * The `expo-secure-store` options every call gets, such as
- * `keychainAccessible` or `keychainService`.
+ * The `expo-secure-store` options every call gets, such as `keychainAccessible`
+ * or `keychainService`.
  */
 export interface SecureStoreOptionsLike {
   /**
-   * When the keychain item is readable. `SecureStore.AFTER_FIRST_UNLOCK`
-   * lets a background task or a push handler refresh the session while the
-   * device is locked; the default (`WHEN_UNLOCKED`) does not.
+   * When the keychain item is readable. `SecureStore.AFTER_FIRST_UNLOCK` lets a
+   * background task or a push handler refresh the session while the device is
+   * locked; the default (`WHEN_UNLOCKED`) does not.
    */
   readonly keychainAccessible?: number;
   readonly keychainService?: string;
@@ -37,8 +39,8 @@ export interface AuthStorage {
 
 export interface SecureStorageOptions {
   /**
-   * Characters per stored value. Defaults to 1800: iOS warns above 2048
-   * bytes, and a Supabase session with custom claims is larger than that.
+   * Characters per stored value. Defaults to 1800: iOS warns above 2048 bytes,
+   * and a Supabase session with custom claims is larger than that.
    */
   readonly chunkSize?: number;
   /** Passed to every `expo-secure-store` call. */
@@ -60,9 +62,9 @@ function hashOf(text: string): string {
 }
 
 /**
- * expo-secure-store keys allow letters, digits, `.`, `-` and `_` only. A key
- * that needs no change keeps its name (sessions stored before stay
- * readable); one that does gets a hash suffix, so `a:b` and `a/b` differ.
+ * Expo-secure-store keys allow letters, digits, `.`, `-` and `_` only. A key
+ * that needs no change keeps its name (sessions stored before stay readable);
+ * one that does gets a hash suffix, so `a:b` and `a/b` differ.
  */
 export function safeKey(key: string): string {
   const safe = key.replaceAll(UNSAFE, "_");
@@ -71,9 +73,9 @@ export function safeKey(key: string): string {
 }
 
 /**
- * Where a value's chunks live: `<key>.<n>` (slot `""`) or `<key>.<n>b`
- * (slot `"b"`). A write fills the slot the pointer does not name, so the
- * pointer only ever names complete chunks.
+ * Where a value's chunks live: `<key>.<n>` (slot `""`) or `<key>.<n>b` (slot
+ * `"b"`). A write fills the slot the pointer does not name, so the pointer only
+ * ever names complete chunks.
  */
 type Slot = "" | "b";
 
@@ -81,15 +83,17 @@ type Slot = "" | "b";
 const POINTER = /^([1-9]\d*)(b?)$/;
 
 /**
- * Supabase Auth storage on the device keychain (`expo-secure-store`),
- * split into chunks so sessions above the platform's value size fit.
- * Operations on one key run one at a time, and a write moves the pointer
- * only after every chunk is stored, so a reader never joins chunks of two
- * values and a write that fails part way keeps the previous value.
+ * Supabase Auth storage on the device keychain (`expo-secure-store`), split
+ * into chunks so sessions above the platform's value size fit. Operations on
+ * one key run one at a time, and a write moves the pointer only after every
+ * chunk is stored, so a reader never joins chunks of two values and a write
+ * that fails part way keeps the previous value.
  *
  * ```ts
- * import * as SecureStore from 'expo-secure-store';
- * createClient(url, key, { auth: { storage: secureStorage(SecureStore) } });
+ * import * as SecureStore from "expo-secure-store";
+ * createClient(url, key, {
+ *   auth: { storage: secureStorage(SecureStore) },
+ * });
  * ```
  */
 export function secureStorage(

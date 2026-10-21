@@ -65,7 +65,10 @@ export function ScheduleControls({
   );
 }
 
-/** Schedules the onboarding drip every day at 09:00 UTC, or on the cron typed in. */
+/**
+ * Schedules the onboarding drip every day at 09:00 UTC, or on the cron typed
+ * in.
+ */
 export function ScheduleForm() {
   const t = useExtracted("workflows");
   const handlers = useToastErrors();

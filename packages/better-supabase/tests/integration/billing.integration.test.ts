@@ -11,6 +11,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("billing", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("links customers, syncs seats and handles Stripe events", async () => {
@@ -116,11 +117,7 @@ describe.skipIf(!live)("billing", () => {
         insert into stripe.subscription_items (id, subscription, price, quantity, created) values ('si_1', 'sub_1', 'price_seat', 1, 1)`);
       expect(
         await billing.syncSeats(organization, { key: "evt" }).orThrow(),
-      ).toEqual({
-        quantity: 2,
-        previousQuantity: 1,
-        changed: true,
-      });
+      ).toEqual({ quantity: 2, previousQuantity: 1, changed: true });
       expect(calls.at(-1)).toEqual([
         "items.update",
         {
@@ -613,7 +610,7 @@ describe.skipIf(!live)("billing", () => {
             name: undefined,
             created: undefined,
           },
-        ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
+        ].toSorted((a, b) => a.organizationId.localeCompare(b.organizationId)),
       );
 
       const rows = await s.rows<Record<string, unknown>>(

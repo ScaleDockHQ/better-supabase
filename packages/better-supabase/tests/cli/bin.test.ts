@@ -35,6 +35,7 @@ describe("the built bin", () => {
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), "better-supabase-bin-"));
   });
+
   afterAll(async () => {
     await rm(dir, { recursive: true, force: true });
   });

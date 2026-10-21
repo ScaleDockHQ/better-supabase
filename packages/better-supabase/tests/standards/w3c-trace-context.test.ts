@@ -1,10 +1,15 @@
+/* oxlint-disable eslint/no-bitwise -- trace flags are a bit field. */
+
+import type {
+  Context,
+  ContextManager,
+  TextMapPropagator,
+} from "@opentelemetry/api";
+
 import {
-  type Context,
   context,
-  type ContextManager,
   propagation,
   ROOT_CONTEXT,
-  type TextMapPropagator,
   trace,
   TraceFlags,
 } from "@opentelemetry/api";
@@ -12,7 +17,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { tracedFetch } from "../../src/otel/index.ts";
 
-/** A synchronous context manager: enough for `fetch` calls made inside `context.with`. */
+/**
+ * A synchronous context manager: enough for `fetch` calls made inside
+ * `context.with`.
+ */
 function stackContextManager(): ContextManager {
   const stack: Context[] = [];
 
@@ -35,7 +43,10 @@ function stackContextManager(): ContextManager {
   return manager;
 }
 
-/** The W3C Trace Context propagator: `traceparent` version 00 from the span context. */
+/**
+ * The W3C Trace Context propagator: `traceparent` version 00 from the span
+ * context.
+ */
 const w3c: TextMapPropagator = {
   inject(ctx, carrier, setter) {
     const span = trace.getSpanContext(ctx);

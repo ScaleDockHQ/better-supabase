@@ -18,9 +18,7 @@ vi.mock("@workflow/world-postgres", () => ({
   }),
 }));
 
-vi.mock("@workflow/world", () => ({
-  reenqueueActiveRuns: reenqueue,
-}));
+vi.mock("@workflow/world", () => ({ reenqueueActiveRuns: reenqueue }));
 
 const {
   createSupabaseWorld,
@@ -283,11 +281,13 @@ describe("createSupabaseWorld", () => {
         return [{ enqueue_job: 1 }];
       },
       claim_jobs: () =>
-        jobs.splice(0).map((payload, index) => ({
-          id: index + 1,
-          attempts: 1,
-          message: { payload },
-        })),
+        jobs
+          .splice(0)
+          .map((payload, index) => ({
+            id: index + 1,
+            attempts: 1,
+            message: { payload },
+          })),
       complete_job: () => [{ complete_job: true }],
       vault: () => [],
     });
@@ -348,11 +348,13 @@ describe("createSupabaseWorld", () => {
           throw new Error("claim failed");
         }
 
-        return jobs.splice(0).map((payload, index) => ({
-          id: index + 1,
-          attempts: 1,
-          message: { payload },
-        }));
+        return jobs
+          .splice(0)
+          .map((payload, index) => ({
+            id: index + 1,
+            attempts: 1,
+            message: { payload },
+          }));
       },
       complete_job: () => [{ complete_job: true }],
       vault: () => [],
@@ -582,7 +584,7 @@ describe("createSupabaseWorld", () => {
     await world.start();
     expect(reenqueue).toHaveBeenCalledOnce();
     await world.close();
-    expect(baseClose).toHaveBeenCalled();
+    expect(baseClose).toHaveBeenCalledWith();
 
     const { pool: plain } = fakePool({ vault: () => [] });
     const open = createSupabaseWorld({ pool: plain });

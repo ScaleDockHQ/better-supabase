@@ -8,6 +8,7 @@ const live = await reachable();
 
 describe.skipIf(!live)("read-only actors", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
   afterAll(() => pool.end());
 
   it("refuses support, impersonation and a session-only act", async () => {

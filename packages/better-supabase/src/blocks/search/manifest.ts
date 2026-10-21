@@ -15,12 +15,8 @@ export const searchBlock: BlockOf<
 > = defineBlock({
   name: "search",
   sql: ["search"],
-  options: {
-    search: searchSqlOptions,
-  },
-  provides: {
-    sink: (client) => searchSink(client),
-  },
+  options: { search: searchSqlOptions },
+  provides: { sink: (client) => searchSink(client) },
   create: createSearch,
   client: "search",
   category: "work",

@@ -38,9 +38,7 @@ describe("defineSeed", () => {
   it("renders arrays, dates, nulls and numbers", () => {
     const sql = defineSeed(betterSupabase, {
       organizations: { one: { id: "o1", name: "One", slug: "one" } },
-      customers: {
-        one: { organizationId: "o1", name: "x", kvk: null },
-      },
+      customers: { one: { organizationId: "o1", name: "x", kvk: null } },
     }).sql();
 
     expect(sql).toContain("('o1', 'x', null)");

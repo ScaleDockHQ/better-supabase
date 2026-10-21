@@ -17,8 +17,8 @@ export interface OrdersNames {
 }
 
 /**
- * A text amount as bigint, or null, in parentheses: a bare `case` in a
- * PL/pgSQL `if` condition ends at its first `then`.
+ * A text amount as bigint, or null, in parentheses: a bare `case` in a PL/pgSQL
+ * `if` condition ends at its first `then`.
  */
 export const amountOf = (value: string): string => `(${bareAmountOf(value)})`;
 
@@ -68,8 +68,8 @@ export function serviceOnlyGuard(): string {
 }
 
 /**
- * Runs `statements` with service-role claims, then restores the caller's.
- * The function declares `v_claims text`.
+ * Runs `statements` with service-role claims, then restores the caller's. The
+ * function declares `v_claims text`.
  */
 export function asService(statements: string): string {
   return `v_claims := current_setting('request.jwt.claims', true);
@@ -140,9 +140,9 @@ function sequenceFormat(
 
 /**
  * PL/pgSQL that assigns the next gapless number of `entity` in `tenant` to
- * `seq` and `number`: from `number-sequences` when it configures the
- * entity, otherwise one more than the tenant's highest under a transaction
- * lock, as plain digits.
+ * `seq` and `number`: from `number-sequences` when it configures the entity,
+ * otherwise one more than the tenant's highest under a transaction lock, as
+ * plain digits.
  */
 export function assignNumber(
   ctx: ModuleContext,
@@ -168,9 +168,9 @@ export function assignNumber(
 }
 
 /**
- * `${fn("order_transition")}(order, to)`: moves an order's status along
- * the built-in edges (or leaves the check to the state machine), stamps
- * the matching timestamp and returns the previous status. Internal.
+ * `${fn("order_transition")}(order, to)`: moves an order's status along the
+ * built-in edges (or leaves the check to the state machine), stamps the
+ * matching timestamp and returns the previous status. Internal.
  */
 export function transitionFunction(
   ctx: ModuleContext,
@@ -226,7 +226,10 @@ revoke execute on function ${fn}(uuid, text) from public, anon, authenticated;
 `;
 }
 
-/** The `jsonb_build_object` of an order event; `o` is a record with the order's columns. */
+/**
+ * The `jsonb_build_object` of an order event; `o` is a record with the order's
+ * columns.
+ */
 export function orderPayload(
   row: string,
   extra: readonly (readonly [string, string])[] = [],

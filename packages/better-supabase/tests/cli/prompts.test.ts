@@ -38,9 +38,7 @@ interface Asked {
 }
 
 /** A prompter that answers from `answers` in order and records each question. */
-function fake(answers: unknown[]): Prompter & {
-  readonly asked: Asked[];
-} {
+function fake(answers: unknown[]): Prompter & { readonly asked: Asked[] } {
   const asked: Asked[] = [];
 
   return {
@@ -305,6 +303,6 @@ describe("clackPrompter", () => {
     const stop = clackSpinner(process.stderr, "Loading");
     expect(clack.spinner.start).toHaveBeenCalledWith("Loading");
     stop();
-    expect(clack.spinner.clear).toHaveBeenCalled();
+    expect(clack.spinner.clear).toHaveBeenCalledWith();
   });
 });

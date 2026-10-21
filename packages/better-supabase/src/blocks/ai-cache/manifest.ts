@@ -9,9 +9,7 @@ export const aiCacheBlock: BlockOf<"ai-cache", typeof createAiCache> =
   defineBlock({
     name: "ai-cache",
     sql: ["ai-cache"],
-    options: {
-      "ai-cache": aiCacheSqlOptions,
-    },
+    options: { "ai-cache": aiCacheSqlOptions },
     create: createAiCache,
     category: "ai",
   });

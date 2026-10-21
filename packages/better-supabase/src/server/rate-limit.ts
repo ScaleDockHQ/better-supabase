@@ -1,7 +1,8 @@
+import type { DbError } from "../core/errors.ts";
 import type { ProblemFormat } from "../core/problem.ts";
 import type { Result } from "../core/result.ts";
 
-import { type DbError, dbError } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import {
   isRateLimitPolicyName,
   periodSeconds,
@@ -24,7 +25,10 @@ export interface RouteRateLimitRule {
   readonly period: number | string;
 }
 
-/** What `rateLimit()` counts hits with: `createRateLimit()` from `better-supabase/blocks/jobs`. */
+/**
+ * What `rateLimit()` counts hits with: `createRateLimit()` from
+ * `better-supabase/blocks/jobs`.
+ */
 export interface RateLimiter {
   check(
     scope: string,
@@ -38,7 +42,10 @@ export interface RateLimitRouteOptions<I> {
   readonly limiter: RateLimiter;
   /** The scope the hits count against, and its rule from `set_rate_limit`. */
   readonly scope: string;
-  /** Whose hits these are, such as an API key or a client IP; `undefined` skips the limit. */
+  /**
+   * Whose hits these are, such as an API key or a client IP; `undefined` skips
+   * the limit.
+   */
   readonly key: (
     input: I,
   ) => string | undefined | PromiseLike<string | undefined>;
@@ -49,7 +56,10 @@ export interface RateLimitRouteOptions<I> {
   readonly rule?: RouteRateLimitRule;
   /** The policy name in the headers. Default: `scope`. */
   readonly policy?: string;
-  /** Let the request through when the limiter fails. Default: answer with its error. */
+  /**
+   * Let the request through when the limiter fails. Default: answer with its
+   * error.
+   */
   readonly failOpen?: boolean;
   /** The app's error body for the 429. */
   readonly problem?: ProblemFormat;

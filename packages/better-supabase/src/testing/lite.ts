@@ -1,31 +1,39 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { createClient } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
+import type { LiteConnection, PgliteConnection } from "../lite/runtime.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { TestUser } from "./as-user.ts";
 import type { TestJwtClaims } from "./jwt.ts";
 
 import { toBase64Url } from "../core/base64.ts";
 import {
   LITE_INSTALL,
-  type LiteConnection,
   loadLite,
   migrateLite,
-  type PgliteConnection,
   seedLite,
 } from "../lite/runtime.ts";
-import { asUser, type TestUser } from "./as-user.ts";
+import { asUser } from "./as-user.ts";
 
 export interface LiteStackOptions {
   /**
-   * `sqlite-postgres` (default) stores data in in-memory SQLite and
-   * translates your Postgres SQL, as `lite init` does. `pglite` runs real
-   * Postgres in-process, with `rpc()` and `DEFAULT auth.uid()`.
+   * `sqlite-postgres` (default) stores data in in-memory SQLite and translates
+   * your Postgres SQL, as `lite init` does. `pglite` runs real Postgres
+   * in-process, with `rpc()` and `DEFAULT auth.uid()`.
    */
   readonly driver?: "sqlite-postgres" | "pglite";
-  /** Migration SQL, applied in order before `schemas`. DDL only; put rows in `seed`. */
+  /**
+   * Migration SQL, applied in order before `schemas`. DDL only; put rows in
+   * `seed`.
+   */
   readonly migrations?: readonly string[];
-  /** Declarative schema SQL (`supabase/schemas/*.sql`), applied after `migrations`. */
+  /**
+   * Declarative schema SQL (`supabase/schemas/*.sql`), applied after
+   * `migrations`.
+   */
   readonly schemas?: readonly string[];
   /** Seed SQL, run after the schema as the database owner (RLS does not apply). */
   readonly seed?: string | readonly string[];
@@ -39,15 +47,24 @@ export interface LiteStack extends AsyncDisposable {
   readonly publishableKey: string;
   readonly secretKey: string;
   readonly jwtSecret: string;
-  /** Routes requests to the in-process Lite app. Pass it as `fetch` to `createServer`. */
+  /**
+   * Routes requests to the in-process Lite app. Pass it as `fetch` to
+   * `createServer`.
+   */
   readonly fetch: typeof globalThis.fetch;
-  /** The settings `createServer(betterSupabase, { env, backend: "lite", fetch })` takes. */
+  /**
+   * The settings `createServer(betterSupabase, { env, backend: "lite", fetch
+   * })` takes.
+   */
   readonly env: BetterSupabaseEnv;
-  /** supabase-js with the publishable key, as an anonymous caller. */
+  /** Supabase-js with the publishable key, as an anonymous caller. */
   readonly supabase: SupabaseClient;
-  /** supabase-js with the secret key: bypasses RLS, for setup. */
+  /** Supabase-js with the secret key: bypasses RLS, for setup. */
   readonly admin: SupabaseClient;
-  /** A user with an HS256 token, as `asUser` signs it, whose clients route through `fetch`. */
+  /**
+   * A user with an HS256 token, as `asUser` signs it, whose clients route
+   * through `fetch`.
+   */
   asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
     betterSupabase: BetterSupabase<M, D, F, E>,
     claims: TestJwtClaims,
@@ -72,11 +89,13 @@ function list(value: string | readonly string[] | undefined): string[] {
 
 /**
  * Supabase Lite in this process, for tests without Docker: an in-memory
- * database with your schema, Auth with fresh API keys, and supabase-js
- * clients whose requests go straight to Lite's `fetch` handler (no port).
+ * database with your schema, Auth with fresh API keys, and supabase-js clients
+ * whose requests go straight to Lite's `fetch` handler (no port).
  *
  * ```ts
- * await using stack = await liteStack({ schemas: [await readFile("supabase/schemas/notes.sql", "utf8")] });
+ * await using stack = await liteStack({
+ *   schemas: [await readFile("supabase/schemas/notes.sql", "utf8")],
+ * });
  * const alice = await stack.asUser(betterSupabase, { sub: aliceId });
  * expect(await alice.db.notes.count().orThrow()).toBe(1);
  * ```

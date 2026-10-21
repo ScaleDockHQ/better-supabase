@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { WorkItemNames } from "./work-items-functions.ts";
 
 import {
   addExtraColumns,
@@ -15,10 +16,7 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import {
-  workItemFunctions,
-  type WorkItemNames,
-} from "./work-items-functions.ts";
+import { workItemFunctions } from "./work-items-functions.ts";
 
 const ITEM = [
   "organizationId",
@@ -246,9 +244,9 @@ ${read("assignees")}
 }
 
 /**
- * The guard trigger: no parent cycles, a locked item keeps its dates, a
- * closing state stamps closed_at and a close reason and records
- * work_item.closed, and reopening clears both.
+ * The guard trigger: no parent cycles, a locked item keeps its dates, a closing
+ * state stamps closed_at and a close reason and records work_item.closed, and
+ * reopening clears both.
  */
 function guard(ctx: ModuleContext, n: WorkItemNames): string {
   const { t, c } = n;

@@ -3,11 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { Functions } from "../fixtures/generated-camel.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  schema as camel,
-  type Functions,
-} from "../fixtures/generated-camel.ts";
+import { schema as camel } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 const db = defineSupabase(camel).connect(client);

@@ -13,8 +13,8 @@ const ESCAPES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Parses an RFC 9535 normalized path (§ 2.7), such as `$['paths'][0]`, into
- * its segments. Throws for anything else, because the engine promised one.
+ * Parses an RFC 9535 normalized path (§ 2.7), such as `$['paths'][0]`, into its
+ * segments. Throws for anything else, because the engine promised one.
  */
 export function parseNormalizedPath(path: string): PathSegment[] {
   if (!path.startsWith("$")) {
@@ -29,10 +29,10 @@ export function parseNormalizedPath(path: string): PathSegment[] {
       throw new TypeError(`Not a normalized path: ${path}`);
     }
 
-    i++;
+    i += 1;
 
     if (path[i] === "'") {
-      i++;
+      i += 1;
       let name = "";
 
       while (i < path.length && path[i] !== "'") {
@@ -40,7 +40,7 @@ export function parseNormalizedPath(path: string): PathSegment[] {
 
         if (char !== "\\") {
           name += char;
-          i++;
+          i += 1;
           continue;
         }
 

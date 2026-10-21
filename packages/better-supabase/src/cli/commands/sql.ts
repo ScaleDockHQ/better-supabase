@@ -1,19 +1,22 @@
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { SqlFlags } from "../sql/args.ts";
+import type { Now } from "../sql/migrations.ts";
+import type { Paint } from "../style.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { addModules } from "../sql/add.ts";
-import { SQL_ARGS, type SqlFlags } from "../sql/args.ts";
+import { SQL_ARGS } from "../sql/args.ts";
 import { listModules } from "../sql/list.ts";
-import { dataMigration, type Now } from "../sql/migrations.ts";
+import { dataMigration } from "../sql/migrations.ts";
 import { printModule } from "../sql/print.ts";
 import { syncModules } from "../sql/sync.ts";
 import { upgrade } from "../sql/upgrade.ts";
-import { type Paint, plain } from "../style.ts";
+import { plain } from "../style.ts";
 
 export { migrationsDir };
 
@@ -28,7 +31,10 @@ export interface SqlDeps {
 
 const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
 
-/** Runs one `sql` subcommand: `args._` is the subcommand name, then its arguments. */
+/**
+ * Runs one `sql` subcommand: `args._` is the subcommand name, then its
+ * arguments.
+ */
 export async function runSql(
   config: ResolvedConfig,
   args: SqlFlags,
@@ -114,22 +120,14 @@ export const sqlAddCommand: AnyCommand = defineCliCommand({
 
 export const sqlSyncCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("sql sync"),
-  args: {
-    ...TESTS_DIR,
-    check: SQL_ARGS.check,
-    "dry-run": SQL_ARGS["dry-run"],
-  },
+  args: { ...TESTS_DIR, check: SQL_ARGS.check, "dry-run": SQL_ARGS["dry-run"] },
   run: (args, { config, paint }) =>
     runSql(config, { ...args, _: ["sync"] }, paint),
 });
 
 export const sqlUpgradeCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("sql upgrade"),
-  args: {
-    ...TESTS_DIR,
-    check: SQL_ARGS.check,
-    "dry-run": SQL_ARGS["dry-run"],
-  },
+  args: { ...TESTS_DIR, check: SQL_ARGS.check, "dry-run": SQL_ARGS["dry-run"] },
   run: (args, { config, paint }) =>
     runSql(config, { ...args, _: ["upgrade"] }, paint),
 });

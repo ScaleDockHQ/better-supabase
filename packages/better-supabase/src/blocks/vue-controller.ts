@@ -1,14 +1,12 @@
-import {
-  getCurrentScope,
-  onScopeDispose,
-  type ShallowRef,
-  shallowRef,
-} from "vue";
+import type { ShallowRef } from "vue";
 
+import { getCurrentScope, onScopeDispose, shallowRef } from "vue";
+
+import type { BlockOptions } from "./block-env.ts";
 import type { Controller } from "./controller.ts";
 
 import { onClient, useContext } from "../vue/context.ts";
-import { blockEnv, type BlockOptions, withEnv } from "./block-env.ts";
+import { blockEnv, withEnv } from "./block-env.ts";
 
 /** A block controller in a Vue component: `state` follows the controller. */
 export interface VueController<S, A> {
@@ -18,8 +16,8 @@ export interface VueController<S, A> {
 }
 
 /**
- * Makes a controller once and keeps `state` current. Its work starts on
- * mount (at once in an effect scope, never during server rendering), and the
+ * Makes a controller once and keeps `state` current. Its work starts on mount
+ * (at once in an effect scope, never during server rendering), and the
  * controller is disposed with the component or scope.
  */
 export function useBlockController<O, S, A>(

@@ -1,10 +1,12 @@
 "use server";
 
-import { DbException, err, ok, type Result } from "better-supabase";
+import type { Result } from "better-supabase";
+import type { ImportRowError } from "better-supabase/blocks/imports";
+
+import { DbException, err, ok } from "better-supabase";
 import {
   defineImport,
   dryRun,
-  type ImportRowError,
   runImport,
 } from "better-supabase/blocks/imports";
 import * as v from "valibot";
@@ -116,8 +118,8 @@ export interface ImportOutcome {
 
 /**
  * Records an import run, creates the new customers and finishes the run.
- * `finish_import` is granted to the service role only, so it runs as that
- * role after the caller passed `imports.manage`.
+ * `finish_import` is granted to the service role only, so it runs as that role
+ * after the caller passed `imports.manage`.
  */
 export const runCustomerImport = bs.action(
   {

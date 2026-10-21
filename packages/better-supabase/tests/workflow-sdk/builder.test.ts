@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GraphStepCall } from "../../src/blocks/workflow-builder/executor.ts";
 import type { BuilderStartCall } from "../../src/blocks/workflow-builder/workflow-builder.ts";
 
-import {
-  executeGraph,
-  type GraphStepCall,
-} from "../../src/blocks/workflow-builder/executor.ts";
+import { executeGraph } from "../../src/blocks/workflow-builder/executor.ts";
 import { fakeRuntime, GRAPH } from "../blocks/workflow-builder/fixture.ts";
 
 const start = vi.fn(async (..._args: unknown[]) => ({ runId: "wrun_new" }));
@@ -375,7 +373,7 @@ describe("compileGraph", () => {
       .source.split("\n")
       .filter((line) => line.trimStart().startsWith("//"));
 
-    expect(comments.length).toBe(GRAPH.nodes.length);
+    expect(comments).toHaveLength(GRAPH.nodes.length);
 
     for (const line of comments) {
       expect(line).toMatch(/^ {2}\/\/ [a-z]+ node \d+$/);
@@ -564,7 +562,7 @@ describe("graphStarter", () => {
       dynamic: false,
       executorRunsTests: true,
     })(test);
-    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledOnce();
   });
 
   it("returns the run a repeated key already started", async () => {

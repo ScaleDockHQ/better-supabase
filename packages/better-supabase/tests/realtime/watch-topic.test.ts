@@ -18,8 +18,8 @@ interface FakeChannel {
 
 /**
  * A realtime-js stand-in that keeps its rules: `channel()` returns the open
- * channel for a topic, a channel subscribes once, and a removed channel
- * leaves the list only after the server acknowledges the leave.
+ * channel for a topic, a channel subscribes once, and a removed channel leaves
+ * the list only after the server acknowledges the leave.
  */
 function fakeRealtime() {
   const open: FakeChannel[] = [];
@@ -144,12 +144,11 @@ describe("watchTopic", () => {
     );
 
     await flush();
-    expect(realtime.client.channel).toHaveBeenCalledTimes(1);
-    expect(realtime.client.channel).toHaveBeenCalledWith("chat:c1", {
+    expect(realtime.client.channel).toHaveBeenCalledExactlyOnceWith("chat:c1", {
       config: { private: true, broadcast: { self: false } },
     });
-    expect(realtime.client.realtime.setAuth).toHaveBeenCalledTimes(1);
-    expect(realtime.subscribe).toHaveBeenCalledTimes(1);
+    expect(realtime.client.realtime.setAuth).toHaveBeenCalledOnce();
+    expect(realtime.subscribe).toHaveBeenCalledOnce();
     expect(first.last()).toBe("subscribed");
     expect(second.last()).toBe("subscribed");
 
@@ -191,11 +190,11 @@ describe("watchTopic", () => {
     expect(second.last()).toBe("subscribed");
     realtime.emit("chat:c1", "leaf.changed");
     expect(first.watch.onMessage).not.toHaveBeenCalled();
-    expect(second.watch.onMessage).toHaveBeenCalledTimes(1);
+    expect(second.watch.onMessage).toHaveBeenCalledOnce();
 
     leaveSecond();
     await flush();
-    expect(realtime.client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(realtime.client.removeChannel).toHaveBeenCalledOnce();
     expect(second.last()).toBe("closed");
   });
 
@@ -207,20 +206,20 @@ describe("watchTopic", () => {
     const { leave } = watchTopic(realtime.supabase, "chat:c1", mounted.watch);
     await settle();
     expect(realtime.client.removeChannel).not.toHaveBeenCalled();
-    expect(realtime.subscribe).toHaveBeenCalledTimes(1);
+    expect(realtime.subscribe).toHaveBeenCalledOnce();
     expect(mounted.last()).toBe("subscribed");
     realtime.emit("chat:c1", "message.saved");
-    expect(mounted.watch.onMessage).toHaveBeenCalledTimes(1);
+    expect(mounted.watch.onMessage).toHaveBeenCalledOnce();
     leave();
     await flush();
-    expect(realtime.client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(realtime.client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("joins again after the last watcher left", async () => {
     const realtime = fakeRealtime();
     watchTopic(realtime.supabase, "chat:c1", watcher().watch).leave();
     await settle();
-    expect(realtime.client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(realtime.client.removeChannel).toHaveBeenCalledOnce();
     const next = watcher();
     const { leave } = watchTopic(realtime.supabase, "chat:c1", next.watch);
     await flush();
@@ -254,8 +253,8 @@ describe("watchTopic", () => {
     expect(first.last()).toBe("error");
     expect(late.last()).toBe("error");
     realtime.status("chat:c1", "SUBSCRIBED");
-    expect(first.watch.onRejoin).toHaveBeenCalledTimes(1);
-    expect(late.watch.onRejoin).toHaveBeenCalledTimes(1);
+    expect(first.watch.onRejoin).toHaveBeenCalledOnce();
+    expect(late.watch.onRejoin).toHaveBeenCalledOnce();
     leaveFirst();
     leaveLate();
   });
@@ -289,14 +288,13 @@ describe("watchTopic", () => {
     const handle = topicPort(realtime.supabase)("chat:c1", watcher().watch);
     await flush();
     handle.send("typing", { user_id: "u1" });
-    expect(realtime.sent).toHaveBeenCalledWith("chat:c1", {
+    handle.leave();
+    handle.send("typing", { user_id: "u1" });
+    expect(realtime.sent).toHaveBeenCalledExactlyOnceWith("chat:c1", {
       type: "broadcast",
       event: "typing",
       payload: { user_id: "u1" },
     });
-    handle.leave();
-    handle.send("typing", { user_id: "u1" });
-    expect(realtime.sent).toHaveBeenCalledTimes(1);
   });
 
   it("returns a closed handle when the join fails", () => {

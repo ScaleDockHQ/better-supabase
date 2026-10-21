@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- file permissions are the low 9 bits of `mode`. */
+
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import {
@@ -15,6 +17,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { TemplateContext } from "../../src/cli/templates.ts";
+
 import { mergeEnv } from "../../src/cli/commands/env.ts";
 import { loadSkills } from "../../src/cli/commands/skills.ts";
 import { run } from "../../src/cli/core/run.ts";
@@ -22,12 +26,14 @@ import {
   baseFiles,
   INTEGRATIONS,
   resolveIntegrations,
-  type TemplateContext,
   TEMPLATES,
 } from "../../src/cli/templates.ts";
 import { libraryFixture } from "./fixtures/library.ts";
 
-/** better-supabase, whose source the generated code and templates compile against. */
+/**
+ * Better-supabase, whose source the generated code and templates compile
+ * against.
+ */
 const packageRoot = fileURLToPath(libraryFixture("../../"));
 const src = join(packageRoot, "src");
 
@@ -405,9 +411,7 @@ describe("templates", () => {
       const result = await promisify(execFile)(
         tsc,
         ["--noEmit", "-p", join(root, "tsconfig.json")],
-        {
-          cwd: root,
-        },
+        { cwd: root },
       ).then(
         () => ({ code: 0, output: "" }),
         (error: unknown) => {
@@ -514,9 +518,7 @@ describe("env", () => {
 
     const result = await run(
       ["env", "--status-file", "status.txt", "--cwd", dir],
-      {
-        io: { stdout: () => {}, stderr: () => {} },
-      },
+      { io: { stdout: () => {}, stderr: () => {} } },
     );
 
     expect(result.code).toBe(1);
@@ -646,10 +648,7 @@ describe("keys in a monorepo package", () => {
   it("writes the key next to the config.toml found above --cwd", async () => {
     await project(
       {},
-      {
-        "supabase/config.toml": "[auth]\n",
-        "apps/web/package.json": "{}",
-      },
+      { "supabase/config.toml": "[auth]\n", "apps/web/package.json": "{}" },
     );
     const result = await run(["keys", "--cwd", join(dir, "apps/web")]);
     expect(result.code).toBe(0);

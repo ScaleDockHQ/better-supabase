@@ -1,11 +1,13 @@
+import type { ValidationIssue } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
+import type { Result } from "../core/result.ts";
 import type { TableMeta } from "../schema/types.ts";
 import type { PlannedAction, ResourcePagination } from "../spec/resource.ts";
 import type { ResourceInput } from "./resource-types.ts";
 
-import { dbError, type ValidationIssue } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
-import { err, ok, type Result } from "../core/result.ts";
+import { err, ok } from "../core/result.ts";
 
 const INTEGER = new Set(["int2", "int4", "int8"]);
 
