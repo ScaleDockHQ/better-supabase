@@ -64,6 +64,21 @@ describe("BS700", () => {
     ).toEqual([]);
     expect(check("BS700", { skipped: "ipcs is not available." })).toEqual([]);
   });
+
+  it("leaves out the stacks when none of the segments belong to one", () => {
+    expect(
+      check("BS700", {
+        memory: { supported: true, limit: 32, segments: interlocks(30) },
+        stacks: [],
+      }),
+    ).toEqual([
+      {
+        target: "kern.sysv.shmmni",
+        message:
+          "30 of 32 shared memory segments are in use. Run better-supabase stack prune --stop-idle to free them.",
+      },
+    ]);
+  });
 });
 
 describe("BS701", () => {
@@ -98,5 +113,28 @@ describe("BS701", () => {
         stacks: [STACK],
       }),
     ).toEqual([]);
+  });
+
+  it("counts segments without a size and names a stack it can't find by id", () => {
+    expect(
+      check("BS701", {
+        memory: {
+          supported: true,
+          limit: 32,
+          segments: [
+            { id: "1", pid: 1, stackId: "unknown00000000" },
+            { id: "2", pid: 1, stackId: "unknown00000000" },
+          ],
+        },
+        stacks: [],
+      }),
+    ).toEqual([
+      {
+        target: "unknown00000000",
+        message: expect.stringContaining(
+          "holds 2 shared memory segment(s), so it sets",
+        ),
+      },
+    ]);
   });
 });

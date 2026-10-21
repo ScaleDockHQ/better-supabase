@@ -324,6 +324,18 @@ describe("seed", () => {
       });
       expect(open.urls).toEqual([]);
 
+      expect(
+        await run(
+          ["--tenant", "*", "--check", "--entry", "supabase/seed.tenant.mjs"],
+          open,
+          withOrganizations(),
+          remote,
+          requests,
+        ),
+      ).toMatchObject({
+        output: "Would insert supabase/seed.tenant.mjs for every organization.",
+      });
+
       await run(argv, open, withOrganizations(), remote, requests);
       expect(requests).toEqual([
         {

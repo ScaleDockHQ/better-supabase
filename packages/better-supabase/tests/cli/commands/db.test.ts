@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -11,6 +18,7 @@ import {
   runDbQuery,
 } from "../../../src/cli/commands/db.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import {
   type InStackDiffOptions,
   MIGRATION_HEADER,
@@ -180,6 +188,27 @@ describe("db diff", () => {
       harness.deps,
     );
 
+  it("runs the Supabase CLI from $SUPABASE_BIN through the command tree", async () => {
+    const bin = join(root, "fake-supabase");
+
+    await writeFile(
+      bin,
+      '#!/bin/sh\necho "$@" > "$(dirname "$0")/args"\necho "Created a migration"\n',
+    );
+    await chmod(bin, 0o755);
+
+    const result = await run(["db", "diff", "-f", "add", "--cwd", root], {
+      env: { ...env, SUPABASE_BIN: bin },
+      io: { stdout: () => {}, stderr: () => {} },
+    });
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Created a migration");
+    expect(await readFile(join(root, "args"), "utf-8")).toBe(
+      "db schema declarative sync --no-apply -f add\n",
+    );
+  });
+
   it("runs the Supabase CLI's sync when it can start a shadow database", async () => {
     const harness = deps({
       code: 0,
@@ -239,6 +268,14 @@ describe("db diff", () => {
 
     expect(harness.calls).toEqual([["db", "diff"]]);
     expect(result.output).toBe("create table a ();");
+  });
+
+  it("writes a named migra diff and says so when it prints nothing", async () => {
+    const harness = deps({ code: 0 });
+    const result = await diff(["-f", "add"], harness, "migra");
+
+    expect(harness.calls).toEqual([["db", "diff", "-f", "add"]]);
+    expect(result.output).toBe("No schema changes.");
   });
 
   it("says so when nothing changed", async () => {

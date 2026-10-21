@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ConsentRequest } from "../../../src/cli/core/agent.ts";
 import type { StackReport } from "../../../src/cli/stacks.ts";
@@ -8,6 +11,7 @@ import {
   runStackPrune,
   type StackDeps,
 } from "../../../src/cli/commands/stack.ts";
+import { run } from "../../../src/cli/core/run.ts";
 import { parseEnv } from "../../../src/cli/env.ts";
 
 function stack(overrides: Partial<StackReport>): StackReport {
@@ -130,5 +134,141 @@ describe("stack prune", () => {
 
     expect(calls).toEqual([["stack", "destroy", "--stack-id", "gone"]]);
     expect(result).toMatchObject({ code: 1, errorCode: "supabase_cli_failed" });
+  });
+});
+
+describe("stack edge cases", () => {
+  const supabase =
+    (calls: string[][], stdout = ""): StackDeps["supabase"] =>
+    (args) => {
+      calls.push([...args]);
+
+      return Promise.resolve({
+        code: stdout === "" ? 0 : 1,
+        stdout,
+        stderr: "",
+      });
+    };
+
+  it("lists no stacks and no summary where segments can't be read", async () => {
+    const result = await runStackLs("/code/app", env, {
+      memory: () => Promise.resolve({ supported: false, segments: [] }),
+      stacks: () => Promise.resolve([]),
+      supabase: supabase([]),
+    });
+
+    expect(result.output).toBe("No managed stacks.");
+  });
+
+  it("shows a deleted branch and the segment count without a limit", async () => {
+    const result = await runStackLs("/code/app", env, {
+      memory: () =>
+        Promise.resolve({
+          supported: true,
+          segments: [{ id: "1", pid: 1, stackId: "old" }],
+        }),
+      stacks: () =>
+        Promise.resolve([stack({ id: "old", branchExists: false })]),
+      supabase: supabase([]),
+    });
+
+    expect(result.output).toContain("branch deleted");
+    expect(result.output).toContain("Shared memory segments: 1 in use.");
+    expect(result.data).not.toHaveProperty("sharedMemory.limit");
+  });
+
+  it("prunes nothing when every stack is in use", async () => {
+    const result = await runStackPrune("/code/app", {}, env, undefined, {
+      ...deps(),
+      stacks: () => Promise.resolve([stack({ id: "current", current: true })]),
+    });
+
+    expect(result.output).toBe("Nothing to prune.");
+  });
+
+  it("stops idle stacks without consent and reports a failure from stdout", async () => {
+    const calls: string[][] = [];
+    const consents: ConsentRequest[] = [];
+
+    const result = await runStackPrune(
+      "/code/app",
+      { "stop-idle": true },
+      env,
+      (request) => consents.push(request),
+      {
+        ...deps(),
+        stacks: () =>
+          Promise.resolve([
+            stack({ id: "idle", branch: "refs/heads/feature" }),
+          ]),
+        supabase: supabase(calls, "stop refused"),
+      },
+    );
+
+    expect(consents).toEqual([]);
+    expect(calls).toEqual([["stack", "stop", "--stack-id", "idle"]]);
+    expect(result.error).toBe("supabase stack stop failed: stop refused");
+  });
+});
+
+describe("stack commands through the CLI", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "bs-stack-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  const fakeSupabase = async (): Promise<string> => {
+    const list = JSON.stringify({
+      stacks: [
+        {
+          id: "gone",
+          project_root: join(dir, "deleted-worktree"),
+          name: "gone",
+          branch_context: "refs/heads/old",
+          runtime: "native",
+          owner: "unavailable",
+        },
+      ],
+    });
+
+    const bin = join(dir, "supabase");
+
+    await writeFile(
+      bin,
+      [
+        "#!/bin/sh",
+        `if [ "$1 $2" = "stack list" ]; then printf '%s' '${list}'; exit 0; fi`,
+        `echo "$@" >> "${join(dir, "calls.log")}"`,
+      ].join("\n"),
+    );
+    await chmod(bin, 0o755);
+
+    return bin;
+  };
+
+  const io = { stdout: (): void => {}, stderr: (): void => {} };
+
+  it("lists the stacks and destroys the one whose worktree is gone", async () => {
+    const env = { SUPABASE_BIN: await fakeSupabase(), BSB_AGENT: "no" };
+
+    const ls = await run(["stack", "ls", "--json", "--cwd", dir], { env, io });
+
+    expect(ls.code).toBe(0);
+    expect(ls.stdout).toContain('"worktreeExists": false');
+
+    const prune = await run(["stack", "prune", "--json", "--cwd", dir], {
+      env,
+      io,
+    });
+
+    expect(prune.code).toBe(0);
+    expect(await readFile(join(dir, "calls.log"), "utf-8")).toBe(
+      "stack destroy --stack-id gone\n",
+    );
   });
 });
