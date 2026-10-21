@@ -1,5 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type { TransformOptions } from "../../src/storage/index.ts";
+
 import {
   avatarBucket,
   defineBucket,
@@ -43,6 +45,31 @@ describe("avatarBucket", () => {
       "split_part(name, '/', 2) = (select auth.uid())::text",
     );
     expectTypeOf(avatars.id).toEqualTypeOf<"profile-pictures">();
+  });
+
+  it("has square crop variants, replaced by the app's own", () => {
+    expect(avatarBucket().variants).toEqual({
+      sm: { width: 48, height: 48, resize: "cover" },
+      md: { width: 96, height: 96, resize: "cover" },
+      lg: { width: 256, height: 256, resize: "cover" },
+    });
+    expectTypeOf(avatarBucket().variants).toEqualTypeOf<
+      Readonly<Record<"sm" | "md" | "lg", TransformOptions>>
+    >();
+
+    const custom = avatarBucket({
+      variants: { tiny: { width: 24, height: 24 } },
+    });
+
+    expect(Object.keys(custom.variants)).toEqual(["tiny"]);
+    expectTypeOf(custom.variants).toEqualTypeOf<
+      Readonly<Record<"tiny", TransformOptions>>
+    >();
+    expect(organizationLogoBucket().variants.md).toEqual({
+      width: 128,
+      height: 128,
+      resize: "contain",
+    });
   });
 });
 

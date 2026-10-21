@@ -9,6 +9,7 @@ import type {
   StorageClient,
   StoredObject,
   UploadBody,
+  ImageTransform,
   UploadOptions,
   UrlOptions,
 } from "./bucket.ts";
@@ -25,6 +26,7 @@ import { inScope } from "./layouts.ts";
 import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
 import { storageApiOf } from "./storage-api.ts";
 import { ttlSeconds } from "./ttl.ts";
+import { transformFor } from "./variants.ts";
 import { toVersion } from "./versioning.ts";
 
 /** Folder listings in flight at once while `list` walks a tree. */
@@ -122,13 +124,17 @@ function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
   );
 }
 
-export function connectBucket<P extends string, Id extends string>(
-  bucket: Bucket<P, Id>,
+export function connectBucket<
+  P extends string,
+  Id extends string,
+  V extends string = never,
+>(
+  bucket: Bucket<P, Id, V>,
   client: StorageClient,
   resolveTarget: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
   connectOptions: BucketConnectOptions,
   guard: TenantGuard | undefined,
-): BucketClient<P, Id> {
+): BucketClient<P, Id, V> {
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
     const path = resolveTarget(target);
 
@@ -201,12 +207,19 @@ export function connectBucket<P extends string, Id extends string>(
   const download = (value: boolean | string | undefined) =>
     value === undefined ? {} : { download: value };
 
-  const urlExtras = (options: Omit<UrlOptions, "ttl"> | undefined) => ({
-    ...download(options?.download),
-    ...(options?.transform ? { transform: { ...options.transform } } : {}),
-    ...(options?.cacheNonce ? { cacheNonce: options.cacheNonce } : {}),
-    ...(options?.versionId ? { versionId: options.versionId } : {}),
-  });
+  const transformOf = (transform: ImageTransform<V> | undefined) =>
+    transformFor(bucket.id, bucket.variants, transform);
+
+  const urlExtras = (options: Omit<UrlOptions<V>, "ttl"> | undefined) => {
+    const transform = transformOf(options?.transform);
+
+    return {
+      ...download(options?.download),
+      ...(transform ? { transform: { ...transform } } : {}),
+      ...(options?.cacheNonce ? { cacheNonce: options.cacheNonce } : {}),
+      ...(options?.versionId ? { versionId: options.versionId } : {}),
+    };
+  };
 
   const upload: BucketClient<P, Id>["upload"] = (target, body, options) =>
     AsyncResult.from(async () => {
@@ -491,7 +504,7 @@ export function connectBucket<P extends string, Id extends string>(
       ),
     ).mapError((error) => ({ ...error, table: bucket.id }));
 
-  const signedUrl: BucketClient<P, Id>["signedUrl"] = (target, options) =>
+  const signedUrl: BucketClient<P, Id, V>["signedUrl"] = (target, options) =>
     AsyncResult.from(async () => {
       const path = resolve(target);
       const ttl = ttlSeconds(options?.ttl);
@@ -500,7 +513,7 @@ export function connectBucket<P extends string, Id extends string>(
         ? JSON.stringify([
             path,
             ttl,
-            options?.transform,
+            transformOf(options?.transform),
             options?.download,
             options?.cacheNonce,
             options?.versionId,

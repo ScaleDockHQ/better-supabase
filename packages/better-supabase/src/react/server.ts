@@ -21,6 +21,7 @@ import type {
   useSignOut as clientUseSignOut,
 } from "./sign-in.ts";
 import type {
+  useImage as clientUseImage,
   useSignedUrl as clientUseSignedUrl,
   useUpload as clientUseUpload,
 } from "./storage.ts";
@@ -73,14 +74,17 @@ export type {
   PendingState,
   Presence,
   PresenceHookOptions,
+  ImageSource,
   PresenceTopic,
   SignedUrl,
   SignedUrlSource,
   SignIn,
   SignOut,
+  StorageImage,
   Upload,
   UploadStatus,
   UploadTarget,
+  UseImageOptions,
   UseUploadOptions,
 } from "./index.ts";
 
@@ -173,6 +177,9 @@ export const useDebouncedSearch: typeof clientUseDebouncedSearch =
  */
 export const useSignedUrl: typeof clientUseSignedUrl =
   clientOnly("useSignedUrl");
+
+/** The `react-server` build of `useImage`: await `bucket.renderUrl()` instead. */
+export const useImage: typeof clientUseImage = clientOnly("useImage");
 
 /** The `react-server` build of `useUpload`: upload from a Client Component. */
 export const useUpload: typeof clientUseUpload = clientOnly("useUpload");

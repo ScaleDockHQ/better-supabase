@@ -24,6 +24,7 @@ import { connectBucket } from "./connect.ts";
 import { pathLayouts } from "./layouts.ts";
 import { policyChecks } from "./policy.ts";
 import { tenantGuard } from "./tenant-scope.ts";
+import { checkVariants } from "./variants.ts";
 import { lifecyclePayload, sameLifecycle } from "./versioning.ts";
 
 export type BucketPolicy = BucketPolicyName | AccessBucketPolicy;
@@ -34,6 +35,7 @@ const LIST_OPERATIONS = ["object.list", "object.list_v2", "s3.object.list"];
 export interface BucketConfig<
   P extends string = string,
   Id extends string = string,
+  V extends string = never,
 > {
   /** Bucket id, e.g. `customer-logos`. */
   readonly id: Id;
@@ -96,6 +98,13 @@ export interface BucketConfig<
     /** Placeholder holding the user id. Defaults to `userId`. */
     readonly param?: string;
   };
+  /**
+   * Named image transformations, e.g. `{ thumb: { width: 96, height: 96,
+   * resize: "cover" } }`. `renderUrl`, `signedUrl` and `publicUrl` take the
+   * name wherever they take a transform. Width and height run from 1 to 2500
+   * and quality from 20 to 100.
+   */
+  readonly variants?: Readonly<Record<V, TransformOptions>>;
 }
 
 /** The values of one of the bucket's path templates. */
@@ -114,6 +123,11 @@ export type ObjectTarget<P extends string, Id extends string = string> =
 
 export { TTL, type TtlPreset } from "./ttl.ts";
 
+/**
+ * A Storage image transformation. With both `width` and `height`, `cover` (the
+ * default) crops the center to that aspect ratio, `contain` fits the whole
+ * image inside it, and `fill` stretches it.
+ */
 export interface TransformOptions {
   readonly width?: number;
   readonly height?: number;
@@ -121,6 +135,9 @@ export interface TransformOptions {
   readonly quality?: number;
   readonly format?: "origin";
 }
+
+/** One of the bucket's variant names, or an inline transform. */
+export type ImageTransform<V extends string = never> = V | TransformOptions;
 
 export type UploadBody =
   | Blob
@@ -145,10 +162,11 @@ export interface UploadOptions {
   readonly onProgress?: (fraction: number) => void;
 }
 
-export interface UrlOptions {
+export interface UrlOptions<V extends string = never> {
   /** Seconds or a preset. Defaults to `hour`. */
   readonly ttl?: number | TtlPreset;
-  readonly transform?: TransformOptions;
+  /** A variant name or an inline transform. */
+  readonly transform?: ImageTransform<V>;
   /** Serve as an attachment, optionally with a file name. */
   readonly download?: boolean | string;
   /**
@@ -281,8 +299,12 @@ export type { StorageClient } from "./storage-api.ts";
  */
 export type StorageAdminClient = Pick<SupabaseClient, "storage">;
 
-export interface BucketClient<P extends string, Id extends string = string> {
-  readonly bucket: Bucket<P, Id>;
+export interface BucketClient<
+  P extends string,
+  Id extends string = string,
+  V extends string = never,
+> {
+  readonly bucket: Bucket<P, Id, V>;
   /**
    * The object path, checked against the template and, with `tenant`, the
    * caller's tenant.
@@ -340,7 +362,7 @@ export interface BucketClient<P extends string, Id extends string = string> {
   ): AsyncResult<readonly StoredObject[]>;
   signedUrl(
     target: ObjectTarget<P, Id>,
-    options?: UrlOptions,
+    options?: UrlOptions<V>,
   ): AsyncResult<string>;
   signedUrls(
     targets: readonly ObjectTarget<P, Id>[],
@@ -352,12 +374,16 @@ export interface BucketClient<P extends string, Id extends string = string> {
    */
   publicUrl(
     target: ObjectTarget<P, Id>,
-    options?: Omit<UrlOptions, "ttl">,
+    options?: Omit<UrlOptions<V>, "ttl">,
   ): Result<string>;
-  /** Image transform URL: public for public buckets, signed otherwise. */
+  /**
+   * Image transform URL for a variant name or an inline transform: public for
+   * public buckets, signed otherwise. Pass `download` to serve the resized copy
+   * as an attachment.
+   */
   renderUrl(
     target: ObjectTarget<P, Id>,
-    transform: TransformOptions,
+    transform: ImageTransform<V>,
     options?: Omit<UrlOptions, "transform">,
   ): AsyncResult<string>;
   /** Upload the new object, run `commit`, then remove the previous object. */
@@ -391,7 +417,11 @@ export interface BucketClient<P extends string, Id extends string = string> {
   sweep(options: SweepOptions<P>): AsyncResult<SweepResult>;
 }
 
-export interface Bucket<P extends string, Id extends string = string> {
+export interface Bucket<
+  P extends string,
+  Id extends string = string,
+  V extends string = never,
+> {
   readonly id: Id;
   /** The first path template. */
   readonly template: P;
@@ -415,6 +445,8 @@ export interface Bucket<P extends string, Id extends string = string> {
   readonly allowedMimeTypes: readonly string[] | undefined;
   readonly versioning: boolean;
   readonly lifecycle: BucketLifecycle | undefined;
+  /** The named image transformations, `{}` when the bucket has none. */
+  readonly variants: Readonly<Record<V, TransformOptions>>;
   /**
    * Builds a path with the template whose placeholders are exactly the keys of
    * `values`. A value Storage would refuse, or keys no template takes, is an
@@ -441,7 +473,7 @@ export interface Bucket<P extends string, Id extends string = string> {
   connect(
     client: StorageClient,
     options?: BucketConnectOptions,
-  ): BucketClient<P, Id>;
+  ): BucketClient<P, Id, V>;
 }
 
 export interface BucketConnectOptions {
@@ -549,9 +581,17 @@ function sizeLabel(bytes: number): string {
 export function defineBucket<
   const P extends string,
   const Id extends string = string,
->(config: BucketConfig<P, Id>): Bucket<P, Id> {
+  const V extends string = never,
+>(config: BucketConfig<P, Id, V>): Bucket<P, Id, V> {
   const layouts = pathLayouts(config.id, config.path, sqlString);
   const policy = config.policy ?? "none";
+
+  // SAFETY: without config.variants the bucket has no variant names.
+  const variants = Object.freeze({ ...config.variants }) as Readonly<
+    Record<V, TransformOptions>
+  >;
+
+  checkVariants(config.id, variants);
 
   const fileSizeLimit =
     config.fileSizeLimit === undefined
@@ -676,7 +716,7 @@ export function defineBucket<
 
   // SAFETY: the template parser returns the parameter names written in P,
   // and sources holds the templates of P.
-  const bucket: Bucket<P, Id> = {
+  const bucket: Bucket<P, Id, V> = {
     id: config.id,
     template: layouts.sources[0] as P,
     templates: layouts.sources as readonly P[],
@@ -694,6 +734,7 @@ export function defineBucket<
     allowedMimeTypes,
     versioning,
     lifecycle: config.lifecycle,
+    variants,
     path: (values) => {
       try {
         // SAFETY: the template builds the path from typed values.

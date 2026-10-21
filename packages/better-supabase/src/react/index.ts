@@ -60,11 +60,14 @@ export { useDebouncedSearch } from "./search.ts";
 
 export type { DebouncedSearch, DebouncedSearchOptions } from "./search.ts";
 
-export { useSignedUrl, useUpload } from "./storage.ts";
+export { useImage, useSignedUrl, useUpload } from "./storage.ts";
 
 export type {
+  ImageSource,
   SignedUrl,
   SignedUrlSource,
+  StorageImage,
+  UseImageOptions,
   Upload,
   UploadStatus,
   UploadTarget,

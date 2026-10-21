@@ -3,13 +3,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type {
+  Bucket,
   StorageApi,
   StorageBucketApi,
   StorageClient,
   TemplateParams,
+  TransformOptions,
 } from "../../src/storage/index.ts";
 
-import { defineBucket } from "../../src/storage/index.ts";
+import { avatarBucket, defineBucket } from "../../src/storage/index.ts";
 
 describe("bucket types", () => {
   it("derives path values from the template", () => {
@@ -32,6 +34,50 @@ describe("bucket types", () => {
       // @ts-expect-error unknown placeholder
       other: "x",
     });
+  });
+});
+
+describe("bucket variants", () => {
+  it("types variant names in renderUrl, signedUrl and publicUrl", () => {
+    const storage = defineBucket({
+      id: "photos",
+      path: "{userId}/{file}",
+      variants: { thumb: { width: 96, height: 96 }, hero: { width: 1600 } },
+    }).connect({} as SupabaseClient);
+
+    expectTypeOf(storage.bucket.variants).toEqualTypeOf<
+      Readonly<Record<"thumb" | "hero", TransformOptions>>
+    >();
+    expectTypeOf<Parameters<typeof storage.renderUrl>[1]>().toEqualTypeOf<
+      "thumb" | "hero" | TransformOptions
+    >();
+    storage.renderUrl("u/a.png", "thumb");
+    storage.renderUrl("u/a.png", { width: 10 });
+    storage.signedUrl("u/a.png", { transform: "hero" });
+    storage.publicUrl("u/a.png", { transform: "thumb" });
+    // @ts-expect-error unknown variant
+    storage.renderUrl("u/a.png", "huge");
+
+    const plain = defineBucket({ id: "plain", path: "{file}" }).connect(
+      {} as SupabaseClient,
+    );
+
+    // @ts-expect-error a bucket without variants takes inline transforms only
+    plain.renderUrl("a.png", "thumb");
+    expectTypeOf<
+      Parameters<typeof plain.renderUrl>[1]
+    >().toEqualTypeOf<TransformOptions>();
+  });
+
+  it("keeps a bucket with variants assignable to the loose Bucket type", () => {
+    const photos = defineBucket({
+      id: "photos",
+      path: "{file}",
+      variants: { thumb: { width: 96 } },
+    });
+
+    expectTypeOf(photos).toExtend<Bucket<string>>();
+    expectTypeOf(avatarBucket()).toExtend<Bucket<string>>();
   });
 });
 
