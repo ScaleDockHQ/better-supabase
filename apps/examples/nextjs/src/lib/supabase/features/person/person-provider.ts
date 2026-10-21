@@ -14,6 +14,7 @@ import {
   unlinkPersonRelations,
   createPersonShareLinks,
   revokePersonShareLinks,
+  startPersonSla,
   applyPersonTags,
   removePersonTags,
 } from "./person-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createPersonShareLinks,
     revoke: revokePersonShareLinks,
+  },
+  sla: {
+    start: startPersonSla,
   },
   tags: {
     apply: applyPersonTags,

@@ -18,6 +18,8 @@ export const createTaskShareLinks = taskRecord.actions.shareLinks.create;
 
 export const revokeTaskShareLinks = taskRecord.actions.shareLinks.revoke;
 
+export const startTaskSla = taskRecord.actions.sla.start;
+
 export const applyTaskTags = taskRecord.actions.tags.apply;
 
 export const removeTaskTags = taskRecord.actions.tags.remove;

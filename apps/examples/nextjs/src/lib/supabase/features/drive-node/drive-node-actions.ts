@@ -18,6 +18,8 @@ export const createDriveNodeShareLinks = driveNodeRecord.actions.shareLinks.crea
 
 export const revokeDriveNodeShareLinks = driveNodeRecord.actions.shareLinks.revoke;
 
+export const startDriveNodeSla = driveNodeRecord.actions.sla.start;
+
 export const applyDriveNodeTags = driveNodeRecord.actions.tags.apply;
 
 export const removeDriveNodeTags = driveNodeRecord.actions.tags.remove;

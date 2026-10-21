@@ -18,6 +18,8 @@ export const createApplicationShareLinks = applicationRecord.actions.shareLinks.
 
 export const revokeApplicationShareLinks = applicationRecord.actions.shareLinks.revoke;
 
+export const startApplicationSla = applicationRecord.actions.sla.start;
+
 export const applyApplicationTags = applicationRecord.actions.tags.apply;
 
 export const removeApplicationTags = applicationRecord.actions.tags.remove;

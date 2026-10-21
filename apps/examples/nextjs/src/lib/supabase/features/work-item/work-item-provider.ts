@@ -14,6 +14,7 @@ import {
   unlinkWorkItemRelations,
   createWorkItemShareLinks,
   revokeWorkItemShareLinks,
+  startWorkItemSla,
   applyWorkItemTags,
   removeWorkItemTags,
 } from "./work-item-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createWorkItemShareLinks,
     revoke: revokeWorkItemShareLinks,
+  },
+  sla: {
+    start: startWorkItemSla,
   },
   tags: {
     apply: applyWorkItemTags,

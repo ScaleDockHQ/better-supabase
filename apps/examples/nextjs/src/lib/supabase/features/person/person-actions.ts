@@ -18,6 +18,8 @@ export const createPersonShareLinks = personRecord.actions.shareLinks.create;
 
 export const revokePersonShareLinks = personRecord.actions.shareLinks.revoke;
 
+export const startPersonSla = personRecord.actions.sla.start;
+
 export const applyPersonTags = personRecord.actions.tags.apply;
 
 export const removePersonTags = personRecord.actions.tags.remove;

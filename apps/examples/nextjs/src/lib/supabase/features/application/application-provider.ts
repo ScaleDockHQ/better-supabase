@@ -14,6 +14,7 @@ import {
   unlinkApplicationRelations,
   createApplicationShareLinks,
   revokeApplicationShareLinks,
+  startApplicationSla,
   applyApplicationTags,
   removeApplicationTags,
 } from "./application-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createApplicationShareLinks,
     revoke: revokeApplicationShareLinks,
+  },
+  sla: {
+    start: startApplicationSla,
   },
   tags: {
     apply: applyApplicationTags,

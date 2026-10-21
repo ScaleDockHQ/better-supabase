@@ -18,6 +18,8 @@ export const createEngagementShareLinks = engagementRecord.actions.shareLinks.cr
 
 export const revokeEngagementShareLinks = engagementRecord.actions.shareLinks.revoke;
 
+export const startEngagementSla = engagementRecord.actions.sla.start;
+
 export const applyEngagementTags = engagementRecord.actions.tags.apply;
 
 export const removeEngagementTags = engagementRecord.actions.tags.remove;

@@ -18,6 +18,8 @@ export const createProductShareLinks = productRecord.actions.shareLinks.create;
 
 export const revokeProductShareLinks = productRecord.actions.shareLinks.revoke;
 
+export const startProductSla = productRecord.actions.sla.start;
+
 export const applyProductTags = productRecord.actions.tags.apply;
 
 export const removeProductTags = productRecord.actions.tags.remove;

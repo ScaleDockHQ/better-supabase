@@ -14,6 +14,7 @@ import {
   unlinkTaskRelations,
   createTaskShareLinks,
   revokeTaskShareLinks,
+  startTaskSla,
   applyTaskTags,
   removeTaskTags,
 } from "./task-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createTaskShareLinks,
     revoke: revokeTaskShareLinks,
+  },
+  sla: {
+    start: startTaskSla,
   },
   tags: {
     apply: applyTaskTags,

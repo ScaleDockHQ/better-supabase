@@ -14,6 +14,7 @@ import {
   unlinkCompanyRelations,
   createCompanyShareLinks,
   revokeCompanyShareLinks,
+  startCompanySla,
   applyCompanyTags,
   removeCompanyTags,
 } from "./company-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createCompanyShareLinks,
     revoke: revokeCompanyShareLinks,
+  },
+  sla: {
+    start: startCompanySla,
   },
   tags: {
     apply: applyCompanyTags,

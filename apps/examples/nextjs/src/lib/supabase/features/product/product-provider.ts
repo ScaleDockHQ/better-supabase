@@ -14,6 +14,7 @@ import {
   unlinkProductRelations,
   createProductShareLinks,
   revokeProductShareLinks,
+  startProductSla,
   applyProductTags,
   removeProductTags,
 } from "./product-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createProductShareLinks,
     revoke: revokeProductShareLinks,
+  },
+  sla: {
+    start: startProductSla,
   },
   tags: {
     apply: applyProductTags,

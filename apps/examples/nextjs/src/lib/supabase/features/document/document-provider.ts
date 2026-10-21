@@ -14,6 +14,7 @@ import {
   unlinkDocumentRelations,
   createDocumentShareLinks,
   revokeDocumentShareLinks,
+  startDocumentSla,
   applyDocumentTags,
   removeDocumentTags,
 } from "./document-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createDocumentShareLinks,
     revoke: revokeDocumentShareLinks,
+  },
+  sla: {
+    start: startDocumentSla,
   },
   tags: {
     apply: applyDocumentTags,

@@ -14,6 +14,7 @@ import {
   unlinkEngagementRelations,
   createEngagementShareLinks,
   revokeEngagementShareLinks,
+  startEngagementSla,
   applyEngagementTags,
   removeEngagementTags,
 } from "./engagement-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createEngagementShareLinks,
     revoke: revokeEngagementShareLinks,
+  },
+  sla: {
+    start: startEngagementSla,
   },
   tags: {
     apply: applyEngagementTags,

@@ -276,29 +276,6 @@ export const deleteTaskView = bs.action(
   },
 );
 
-/** Keeps the project's name, budget and currency as a version now. */
-export const saveProjectVersion = bs.action(
-  {
-    input: v.object({ projectId: Id }),
-    requireTenant: true,
-    authorize: (session) => can(session, "versions.create"),
-  },
-  async ({ projectId }, { tenant, supabase, auth }) => {
-    const saved = await blocks(supabase, tenant).versions.snapshot({
-      type: PROJECT_SUBJECT,
-      id: projectId,
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
-  },
-);
-
 /**
  * Writes the chosen fields of a version back to the project and leaves the rest
  * as they are (`versions.restoreFields`). The snapshot trigger already kept the

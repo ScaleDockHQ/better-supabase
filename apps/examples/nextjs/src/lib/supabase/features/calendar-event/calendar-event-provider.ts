@@ -14,6 +14,7 @@ import {
   unlinkCalendarEventRelations,
   createCalendarEventShareLinks,
   revokeCalendarEventShareLinks,
+  startCalendarEventSla,
   applyCalendarEventTags,
   removeCalendarEventTags,
 } from "./calendar-event-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createCalendarEventShareLinks,
     revoke: revokeCalendarEventShareLinks,
+  },
+  sla: {
+    start: startCalendarEventSla,
   },
   tags: {
     apply: applyCalendarEventTags,

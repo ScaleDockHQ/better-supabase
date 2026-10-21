@@ -54,8 +54,8 @@ function kebab(name: string): string {
 /**
  * The subject types a block's SQL serves, which is where its sections load: the
  * types `blocks.<name>.options.subjects` names, or every tenant-scoped
- * registered subject when it names none. SLA clocks run only on the listed
- * types, and versions also on subjects with `versions` set.
+ * registered subject when it names none. Versions keep only the listed types
+ * and the subjects with `versions` set.
  */
 function servedSubjects(config: FeaturesConfig, block: string): Set<string> {
   const listed = resolveModule(config.blocks[block]).options["subjects"];
@@ -79,13 +79,11 @@ function servedSubjects(config: FeaturesConfig, block: string): Set<string> {
     return new Set(named);
   }
 
-  return block === "sla"
-    ? new Set()
-    : new Set(
-        registry
-          .filter(([, entry]) => entry.tenant !== false)
-          .map(([type]) => type),
-      );
+  return new Set(
+    registry
+      .filter(([, entry]) => entry.tenant !== false)
+      .map(([type]) => type),
+  );
 }
 
 function sectionBlocks(config: FeaturesConfig): readonly SectionBlock[] {

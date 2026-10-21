@@ -18,6 +18,8 @@ export const createProjectShareLinks = projectRecord.actions.shareLinks.create;
 
 export const revokeProjectShareLinks = projectRecord.actions.shareLinks.revoke;
 
+export const startProjectSla = projectRecord.actions.sla.start;
+
 export const applyProjectTags = projectRecord.actions.tags.apply;
 
 export const removeProjectTags = projectRecord.actions.tags.remove;

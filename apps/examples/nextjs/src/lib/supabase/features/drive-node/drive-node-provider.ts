@@ -14,6 +14,7 @@ import {
   unlinkDriveNodeRelations,
   createDriveNodeShareLinks,
   revokeDriveNodeShareLinks,
+  startDriveNodeSla,
   applyDriveNodeTags,
   removeDriveNodeTags,
 } from "./drive-node-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createDriveNodeShareLinks,
     revoke: revokeDriveNodeShareLinks,
+  },
+  sla: {
+    start: startDriveNodeSla,
   },
   tags: {
     apply: applyDriveNodeTags,

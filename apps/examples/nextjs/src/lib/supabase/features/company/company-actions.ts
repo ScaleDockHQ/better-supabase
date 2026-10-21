@@ -18,6 +18,8 @@ export const createCompanyShareLinks = companyRecord.actions.shareLinks.create;
 
 export const revokeCompanyShareLinks = companyRecord.actions.shareLinks.revoke;
 
+export const startCompanySla = companyRecord.actions.sla.start;
+
 export const applyCompanyTags = companyRecord.actions.tags.apply;
 
 export const removeCompanyTags = companyRecord.actions.tags.remove;

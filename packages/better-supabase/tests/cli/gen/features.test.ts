@@ -17,7 +17,7 @@ function config(extra: Record<string, unknown> = {}) {
         comments: {},
         tags: {},
         versions: {},
-        sla: { options: { subjects: { customer: {} } } },
+        sla: {},
       },
       ...extra,
     },
@@ -54,7 +54,7 @@ describe("record features", () => {
     expect(customer).toContain("    sla: slaBlock,");
     expect(customer).not.toContain("versions");
     expect(project).toContain("    versions: versionsBlock,");
-    expect(project).not.toContain("sla");
+    expect(project).toContain("    sla: slaBlock,");
   });
 
   it("matches the golden Next.js bindings", () => {

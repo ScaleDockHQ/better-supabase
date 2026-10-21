@@ -14,6 +14,7 @@ import {
   unlinkDealRelations,
   createDealShareLinks,
   revokeDealShareLinks,
+  startDealSla,
   applyDealTags,
   removeDealTags,
 } from "./deal-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createDealShareLinks,
     revoke: revokeDealShareLinks,
+  },
+  sla: {
+    start: startDealSla,
   },
   tags: {
     apply: applyDealTags,

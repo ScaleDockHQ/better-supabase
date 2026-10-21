@@ -18,6 +18,8 @@ export const createDocumentShareLinks = documentRecord.actions.shareLinks.create
 
 export const revokeDocumentShareLinks = documentRecord.actions.shareLinks.revoke;
 
+export const startDocumentSla = documentRecord.actions.sla.start;
+
 export const applyDocumentTags = documentRecord.actions.tags.apply;
 
 export const removeDocumentTags = documentRecord.actions.tags.remove;

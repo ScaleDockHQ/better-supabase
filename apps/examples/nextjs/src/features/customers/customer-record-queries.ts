@@ -2,16 +2,11 @@ import "server-only";
 import type { SectionResult } from "better-supabase/records";
 
 import { toDbError } from "better-supabase";
-import { attachmentsBlock } from "better-supabase/blocks/attachments";
-import { tenantOf } from "better-supabase/next";
-import { loadSections } from "better-supabase/records";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { blocks } from "@/lib/blocks";
+import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
 import { bs } from "@/lib/supabase/server";
-
-import { customerAttachments } from "./customer-attachments";
 
 /**
  * What a card on the customer page renders: the rows, or a failed read. The
@@ -19,36 +14,25 @@ import { customerAttachments } from "./customer-attachments";
  */
 export type Loaded<T> = Exclude<SectionResult<T>, { readonly kind: "hidden" }>;
 
-const SUBJECT = "customer";
-
-/** The blocks whose sections the customer page loads with `loadSections`. */
-const SECTION_BLOCKS = { attachments: attachmentsBlock };
-
-/**
- * For the cards whose block has no section yet. A failed read throws inside the
- * cached loader, so it is never cached and Retry (`refresh()`) reads again;
- * here it becomes the card's error state.
- */
-async function settle<T>(load: () => Promise<T>): Promise<Loaded<T>> {
-  try {
-    return { kind: "ok", data: await load() };
-  } catch (error) {
-    unstable_rethrow(error);
-
-    return { kind: "error", error: toDbError(error) };
-  }
+/** A hidden section reads as an empty list on the cards that always render. */
+function visible<T>(result: SectionResult<readonly T[]>): Loaded<readonly T[]> {
+  return result.kind === "hidden" ? { kind: "ok", data: [] } : result;
 }
 
-async function caller() {
-  const { session, supabase, db } = await bs.cached();
-  const organizationId = tenantOf(session);
-
-  if (!organizationId) {
-    throw new Error("No active organization");
-  }
-
-  return { organizationId, supabase, db };
+function mapped<T, U>(
+  result: SectionResult<readonly T[]>,
+  map: (row: T) => U,
+): SectionResult<readonly U[]> {
+  return result.kind === "ok"
+    ? { kind: "ok", data: result.data.map(map) }
+    : result;
 }
+
+const epoch = (iso: string): number =>
+  Temporal.Instant.from(iso).epochMilliseconds;
+
+const epochOrNull = (iso: string | null | undefined): number | null =>
+  iso === null || iso === undefined ? null : epoch(iso);
 
 export interface ShareLinkRow {
   readonly id: string;
@@ -60,30 +44,29 @@ export interface ShareLinkRow {
   readonly expired: boolean;
 }
 
-async function loadShareLinks(
+/** The share links the caller created or may read, revoked ones last. */
+export async function getShareLinks(
   customerId: string,
-): Promise<readonly ShareLinkRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
+): Promise<Loaded<readonly ShareLinkRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["shareLinks"],
+  });
 
   const now = Temporal.Now.instant().epochMilliseconds;
 
-  const links = await blocks(supabase, organizationId)
-    .shareLinks.list({ type: SUBJECT, id: customerId })
-    .orThrow();
+  return visible(
+    mapped(sections.shareLinks, (link) => {
+      const expiresAt = epochOrNull(link.expiresAt);
 
-  return links.map((link) => ({
-    id: link.id,
-    role: link.role,
-    expiresAt: link.expiresAt?.epochMilliseconds ?? null,
-    revokedAt: link.revokedAt?.epochMilliseconds ?? null,
-    expired: link.expiresAt !== null && link.expiresAt.epochMilliseconds <= now,
-  }));
-}
-
-/** The share links the caller created or may read, revoked ones last. */
-export function getShareLinks(customerId: string) {
-  return settle(() => loadShareLinks(customerId));
+      return {
+        id: link.id,
+        role: link.role,
+        expiresAt,
+        revokedAt: epochOrNull(link.revokedAt),
+        expired: expiresAt !== null && expiresAt <= now,
+      };
+    }),
+  );
 }
 
 export interface AttachmentRow {
@@ -96,38 +79,22 @@ export interface AttachmentRow {
   readonly createdAt: number;
 }
 
-/**
- * The customer's files, newest first. `loadSections` settles the read, so it
- * runs outside `"use cache"`, where a cached error would stick until it went
- * stale.
- */
+/** The customer's files, newest first. */
 export async function getAttachments(
   customerId: string,
 ): Promise<SectionResult<readonly AttachmentRow[]>> {
-  const { organizationId, supabase } = await caller();
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["attachments"],
+  });
 
-  const { attachments } = await loadSections(
-    {
-      blocks: SECTION_BLOCKS,
-      clients: { attachments: customerAttachments(supabase, organizationId) },
-    },
-    { type: SUBJECT, id: customerId },
-    ["attachments"],
-  );
-
-  return attachments.kind === "ok"
-    ? {
-        kind: "ok",
-        data: attachments.data.map((file) => ({
-          id: file.id,
-          name: file.name,
-          size: file.size,
-          status: file.status,
-          uploaded: file.uploadedAt !== undefined,
-          createdAt: file.createdAt.epochMilliseconds,
-        })),
-      }
-    : attachments;
+  return mapped(sections.attachments, (file) => ({
+    id: file.id,
+    name: file.name,
+    size: file.size,
+    status: file.status,
+    uploaded: file.uploadedAt !== undefined,
+    createdAt: epoch(file.createdAt),
+  }));
 }
 
 export interface CustomerOption {
@@ -149,37 +116,49 @@ export interface Relations {
   readonly options: readonly CustomerOption[];
 }
 
-async function loadRelations(customerId: string): Promise<Relations> {
-  "use cache: private";
-  const { organizationId, supabase, db } = await caller();
-
-  const [links, customers] = await Promise.all([
-    blocks(supabase, organizationId)
-      .relations.of({ type: SUBJECT, id: customerId })
-      .orThrow(),
-    db.customers
-      .findMany({
-        select: ["id", "name"],
-        orderBy: { name: "asc" },
-        limit: 200,
-      })
-      .orThrow(),
+/** The records linked to the customer, and the customers it can link to. */
+export async function getRelations(
+  customerId: string,
+): Promise<Loaded<Relations>> {
+  const [{ sections }, { db }] = await Promise.all([
+    customerRecord.load(customerId, { sections: ["relations"] }),
+    bs.context(),
   ]);
 
-  return {
-    links: links.map((link) => ({
+  const links = visible(
+    mapped(sections.relations, (link) => ({
       id: link.id,
       kind: link.kind,
       subjectType: link.subject.type,
       subjectId: link.subject.id,
     })),
-    options: customers.filter((row) => row.id !== customerId),
-  };
-}
+  );
 
-/** The records linked to the customer, and the customers it can link to. */
-export function getRelations(customerId: string) {
-  return settle(() => loadRelations(customerId));
+  if (links.kind === "error") {
+    return links;
+  }
+
+  try {
+    const customers = await db.customers
+      .findMany({
+        select: ["id", "name"],
+        orderBy: { name: "asc" },
+        limit: 200,
+      })
+      .orThrow();
+
+    return {
+      kind: "ok",
+      data: {
+        links: links.data,
+        options: customers.filter((row) => row.id !== customerId),
+      },
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+
+    return { kind: "error", error: toDbError(error) };
+  }
 }
 
 export interface VersionRow {
@@ -190,28 +169,24 @@ export interface VersionRow {
   readonly createdAt: number;
 }
 
-async function loadVersions(
-  customerId: string,
-): Promise<readonly VersionRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
-
-  const versions = await blocks(supabase, organizationId)
-    .versions.list({ type: SUBJECT, id: customerId }, { pageSize: 20 })
-    .orThrow();
-
-  return versions.map((version) => ({
-    id: version.id,
-    number: version.number,
-    label: version.label ?? null,
-    source: version.source,
-    createdAt: version.createdAt.epochMilliseconds,
-  }));
-}
-
 /** The customer's saved versions, newest first. */
-export function getVersions(customerId: string) {
-  return settle(() => loadVersions(customerId));
+export async function getVersions(
+  customerId: string,
+): Promise<Loaded<readonly VersionRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["versions"],
+    options: { versions: { pageSize: 20 } },
+  });
+
+  return visible(
+    mapped(sections.versions, (version) => ({
+      id: version.id,
+      number: version.number,
+      label: version.label ?? null,
+      source: version.source,
+      createdAt: epoch(version.createdAt),
+    })),
+  );
 }
 
 export interface SlaClockRow {
@@ -223,26 +198,21 @@ export interface SlaClockRow {
   readonly secondsLeft: number | null;
 }
 
-async function loadSlaClocks(
-  customerId: string,
-): Promise<readonly SlaClockRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
-
-  const clocks = await blocks(supabase, organizationId)
-    .sla.clocks({ type: SUBJECT, id: customerId })
-    .orThrow();
-
-  return clocks.map((clock) => ({
-    id: clock.id,
-    metric: clock.metric,
-    state: clock.state,
-    dueAt: clock.dueAt.epochMilliseconds,
-    secondsLeft: clock.secondsLeft ?? null,
-  }));
-}
-
 /** The customer's SLA clocks, with the time left on each open one. */
-export function getSlaClocks(customerId: string) {
-  return settle(() => loadSlaClocks(customerId));
+export async function getSlaClocks(
+  customerId: string,
+): Promise<Loaded<readonly SlaClockRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["sla"],
+  });
+
+  return visible(
+    mapped(sections.sla, (clock) => ({
+      id: clock.id,
+      metric: clock.metric,
+      state: clock.state,
+      dueAt: epoch(clock.dueAt),
+      secondsLeft: clock.secondsLeft ?? null,
+    })),
+  );
 }

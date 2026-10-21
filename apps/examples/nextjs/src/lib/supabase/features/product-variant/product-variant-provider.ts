@@ -14,6 +14,7 @@ import {
   unlinkProductVariantRelations,
   createProductVariantShareLinks,
   revokeProductVariantShareLinks,
+  startProductVariantSla,
   applyProductVariantTags,
   removeProductVariantTags,
 } from "./product-variant-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createProductVariantShareLinks,
     revoke: revokeProductVariantShareLinks,
+  },
+  sla: {
+    start: startProductVariantSla,
   },
   tags: {
     apply: applyProductVariantTags,

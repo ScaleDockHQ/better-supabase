@@ -18,6 +18,8 @@ export const createCalendarEventShareLinks = calendarEventRecord.actions.shareLi
 
 export const revokeCalendarEventShareLinks = calendarEventRecord.actions.shareLinks.revoke;
 
+export const startCalendarEventSla = calendarEventRecord.actions.sla.start;
+
 export const applyCalendarEventTags = calendarEventRecord.actions.tags.apply;
 
 export const removeCalendarEventTags = calendarEventRecord.actions.tags.remove;

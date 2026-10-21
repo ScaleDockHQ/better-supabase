@@ -18,6 +18,8 @@ export const createCustomerShareLinks = customerRecord.actions.shareLinks.create
 
 export const revokeCustomerShareLinks = customerRecord.actions.shareLinks.revoke;
 
+export const startCustomerSla = customerRecord.actions.sla.start;
+
 export const applyCustomerTags = customerRecord.actions.tags.apply;
 
 export const removeCustomerTags = customerRecord.actions.tags.remove;

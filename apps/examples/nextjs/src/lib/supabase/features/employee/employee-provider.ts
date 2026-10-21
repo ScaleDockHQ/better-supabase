@@ -14,6 +14,7 @@ import {
   unlinkEmployeeRelations,
   createEmployeeShareLinks,
   revokeEmployeeShareLinks,
+  startEmployeeSla,
   applyEmployeeTags,
   removeEmployeeTags,
 } from "./employee-actions.ts";
@@ -36,6 +37,9 @@ const writes = {
   shareLinks: {
     create: createEmployeeShareLinks,
     revoke: revokeEmployeeShareLinks,
+  },
+  sla: {
+    start: startEmployeeSla,
   },
   tags: {
     apply: applyEmployeeTags,

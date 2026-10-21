@@ -18,6 +18,8 @@ export const createEmployeeShareLinks = employeeRecord.actions.shareLinks.create
 
 export const revokeEmployeeShareLinks = employeeRecord.actions.shareLinks.revoke;
 
+export const startEmployeeSla = employeeRecord.actions.sla.start;
+
 export const applyEmployeeTags = employeeRecord.actions.tags.apply;
 
 export const removeEmployeeTags = employeeRecord.actions.tags.remove;

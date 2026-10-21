@@ -9167,7 +9167,11 @@ export function ShareLinkDialog({
             ) : null}
           </Empty>
         ) : (
-          <ShareLinkList links={links.data} canRevoke={canCreate} />
+          <ShareLinkList
+            customerId={customerId}
+            links={links.data}
+            canRevoke={canCreate}
+          />
         )}
       </CardContent>
     </Card>
@@ -9175,9 +9179,11 @@ export function ShareLinkDialog({
 }
 
 function ShareLinkList({
+  customerId,
   links,
   canRevoke,
 }: {
+  customerId: string;
   links: readonly ShareLinkRow[];
   canRevoke: boolean;
 }) {
@@ -9217,7 +9223,7 @@ function ShareLinkList({
               </span>
             </div>
             {canRevoke && state === "active" ? (
-              <RevokeShareLink id={link.id} />
+              <RevokeShareLink id={link.id} customerId={customerId} />
             ) : null}
           </li>
         );
@@ -9357,11 +9363,17 @@ function CreateShareLink({ customerId }: { customerId: string }) {
   );
 }
 
-function RevokeShareLink({ id }: { id: string }) {
+function RevokeShareLink({
+  id,
+  customerId,
+}: {
+  id: string;
+  customerId: string;
+}) {
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const revoke = useAction(revokeShareLink, {
+  const revoke = useAction(revokeCustomerShareLinks, {
     onSuccess: () => {
       toast.success(t("Link revoked"));
     },
@@ -9391,7 +9403,7 @@ function RevokeShareLink({ id }: { id: string }) {
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void revoke.run({ id });
+              void revoke.run({ id: customerId, input: { id } });
             }}
           >
             {t("Revoke")}
@@ -11956,7 +11968,7 @@ function RelatedList({
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const unlink = useAction(unlinkCustomer, {
+  const unlink = useAction(unlinkCustomerRelations, {
     onSuccess: () => {
       toast.success(t("Link removed"));
     },
@@ -11988,14 +12000,15 @@ function RelatedList({
               disabled={unlink.pendingInputs.some(
                 (input) =>
                   !(input instanceof FormData) &&
-                  input.subjectId === link.subjectId,
+                  input.input.target.id === link.subjectId,
               )}
               onClick={() => {
                 void unlink.run({
-                  customerId,
-                  kind: link.kind,
-                  subjectType: link.subjectType,
-                  subjectId: link.subjectId,
+                  id: customerId,
+                  input: {
+                    kind: link.kind,
+                    target: { type: link.subjectType, id: link.subjectId },
+                  },
                 });
               }}
             >
@@ -12020,7 +12033,7 @@ function LinkForm({
   const errorMessage = useErrorMessage();
   const [targetId, setTargetId] = useState<string | null>(null);
 
-  const link = useAction(linkCustomer, {
+  const link = useAction(linkCustomerRelations, {
     onSuccess: () => {
       setTargetId(null);
       toast.success(t("Customer linked"));
@@ -12043,7 +12056,13 @@ function LinkForm({
         event.preventDefault();
 
         if (targetId) {
-          void link.run({ customerId, targetId });
+          void link.run({
+            id: customerId,
+            input: {
+              kind: "relates",
+              target: { type: "customer", id: targetId },
+            },
+          });
         }
       }}
     >
@@ -14464,7 +14483,7 @@ function SaveVersionButton({ customerId }: { customerId: string }) {
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const save = useAction(saveCustomerVersion, {
+  const save = useAction(snapshotCustomerVersions, {
     onSuccess: () => {
       toast.success(t("Version saved"));
     },
@@ -14479,7 +14498,7 @@ function SaveVersionButton({ customerId }: { customerId: string }) {
       variant="outline"
       disabled={save.pending}
       onClick={() => {
-        void save.run({ customerId });
+        void save.run({ id: customerId, input: {} });
       }}
     >
       <HistoryIcon />
@@ -19189,7 +19208,7 @@ function SaveVersionButton({ projectId }: { projectId: string }) {
   const t = useExtracted("projects");
   const errorMessage = useErrorMessage();
 
-  const save = useAction(saveProjectVersion, {
+  const save = useAction(snapshotProjectVersions, {
     onSuccess: () => {
       toast.success(t("Version saved"));
     },
@@ -19204,7 +19223,7 @@ function SaveVersionButton({ projectId }: { projectId: string }) {
       variant="outline"
       disabled={save.pending}
       onClick={() => {
-        void save.run({ projectId });
+        void save.run({ id: projectId, input: {} });
       }}
     >
       <HistoryIcon />

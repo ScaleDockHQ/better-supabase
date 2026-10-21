@@ -18,6 +18,8 @@ export const createDealShareLinks = dealRecord.actions.shareLinks.create;
 
 export const revokeDealShareLinks = dealRecord.actions.shareLinks.revoke;
 
+export const startDealSla = dealRecord.actions.sla.start;
+
 export const applyDealTags = dealRecord.actions.tags.apply;
 
 export const removeDealTags = dealRecord.actions.tags.remove;

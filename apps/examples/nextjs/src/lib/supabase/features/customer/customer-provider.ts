@@ -14,6 +14,7 @@ import {
   unlinkCustomerRelations,
   createCustomerShareLinks,
   revokeCustomerShareLinks,
+  startCustomerSla,
   applyCustomerTags,
   removeCustomerTags,
   snapshotCustomerVersions,
@@ -38,6 +39,9 @@ const writes = {
   shareLinks: {
     create: createCustomerShareLinks,
     revoke: revokeCustomerShareLinks,
+  },
+  sla: {
+    start: startCustomerSla,
   },
   tags: {
     apply: applyCustomerTags,

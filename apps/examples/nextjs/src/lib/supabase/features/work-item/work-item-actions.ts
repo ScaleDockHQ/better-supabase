@@ -18,6 +18,8 @@ export const createWorkItemShareLinks = workItemRecord.actions.shareLinks.create
 
 export const revokeWorkItemShareLinks = workItemRecord.actions.shareLinks.revoke;
 
+export const startWorkItemSla = workItemRecord.actions.sla.start;
+
 export const applyWorkItemTags = workItemRecord.actions.tags.apply;
 
 export const removeWorkItemTags = workItemRecord.actions.tags.remove;

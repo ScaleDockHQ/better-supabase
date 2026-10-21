@@ -14,6 +14,7 @@ import {
   unlinkProjectRelations,
   createProjectShareLinks,
   revokeProjectShareLinks,
+  startProjectSla,
   applyProjectTags,
   removeProjectTags,
   snapshotProjectVersions,
@@ -38,6 +39,9 @@ const writes = {
   shareLinks: {
     create: createProjectShareLinks,
     revoke: revokeProjectShareLinks,
+  },
+  sla: {
+    start: startProjectSla,
   },
   tags: {
     apply: applyProjectTags,

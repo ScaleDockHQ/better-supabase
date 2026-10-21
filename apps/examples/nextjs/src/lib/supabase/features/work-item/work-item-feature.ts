@@ -6,6 +6,7 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
 
 import { blockConfig, permissions } from "../../blocks.generated.ts";
@@ -21,6 +22,7 @@ export const workItemFeature = defineRecordFeature({
     comments: commentsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
+    sla: slaBlock,
     tags: tagsBlock,
   },
   config: blockConfig,
