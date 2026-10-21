@@ -170,11 +170,25 @@ function blocksOf(blocks: BetterSupabaseConfig["blocks"]): AnyBlocksConfig {
 }
 
 /**
+ * A literal config after `expandPreset`: the same type without a preset, and
+ * with one, every key but `blocks` and `sql` as written, those two merged with
+ * the preset's.
+ */
+export type ExpandedConfig<C extends BetterSupabaseConfig> = C extends {
+  readonly preset: NonNullable<BetterSupabaseConfig["preset"]>;
+}
+  ? Omit<C, "blocks" | "sql"> & Pick<BetterSupabaseConfig, "blocks" | "sql">
+  : C;
+
+/**
  * `config` with its `preset` expanded: the preset's blocks (and what they
  * require) and conventions first, then the config's own keys over them, so
  * explicit config wins. A block in both keeps the preset's settings that the
  * config's entry leaves unset. Expanding twice gives the same config.
  */
+export function expandPreset<const C extends BetterSupabaseConfig>(
+  config: C,
+): ExpandedConfig<C>;
 export function expandPreset(
   config: BetterSupabaseConfig,
 ): BetterSupabaseConfig {

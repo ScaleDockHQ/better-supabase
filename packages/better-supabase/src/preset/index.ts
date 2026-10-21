@@ -25,6 +25,8 @@ export {
   presetOf,
 } from "./config.ts";
 
+export type { ExpandedConfig } from "./config.ts";
+
 export {
   APP_NAME_MAX,
   appDefaultError,

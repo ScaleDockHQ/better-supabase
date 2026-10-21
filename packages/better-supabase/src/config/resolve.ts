@@ -1,5 +1,7 @@
+import type { ExpandedConfig } from "../preset/config.ts";
 import type { AuthorizationProvider } from "./authorization.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
+import type { ConfigReferences } from "./references.ts";
 import type { Generator } from "./types/codegen.ts";
 import type { BetterSupabaseConfig, ResolvedConfig } from "./types/config.ts";
 import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
@@ -147,13 +149,17 @@ export const CONFIG_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/config-v1.json";
 
 /**
- * Types `better-supabase.config.ts`. With `preset`, it expands the preset into
- * `blocks` and its conventions first, and the keys you set win.
+ * Types `better-supabase.config.ts` and returns it with its literal types. With
+ * `preset`, it expands the preset into `blocks` and its conventions first, and
+ * the keys you set win. It checks the references between keys against the
+ * config itself: block tables and app tables in `appTables` references, the
+ * `buckets` in `storagePaths`, and the `blocks.access.roles` other blocks
+ * name.
  */
-export function defineConfig(
-  config: BetterSupabaseConfig,
-): BetterSupabaseConfig {
-  return expandPreset(config);
+export function defineConfig<const C extends BetterSupabaseConfig>(
+  config: C & NoInfer<ConfigReferences<C>>,
+): ExpandedConfig<C> {
+  return expandPreset<C>(config);
 }
 
 function pick<T extends object>(

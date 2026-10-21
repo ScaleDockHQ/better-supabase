@@ -13,6 +13,17 @@ export { resolveJsonSchema } from "./json.ts";
 export { CONFIG_SCHEMA_URL, defineConfig, resolveConfig } from "./resolve.ts";
 
 export type {
+  AppTableNames,
+  BlockTableReference,
+  BucketName,
+  ConfigReferences,
+  RoleNames,
+  TypedReference,
+} from "./references.ts";
+
+export type { ExpandedConfig } from "../preset/config.ts";
+
+export type {
   ActorConfig,
   Casing,
   ClaimsConfig,
