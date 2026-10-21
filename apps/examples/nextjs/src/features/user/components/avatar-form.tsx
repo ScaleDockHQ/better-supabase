@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useImage } from "better-supabase/react";
 import { UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,16 +15,20 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { avatars } from "@/lib/buckets";
+import { useSupabase } from "@/lib/hooks";
 import { initials } from "@/lib/initials";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { uploadAvatar } from "../user-actions";
 
 export function AvatarForm({
+  avatarPath,
   avatarUrl,
   name,
   email,
 }: {
+  avatarPath: string | null;
   avatarUrl: string | null;
   name: string | null;
   email: string | null;
@@ -32,6 +36,10 @@ export function AvatarForm({
   const t = useExtracted("user");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
+  const supabase = useSupabase();
+  const storage = useMemo(() => avatars.connect(supabase), [supabase]);
+  const image = useImage(storage, avatarPath, "md");
+  const src = image.src ?? avatarUrl;
 
   const form = useActionForm(uploadAvatar, {
     onSuccess: () => {
@@ -44,7 +52,7 @@ export function AvatarForm({
   return (
     <form {...form.formProps} className="flex items-start gap-4">
       <Avatar className="size-16" data-testid="profile-avatar">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
+        {src ? <AvatarImage src={src} srcSet={image.srcSet} alt="" /> : null}
         <AvatarFallback className="text-lg">
           {initials(name, email)}
         </AvatarFallback>
