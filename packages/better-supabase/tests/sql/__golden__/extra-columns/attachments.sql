@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_34_attachments.sql
 -- better-supabase module: attachments
--- @bs-module attachments@2 managed
+-- @bs-module attachments@3 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -335,11 +335,14 @@ stable
 security invoker
 set search_path = ''
 as $$
+  with page as (
+    select * from "better_supabase"."attachments" y
+    where y."organization_id" is not distinct from list_attachments.tenant
+      and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
+      and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
+  )
   select coalesce(jsonb_agg((to_jsonb(a.*) || jsonb_build_object('fields', jsonb_build_object('app_note', a."app_note"))) order by a."created_at", a."id"), '[]'::jsonb)
-  from "better_supabase"."attachments" a
-  where a."organization_id" is not distinct from list_attachments.tenant
-    and (list_attachments.subject_type is null or a."subject_type" = list_attachments.subject_type)
-    and (list_attachments.subject_id is null or a."subject_id" = list_attachments.subject_id)
+  from page a
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)
@@ -485,6 +488,6 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('attachments', 2, 'managed')
+values ('attachments', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -33,6 +33,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
+import { authorLookup } from "./authors.ts";
 import { activityReads } from "./comments-activity.ts";
 import { commentWrites } from "./comments-writes.ts";
 
@@ -316,6 +317,28 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     permission,
     provider: layout.accessProvider,
   });
+
+  const authors = authorLookup(ctx, {
+    name: "comment_authors",
+    table: comments,
+    id: c("id"),
+    user: c("author"),
+    visible: access.memberOn(
+      `y.${c("tenant")}`,
+      `y.${c("subjectType")}`,
+      `y.${c("subjectId")}`,
+      "read",
+    ),
+    what: "The name and avatar of each comment's author, keyed by comment id,\n-- for the comments of ids the caller may read.",
+  });
+
+  const listJson = (row: string): string => {
+    const json = commentJson(row, `to_jsonb(${row}.*)`);
+
+    return authors === undefined
+      ? json
+      : authors.attach(json, "m.authors", row);
+  };
 
   const readable = subjectReadable(ctx, subjects, {
     type: "subject_type",
@@ -749,7 +772,7 @@ as $$
     returning 1
   )
   select exists (select 1 from removed)
-$$;
+$$;${authors?.sql ?? ""}
 
 -- A subject's thread, oldest first; deleted comments stay as placeholders
 -- so replies keep their parent. Page with after and after_id (the last
@@ -772,8 +795,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${commentJson("x", "to_jsonb(x.*)")} order by x.${c("createdAt")}, x.${c("id")}), '[]'::jsonb)
-  from (
+  with page as (
     select * from ${comments} y
     where ${ctx.scope.eq(`y.${c("tenant")}`, ctx.scope.value("list_comments.tenant"))}
       and y.${c("subjectType")} = list_comments.subject_type
@@ -783,7 +805,14 @@ as $$
     order by y.${c("createdAt")}, y.${c("id")}
     limit ${pageSize("list_comments.max_rows", 100, 500)}
     offset greatest(coalesce(list_comments.skip, 0), 0)
-  ) x
+  )${
+    authors === undefined
+      ? ""
+      : `,
+  m as (select ${authors.call(`array(select p.${c("id")} from page p)`)} as authors)`
+  }
+  select coalesce(jsonb_agg(${listJson("x")} order by x.${c("createdAt")}, x.${c("id")}), '[]'::jsonb)
+  from page x${authors === undefined ? "" : ", m"}
 $$;
 
 -- Comments per subject the caller can read, for counters in a list:
@@ -1001,11 +1030,15 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "record_activity", args: ["jsonb"], returns: "integer" },
+    ...(ctx.installed("profiles")
+      ? [{ name: "comment_authors", args: ["uuid[]"], returns: "jsonb" }]
+      : []),
   ];
 }
 
 export const COMMENTS: ModuleDefinition = {
   internal: [
+    "comment_authors",
     "comment_subject_readable",
     "activity_subject_readable",
     "activity_subject_deliveries",
@@ -1021,6 +1054,7 @@ export const COMMENTS: ModuleDefinition = {
   integrates: [
     "jsonb-schemas",
     "notifications",
+    "profiles",
     "subjects",
     "audit",
     "workflows",
@@ -1028,7 +1062,7 @@ export const COMMENTS: ModuleDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,
@@ -1062,6 +1096,12 @@ export const COMMENTS: ModuleDefinition = {
         "list_activity takes sources and returns a registered subject's notification deliveries and workflow runs.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("list_activity")}(${ctx.idType}, text, text, timestamptz, integer);`,
+    },
+    {
+      from: 6,
+      description:
+        "With profiles, list_comments returns each comment's author with a name and avatar.",
+      sql: () => "",
     },
   ],
   names: NAMES,
