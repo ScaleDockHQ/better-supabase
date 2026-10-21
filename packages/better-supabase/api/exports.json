@@ -1323,6 +1323,7 @@
       "AuthorizeOptions",
       "AuthSession",
       "BetterNext",
+      "BlockActionArgs",
       "CachedContext",
       "CachedOptions",
       "DbBudget",
@@ -1763,6 +1764,10 @@
     ],
     "types": [
       "BetterOrpc",
+      "BlockProcedure",
+      "BlockRoute",
+      "BlockRouter",
+      "BlockRouterOptions",
       "GuardOptions",
       "MiddlewareOptions",
       "OrpcAuthed",

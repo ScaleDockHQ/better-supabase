@@ -7,34 +7,22 @@ import type { DbError } from "../core/errors.ts";
 import type { EventMap, Events } from "../core/event-map.ts";
 import type { EventHub } from "../core/events.ts";
 import type { Result } from "../core/result.ts";
+import type {
+  BlockArgsOf,
+  BlockDataOf,
+  BlockMethodName,
+} from "./block-method.ts";
 import type { Controller } from "./controller.ts";
 
 import { onBlockEvent } from "../core/block-events.ts";
+import { methodOf } from "./block-method.ts";
 import { defineController } from "./controller.ts";
 
-type AnyMethod = (...args: never[]) => PromiseLike<Result<unknown>>;
-
-/** The method names of a block client. */
-export type BlockMethodName<C> = {
-  readonly [K in keyof C]: C[K] extends AnyMethod ? K : never;
-}[keyof C] &
-  string;
-
-/** The arguments of a block client method. */
-export type BlockArgsOf<C, K extends BlockMethodName<C>> = C[K] extends (
-  ...args: infer A
-) => PromiseLike<Result<unknown>>
-  ? A
-  : never;
-
-/** The data a block client method's `Result` carries. */
-export type BlockDataOf<C, K extends BlockMethodName<C>> = C[K] extends (
-  ...args: never[]
-) => PromiseLike<infer R>
-  ? R extends { readonly ok: true; readonly data: infer D }
-    ? D
-    : never
-  : never;
+export type {
+  BlockArgsOf,
+  BlockDataOf,
+  BlockMethodName,
+} from "./block-method.ts";
 
 /** A block read's state: the last data stays while it loads again. */
 export interface BlockQueryState<T> {
@@ -58,24 +46,6 @@ export interface BlockRefetchOn {
 export interface BlockQueryOptions {
   /** Calls the method again when one of these block events arrives. */
   readonly refetchOn?: BlockRefetchOn;
-}
-
-function methodOf(
-  client: object,
-  method: string,
-): (...args: unknown[]) => PromiseLike<Result<unknown>> {
-  // SAFETY: a read of the method name `BlockMethodName` took from the client.
-  const value = (client as Readonly<Record<string, unknown>>)[method];
-
-  if (typeof value !== "function") {
-    throw new TypeError(`better-supabase: the block client has no ${method}`);
-  }
-
-  // SAFETY: block client methods return an `AsyncResult`, a
-  // `PromiseLike<Result>`.
-  return value.bind(client) as (
-    ...args: unknown[]
-  ) => PromiseLike<Result<unknown>>;
 }
 
 /**

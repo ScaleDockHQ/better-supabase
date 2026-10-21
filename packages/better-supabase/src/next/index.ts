@@ -31,6 +31,7 @@ export type { ResourceMap } from "../server/resources.ts";
 
 export type {
   ActionOptions,
+  BlockActionArgs,
   BetterNext,
   CachedContext,
   CachedOptions,

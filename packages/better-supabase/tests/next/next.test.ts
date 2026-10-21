@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as v from "valibot";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
 
@@ -779,6 +779,83 @@ describe("createNext", () => {
     await betterSupabase.events.settled();
     await bs.proxy(page());
     expect(mocks.after).toHaveBeenCalledOnce();
+  });
+
+  it("runs a block method as an action, with its args and typed result", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const calls: unknown[][] = [];
+
+    const invoices = {
+      create: (input: { readonly title: string }) => {
+        calls.push(["create", input]);
+
+        return AsyncResult.from(() =>
+          Promise.resolve(ok({ id: "i1", ...input })),
+        );
+      },
+      issue: (id: string, when: string) => {
+        calls.push(["issue", id, when]);
+
+        return AsyncResult.from(() =>
+          Promise.resolve(
+            id === "missing"
+              ? {
+                  ok: false as const,
+                  data: null,
+                  error: dbError("not_found", "No invoice"),
+                }
+              : ok("issued"),
+          ),
+        );
+      },
+    };
+
+    const create = bs.blockAction(() => invoices, "create", {
+      input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
+    });
+
+    const issue = bs.blockAction(() => invoices, "issue", {
+      input: v.object({ invoiceId: v.string() }),
+      args: ({ invoiceId }) => [invoiceId, "today"],
+    });
+
+    // @ts-expect-error: issue takes two arguments, so `args` is required
+    bs.blockAction(() => invoices, "issue", {
+      input: v.object({ invoiceId: v.string() }),
+    });
+
+    const created = await create({ title: "Ship" });
+
+    expect(created).toEqual({
+      ok: true,
+      data: { id: "i1", title: "Ship" },
+      error: null,
+    });
+    expectTypeOf(created.data).toEqualTypeOf<{
+      id: string;
+      title: string;
+    } | null>();
+    expect(await create({ title: "" })).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
+    expect(await issue({ invoiceId: "i1" })).toEqual({
+      ok: true,
+      data: "issued",
+      error: null,
+    });
+    expect(await issue({ invoiceId: "missing" })).toMatchObject({
+      ok: false,
+      error: { kind: "not_found" },
+    });
+    expect(calls).toEqual([
+      ["create", { title: "Ship" }],
+      ["issue", "i1", "today"],
+      ["issue", "missing", "today"],
+    ]);
   });
 
   it("runs actions with validation, FormData and serializable results", async () => {
