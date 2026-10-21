@@ -939,6 +939,43 @@
       "UserChangeSource"
     ]
   },
+  "./records": {
+    "values": [
+      "can",
+      "countSection",
+      "createRecordController",
+      "defineSection",
+      "loadSections",
+      "permissionFlags",
+      "sectionCan",
+      "sectionEventMatches"
+    ],
+    "types": [
+      "AnySection",
+      "LoadedSections",
+      "LoadSectionsOptions",
+      "PermissionFlags",
+      "PermissionSet",
+      "RecordActions",
+      "RecordController",
+      "RecordControllerOptions",
+      "RecordSnapshot",
+      "RecordSummary",
+      "RecordSummaryOptions",
+      "Section",
+      "SectionBlocks",
+      "SectionCheck",
+      "SectionData",
+      "SectionDefinition",
+      "SectionMap",
+      "SectionName",
+      "SectionNamed",
+      "SectionOptions",
+      "SectionPermissions",
+      "SectionResult",
+      "SectionSource"
+    ]
+  },
   "./server": {
     "values": [
       "aalOf",
@@ -1304,9 +1341,12 @@
     "values": [
       "createNext",
       "defineAction",
+      "invalidateSection",
       "nextCache",
+      "recordTag",
       "REQUEST_ID_HEADER",
       "requireAal",
+      "sectionTag",
       "sessionStale",
       "sessionTag",
       "shouldCheckSession",
@@ -1348,6 +1388,7 @@
       "NextResourceRoutes",
       "NextResourcesOptions",
       "ProxyOptions",
+      "RecordTagOptions",
       "RequireAalOptions",
       "RequireOptions",
       "ResourceAction",
@@ -3467,6 +3508,8 @@
       "commentInputSchema",
       "commentsBlock",
       "commentsEvents",
+      "commentsOptimistic",
+      "commentsSection",
       "createComments",
       "createCommentsController",
       "dbTransport",
@@ -3492,6 +3535,7 @@
       "CommentsController",
       "CommentsControllerOptions",
       "CommentsEvents",
+      "CommentsOptimisticAction",
       "CommentsOptions",
       "CommentsSnapshot",
       "CommentSubject",
@@ -3504,6 +3548,8 @@
       "attachmentInputSchema",
       "attachmentsBlock",
       "attachmentsEvents",
+      "attachmentsOptimistic",
+      "attachmentsSection",
       "createAttachments",
       "createAttachmentScanner",
       "createObjectScanner",
@@ -3520,6 +3566,7 @@
       "AttachmentScanner",
       "AttachmentScannerOptions",
       "AttachmentsEvents",
+      "AttachmentsOptimisticAction",
       "AttachmentsOptions",
       "AttachmentStatus",
       "AttachmentStorage",
@@ -5227,7 +5274,9 @@
       "createTagInputController",
       "createTags",
       "tagsBlock",
-      "tagsEvents"
+      "tagsEvents",
+      "tagsOptimistic",
+      "tagsSection"
     ],
     "types": [
       "Tag",
@@ -5238,6 +5287,7 @@
       "TagInputSnapshot",
       "Tags",
       "TagsEvents",
+      "TagsOptimisticAction",
       "TagsOptions"
     ]
   },
@@ -8170,6 +8220,7 @@
       "testPaymentProvider",
       "testPlugin",
       "testQueueBackend",
+      "testSection",
       "testStreamStore",
       "testSupportSessionStore",
       "testTaxProvider",
@@ -8251,6 +8302,7 @@
       "TestPaymentProviderOptions",
       "TestPluginOptions",
       "TestQueueBackendOptions",
+      "TestSectionOptions",
       "TestSigner",
       "TestStreamStoreOptions",
       "TestSupportSessionStoreOptions",

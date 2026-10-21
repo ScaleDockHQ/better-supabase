@@ -198,6 +198,10 @@ export { testNotificationChannel } from "./notification-channel.ts";
 
 export type { TestNotificationChannelOptions } from "./notification-channel.ts";
 
+export { testSection } from "./section.ts";
+
+export type { TestSectionOptions } from "./section.ts";
+
 export {
   testWebhookSecretStore,
   testWebhookSigner,
