@@ -14,7 +14,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{comment,company,person,deal,engagement,work_item,employee,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
+  select '{comment,message,conversation,company,person,deal,engagement,work_item,employee,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -30,6 +30,10 @@ begin
   case subject_title.subject_type
     when 'comment' then
       return (select s."body"::text from "better_supabase"."comments" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'message' then
+      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'conversation' then
+      return (select s."title"::text from "better_supabase"."conversations" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'company' then
       return (select s."name"::text from "better_supabase"."companies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'person' then
@@ -132,6 +136,18 @@ begin
       'title', s."body"::text, 'url', null::text))
     from "better_supabase"."comments" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'comment')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'message', 'id', s."id"::text,
+      'title', s."body"::text, 'url', null::text))
+    from "better_supabase"."messages" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'conversation', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."conversations" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'conversation')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'company', 'id', s."id"::text,
@@ -252,6 +268,28 @@ begin
           when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
           when 'upload' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
+          else true
+        end)
+      );
+    when 'message' then
+      return exists (
+        select 1 from "better_supabase"."messages" s
+        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
+          else true
+        end)
+      );
+    when 'conversation' then
+      return exists (
+        select 1 from "better_supabase"."conversations" s
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
           else true
         end)
       );
@@ -486,6 +524,28 @@ begin
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
           when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
+          else false
+        end
+      );
+    when 'message' then
+      return exists (
+        select 1 from "better_supabase"."messages" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
+          else false
+        end
+      );
+    when 'conversation' then
+      return exists (
+        select 1 from "better_supabase"."conversations" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
           else false
         end
       );

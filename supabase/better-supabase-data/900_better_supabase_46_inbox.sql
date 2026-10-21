@@ -1,4 +1,4 @@
--- better-supabase module: inbox (0.8.0)
+-- better-supabase module: inbox
 -- @bs-module-data inbox
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
@@ -10,6 +10,6 @@ values ('inbox-files', 'inbox-files', false, 26214400)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 2, 'managed')
+values ('inbox', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

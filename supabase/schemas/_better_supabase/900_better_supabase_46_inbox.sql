@@ -1,5 +1,5 @@
--- better-supabase module: inbox (0.9.0)
--- @bs-module inbox@2 managed
+-- better-supabase module: inbox
+-- @bs-module inbox@3 managed
 -- Conversations with contacts across the in-app widget and chat channels: inboxes, members and teams, contacts with their channel identities, messages and internal notes, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events and message templates. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -141,7 +141,7 @@ create policy contact_identities_staff_read on "better_supabase"."contact_identi
 
 -- One conversation per channel thread (thread_id is the Chat SDK thread id),
 -- reopened when the contact writes again.
-create table if not exists "better_supabase"."conversations" (
+create table if not exists "better_supabase"."inbox_conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
@@ -161,23 +161,23 @@ create table if not exists "better_supabase"."conversations" (
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists conversations_thread_idx on "better_supabase"."conversations" ("inbox_id", "thread_id") where "thread_id" is not null;
-create index if not exists conversations_list_idx on "better_supabase"."conversations" ("tenant_id", "status", "last_message_at" desc, "id");
-create index if not exists conversations_assignee_idx on "better_supabase"."conversations" ("assignee_id") where "assignee_id" is not null;
-create index if not exists conversations_contact_idx on "better_supabase"."conversations" ("contact_id");
-create index if not exists conversations_inbox_idx on "better_supabase"."conversations" ("inbox_id");
-create index if not exists conversations_team_idx on "better_supabase"."conversations" ("team_id") where "team_id" is not null;
-alter table "better_supabase"."conversations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."conversations";
-create trigger bs_updated_at before update on "better_supabase"."conversations"
+create unique index if not exists conversations_thread_idx on "better_supabase"."inbox_conversations" ("inbox_id", "thread_id") where "thread_id" is not null;
+create index if not exists conversations_list_idx on "better_supabase"."inbox_conversations" ("tenant_id", "status", "last_message_at" desc, "id");
+create index if not exists conversations_assignee_idx on "better_supabase"."inbox_conversations" ("assignee_id") where "assignee_id" is not null;
+create index if not exists conversations_contact_idx on "better_supabase"."inbox_conversations" ("contact_id");
+create index if not exists conversations_inbox_idx on "better_supabase"."inbox_conversations" ("inbox_id");
+create index if not exists conversations_team_idx on "better_supabase"."inbox_conversations" ("team_id") where "team_id" is not null;
+alter table "better_supabase"."inbox_conversations" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bs_updated_at on "better_supabase"."inbox_conversations";
+create trigger bs_updated_at before update on "better_supabase"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."conversations" enable row level security;
-revoke all on "better_supabase"."conversations" from anon, authenticated;
-grant select on "better_supabase"."conversations" to authenticated;
-grant all on "better_supabase"."conversations" to service_role;
+alter table "better_supabase"."inbox_conversations" enable row level security;
+revoke all on "better_supabase"."inbox_conversations" from anon, authenticated;
+grant select on "better_supabase"."inbox_conversations" to authenticated;
+grant all on "better_supabase"."inbox_conversations" to service_role;
 
 create table if not exists "better_supabase"."conversation_participants" (
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role" text not null default 'participant' check ("role" in ('participant', 'watcher')),
   "created_at" timestamptz not null default now(),
@@ -190,13 +190,13 @@ grant select on "better_supabase"."conversation_participants" to authenticated;
 grant all on "better_supabase"."conversation_participants" to service_role;
 drop policy if exists conversation_participants_staff_read on "better_supabase"."conversation_participants";
 create policy conversation_participants_staff_read on "better_supabase"."conversation_participants" for select to authenticated
-  using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id" and c."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
+  using (exists (select 1 from "better_supabase"."inbox_conversations" c where c."id" = "conversation_id" and c."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
 -- The activity of a conversation: assignments, status and bot hand-offs.
 create table if not exists "better_supabase"."conversation_events" (
   "id" bigint generated always as identity primary key,
   "tenant_id" uuid not null,
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "type" text not null check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "actor_id" uuid references auth.users (id) on delete set null,
   "data" jsonb not null default '{}'::jsonb,
@@ -213,7 +213,7 @@ create policy conversation_events_staff_read on "better_supabase"."conversation_
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
 create table if not exists "better_supabase"."conversation_reads" (
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "last_read_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
@@ -232,7 +232,7 @@ create policy conversation_reads_own on "better_supabase"."conversation_reads" f
 create table if not exists "better_supabase"."inbox_messages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "direction" text not null check ("direction" in ('inbound', 'outbound')),
   "kind" text not null default 'message' check ("kind" in ('message', 'note')),
   "author_type" text not null check ("author_type" in ('contact', 'agent', 'bot', 'system')),
@@ -372,7 +372,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select v."id" from "better_supabase"."conversations" v
+  select v."id" from "better_supabase"."inbox_conversations" v
   join "better_supabase"."contacts" c on c."id" = v."contact_id"
   where c."user_id" = (select auth.uid());
 $$;
@@ -391,15 +391,15 @@ as $$
   select coalesce((
     select (case when write then coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.reply'), false) else coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.read'), false) end)
       or exists (select 1 from "better_supabase"."contacts" c where c."id" = v."contact_id" and c."user_id" = (select auth.uid()))
-    from "better_supabase"."conversations" v
+    from "better_supabase"."inbox_conversations" v
     where v."id"::text = conversation
   ), false);
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_allowed"(text, boolean) from public, anon, authenticated;
 grant execute on function "better_supabase"."inbox_conversation_allowed"(text, boolean) to authenticated, service_role;
 
-drop policy if exists conversations_read on "better_supabase"."conversations";
-create policy conversations_read on "better_supabase"."conversations" for select to authenticated
+drop policy if exists conversations_read on "better_supabase"."inbox_conversations";
+create policy conversations_read on "better_supabase"."inbox_conversations" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 drop policy if exists inbox_messages_read on "better_supabase"."inbox_messages";
 create policy inbox_messages_read on "better_supabase"."inbox_messages" for select to authenticated
@@ -414,7 +414,7 @@ security definer
 set search_path = ''
 as $$
   select r."last_read_at"
-  from "better_supabase"."conversations" v
+  from "better_supabase"."inbox_conversations" v
   join "better_supabase"."contacts" c on c."id" = v."contact_id"
   join "better_supabase"."conversation_reads" r on r."conversation_id" = v."id" and r."user_id" = c."user_id"
   where v."id" = inbox_contact_read_at.conversation
@@ -436,7 +436,7 @@ as $$
     'last_read_at', (select r."last_read_at" from "better_supabase"."conversation_reads" r where r."conversation_id" = v."id" and r."user_id" = (select auth.uid())),
     'contact_read_at', "better_supabase"."inbox_contact_read_at"(v."id")
   )
-  from "better_supabase"."conversations" v
+  from "better_supabase"."inbox_conversations" v
   where v."id" = conversation;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_json"(uuid) from public, anon;
@@ -648,7 +648,7 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_inbox "better_supabase"."inboxes"%rowtype;
   v_msg "better_supabase"."inbox_messages"%rowtype;
   v_kind text := coalesce(input ->> 'kind', 'message');
@@ -656,7 +656,7 @@ declare
   v_reopened boolean := false;
   v_claims text;
 begin
-  select * into v_conv from "better_supabase"."conversations" where "id" = inbox_add_message.conversation for update;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = inbox_add_message.conversation for update;
   select * into v_inbox from "better_supabase"."inboxes" where "id" = v_conv."inbox_id";
   if input ? 'external_id' then
     select * into v_msg from "better_supabase"."inbox_messages" m
@@ -684,7 +684,7 @@ begin
   on conflict do nothing;
   if v_kind = 'message' then
     v_reopened := inbox_add_message.direction = 'inbound' and v_conv."status" in ('resolved', 'snoozed');
-    update "better_supabase"."conversations" set
+    update "better_supabase"."inbox_conversations" set
       "last_message_at" = v_msg."created_at",
       "last_message_preview" = left(v_msg."body", 140),
       "first_response_at" = case
@@ -767,7 +767,7 @@ as $$
 declare
   v_inbox "better_supabase"."inboxes"%rowtype;
   v_contact "better_supabase"."contacts"%rowtype;
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_staff boolean;
   v_contact_input jsonb := coalesce(input -> 'contact', '{}'::jsonb);
 begin
@@ -800,7 +800,7 @@ begin
     raise exception 'not allowed to open a conversation in this inbox' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
   v_contact := "better_supabase"."inbox_resolve_contact"(v_inbox."tenant_id", v_contact_input);
-  insert into "better_supabase"."conversations" ("tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
+  insert into "better_supabase"."inbox_conversations" ("tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
     v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
     coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), input ->> 'thread_id',
@@ -808,7 +808,7 @@ begin
   )
   returning * into v_conv;
   if v_conv."thread_id" is null then
-    update "better_supabase"."conversations" set "thread_id" = 'inbox:' || "id"::text
+    update "better_supabase"."inbox_conversations" set "thread_id" = 'inbox:' || "id"::text
     where "id" = v_conv."id"
     returning * into v_conv;
   end if;
@@ -834,14 +834,14 @@ grant execute on function "better_supabase"."start_conversation"(uuid, jsonb) to
 -- their own conversation; the service writes as the bot, the system, or the
 -- contact (input.author_type). An agent's reply hands a bot conversation
 -- over to staff.
-create or replace function "better_supabase"."send_message"(conversation uuid, input jsonb)
+create or replace function "better_supabase"."send_inbox_message"(conversation uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_msg "better_supabase"."inbox_messages"%rowtype;
   v_author_type text;
   v_direction text;
@@ -850,7 +850,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" where "id" = send_message.conversation for update;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = send_inbox_message.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -872,15 +872,15 @@ begin
   end if;
   v_msg := "better_supabase"."inbox_add_message"(v_conv."id", coalesce(input, '{}'::jsonb) - 'author_type', v_author_type, (select auth.uid()), v_direction);
   if v_author_type = 'agent' and v_kind = 'message' and v_conv."bot_mode" = 'bot' then
-    update "better_supabase"."conversations" set "bot_mode" = 'human' where "id" = v_conv."id" returning * into v_conv;
+    update "better_supabase"."inbox_conversations" set "bot_mode" = 'human' where "id" = v_conv."id" returning * into v_conv;
     insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'handoff', (select auth.uid()), jsonb_build_object('from', 'bot', 'to', 'human', 'reason', 'agent_reply'));
   end if;
   return to_jsonb(v_msg);
 end;
 $$;
-revoke execute on function "better_supabase"."send_message"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."send_message"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."send_inbox_message"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_inbox_message"(uuid, jsonb) to authenticated, service_role;
 
 -- A message that arrived on a channel, for the inbound handler: finds the
 -- inbox's conversation for the thread (reopening it) or opens one, resolves
@@ -895,7 +895,7 @@ as $$
 declare
   v_inbox "better_supabase"."inboxes"%rowtype;
   v_contact "better_supabase"."contacts"%rowtype;
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_msg "better_supabase"."inbox_messages"%rowtype;
   v_created boolean := false;
   v_duplicate boolean := false;
@@ -909,12 +909,12 @@ begin
   if v_contact_input ? 'external_id' and not v_contact_input ? 'identity' then
     v_contact_input := v_contact_input || jsonb_build_object('identity', jsonb_build_object('channel', coalesce(v_contact_input ->> 'channel', v_inbox."channel"), 'external_id', v_contact_input ->> 'external_id'));
   end if;
-  select * into v_conv from "better_supabase"."conversations"
+  select * into v_conv from "better_supabase"."inbox_conversations"
   where "inbox_id" = v_inbox."id" and "thread_id" = input ->> 'thread_id'
   for update;
   if not found then
     v_contact := "better_supabase"."inbox_resolve_contact"(v_inbox."tenant_id", v_contact_input);
-    insert into "better_supabase"."conversations" ("tenant_id", "inbox_id", "contact_id", "subject", "bot_mode", "thread_id", "metadata")
+    insert into "better_supabase"."inbox_conversations" ("tenant_id", "inbox_id", "contact_id", "subject", "bot_mode", "thread_id", "metadata")
     values (v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', v_inbox."bot_mode", input ->> 'thread_id', coalesce(input -> 'metadata', '{}'::jsonb))
     returning * into v_conv;
     v_created := true;
@@ -954,14 +954,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_before uuid;
   v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" where "id" = assign_conversation.conversation for update;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = assign_conversation.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -972,7 +972,7 @@ begin
     raise exception 'the assignee cannot read this inbox' using errcode = '22023', hint = 'INBOX_ASSIGNEE_INVALID';
   end if;
   v_before := v_conv."assignee_id";
-  update "better_supabase"."conversations" set
+  update "better_supabase"."inbox_conversations" set
     "assignee_id" = assign_conversation.assignee,
     "team_id" = coalesce(assign_conversation.team, "team_id")
   where "id" = v_conv."id"
@@ -1016,13 +1016,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_before text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" where "id" = set_conversation_status.conversation for update;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = set_conversation_status.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -1033,7 +1033,7 @@ begin
     raise exception 'snoozing needs snoozed_until' using errcode = '22023', hint = 'INBOX_SNOOZE_UNTIL';
   end if;
   v_before := v_conv."status";
-  update "better_supabase"."conversations" set
+  update "better_supabase"."inbox_conversations" set
     "status" = set_conversation_status.status,
     "snoozed_until" = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snoozed_until end,
     "resolved_at" = case when set_conversation_status.status = 'resolved' then now() end
@@ -1064,14 +1064,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_conv "better_supabase"."conversations"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_before text;
   v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" where "id" = set_bot_mode.conversation for update;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = set_bot_mode.conversation for update;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -1079,7 +1079,7 @@ begin
     raise exception 'not allowed to change this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
   v_before := v_conv."bot_mode";
-  update "better_supabase"."conversations" set "bot_mode" = mode where "id" = v_conv."id" returning * into v_conv;
+  update "better_supabase"."inbox_conversations" set "bot_mode" = mode where "id" = v_conv."id" returning * into v_conv;
   if v_before is distinct from mode then
     insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'handoff', (select auth.uid()), jsonb_build_object('from', v_before, 'to', set_bot_mode.mode, 'reason', set_bot_mode.reason));
@@ -1191,7 +1191,7 @@ grant execute on function "better_supabase"."react_to_message"(uuid, text, boole
 
 -- The author (or the service) edits a message's body, or deletes it: the
 -- row stays as a tombstone with an empty body.
-create or replace function "better_supabase"."edit_message"(message uuid, body text default null, remove boolean default false)
+create or replace function "better_supabase"."edit_inbox_message"(message uuid, body text default null, remove boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1204,7 +1204,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_msg from "better_supabase"."inbox_messages" where "id" = edit_message.message for update;
+  select * into v_msg from "better_supabase"."inbox_messages" where "id" = edit_inbox_message.message for update;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
   end if;
@@ -1215,7 +1215,7 @@ begin
     raise exception 'message is deleted' using errcode = '22023', hint = 'MESSAGE_DELETED';
   end if;
   update "better_supabase"."inbox_messages" set
-    "body" = case when coalesce(remove, false) then '' else coalesce(edit_message.body, "body") end,
+    "body" = case when coalesce(remove, false) then '' else coalesce(edit_inbox_message.body, "body") end,
     "attachments" = case when coalesce(remove, false) then '[]'::jsonb else "attachments" end,
     "deleted_at" = case when coalesce(remove, false) then now() end,
     "edited_at" = case when coalesce(remove, false) then "edited_at" else now() end
@@ -1224,14 +1224,14 @@ begin
   return to_jsonb(v_msg);
 end;
 $$;
-revoke execute on function "better_supabase"."edit_message"(uuid, text, boolean) from public, anon;
-grant execute on function "better_supabase"."edit_message"(uuid, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) from public, anon;
+grant execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
-create or replace function "better_supabase"."list_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
+create or replace function "better_supabase"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language sql
 stable
@@ -1241,9 +1241,9 @@ as $$
   from (
     select v."id", v."last_message_at",
       v."last_message_at" > coalesce((select r."last_read_at" from "better_supabase"."conversation_reads" r where r."conversation_id" = v."id" and r."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
-    from "better_supabase"."conversations" v
+    from "better_supabase"."inbox_conversations" v
     left join "better_supabase"."contacts" c on c."id" = v."contact_id"
-    where (list_conversations.tenant is null or v."tenant_id" = list_conversations.tenant)
+    where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
       and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
       and (coalesce(filter ->> 'status', 'open') = 'all' or v."status" = coalesce(filter ->> 'status', 'open'))
       and (case filter ->> 'assignee'
@@ -1263,8 +1263,8 @@ as $$
     limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
   ) page;
 $$;
-revoke execute on function "better_supabase"."list_conversations"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."list_conversations"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_conversation"(conversation uuid)
 returns jsonb
@@ -1272,14 +1272,14 @@ language sql
 stable
 set search_path = ''
 as $$
-  select "better_supabase"."inbox_conversation_json"(v."id") from "better_supabase"."conversations" v where v."id" = conversation;
+  select "better_supabase"."inbox_conversation_json"(v."id") from "better_supabase"."inbox_conversations" v where v."id" = conversation;
 $$;
 revoke execute on function "better_supabase"."get_conversation"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_conversation"(uuid) to authenticated, service_role;
 
 -- A page of messages, oldest first, ending before the given instant. Staff
 -- also get notes and each outbound message's delivery.
-create or replace function "better_supabase"."list_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+create or replace function "better_supabase"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
 returns jsonb
 language sql
 stable
@@ -1294,14 +1294,14 @@ as $$
         order by d."created_at" limit 1
       )) as item
     from "better_supabase"."inbox_messages" m
-    where m."conversation_id" = list_messages.conversation
+    where m."conversation_id" = list_inbox_messages.conversation
       and (before is null or m."created_at" < before)
     order by m."created_at" desc, m."id" desc
     limit least(greatest(coalesce(max, 50), 1), 200)
   ) page;
 $$;
-revoke execute on function "better_supabase"."list_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."list_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
 
 -- The conversation's activity log, for staff.
 create or replace function "better_supabase"."list_conversation_events"(conversation uuid)
@@ -1331,7 +1331,7 @@ as $$
     'unread', count(*) filter (where v."last_message_at" > coalesce(r."last_read_at", '-infinity'::timestamptz)
       and (v."assignee_id" is null or v."assignee_id" = (select auth.uid())))
   )
-  from "better_supabase"."conversations" v
+  from "better_supabase"."inbox_conversations" v
   left join "better_supabase"."conversation_reads" r on r."conversation_id" = v."id" and r."user_id" = (select auth.uid())
   where v."tenant_id" = inbox_counts.tenant and v."status" = 'open';
 $$;
@@ -1339,7 +1339,7 @@ revoke execute on function "better_supabase"."inbox_counts"(uuid) from public, a
 grant execute on function "better_supabase"."inbox_counts"(uuid) to authenticated, service_role;
 
 -- One message with its first delivery, under the caller's RLS.
-create or replace function "better_supabase"."get_message"(message uuid)
+create or replace function "better_supabase"."get_inbox_message"(message uuid)
 returns jsonb
 language sql
 stable
@@ -1350,14 +1350,14 @@ as $$
     from "better_supabase"."message_deliveries" d where d."message_id" = m."id"
     order by d."created_at" limit 1
   ))
-  from "better_supabase"."inbox_messages" m where m."id" = get_message.message;
+  from "better_supabase"."inbox_messages" m where m."id" = get_inbox_message.message;
 $$;
-revoke execute on function "better_supabase"."get_message"(uuid) from public, anon;
-grant execute on function "better_supabase"."get_message"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_inbox_message"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_inbox_message"(uuid) to authenticated, service_role;
 
 -- A typing ping on the conversation's topic, from staff, the contact or
 -- the service (actor names the bot).
-create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
+create or replace function "better_supabase"."set_inbox_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
 security definer
@@ -1382,8 +1382,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."set_typing"(uuid, boolean, text) from public, anon;
-grant execute on function "better_supabase"."set_typing"(uuid, boolean, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_inbox_typing"(uuid, boolean, text) from public, anon;
+grant execute on function "better_supabase"."set_inbox_typing"(uuid, boolean, text) to authenticated, service_role;
 
 -- After posting an outbound message on its channel: records the platform's
 -- id and the status.
@@ -1533,7 +1533,7 @@ as $$
 declare
   v_count integer;
 begin
-  update "better_supabase"."conversations" set "status" = 'open', "snoozed_until" = null
+  update "better_supabase"."inbox_conversations" set "status" = 'open', "snoozed_until" = null
   where "status" = 'snoozed' and "snoozed_until" <= now();
   get diagnostics v_count = row_count;
   return v_count;
@@ -1624,16 +1624,16 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'inbox.manage'), false)) then
     raise exception 'not allowed to erase contacts' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  select count(*)::integer into v_conversations from "better_supabase"."conversations" v where v."contact_id" = purge_contact.contact;
+  select count(*)::integer into v_conversations from "better_supabase"."inbox_conversations" v where v."contact_id" = purge_contact.contact;
   select coalesce(jsonb_agg(a ->> 'path') filter (where a ? 'path'), '[]'::jsonb)
   into v_paths
   from "better_supabase"."inbox_messages" m
-  join "better_supabase"."conversations" v on v."id" = m."conversation_id"
+  join "better_supabase"."inbox_conversations" v on v."id" = m."conversation_id"
   left join lateral jsonb_array_elements(m."attachments") a on true
   where v."contact_id" = purge_contact.contact;
   select count(*)::integer into v_messages
   from "better_supabase"."inbox_messages" m
-  join "better_supabase"."conversations" v on v."id" = m."conversation_id"
+  join "better_supabase"."inbox_conversations" v on v."id" = m."conversation_id"
   where v."contact_id" = purge_contact.contact;
   delete from "better_supabase"."contacts" c where c."id" = purge_contact.contact;
   return jsonb_build_object('conversations', v_conversations, 'messages', v_messages, 'attachments', v_paths);
@@ -1683,8 +1683,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_broadcast"() from public, anon, authenticated;
-drop trigger if exists conversations_broadcast on "better_supabase"."conversations";
-create trigger conversations_broadcast after insert or update on "better_supabase"."conversations"
+drop trigger if exists conversations_broadcast on "better_supabase"."inbox_conversations";
+create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
@@ -1720,7 +1720,7 @@ set search_path = ''
 as $$
 begin
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and exists (
-    select 1 from "better_supabase"."conversations" v join "better_supabase"."contacts" c on c."id" = v."contact_id"
+    select 1 from "better_supabase"."inbox_conversations" v join "better_supabase"."contacts" c on c."id" = v."contact_id"
     where v."id" = new."conversation_id" and c."user_id" = new."user_id"
   ) then
     perform realtime.send(jsonb_build_object('conversation_id', new."conversation_id"), 'read', 'inbox:' || new."conversation_id"::text, true);
@@ -1773,7 +1773,7 @@ set search_path = ''
 as $$
   select coalesce((
     select "better_supabase"."inbox_conversation_allowed"(v."id"::text, write)
-    from "better_supabase"."conversations" v
+    from "better_supabase"."inbox_conversations" v
     where v."tenant_id"::text = split_part(object_name, '/', 1)
       and v."id"::text = split_part(object_name, '/', 2)
   ), false);
@@ -1895,14 +1895,14 @@ as $$ select "better_supabase"."start_conversation"($1, $2) $$;
 revoke execute on function "api"."start_conversation"(uuid, jsonb) from public, anon;
 grant execute on function "api"."start_conversation"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."send_message"(conversation uuid, input jsonb)
+create or replace function "api"."send_inbox_message"(conversation uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."send_message"($1, $2) $$;
-revoke execute on function "api"."send_message"(uuid, jsonb) from public, anon;
-grant execute on function "api"."send_message"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."send_inbox_message"($1, $2) $$;
+revoke execute on function "api"."send_inbox_message"(uuid, jsonb) from public, anon;
+grant execute on function "api"."send_inbox_message"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."record_inbound"(input jsonb)
 returns jsonb
@@ -1958,23 +1958,23 @@ as $$ select "better_supabase"."react_to_message"($1, $2, $3, $4) $$;
 revoke execute on function "api"."react_to_message"(uuid, text, boolean, text) from public, anon;
 grant execute on function "api"."react_to_message"(uuid, text, boolean, text) to authenticated, service_role;
 
-create or replace function "api"."edit_message"(message uuid, body text default null, remove boolean default false)
+create or replace function "api"."edit_inbox_message"(message uuid, body text default null, remove boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."edit_message"($1, $2, $3) $$;
-revoke execute on function "api"."edit_message"(uuid, text, boolean) from public, anon;
-grant execute on function "api"."edit_message"(uuid, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."edit_inbox_message"($1, $2, $3) $$;
+revoke execute on function "api"."edit_inbox_message"(uuid, text, boolean) from public, anon;
+grant execute on function "api"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."list_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
+create or replace function "api"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_conversations"($1, $2) $$;
-revoke execute on function "api"."list_conversations"(uuid, jsonb) from public, anon;
-grant execute on function "api"."list_conversations"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."list_inbox_conversations"($1, $2) $$;
+revoke execute on function "api"."list_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "api"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."get_conversation"(conversation uuid)
 returns jsonb
@@ -1985,14 +1985,14 @@ as $$ select "better_supabase"."get_conversation"($1) $$;
 revoke execute on function "api"."get_conversation"(uuid) from public, anon;
 grant execute on function "api"."get_conversation"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_messages"(conversation uuid, before timestamptz default null, max integer default 50)
+create or replace function "api"."list_inbox_messages"(conversation uuid, before timestamptz default null, max integer default 50)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_messages"($1, $2, $3) $$;
-revoke execute on function "api"."list_messages"(uuid, timestamptz, integer) from public, anon;
-grant execute on function "api"."list_messages"(uuid, timestamptz, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_inbox_messages"($1, $2, $3) $$;
+revoke execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer) from public, anon;
+grant execute on function "api"."list_inbox_messages"(uuid, timestamptz, integer) to authenticated, service_role;
 
 create or replace function "api"."list_conversation_events"(conversation uuid)
 returns jsonb
@@ -2012,23 +2012,23 @@ as $$ select "better_supabase"."inbox_counts"($1) $$;
 revoke execute on function "api"."inbox_counts"(uuid) from public, anon;
 grant execute on function "api"."inbox_counts"(uuid) to authenticated, service_role;
 
-create or replace function "api"."get_message"(message uuid)
+create or replace function "api"."get_inbox_message"(message uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."get_message"($1) $$;
-revoke execute on function "api"."get_message"(uuid) from public, anon;
-grant execute on function "api"."get_message"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."get_inbox_message"($1) $$;
+revoke execute on function "api"."get_inbox_message"(uuid) from public, anon;
+grant execute on function "api"."get_inbox_message"(uuid) to authenticated, service_role;
 
-create or replace function "api"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
+create or replace function "api"."set_inbox_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."set_typing"($1, $2, $3) $$;
-revoke execute on function "api"."set_typing"(uuid, boolean, text) from public, anon;
-grant execute on function "api"."set_typing"(uuid, boolean, text) to authenticated, service_role;
+as $$ select "better_supabase"."set_inbox_typing"($1, $2, $3) $$;
+revoke execute on function "api"."set_inbox_typing"(uuid, boolean, text) from public, anon;
+grant execute on function "api"."set_inbox_typing"(uuid, boolean, text) to authenticated, service_role;
 
 create or replace function "api"."record_delivery"(message uuid, channel text, external_id text default null, status text default 'sent', error text default null)
 returns jsonb

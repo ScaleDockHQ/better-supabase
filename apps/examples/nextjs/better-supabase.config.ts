@@ -256,6 +256,8 @@ export default defineConfig({
     "api-keys": {},
     settings: {},
     comments: {},
+    // Conversations and messages under the channels block (ADR 0062).
+    messaging: {},
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.

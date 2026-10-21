@@ -1,4 +1,4 @@
--- better-supabase module: teams (0.9.0)
+-- better-supabase module: teams
 -- @bs-module teams@1 managed
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -111,9 +111,9 @@ begin
   drop table "better_supabase"."inbox_teams";
 end
 $inbox_teams$;
-alter table "better_supabase"."conversations"
+alter table "better_supabase"."inbox_conversations"
   drop constraint if exists conversations_team_fkey;
-alter table "better_supabase"."conversations"
+alter table "better_supabase"."inbox_conversations"
   add constraint conversations_team_fkey
   foreign key ("team_id") references "better_supabase"."teams" ("id") on delete set null;
 create or replace function "better_supabase"."team_ids_of"(member uuid)

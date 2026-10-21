@@ -84,6 +84,18 @@ begin
           and s."organization_id" = trash_cascade.tenant
           and s."deleted_at" is null
         returning s."body"::text into v_title;
+    when 'message' then
+      update "better_supabase"."messages" s set "deleted_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."tenant_id" = trash_cascade.tenant
+          and s."deleted_at" is null
+        returning s."body"::text into v_title;
+    when 'conversation' then
+      update "better_supabase"."conversations" s set "archived_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."tenant_id" = trash_cascade.tenant
+          and s."archived_at" is null
+        returning s."title"::text into v_title;
     when 'deal' then
       update "better_supabase"."deals" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
@@ -157,6 +169,8 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', trash.tenant, 'trash.create'), false) and case trash.subject_type
     when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'comments.read'), false)
+    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'messages.read'), false)
+    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'messages.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'deals.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'customers.read'), false)
@@ -165,6 +179,8 @@ begin
     else false
   end and case trash.subject_type
     when 'comment' then coalesce(better_supabase.can('tenant', trash.tenant, 'comments.create'), false)
+    when 'message' then coalesce(better_supabase.can('tenant', trash.tenant, 'messages.send'), false)
+    when 'conversation' then coalesce(better_supabase.can('tenant', trash.tenant, 'messages.send'), false)
     when 'deal' then coalesce(better_supabase.can('tenant', trash.tenant, 'deals.write'), false)
     when 'work_item' then coalesce(better_supabase.can('tenant', trash.tenant, 'work_items.write'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', trash.tenant, 'customers.write'), false)
@@ -217,6 +233,12 @@ begin
     case v_item.subject_type
     when 'comment' then
       update "better_supabase"."comments" s set "deleted_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'message' then
+      update "better_supabase"."messages" s set "deleted_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'conversation' then
+      update "better_supabase"."conversations" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'deal' then
       update "better_supabase"."deals" s set "archived_at" = null
@@ -273,6 +295,8 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_root."tenant_id", 'trash.restore'), false) and case v_root."subject_type"
     when 'comment' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'comments.create'), false)
+    when 'message' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'messages.send'), false)
+    when 'conversation' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'messages.send'), false)
     when 'deal' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'deals.write'), false)
     when 'work_item' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'work_items.write'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'customers.write'), false)
@@ -329,6 +353,8 @@ begin
       and (list_trash.before is null or x."trashed_at" < list_trash.before)
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case x."subject_type"
     when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'comments.read'), false)
+    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
+    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
@@ -360,6 +386,12 @@ begin
     case v_item.subject_type
     when 'comment' then
       delete from "better_supabase"."comments" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'message' then
+      delete from "better_supabase"."messages" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'conversation' then
+      delete from "better_supabase"."conversations" s
         where s."id" = (v_item.subject_id)::uuid;
     when 'deal' then
       delete from "better_supabase"."deals" s
