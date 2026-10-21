@@ -22,6 +22,15 @@ export type {
   BlockVariablesOf,
 } from "./blocks.ts";
 
+export { invalidateOnRecordEvents, recordQueries } from "./records.ts";
+
+export type {
+  RecordQueries,
+  RecordQueriesOptions,
+  RecordSectionQueries,
+  RecordWriteMutations,
+} from "./records.ts";
+
 export { optimistic } from "./optimistic.ts";
 
 export type {

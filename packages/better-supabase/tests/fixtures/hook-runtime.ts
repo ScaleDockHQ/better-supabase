@@ -54,6 +54,7 @@ export interface ReactHooks {
     ...children: unknown[]
   ): unknown;
   useContext(context: object): unknown;
+  use(context: object): unknown;
   useState(initial: unknown): [unknown, (next: unknown) => void];
   useMemo(factory: () => unknown, deps: Deps): unknown;
   useCallback(fn: unknown, deps: Deps): unknown;
@@ -75,6 +76,7 @@ export const reactHooks: ReactHooks = {
     return { type, props, children };
   },
   useContext: (context) => state.provided.get(context) ?? null,
+  use: (context) => state.provided.get(context) ?? null,
   useState(initial) {
     const cell = slot();
 

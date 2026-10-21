@@ -5,7 +5,7 @@ import type { BlockClientSource } from "../blocks/create-blocks.ts";
 import type { AnyBlock } from "../blocks/define-block.ts";
 import type { SectionOptions } from "../blocks/sections.ts";
 import type { DbError } from "../core/errors.ts";
-import type { AsyncResult, Result } from "../core/result.ts";
+import type { Result } from "../core/result.ts";
 import type {
   FeatureBlocks,
   FeatureWriteInput,
@@ -23,12 +23,14 @@ import type { ActionResult } from "../server/kit.ts";
 
 import { createBlockClient } from "../blocks/create-blocks.ts";
 import {
+  featureWrites,
   findSectionWrite,
   plainData,
   recordCan,
   recordPermissionKeys,
   recordSubject,
   recordWriteInput,
+  runSectionWrite,
 } from "../records/feature.ts";
 import { loadSections } from "../records/sections.ts";
 import { invalidateSection, recordTag, sectionTag } from "./records.ts";
@@ -158,12 +160,6 @@ async function permissionsOf(
   return result.ok ? { set: result.data } : { set: null, error: result.error };
 }
 
-type WriteRun = (
-  client: unknown,
-  subject: SubjectRef,
-  input: unknown,
-) => AsyncResult<unknown>;
-
 /**
  * The server half of a generated feature for Next.js: a loader for Server
  * Components and one Server Action per section write. Each action builds the
@@ -201,12 +197,16 @@ export function recordServer<
     return bs.action(
       { input: recordWriteInput(found.write.input), requireTenant: true },
       async ({ id, input }, ctx): Promise<Result<unknown>> => {
-        const client = createBlockClient(ctx.db, block, options);
         const subject = recordSubject(feature, id);
-        // SAFETY: the write takes the client its block's creator made and the
-        // input its schema validated.
-        const run = found.write.run as WriteRun;
-        const result = await run(client, subject, input);
+
+        const result = await runSectionWrite(
+          feature,
+          { [found.key]: createBlockClient(ctx.db, block, options) },
+          section,
+          write,
+          subject,
+          input,
+        );
 
         if (!result.ok) {
           return result;
@@ -222,20 +222,12 @@ export function recordServer<
   // SAFETY: one action per write of each section, as `RecordServerActions`
   // maps them.
   const actions = Object.fromEntries(
-    feature.sections.map((section) => {
-      const found = Object.keys(
-        Object.values(feature.blocks).find(
-          (block) => block.sections?.[section] !== undefined,
-        )?.sections?.[section]?.writes ?? {},
-      );
-
-      return [
-        section,
-        Object.fromEntries(
-          found.map((write) => [write, actionOf(section, write)]),
-        ),
-      ];
-    }),
+    featureWrites(feature).map(([section, writes]) => [
+      section,
+      Object.fromEntries(
+        writes.map((write) => [write, actionOf(section, write)]),
+      ),
+    ]),
   ) as RecordServerActions<B, N>;
 
   return {

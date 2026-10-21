@@ -11,11 +11,12 @@ import type {
   SectionWriteName,
   SectionWriteOutput,
 } from "../blocks/sections.ts";
-import type { AsyncResult } from "../core/result.ts";
 import type { SubjectRef } from "../schema/types.ts";
 import type { SectionName, SectionNamed } from "./sections.ts";
 
 import { can as holds } from "../blocks/access/permissions.ts";
+import { dbError } from "../core/errors.ts";
+import { AsyncResult } from "../core/result.ts";
 import { findSection } from "./sections.ts";
 
 /** The section blocks of a feature, keyed like `blockSet.blocks`. */
@@ -232,6 +233,57 @@ export function recordCan<B extends FeatureBlocks, N extends SectionName<B>>(
       ];
     }),
   ) as RecordCan<B, N>;
+}
+
+/** The write names of each of a feature's sections. */
+export function featureWrites(
+  feature: Pick<RecordFeature, "blocks"> & {
+    readonly sections: readonly string[];
+  },
+): readonly (readonly [section: string, writes: readonly string[]])[] {
+  return feature.sections.map((section) => [
+    section,
+    Object.keys(findSection(feature.blocks, section)?.section.writes ?? {}),
+  ]);
+}
+
+/**
+ * Runs `section.write` with the client its block's creator made, which
+ * `clients` holds under the block's key.
+ */
+export function runSectionWrite(
+  feature: Pick<RecordFeature, "blocks">,
+  clients: object,
+  section: string,
+  write: string,
+  subject: SubjectRef,
+  input: unknown,
+): AsyncResult<unknown> {
+  const found = findSectionWrite(feature, section, write);
+
+  // SAFETY: a read of one key of the built blocks.
+  const client = (clients as Readonly<Record<string, unknown>>)[
+    found?.key ?? ""
+  ];
+
+  if (found === undefined || client === undefined) {
+    return AsyncResult.err(
+      dbError(
+        "invalid_request",
+        `Section "${section}" has no write "${write}" with its block built`,
+      ),
+    );
+  }
+
+  // SAFETY: the write takes the client its block's creator made and the input
+  // its schema validated.
+  const run = found.write.run as (
+    client: unknown,
+    subject: SubjectRef,
+    input: unknown,
+  ) => AsyncResult<unknown>;
+
+  return run(client, subject, input);
 }
 
 /** What a generated write takes: the record's id and the write's input. */
