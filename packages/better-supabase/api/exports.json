@@ -3550,27 +3550,44 @@
       "attachmentsEvents",
       "attachmentsOptimistic",
       "attachmentsSection",
+      "attachmentVersionOf",
       "createAttachments",
       "createAttachmentScanner",
+      "createAttachmentUploadController",
       "createObjectScanner",
       "dbTransport",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "xhrSend"
     ],
     "types": [
       "Attachment",
       "AttachmentBucket",
       "AttachmentDownload",
+      "AttachmentFileInput",
+      "AttachmentImages",
+      "AttachmentImageUrlOptions",
+      "AttachmentReplacement",
       "Attachments",
       "AttachmentScanJob",
       "AttachmentScanner",
       "AttachmentScannerOptions",
+      "AttachmentScanState",
+      "AttachmentSend",
       "AttachmentsEvents",
       "AttachmentsOptimisticAction",
       "AttachmentsOptions",
       "AttachmentStatus",
       "AttachmentStorage",
       "AttachmentUpload",
+      "AttachmentUploadActions",
+      "AttachmentUploadController",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadItem",
+      "AttachmentUploadSnapshot",
+      "AttachmentUploadStatus",
+      "AttachmentUploadTicket",
+      "AttachmentVersion",
       "Author",
       "BlockTransport",
       "NewAttachment",
@@ -3579,6 +3596,57 @@
       "ObjectScannerOptions",
       "ScannedObject",
       "ScanVerdict"
+    ]
+  },
+  "./blocks/attachments/react": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentFileInput",
+      "AttachmentScanState",
+      "AttachmentSend",
+      "AttachmentUploadItem",
+      "AttachmentUploadState",
+      "AttachmentUploadStatus",
+      "AttachmentUploadTicket",
+      "UseAttachmentUploadOptions"
+    ]
+  },
+  "./blocks/attachments/vue": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentUploadActions",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/attachments/svelte": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentUploadActions",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/attachments/solid": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentUploadActions",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadSnapshot",
+      "BlockOptions",
+      "SolidController"
     ]
   },
   "./blocks/data-lifecycle": {

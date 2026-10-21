@@ -517,7 +517,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "uploadedAt": "uploaded_at",
               "scannedAt": "scanned_at",
-              "metadata": "metadata"
+              "metadata": "metadata",
+              "version": "version",
+              "width": "width",
+              "height": "height",
+              "pages": "pages"
             }
           }
         },
@@ -2804,6 +2808,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "AttachmentFileInput"
+        },
+        {
+          "name": "AttachmentImages"
+        },
+        {
+          "name": "AttachmentImageUrlOptions"
+        },
+        {
+          "name": "AttachmentReplacement"
+        },
+        {
           "name": "Attachments",
           "fields": true
         },
@@ -2815,6 +2831,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AttachmentScannerOptions"
+        },
+        {
+          "name": "AttachmentScanState"
+        },
+        {
+          "name": "AttachmentSend"
         },
         {
           "name": "AttachmentsEvents"
@@ -2834,6 +2856,30 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "AttachmentUpload",
           "fields": true
+        },
+        {
+          "name": "AttachmentUploadActions"
+        },
+        {
+          "name": "AttachmentUploadController"
+        },
+        {
+          "name": "AttachmentUploadControllerOptions"
+        },
+        {
+          "name": "AttachmentUploadItem"
+        },
+        {
+          "name": "AttachmentUploadSnapshot"
+        },
+        {
+          "name": "AttachmentUploadStatus"
+        },
+        {
+          "name": "AttachmentUploadTicket"
+        },
+        {
+          "name": "AttachmentVersion"
         },
         {
           "name": "NewAttachment"
@@ -2860,6 +2906,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "metadata": {
                 "kind": "json",
                 "optional": true
+              },
+              "width": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
+              },
+              "height": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
+              },
+              "pages": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -2880,7 +2941,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "integer",
                   "minimum": 0
                 },
-                "metadata": {}
+                "metadata": {},
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "pages": {
+                  "type": "integer",
+                  "minimum": 1
+                }
               },
               "required": [
                 "name",
@@ -2897,7 +2970,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "object.uploaded",
           "attachment.uploaded",
-          "attachment.scanned"
+          "attachment.scanned",
+          "attachment.replaced",
+          "attachment.restored"
         ]
       }
     },

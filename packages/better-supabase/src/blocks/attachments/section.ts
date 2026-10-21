@@ -6,11 +6,14 @@ import { defineSection } from "../sections.ts";
 /** A pending write to a record's files, for `useOptimistic`. */
 export type AttachmentsOptimisticAction =
   | { readonly type: "add"; readonly attachment: Attachment }
+  | { readonly type: "update"; readonly attachment: Attachment }
   | { readonly type: "remove"; readonly id: string };
 
 /**
  * The files with a pending write applied: `add` puts the attachment first (or
- * replaces the one with the same id), `remove` takes it out.
+ * replaces the one with the same id), `update` swaps the one with the same id
+ * where it is (a new version from `replace` or `restore`), `remove` takes it
+ * out.
  */
 export function attachmentsOptimistic(
   state: readonly Attachment[],
@@ -22,6 +25,12 @@ export function attachmentsOptimistic(
         action.attachment,
         ...state.filter((attachment) => attachment.id !== action.attachment.id),
       ];
+    }
+
+    case "update": {
+      return state.map((attachment) =>
+        attachment.id === action.attachment.id ? action.attachment : attachment,
+      );
     }
 
     case "remove": {

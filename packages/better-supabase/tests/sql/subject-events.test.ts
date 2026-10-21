@@ -142,6 +142,8 @@ const everyTypeListed: Unlisted extends never ? true : false = true;
 /** Events that name a subject only when the row is attached to one. */
 const OPTIONAL_SUBJECT = new Set([
   "attachment.uploaded",
+  "attachment.replaced",
+  "attachment.restored",
   "time_entry.started",
   "time_entry.recorded",
   "time_entry.updated",
