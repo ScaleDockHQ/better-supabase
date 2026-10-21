@@ -129,7 +129,7 @@ export interface DoctorConfig {
    * Otherwise it limits the whole token's claims (default 2048).
    */
   readonly claimsLimit?: number;
-  /** Which migrations the lock checks (BS229 to BS234) read. */
+  /** Which migrations the lock checks (BS229 to BS235) read. */
   readonly migrationSafety?: MigrationSafetyConfig;
 }
 

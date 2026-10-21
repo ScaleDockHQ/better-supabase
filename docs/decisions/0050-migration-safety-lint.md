@@ -19,6 +19,9 @@ Doctor gets six rules, BS229 to BS234, in `src/cli/doctor/migration-safety.ts`.
 They split each migration with `splitStatements` (`src/cli/doctor/shared.ts`),
 which skips comments and respects quotes and dollar quotes, and match each
 statement with a regular expression. Tables a migration creates are exempt.
+BS235, added in 0.13, flags a `better_supabase` function a migration drops
+without creating it again with the same number of arguments, the change a
+schema diff makes when a release changes a function's signature.
 
 The rules check only migrations that haven't run. With `--db-url`, that is
 the files missing from `supabase_migrations.schema_migrations`. Offline, it is

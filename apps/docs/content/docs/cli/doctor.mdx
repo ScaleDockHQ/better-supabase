@@ -673,7 +673,7 @@ that is a migration not applied.
 
 ### BS229
 
-**Warning: index built without `concurrently`.** BS229 to BS234 read the
+**Warning: index built without `concurrently`.** BS229 to BS235 read the
 migrations that haven't run yet, statement by statement, and flag the ones
 that lock a table that already holds rows. With `--db-url`, doctor checks the
 migrations missing from `supabase_migrations.schema_migrations`. Offline, it
@@ -726,6 +726,18 @@ stalling the app.
 deployed app until it ships the matching code. Rename in steps: add the new
 name, write to both, move the reads, and drop the old name in a later release.
 `apply --preset` prints these steps for a breaking change.
+
+### BS235
+
+**Warning: a `better_supabase` function dropped with a new signature.** When
+a better-supabase release changes a function's arguments, a schema diff drops
+the old function and creates the new one. 0.12 did this for `audit()`, which
+went from 9 to 11 arguments. A call with positional arguments, or a grant that
+names the old argument list, fails once the migration runs. Doctor flags a
+`drop function better_supabase.<name>(...)` in an unapplied migration unless
+the same file creates that function again with the same number of arguments.
+Read the [upgrade notes](/docs/migration) for the release, call the function
+with named arguments, and grant on the new signature in the same migration.
 
 ## Drift
 
