@@ -206,3 +206,16 @@ export interface MessageEventData extends SubjectEventData {
   readonly pinned?: boolean;
   readonly resolved?: boolean;
 }
+
+/** Events from the channels module. */
+export interface ChannelEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The channel's id, which is also its conversation's id. */
+  readonly channelId: string;
+  readonly name: string;
+  /** `public` or `private`. */
+  readonly visibility: string;
+  /** The record the channel is linked to. */
+  readonly recordType: string | null;
+  readonly recordId: string | null;
+}

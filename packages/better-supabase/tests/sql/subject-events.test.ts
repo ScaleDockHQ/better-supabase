@@ -133,6 +133,8 @@ const SUBJECT_EVENTS = [
   "message.deleted",
   "message.pinned",
   "message.resolved",
+  "channel.created",
+  "channel.updated",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

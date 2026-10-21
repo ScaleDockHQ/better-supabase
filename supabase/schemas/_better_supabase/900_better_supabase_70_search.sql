@@ -114,6 +114,12 @@ begin
         where s."id" = (search_refresh.subject_id)::uuid
         and s."deleted_at" is null;
       v_found := found;
+    when 'channel' then
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."topic"::text, s."purpose"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."channels" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'company' then
       select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."domain"::text), ''), '/crm/contacts/' || s."id"::text
         into v_tenant, v_title, v_body, v_url
@@ -266,6 +272,13 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'channel' then
+    for v_id in select s."id"::text from "better_supabase"."channels" s loop
+      if "better_supabase"."search_refresh"('channel', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'company' then
     for v_id in select s."id"::text from "better_supabase"."companies" s loop
       if "better_supabase"."search_refresh"('company', v_id) then
@@ -381,6 +394,11 @@ drop trigger if exists "bs_search_message_index" on "better_supabase"."messages"
 create trigger "bs_search_message_index"
   after insert or delete or update of "id", "tenant_id", "body", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."search_index_row"('message', 'id');
+
+drop trigger if exists "bs_search_channel_index" on "better_supabase"."channels";
+create trigger "bs_search_channel_index"
+  after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
+  for each row execute function "better_supabase"."search_index_row"('channel', 'id');
 
 drop trigger if exists "bs_search_company_index" on "better_supabase"."companies";
 create trigger "bs_search_company_index"

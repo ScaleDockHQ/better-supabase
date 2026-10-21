@@ -579,6 +579,7 @@ begin
       when 'comment' then (select s."body"::text from "better_supabase"."comments" s where s."id" = (v_application."candidate_id")::uuid)
       when 'message' then (select s."body"::text from "better_supabase"."messages" s where s."id" = (v_application."candidate_id")::uuid)
       when 'conversation' then (select s."title"::text from "better_supabase"."conversations" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'channel' then (select s."name"::text from "better_supabase"."channels" s where s."id" = (v_application."candidate_id")::uuid)
       when 'company' then (select s."name"::text from "better_supabase"."companies" s where s."id" = (v_application."candidate_id")::uuid)
       when 'person' then (select s."name"::text from "better_supabase"."people" s where s."id" = (v_application."candidate_id")::uuid)
       when 'deal' then (select s."name"::text from "better_supabase"."deals" s where s."id" = (v_application."candidate_id")::uuid)

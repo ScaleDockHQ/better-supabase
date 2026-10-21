@@ -28,6 +28,7 @@ import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CATALOG } from "./modules/catalog.ts";
+import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
@@ -309,6 +310,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RULES),
       built(VERCEL_MARKETPLACE),
       built(MESSAGING),
+      built(CHANNELS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );
