@@ -9,6 +9,7 @@ import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import {
   jsonSchema,
+  nuqs,
   resolveConfig,
   standardSchema,
   valibot,
@@ -76,6 +77,7 @@ export async function renderFixtures(): Promise<
         }),
         valibot(),
         jsonSchema(),
+        nuqs(),
         standardSchema(),
       ],
     },

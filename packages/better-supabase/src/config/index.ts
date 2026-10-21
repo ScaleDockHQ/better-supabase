@@ -187,6 +187,8 @@ export {
   type JsonSchemaTarget,
 } from "../generators/json-schema.ts";
 
+export { nuqs, type NuqsGeneratorOptions } from "../generators/nuqs.ts";
+
 export {
   standardSchema,
   type StandardSchemaGeneratorOptions,
