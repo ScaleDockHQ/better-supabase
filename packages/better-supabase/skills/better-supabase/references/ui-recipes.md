@@ -7847,7 +7847,7 @@ export function RuleBuilderSkeleton() {
 
 ## Can
 
-Shows an action only to members who hold a permission key; the checks of one render share one round trip. It calls `Can` from `better-supabase/blocks/access/react`; the [access block](https://bettersupabase.com/blocks/access) must be installed (`npx better-supabase add access`). Page: https://bettersupabase.com/recipes/can.
+Shows an action only to members who hold a permission key; the checks of one render share one round trip. It loads its data on the server through the block's client; the [access block](https://bettersupabase.com/blocks/access) must be installed (`npx better-supabase add access`). Page: https://bettersupabase.com/recipes/can.
 
 Web, with no shadcn components.
 

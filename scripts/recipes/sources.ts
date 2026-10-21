@@ -671,7 +671,6 @@ export const RECIPES: readonly RecipeSource[] = [
     kind: "component",
     description:
       "Shows an action only to members who hold a permission key; the checks of one render share one round trip.",
-    hook: { name: "Can", entry: "better-supabase/blocks/access/react" },
     web: {
       file: `${WEB_APP}/src/features/projects/components/task-import-action.tsx`,
       components: [],
