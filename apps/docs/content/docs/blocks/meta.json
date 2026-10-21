@@ -30,6 +30,7 @@
     "flags",
     "comments",
     "messaging",
+    "channels",
     "attachments",
     "data-lifecycle",
     "sso",

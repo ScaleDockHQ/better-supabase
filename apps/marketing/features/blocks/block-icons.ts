@@ -63,6 +63,7 @@ import {
   MailPlusIcon,
   MegaphoneIcon,
   MessageCircleIcon,
+  MessageSquareTextIcon,
   MessageSquareIcon,
   MessagesSquareIcon,
   MonitorSmartphoneIcon,
@@ -143,6 +144,7 @@ export const BLOCK_ICONS = {
   // Collaboration
   comments: MessageSquareIcon,
   messaging: MessageCircleIcon,
+  channels: MessageSquareTextIcon,
   attachments: PaperclipIcon,
   "share-links": Link2Icon,
   reactions: SmilePlusIcon,

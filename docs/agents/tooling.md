@@ -60,6 +60,8 @@ commit series:
   `vitest run --coverage`.
 - `thresholds.autoUpdate` rewrites `vitest.config.ts` when coverage grows
   (not in CI). Commit that change; never lower a threshold to make a run pass.
+- Vitest caches results in `node_modules/.vitest-cache` at the repo root. When
+  a run reports failures for code you have already fixed, delete that folder.
 - `tests/types/perf` gates check time against a calibration program it
   checks first, so the baseline holds on machines of any speed. A check-time
   failure in CI is a real slowdown, not a slow runner.
