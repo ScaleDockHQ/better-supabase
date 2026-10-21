@@ -163,8 +163,8 @@ export function sameLifecycle(
       ? actual.rules
       : [];
 
-  const want = (expected?.rules ?? []).map(ruleKey).sort();
-  const have = stored.map(ruleKey).sort();
+  const want = (expected?.rules ?? []).map(ruleKey).toSorted();
+  const have = stored.map(ruleKey).toSorted();
 
   return want.length === have.length && want.every((key, i) => key === have[i]);
 }

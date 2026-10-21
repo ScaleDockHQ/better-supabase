@@ -18,7 +18,7 @@ export async function introspect(
   schemas: readonly string[],
   options: IntrospectOptions = {},
 ): Promise<Snapshot> {
-  const unique = [...new Set(schemas)].sort();
+  const unique = [...new Set(schemas)].toSorted();
 
   const [metadata, extras] = await Promise.all([
     readGeneratorMetadata(db, unique),

@@ -112,11 +112,11 @@ describe.skipIf(!live)("collections", () => {
       expect(stars.map((star) => star.title)).toEqual(["Globex", "Acme"]);
       expect(second.starredAt).toBeInstanceOf(Temporal.Instant);
       expect(
-        (await collections.starred(org, { type: "memo" }).orThrow()).length,
-      ).toBe(0);
+        await collections.starred(org, { type: "memo" }).orThrow(),
+      ).toHaveLength(0);
 
       await s.as(owner);
-      expect((await collections.starred(org).orThrow()).length).toBe(0);
+      expect(await collections.starred(org).orThrow()).toHaveLength(0);
 
       await s.as(stranger);
       expect(
@@ -148,7 +148,7 @@ describe.skipIf(!live)("collections", () => {
         [globex.id],
       );
       await s.as(rep);
-      expect((await collections.starred(org).orThrow()).length).toBe(0);
+      expect(await collections.starred(org).orThrow()).toHaveLength(0);
     } finally {
       await s.close();
     }
@@ -267,7 +267,7 @@ describe.skipIf(!live)("collections", () => {
       ).toBe("COLLECTION_TOO_MANY");
 
       await s.asRole(peer);
-      expect((await collections.list(org).orThrow()).length).toBe(0);
+      expect(await collections.list(org).orThrow()).toHaveLength(0);
       expect(hint(await collections.entries(mine.id))).toBe("ok");
       expect((await collections.entries(mine.id).orThrow()).items).toEqual([]);
       expect(hint(await collections.add(mine.id, [ids[0]!]))).toBe(

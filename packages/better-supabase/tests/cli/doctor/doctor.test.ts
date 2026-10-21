@@ -2270,7 +2270,7 @@ describe("doctor formats", () => {
   });
 
   it("lists text findings by severity, then code", () => {
-    const lines = formatReport([...findings].reverse(), {
+    const lines = formatReport(findings.toReversed(), {
       ...options,
       format: "text",
     }).split("\n");

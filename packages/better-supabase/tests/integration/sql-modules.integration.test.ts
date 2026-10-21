@@ -458,7 +458,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `bs_grants_${RUN}`;
 
     const read = async (): Promise<Response> => {
-      for (let attempt = 0; ; attempt++) {
+      for (let attempt = 0; ; attempt += 1) {
         const response = await fetch(`${url}/rest/v1/${name}?select=id`, {
           headers: { apikey: publishableKey },
         });
@@ -1686,7 +1686,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         data: { object: { customer } },
       }).orThrow();
 
-      expect([...invalidate].sort()).toEqual([member, expired].sort());
+      expect(invalidate.toSorted()).toEqual([member, expired].toSorted());
     } finally {
       // Put back the tenant-mode functions the other suites expect.
       await pool.query(
@@ -2115,11 +2115,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await jobs.enqueue(queue, { id: "4" }, waiting).orThrow()).toBe(
         followUp,
       );
-      expect(
-        [first, followUp].includes(
-          await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
-        ),
-      ).toBe(true);
+      expect([first, followUp]).toContain(
+        await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
+      );
       await jobs.complete(running!).orThrow();
       const [next] = await jobs.claim(queue).orThrow();
       expect(next!.id).toBe(followUp);
@@ -3183,7 +3181,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
 
     expect(result).toEqual({ succeeded: 1, failed: 1 });
-    expect(types.sort()).toEqual(["invoice.failed", "invoice.paid"]);
+    expect(types.toSorted()).toEqual(["invoice.failed", "invoice.paid"]);
     expect(await inbox.process(() => undefined)).toEqual({
       succeeded: 0,
       failed: 0,
@@ -5267,7 +5265,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         })
         .toBe(200);
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 3; i += 1) {
         expect((await call("POST", `${probe}_read`)).status).toBe(200);
       }
 

@@ -765,7 +765,7 @@ describe("createMcp table tool meta", () => {
       version: "1.0.0",
       resources: { tags: { operations: ["list"] } },
       visible: () => {
-        checks++;
+        checks += 1;
 
         return checks === 1;
       },
@@ -1270,7 +1270,7 @@ describe("tool schemas per protocol version", () => {
       await list({ "mcp-protocol-version": version });
     }
 
-    expect(calls.length).toBe(after);
+    expect(calls).toHaveLength(after);
     expect(after - before).toBeLessThanOrEqual(2);
     expect(
       mcp.tools.find((tool) => tool.name === "raw")?.inputSchema,

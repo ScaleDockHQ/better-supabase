@@ -122,7 +122,8 @@ export function createAiChatsController(
           return;
         }
 
-        const run = ++ticket;
+        ticket += 1;
+        const run = ticket;
         const items: AiChatRecord[] = [];
         let page: AiChatPage | undefined;
 
@@ -173,7 +174,8 @@ export function createAiChatsController(
               return;
             }
 
-            const run = ++ticket;
+            ticket += 1;
+            const run = ticket;
             pages += 1;
             const result = await chats.list({ ...query, cursor: next });
 
@@ -333,7 +335,8 @@ export function createAiChatTreeController(
           return;
         }
 
-        const run = ++ticket;
+        ticket += 1;
+        const run = ticket;
 
         const result = await messages.path(
           chatId,

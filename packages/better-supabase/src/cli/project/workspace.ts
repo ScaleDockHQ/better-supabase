@@ -151,7 +151,7 @@ export async function detectWorkspace(
 
   const dirs = [...included]
     .filter((dir) => dir !== "." && !excluded.has(dir))
-    .sort();
+    .toSorted();
 
   const packages = await Promise.all(
     dirs.map(async (dir) => ({

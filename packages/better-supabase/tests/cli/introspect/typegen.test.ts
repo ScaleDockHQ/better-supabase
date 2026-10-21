@@ -112,7 +112,7 @@ describe("readGeneratorMetadata", () => {
       db.texts().some((text) => text.includes("p.proargnames as names")),
     ).toBe(true);
     expect(
-      metadata.types.map((entry) => entry.id).sort((a, b) => a - b),
+      metadata.types.map((entry) => entry.id).toSorted((a, b) => a - b),
     ).toEqual([23, 25, 100, 200, 300, 1009]);
     expect(metadata.functions.map((fn) => fn.name)).toEqual(["make_address"]);
     expect(metadata.functions[0]!.id).toBe(30_000);
@@ -363,7 +363,7 @@ describe("generator documents", () => {
     const text = await serializeGenerator(generator);
     const parsed = await validateGeneratorMetadata(JSON.parse(text));
     expect(await serializeGenerator(parsed)).toBe(text);
-    expect(parsed.tables.length).toBe(generator.tables.length);
+    expect(parsed.tables).toHaveLength(generator.tables.length);
   });
 
   it("rejects metadata that does not match the contract", async () => {

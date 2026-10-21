@@ -122,9 +122,9 @@ describe.skipIf(!live)("memory module", () => {
       );
 
       await s.asRole(owner);
-      expect(await memory.core.view(tenant, "/memories/me").orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await memory.core.view(tenant, "/memories/me").orThrow(),
+      ).toBeUndefined();
       await memory.core
         .write(tenant, "/memories/policy.md", "Answer in English.", {
           scope: "organization",
@@ -320,9 +320,9 @@ describe.skipIf(!live)("memory module", () => {
       ).toBeDefined();
 
       await s.service();
-      expect(await memory.documents.read("scope", "/a.md").orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await memory.documents.read("scope", "/a.md").orThrow(),
+      ).toBeUndefined();
 
       const first = await memory.documents
         .write("scope", "/a.md", "one", { expectedVersion: null })
@@ -347,9 +347,9 @@ describe.skipIf(!live)("memory module", () => {
       });
 
       expect(stale.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
-      expect(await memory.documents.read("other", "/a.md").orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await memory.documents.read("other", "/a.md").orThrow(),
+      ).toBeUndefined();
 
       await memory.documents
         .write("scope", "/tmp.md", "gone", {
@@ -360,9 +360,9 @@ describe.skipIf(!live)("memory module", () => {
       await s.client.query(
         "update better_supabase.memory_documents set expires_at = now() - interval '1 second' where path = '/tmp.md'",
       );
-      expect(await memory.documents.read("scope", "/tmp.md").orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await memory.documents.read("scope", "/tmp.md").orThrow(),
+      ).toBeUndefined();
       expect(
         await memory.documents
           .write("scope", "/tmp.md", "back", { expectedVersion: null })

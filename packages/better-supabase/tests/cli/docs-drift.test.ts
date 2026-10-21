@@ -311,8 +311,8 @@ describe("naming", () => {
     expect(
       Object.values(api)
         .flatMap((names) => names.values ?? [])
-        .filter((name) => FACTORIES.has(name)).length,
-    ).toBe(FACTORIES.size);
+        .filter((name) => FACTORIES.has(name)),
+    ).toHaveLength(FACTORIES.size);
   });
 });
 

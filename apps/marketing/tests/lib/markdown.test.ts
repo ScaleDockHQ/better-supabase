@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { blockGroups, blocks, getBlock } from "../../lib/blocks";
 import {
@@ -21,7 +21,7 @@ const site = {
 };
 
 describe("markdown mirrors", () => {
-  test("a block page has the install command and links its dependencies", () => {
+  it("a block page has the install command and links its dependencies", () => {
     const block = blocks.find((candidate) => candidate.requires.length > 0);
 
     expect(block).toBeDefined();
@@ -43,7 +43,7 @@ describe("markdown mirrors", () => {
     );
   });
 
-  test("the blocks index lists every block once", () => {
+  it("the blocks index lists every block once", () => {
     const markdown = blocksIndexMarkdown(blockGroups(), site);
 
     for (const block of blocks) {
@@ -53,7 +53,7 @@ describe("markdown mirrors", () => {
     expect(markdown).toContain(`> ${blocks.length} SQL modules`);
   });
 
-  test("a recipe page has both platforms and links its block", () => {
+  it("a recipe page has both platforms and links its block", () => {
     const recipe = availableRecipes.find((each) => each.native !== null);
 
     expect(recipe).toBeDefined();
@@ -76,7 +76,7 @@ describe("markdown mirrors", () => {
     expect(markdown).not.toContain(shadcnAdd(recipe.native?.components ?? []));
   });
 
-  test("the recipes index links the available recipes", () => {
+  it("the recipes index links the available recipes", () => {
     const markdown = recipesIndexMarkdown(
       availableRecipes,
       plannedRecipes,

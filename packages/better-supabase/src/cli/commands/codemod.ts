@@ -97,7 +97,7 @@ async function sourceFiles(path: string): Promise<string[]> {
     }
   }
 
-  return files.sort();
+  return files.toSorted();
 }
 
 export async function runCodemod(

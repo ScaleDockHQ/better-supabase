@@ -52,7 +52,7 @@ function text(findings: readonly Finding[], paint: Paint): string {
   const order: readonly Severity[] = ["error", "warning", "info"];
 
   const lines = [...findings]
-    .sort(
+    .toSorted(
       (a, b) =>
         order.indexOf(a.severity) - order.indexOf(b.severity) ||
         byCodePoint(a.code, b.code),

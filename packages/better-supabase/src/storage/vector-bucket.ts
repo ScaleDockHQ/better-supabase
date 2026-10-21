@@ -119,7 +119,8 @@ async function inLanes<T, R>(
 
   const lane = async (): Promise<void> => {
     while (!failed && next < items.length) {
-      const index = next++;
+      const index = next;
+      next += 1;
       const result = await run(items[index]!);
 
       if (!result.ok) {

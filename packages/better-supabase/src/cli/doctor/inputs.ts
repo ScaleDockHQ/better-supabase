@@ -53,8 +53,8 @@ export async function sqlFiles(
   const migrations = existsSync(migrationsDir)
     ? (await readdir(migrationsDir))
         .filter((name) => name.endsWith(".sql"))
-        .sort()
-        .reverse()
+        .toSorted()
+        .toReversed()
         .map((name) => `${migrationsPath}/${name}`)
     : [];
 
@@ -75,5 +75,5 @@ export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
     });
   }
 
-  return files.sort((a, b) => byCodePoint(a.path, b.path));
+  return files.toSorted((a, b) => byCodePoint(a.path, b.path));
 }

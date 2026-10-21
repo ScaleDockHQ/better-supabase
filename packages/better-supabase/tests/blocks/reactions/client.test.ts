@@ -62,7 +62,7 @@ describe("createReactionsController", () => {
       subjectType: "comment",
       subjectId: 7,
     });
-    expect(summary).toHaveBeenCalledTimes(1);
+    expect(summary).toHaveBeenCalledOnce();
     topic.emit("reactions:org-1", "reaction.added", {
       subjectType: "comment",
       subjectId: "c1",
@@ -107,7 +107,7 @@ describe("createReactionsController", () => {
   it("drops an answer a newer load overtook", async () => {
     const { summary, controller } = setup(null);
     const slow = held({ old: [] });
-    summary.mockImplementationOnce(() => slow.result);
+    summary.mockReturnValueOnce(slow.result);
     const { view, unmount } = mount(controller);
     await flush();
     await view().refresh();

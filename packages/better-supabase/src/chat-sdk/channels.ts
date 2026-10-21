@@ -157,11 +157,13 @@ export function webhook(
     }
 
     const headers: Record<string, string> = {};
-    request.headers.forEach((value, key) => {
+
+    for (const [key, value] of request.headers.entries()) {
       if (!DROPPED_HEADERS.has(key)) {
         headers[key] = value;
       }
-    });
+    }
+
     const externalId = options.externalId?.(body, request);
 
     const stored = await options.inbox.inbound.store({

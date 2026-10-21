@@ -603,9 +603,10 @@ export function createOutbox(options: OutboxOptions): Outbox {
           );
 
           const results: Record<string, RelayResult> = {};
-          entries.forEach(([consumer], index) => {
+
+          for (const [index, [consumer]] of entries.entries()) {
             results[consumer] = relayed[index]!;
-          });
+          }
 
           const result: OutboxRouteResult = {
             consumers: results,

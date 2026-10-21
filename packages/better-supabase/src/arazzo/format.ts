@@ -385,7 +385,8 @@ function lintWorkflow(
   const pointer = `/workflows/${String(index)}`;
   const stepIndex = new Map<string, number>();
   const outputsOf = new Map<string, ReadonlySet<string>>();
-  workflow.steps.forEach((step, position) => {
+
+  for (const [position, step] of workflow.steps.entries()) {
     if (stepIndex.has(step.stepId)) {
       diagnostics.push({
         code: "arazzo-step-id-duplicate",
@@ -398,7 +399,8 @@ function lintWorkflow(
     }
 
     outputsOf.set(step.stepId, new Set(Object.keys(step.outputs ?? {})));
-  });
+  }
+
   const inputs = inputNames(workflow.inputs);
 
   const checkExpressions = (
@@ -456,7 +458,7 @@ function lintWorkflow(
     }
   };
 
-  workflow.steps.forEach((step, position) => {
+  for (const [position, step] of workflow.steps.entries()) {
     const where = `${pointer}/steps/${String(position)}`;
 
     if (!ID.test(step.stepId)) {
@@ -531,14 +533,16 @@ function lintWorkflow(
         });
       }
     }
-  });
+  }
+
   checkExpressions(workflow.outputs, `${pointer}/outputs`);
 }
 
 function lintArazzo(document: AnyArazzoDocument): SpecDiagnostic[] {
   const diagnostics: SpecDiagnostic[] = [];
   const workflowIds = new Set<string>();
-  document.workflows.forEach((workflow, index) => {
+
+  for (const [index, workflow] of document.workflows.entries()) {
     if (!ID.test(workflow.workflowId)) {
       diagnostics.push({
         code: "arazzo-id-invalid",
@@ -558,15 +562,15 @@ function lintArazzo(document: AnyArazzoDocument): SpecDiagnostic[] {
     }
 
     workflowIds.add(workflow.workflowId);
-  });
+  }
 
   const sourceNames = new Set(
     document.sourceDescriptions.map((source) => source.name),
   );
 
-  document.workflows.forEach((workflow, index) => {
+  for (const [index, workflow] of document.workflows.entries()) {
     lintWorkflow(workflow, index, workflowIds, sourceNames, diagnostics);
-  });
+  }
 
   return diagnostics;
 }

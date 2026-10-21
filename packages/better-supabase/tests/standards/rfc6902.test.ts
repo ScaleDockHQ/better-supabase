@@ -151,7 +151,7 @@ describe("RFC 6902 JSON Patch", () => {
     expect(applyPatch({ a: 1 }, [{ op: "replace", path: "", value: 2 }])).toBe(
       2,
     );
-    expect(applyPatch({ a: 1 }, [{ op: "remove", path: "" }])).toBe(null);
+    expect(applyPatch({ a: 1 }, [{ op: "remove", path: "" }])).toBeNull();
   });
 
   it.each<readonly [string, JsonValue, JsonPatchOperation]>([

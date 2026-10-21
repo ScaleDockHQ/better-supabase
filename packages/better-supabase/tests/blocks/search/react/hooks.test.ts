@@ -130,7 +130,7 @@ describe("useCommandSearch", () => {
     expect(view.result.open).toBe(false);
     expect(press({ key: "j", metaKey: true })).not.toHaveBeenCalled();
     expect(press({ metaKey: true, shiftKey: true })).not.toHaveBeenCalled();
-    expect(press({ metaKey: true })).toHaveBeenCalled();
+    expect(press({ metaKey: true })).toHaveBeenCalledWith();
     expect(view.result.open).toBe(true);
     await settle();
     expect(view.result.groups.map((group) => group.key)).toEqual([
@@ -144,7 +144,10 @@ describe("useCommandSearch", () => {
     press({ key: "K", ctrlKey: true });
     expect(view.result.open).toBe(false);
     view.unmount();
-    expect(keyWindow.removeEventListener).toHaveBeenCalled();
+    expect(keyWindow.removeEventListener).toHaveBeenCalledWith(
+      "keydown",
+      expect.any(Function),
+    );
   });
 
   it("debounces the query and groups the hits", async () => {

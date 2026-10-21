@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- FNV-1a works on 32-bit integers. */
+
 import type { DisabledRow } from "../config/blocks.ts";
 import type { ExtraColumn, ModuleContext } from "./context.ts";
 

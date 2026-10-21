@@ -130,7 +130,7 @@ describe.skipIf(!live)("app tables", () => {
     const planned = Number(/plan\((\d+)\)/u.exec(body)?.[1]);
 
     expect(planned).toBeGreaterThan(0);
-    expect(lines.filter((line) => line.startsWith("ok")).length).toBe(planned);
+    expect(lines.filter((line) => line.startsWith("ok"))).toHaveLength(planned);
   });
 
   it("keeps each organization's rows to its members", async () => {

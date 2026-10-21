@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- file permissions are the low 9 bits of `mode`. */
+
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import {

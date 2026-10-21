@@ -274,7 +274,7 @@ describe("createBilling", () => {
     );
 
     const billing = createBilling(t);
-    expect(await billing.cancelSubscription("org").orThrow()).toBe(undefined);
+    expect(await billing.cancelSubscription("org").orThrow()).toBeUndefined();
     item = {
       subscription: "sub_1",
       item: "si",

@@ -459,7 +459,7 @@ describe("bundle", () => {
       "utf-8",
     );
 
-    expect(source.includes('"use client"')).toBe(false);
+    expect(source).not.toContain('"use client"');
   });
 
   it("renders SessionProvider from the react-server build as a client reference", async () => {

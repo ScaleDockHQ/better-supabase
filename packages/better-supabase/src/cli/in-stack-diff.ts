@@ -477,6 +477,6 @@ export async function migrationFiles(
 
   return names
     .filter((name) => name.endsWith(".sql"))
-    .sort()
+    .toSorted()
     .map((name) => join(dir, name));
 }

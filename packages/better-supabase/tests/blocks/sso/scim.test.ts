@@ -18,8 +18,11 @@ function memoryStore() {
   const membership = new Map<string, Set<string>>();
   let clock = 0;
 
-  const now = () =>
-    new Date(Date.UTC(2026, 9, 6, 12, 0, clock++)).toISOString();
+  const now = () => {
+    clock += 1;
+
+    return new Date(Date.UTC(2026, 9, 6, 12, 0, clock - 1)).toISOString();
+  };
 
   const userJson = (row: Row): Row => ({
     ...row,

@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- file permissions are the low 9 bits of `mode`. */
+
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

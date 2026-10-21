@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   eventsColumnsEdited,
@@ -8,12 +8,12 @@ import {
 } from "../../src/create/design-subject.ts";
 
 describe("subjectColumns", () => {
-  test("adds nothing without a subject", () => {
+  it("adds nothing without a subject", () => {
     expect(subjectColumns(undefined)).toEqual([]);
     expect(subjectColumns({ type: "post" })).toEqual([]);
   });
 
-  test("adds rank and deleted_at when asked for", () => {
+  it("adds rank and deleted_at when asked for", () => {
     expect(
       subjectColumns({ type: "post", rank: true, softDelete: true }).map(
         (column) => column.name,
@@ -26,7 +26,7 @@ describe("subjectColumnsEdited", () => {
   const upper = (columns: readonly string[]): readonly string[] =>
     columns.map((column) => column.toUpperCase());
 
-  test("renames the title, search columns and rank group", () => {
+  it("renames the title, search columns and rank group", () => {
     expect(
       subjectColumnsEdited(
         {
@@ -45,7 +45,7 @@ describe("subjectColumnsEdited", () => {
     });
   });
 
-  test("drops what the edit removes", () => {
+  it("drops what the edit removes", () => {
     expect(
       subjectColumnsEdited(
         {
@@ -59,7 +59,7 @@ describe("subjectColumnsEdited", () => {
     ).toEqual({ type: "post", search: {}, rank: true });
   });
 
-  test("keeps a plain rank", () => {
+  it("keeps a plain rank", () => {
     expect(subjectColumnsEdited({ type: "post", rank: true }, upper)).toEqual({
       type: "post",
       rank: true,
@@ -71,7 +71,7 @@ describe("subjectColumnsEdited versions and rank", () => {
   const upper = (columns: readonly string[]): readonly string[] =>
     columns.map((column) => column.toUpperCase());
 
-  test("edits version columns and drops an emptied list", () => {
+  it("edits version columns and drops an emptied list", () => {
     expect(
       subjectColumnsEdited(
         { type: "post", versions: { columns: ["a"] } },
@@ -89,7 +89,7 @@ describe("subjectColumnsEdited versions and rank", () => {
     ).toBe(true);
   });
 
-  test("keeps rank, renames its group, and falls back to plain rank", () => {
+  it("keeps rank, renames its group, and falls back to plain rank", () => {
     expect(
       subjectColumnsEdited({ type: "post", rank: { group: "g" } }, upper).rank,
     ).toEqual({ group: "G" });
@@ -111,7 +111,7 @@ describe("subjectTypeError", () => {
     },
   };
 
-  test("accepts a free type and refuses a taken or malformed one", () => {
+  it("accepts a free type and refuses a taken or malformed one", () => {
     expect(subjectTypeError(design, "notes", "note")).toBeUndefined();
     expect(subjectTypeError(design, "posts", "post")).toBeUndefined();
     expect(subjectTypeError(design, "notes", "post")).toMatch(/posts/u);
@@ -120,7 +120,7 @@ describe("subjectTypeError", () => {
 });
 
 describe("eventsColumnsEdited", () => {
-  test("renames the payload columns and drops an emptied list", () => {
+  it("renames the payload columns and drops an emptied list", () => {
     expect(eventsColumnsEdited(true, () => [])).toBe(true);
     expect(
       eventsColumnsEdited({ include: ["a"] }, (c) => c.map((x) => `${x}2`)),

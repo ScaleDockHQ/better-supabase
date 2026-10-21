@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- trace flags are a bit field. */
+
 import {
   type Context,
   context,

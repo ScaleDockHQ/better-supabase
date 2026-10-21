@@ -432,7 +432,11 @@ describe("BS212 --explain", () => {
     const zero = database([
       [
         /pg_stat_xact_user_functions/,
-        () => [{ name: "f.g", calls: reads++, self_time: 0.5 * reads }],
+        () => {
+          reads += 1;
+
+          return [{ name: "f.g", calls: reads - 1, self_time: 0.5 * reads }];
+        },
       ],
       [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }]],
     ]);

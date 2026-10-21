@@ -498,8 +498,7 @@ describe("BetterSupabaseProvider", () => {
     expect(remove).not.toHaveBeenCalled();
 
     setAuth(SIGNED_OUT);
-    expect(remove).toHaveBeenCalledTimes(1);
-    expect(remove).toHaveBeenCalledWith({ queryKey: ["bs"] });
+    expect(remove).toHaveBeenCalledExactlyOnceWith({ queryKey: ["bs"] });
     expect(queryClient.getQueryData(["bs", "customers"])).toBeUndefined();
     expect(queryClient.getQueryData(["other"])).toBe(1);
 
@@ -616,17 +615,17 @@ describe("useBroadcast", () => {
 
     expect(realtime.client.channel).not.toHaveBeenCalled();
     signIn(USER);
-    expect(realtime.client.channel).toHaveBeenCalledTimes(1);
+    expect(realtime.client.channel).toHaveBeenCalledOnce();
     await flush();
     expect(view.result).toBe("subscribed");
     realtime.emit("room:r1", "created", { title: "Hi" });
     await flush();
-    expect(created).toHaveBeenCalledTimes(1);
+    expect(created).toHaveBeenCalledOnce();
     expect(invalidated(["bs", "notes"])).toBe(true);
     signIn(OTHER);
     expect(realtime.client.channel).toHaveBeenCalledTimes(2);
     view.unmount();
-    expect(unsubscribed).toHaveBeenCalled();
+    expect(unsubscribed).toHaveBeenCalledWith();
 
     const bare = renderHook(
       () => useBroadcast(room, { roomId: "r1" }),
@@ -672,7 +671,7 @@ describe("useBroadcast", () => {
         user: placeholder,
       });
     }).not.toThrow();
-    expect(realtime.client.channel).toHaveBeenCalledTimes(1);
+    expect(realtime.client.channel).toHaveBeenCalledOnce();
     view.unmount();
   });
 
@@ -738,7 +737,7 @@ describe("useBroadcast", () => {
     );
 
     view.unmount();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("uses the latest handlers without resubscribing, and resubscribes for a new user", async () => {
@@ -758,14 +757,14 @@ describe("useBroadcast", () => {
     emit("room:r1", "created", { title: "Hi" });
     await flush();
     expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenCalledTimes(1);
-    expect(client.channel).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledOnce();
+    expect(client.channel).toHaveBeenCalledOnce();
     expect(client.channel.mock.calls[0]![1]).toEqual({
       config: { private: true, broadcast: { self: false } },
     });
 
     setAuth(signedIn(OTHER));
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
     expect(client.channel).toHaveBeenCalledTimes(2);
     view.unmount();
   });
@@ -822,7 +821,7 @@ describe("useBroadcast", () => {
     await flush();
     emit("room:r1", "created", { title: "x" });
     await flush();
-    expect(keys).toHaveBeenCalledTimes(1);
+    expect(keys).toHaveBeenCalledOnce();
     expect(cache.invalidated(["custom", "r1"])).toBe(true);
     expect(cache.invalidated(["bs", "customers"])).toBe(false);
     byKeys.unmount();
@@ -937,7 +936,7 @@ describe("useLiveQuery", () => {
     view.rerender(typed.spec.customers.findMany({ include: { notes: true } }));
     await flush();
     expect(client.channel).toHaveBeenCalledTimes(2);
-    expect(tablesOf).toHaveBeenCalledTimes(1);
+    expect(tablesOf).toHaveBeenCalledOnce();
     view.unmount();
   });
 
@@ -1047,7 +1046,7 @@ describe("useLiveCount", () => {
 
     expect(stale.result.count).toBe(3);
     await flush();
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(stale.result.count).toBe(7);
     stale.unmount();
   });
@@ -1208,7 +1207,7 @@ describe("useNotifications", () => {
 
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("loads once without a topic, sorts, counts its own way and keeps the error", async () => {
@@ -1436,7 +1435,7 @@ describe("useAnnouncements", () => {
     expect(view.result.error).toBeUndefined();
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("loads once without a topic and waits for a signed-in user", async () => {
@@ -1534,7 +1533,7 @@ describe("useReactions", () => {
       subjectId: "other",
     });
     await flush();
-    expect(rpc.mock.calls.length).toBe(calls);
+    expect(rpc).toHaveBeenCalledTimes(calls);
     counts = [{ emoji: "🎉", count: 1, reacted: false, actors: ["u3"] }];
     emit("reactions:org-1", "changed", {
       subjectType: "comment",
@@ -1622,7 +1621,7 @@ describe("useComments", () => {
     const calls = rpc.mock.calls.length;
     emit("comments:cu1", "INSERT", {});
     await flush();
-    expect(rpc.mock.calls.length).toBe(calls + 1);
+    expect(rpc).toHaveBeenCalledTimes(calls + 1);
     view.unmount();
   });
 
@@ -1690,7 +1689,7 @@ describe("useOrganizations", () => {
     expect(rpc).toHaveBeenCalledWith("switch_organization", {
       organization: "org-2",
     });
-    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(refreshSession).toHaveBeenCalledOnce();
     expect(view.result.activeId).toBe("org-2");
     expect(view.result.active?.name).toBe("Globex");
     expect(view.result.switching).toBeUndefined();
@@ -1729,9 +1728,9 @@ describe("useOrganizations", () => {
       organizationId: "org-2",
       refresh: true,
     });
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledOnce();
     expect(view.result.organizations).toEqual([{ id: "org-2", plan: "pro" }]);
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledOnce();
     view.unmount();
   });
 });
@@ -2311,7 +2310,7 @@ describe("workflow run hooks", () => {
     expect(view.result.runs).toHaveLength(2);
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("loads the user's own runs once without a tenant, after sign-in", async () => {
@@ -2570,7 +2569,7 @@ describe("workflow builder hooks", () => {
     expect(view.result.error?.message).toBe("no nodes");
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("does nothing for a null run and keeps a read error", async () => {
@@ -2762,7 +2761,7 @@ describe("useActionForm", () => {
       const failed = submit({ name: "x" });
       view.result.formProps.onSubmit(failed.event as never);
       await flush();
-      expect(failed.event.preventDefault).toHaveBeenCalled();
+      expect(failed.event.preventDefault).toHaveBeenCalledWith();
       expect(failed.form.reset).not.toHaveBeenCalled();
       expect(view.result.fieldErrors).toEqual({ name: "Too short" });
       expect(onError).toHaveBeenCalledWith(
@@ -2773,7 +2772,7 @@ describe("useActionForm", () => {
       const saved = submit({ name: "Acme" });
       view.result.formProps.onSubmit(saved.event as never);
       await flush();
-      expect(saved.form.reset).toHaveBeenCalledTimes(1);
+      expect(saved.form.reset).toHaveBeenCalledOnce();
       expect(onSuccess).toHaveBeenCalledWith("Acme", saved.form);
       expect(view.result).toMatchObject({ data: "Acme", fieldErrors: {} });
     } finally {
@@ -2927,7 +2926,7 @@ describe("ai-chat hooks", () => {
     expect(view.result.error).toBeUndefined();
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("waits for a user, loads once without a topic and needs a tenant to create", async () => {
@@ -3088,7 +3087,7 @@ describe("ai-chat hooks", () => {
     expect(view.result.items?.map((item) => item.id)).toEqual(["y-1"]);
     const calls = rpc.mock.calls.length;
     await stale();
-    expect(rpc.mock.calls.length).toBe(calls);
+    expect(rpc).toHaveBeenCalledTimes(calls);
 
     await view.result.loadMore();
     expect(view.result.items?.map((item) => item.id)).toEqual(["y-1", "y-2"]);
@@ -3129,7 +3128,7 @@ describe("ai-chat hooks", () => {
     await view.result.loadMore();
     expect(view.result.items).toBeUndefined();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
     view.unmount();
   });
 
@@ -3234,7 +3233,7 @@ describe("ai-chat hooks", () => {
     const calls = rpc.mock.calls.length;
     await view.result.step("a1", -1);
     await view.result.step("zz", 1);
-    expect(rpc.mock.calls.length).toBe(calls + 2);
+    expect(rpc).toHaveBeenCalledTimes(calls + 2);
     await view.result.refresh();
 
     siblings = [];
@@ -3951,7 +3950,7 @@ describe("powersync/react", () => {
       view.rerender({});
       await vi.advanceTimersByTimeAsync(1000);
       expect(view.result.data).toBe(2);
-      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledOnce();
       view.unmount();
     } finally {
       vi.useRealTimers();

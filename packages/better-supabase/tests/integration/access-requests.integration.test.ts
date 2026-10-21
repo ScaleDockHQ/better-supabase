@@ -184,8 +184,8 @@ describe.skipIf(!live)("access requests", () => {
 
       await s.asRole(owner);
       expect(
-        (await access.list(tenant, { status: "pending" }).orThrow()).length,
-      ).toBe(2);
+        await access.list(tenant, { status: "pending" }).orThrow(),
+      ).toHaveLength(2);
       await approvals.reject(rejected.approvalId!).orThrow();
       await approvals.approve(join.approvalId!).orThrow();
       const ended = await access.end(join.id).orThrow();

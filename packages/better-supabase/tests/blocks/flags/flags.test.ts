@@ -423,8 +423,11 @@ describe("createFlagsProvider", () => {
     ).toMatchObject({ value: true });
     clock = 999;
     await provider.resolveBooleanEvaluation("new_editor", false, {});
-    expect(call).toHaveBeenCalledTimes(1);
-    expect(call).toHaveBeenCalledWith("flags", "flag_definitions", {});
+    expect(call).toHaveBeenCalledExactlyOnceWith(
+      "flags",
+      "flag_definitions",
+      {},
+    );
     provider.refresh();
     expect(
       await provider.resolveBooleanEvaluation("new_editor", false, {}),

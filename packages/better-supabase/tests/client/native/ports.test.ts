@@ -62,7 +62,7 @@ describe("nativeDeepLinks", () => {
     listener?.({ url: "app://next" });
     expect(seen).toHaveBeenCalledWith("app://next");
     stop();
-    expect(remove).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledWith();
   });
 });
 
@@ -152,7 +152,7 @@ describe("nativePorts", () => {
       },
     });
 
-    expect(Object.keys(ports).sort()).toEqual([
+    expect(Object.keys(ports).toSorted()).toEqual([
       "files",
       "links",
       "push",

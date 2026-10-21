@@ -210,7 +210,7 @@ describe("$storage", () => {
     const db = betterSupabase.connect(client);
     expect(db.$storage).toBe(storage);
     expect(db.$storage).toBe(storage);
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledOnce();
     const option = storageApi();
     expect(
       betterSupabase.connect(client, {}, { storage: option }).$storage,

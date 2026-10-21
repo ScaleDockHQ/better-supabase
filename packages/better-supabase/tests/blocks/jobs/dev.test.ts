@@ -38,7 +38,7 @@ describe("devDrain", () => {
 
     expect(fetch).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = fetch.mock.calls[0]!;
     expect(String(url)).toBe("http://localhost:3000/api/jobs/drain");
     expect(init?.method).toBeUndefined();
@@ -78,7 +78,7 @@ describe("devDrain", () => {
 
     const first = drain.tick();
     await drain.tick();
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledOnce();
     release();
     await first;
     expect(onError).toHaveBeenCalledWith("[jobs] dev drain answered 401");

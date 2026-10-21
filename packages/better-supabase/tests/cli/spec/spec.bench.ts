@@ -57,13 +57,13 @@ async function measure(
   work: () => Promise<unknown>,
   runs = RUNS,
 ): Promise<number> {
-  for (let warm = 0; warm < 20; warm++) {
+  for (let warm = 0; warm < 20; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < runs; run++) {
+  for (let run = 0; run < runs; run += 1) {
     await work();
   }
 

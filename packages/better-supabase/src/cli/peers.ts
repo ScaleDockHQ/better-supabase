@@ -61,7 +61,7 @@ function compare(a: Version, b: Version): number {
     return right.length - left.length;
   }
 
-  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
     const x = left[index];
     const y = right[index];
 

@@ -90,7 +90,7 @@ export function batchingExecutor(
       )
       .then(
         (results) => {
-          items.forEach((item, index) => {
+          for (const [index, item] of items.entries()) {
             item.resolve(
               results[index] ??
                 err(
@@ -101,7 +101,7 @@ export function batchingExecutor(
                   ),
                 ),
             );
-          });
+          }
         },
         (cause: unknown) => {
           for (const item of items) {

@@ -893,7 +893,7 @@ export function defineBucket<
       }
 
       const sorted = (list: readonly string[] | null | undefined) =>
-        list ? [...list].sort().join(",") : "";
+        list ? list.toSorted().join(",") : "";
 
       if (sorted(actual.allowedMimeTypes) !== sorted(allowedMimeTypes)) {
         issues.push({

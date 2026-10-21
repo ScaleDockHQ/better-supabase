@@ -111,7 +111,7 @@ describe("createExpo", () => {
         id: "1",
       }),
     ).toEqual({ user: USER, params: { id: "1" } });
-    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledOnce();
     expect(written.headers.getSetCookie().join("\n")).toContain(COOKIE);
     expect(written.headers.get("cache-control")).toContain("no-store");
 
@@ -120,7 +120,7 @@ describe("createExpo", () => {
     expect(
       await middleware(immutable("https://app.test/", { cookie })),
     ).toBeUndefined();
-    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledOnce();
     expect(written.headers.getSetCookie()).toHaveLength(before);
   });
 
@@ -129,13 +129,13 @@ describe("createExpo", () => {
     const url = "https://app.test/handoff";
 
     expect(await bs.middleware()(immutable(url, { cookie }))).toBeUndefined();
-    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledOnce();
 
     const cookies = written.headers.getSetCookie().length;
     const ctx = await bs.request(immutable(url, { cookie }));
 
     expect(ctx.auth).toMatchObject({ kind: "user", source: "cookie" });
-    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledOnce();
     expect(written.headers.getSetCookie()).toHaveLength(cookies);
   });
 
@@ -148,7 +148,7 @@ describe("createExpo", () => {
     const loader = bs.loader((ctx) => ctx.auth.kind, { refresh: false });
 
     expect(await loader(immutable(url, { cookie }), {})).toBe("user");
-    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledOnce();
   });
 
   it("refreshes once in a loader when no middleware ran", async () => {
@@ -158,7 +158,7 @@ describe("createExpo", () => {
     expect(
       await loader(immutable("https://app.test/no-middleware", { cookie }), {}),
     ).toBe("user");
-    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledOnce();
   });
 
   it("throws a StatusError for a refused caller and in static rendering", async () => {

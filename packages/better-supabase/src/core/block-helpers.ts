@@ -423,7 +423,8 @@ export async function eachLimit<T>(
 
   const lane = async (): Promise<void> => {
     while (failure === undefined && next < items.length) {
-      const index = next++;
+      const index = next;
+      next += 1;
 
       try {
         await fn(items[index]!, index);

@@ -74,8 +74,7 @@ describe("createCommandSearchController", () => {
     view().setQuery(" rev  ");
     expect(view().loading).toBe(true);
     await vi.advanceTimersByTimeAsync(150);
-    expect(client.search).toHaveBeenCalledTimes(1);
-    expect(client.search).toHaveBeenCalledWith("rev", {
+    expect(client.search).toHaveBeenCalledExactlyOnceWith("rev", {
       limit: 5,
       organizationId: "org",
       types: ["note"],

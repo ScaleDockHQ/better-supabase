@@ -261,7 +261,7 @@ describe("cacheMiddleware", () => {
 
     await middleware.wrapGenerate!(call);
     const cached = await middleware.wrapGenerate!(call);
-    expect(doGenerate).toHaveBeenCalledTimes(1);
+    expect(doGenerate).toHaveBeenCalledOnce();
     const file = cached.content[0];
     expect(
       file?.type === "file" && file.data.type === "url" && file.data.url,

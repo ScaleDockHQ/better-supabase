@@ -465,7 +465,7 @@ describe("applyOverlay", () => {
 
     const counting: JsonPathEngine = {
       paths: (doc, expression) => {
-        calls++;
+        calls += 1;
 
         return jsonpath.paths(doc, expression);
       },

@@ -326,7 +326,7 @@ describe.skipIf(!live)("notifications", () => {
           { user: USERS.member, channel: "email", status: "pending" },
           { user: USERS.member, channel: "in_app", status: "sent" },
           { user: USERS.watcher, channel: "in_app", status: "sent" },
-        ].sort((a, b) =>
+        ].toSorted((a, b) =>
           a.channel === b.channel
             ? a.user.localeCompare(b.user)
             : a.channel.localeCompare(b.channel),

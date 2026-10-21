@@ -181,7 +181,7 @@ export async function scopedSeed<
   };
 
   const remove = async (): Promise<void> => {
-    const pending = cleanup.splice(0).reverse();
+    const pending = cleanup.splice(0).toReversed();
     let failure: unknown;
 
     for (const run of pending) {

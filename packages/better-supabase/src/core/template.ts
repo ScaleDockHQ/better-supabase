@@ -83,7 +83,7 @@ export function parseTemplate(
       throw new TypeError(`Template "${source}" has an empty segment`);
     }
 
-    for (let index = 1; index < segment.length; index++) {
+    for (let index = 1; index < segment.length; index += 1) {
       if (
         segment[index]!.kind !== "literal" &&
         segment[index - 1]!.kind !== "literal"

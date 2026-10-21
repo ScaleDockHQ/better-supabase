@@ -110,7 +110,7 @@ describe("createBlocks sinks", () => {
 
     const rollup = vi
       .spyOn(blocks.metrics, "rollup")
-      .mockImplementation(() => AsyncResult.ok(1));
+      .mockReturnValue(AsyncResult.ok(1));
 
     await blocks.sinks.metrics?.send([cloudEvent("time_entry.recorded", {})]);
     expect(rollup.mock.calls[0]?.[0]).toMatchObject({ metric: "time_tracked" });
@@ -160,8 +160,8 @@ describe("createBlocks hooks", () => {
     );
     const port = seen[0]?.["notifier"] as Notifier;
     await port.send("x", { recipients: [], tenant: "o", key: "k", data: {} });
-    expect(before).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(before).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledOnce();
   });
 });
 

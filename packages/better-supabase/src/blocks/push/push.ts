@@ -431,7 +431,8 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
         );
 
         const list: readonly unknown[] = Array.isArray(data) ? data : [];
-        chunk.forEach((token, at) => {
+
+        for (const [at, token] of chunk.entries()) {
           const entry = recordOrEmpty(list[at]);
 
           const message =
@@ -446,7 +447,7 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
                   ...(message === undefined ? {} : { message }),
                 },
           );
-        });
+        }
       }
 
       await prune(

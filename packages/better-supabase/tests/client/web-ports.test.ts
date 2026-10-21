@@ -130,8 +130,8 @@ describe("webKeyboard", () => {
     expect(press({})).not.toHaveBeenCalled();
     expect(press({ metaKey: true, shiftKey: true })).not.toHaveBeenCalled();
     expect(press({ ctrlKey: true, altKey: true })).not.toHaveBeenCalled();
-    expect(press({ metaKey: true })).toHaveBeenCalled();
-    expect(press({ key: "K", ctrlKey: true })).toHaveBeenCalled();
+    expect(press({ metaKey: true })).toHaveBeenCalledWith();
+    expect(press({ key: "K", ctrlKey: true })).toHaveBeenCalledWith();
     expect(run).toHaveBeenCalledTimes(2);
     release();
     expect(target.count("keydown")).toBe(0);
@@ -139,7 +139,7 @@ describe("webKeyboard", () => {
     const plain = vi.fn();
     webKeyboard()({ key: "/", shift: true, alt: true }, plain);
     press({ key: "/", shiftKey: true, altKey: true });
-    expect(plain).toHaveBeenCalledTimes(1);
+    expect(plain).toHaveBeenCalledOnce();
   });
 
   it("binds nothing outside a browser", () => {
@@ -187,7 +187,7 @@ describe("webFilePicker", () => {
       multiple: true,
       accept: "image/*,.pdf",
     });
-    expect(input["click"]).toHaveBeenCalled();
+    expect(input["click"]).toHaveBeenCalledWith();
     const chosen = new File(["abc"], "a.txt", { type: "text/plain" });
     input["files"] = [chosen, new File(["x"], "b.bin")];
     input.dispatch("change");
@@ -266,7 +266,7 @@ describe("webPushToken", () => {
     const port = webPushToken({ vapidPublicKey: "AQID-_8" });
     expect(port.provider).toBe("webpush");
     expect(await port.token()).toBe(JSON.stringify({ endpoint: "new" }));
-    expect(push.requestPermission).toHaveBeenCalled();
+    expect(push.requestPermission).toHaveBeenCalledWith();
 
     const options = push.subscribe.mock.calls[0]?.[0] as {
       applicationServerKey: Uint8Array;
@@ -281,7 +281,7 @@ describe("webPushToken", () => {
     expect(
       await webPushToken({ vapidPublicKey: "AQID", registration }).token(),
     ).toBe(JSON.stringify({ endpoint: "old" }));
-    expect(registration).toHaveBeenCalled();
+    expect(registration).toHaveBeenCalledWith();
   });
 
   it("resolves with null when denied, not asked, or unsupported", async () => {
@@ -303,7 +303,7 @@ describe("webPushToken", () => {
 
 describe("webPorts", () => {
   it("bundles the web defaults", () => {
-    expect(Object.keys(webPorts()).sort()).toEqual([
+    expect(Object.keys(webPorts()).toSorted()).toEqual([
       "files",
       "keyboard",
       "links",

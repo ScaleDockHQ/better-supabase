@@ -187,7 +187,7 @@ export function temporalGuardImport(input: SchemaSource): string | undefined {
 
   return names.size === 0
     ? undefined
-    : `import { ${[...names].sort().join(", ")} } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`;
+    : `import { ${[...names].toSorted().join(", ")} } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`;
 }
 
 interface CommentEntry {
@@ -307,11 +307,11 @@ function unwrap(expression: string): string {
     let depth = 0;
     let wraps = true;
 
-    for (let i = 0; i < text.length - 1; i++) {
+    for (let i = 0; i < text.length - 1; i += 1) {
       if (text[i] === "(") {
-        depth++;
+        depth += 1;
       } else if (text[i] === ")") {
-        depth--;
+        depth -= 1;
       }
 
       if (depth === 0) {
@@ -336,13 +336,13 @@ function conjuncts(expression: string): string[] {
   let depth = 0;
   let start = 0;
 
-  for (let i = 0; i < expression.length; i++) {
+  for (let i = 0; i < expression.length; i += 1) {
     const char = expression[i];
 
     if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
     } else if (depth === 0 && expression.startsWith(" AND ", i)) {
       terms.push(expression.slice(start, i));
       start = i + 5;
@@ -762,7 +762,7 @@ export function variantsFor(table: TableMeta): readonly Variant[] {
 }
 
 export function tableEntries(input: SchemaSource): [string, TableMeta][] {
-  return Object.entries(input.meta.tables).sort(([a], [b]) =>
+  return Object.entries(input.meta.tables).toSorted(([a], [b]) =>
     a < b ? -1 : a > b ? 1 : 0,
   );
 }

@@ -75,7 +75,7 @@ export async function reloadSchemaCache(
   const deadline = Date.now() + (wait.timeout ?? 30_000);
   let pending = probes;
 
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 0; ; attempt += 1) {
     if (attempt % 8 === 0) {
       await pool.query(`notify pgrst, 'reload schema'`);
     }

@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- IPv6 prefixes are masks over the first hextet. */
+
 /**
  * Decides whether a webhook may be sent to `url`. Throwing means the check
  * itself failed (a DNS lookup error): deliveries retry it, and `safeFetch`

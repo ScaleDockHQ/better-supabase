@@ -76,9 +76,9 @@ describe.skipIf(!live)("usage", () => {
           `better_supabase.within_quota('${organization}', 'api_calls')`,
         ),
       ).toBe(false);
-      expect(await usage.remaining(organization, "storage").orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await usage.remaining(organization, "storage").orThrow(),
+      ).toBeUndefined();
 
       // A tenant quota overrides the plan quota.
       await s.service();

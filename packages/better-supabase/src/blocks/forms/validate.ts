@@ -227,9 +227,9 @@ function check(
     }
 
     if (each !== undefined) {
-      value.forEach((item, i) => {
+      for (const [i, item] of value.entries()) {
         check(schemaOf(each), item, [...path, i], issues);
-      });
+      }
     }
   }
 

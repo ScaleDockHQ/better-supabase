@@ -584,7 +584,7 @@ describe("createSupabaseWorld", () => {
     await world.start();
     expect(reenqueue).toHaveBeenCalledOnce();
     await world.close();
-    expect(baseClose).toHaveBeenCalled();
+    expect(baseClose).toHaveBeenCalledWith();
 
     const { pool: plain } = fakePool({ vault: () => [] });
     const open = createSupabaseWorld({ pool: plain });

@@ -34,7 +34,7 @@ function partEnd(text: string, start: number, ends: readonly string[]): number {
   let depth = 0;
   let quote: string | undefined;
 
-  for (let i = start; i < text.length; i++) {
+  for (let i = start; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -44,13 +44,13 @@ function partEnd(text: string, start: number, ends: readonly string[]): number {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
       if (depth === 0) {
         return i;
       }
 
-      depth--;
+      depth -= 1;
     } else if (char === ";" && depth === 0) {
       return i;
     } else if (

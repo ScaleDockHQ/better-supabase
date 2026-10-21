@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- RFC 4226 truncation masks the digest bytes. */
+
 import { createHmac } from "node:crypto";
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";

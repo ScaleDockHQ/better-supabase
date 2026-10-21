@@ -78,7 +78,7 @@ describe.skipIf(!live)("appTables on the local stack", () => {
         .filter((value): value is string => typeof value === "string");
 
       expect(lines.filter((line) => line.startsWith("not ok"))).toEqual([]);
-      expect(lines.filter((line) => line.startsWith("ok ")).length).toBe(
+      expect(lines.filter((line) => line.startsWith("ok "))).toHaveLength(
         Number(/plan\((\d+)\)/.exec(appTest)?.[1]),
       );
     });

@@ -284,7 +284,9 @@ function rankOf(plugin: AnyPlugin): number {
 export function orderPlugins(plugins: readonly AnyPlugin[]): AnyPlugin[] {
   return plugins
     .map((plugin, index) => ({ plugin, index }))
-    .sort((a, b) => rankOf(a.plugin) - rankOf(b.plugin) || a.index - b.index)
+    .toSorted(
+      (a, b) => rankOf(a.plugin) - rankOf(b.plugin) || a.index - b.index,
+    )
     .map(({ plugin }) => plugin);
 }
 

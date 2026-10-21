@@ -367,7 +367,7 @@ export function resolveModules(
     visit(name);
   }
 
-  return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
+  return ordered.toSorted((a, b) => renderPosition(a) - renderPosition(b));
 }
 
 /**

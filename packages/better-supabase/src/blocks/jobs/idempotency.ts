@@ -148,7 +148,7 @@ async function callerScope(request: Request): Promise<string> {
     .split(";")
     .map((pair) => pair.trim())
     .filter((pair) => AUTH_COOKIE.test(pair.split("=", 1)[0] ?? ""))
-    .sort();
+    .toSorted();
 
   const credential = authorization ?? cookies.join(";");
 

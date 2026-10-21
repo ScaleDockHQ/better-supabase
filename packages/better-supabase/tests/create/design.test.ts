@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   boundError,
@@ -42,7 +42,7 @@ const projects: Design = addTable(EMPTY_DESIGN, "projects", {
 });
 
 describe("names", () => {
-  test("checks identifiers", () => {
+  it("checks identifiers", () => {
     expect(identifierError("projects")).toBeUndefined();
     expect(identifierError("")).toBe("Enter a name.");
     expect(identifierError("Projects")).toMatch(/lower-case/u);
@@ -50,7 +50,7 @@ describe("names", () => {
     expect(identifierError("pg_things")).toMatch(/pg_/u);
   });
 
-  test("finds a free table name", () => {
+  it("finds a free table name", () => {
     expect(freeTableName(EMPTY_DESIGN, new Set())).toBe("items");
     expect(
       freeTableName(
@@ -60,7 +60,7 @@ describe("names", () => {
     ).toBe("items_3");
   });
 
-  test("refuses columns the table already has", () => {
+  it("refuses columns the table already has", () => {
     const table = projects.appTables?.["projects"] ?? {};
 
     expect(columnError(table, "title", preset)).toMatch(/already has/u);
@@ -72,7 +72,7 @@ describe("names", () => {
     expect(columnError(table, "user_id", preset)).toMatch(/scope/u);
   });
 
-  test("makes table names singular", () => {
+  it("makes table names singular", () => {
     expect(singular("organizations")).toBe("organization");
     expect(singular("categories")).toBe("category");
     expect(singular("status")).toBe("status");
@@ -80,7 +80,7 @@ describe("names", () => {
 });
 
 describe("edits", () => {
-  test("deleting a table drops the columns that reference it", () => {
+  it("deleting a table drops the columns that reference it", () => {
     const linked = setColumn(
       addTable(projects, "tasks"),
       "tasks",
@@ -94,7 +94,7 @@ describe("edits", () => {
     expect(next.appTables?.["tasks"]?.columns).toEqual({});
   });
 
-  test("deleting a table drops its references from unique and index sets", () => {
+  it("deleting a table drops its references from unique and index sets", () => {
     const linked = updateTable(
       setColumn(
         setColumn(addTable(projects, "tasks"), "tasks", "title", {
@@ -117,10 +117,10 @@ describe("edits", () => {
     expect(tasks?.indexes).toBeUndefined();
   });
 
-  test("checks defaults against options and bounds", () => {
-    expect(defaultError({ type: "text", options: ["open"] }, "'open'")).toBe(
-      undefined,
-    );
+  it("checks defaults against options and bounds", () => {
+    expect(
+      defaultError({ type: "text", options: ["open"] }, "'open'"),
+    ).toBeUndefined();
     expect(
       defaultError({ type: "text", options: ["open"] }, "'closed'"),
     ).toBeDefined();
@@ -128,7 +128,7 @@ describe("edits", () => {
     expect(defaultError({ type: "integer" }, "")).toBeUndefined();
   });
 
-  test("refuses a subject type another table uses", () => {
+  it("refuses a subject type another table uses", () => {
     const design = updateTable(projects, "projects", {
       subject: { type: "project" },
     });
@@ -138,7 +138,7 @@ describe("edits", () => {
     expect(subjectTypeError(design, "tasks", "Task")).toBeDefined();
   });
 
-  test("renaming a table follows its references and position", () => {
+  it("renaming a table follows its references and position", () => {
     const linked = moveTables(
       setColumn(addTable(projects, "tasks"), "tasks", "project_id", {
         type: "uuid",
@@ -156,7 +156,7 @@ describe("edits", () => {
     expect(next.positions).toEqual({ [appTableId("boards")]: [10, 20] });
   });
 
-  test("renaming a column keeps its place", () => {
+  it("renaming a column keeps its place", () => {
     const two = setColumn(projects, "projects", "body", { type: "text" });
 
     expect(
@@ -167,7 +167,7 @@ describe("edits", () => {
     ).toEqual(["name", "body"]);
   });
 
-  test("duplicating a table copies it next to the original", () => {
+  it("duplicating a table copies it next to the original", () => {
     const placed = moveTables(projects, { [appTableId("projects")]: [0, 0] });
     const { design, name } = duplicateTable(placed, "projects", new Set());
 
@@ -178,14 +178,14 @@ describe("edits", () => {
     expect(design.positions?.[appTableId("projects_copy")]).toEqual([40, 40]);
   });
 
-  test("extra columns come and go per module", () => {
+  it("extra columns come and go per module", () => {
     const one = setExtraColumn(EMPTY_DESIGN, "tenant", "plan", "text");
 
     expect(one.extraColumns).toEqual({ tenant: { plan: "text" } });
     expect(isEmptyDesign(deleteExtraColumn(one, "tenant", "plan"))).toBe(true);
   });
 
-  test("tidy drops every position", () => {
+  it("tidy drops every position", () => {
     expect(
       tidy(moveTables(projects, { [appTableId("projects")]: [1, 2] }))
         .positions,
@@ -200,7 +200,7 @@ describe("connect", () => {
     (table) => data.blockTables[table.id] !== undefined,
   );
 
-  test("adds a nullable cascading key to a block table", () => {
+  it("adds a nullable cascading key to a block table", () => {
     expect(blockTable).toBeDefined();
 
     const target = blockTable?.id ?? "";
@@ -224,7 +224,7 @@ describe("connect", () => {
     });
   });
 
-  test("adds a key to another app table", () => {
+  it("adds a key to another app table", () => {
     const two = addTable(projects, "tasks");
 
     const result = connect(two, withDesign(data, two, preset), preset, {
@@ -249,7 +249,7 @@ describe("connect", () => {
     ).toBeUndefined();
   });
 
-  test("a self reference is parent_id and sets null on delete", () => {
+  it("a self reference is parent_id and sets null on delete", () => {
     const result = connect(projects, merged, preset, {
       source: appTableId("projects"),
       target: appTableId("projects"),
@@ -265,7 +265,7 @@ describe("connect", () => {
     ).toEqual({ table: "projects", onDelete: "set null" });
   });
 
-  test("a second reference to the same table gets a free role name", () => {
+  it("a second reference to the same table gets a free role name", () => {
     const two = addTable(projects, "tasks");
     const target = appTableId("projects");
 
@@ -288,7 +288,7 @@ describe("connect", () => {
     expect(second).toMatchObject({ ok: true, column: "project_2_id" });
   });
 
-  test("a reference to auth.users never takes the reserved user_id", () => {
+  it("a reference to auth.users never takes the reserved user_id", () => {
     const first = connect(projects, merged, preset, {
       source: appTableId("projects"),
       target: "auth.users",
@@ -310,7 +310,7 @@ describe("connect", () => {
     expect(second).toMatchObject({ ok: true, column: "assignee_id" });
   });
 
-  test("refuses block tables as the source and the tenant table", () => {
+  it("refuses block tables as the source and the tenant table", () => {
     expect(
       connect(projects, merged, preset, {
         source: blockTable?.id ?? "",
@@ -327,7 +327,7 @@ describe("connect", () => {
   });
 
   describe("referenceFrom", () => {
-    test("adds the key to a table the schema doesn't have yet", () => {
+    it("adds the key to a table the schema doesn't have yet", () => {
       const target = appTableId("projects");
       const merged = withDesign(data, projects, preset);
       const added = addTable(projects, "tasks", {});
@@ -344,7 +344,7 @@ describe("connect", () => {
       ).toMatchObject({ table: "projects", onDelete: "cascade" });
     });
 
-    test("refuses a table that isn't in the design", () => {
+    it("refuses a table that isn't in the design", () => {
       const result = referenceFrom(projects, data, preset, "tasks", "x.y");
 
       expect(result.ok).toBe(false);
@@ -353,7 +353,7 @@ describe("connect", () => {
 });
 
 describe("withDesign", () => {
-  test("adds app tables with their implicit columns and scope key", () => {
+  it("adds app tables with their implicit columns and scope key", () => {
     const merged = withDesign(data, projects, preset);
 
     const table = merged.tables.find(
@@ -374,7 +374,7 @@ describe("withDesign", () => {
     expect(merged.manifests[appTableId("projects")]).toBe("app-tables");
   });
 
-  test("appends extra columns to the tables that take them", () => {
+  it("appends extra columns to the tables that take them", () => {
     const [id] = data.extraColumns;
     const table = data.tables.find((each) => each.id === id);
 
@@ -395,11 +395,11 @@ describe("withDesign", () => {
 });
 
 describe("designIssues", () => {
-  test("is empty for a valid design", () => {
+  it("is empty for a valid design", () => {
     expect(designIssues(projects, data, preset)).toEqual([]);
   });
 
-  test("flags clashes, missing references, set null on required columns and orphan extra columns", () => {
+  it("flags clashes, missing references, set null on required columns and orphan extra columns", () => {
     const blockName = data.tables[0]?.name ?? "";
 
     const design = setExtraColumn(
@@ -418,7 +418,7 @@ describe("designIssues", () => {
     ).toEqual(["projects", "projects", blockName, "not-a-block"]);
   });
 
-  test("flags a required column members can't write that has no default", () => {
+  it("flags a required column members can't write that has no default", () => {
     const locked = setColumn(projects, "projects", "internal_notes", {
       type: "text",
       nullable: false,
@@ -441,7 +441,7 @@ describe("designIssues", () => {
     expect(designIssues(defaulted, data, preset)).toEqual([]);
   });
 
-  test("flags duplicate subject types and names Postgres would truncate", () => {
+  it("flags duplicate subject types and names Postgres would truncate", () => {
     const design = updateTable(
       updateTable(addTable(projects, "boards"), "boards", {
         subject: { type: "item" },
@@ -466,7 +466,7 @@ describe("designIssues", () => {
 });
 
 describe("column keys", () => {
-  test("fitted drops the keys a type can't take", () => {
+  it("fitted drops the keys a type can't take", () => {
     expect(
       fitted({
         type: "integer",
@@ -485,7 +485,7 @@ describe("column keys", () => {
     ).toEqual({ type: "text", format: "email", max: 200 });
   });
 
-  test("checks options and bounds", () => {
+  it("checks options and bounds", () => {
     expect(optionError(["a"], "a")).toMatch(/already/u);
     expect(optionError([], "")).toMatch(/Enter/u);
     expect(optionError([], "b\tc")).toMatch(/tabs/u);
@@ -499,7 +499,7 @@ describe("column keys", () => {
     expect(boundError({ type: "numeric" }, "min", "")).toBeUndefined();
   });
 
-  test("renaming and deleting a column updates the composite keys", () => {
+  it("renaming and deleting a column updates the composite keys", () => {
     const keyed = updateTable(
       setColumn(projects, "projects", "code", { type: "text" }),
       "projects",
@@ -519,7 +519,7 @@ describe("column keys", () => {
     expect(deleted.appTables?.["projects"]?.indexes).toBeUndefined();
   });
 
-  test("updateTable removes a key set to undefined", () => {
+  it("updateTable removes a key set to undefined", () => {
     const commented = updateTable(projects, "projects", {
       comment: "A project",
     });
@@ -532,7 +532,7 @@ describe("column keys", () => {
     ).not.toHaveProperty("comment");
   });
 
-  test("a bigint id retypes the columns that reference the table", () => {
+  it("a bigint id retypes the columns that reference the table", () => {
     const linked = setColumn(
       addTable(projects, "tasks"),
       "tasks",
@@ -564,7 +564,7 @@ describe("column keys", () => {
     ).not.toHaveProperty("id");
   });
 
-  test("designIssues flags a composite key on a missing column", () => {
+  it("designIssues flags a composite key on a missing column", () => {
     const design = updateTable(projects, "projects", {
       unique: [["title", "missing"]],
     });

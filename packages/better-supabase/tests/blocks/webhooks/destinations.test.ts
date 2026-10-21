@@ -117,7 +117,7 @@ describe("incoming destinations", () => {
     const forgetful: IncomingDestination = {
       apiVersion: 1,
       name: "forgetful",
-      deliver: () => Promise.resolve({ id: ++next, duplicate: false }),
+      deliver: () => Promise.resolve({ id: (next += 1), duplicate: false }),
     };
 
     await expect(

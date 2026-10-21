@@ -487,9 +487,9 @@ describe("connectTools", () => {
       ],
     ]);
     await elicit.handler?.({ params: {} });
-    expect(elicitAnswer).toHaveBeenCalled();
+    expect(elicitAnswer).toHaveBeenCalledWith({ params: {} });
     await connected.close();
-    expect(close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalledWith();
     const options = mcp.createMCPClient.mock.calls[0]?.[0];
     expect(options.capabilities.elicitation).toEqual({});
     expect(options.transport.headers).toEqual({});
@@ -551,7 +551,7 @@ describe("connectTools", () => {
     expect(result.ok ? undefined : result.error.hint).toBe(
       "CONNECTOR_TOOLS_CHANGED",
     );
-    expect(close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalledWith();
   });
 
   it("sends header credentials and other providers' grants", async () => {
@@ -698,7 +698,7 @@ describe("connectTools", () => {
     });
 
     expect(listed.ok ? undefined : listed.error.message).toBe("boom");
-    expect(close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalledWith();
   });
 
   it("closes the client when the fingerprint check fails", async () => {
@@ -720,7 +720,7 @@ describe("connectTools", () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalledWith();
   });
 });
 
@@ -742,6 +742,6 @@ describe("connectAll", () => {
       all.skipped.map(({ server: skipped, error }) => [skipped.id, error.hint]),
     ).toEqual([["s2", "CONNECTOR_DISABLED"]]);
     await all.close();
-    expect(close).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledOnce();
   });
 });

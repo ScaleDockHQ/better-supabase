@@ -102,7 +102,8 @@ export function createOrganizationsController<
       let seeded = options.initial !== undefined;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const organizations = await options.load();
@@ -262,7 +263,8 @@ export function createMembersController<
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const members = await options.load(organizationId);
@@ -474,7 +476,8 @@ export function createInvitationsController<
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const invitations = await options.load(organizationId);

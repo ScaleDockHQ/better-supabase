@@ -36,7 +36,7 @@ const request = (): Request =>
 const readsData = (island: number): boolean => island % 3 === 0;
 
 async function before(): Promise<void> {
-  for (let island = 0; island < ISLANDS; island++) {
+  for (let island = 0; island < ISLANDS; island += 1) {
     clearVerifiedTokens();
     const ctx = await server.context(request());
     void ctx.supabase;
@@ -45,7 +45,7 @@ async function before(): Promise<void> {
 }
 
 async function after(): Promise<void> {
-  for (let island = 0; island < ISLANDS; island++) {
+  for (let island = 0; island < ISLANDS; island += 1) {
     const ctx = await server.context(request());
 
     if (readsData(island)) {
@@ -55,13 +55,13 @@ async function after(): Promise<void> {
 }
 
 async function measure(render: () => Promise<void>): Promise<number> {
-  for (let warm = 0; warm < 20; warm++) {
+  for (let warm = 0; warm < 20; warm += 1) {
     await render();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RENDERS; run++) {
+  for (let run = 0; run < RENDERS; run += 1) {
     await render();
   }
 

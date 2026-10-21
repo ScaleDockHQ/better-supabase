@@ -82,7 +82,8 @@ const DEFAULT_METADATA: readonly (readonly [string, readonly string[]])[] = [
 export function hasAvatarPath(ctx: ModuleContext): boolean {
   return (
     ctx.has("profiles", "avatarPath") &&
-    (ctx.manages || ctx.config.columns["profiles"]?.["avatarPath"] != null)
+    (ctx.manages ||
+      typeof ctx.config.columns["profiles"]?.["avatarPath"] === "string")
   );
 }
 

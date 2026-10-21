@@ -298,7 +298,7 @@ export function setup(
     streams,
     run,
     defaultModel: "openai/gpt-5",
-    generateId: () => `id${++ids}`,
+    generateId: () => `id${(ids += 1)}`,
     ...over,
   });
 

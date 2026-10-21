@@ -113,7 +113,7 @@ function fakeStripe() {
               : breakdownFor(details["address"] as Params);
 
           const lines = params.line_items.map((line): Line => ({
-            id: `tax_li_${++next}`,
+            id: `tax_li_${(next += 1)}`,
             reference: line.reference,
             amount: line.amount,
             tax_behavior: String(line["tax_behavior"]),
@@ -121,7 +121,7 @@ function fakeStripe() {
             ...tax(line.amount, String(line["tax_behavior"]), rates),
           }));
 
-          const id = `taxcalc_${++next}`;
+          const id = `taxcalc_${(next += 1)}`;
           calculations.set(id, lines);
           const shipping = params["shipping_cost"] as Params | undefined;
 
@@ -158,7 +158,7 @@ function fakeStripe() {
               throw new Error("No such calculation");
             }
 
-            const id = `tax_${++next}`;
+            const id = `tax_${(next += 1)}`;
             transactions.set(
               id,
               lines.map((line) => ({
@@ -187,7 +187,7 @@ function fakeStripe() {
               }
             }
 
-            return { id: `tax_${++next}`, reference: params.reference };
+            return { id: `tax_${(next += 1)}`, reference: params.reference };
           }),
         listLineItems: async (id, params) =>
           page(transactions.get(id) ?? [], params),

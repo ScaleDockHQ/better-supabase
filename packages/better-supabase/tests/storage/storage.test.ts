@@ -802,7 +802,7 @@ describe("BucketClient remove and list", () => {
     expect(await bucket.move({ ...A, file: "b.txt" }, "o1/u2/c.txt")).toEqual(
       ok({ path: "o1/u2/c.txt" }),
     );
-    expect([...files.keys()].sort()).toEqual([
+    expect([...files.keys()].toSorted()).toEqual([
       "docs/o1/u1/a.txt",
       "docs/o1/u2/c.txt",
     ]);
@@ -849,12 +849,12 @@ describe("BucketClient remove and list", () => {
           const api = from(id);
 
           const list = async (...args: Parameters<typeof api.list>) => {
-            active++;
+            active += 1;
             peak = Math.max(peak, active);
             await new Promise((resolve) => {
               setTimeout(resolve, 5);
             });
-            active--;
+            active -= 1;
 
             return api.list(...args);
           };
@@ -1028,7 +1028,7 @@ describe("BucketClient URLs", () => {
     const { client, calls } = fakeStorage();
     const cached = docs.connect(client, { cacheSignedUrls: true });
 
-    for (let index = 0; index <= 500; index++) {
+    for (let index = 0; index <= 500; index += 1) {
       await cached.signedUrl({ ...A, file: `f${String(index)}.txt` });
     }
 
@@ -1702,7 +1702,7 @@ describe("BucketClient sweep", () => {
   it("pages through large folders and removes only after the walk", async () => {
     const many: Record<string, string> = {};
 
-    for (let index = 0; index < 1005; index++) {
+    for (let index = 0; index < 1005; index += 1) {
       many[`docs/o1/u1/f${String(index).padStart(4, "0")}.txt`] = "x";
     }
 

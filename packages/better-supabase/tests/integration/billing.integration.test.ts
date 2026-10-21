@@ -609,7 +609,7 @@ describe.skipIf(!live)("billing", () => {
             name: undefined,
             created: undefined,
           },
-        ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
+        ].toSorted((a, b) => a.organizationId.localeCompare(b.organizationId)),
       );
 
       const rows = await s.rows<Record<string, unknown>>(

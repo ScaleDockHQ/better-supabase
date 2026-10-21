@@ -43,7 +43,7 @@ export function fromMetadata(document: GeneratorMetadata): Snapshot {
   const tables = relations.map((relation): ExtrasTable => {
     const columns = metadata.columns
       .filter((column) => column.table_id === relation.id)
-      .sort((a, b) => a.ordinal_position - b.ordinal_position);
+      .toSorted((a, b) => a.ordinal_position - b.ordinal_position);
 
     const own = tableIds.has(relation.id);
 
@@ -71,7 +71,7 @@ export function fromMetadata(document: GeneratorMetadata): Snapshot {
               onDelete: "no action" as const,
               onUpdate: "no action" as const,
             }))
-            .sort((a, b) => byCodePoint(a.name, b.name))
+            .toSorted((a, b) => byCodePoint(a.name, b.name))
         : [],
       checks: own
         ? columns.flatMap((column) =>
@@ -96,9 +96,9 @@ export function fromMetadata(document: GeneratorMetadata): Snapshot {
 
   return {
     version: 2,
-    schemas: [...new Set(metadata.schemas.map((schema) => schema.name))].sort(
-      byCodePoint,
-    ),
+    schemas: [
+      ...new Set(metadata.schemas.map((schema) => schema.name)),
+    ].toSorted(byCodePoint),
     generator: metadata,
     extras: { tables, buckets: [], realtime: [], fromMetadata: true },
   };

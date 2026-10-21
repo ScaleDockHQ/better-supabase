@@ -79,7 +79,7 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
       });
     const select = last().params.get("select")!;
     const embedded = items(select).filter((item) => item.includes("("));
-    expect(embedded.length).toBe(2);
+    expect(embedded).toHaveLength(2);
 
     for (const item of embedded) {
       const inner = /\(([^]*)\)$/.exec(item.replace(/^[^(]*\(/, "("))![1]!;

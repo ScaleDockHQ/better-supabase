@@ -170,12 +170,8 @@ describe("drive client", () => {
     expect(file.fields).toEqual({ drive_id: "d1" });
     expect(file.createdBy).toBeUndefined();
     expect(
-      (
-        await drive
-          .list("o", { parentId: "f1", pageSize: 5, skip: 5 })
-          .orThrow()
-      ).length,
-    ).toBe(2);
+      await drive.list("o", { parentId: "f1", pageSize: 5, skip: 5 }).orThrow(),
+    ).toHaveLength(2);
     expect(await drive.shared("o").orThrow()).toHaveLength(1);
     expect(await drive.path("n1").orThrow()).toEqual([
       { id: "f1", name: "Projects", kind: "folder" },

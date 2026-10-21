@@ -70,14 +70,14 @@ describe("refreshSession", () => {
     expect(await refreshSession("slow-token", options)).toMatchObject({
       shared: true,
     });
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it("drops the oldest reused refresh past its cap", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () => answer("n"));
     const options = { url: "https://cap.test", publishableKey: "pk", fetch };
 
-    for (let index = 0; index <= 1000; index++) {
+    for (let index = 0; index <= 1000; index += 1) {
       await refreshSession(`cap-${String(index)}`, options);
     }
 

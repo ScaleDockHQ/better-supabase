@@ -57,11 +57,12 @@ async function domOffenders(files: ReadonlySet<string>): Promise<string[]> {
 
   for (const file of files) {
     const code = (await readFile(file, "utf-8")).replaceAll(NOISE, "");
-    code.split("\n").forEach((line, index) => {
+
+    for (const [index, line] of code.split("\n").entries()) {
       if (DOM_GLOBAL.test(line)) {
         offenders.push(`${relative(SRC, file)}:${index + 1}: ${line.trim()}`);
       }
-    });
+    }
   }
 
   return offenders;

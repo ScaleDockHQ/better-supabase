@@ -207,7 +207,8 @@ export function applyPatch(
   patch: readonly JsonPatchOperation[],
 ): JsonValue {
   const root: Root = { value: clone(document) };
-  patch.forEach((operation, index) => {
+
+  for (const [index, operation] of patch.entries()) {
     const tokens = tokensOf(operation.path, index);
 
     switch (operation.op) {
@@ -269,7 +270,7 @@ export function applyPatch(
         );
       }
     }
-  });
+  }
 
   return root.value;
 }

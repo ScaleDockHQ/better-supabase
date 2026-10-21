@@ -104,7 +104,7 @@ describe("aiFileDownload", () => {
     });
     expect(result[1]).toBeNull();
     expect(result[2]?.mediaType).toBe("text/plain");
-    expect(fallback).toHaveBeenCalledTimes(1);
+    expect(fallback).toHaveBeenCalledOnce();
   });
 
   it("throws for a file the caller can't read", async () => {

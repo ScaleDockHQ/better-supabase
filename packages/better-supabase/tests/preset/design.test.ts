@@ -418,10 +418,10 @@ describe("designOf", () => {
   });
 
   it("reads nothing from a URL or string without a design", async () => {
-    expect(await designOf("https://bettersupabase.com/create?preset=crm")).toBe(
-      undefined,
-    );
-    expect(await designOf("crm")).toBe(undefined);
+    expect(
+      await designOf("https://bettersupabase.com/create?preset=crm"),
+    ).toBeUndefined();
+    expect(await designOf("crm")).toBeUndefined();
     expect(
       await designOf("https://bettersupabase.com/create?preset=crm&design="),
     ).toEqual({});

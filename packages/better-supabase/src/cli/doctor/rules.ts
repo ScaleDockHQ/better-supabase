@@ -1063,7 +1063,7 @@ export const RULES: readonly Rule[] = [
   ...MIGRATION_SAFETY_RULES,
   ...ENV_RULES,
   ...STACK_RULES,
-].sort((a, b) => byCodePoint(a.code, b.code));
+].toSorted((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);
 

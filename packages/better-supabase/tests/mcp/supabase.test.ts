@@ -156,7 +156,7 @@ describe("supabaseMcpHandler", () => {
     expect(tokens.every((token) => token === "sbp_test")).toBe(true);
     expect(getToken).toHaveBeenCalledWith(REF, { subject: { type: "app" } });
     await vi.waitFor(() => {
-      expect(closed).toHaveBeenCalled();
+      expect(closed).toHaveBeenCalledWith();
     });
   });
 

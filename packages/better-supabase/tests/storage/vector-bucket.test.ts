@@ -205,13 +205,13 @@ describe("defineVectorBucket", () => {
     index.getVectors.mockImplementation((async (options: {
       keys: string[];
     }) => {
-      active++;
+      active += 1;
       peak = Math.max(peak, active);
       // Later batches answer first.
       await new Promise((resolve) => {
         setTimeout(resolve, 20 - Number(options.keys[0]!.slice(1)) / 100);
       });
-      active--;
+      active -= 1;
 
       return {
         data: { vectors: options.keys.map((key) => ({ key })) },

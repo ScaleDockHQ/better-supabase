@@ -2,7 +2,6 @@ import type { GeneratorMetadata } from "./typegen.ts";
 import type {
   Catalog,
   CatalogColumn,
-  CatalogFunction,
   CatalogTable,
   Snapshot,
 } from "./types.ts";
@@ -20,7 +19,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       ...catalog.schemas,
       ...catalog.tables.map((table) => table.schema),
     ]),
-  ].sort();
+  ].toSorted();
 
   const meta: Mutable<GeneratorMetadata> = {
     version: 1,
@@ -112,7 +111,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
     comment: entry.comment,
   });
 
-  catalog.tables.forEach((table, index) => {
+  for (const [index, table] of catalog.tables.entries()) {
     const id = table.id || 1_000_000 + index;
 
     if (table.kind === "table") {
@@ -166,7 +165,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         referenced_columns: [...fk.refColumns],
       });
     }
-  });
+  }
 
   const relationIds = new Map(
     [...meta.tables, ...meta.views].map((entry) => [
@@ -178,7 +177,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
   const argType = (schema: string, udt: string): number =>
     typeId(enums.has(`${schema}.${udt}`) ? schema : "pg_catalog", udt);
 
-  catalog.functions.forEach((fn: CatalogFunction, index) => {
+  for (const [index, fn] of catalog.functions.entries()) {
     const args: GeneratorMetadata["functions"][number]["args"] = [
       ...fn.args.map((arg) => ({
         mode: "in" as const,
@@ -225,7 +224,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
           ? null
           : { search_path: fn.searchPath === "" ? '""' : fn.searchPath },
     });
-  });
+  }
 
   const comments = catalog.functions.flatMap((fn) =>
     fn.comment === undefined

@@ -535,7 +535,7 @@ describe("supabaseMemory", () => {
     );
 
     expect(replay).toEqual(first);
-    expect(memory.render).toHaveBeenCalledTimes(1);
+    expect(memory.render).toHaveBeenCalledOnce();
     expect(memory.archival.search).toHaveBeenCalledWith(
       ORG,
       "what do I like?",
@@ -560,7 +560,7 @@ describe("supabaseMemory", () => {
       ...memory.documents,
       read: () =>
         AsyncResult.ok(
-          reads++ === 0
+          (reads += 1) === 1
             ? undefined
             : { content: JSON.stringify(stored), version: "1" },
         ),
@@ -629,7 +629,7 @@ describe("supabaseMemory", () => {
     await capture?.(memoryCtx(user, "op6"));
     await capture?.(memoryCtx(user, "op6"));
     await capture?.(memoryCtx(null, "op7"));
-    expect(extract).toHaveBeenCalledTimes(1);
+    expect(extract).toHaveBeenCalledOnce();
     expect(memory.saveExtracted).toHaveBeenCalledWith(
       ORG,
       ["drinks tea"],
@@ -915,7 +915,7 @@ describe("routeInbox", () => {
     const subscribe = vi.fn(() => Promise.resolve());
     const thread = { id: "inbox:conv_1", subscribe };
     await b.handlers.mention?.(thread, { text: "hi" });
-    expect(subscribe).toHaveBeenCalled();
+    expect(subscribe).toHaveBeenCalledWith();
     expect(b.send).toHaveBeenCalledWith("hi", {
       thread,
       auth: {
@@ -942,7 +942,7 @@ describe("routeInbox", () => {
       { text: "hi" },
     );
     expect(b.send).not.toHaveBeenCalled();
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledOnce();
   });
 });
 

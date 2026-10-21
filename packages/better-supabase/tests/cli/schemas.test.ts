@@ -149,7 +149,7 @@ function validate(
   }
 
   if (Array.isArray(value) && schema["items"]) {
-    value.forEach((item, index) => {
+    for (const [index, item] of value.entries()) {
       validate(
         root,
         schema["items"] as Schema,
@@ -157,7 +157,7 @@ function validate(
         `${path}[${index}]`,
         errors,
       );
-    });
+    }
   }
 }
 

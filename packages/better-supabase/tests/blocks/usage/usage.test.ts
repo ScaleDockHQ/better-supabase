@@ -206,7 +206,7 @@ describe("createUsage", () => {
     });
     expect(status.resetsAt.toString()).toBe("2026-10-12T00:00:00Z");
     limit = null;
-    expect(await usage.remaining("org", "api_calls").orThrow()).toBe(undefined);
+    expect(await usage.remaining("org", "api_calls").orThrow()).toBeUndefined();
     expect(await usage.current("org", "api_calls").orThrow()).toMatchObject({
       limit: undefined,
       unlimited: true,

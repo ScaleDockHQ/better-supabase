@@ -486,7 +486,7 @@ function applyEdits(text: string, edits: readonly Edit[]): string {
   let out = "";
   let cursor = 0;
 
-  for (const edit of [...edits].sort((a, b) => a.start - b.start)) {
+  for (const edit of edits.toSorted((a, b) => a.start - b.start)) {
     if (edit.start < cursor) {
       continue;
     }
@@ -506,7 +506,7 @@ function inCode(ranges: readonly [number, number][], index: number): boolean {
   let high = ranges.length - 1;
 
   while (low <= high) {
-    const middle = (low + high) >> 1;
+    const middle = Math.floor((low + high) / 2);
     const [start, end] = ranges[middle]!;
 
     if (index < start) {

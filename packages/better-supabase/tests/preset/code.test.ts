@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- design codes are bigint bit fields. */
+
 import { describe, expect, it } from "vitest";
 
 import type { Preset } from "../../src/preset/fields.ts";

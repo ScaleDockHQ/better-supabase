@@ -47,7 +47,7 @@ async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
   const files = existsSync(migrations)
     ? (await readdir(migrations))
         .filter((name) => name.endsWith(".sql"))
-        .sort()
+        .toSorted()
         .map((name) => join(migrations, name))
     : [];
 

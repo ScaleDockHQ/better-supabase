@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   ALL,
@@ -34,12 +34,12 @@ const RECIPES = [
 ];
 
 describe("filterRecipes", () => {
-  test("no filter keeps every recipe", () => {
+  it("no filter keeps every recipe", () => {
     expect(isFiltering(NO_FILTER)).toBe(false);
     expect(filterRecipes(RECIPES, NO_FILTER)).toEqual(RECIPES);
   });
 
-  test("filters by category, platform and kind together", () => {
+  it("filters by category, platform and kind together", () => {
     const slugs = (filter: typeof NO_FILTER) =>
       filterRecipes(RECIPES, filter).map((recipe) => recipe.slug);
 

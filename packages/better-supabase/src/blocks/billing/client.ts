@@ -95,7 +95,8 @@ export function createPlanPickerController<
       let seeded = options.initial !== undefined;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         try {
           const catalog = await options.load();

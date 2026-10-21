@@ -164,7 +164,7 @@ describe("CloudEvents", () => {
 
     const { client } = capturingClient(() => ({
       status: 201,
-      body: [{ id: `c${String(++id)}`, organization_id: "o1", name: "N" }],
+      body: [{ id: `c${String((id += 1))}`, organization_id: "o1", name: "N" }],
     }));
 
     const db = betterSupabase.connect(client);

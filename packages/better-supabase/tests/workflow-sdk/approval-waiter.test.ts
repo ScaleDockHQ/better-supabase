@@ -53,7 +53,7 @@ describe("approvalWaiter.wait", () => {
     });
 
     await vi.waitFor(() => {
-      expect(createHook).toHaveBeenCalled();
+      expect(createHook).toHaveBeenCalledWith({ token: "apr_1" });
     });
     expect(createHook).toHaveBeenCalledWith({ token: "apr_1" });
     expect(sleep.mock.calls[0]?.[0]).toEqual(new Date(LATER));
@@ -68,7 +68,7 @@ describe("approvalWaiter.wait", () => {
   it("expires when the sleep ends first", async () => {
     const waiting = approvalWaiter.wait("apr_2", { expiresAt: LATER });
     await vi.waitFor(() => {
-      expect(sleep).toHaveBeenCalled();
+      expect(sleep).toHaveBeenCalledWith(new Date(LATER));
     });
     wake();
     expect(await waiting).toEqual({ status: "expired" });

@@ -186,7 +186,7 @@ describe("notifications module", () => {
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
     const custom: AnyBlocksConfig = { notifications: { mode: "custom" } };
-    expect(moduleBody("notifications", { modules: custom })).toBe(undefined);
+    expect(moduleBody("notifications", { modules: custom })).toBeUndefined();
     const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",

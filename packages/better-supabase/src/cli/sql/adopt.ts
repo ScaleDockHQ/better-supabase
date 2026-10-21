@@ -212,7 +212,7 @@ function matchTables(
           score(matchColumns(names, table)) +
           (table.name === names.name ? 1 : 0),
       }))
-      .sort((left, right) => right.score - left.score)[0];
+      .toSorted((left, right) => right.score - left.score)[0];
 
     if (best === undefined || best.score === 0) {
       errors.push(

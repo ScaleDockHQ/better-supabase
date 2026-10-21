@@ -102,7 +102,8 @@ export function createAuditLogController(
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         state.set({ loading: true });
 
         const result = await client.list(

@@ -272,8 +272,8 @@ describe("createVercelMarketplace", () => {
       expect.not.objectContaining({ planValue: expect.anything() }),
     ]);
     expect(
-      calls.filter(([name]) => name === "mark_marketplace_meter_sent").length,
-    ).toBe(2);
+      calls.filter(([name]) => name === "mark_marketplace_meter_sent"),
+    ).toHaveLength(2);
   });
 
   it("uses the access token sealed at installation when no accessToken is passed", async () => {
@@ -351,12 +351,12 @@ describe("createVercelMarketplace", () => {
       secretRefs: ["key_1"],
     });
     expect((await marketplace.resources("icfg_1")).data).toEqual([]);
-    expect((await marketplace.deleteResource("icfg_1", "res")).data).toBe(
-      undefined,
-    );
-    expect((await marketplace.removeInstallation("icfg_1")).data).toBe(
-      undefined,
-    );
+    expect(
+      (await marketplace.deleteResource("icfg_1", "res")).data,
+    ).toBeUndefined();
+    expect(
+      (await marketplace.removeInstallation("icfg_1")).data,
+    ).toBeUndefined();
     expect((await marketplace.sealAccessToken("icfg_1", "vat")).ok).toBe(true);
     expect(calls.map(([name]) => name)).toEqual([
       "link_marketplace_tenant",

@@ -76,7 +76,8 @@ export function createCalendarController(
     { occurrences: undefined, events: [], error: undefined, loading: true },
     (state) => {
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         state.set({ loading: true });
         const time = temporal();
 

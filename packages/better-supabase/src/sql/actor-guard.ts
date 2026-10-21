@@ -272,7 +272,7 @@ function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
 
-  for (let i = open; i < text.length; i++) {
+  for (let i = open; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {

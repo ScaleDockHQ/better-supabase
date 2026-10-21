@@ -1,7 +1,7 @@
 import type { PostgresApi } from "@supabase/server/middleware/postgres";
 
 import { defineMiddleware, pipeline, seedContext } from "@supabase/middleware";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 
 import type { BetterPostgres, SqlClaims } from "../../../src/postgres/pool.ts";
 
@@ -295,7 +295,7 @@ describe("authModeOf", () => {
   });
 });
 
-it("seeds like a host would", async () => {
+test("seeds like a host would", async () => {
   const fetch = pipeline(
     [withBetterSupabase(server, { allow: ["anon"] })],
     (_req, ctx) => Promise.resolve(Response.json({ mode: ctx.authMode })),

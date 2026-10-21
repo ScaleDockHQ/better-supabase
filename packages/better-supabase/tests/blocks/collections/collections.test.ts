@@ -146,9 +146,8 @@ describe("collections block", () => {
       include_archived: true,
     });
     expect(
-      (await collections.listsOf({ type: "company", id: "a" }).orThrow())
-        .length,
-    ).toBe(1);
+      await collections.listsOf({ type: "company", id: "a" }).orThrow(),
+    ).toHaveLength(1);
   });
 
   it("adds, removes, reorders and pages entries", async () => {

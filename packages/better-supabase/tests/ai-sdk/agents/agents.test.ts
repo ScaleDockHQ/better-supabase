@@ -278,7 +278,7 @@ describe("createAgentRuntime", () => {
           toolCall: expect.objectContaining({ toolName: "a" }),
         }),
       );
-      expect(execute).toHaveBeenCalledTimes(1);
+      expect(execute).toHaveBeenCalledOnce();
     });
 
     it("keeps the tenant's ask over the app's approval", async () => {

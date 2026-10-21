@@ -105,7 +105,7 @@ export function invalidateAll(
   let index = 0;
 
   try {
-    for (; index < tags.length; index++) {
+    for (; index < tags.length; index += 1) {
       updateTag(tags[index]!);
     }
 
@@ -115,7 +115,7 @@ export function invalidateAll(
   }
 
   try {
-    for (; index < tags.length; index++) {
+    for (; index < tags.length; index += 1) {
       revalidateTag(tags[index]!, profile);
     }
   } catch {

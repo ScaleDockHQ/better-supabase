@@ -171,7 +171,8 @@ export function createMfaController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const [factors, assurance] = await Promise.all([
           readFactors(mfa),
@@ -363,7 +364,8 @@ export function createStepUpController(
       });
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const [factors, assurance] = await Promise.all([
           readFactors(mfa),

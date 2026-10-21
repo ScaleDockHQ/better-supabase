@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   absoluteUrl,
@@ -12,14 +12,14 @@ import {
 const BASE = "https://example.com";
 
 describe("structured data", () => {
-  test("absoluteUrl resolves paths and keeps absolute URLs", () => {
+  it("absoluteUrl resolves paths and keeps absolute URLs", () => {
     expect(absoluteUrl("/blocks", BASE)).toBe("https://example.com/blocks");
     expect(absoluteUrl("https://other.dev/x", BASE)).toBe(
       "https://other.dev/x",
     );
   });
 
-  test("lists number their items from 1", () => {
+  it("lists number their items from 1", () => {
     const crumbs = breadcrumbList([
       { name: "Home", href: `${BASE}/` },
       { name: "Blocks", href: `${BASE}/blocks` },
@@ -35,7 +35,7 @@ describe("structured data", () => {
     );
   });
 
-  test("the home graph links the site and package to one publisher", () => {
+  it("the home graph links the site and package to one publisher", () => {
     const graph = homeGraph({
       name: "better-supabase",
       url: BASE,
@@ -63,7 +63,7 @@ describe("structured data", () => {
     });
   });
 
-  test("faqPage and howTo keep the order they get", () => {
+  it("faqPage and howTo keep the order they get", () => {
     expect(faqPage([{ question: "Q?", answer: "A." }]).mainEntity).toEqual([
       {
         "@type": "Question",

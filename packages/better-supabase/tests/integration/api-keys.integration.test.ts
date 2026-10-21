@@ -81,7 +81,7 @@ describe.skipIf(!live)("api-keys", () => {
       ).not.toContain(parseApiKey(ci.token)!.secret);
       // Managers see the tenant's keys; members only their own.
       expect(
-        (await keys.list(organization).orThrow()).map((k) => k.name).sort(),
+        (await keys.list(organization).orThrow()).map((k) => k.name).toSorted(),
       ).toEqual(["CI", "Mine"]);
       await s.as(member);
       expect(

@@ -162,7 +162,8 @@ export function orderArgsByPosition(
 
       const pending = [...fn.args];
       const ordered: (typeof fn.args)[number][] = [];
-      row.types.forEach((type, index) => {
+
+      for (const [index, type] of row.types.entries()) {
         const name = row.names?.[index] ?? "";
 
         const at = pending.findIndex(
@@ -172,7 +173,7 @@ export function orderArgsByPosition(
         if (at !== -1) {
           ordered.push(...pending.splice(at, 1));
         }
-      });
+      }
 
       return { ...fn, args: [...ordered, ...pending] };
     }),
@@ -198,13 +199,13 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     base: number,
     entries: readonly { id: number; key: string }[],
   ): void => {
-    [...entries]
-      .sort((a, b) => byCodePoint(a.key, b.key))
-      .forEach((entry, index) => {
-        if (entry.id >= FIRST_NORMAL_OID) {
-          ids.set(entry.id, base + index);
-        }
-      });
+    const sorted = entries.toSorted((a, b) => byCodePoint(a.key, b.key));
+
+    for (const [index, entry] of sorted.entries()) {
+      if (entry.id >= FIRST_NORMAL_OID) {
+        ids.set(entry.id, base + index);
+      }
+    }
   };
 
   assign(

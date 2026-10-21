@@ -78,7 +78,8 @@ export function createTagInputController(
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const [tags, available] = await Promise.all([
           client.forSubject(organizationId, subjectType, subjectId),

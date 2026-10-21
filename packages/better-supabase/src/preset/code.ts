@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- a design code packs its fields into one bigint bit field. */
+
 import type { Preset, PresetCodeField, PresetFieldKey } from "./fields.ts";
 
 import { PRESET_BLOCKS } from "./blocks.ts";
@@ -215,11 +217,12 @@ export function decodePreset(
 
     if (field.multi === true) {
       const list: string[] = [];
-      field.values.forEach((each, index) => {
+
+      for (const [index, each] of field.values.entries()) {
         if ((bits >> BigInt(index)) & 1n) {
           list.push(each);
         }
-      });
+      }
 
       if (bits >> BigInt(field.values.length) !== 0n) {
         newer(code, field.key);

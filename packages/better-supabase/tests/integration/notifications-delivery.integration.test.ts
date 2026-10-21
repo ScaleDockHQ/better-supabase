@@ -46,7 +46,6 @@ const anything: StandardSchemaV1<{ title: string }> = {
 
 describe.skipIf(!live)("notification email delivery", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
-  afterAll(() => pool.end());
 
   let s: BlockSession;
   let owner: TestUser;
@@ -62,6 +61,7 @@ describe.skipIf(!live)("notification email delivery", () => {
     organization = await s.organization(owner, { member, member2: bounced });
   });
   afterEach(() => s.close());
+  afterAll(() => pool.end());
 
   const mailer = (audience?: SubscriberPolicy) => {
     const sent: { message: EmailMessage; idempotencyKey: string }[] = [];

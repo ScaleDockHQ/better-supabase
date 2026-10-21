@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   addTable,
@@ -14,7 +14,7 @@ const one = addTable(EMPTY_DESIGN, "projects");
 const two = addTable(one, "tasks");
 
 describe("undoHistory", () => {
-  test("undoes and redoes steps", () => {
+  it("undoes and redoes steps", () => {
     let history = initialHistory(EMPTY_DESIGN);
     history = undoHistory(history, { type: "apply", value: one });
     history = undoHistory(history, { type: "apply", value: two });
@@ -26,7 +26,7 @@ describe("undoHistory", () => {
     expect(history.present).toBe(two);
   });
 
-  test("a new step clears the redo stack", () => {
+  it("a new step clears the redo stack", () => {
     let history = undoHistory(initialHistory(EMPTY_DESIGN), {
       type: "apply",
       value: one,
@@ -39,7 +39,7 @@ describe("undoHistory", () => {
     expect(undoHistory(history, { type: "redo" })).toBe(history);
   });
 
-  test("a drag is one step", () => {
+  it("a drag is one step", () => {
     const id = appTableId("projects");
 
     let history = undoHistory(initialHistory(EMPTY_DESIGN), {
@@ -61,7 +61,7 @@ describe("undoHistory", () => {
     expect(history.present).toBe(one);
   });
 
-  test("amend changes the current step without a new one", () => {
+  it("amend changes the current step without a new one", () => {
     let history = undoHistory(initialHistory(EMPTY_DESIGN), {
       type: "apply",
       value: one,
@@ -78,7 +78,7 @@ describe("undoHistory", () => {
     expect(history.present).toBe(two);
   });
 
-  test("keeps at most HISTORY_LIMIT steps", () => {
+  it("keeps at most HISTORY_LIMIT steps", () => {
     let history = initialHistory(EMPTY_DESIGN);
 
     for (let index = 0; index < HISTORY_LIMIT + 10; index += 1) {
@@ -91,7 +91,7 @@ describe("undoHistory", () => {
     expect(history.past).toHaveLength(HISTORY_LIMIT);
   });
 
-  test("reset replaces the design and clears the history", () => {
+  it("reset replaces the design and clears the history", () => {
     const history = undoHistory(
       undoHistory(initialHistory(EMPTY_DESIGN), { type: "apply", value: one }),
       { type: "reset", value: two },

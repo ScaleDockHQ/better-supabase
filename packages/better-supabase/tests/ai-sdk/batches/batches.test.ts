@@ -100,7 +100,7 @@ function fakeStore(due: AiBatch[] = []) {
 }
 
 async function* results(count: number) {
-  for (let index = 0; index < count; index++) {
+  for (let index = 0; index < count; index += 1) {
     yield textItem(`r${index}`);
   }
 }
@@ -244,7 +244,7 @@ describe("aiBatches", () => {
     });
     expect(saved.map((page) => page.length)).toEqual([100, 50]);
     expect(updates[1]?.patch).toEqual({ resultsSaved: true, nextPollAt: null });
-    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledOnce();
   });
 
   it("leaves a pending batch for the next poll", async () => {

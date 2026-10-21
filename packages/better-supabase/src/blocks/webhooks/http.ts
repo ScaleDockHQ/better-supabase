@@ -137,7 +137,7 @@ export function fetchTransport(
 
       let url = new URL(request.url);
 
-      for (let hop = 0; ; hop++) {
+      for (let hop = 0; ; hop += 1) {
         if (options.allowUrl && !(await allowed(options.allowUrl, url))) {
           throw new WebhookPolicyError(
             `Endpoint URL is not allowed: ${url.host}`,

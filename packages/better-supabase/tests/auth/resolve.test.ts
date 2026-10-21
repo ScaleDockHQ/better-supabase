@@ -337,7 +337,7 @@ describe("cookie sessions", () => {
       now: () => Date.now(),
     });
 
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledOnce();
     expect(refreshed.auth).toMatchObject({ kind: "user", token: fresh });
     expect(refreshed.cookies.length).toBeGreaterThan(0);
   });
@@ -566,7 +566,7 @@ describe("claims and user_metadata schemas", () => {
   });
 
   it("runs async user_metadata schemas and warns through console by default", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockReturnValue(undefined);
 
     const token = await signer.sign({
       sub: USER,
@@ -591,7 +591,7 @@ describe("claims and user_metadata schemas", () => {
     });
 
     expect(failing.auth).not.toHaveProperty("profile");
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledOnce();
     expect(JSON.stringify(warn.mock.calls[0])).toContain('["","0.theme"]');
   });
 });

@@ -617,7 +617,7 @@ describe("createNotifications reads and writes", () => {
       .list({ include: ["actor"], locale: "en" })
       .orThrow();
 
-    expect(hydrate).toHaveBeenCalledTimes(1);
+    expect(hydrate).toHaveBeenCalledOnce();
     expect(hydrate.mock.calls[0]![1]).toEqual({ locale: "en" });
     expect(listed[0]).toMatchObject({
       text: { title: "Ada assigned you" },

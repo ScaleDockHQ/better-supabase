@@ -380,7 +380,11 @@ async function lookUp(
       const argName = found.arg_names[index];
       const type = found.arg_types[position];
 
-      if (argName != null && type !== undefined && JSON_TYPES.has(type)) {
+      if (
+        typeof argName === "string" &&
+        type !== undefined &&
+        JSON_TYPES.has(type)
+      ) {
         json.add(argName);
       }
     }

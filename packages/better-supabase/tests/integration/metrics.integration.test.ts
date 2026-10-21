@@ -138,7 +138,7 @@ describe.skipIf(!live)("metrics", () => {
       const grouped = await series("orders", "day", {}, "channel");
       expect(grouped[0]?.groups).toEqual({ web: 2, shop: 1 });
       expect(grouped[1]?.groups).toEqual({});
-      expect((await series("orders", "hour")).length).toBe(96);
+      expect(await series("orders", "hour")).toHaveLength(96);
       expect((await series("orders", "week")).map((b) => b.value)).toEqual([4]);
 
       expect((await series("revenue")).map((b) => b.value)).toEqual([

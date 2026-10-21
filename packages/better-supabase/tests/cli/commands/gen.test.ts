@@ -61,7 +61,7 @@ describe("gen", () => {
         return [
           {
             path: "src/db/tables.ts",
-            contents: `${Object.keys(input.meta.tables).sort().join("\n")}\n`,
+            contents: `${Object.keys(input.meta.tables).toSorted().join("\n")}\n`,
           },
         ];
       },

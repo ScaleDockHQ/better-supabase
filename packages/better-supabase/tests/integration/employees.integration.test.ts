@@ -230,19 +230,17 @@ describe.skipIf(!live)("employees", () => {
         await s.rows("select id from better_supabase.employee_contracts"),
       ).toEqual([]);
       expect(
-        (await s.rows("select id from better_supabase.employees")).length,
-      ).toBe(3);
+        await s.rows("select id from better_supabase.employees"),
+      ).toHaveLength(3);
       await s.asRole(lead);
       expect(
-        (
-          await s.rows(
-            "select employee_id from better_supabase.employee_private_details",
-          )
-        ).length,
-      ).toBe(1);
+        await s.rows(
+          "select employee_id from better_supabase.employee_private_details",
+        ),
+      ).toHaveLength(1);
       expect(
-        (await s.rows("select id from better_supabase.employees")).length,
-      ).toBe(1);
+        await s.rows("select id from better_supabase.employees"),
+      ).toHaveLength(1);
 
       await s.as(owner);
 

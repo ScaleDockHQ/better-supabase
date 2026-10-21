@@ -420,7 +420,7 @@ describe("useInbox", () => {
     });
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("waits for an organization and a user, and keeps load errors", async () => {
@@ -518,7 +518,7 @@ describe("useConversation", () => {
     emit("inbox:c1", "typing", { user_id: OTHER });
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("does not join while waiting, and cannot type signed out", async () => {
@@ -554,7 +554,7 @@ describe("useConversation", () => {
 
     view.unmount();
     await flush();
-    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    expect(client.removeChannel).toHaveBeenCalledOnce();
   });
 });
 

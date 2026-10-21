@@ -279,7 +279,7 @@ describe("defineTopic", () => {
       );
 
       await subscription.ready;
-      expect(raw.realtime.setAuth).toHaveBeenCalled();
+      expect(raw.realtime.setAuth).toHaveBeenCalledWith();
       expect(raw.channel).toHaveBeenCalledWith(
         "organization:o1:notifications:u1",
         { config: { private: true, broadcast: { self: false } } },
@@ -327,19 +327,19 @@ describe("defineTopic", () => {
     );
 
     await b.ready;
-    expect(raw.channel).toHaveBeenCalledTimes(1);
-    expect(channel.subscribe).toHaveBeenCalledTimes(1);
+    expect(raw.channel).toHaveBeenCalledOnce();
+    expect(channel.subscribe).toHaveBeenCalledOnce();
     expect(statuses).toEqual(["joining", "subscribed"]);
     emit("deleted", { id: 1 });
     await flush();
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledOnce();
     await a.unsubscribe();
     expect(removed).toHaveLength(0);
     emit("deleted", { id: 2 });
     await flush();
     expect(second).toHaveBeenCalledTimes(2);
-    expect(first).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledOnce();
     await b.unsubscribe();
     expect(removed).toHaveLength(1);
     expect(() =>
@@ -422,7 +422,7 @@ describe("defineTopic", () => {
     expect(raw.removeChannel).not.toHaveBeenCalled();
     expect(raw.realtime.setAuth).not.toHaveBeenCalled();
     await subscription.unsubscribe();
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("maps failed sends to DbError kinds and removes the channel", async () => {
@@ -469,7 +469,7 @@ describe("defineTopic", () => {
     );
 
     await subscription.ready;
-    expect(channel.subscribe).toHaveBeenCalledTimes(1);
+    expect(channel.subscribe).toHaveBeenCalledOnce();
     expect(raw.realtime.setAuth).not.toHaveBeenCalled();
     expect(raw.channel).toHaveBeenCalledWith("room:r1", {
       config: { private: false, broadcast: { self: true } },
@@ -490,8 +490,10 @@ describe("defineTopic", () => {
     emit("deleted", { id: 1 });
     emit("created", { title: "Yo" });
     await flush();
-    expect(created).toHaveBeenCalledTimes(1);
-    expect(created).toHaveBeenCalledWith({ title: "Yo" }, expect.anything());
+    expect(created).toHaveBeenCalledExactlyOnceWith(
+      { title: "Yo" },
+      expect.anything(),
+    );
   });
 
   it("reports issues without a path and keeps numeric path parts", async () => {
@@ -588,7 +590,7 @@ describe("defineTopic", () => {
     release();
     await subscription.ready;
     expect(channel.subscribe).not.toHaveBeenCalled();
-    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(raw.removeChannel).toHaveBeenCalledOnce();
   });
 
   it("disposes asynchronously with await using", async () => {
@@ -710,7 +712,7 @@ describe("presence", () => {
     await flush();
     release?.();
     await flush();
-    expect(onPresence).toHaveBeenCalledTimes(1);
+    expect(onPresence).toHaveBeenCalledOnce();
     expect(subscription.members()).toEqual([{ key: "b", state: {} }]);
   });
 
@@ -723,7 +725,7 @@ describe("presence", () => {
     expect((await subscription.track({ name: "Ada" })).ok).toBe(true);
     expect(channel.track).toHaveBeenCalledWith({ name: "Ada" });
     expect((await subscription.untrack()).ok).toBe(true);
-    expect(channel.untrack).toHaveBeenCalledTimes(1);
+    expect(channel.untrack).toHaveBeenCalledOnce();
   });
 
   it("maps a refused join, a failed send and a closed subscription to errors", async () => {
@@ -758,7 +760,7 @@ describe("presence", () => {
     expect(channel.untrack).not.toHaveBeenCalled();
     const again = room.subscribe(client, values, {});
     await tracker.unsubscribe();
-    expect(channel.untrack).toHaveBeenCalledTimes(1);
+    expect(channel.untrack).toHaveBeenCalledOnce();
     await again.unsubscribe();
     expect(removed).toHaveLength(1);
   });

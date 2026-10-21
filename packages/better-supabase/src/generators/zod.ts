@@ -241,7 +241,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
 
       for (const [from, names] of imports) {
         lines.push(
-          `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
+          `import { ${[...new Set(names)].toSorted().join(", ")} } from ${JSON.stringify(from)};`,
         );
       }
 

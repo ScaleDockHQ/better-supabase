@@ -152,7 +152,7 @@ describe("defineReadSet", () => {
   });
 
   it("lists every table the set reads", () => {
-    expect(readSetTables(chrome).sort()).toEqual(["customers", "notes"]);
+    expect(readSetTables(chrome).toSorted()).toEqual(["customers", "notes"]);
   });
 });
 

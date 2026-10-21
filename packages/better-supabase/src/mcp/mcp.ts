@@ -664,7 +664,7 @@ export function createMcp<
     registry.set(entry.info.name, entry);
     allTools = undefined;
     listed.clear();
-    generation++;
+    generation += 1;
   };
 
   const failure = (error: DbError): ToolResult =>

@@ -264,12 +264,8 @@ const config: OxlintConfig = defineConfig({
     // tests assert that; `async` turns those throws into rejections.
     "typescript/promise-function-async": "off",
     // Shadowing a name in a nested scope is how the query builders read;
-    // 123 findings when measured.
+    // 147 findings when measured (69 in tests), each a rename by hand.
     "eslint/no-shadow": "off",
-    // `toSorted` and `toReversed` copies are not needed on local arrays;
-    // 108 and 9 findings when measured.
-    "unicorn/no-array-sort": "off",
-    "unicorn/no-array-reverse": "off",
     // Migrations, pages and retries run in order on purpose; 663 findings
     // when measured.
     "eslint/no-await-in-loop": "off",
@@ -285,8 +281,8 @@ const config: OxlintConfig = defineConfig({
     // `SAFETY:` comment on each new one instead.
     "typescript/no-unsafe-type-assertion": "off",
     // `query<R>(): Promise<{ rows: R[] }>` style return-only generics are
-    // the caller-supplied row type, not an unused parameter; 28 findings
-    // when measured.
+    // the caller-supplied row type, not an unused parameter; 36 findings
+    // when measured, most on published signatures.
     "typescript/no-unnecessary-type-parameters": "off",
     // 119 findings when measured, all `String(unknown)` for SQL literals,
     // headers, form values and error text, where that is the intent.
@@ -382,13 +378,9 @@ const config: OxlintConfig = defineConfig({
     "eslint/prefer-destructuring": "off",
     "typescript/consistent-type-definitions": "off",
     "eslint/no-nested-ternary": "off",
-    "eslint/no-plusplus": "off",
     "unicorn/import-style": "off",
-    "eslint/no-bitwise": "off",
-    "unicorn/no-array-for-each": "off",
     "unicorn/prefer-export-from": "off",
     "typescript/no-inferrable-types": "off",
-    "eslint/no-eq-null": "off",
     "unicorn/no-array-reduce": "off",
     "unicorn/prefer-ternary": "off",
 
@@ -486,42 +478,32 @@ const config: OxlintConfig = defineConfig({
         // Findings when measured: prefer-strict-equal 5,723,
         // prefer-expect-resolves 4,241, max-expects 4,068, prefer-to-be-truthy
         // 946, prefer-describe-function-title 766, prefer-to-be-falsy 734,
-        // prefer-called-once 155, padding-around-after-all-blocks 122,
-        // require-top-level-describe 71, prefer-import-in-mock 56,
-        // consistent-test-it 25, prefer-to-be 25, prefer-called-with 24,
-        // prefer-to-have-length 23, prefer-expect-type-of 21,
-        // prefer-mock-return-shorthand 19, padding-around-test-blocks 11,
-        // consistent-test-filename 7, prefer-importing-vitest-globals 7,
-        // prefer-mock-promise-shorthand 5, prefer-hooks-in-order 4, prefer-each
-        // 3, prefer-comparison-matcher 2, prefer-to-contain 2.
+        // padding-around-after-all-blocks 122, require-top-level-describe 71,
+        // prefer-import-in-mock 56, prefer-expect-type-of 21,
+        // padding-around-test-blocks 11, consistent-test-filename 7,
+        // prefer-importing-vitest-globals 7.
         "vitest/prefer-strict-equal": "off",
         "vitest/prefer-expect-resolves": "off",
         "vitest/max-expects": "off",
         "vitest/prefer-to-be-truthy": "off",
         "vitest/prefer-describe-function-title": "off",
         "vitest/prefer-to-be-falsy": "off",
-        "vitest/prefer-called-once": "off",
         "vitest/padding-around-after-all-blocks": "off",
         "vitest/require-top-level-describe": "off",
         "vitest/prefer-import-in-mock": "off",
-        "vitest/consistent-test-it": "off",
-        "vitest/prefer-to-be": "off",
-        "vitest/prefer-called-with": "off",
-        "vitest/prefer-to-have-length": "off",
         "vitest/prefer-expect-type-of": "off",
-        "vitest/prefer-mock-return-shorthand": "off",
         "vitest/padding-around-test-blocks": "off",
         "vitest/consistent-test-filename": "off",
         "vitest/prefer-importing-vitest-globals": "off",
-        "vitest/prefer-mock-promise-shorthand": "off",
-        "vitest/prefer-hooks-in-order": "off",
-        "vitest/prefer-each": "off",
+        // Its 3 findings compare base-62 rank keys, which are strings, and
+        // `toBeLessThan` takes only numbers.
         "vitest/prefer-comparison-matcher": "off",
-        "vitest/prefer-to-contain": "off",
       },
     },
     {
       files: ["**/e2e/**/*.spec.ts"],
+      // An override only sets rules of the plugins it lists.
+      plugins: ["vitest"],
       jsPlugins: [
         { name: "playwright", specifier: plugin("eslint-plugin-playwright") },
       ],
@@ -535,6 +517,8 @@ const config: OxlintConfig = defineConfig({
         // like the Vitest suites; 2 findings each when measured.
         "playwright/no-conditional-in-test": "off",
         "playwright/no-conditional-expect": "off",
+        // Playwright has no `test.each`; a loop is how it parametrises.
+        "vitest/prefer-each": "off",
       },
     },
     {

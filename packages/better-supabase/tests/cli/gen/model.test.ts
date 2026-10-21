@@ -309,7 +309,7 @@ describe("buildModel functions", () => {
     const reversed = await model((generator) => {
       const edited = addOverloads(generator);
 
-      return { functions: [...(edited.functions ?? [])].reverse() };
+      return { functions: (edited.functions ?? []).toReversed() };
     });
 
     const emit = (input: typeof built) =>

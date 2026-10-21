@@ -92,7 +92,7 @@ describe("private-cache scopes", () => {
     const bearer = { authorization: `Bearer ${token}` };
 
     // Twelve islands, each its own scope: four read data, eight only the session.
-    for (let island = 0; island < 12; island++) {
+    for (let island = 0; island < 12; island += 1) {
       const ctx = await bs.context(
         new Request("https://app.test/", { headers: bearer }),
       );
@@ -317,7 +317,7 @@ describe("suspending accounts", () => {
       });
       expect(calls).toEqual([`PUT ${PROJECT_URL}/auth/v1/admin/users/${USER}`]);
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
-      expect(queryRaw).toHaveBeenCalledTimes(1);
+      expect(queryRaw).toHaveBeenCalledOnce();
     } finally {
       fetchMock.mockRestore();
     }
@@ -361,7 +361,7 @@ describe("explicit tenants", () => {
     const explicit = await bs.context({ tenant: TENANT });
     expect(explicit.db.$context).toEqual(resolved.db.$context);
     expect(explicit.db.$context.tenant).toBe(TENANT);
-    expect(resolver).toHaveBeenCalledTimes(1);
+    expect(resolver).toHaveBeenCalledOnce();
   });
 
   it("falls back to the resolver, even when an async one finds no tenant", async () => {

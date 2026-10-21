@@ -80,7 +80,8 @@ export function createCommentsController(
           return;
         }
 
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
 
         const result = await client.list(
           organizationId,

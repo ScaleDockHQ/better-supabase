@@ -92,7 +92,8 @@ export function createApiKeysController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         const result = await client.list(organizationId ?? undefined);
 
         if (request !== ticket) {

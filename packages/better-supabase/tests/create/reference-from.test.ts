@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   parseSchema,
@@ -29,7 +29,7 @@ const data = schemaData(
 const design = { appTables: { notes: { columns: {} } } };
 
 describe("referenceFrom refusals", () => {
-  test("names the problem", () => {
+  it("names the problem", () => {
     expect(
       referenceFrom(design, data, preset, "x", "public.pairs"),
     ).toMatchObject({ ok: false, error: "x is not in the design." });
@@ -44,7 +44,7 @@ describe("referenceFrom refusals", () => {
     ).toMatchObject({ ok: false });
   });
 
-  test("a table that isn't an app or block table can't be referenced", () => {
+  it("a table that isn't an app or block table can't be referenced", () => {
     for (const id of ["public.counters", "public.codes"]) {
       expect(referenceFrom(design, data, preset, "notes", id)).toMatchObject({
         ok: false,

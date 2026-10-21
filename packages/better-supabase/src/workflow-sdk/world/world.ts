@@ -448,7 +448,10 @@ export function createSupabaseWorld(
   const claimInto = async (room: number): Promise<number> => {
     try {
       const jobs = await claim(room);
-      jobs.forEach(track);
+
+      for (const job of jobs) {
+        track(job);
+      }
 
       return jobs.length;
     } catch {

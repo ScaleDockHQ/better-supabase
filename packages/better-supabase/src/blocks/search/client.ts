@@ -115,7 +115,8 @@ export function createCommandSearchController(
       };
 
       const loadLists = async (): Promise<void> => {
-        const request = ++listTicket;
+        listTicket += 1;
+        const request = listTicket;
 
         const [recent, starred] = await Promise.all([
           client.recents(list),
@@ -144,7 +145,8 @@ export function createCommandSearchController(
       };
 
       const schedule = (): void => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         clearTimeout(timer);
         timer = undefined;
         const trimmed = query.trim();

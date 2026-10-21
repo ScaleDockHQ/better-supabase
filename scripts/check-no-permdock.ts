@@ -76,13 +76,13 @@ for (const file of files) {
     continue;
   }
 
-  readFileSync(file, "utf-8")
+  for (const [index, line] of readFileSync(file, "utf-8")
     .split("\n")
-    .forEach((line, index) => {
-      if (pattern.test(line)) {
-        findings.push(`${file}:${index + 1}`);
-      }
-    });
+    .entries()) {
+    if (pattern.test(line)) {
+      findings.push(`${file}:${index + 1}`);
+    }
+  }
 }
 
 for (const finding of findings) {

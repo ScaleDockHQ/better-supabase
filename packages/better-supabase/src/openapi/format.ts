@@ -480,7 +480,7 @@ function lowerOpenApi(
       : undefined,
   });
 
-  model.fragments.forEach((fragment, index) => {
+  for (const [index, fragment] of model.fragments.entries()) {
     document = mergeJson(document, fragment, (pointer) => {
       ctx.report({
         code: "fragment-conflict",
@@ -489,7 +489,7 @@ function lowerOpenApi(
         pointer,
       });
     });
-  });
+  }
 
   for (const operation of placed) {
     if (!operation.extend) {
@@ -562,9 +562,9 @@ function resolves(document: unknown, ref: string): boolean {
 
 function collectRefs(value: unknown, pointer: string, out: [string, string][]) {
   if (Array.isArray(value)) {
-    value.forEach((item: unknown, index) => {
+    for (const [index, item] of value.entries()) {
       collectRefs(item, `${pointer}/${index}`, out);
-    });
+    }
   } else if (isPlainObject(value)) {
     for (const [key, item] of Object.entries(value)) {
       if (key === "$ref" && typeof item === "string") {

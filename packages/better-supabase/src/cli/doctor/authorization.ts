@@ -1005,7 +1005,7 @@ function roleHelperCalls(text: string): string[] {
     names.add(`better_supabase.${match[1]!.toLowerCase()}()`);
   }
 
-  return [...names].sort();
+  return [...names].toSorted();
 }
 
 /** The access contract functions `text` calls, outside string literals. */
@@ -1016,5 +1016,5 @@ function contractCalls(text: string): string[] {
     names.add(`better_supabase.${match[1]!.toLowerCase()}()`);
   }
 
-  return [...names].sort();
+  return [...names].toSorted();
 }

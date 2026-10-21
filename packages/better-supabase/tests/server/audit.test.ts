@@ -84,7 +84,7 @@ describe("the server's audit sink", () => {
 
     const error = vi
       .spyOn(betterSupabase.events.logger, "error")
-      .mockImplementation(() => undefined);
+      .mockReturnValue(undefined);
 
     expect((await server.endSessions(USER)).ok).toBe(true);
     await server.events.settled();

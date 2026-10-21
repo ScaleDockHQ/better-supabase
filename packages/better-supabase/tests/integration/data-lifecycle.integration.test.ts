@@ -164,7 +164,11 @@ describe.skipIf(!live)("data lifecycle", () => {
         .split("\n")
         .map((line) => JSON.parse(line) as { name: string });
 
-      expect(lines.map((row) => row.name).sort()).toEqual(["p1", "p2", "p3"]);
+      expect(lines.map((row) => row.name).toSorted()).toEqual([
+        "p1",
+        "p2",
+        "p3",
+      ]);
 
       const memberships = memory.files.get(
         `${mine.id}/better_supabase.memberships.ndjson`,
@@ -640,9 +644,9 @@ describe.skipIf(!live)("data lifecycle", () => {
         "ORGANIZATION_DELETION_FORBIDDEN",
       );
       await s.asRole(outsider);
-      expect(await lifecycle.organizationDeletion(organization).orThrow()).toBe(
-        undefined,
-      );
+      expect(
+        await lifecycle.organizationDeletion(organization).orThrow(),
+      ).toBeUndefined();
 
       await s.service();
 
@@ -665,7 +669,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.asRole(owner);
       expect(
         await lifecycle.cancelOrganizationDeletion(organization).orThrow(),
-      ).toBe(undefined);
+      ).toBeUndefined();
 
       await lifecycle
         .requestOrganizationDeletion(organization, { grace: "0 seconds" })

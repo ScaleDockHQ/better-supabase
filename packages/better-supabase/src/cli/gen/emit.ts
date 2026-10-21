@@ -352,11 +352,11 @@ export function emitModule(model: Model, options: EmitOptions): string {
     byFile.set(entry.from, list);
   }
 
-  for (const [from, names] of [...byFile.entries()].sort(([a], [b]) =>
+  for (const [from, names] of [...byFile.entries()].toSorted(([a], [b]) =>
     byCodePoint(a, b),
   )) {
     lines.push(
-      `import type { ${names.sort().join(", ")} } from ${q(options.importPathFor(from))};`,
+      `import type { ${names.toSorted().join(", ")} } from ${q(options.importPathFor(from))};`,
     );
   }
 

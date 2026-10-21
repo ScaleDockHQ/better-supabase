@@ -184,8 +184,8 @@ describe.skipIf(!live)("support storage against the local stack", () => {
       listed
         .map((object) => object.path)
         .filter((path) => path.startsWith(`${ACME}/${RUN}/`))
-        .sort(),
-    ).toEqual([...own].sort());
+        .toSorted(),
+    ).toEqual(own.toSorted());
     expect(
       (await bucket.upload(`${ACME}/${RUN}/new.txt`, "x")).error,
     ).toMatchObject({ kind: "forbidden", code: "SUPPORT_READ_ONLY" });

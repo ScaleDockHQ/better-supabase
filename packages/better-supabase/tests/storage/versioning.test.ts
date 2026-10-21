@@ -317,12 +317,11 @@ describe("versioned objects", () => {
 
     const removed = await db.removeVersions("o1/a.pdf", ["v1", "v0"]);
     expect(removed.data).toEqual(["v1", "v0"]);
-    expect(api.remove).toHaveBeenCalledWith([
+    expect((await db.removeVersions("o1/a.pdf", [])).data).toEqual([]);
+    expect(api.remove).toHaveBeenCalledExactlyOnceWith([
       { path: "o1/a.pdf", versionId: "v1" },
       { path: "o1/a.pdf", versionId: "v0" },
     ]);
-    expect((await db.removeVersions("o1/a.pdf", [])).data).toEqual([]);
-    expect(api.remove).toHaveBeenCalledTimes(1);
 
     await db.signedUrl("o1/a.pdf", { versionId: "v1", cacheNonce: "n" });
     expect(api.createSignedUrl).toHaveBeenCalledWith("o1/a.pdf", 3600, {

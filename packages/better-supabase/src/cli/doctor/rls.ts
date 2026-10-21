@@ -172,7 +172,7 @@ function permissiveOverlaps(table: CatalogTable): PermissiveOverlap[] {
   const overlaps: PermissiveOverlap[] = [];
 
   for (const command of COMMANDS) {
-    for (const role of [...roles].sort()) {
+    for (const role of [...roles].toSorted()) {
       const policies = permissive
         .filter(
           (policy) =>
@@ -790,7 +790,7 @@ export const RLS_RULES: readonly Rule[] = [
           const columns = table.columns
             .map((column) => column.name)
             .filter((column) => byColumn.has(column))
-            .sort();
+            .toSorted();
 
           const deciding = new Set(
             columns.filter((column) => byColumn.get(column)!.provider),
@@ -881,7 +881,7 @@ export const RLS_RULES: readonly Rule[] = [
             ...new Set(
               columns.flatMap((column) => [...byColumn.get(column)!.helpers]),
             ),
-          ].sort();
+          ].toSorted();
 
           const listed = [...deciding];
 

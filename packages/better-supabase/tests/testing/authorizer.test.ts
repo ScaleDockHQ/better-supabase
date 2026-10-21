@@ -135,7 +135,7 @@ describe("testAuthorizer", () => {
 
     const unstable = defineAuthorizer({
       name: "unstable",
-      key: (ref) => `${ref}:${calls++}`,
+      key: (ref) => `${ref}:${(calls += 1)}`,
       evaluate: () => ({ outcome: "granted" }),
     });
 

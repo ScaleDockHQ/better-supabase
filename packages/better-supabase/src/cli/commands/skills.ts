@@ -90,7 +90,7 @@ async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
 
-  for (const entry of entries.sort((a, b) => byCodePoint(a.name, b.name))) {
+  for (const entry of entries.toSorted((a, b) => byCodePoint(a.name, b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
 
     if (entry.isDirectory()) {
@@ -129,7 +129,7 @@ export async function loadSkills(
     });
   }
 
-  return skills.sort((a, b) => byCodePoint(a.name, b.name));
+  return skills.toSorted((a, b) => byCodePoint(a.name, b.name));
 }
 
 async function listSkills(source: string | undefined): Promise<CommandResult> {

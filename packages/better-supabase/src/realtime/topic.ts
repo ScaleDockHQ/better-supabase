@@ -1029,7 +1029,8 @@ export function defineTopic<
       let syncs = 0;
 
       const sync = async (state: RealtimePresenceState): Promise<void> => {
-        const run = ++syncs;
+        syncs += 1;
+        const run = syncs;
 
         const checked = await Promise.all(
           Object.entries(state).flatMap(([key, metas]) =>

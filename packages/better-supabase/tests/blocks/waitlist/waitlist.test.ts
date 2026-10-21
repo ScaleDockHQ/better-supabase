@@ -272,7 +272,7 @@ describe("waitlistHook", () => {
       error: { message: "Invite only" },
     });
     fail = true;
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockReturnValue(undefined);
     expect((await send(hook, { id: "u" })).status).toBe(500);
   });
 });

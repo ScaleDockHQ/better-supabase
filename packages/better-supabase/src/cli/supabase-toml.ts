@@ -551,7 +551,7 @@ async function expand(cwd: string, pattern: string): Promise<string[]> {
     }
   }
 
-  return matched.sort();
+  return matched.toSorted();
 }
 
 /**

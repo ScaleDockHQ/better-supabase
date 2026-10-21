@@ -33,7 +33,6 @@ grant execute on function ${SCHEMA}.permitted(text, text, text, text, text) to a
 
 describe.skipIf(!live)("realtime topic permission", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
-  afterAll(() => pool.end());
 
   let s: BlockSession;
   let holder: TestUser;
@@ -51,6 +50,7 @@ describe.skipIf(!live)("realtime topic permission", () => {
     });
   });
   afterEach(() => s.close());
+  afterAll(() => pool.end());
 
   /**
    * Sends one broadcast as postgres, then counts what `user` can select on

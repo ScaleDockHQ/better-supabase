@@ -70,7 +70,7 @@ export async function Steps({
 
   const numbered = Children.map(children, (child) =>
     isValidElement<StepProps>(child) && child.type === Step ? (
-      <Step index={++index}>{child.props.children}</Step>
+      <Step index={(index += 1)}>{child.props.children}</Step>
     ) : (
       child
     ),

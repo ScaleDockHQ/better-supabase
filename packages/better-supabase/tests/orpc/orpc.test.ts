@@ -181,7 +181,7 @@ describe("createOrpc", () => {
     expect(response.headers.get("set-cookie")).toMatch(
       /sb-abcdefghijklmnopqrst-auth-token=;/,
     );
-    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledOnce();
   });
 
   it("derives codes from the error status", () => {

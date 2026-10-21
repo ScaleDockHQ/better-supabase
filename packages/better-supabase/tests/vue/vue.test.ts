@@ -205,7 +205,7 @@ describe("useBroadcast", () => {
     expect(client.channel).not.toHaveBeenCalled();
     setAuth(signedIn(USER));
     await nextTick();
-    expect(client.channel).toHaveBeenCalledTimes(1);
+    expect(client.channel).toHaveBeenCalledOnce();
     await flush();
     expect(result.value).toBe("subscribed");
     emit("room:r1", "created", {});

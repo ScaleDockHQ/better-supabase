@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { previewFiles } from "../../../src/create/index.ts";
 import { validateDesign } from "../../../src/create/lite/index.ts";
@@ -8,7 +8,7 @@ const files = (name: "saas" | "projects") =>
   previewFiles(encodePreset(namedPreset(name)));
 
 describe("validateDesign", () => {
-  test("applies the SaaS preset cleanly", async () => {
+  it("applies the SaaS preset cleanly", async () => {
     const result = await validateDesign(files("saas"));
 
     expect(result.issues).toEqual([]);
@@ -16,7 +16,7 @@ describe("validateDesign", () => {
     expect(result.ok).toBe(true);
   }, 60_000);
 
-  test("skips modules that need extensions PGlite lacks", async () => {
+  it("skips modules that need extensions PGlite lacks", async () => {
     const result = await validateDesign(files("projects"));
 
     expect(result.ok).toBe(true);
@@ -26,7 +26,7 @@ describe("validateDesign", () => {
     ]);
   }, 60_000);
 
-  test("reports SQL Postgres rejects", async () => {
+  it("reports SQL Postgres rejects", async () => {
     const result = await validateDesign([
       {
         path: "a.sql",

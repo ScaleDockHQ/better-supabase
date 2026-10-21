@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- CRC-32 works on 32-bit integers. */
+
 import type { JWTClaims } from "@supabase/server";
 
 import type { AuthResolver, ResolvedState } from "../../auth/resolve.ts";

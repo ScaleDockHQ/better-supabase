@@ -439,11 +439,9 @@ describe.skipIf(!live)("Postgres executor", async () => {
     }
   });
 
-  for (const [name, run] of queries) {
-    it(`matches PostgREST: ${name}`, async () => {
-      expect(await run(sql)).toEqual(await run(rest));
-    });
-  }
+  it.each(queries)("matches PostgREST: %s", async (_name, run) => {
+    expect(await run(sql)).toEqual(await run(rest));
+  });
 
   it("hides other tenants through RLS", async () => {
     const other = betterSupabase.connect(

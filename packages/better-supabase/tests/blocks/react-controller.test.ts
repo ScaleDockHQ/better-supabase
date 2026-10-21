@@ -80,7 +80,7 @@ describe("useController", () => {
     view.result.add();
     expect(view.result).toMatchObject({ label: "a", count: 1 });
     view.rerender("a");
-    expect(made).toHaveBeenCalledTimes(1);
+    expect(made).toHaveBeenCalledOnce();
     view.rerender("b");
     expect(view.result).toMatchObject({ label: "b", count: 0 });
     view.unmount();

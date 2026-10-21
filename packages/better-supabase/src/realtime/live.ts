@@ -508,7 +508,8 @@ export function liveCount(
   let closed = false;
 
   const refetch = (): void => {
-    const call = ++latest;
+    latest += 1;
+    const call = latest;
     void Promise.resolve(db.$run(spec)).then((result) => {
       if (closed || call !== latest) {
         return;

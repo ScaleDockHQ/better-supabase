@@ -341,7 +341,8 @@ export function chunkRead(
 
   let used = 0;
   const list = longest;
-  list.values.forEach((value, index) => {
+
+  for (const [index, value] of list.values.entries()) {
     const size = list.sizes[index] ?? 0;
 
     if (current.values.length > 0 && used + size > budget) {
@@ -353,7 +354,7 @@ export function chunkRead(
     current.values.push(value);
     current.texts.push(list.texts[index] ?? "");
     used += size;
-  });
+  }
 
   if (current.values.length > 0) {
     chunks.push(current);

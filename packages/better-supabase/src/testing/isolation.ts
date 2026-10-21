@@ -306,7 +306,7 @@ export async function expectTenantIsolation<
 
     return await conform("Tenant isolation", [...reads, ...deletes]);
   } finally {
-    for (const remove of cleanup.reverse()) {
+    for (const remove of cleanup.toReversed()) {
       await remove();
     }
   }

@@ -936,8 +936,7 @@ describe("row caps and default order", () => {
 
     expect(all.data).toEqual(rows);
     expect(truncated).toEqual([true, true, false]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("customers returned 2 rows"),
       { table: "customers", maxRows: 2 },
     );

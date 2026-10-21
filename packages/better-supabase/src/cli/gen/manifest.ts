@@ -63,5 +63,5 @@ export const writeManifest = (
 ): Promise<void> =>
   writeAtomic(
     resolve(root, MANIFEST),
-    `${JSON.stringify({ version: 1, files: [...files].sort() }, null, 2)}\n`,
+    `${JSON.stringify({ version: 1, files: files.toSorted() }, null, 2)}\n`,
   ).catch(() => undefined);

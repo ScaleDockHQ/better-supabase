@@ -44,16 +44,16 @@ describe("defineController", () => {
     const second = vi.fn();
     const leaveFirst = controller.subscribe(first);
     const leaveSecond = controller.subscribe(second);
-    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledOnce();
     controller.actions.add();
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledOnce();
     expect(controller.getSnapshot().count).toBe(1);
     leaveFirst();
     leaveFirst();
     expect(stop).not.toHaveBeenCalled();
     leaveSecond();
-    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledOnce();
     controller.subscribe(first)();
     expect(start).toHaveBeenCalledTimes(2);
   });
@@ -87,11 +87,11 @@ describe("defineController", () => {
     controller.subscribe(listener);
     controller.dispose();
     controller.dispose();
-    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledOnce();
     controller.actions.add();
     expect(listener).not.toHaveBeenCalled();
     controller.subscribe(listener)();
-    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledOnce();
   });
 
   it("works without a start", () => {
@@ -111,9 +111,9 @@ describe("whileSignedIn", () => {
     auth.set(signedIn(USER));
     expect(effect).toHaveBeenLastCalledWith(USER);
     auth.set(signedIn(USER));
-    expect(effect).toHaveBeenCalledTimes(1);
+    expect(effect).toHaveBeenCalledOnce();
     auth.set(signedIn(OTHER));
-    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledOnce();
     expect(effect).toHaveBeenLastCalledWith(OTHER);
     auth.set(SIGNED_OUT);
     expect(cleanup).toHaveBeenCalledTimes(2);

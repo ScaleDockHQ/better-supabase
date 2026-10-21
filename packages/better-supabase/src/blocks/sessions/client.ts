@@ -323,7 +323,8 @@ export function createOAuthGrantsController(
       let ticket = 0;
 
       const refresh = async (): Promise<void> => {
-        const request = ++ticket;
+        ticket += 1;
+        const request = ticket;
         const result = await authResult(() => oauth.listGrants());
 
         if (request !== ticket) {

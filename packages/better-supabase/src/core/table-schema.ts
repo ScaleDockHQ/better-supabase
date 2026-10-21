@@ -313,9 +313,9 @@ function checkField(
     return;
   }
 
-  value.forEach((item, index) => {
+  for (const [index, item] of value.entries()) {
     checkValue(field, item, [name, index], issues, pending);
-  });
+  }
 }
 
 /**

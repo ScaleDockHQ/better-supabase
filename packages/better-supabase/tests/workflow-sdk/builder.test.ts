@@ -375,7 +375,7 @@ describe("compileGraph", () => {
       .source.split("\n")
       .filter((line) => line.trimStart().startsWith("//"));
 
-    expect(comments.length).toBe(GRAPH.nodes.length);
+    expect(comments).toHaveLength(GRAPH.nodes.length);
 
     for (const line of comments) {
       expect(line).toMatch(/^ {2}\/\/ [a-z]+ node \d+$/);
@@ -564,7 +564,7 @@ describe("graphStarter", () => {
       dynamic: false,
       executorRunsTests: true,
     })(test);
-    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledOnce();
   });
 
   it("returns the run a repeated key already started", async () => {

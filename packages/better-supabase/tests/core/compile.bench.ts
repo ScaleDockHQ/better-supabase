@@ -55,13 +55,13 @@ async function opOf(run: () => PromiseLike<unknown>): Promise<Operation> {
 }
 
 function measure(work: () => unknown): number {
-  for (let warm = 0; warm < 2000; warm++) {
+  for (let warm = 0; warm < 2000; warm += 1) {
     work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     work();
   }
 
@@ -69,13 +69,13 @@ function measure(work: () => unknown): number {
 }
 
 async function measureAsync(work: () => PromiseLike<unknown>): Promise<number> {
-  for (let warm = 0; warm < 2000; warm++) {
+  for (let warm = 0; warm < 2000; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     await work();
   }
 

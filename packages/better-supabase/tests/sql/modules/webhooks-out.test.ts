@@ -143,7 +143,7 @@ describe("webhooks-out module", () => {
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
     const custom: AnyBlocksConfig = { "webhooks-out": { mode: "custom" } };
-    expect(moduleBody("webhooks-out", { modules: custom })).toBe(undefined);
+    expect(moduleBody("webhooks-out", { modules: custom })).toBeUndefined();
     const [contract] = customContracts(["webhooks-out"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "publish_webhook_event",

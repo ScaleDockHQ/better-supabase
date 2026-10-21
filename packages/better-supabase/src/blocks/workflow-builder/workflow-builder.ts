@@ -587,7 +587,9 @@ export function createWorkflowBuilder<
               input: event.payload ?? {},
               idempotencyKey: `event:${trigger.id}:${event.id}`,
               trigger,
-              ...(event.actorId == null ? {} : { actor: event.actorId }),
+              ...(typeof event.actorId === "string"
+                ? { actor: event.actorId }
+                : {}),
               ...(tenant === undefined ? {} : { tenant }),
               ...(subject === undefined ? {} : { subject }),
             });
@@ -956,8 +958,10 @@ function workflowSink(
         id: event.id,
         type: event.type,
         payload: event.payload,
-        ...(event.tenant == null ? {} : { tenant: event.tenant }),
-        ...(event.actorId == null ? {} : { actorId: event.actorId }),
+        ...(typeof event.tenant === "string" ? { tenant: event.tenant } : {}),
+        ...(typeof event.actorId === "string"
+          ? { actorId: event.actorId }
+          : {}),
       }).orThrow();
     }
   };

@@ -194,8 +194,7 @@ describe("lastSignIns", () => {
 
     const sql = { queryRaw } as unknown as SqlClient;
     const found = await lastSignIns(sql, [USER, OTHER, USER]).orThrow();
-    expect(queryRaw).toHaveBeenCalledTimes(1);
-    expect(queryRaw).toHaveBeenCalledWith(
+    expect(queryRaw).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("better_supabase.last_sign_ins($1::uuid[])"),
       [[USER, OTHER]],
     );

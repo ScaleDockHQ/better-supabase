@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { resolveConfig } from "../../src/config/index.ts";
 import {
@@ -47,8 +47,9 @@ function createdTables(files: readonly SchemaSource[]): Set<string> {
 }
 
 describe("parseSchema", () => {
-  for (const name of ["saas", "commerce", "everything"] as const) {
-    test(`reads every create table in the ${name} preset`, () => {
+  it.each(["saas", "commerce", "everything"] as const)(
+    "reads every create table in the %s preset",
+    (name) => {
       const { files, tenantColumn } = rendered(name);
       const tables = parseSchema(files, { tenantColumn });
       const ids = new Set(tables.map((table) => table.id));
@@ -71,10 +72,10 @@ describe("parseSchema", () => {
       );
 
       expect(wrong.map((table) => table.id)).toEqual([]);
-    });
-  }
+    },
+  );
 
-  test("reads primary keys, foreign keys and the tenant column", () => {
+  it("reads primary keys, foreign keys and the tenant column", () => {
     const { files, tenantColumn } = rendered("saas");
     const tables = parseSchema(files, { tenantColumn });
     const byId = new Map(tables.map((table) => [table.id, table]));
@@ -103,7 +104,7 @@ describe("parseSchema", () => {
     ).toBe(relations.length);
   });
 
-  test("follows the preset's tenant name", () => {
+  it("follows the preset's tenant name", () => {
     const { files, tenantColumn } = rendered("saas", {
       tenantName: "workspace",
     });
@@ -114,12 +115,12 @@ describe("parseSchema", () => {
     expect(
       tables.find((table) => table.name === "memberships")?.tenantColumn,
     ).toBe("workspace_id");
-    expect(tenantColumnOf({ ...namedPreset("saas"), scope: "user" })).toBe(
-      null,
-    );
+    expect(
+      tenantColumnOf({ ...namedPreset("saas"), scope: "user" }),
+    ).toBeNull();
   });
 
-  test("reads table constraints and later alter table statements", () => {
+  it("reads table constraints and later alter table statements", () => {
     const [table] = parseSchema([
       {
         path: "a.sql",
@@ -212,7 +213,7 @@ describe("parseSchema", () => {
     });
   });
 
-  test("throws on a create table it can't read", () => {
+  it("throws on a create table it can't read", () => {
     expect(() =>
       parseSchema([
         { path: "b.sql", module: "b", contents: "\ncreate table %I.%I ();" },
@@ -242,7 +243,7 @@ alter table app.lines enable row level security;
     },
   ];
 
-  test("returns the create table and the later alter table statements, as written", () => {
+  it("returns the create table and the later alter table statements, as written", () => {
     expect(
       tableStatements(files, "app.lines").map((each) => each.trim()),
     ).toEqual([
@@ -252,7 +253,7 @@ alter table app.lines enable row level security;
     ]);
   });
 
-  test("is empty for a table no file creates", () => {
+  it("is empty for a table no file creates", () => {
     expect(tableStatements(files, "app.missing")).toEqual([]);
   });
 });

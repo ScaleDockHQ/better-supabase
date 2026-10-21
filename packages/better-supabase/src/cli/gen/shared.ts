@@ -155,13 +155,13 @@ function unwrap(text: string): string {
     let depth = 0;
     let wraps = true;
 
-    for (let index = 0; index < current.length; index++) {
+    for (let index = 0; index < current.length; index += 1) {
       const char = current[index];
 
       if (char === "(") {
-        depth++;
+        depth += 1;
       } else if (char === ")") {
-        depth--;
+        depth -= 1;
       }
 
       if (depth === 0 && index < current.length - 1) {
@@ -188,7 +188,7 @@ function splitTopLevel(text: string, keyword: "AND" | "OR"): string[] {
   let start = 0;
   const separator = ` ${keyword} `;
 
-  for (let index = 0; index < text.length; index++) {
+  for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
 
     if (quote) {
@@ -202,9 +202,9 @@ function splitTopLevel(text: string, keyword: "AND" | "OR"): string[] {
     if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
     } else if (
       depth === 0 &&
       text.slice(index, index + separator.length).toUpperCase() === separator

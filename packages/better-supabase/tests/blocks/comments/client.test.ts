@@ -82,7 +82,7 @@ describe("createCommentsController", () => {
     expect(await view().remove("c2")).toMatchObject({ ok: true, data: true });
     expect(remove).toHaveBeenCalledWith("c2");
     expect(list).toHaveBeenCalledTimes(2);
-    expect(edit).toHaveBeenCalledTimes(1);
+    expect(edit).toHaveBeenCalledOnce();
     unmount();
   });
 
@@ -136,7 +136,7 @@ describe("createCommentsController", () => {
   it("drops a load that a write overtook", async () => {
     const { list, controller } = setup();
     const slow = held<readonly Comment[]>([]);
-    list.mockImplementationOnce(() => slow.result);
+    list.mockReturnValueOnce(slow.result);
     const { view, unmount } = mount(controller);
     await flush();
     await view().add("New");

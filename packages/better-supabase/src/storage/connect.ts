@@ -39,7 +39,7 @@ function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
 
   return async (fn) => {
     if (active < limit) {
-      active++;
+      active += 1;
     } else {
       await new Promise<void>((resolve) => {
         waiting.push(resolve);
@@ -54,7 +54,7 @@ function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
       if (next) {
         next();
       } else {
-        active--;
+        active -= 1;
       }
     }
   };
@@ -637,7 +637,7 @@ export function connectBucket<P extends string, Id extends string>(
           }),
         ).andThen((data) => {
           const failed = data.find(
-            (entry) => entry.error != null || !entry.signedUrl,
+            (entry) => entry.error !== null || !entry.signedUrl,
           );
 
           if (failed) {
@@ -688,7 +688,9 @@ export function connectBucket<P extends string, Id extends string>(
         const path = resolve(target);
 
         const previous =
-          options.previous == null ? null : resolve(options.previous);
+          typeof options.previous === "string"
+            ? resolve(options.previous)
+            : null;
 
         const same = previous === path;
 
@@ -819,7 +821,7 @@ export function connectBucket<P extends string, Id extends string>(
             bucket.prefix(scope),
             options.signal,
           )) {
-            scanned++;
+            scanned += 1;
 
             if (!inScope(bucket.match(object.path), scope)) {
               continue;

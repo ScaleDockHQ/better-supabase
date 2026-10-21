@@ -382,7 +382,7 @@ describe("shared-signals receiver", () => {
     const token = t.dispatched[0]!.set;
     expect((await send(token)).status).toBe(202);
     expect((await send(token)).status).toBe(202);
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledOnce();
     const bad = await send("a.b.c");
     expect(bad.status).toBe(400);
     expect(await bad.json()).toMatchObject({ err: "invalid_request" });

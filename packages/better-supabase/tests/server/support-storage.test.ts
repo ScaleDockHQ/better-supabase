@@ -44,7 +44,7 @@ function search(visible: readonly string[], call: SqlCall) {
   const seen = new Set<string>();
   const entries: Record<string, unknown>[] = [];
 
-  const sorted = [...visible].sort((a, b) =>
+  const sorted = visible.toSorted((a, b) =>
     a.toLowerCase().localeCompare(b.toLowerCase()),
   );
 
@@ -625,7 +625,7 @@ limit $2::int`,
     );
     expect(sql.calls[3]?.values).toEqual(["docs", 1001, "org/a"]);
 
-    const reversed = fakeSql([[FLAT, [...rows].reverse()]]);
+    const reversed = fakeSql([[FLAT, rows.toReversed()]]);
 
     const unicode = supportStorage({
       admin: fakeAdmin().admin,

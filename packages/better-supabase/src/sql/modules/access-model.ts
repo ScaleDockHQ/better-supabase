@@ -752,7 +752,10 @@ export function roleScopeIs(
 
   const access = ctx.of("access");
 
-  if (!access.manages && access.config.columns["roles"]?.["scope"] == null) {
+  if (
+    !access.manages &&
+    typeof access.config.columns["roles"]?.["scope"] !== "string"
+  ) {
     return undefined;
   }
 

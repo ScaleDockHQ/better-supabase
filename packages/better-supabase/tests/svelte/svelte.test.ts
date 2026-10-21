@@ -184,7 +184,7 @@ describe("broadcast", () => {
     const view = observe(() => status.current);
     setAuth(signedIn(USER));
     $.flush();
-    expect(client.channel).toHaveBeenCalledTimes(1);
+    expect(client.channel).toHaveBeenCalledOnce();
     await settle();
     expect(view.last()).toBe("subscribed");
     emit("room:r1", "created", {});

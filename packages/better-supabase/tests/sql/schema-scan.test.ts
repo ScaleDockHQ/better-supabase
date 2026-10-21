@@ -63,7 +63,7 @@ describe("declaredTableColumns", () => {
       ["public"],
     );
 
-    expect([...columns.get("public.organizations")!].sort()).toEqual([
+    expect([...columns.get("public.organizations")!].toSorted()).toEqual([
       "id",
       "name",
       "slug",

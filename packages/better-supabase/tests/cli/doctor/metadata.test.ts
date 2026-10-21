@@ -69,8 +69,8 @@ describe("doctor --metadata", () => {
       ),
     );
 
-    expect(skipped.map((finding) => finding.code).sort()).toEqual(
-      [...EXTRAS_RULES].sort(),
+    expect(skipped.map((finding) => finding.code).toSorted()).toEqual(
+      [...EXTRAS_RULES].toSorted(),
     );
     expect(skipped.every((finding) => finding.severity === "info")).toBe(true);
     expect(

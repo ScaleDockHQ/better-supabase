@@ -218,7 +218,7 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
     ),
   ];
 
-  for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i++) {
+  for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i += 1) {
     const tableName = name(i);
 
     const columns = [
@@ -236,7 +236,7 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
       column("archived_at", "timestamptz", { nullable: true }),
     ];
 
-    for (let c = 0; c < 8; c++) {
+    for (let c = 0; c < 8; c += 1) {
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
     }
 
@@ -357,7 +357,7 @@ function consumer(profile: Profile): string {
     );
   }
 
-  for (let i = 1; i <= profile.queried; i++) {
+  for (let i = 1; i <= profile.queried; i += 1) {
     const key = name(i);
     const child = name(i + 1);
     lines.push(
@@ -382,7 +382,7 @@ function calibrationProgram(): string {
     "type Pick2<T, K extends keyof T> = { [P in K]: T[P] };",
   ];
 
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 400; i += 1) {
     const fields = Array.from(
       { length: 20 },
       (_, f) =>

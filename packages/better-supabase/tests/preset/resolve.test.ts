@@ -89,10 +89,10 @@ describe("resolvePreset", () => {
     ]);
     expect(
       presetBlockConflict({ scope: "none", access: "roles" }, "push"),
-    ).toBe(undefined);
+    ).toBeUndefined();
     expect(
       presetBlockConflict({ scope: "tenant", access: "roles" }, "comments"),
-    ).toBe(undefined);
+    ).toBeUndefined();
   });
 
   it("runs tags, comments and notifications without tenants per user or in one space", () => {

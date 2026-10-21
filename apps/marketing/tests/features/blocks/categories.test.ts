@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   CATEGORY_NAMES,
@@ -8,7 +8,7 @@ import {
 import { blockCategories } from "../../../lib/blocks";
 
 describe("block categories", () => {
-  test("every catalog category has a style, in catalog order", () => {
+  it("every catalog category has a style, in catalog order", () => {
     expect(blockCategories).toEqual([...CATEGORY_NAMES]);
 
     for (const name of blockCategories) {
@@ -16,13 +16,13 @@ describe("block categories", () => {
     }
   });
 
-  test("slugs are unique and link to the blocks index", () => {
+  it("slugs are unique and link to the blocks index", () => {
     const slugs = CATEGORY_NAMES.map((name) => categoryStyle(name).slug);
     expect(new Set(slugs).size).toBe(slugs.length);
     expect(categoryHref("CRM & sales")).toBe("/blocks#crm-sales");
   });
 
-  test("an unknown category throws", () => {
+  it("an unknown category throws", () => {
     expect(() => categoryStyle("Nope")).toThrow(/Nope/u);
   });
 });

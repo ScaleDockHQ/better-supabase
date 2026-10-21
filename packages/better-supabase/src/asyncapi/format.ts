@@ -448,7 +448,7 @@ function lowerAsyncApi(
   }
 
   if (hasHttp) {
-    model.servers.forEach((entry, index) => {
+    for (const [index, entry] of model.servers.entries()) {
       const key = safeKey(
         entry.name ?? (index === 0 ? "api" : `api${String(index + 1)}`),
       );
@@ -460,12 +460,12 @@ function lowerAsyncApi(
       );
 
       if (!server || key in servers) {
-        return;
+        continue;
       }
 
       servers[key] = server;
       httpServers.push({ $ref: `#/servers/${key}` });
-    });
+    }
   }
 
   const messageKeys = new Map<string, string>();

@@ -323,7 +323,7 @@ export async function compileReadSets(
     byName.set(set.name, set);
   }
 
-  const names = [...byName.keys()].sort();
+  const names = [...byName.keys()].toSorted();
 
   return Promise.all(names.map((name) => compileReadSet(byName.get(name)!)));
 }

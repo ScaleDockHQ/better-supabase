@@ -85,7 +85,7 @@ export function createNotificationsController<T>(
           );
 
           const merged = lists.flat();
-          const items = options.sort ? [...merged].sort(options.sort) : merged;
+          const items = options.sort ? merged.toSorted(options.sort) : merged;
           state.set({ items, count: countOf(items), error: undefined });
         } catch (cause) {
           state.set({ error: cause });

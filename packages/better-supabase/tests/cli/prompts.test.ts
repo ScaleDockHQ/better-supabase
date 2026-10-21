@@ -303,6 +303,6 @@ describe("clackPrompter", () => {
     const stop = clackSpinner(process.stderr, "Loading");
     expect(clack.spinner.start).toHaveBeenCalledWith("Loading");
     stop();
-    expect(clack.spinner.clear).toHaveBeenCalled();
+    expect(clack.spinner.clear).toHaveBeenCalledWith();
   });
 });

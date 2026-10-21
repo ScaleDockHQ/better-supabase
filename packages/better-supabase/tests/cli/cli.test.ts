@@ -181,7 +181,7 @@ describe("relation names", () => {
         .find((entry) => entry.key === table)
         ?.relations.filter((entry) => entry.meta.table !== "organizations")
         .map((entry) => entry.name)
-        .sort();
+        .toSorted();
   };
 
   it("names a tenant key and a plain key to one table by every key column", async () => {
@@ -784,8 +784,8 @@ describe("config JSON Schema", () => {
       $ci: true,
     };
 
-    expect(Object.keys(schema.properties).sort()).toEqual(
-      Object.keys(keys).sort(),
+    expect(Object.keys(schema.properties).toSorted()).toEqual(
+      Object.keys(keys).toSorted(),
     );
   });
 });

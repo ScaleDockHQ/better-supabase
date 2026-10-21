@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { blockCategories, getBlock } from "../../lib/blocks";
 import { RECIPE_CATEGORY_NAMES } from "../../lib/recipe-filter";
@@ -27,7 +27,7 @@ const REGISTRY = join(
 );
 
 describe("recipes", () => {
-  test("every available recipe has a statically generated page", () => {
+  it("every available recipe has a statically generated page", () => {
     expect(readFileSync(PAGE, "utf-8")).toContain(
       "return recipeStaticParams();",
     );
@@ -48,13 +48,13 @@ describe("recipes", () => {
     );
   });
 
-  test("every planned recipe says what it waits for", () => {
+  it("every planned recipe says what it waits for", () => {
     for (const recipe of plannedRecipes) {
       expect(recipe.missing).toBeTruthy();
     }
   });
 
-  test.each(availableRecipes.map((recipe) => [recipe.slug, recipe] as const))(
+  it.each(availableRecipes.map((recipe) => [recipe.slug, recipe] as const))(
     "%s has web code, and its hook is on every side",
     (_slug, recipe) => {
       const platforms = recipePlatformsOf(recipe);
@@ -81,7 +81,7 @@ describe("recipes", () => {
     },
   );
 
-  test("recipeGroups puts every recipe once under its category, in catalog order", () => {
+  it("recipeGroups puts every recipe once under its category, in catalog order", () => {
     const groups = recipeGroups();
 
     const slugs = groups.flatMap((group) => [
@@ -114,7 +114,7 @@ describe("recipes", () => {
     }
   });
 
-  test("every recipe names a catalog block, and its glue is a registry item", () => {
+  it("every recipe names a catalog block, and its glue is a registry item", () => {
     const items = new Set(
       (
         JSON.parse(readFileSync(REGISTRY, "utf-8")) as {

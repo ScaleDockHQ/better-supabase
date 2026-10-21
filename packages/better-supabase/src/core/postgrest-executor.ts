@@ -505,7 +505,8 @@ export function postgrestExecutor(
 
       const lane = async (): Promise<void> => {
         while (next < chunked.ops.length) {
-          const index = next++;
+          const index = next;
+          next += 1;
           const chunk = chunked.ops[index]!;
           const chunkPlan = chunked.plans?.[index];
 
@@ -540,6 +541,7 @@ export function postgrestExecutor(
       }
 
       return ok({
+        // oxlint-disable-next-line unicorn/no-array-sort -- `ChunkedRead.sort` is a callback, not `Array#sort`.
         rows: chunked.sort ? chunked.sort(rows) : rows,
         count: null,
       });

@@ -428,7 +428,7 @@ describe("createOutbox", () => {
       OPTIONS,
     );
 
-    expect(Object.keys(event).sort()).toEqual([
+    expect(Object.keys(event).toSorted()).toEqual([
       "data",
       "datacontenttype",
       "id",

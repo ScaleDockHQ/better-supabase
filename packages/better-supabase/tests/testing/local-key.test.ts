@@ -145,7 +145,7 @@ describe("asUser tracing and request context", () => {
   });
 
   it("keeps supabase-js trace propagation off, so it never warns", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockReturnValue(undefined);
 
     try {
       const user = await asUser(

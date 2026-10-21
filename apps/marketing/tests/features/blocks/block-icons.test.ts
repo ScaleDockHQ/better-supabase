@@ -1,11 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { BLOCK_ICONS, blockIcon } from "../../../features/blocks/block-icons";
 import { categoryStyle } from "../../../features/blocks/categories";
 import { blockCategories, blocks } from "../../../lib/blocks";
 
 describe("block icons", () => {
-  test("every catalog block has its own entry", () => {
+  it("every catalog block has its own entry", () => {
     const missing = blocks
       .filter((block) => !Object.hasOwn(BLOCK_ICONS, block.name))
       .map((block) => block.name);
@@ -13,7 +13,7 @@ describe("block icons", () => {
     expect(missing).toEqual([]);
   });
 
-  test("no entry names a block the catalog lacks", () => {
+  it("no entry names a block the catalog lacks", () => {
     const names = new Set(blocks.map((block) => block.name));
 
     expect(Object.keys(BLOCK_ICONS).filter((name) => !names.has(name))).toEqual(
@@ -21,7 +21,7 @@ describe("block icons", () => {
     );
   });
 
-  test("blocks in the same category have different icons", () => {
+  it("blocks in the same category have different icons", () => {
     const shared = blockCategories.filter((category) => {
       const icons = blocks
         .filter((block) => block.category === category)
@@ -33,7 +33,7 @@ describe("block icons", () => {
     expect(shared).toEqual([]);
   });
 
-  test("an unknown block falls back to its category icon", () => {
+  it("an unknown block falls back to its category icon", () => {
     expect(blockIcon("nope", "AI")).toBe(categoryStyle("AI").icon);
   });
 });

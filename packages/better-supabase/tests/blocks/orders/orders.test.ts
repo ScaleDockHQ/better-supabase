@@ -819,8 +819,7 @@ describe("orders block", () => {
     );
 
     expect((await o.capture("o1").orThrow()).status).toBe("paid");
-    expect(spies.capture).toHaveBeenCalledTimes(1);
-    expect(spies.capture).toHaveBeenCalledWith(
+    expect(spies.capture).toHaveBeenCalledExactlyOnceWith(
       "pi_1",
       {},
       { idempotencyKey: "capture:pay1" },
@@ -1326,8 +1325,7 @@ describe("orders block", () => {
     );
 
     expect(await o.cancelOrder("o1", "changed mind").orThrow()).toBe(true);
-    expect(cancel).toHaveBeenCalledTimes(1);
-    expect(cancel).toHaveBeenCalledWith("pi_1", {
+    expect(cancel).toHaveBeenCalledExactlyOnceWith("pi_1", {
       idempotencyKey: "cancel:pay1",
     });
     expect(fns()).toEqual(["cancel_order", "get_order", "record_payment"]);
@@ -1483,7 +1481,10 @@ describe("orders block", () => {
     );
 
     await o.getOrder("o1").orThrow();
-    expect(before).toHaveBeenCalled();
+    expect(before).toHaveBeenCalledWith(["o1"], {
+      block: "orders",
+      method: "getOrder",
+    });
   });
 });
 

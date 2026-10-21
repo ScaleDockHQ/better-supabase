@@ -172,11 +172,11 @@ describe("createAiChatTreeController", () => {
     expect(calls.path).toHaveBeenCalledTimes(4);
 
     await view().step("a1", 1);
-    expect(calls.switchBranch).toHaveBeenCalledWith("c1", "a2");
+    expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith("c1", "a2");
     expect(calls.path).toHaveBeenLastCalledWith("c1", { leafId: "a2" });
     await view().step("a2", 1);
     await view().step("zz", 0);
-    expect(calls.switchBranch).toHaveBeenCalledTimes(1);
+    expect(calls.switchBranch).toHaveBeenCalledExactlyOnceWith("c1", "a2");
 
     calls.siblings.mockReturnValue(failed("gone"));
     await view().step("a1", 1);
@@ -228,7 +228,7 @@ describe("createAiChatTreeController", () => {
     siblings.release();
     await switching;
     await stepping;
-    expect(calls.path).toHaveBeenCalledTimes(1);
+    expect(calls.path).toHaveBeenCalledOnce();
   });
 });
 

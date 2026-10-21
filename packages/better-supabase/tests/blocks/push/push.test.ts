@@ -221,7 +221,7 @@ describe("registerDevice", () => {
         request: false,
       }).orThrow(),
     ).toBeNull();
-    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledOnce();
     expect(
       await registerDevice({
         notifications,
@@ -279,7 +279,7 @@ describe("unregisterOnSignOut", () => {
       devices,
       token: () => null,
     })();
-    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(unregister).toHaveBeenCalledOnce();
   });
 });
 

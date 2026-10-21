@@ -95,7 +95,7 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
         ? undefined
         : await request.arrayBuffer();
 
-    for (let hop = 0; ; hop++) {
+    for (let hop = 0; ; hop += 1) {
       if (hop > 0) {
         await check(url);
       }

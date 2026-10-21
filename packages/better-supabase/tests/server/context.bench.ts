@@ -52,13 +52,13 @@ const bearer = (): Request =>
   });
 
 async function measure(work: () => Promise<unknown>): Promise<number> {
-  for (let warm = 0; warm < 200; warm++) {
+  for (let warm = 0; warm < 200; warm += 1) {
     await work();
   }
 
   const started = performance.now();
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = 0; run < RUNS; run += 1) {
     await work();
   }
 

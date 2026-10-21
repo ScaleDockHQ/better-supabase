@@ -526,7 +526,7 @@ describe("support sessions on the server", () => {
     await server.support.current(cookie, admin());
     await server.support.current(cookie, admin());
     expect(get).toHaveBeenCalledTimes(2);
-    expect(claims).toHaveBeenCalledTimes(1);
+    expect(claims).toHaveBeenCalledOnce();
     await server.support.revoke(admin(), session.id).orThrow();
     expect(await server.support.current(cookie, admin())).toBeUndefined();
   });

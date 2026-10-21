@@ -165,7 +165,7 @@ function readSessionParts(
   } else {
     const parts: string[] = [];
 
-    for (let index = 0; ; index++) {
+    for (let index = 0; ; index += 1) {
       const part = byName.get(`${name}.${index}`);
 
       if (!part) {
@@ -175,7 +175,7 @@ function readSessionParts(
       parts.push(part);
     }
 
-    for (let length = parts.length; length > 0; length--) {
+    for (let length = parts.length; length > 0; length -= 1) {
       const session = parseSession(parts.slice(0, length).join(""));
 
       if (session) {

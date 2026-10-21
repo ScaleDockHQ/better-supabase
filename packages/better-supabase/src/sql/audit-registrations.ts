@@ -168,7 +168,8 @@ const POSITIONS = ["target", "ignore", "replace_trigger", "redact"] as const;
  */
 function registration(args: readonly string[]): AuditedTable | undefined {
   const named = new Map<string, string>();
-  args.forEach((arg, index) => {
+
+  for (const [index, arg] of args.entries()) {
     const match = NAMED.exec(arg);
 
     if (match) {
@@ -176,7 +177,8 @@ function registration(args: readonly string[]): AuditedTable | undefined {
     } else if (index < POSITIONS.length) {
       named.set(POSITIONS[index]!, arg);
     }
-  });
+  }
+
   const target = literal(named.get("target") ?? "");
 
   if (target === undefined) {
@@ -277,7 +279,7 @@ export function auditRegistrations(
         match,
         kind: "drop" as const,
       })),
-    ].sort((a, b) => a.match.index - b.match.index);
+    ].toSorted((a, b) => a.match.index - b.match.index);
 
     for (const { match, kind } of found) {
       if (kind === "drop") {
@@ -323,7 +325,7 @@ export function auditRegistrations(
     }
   }
 
-  return [...tables.values()].sort((a, b) =>
+  return [...tables.values()].toSorted((a, b) =>
     a.target < b.target ? -1 : a.target > b.target ? 1 : 0,
   );
 }

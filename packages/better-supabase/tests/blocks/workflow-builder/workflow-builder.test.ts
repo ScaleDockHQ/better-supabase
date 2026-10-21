@@ -327,7 +327,7 @@ describe("createWorkflowBuilder", () => {
     ]);
     status = "published";
     await builder.versions.publish("v1").orThrow();
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledOnce();
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
     expect(service.calls).toHaveLength(1);
 
@@ -1054,7 +1054,7 @@ describe("createWorkflowBuilder", () => {
 
     const builder = createWorkflowBuilder({
       transport,
-      start: async () => `wrun_${String(++n)}`,
+      start: async () => `wrun_${String((n += 1))}`,
     });
 
     expect(
@@ -1076,7 +1076,7 @@ describe("createWorkflowBuilder", () => {
       start: async () => {
         started.push("run");
 
-        return `wrun_${String(++n)}`;
+        return `wrun_${String((n += 1))}`;
       },
     });
 

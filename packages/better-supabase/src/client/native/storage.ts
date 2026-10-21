@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- FNV-1a works on 32-bit integers. */
+
 /** The part of `expo-secure-store` the storage adapter uses. */
 export interface SecureStoreLike {
   getItemAsync(

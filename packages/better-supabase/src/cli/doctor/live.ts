@@ -245,7 +245,7 @@ async function explainTable(
             };
           })
           .filter((fn) => fn.calls > 0)
-          .sort((a, b) => b.selfTime - a.selfTime)
+          .toSorted((a, b) => b.selfTime - a.selfTime)
       : undefined;
 
     return { summary: summarizePlan(plan[0]), functions };

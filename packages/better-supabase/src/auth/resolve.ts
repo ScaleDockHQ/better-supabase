@@ -303,7 +303,8 @@ function secretId(secret: string | undefined): number | null {
   let id = secretIds.get(secret);
 
   if (id === undefined) {
-    id = nextSecretId++;
+    id = nextSecretId;
+    nextSecretId += 1;
     secretIds.set(secret, id);
 
     if (secretIds.size > SECRET_IDS_SIZE) {

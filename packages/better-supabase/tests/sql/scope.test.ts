@@ -158,7 +158,7 @@ describe("module sources", () => {
         "\n",
       );
 
-      lines.forEach((line, index) => {
+      for (const [index, line] of lines.entries()) {
         const code = line.trim();
 
         if (
@@ -166,13 +166,13 @@ describe("module sources", () => {
           code.startsWith('"') ||
           code.includes("-- ")
         ) {
-          return;
+          continue;
         }
 
         if (literal.test(line)) {
           sites.push(`${file}:${String(index + 1)}`);
         }
-      });
+      }
     }
 
     expect(sites).toEqual([]);

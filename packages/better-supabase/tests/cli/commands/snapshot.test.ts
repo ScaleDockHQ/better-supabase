@@ -359,7 +359,7 @@ describe("parseSnapshot", () => {
 
     expect(older.extras).toEqual({ tables: [], buckets: [], realtime: [] });
     const full = await parseSnapshot(fixture);
-    expect(Object.keys(full.extras).sort()).toEqual(
+    expect(Object.keys(full.extras).toSorted()).toEqual(
       [
         "buckets",
         "functions",

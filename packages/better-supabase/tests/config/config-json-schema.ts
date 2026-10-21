@@ -89,7 +89,7 @@ function blocksSchema(description: unknown): {
   readonly blocks: Json;
   readonly perModule: Json;
 } {
-  const modules = Object.keys(BLOCK_OPTION_SCHEMAS).sort((a, b) =>
+  const modules = Object.keys(BLOCK_OPTION_SCHEMAS).toSorted((a, b) =>
     a.localeCompare(b),
   );
 

@@ -200,7 +200,7 @@ function setup(options: Setup = {}) {
     workflow,
     streams,
     streamTtl: 60,
-    generateId: () => `id${++ids}`,
+    generateId: () => `id${(ids += 1)}`,
   });
 
   return { durable, context, calls, prepare, pending, streams, workflow };

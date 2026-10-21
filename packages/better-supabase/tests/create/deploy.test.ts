@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 
 import {
   previewFiles,
@@ -22,7 +22,7 @@ describe("deployQuery", () => {
     { path: "supabase/schemas/901_b.sql", module: "b", contents: "schema b" },
   ];
 
-  test("puts schema files before data files and leaves tests out", () => {
+  it("puts schema files before data files and leaves tests out", () => {
     expect(deployQuery(files)).toBe(
       [
         "-- supabase/schemas/900_a.sql\nschema a\n",
@@ -32,14 +32,14 @@ describe("deployQuery", () => {
     );
   });
 
-  test("renders a preset's schema", () => {
+  it("renders a preset's schema", () => {
     const query = deployQuery(previewFiles(encodePreset(namedPreset("saas"))));
 
     expect(query).toContain("create table");
     expect(query).not.toContain("plan(");
   });
 
-  test("writes the deploy id on the first line", () => {
+  it("writes the deploy id on the first line", () => {
     const id = newDeployId();
     const query = deployQuery(files, { id });
 
@@ -47,7 +47,7 @@ describe("deployQuery", () => {
     expect(query.endsWith(deployQuery(files))).toBe(true);
   });
 
-  test.each(["", "a\nselect 1;", "a b", "x".repeat(65)])(
+  it.each(["", "a\nselect 1;", "a b", "x".repeat(65)])(
     "rejects the id %j",
     (id) => {
       expect(() => deployQuery(files, { id })).toThrow(TypeError);

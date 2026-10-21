@@ -34,7 +34,9 @@ function droppedTables(list: string): string[] {
 type Statement = { readonly index: number; readonly apply: () => void };
 
 function inOrder(statements: Statement[][]): void {
-  for (const statement of statements.flat().sort((a, b) => a.index - b.index)) {
+  for (const statement of statements
+    .flat()
+    .toSorted((a, b) => a.index - b.index)) {
     statement.apply();
   }
 }
@@ -264,7 +266,7 @@ export function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
 
-  for (let i = open; i < text.length; i++) {
+  for (let i = open; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -274,9 +276,9 @@ export function closingParen(text: string, open: number): number {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
 
       if (depth === 0) {
         return i;
@@ -293,7 +295,7 @@ export function splitTopLevel(text: string): string[] {
   let quote: string | undefined;
   let start = 0;
 
-  for (let i = 0; i < text.length; i++) {
+  for (let i = 0; i < text.length; i += 1) {
     const char = text[i]!;
 
     if (quote) {
@@ -303,9 +305,9 @@ export function splitTopLevel(text: string): string[] {
     } else if (char === "'" || char === '"') {
       quote = char;
     } else if (char === "(") {
-      depth++;
+      depth += 1;
     } else if (char === ")") {
-      depth--;
+      depth -= 1;
     } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, i).trim());
       start = i + 1;
@@ -427,7 +429,7 @@ export function policyGrants(
       role: entry.role,
       privileges: COMMANDS.filter((command) => entry.privileges.has(command)),
     }))
-    .sort((a, b) =>
+    .toSorted((a, b) =>
       a.table === b.table
         ? a.role < b.role
           ? -1

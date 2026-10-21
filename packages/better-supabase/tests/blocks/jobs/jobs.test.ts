@@ -63,7 +63,11 @@ function fakeClient(
 function sequence(...answers: SqlAnswer[]): () => SqlAnswer {
   let index = 0;
 
-  return () => answers[index++] ?? [];
+  return () => {
+    index += 1;
+
+    return answers[index - 1] ?? [];
+  };
 }
 
 const queues = {

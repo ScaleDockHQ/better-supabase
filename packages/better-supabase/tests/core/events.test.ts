@@ -8,7 +8,7 @@ describe("EventHub", () => {
     const logger = { ...silentLogger, warn: vi.fn() };
     const hub = new EventHub(logger);
     const offs = Array.from({ length: 60 }, () => hub.on("query", () => {}));
-    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledOnce();
     expect(logger.warn.mock.calls[0]?.[0]).toContain('51 "query" handlers');
 
     for (const off of offs) {

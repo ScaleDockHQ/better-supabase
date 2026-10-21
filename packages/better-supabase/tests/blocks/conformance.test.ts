@@ -199,7 +199,7 @@ const failing = (
   blocks
     .filter((block) => !check(block))
     .map((block) => block.name)
-    .sort();
+    .toSorted();
 
 const moduleNames = (name: string) => SQL_MODULES[name]?.names;
 
@@ -231,7 +231,7 @@ describe("block manifests", () => {
   it("takes the options each SQL module reads", () => {
     const mismatched = BLOCK_MANIFESTS.flatMap((block) =>
       block.sql.flatMap((module) => {
-        const keys = [...(moduleNames(module)?.options ?? [])].sort();
+        const keys = [...(moduleNames(module)?.options ?? [])].toSorted();
         const schema = block.options[module];
 
         if (keys.length === 0) {
@@ -243,7 +243,7 @@ describe("block manifests", () => {
         }
 
         const unknown = schema["~standard"].validate({ notAnOption: 1 });
-        const declared = Object.keys(schema.specs).sort();
+        const declared = Object.keys(schema.specs).toSorted();
 
         if (JSON.stringify(declared) !== JSON.stringify(keys)) {
           return [`${module}: declares ${declared.join(", ")}`];
@@ -259,8 +259,8 @@ describe("block manifests", () => {
   });
 
   it("lists every SQL module's options schema in the registry", () => {
-    expect(Object.keys(BLOCK_OPTION_SCHEMAS).sort()).toEqual(
-      Object.keys(SQL_MODULES).sort(),
+    expect(Object.keys(BLOCK_OPTION_SCHEMAS).toSorted()).toEqual(
+      Object.keys(SQL_MODULES).toSorted(),
     );
 
     const differing = BLOCK_MANIFESTS.flatMap((block) =>
@@ -307,8 +307,8 @@ describe("block manifests", () => {
 
           return `${owner(module)}: ${slug}`;
         })
-        .sort(),
-    ).toEqual(listed.sort());
+        .toSorted(),
+    ).toEqual(listed.toSorted());
   });
 });
 

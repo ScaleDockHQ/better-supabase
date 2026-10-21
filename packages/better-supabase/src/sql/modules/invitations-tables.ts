@@ -87,7 +87,7 @@ export interface InviteTable {
 function sharesTable(ctx: ModuleContext): boolean {
   return (
     !ctx.manages &&
-    ctx.config.tables["platformInvitations"] != null &&
+    typeof ctx.config.tables["platformInvitations"] === "string" &&
     ctx.table("platformInvitations") === ctx.table("invitations")
   );
 }

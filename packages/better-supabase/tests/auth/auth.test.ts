@@ -337,7 +337,7 @@ describe("resolveAuth", async () => {
     await request();
     const again = await request();
     expect(again.auth).toEqual({ kind: "anon", reason: "signed_out" });
-    expect(dead).toHaveBeenCalledTimes(1);
+    expect(dead).toHaveBeenCalledOnce();
   });
 
   it("refreshes once for concurrent requests and writes cookies with no-store headers", async () => {
@@ -373,7 +373,7 @@ describe("resolveAuth", async () => {
       }),
     ]);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledOnce();
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(url).toBe(`${PROJECT_URL}/auth/v1/token?grant_type=refresh_token`);
     expect(init?.headers).toMatchObject({ apikey: "sb_publishable_test" });
@@ -398,7 +398,7 @@ describe("resolveAuth", async () => {
       refresh: true,
       fetch: fetchSpy,
     });
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
   it("clears the session when the refresh token is rejected, keeps the token on network errors", async () => {
@@ -576,7 +576,7 @@ describe("resolveAuth", async () => {
     it("resolves claims the schema rejects to invalid, also on memo hits", async () => {
       const token = await signer.sign({ sub: USER, tenant_id: "nope" });
 
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 2; i += 1) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           claims,
@@ -612,7 +612,7 @@ describe("resolveAuth", async () => {
 
       const first = counted(claims);
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 3; i += 1) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           claims: first.schema,
@@ -702,7 +702,7 @@ describe("resolveAuth", async () => {
         user_metadata: { display_name: 42, secret: "do-not-log" },
       });
 
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 2; i += 1) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           userMetadata: schema,
@@ -714,8 +714,7 @@ describe("resolveAuth", async () => {
         expect(toSession(auth)).not.toHaveProperty("profile");
       }
 
-      expect(log.warn).toHaveBeenCalledTimes(1);
-      expect(log.warn).toHaveBeenCalledWith(expect.any(String), {
+      expect(log.warn).toHaveBeenCalledExactlyOnceWith(expect.any(String), {
         paths: ["display_name"],
       });
       expect(JSON.stringify(log.warn.mock.calls)).not.toContain("do-not-log");

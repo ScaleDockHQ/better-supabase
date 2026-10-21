@@ -83,7 +83,7 @@ function fakeStripe() {
       create: async (params, options) =>
         once(options, () => {
           calls.push({ method: "create", params });
-          const id = `pi_${++next}`;
+          const id = `pi_${(next += 1)}`;
 
           const intent: Intent = {
             id,
@@ -140,7 +140,7 @@ function fakeStripe() {
           intent.refunded += amount;
 
           const refund: StripeRefund = {
-            id: `re_${++next}`,
+            id: `re_${(next += 1)}`,
             amount,
             currency: intent.currency,
             status: "succeeded",
@@ -211,7 +211,7 @@ describe("stripePayments", () => {
     });
 
     expect(report.subject).toBe('PaymentProvider "stripe"');
-    expect(report.checks.length).toBe(10);
+    expect(report.checks).toHaveLength(10);
   });
 
   it("runs the kit on a currency Stripe counts differently", async () => {

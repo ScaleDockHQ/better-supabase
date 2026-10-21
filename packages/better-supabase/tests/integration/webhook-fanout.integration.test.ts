@@ -80,8 +80,8 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
         [organization],
       );
 
-      expect(deliveries.map((row) => row.endpoint_id).sort()).toEqual(
-        [ownerHook, ledgerHook].sort(),
+      expect(deliveries.map((row) => row.endpoint_id).toSorted()).toEqual(
+        [ownerHook, ledgerHook].toSorted(),
       );
       expect(deliveries.every((row) => row.subject === "invoices/1")).toBe(
         true,

@@ -1,3 +1,5 @@
+/* oxlint-disable eslint/no-bitwise -- the constant-time comparison ORs the XOR of every byte. */
+
 // Dependency-free HMAC primitives: the workflow world bundle imports these without the webhook code.
 
 let encoderInstance: InstanceType<typeof TextEncoder> | undefined;
@@ -13,7 +15,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
   const right = encoder.encode(b);
   let diff = left.length ^ right.length;
 
-  for (let index = 0; index < Math.max(left.length, right.length); index++) {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
     diff |= (left[index] ?? 0) ^ (right[index] ?? 0);
   }
 

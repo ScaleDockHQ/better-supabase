@@ -351,7 +351,9 @@ function pinsPrimaryKey(
 
   const visit = (condition: Condition): void => {
     if (condition.kind === "and") {
-      condition.items.forEach(visit);
+      for (const item of condition.items) {
+        visit(item);
+      }
     } else if (
       condition.kind === "column" &&
       condition.op === "eq" &&
