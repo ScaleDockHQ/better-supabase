@@ -824,6 +824,7 @@
       "useBlockQuery",
       "useBroadcast",
       "useDebouncedSearch",
+      "useEntityForm",
       "useImage",
       "useLiveCount",
       "useLiveQuery",
@@ -858,6 +859,7 @@
       "ClientLike",
       "DebouncedSearch",
       "DebouncedSearchOptions",
+      "EntityFormState",
       "ImageSource",
       "Impersonator",
       "LiveCount",
@@ -893,6 +895,7 @@
       "UploadTarget",
       "UseActionFormOptions",
       "UseActionOptions",
+      "UseEntityFormOptions",
       "UseImageOptions",
       "UseUploadOptions"
     ]
@@ -967,6 +970,7 @@
       "defineRecordFeature",
       "defineRecordList",
       "defineSection",
+      "entityForm",
       "findSectionWrite",
       "loadMyWork",
       "loadSections",
@@ -986,6 +990,13 @@
     "types": [
       "AnySection",
       "AnySectionWrite",
+      "EntityForm",
+      "EntityFormCustomField",
+      "EntityFormField",
+      "EntityFormInput",
+      "EntityFormOptions",
+      "EntityFormResult",
+      "EntityFormValues",
       "FeatureBlocks",
       "FeaturePermissions",
       "FeatureWriteInput",
@@ -1044,6 +1055,39 @@
       "Timeline",
       "TimelineEntry",
       "TimelineItem"
+    ]
+  },
+  "./flows": {
+    "values": [
+      "applicationToEmployee",
+      "bookingToEngagement",
+      "conversationToWorkItem",
+      "createFlows",
+      "defineFlow",
+      "quoteToOrder"
+    ],
+    "types": [
+      "AnyFlow",
+      "ApplicationToEmployeeClients",
+      "ApplicationToEmployeeOptions",
+      "BookingEngagementInput",
+      "BookingToEngagementClients",
+      "BookingToEngagementOptions",
+      "BuiltInFlowOptions",
+      "ConversationToWorkItemClients",
+      "ConversationToWorkItemOptions",
+      "Flow",
+      "FlowClients",
+      "FlowContext",
+      "FlowEvent",
+      "FlowJob",
+      "FlowOutcome",
+      "FlowRef",
+      "FlowRelations",
+      "Flows",
+      "FlowsOptions",
+      "FlowSpec",
+      "QuoteToOrderOptions"
     ]
   },
   "./server": {
