@@ -140,10 +140,12 @@ function clientsOf(
   feature: Pick<RecordFeature, "blocks" | "config">,
 ): object {
   const config = env.config ?? feature.config;
+  const files = { storage: env.supabase.storage };
 
   return createBlocks(
     {
       transport: rpcTransport(env.supabase),
+      ...files,
       tenant: env.tenant,
       ...(config === undefined ? {} : { config }),
     },

@@ -9705,7 +9705,7 @@ function RemoveFile({
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const remove = useAction(removeAttachment, {
+  const remove = useAction(removeCustomerAttachments, {
     onSuccess: () => {
       toast.success(t("File removed"));
     },
@@ -9733,7 +9733,7 @@ function RemoveFile({
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void remove.run({ id, customerId });
+              void remove.run({ id: customerId, input: { id } });
             }}
           >
             {t("Remove")}

@@ -8,7 +8,10 @@ function config(extra: Record<string, unknown> = {}) {
     {
       subjects: {
         customer: { table: "customers" },
-        project: { table: "projects", versions: { columns: ["name"] } },
+        project: {
+          table: "projects",
+          versions: { columns: ["name"], auto: true },
+        },
         country: { table: "countries", tenant: false },
       },
       blocks: {

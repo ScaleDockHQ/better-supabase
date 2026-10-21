@@ -38,6 +38,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useSupabase } from "@/lib/hooks";
+import { removeCustomerAttachments } from "@/lib/supabase/features/customer/customer-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AttachmentRow, Loaded } from "../customer-record-queries";
@@ -45,7 +46,6 @@ import type { AttachmentRow, Loaded } from "../customer-record-queries";
 import {
   confirmAttachment,
   downloadAttachment,
-  removeAttachment,
   startAttachmentUpload,
 } from "../customer-record-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
@@ -326,7 +326,7 @@ function RemoveFile({
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const remove = useAction(removeAttachment, {
+  const remove = useAction(removeCustomerAttachments, {
     onSuccess: () => {
       toast.success(t("File removed"));
     },
@@ -354,7 +354,7 @@ function RemoveFile({
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void remove.run({ id, customerId });
+              void remove.run({ id: customerId, input: { id } });
             }}
           >
             {t("Remove")}

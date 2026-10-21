@@ -55,11 +55,13 @@ const notes: Notes = {
   remove: () => resolved(true),
 };
 
+const createNotes = vi.fn((_options: Record<string, unknown>): Notes => notes);
+
 const notesBlock = defineBlock({
   name: "notes",
   sql: ["notes"],
   category: "collaboration",
-  create: (): Notes => notes,
+  create: createNotes,
   sections: {
     notes: defineSection({
       permissions: { read: "read", write: "create" },
@@ -123,15 +125,20 @@ const feature = defineRecordFeature({
 });
 
 const db = { $context: { tenant: "org" } } as unknown as BlockClientSource;
+const supabase = { storage: { from: () => undefined } };
 
 const host: RecordServerHost = {
-  context: () => Promise.resolve({ db }),
+  context: () => Promise.resolve({ db, supabase }),
   action:
     <S extends StandardSchemaV1, T>(
       options: { readonly input: S },
       fn: (
         input: StandardSchemaV1.InferOutput<S>,
-        ctx: { readonly db: typeof db; readonly tenant: string },
+        ctx: {
+          readonly db: typeof db;
+          readonly supabase: typeof supabase;
+          readonly tenant: string;
+        },
       ) => Promise<T>,
     ) =>
     async (input: never): Promise<ActionResult<unknown>> => {
@@ -145,11 +152,11 @@ const host: RecordServerHost = {
         };
       }
 
-      const result = (await fn(checked.value, { db, tenant: "org" })) as {
-        ok: boolean;
-        data?: unknown;
-        error?: unknown;
-      };
+      const result = (await fn(checked.value, {
+        db,
+        supabase,
+        tenant: "org",
+      })) as { ok: boolean; data?: unknown; error?: unknown };
 
       return result.ok
         ? { ok: true, data: result.data, error: null }
@@ -213,6 +220,19 @@ describe("recordServer", () => {
       await customer.actions.notes.add({ id: "7", input: { body: "fail" } }),
     ).toMatchObject({ ok: false });
     expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+
+  it("builds the block clients with the caller's storage", async () => {
+    createNotes.mockClear();
+
+    await customer.load("7", { sections: ["notes"] });
+    await customer.actions.notes.add({ id: "7", input: { body: "Hi" } });
+
+    expect(createNotes).toHaveBeenCalledTimes(2);
+
+    for (const [options] of createNotes.mock.calls) {
+      expect(options).toMatchObject({ storage: supabase.storage });
+    }
   });
 
   it("lists the record's cache tags", () => {

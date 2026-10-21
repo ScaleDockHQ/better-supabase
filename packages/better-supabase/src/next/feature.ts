@@ -1,7 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { PermissionSet } from "../blocks/access/permissions.ts";
-import type { BlockClientSource } from "../blocks/create-blocks.ts";
+import type {
+  BlockClientOptions,
+  BlockClientSource,
+} from "../blocks/create-blocks.ts";
 import type { AnyBlock } from "../blocks/define-block.ts";
 import type { SectionOptions } from "../blocks/sections.ts";
 import type { DbError } from "../core/errors.ts";
@@ -35,9 +38,13 @@ import {
 import { loadSections } from "../records/sections.ts";
 import { invalidateSection, recordTag, sectionTag } from "./records.ts";
 
-/** The context `recordServer` reads: the caller's `Db`. */
+/**
+ * The context `recordServer` reads: the caller's `Db`, and its supabase-js
+ * client, whose `storage` the attachments block deletes files with.
+ */
 export interface RecordServerContext {
   readonly db: BlockClientSource;
+  readonly supabase?: { readonly storage?: unknown };
 }
 
 /**
@@ -116,17 +123,32 @@ export interface RecordServer<
 
 type Clients = Readonly<Record<string, unknown>>;
 
+/**
+ * The options every block client of the feature is built with: the generated
+ * config, and the caller's storage for the blocks that keep files.
+ */
+function clientOptions(
+  feature: Pick<RecordFeature, "config">,
+  ctx: RecordServerContext,
+): BlockClientOptions {
+  const storage = ctx.supabase?.storage;
+
+  return {
+    ...(feature.config === undefined ? {} : { config: feature.config }),
+    ...(storage === undefined ? {} : { storage }),
+  };
+}
+
 function clientsOf(
   feature: Pick<RecordFeature, "blocks" | "config">,
-  db: BlockClientSource,
+  ctx: RecordServerContext,
 ): Clients {
-  const options =
-    feature.config === undefined ? {} : { config: feature.config };
+  const options = clientOptions(feature, ctx);
 
   return Object.fromEntries(
     Object.entries(feature.blocks).map(([key, block]) => [
       key,
-      createBlockClient(db, block, options),
+      createBlockClient(ctx.db, block, options),
     ]),
   );
 }
@@ -191,9 +213,6 @@ export function recordServer<
       );
     }
 
-    const options =
-      feature.config === undefined ? {} : { config: feature.config };
-
     return bs.action(
       { input: recordWriteInput(found.write.input), requireTenant: true },
       async ({ id, input }, ctx): Promise<Result<unknown>> => {
@@ -201,7 +220,13 @@ export function recordServer<
 
         const result = await runSectionWrite(
           feature,
-          { [found.key]: createBlockClient(ctx.db, block, options) },
+          {
+            [found.key]: createBlockClient(
+              ctx.db,
+              block,
+              clientOptions(feature, ctx),
+            ),
+          },
           section,
           write,
           subject,
@@ -248,7 +273,7 @@ export function recordServer<
       const names = (options.sections ?? feature.sections) as readonly N[];
 
       const loaded = await loadSections(
-        { blocks: feature.blocks, clients: clientsOf(feature, ctx.db) },
+        { blocks: feature.blocks, clients: clientsOf(feature, ctx) },
         subject,
         names,
         {
