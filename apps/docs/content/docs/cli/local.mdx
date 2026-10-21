@@ -244,9 +244,13 @@ machine (`sysctl kern.sysv.shmmni`). Once they are used up, the next
 `supabase start` fails because its Postgres can't get a segment. `ipcs -m`
 lists the segments in use.
 
-Stop the stacks you aren't using. `supabase stack list` shows every stack on
-the machine, and `supabase stop --stack-id <id>` stops one without deleting
-its data. Stop the stacks of branches you have merged first.
+Stop the stacks you aren't using. [`stack ls`](/docs/cli/stack) shows every
+stack on the machine with its branch and whether its worktree still exists,
+and `stack prune` destroys the stacks of deleted worktrees and merged
+branches (`--stop-idle` also stops the idle ones). `supabase stop --stack-id
+
+<id>` stops one stack without deleting its data. `doctor` reports the segment
+use as BS700 before it runs out.
 
 Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`.
 
