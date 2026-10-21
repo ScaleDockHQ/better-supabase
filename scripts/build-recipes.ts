@@ -242,9 +242,13 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
     "",
     `${recipe.description} ${recipeUses(recipe)} Page: ${SITE}/recipes/${recipe.slug}.`,
     "",
-    "Web, with shadcn components:",
-    "",
-    fence("bash", `npx shadcn add ${recipe.web.components.join(" ")}\n`),
+    ...(recipe.web.components.length > 0
+      ? [
+          "Web, with shadcn components:",
+          "",
+          fence("bash", `npx shadcn add ${recipe.web.components.join(" ")}\n`),
+        ]
+      : ["Web, with no shadcn components."]),
   ];
 
   if (recipe.web.glue.length > 0) {
