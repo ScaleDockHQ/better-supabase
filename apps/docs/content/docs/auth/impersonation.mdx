@@ -203,12 +203,38 @@ await files.claimReserved(reservation).orThrow();
 The claim checks again, as the target, that the target may insert an object
 at the path, then the admin connection makes the target the owner of the
 object and adds `supportSessionId` and `supportAdminId` to its
-`user_metadata`. It only claims an object without an owner: one the target
-already owns succeeds unchanged, one another user owns is `forbidden` (code
-`AccessDenied`), and a missing one is `not_found`. `uploadToSignedUrl` on the
-server claims what it stores. Outside a support session `claimReserved`
-succeeds without a request, since Storage already set the owner from the
-caller's token, so the same code runs in both.
+`user_metadata`. It only claims an object without an owner that was stored
+or replaced after the session started (`updated_at` at or after
+`session.startedAt`), and in a versioned bucket only the current version. An
+older object is `forbidden` (code `AccessDenied`), so the claim can't hand
+the target an export, an import or another file the service role stored
+before the session. A repeated claim of an object the target already owns
+succeeds without stamping it again, one another user owns is `forbidden`
+(code `AccessDenied`), and a missing one is `not_found`. `uploadToSignedUrl`
+on the server claims what it stores and removes the object when the claim
+fails or is refused. Outside a support session `claimReserved` succeeds
+without a request, since Storage already set the owner from the caller's
+token, so the same code runs in both.
+
+Some edges come from how the claim decides. It rehearses an insert of a row
+that already exists: Postgres checks the insert policy before the unique
+index, so a duplicate key means the target may store the object there.
+
+- The rehearsed row leaves `metadata` (`mimetype`, `size`) and `version`
+  empty, so a policy on those columns can decide differently from the real
+  upload.
+- A policy that refuses when an object with that name already exists
+  refuses the claim with `42501`, even for an upload the target was allowed
+  to make.
+- An upsert reservation is gated by the update policy when the URL is
+  signed. The claim can't check that policy again.
+- Another service-role process can store an object without an owner on
+  exactly that path during the session. The claim can't tell that object
+  from the browser's upload.
+
+A signed upload URL is valid for about two hours. When the claim never
+comes, the object stays without an owner and without the session stamp.
+Remove such objects with [`sweep`](/docs/platform/storage#orphan-sweep) on the bucket.
 
 In a read-only session every write, the signed upload URL and the claim
 resolve to a `403` error with code `SUPPORT_READ_ONLY`. A connected bucket

@@ -30,8 +30,11 @@ export interface SupportStorageOptions {
   readonly sql: SqlClient;
   /** Runs as the connection-string role, such as `postgres.admin`. Writes and signed upload claims need it to make the target the owner of what they store. */
   readonly adminSql?: SqlClient;
-  /** The session the writes are recorded under. Writes need it. */
-  readonly session?: Pick<SupportSession, "id" | "adminId" | "targetUserId">;
+  /** The session the writes are recorded under. Writes need it; claims only take objects stored after its `startedAt`. */
+  readonly session?: Pick<
+    SupportSession,
+    "id" | "adminId" | "targetUserId" | "startedAt"
+  >;
   /** Whether the session is read-only. Defaults to true. */
   readonly readOnly?: boolean;
 }
@@ -94,14 +97,29 @@ const OWN_COPY = `update storage.objects
 set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
 where bucket_id = $1 and name = $2 and owner_id is null`;
 
-const OWN_SIGNED_UPLOAD = `${OWN_COPY}
+const ownSignedUpload = (versioned: boolean): string => `update storage.objects
+set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
+where bucket_id = $1 and name = $2 and owner_id is null and updated_at >= $6::timestamptz${versioned ? " and archived_at is null" : ""}
 returning name`;
+
+const signedUploadOwner = (
+  versioned: boolean,
+): string => `select owner_id, updated_at >= $3::timestamptz as recent
+from storage.objects where bucket_id = $1 and name = $2${versioned ? " and archived_at is null" : ""}`;
 
 const OWN_MOVE = `update storage.objects
 set owner = $3::uuid, owner_id = $4, user_metadata = coalesce(user_metadata, '{}'::jsonb) || $5::jsonb
 where bucket_id = $1 and name = $2 and owner_id is not distinct from $6`;
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+
+const STALE: StorageFailure = {
+  name: "StorageApiError",
+  message: "The object was stored before the support session started",
+  status: 403,
+  statusCode: "403",
+  code: "AccessDenied",
+};
 
 const OWNED: StorageFailure = {
   name: "StorageApiError",
@@ -503,11 +521,13 @@ function infoOf(row: Row): StorageObjectInfo {
  *
  * `createSignedUploadUrl` runs the same dry run as `upload` before the
  * service client signs the URL. The object a browser uploads there has no
- * owner, so `claimSignedUpload(bucket, path)` finishes the upload: it checks again
- * that the target may insert at the path, then makes the target the owner
- * of an object without one and stamps the session on its `user_metadata`.
- * An object another user owns is refused with a `403`. `uploadToSignedUrl`
- * claims what it stores. Every write in a read-only session resolves to a
+ * owner, so `claimSignedUpload(bucket, path)` finishes the upload: it
+ * checks again that the target may insert at the path, then makes the
+ * target the owner of an object without one that was stored after
+ * `session.startedAt`, and stamps the session on its `user_metadata`. An
+ * older object, or one another user owns, is refused with a `403`.
+ * `uploadToSignedUrl` claims what it stores and removes it when the claim
+ * fails. Every write in a read-only session resolves to a
  * `403` `SUPPORT_READ_ONLY` error, and without `adminSql`, `session` or a
  * `sql` client with `transaction` to a `403` `SUPPORT_STORAGE_WRITES` error.
  */
@@ -536,13 +556,16 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
 
   let versioned: Promise<boolean> | undefined;
 
-  const upsertStatement = (): Promise<string> =>
+  const isVersioned = (): Promise<boolean> =>
     (versioned ??= rows(CURRENT_VERSION_INDEX, [])
       .then(([row]) => row?.["versioned"] === true)
       .catch((cause: unknown) => {
         versioned = undefined;
         throw cause;
-      })).then(upsertObject);
+      }));
+
+  const upsertStatement = (): Promise<string> =>
+    isVersioned().then(upsertObject);
 
   const rehearse = async (
     run: (client: SqlClient) => Promise<StorageFailure | null>,
@@ -596,22 +619,36 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
     { adminSql: ownerSql, session: active }: StorageWriter,
     name: string,
   ): Promise<StorageResponse<{ readonly path: string }>> => {
-    const [claimed] = await ownerSql.queryRaw<Row>(OWN_SIGNED_UPLOAD, [
-      bucket,
-      name,
-      ownerOf(active.targetUserId),
-      active.targetUserId,
-      JSON.stringify(stampOf(active)),
-    ]);
+    const objectVersioned = await isVersioned();
+    const since = active.startedAt.toString();
+
+    const [claimed] = await ownerSql.queryRaw<Row>(
+      ownSignedUpload(objectVersioned),
+      [
+        bucket,
+        name,
+        ownerOf(active.targetUserId),
+        active.targetUserId,
+        JSON.stringify(stampOf(active)),
+        since,
+      ],
+    );
 
     if (claimed) {
       return { data: { path: name }, error: null };
     }
 
-    const [found] = await ownerSql.queryRaw<Row>(SOURCE_OBJECT, [bucket, name]);
+    const [found] = await ownerSql.queryRaw<Row>(
+      signedUploadOwner(objectVersioned),
+      [bucket, name, since],
+    );
 
     if (!found) {
       return failed(NOT_FOUND);
+    }
+
+    if (found["recent"] !== true) {
+      return failed(STALE);
     }
 
     return found["owner_id"] === active.targetUserId
@@ -893,15 +930,18 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             return reply;
           }
 
-          try {
-            const claimed = await claimFor(bucket, writer, name);
+          const claimed = await claimFor(bucket, writer, name).catch(
+            (cause: unknown) =>
+              failed<{ readonly path: string }>(sqlFailure(cause)),
+          );
 
-            return claimed.error ? claimed : reply;
-          } catch (cause) {
+          if (claimed.error) {
             await admin().remove([name]);
 
-            return failed(sqlFailure(cause));
+            return claimed;
           }
+
+          return reply;
         });
       };
 
