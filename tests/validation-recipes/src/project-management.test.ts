@@ -35,22 +35,23 @@ describe.skipIf(!live)("project management recipe", () => {
       const watchers = await watching(s);
 
       const { comments, stateMachine } = createBlocks(
-        { transport: sqlTransport(s.sql) },
+        { transport: sqlTransport(s.sql), tenant: organizationId },
         { comments: commentsBlock, stateMachine: stateMachineBlock },
       );
 
       await s.as(owner);
-      await stateMachine.transition("task", subjectId, "doing").orThrow();
+      await stateMachine
+        .transition({ type: "task", id: subjectId }, "doing")
+        .orThrow();
       await comments
-        .create({
-          organizationId,
-          subjectType: "task",
-          subjectId,
-          body: "Picked this up",
-        })
+        .create({ type: "task", id: subjectId }, { body: "Picked this up" })
         .orThrow();
       expect(
-        await stateMachine.transition("task", subjectId, "todo", "blocked"),
+        await stateMachine.transition(
+          { type: "task", id: subjectId },
+          "todo",
+          "blocked",
+        ),
       ).toMatchObject({ ok: true });
 
       await watchers.relay();
@@ -81,7 +82,7 @@ describe.skipIf(!live)("project management recipe", () => {
       );
 
       const { reminders } = createBlocks(
-        { transport: sqlTransport(s.sql) },
+        { transport: sqlTransport(s.sql), tenant: organizationId },
         {
           notifications: notificationsBlock.using((options) =>
             createNotifications({ ...options, types: NOTIFICATION_TYPES }),
@@ -93,7 +94,7 @@ describe.skipIf(!live)("project management recipe", () => {
       await s.as(owner);
 
       const reminder = await reminders
-        .save(organizationId, "task", subjectId, 60)
+        .save({ type: "task", id: subjectId }, 60)
         .orThrow();
 
       await s.service();
@@ -103,8 +104,7 @@ describe.skipIf(!live)("project management recipe", () => {
         occurrenceAt: "2026-10-20T09:00:00Z",
         organizationId,
         userId: owner.id,
-        subjectType: "task",
-        subjectId,
+        subject: { type: "task", id: subjectId },
       };
 
       expect(await reminders.deliver(delivery).orThrow()).toBe(true);

@@ -284,10 +284,9 @@ export const saveProjectVersion = bs.action(
     authorize: (session) => can(session, "versions.create"),
   },
   async ({ projectId }, { tenant, supabase, auth }) => {
-    const saved = await blocks(supabase).versions.snapshot({
-      organizationId: tenant,
-      subjectType: PROJECT_SUBJECT,
-      subjectId: projectId,
+    const saved = await blocks(supabase, tenant).versions.snapshot({
+      type: PROJECT_SUBJECT,
+      id: projectId,
     });
 
     if (!saved.ok) {
@@ -326,7 +325,10 @@ export const restoreProjectFields = bs.action(
       return version;
     }
 
-    if (version.data.subjectId !== projectId) {
+    if (
+      version.data.subject.type !== PROJECT_SUBJECT ||
+      version.data.subject.id !== projectId
+    ) {
       return err(
         dbError("not_found", "This version belongs to another record"),
       );

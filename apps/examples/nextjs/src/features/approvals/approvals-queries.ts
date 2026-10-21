@@ -34,8 +34,8 @@ async function loadQueue(): Promise<ApprovalsQueue | null> {
   }
 
   const [requests, customers, members] = await Promise.all([
-    blocks(supabase)
-      .approvals.list(tenant, { status: "pending", pageSize: 100 })
+    blocks(supabase, tenant)
+      .approvals.list({ status: "pending", pageSize: 100 })
       .orThrow(),
     db.customers
       .findMany({
@@ -61,11 +61,11 @@ async function loadQueue(): Promise<ApprovalsQueue | null> {
   return {
     requests: requests.map((request) => ({
       id: request.id,
-      subjectType: request.subjectType,
-      subjectId: request.subjectId,
+      subjectType: request.subject.type,
+      subjectId: request.subject.id,
       subjectName:
-        request.subjectType === APPROVAL_SUBJECT
-          ? (customerNames.get(request.subjectId) ?? null)
+        request.subject.type === APPROVAL_SUBJECT
+          ? (customerNames.get(request.subject.id) ?? null)
           : null,
       action: request.action,
       step: request.step,

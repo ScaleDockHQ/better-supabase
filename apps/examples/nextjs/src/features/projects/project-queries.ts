@@ -209,10 +209,10 @@ export async function getProjectHistory(
     return null;
   }
 
-  const { versions } = blocks(supabase);
+  const { versions } = blocks(supabase, tenant);
 
   const listed = await versions
-    .list(tenant, PROJECT_SUBJECT, projectId, { pageSize: HISTORY_LIMIT })
+    .list({ type: PROJECT_SUBJECT, id: projectId }, { pageSize: HISTORY_LIMIT })
     .orThrow();
 
   const loaded = await Promise.all(

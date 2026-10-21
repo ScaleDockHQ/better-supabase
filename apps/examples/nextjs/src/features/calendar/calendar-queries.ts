@@ -88,7 +88,7 @@ export async function loadUpcomingReminders(): Promise<UpcomingReminders | null>
     return null;
   }
 
-  const { calendar, reminders } = blocks(supabase);
+  const { calendar, reminders } = blocks(supabase, tenant);
   const calendars = await calendar.listCalendars(tenant).orThrow();
 
   if (calendars.length === 0) {
@@ -122,7 +122,7 @@ export async function loadUpcomingReminders(): Promise<UpcomingReminders | null>
       title: occurrence.event.title,
       startsAt: occurrence.start.toString(),
       allDay: occurrence.allDay,
-      reminders: await reminders.list(tenant, EVENT_SUBJECT, id).orThrow(),
+      reminders: await reminders.list({ type: EVENT_SUBJECT, id }).orThrow(),
     })),
   );
 

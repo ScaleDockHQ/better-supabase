@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -20,10 +19,8 @@ import { useErrorMessage } from "@/lib/use-error-message";
  * kind with that name, or creates it for callers with `tags.manage`.
  */
 export function TagInput({
-  organizationId,
   subject,
 }: {
-  organizationId: string;
   subject: { readonly type: string; readonly id: string };
 }) {
   const t = useExtracted("customers");
@@ -32,11 +29,8 @@ export function TagInput({
   const [name, setName] = useState("");
 
   const { tags, available, pending, error, create, remove } = useTagInput({
-    organizationId,
-    subjectType: subject.type,
-    subjectId: subject.id,
+    subject,
     kind: subject.type,
-    schema: blockConfig.tags.api,
   });
 
   const applied = new Set(tags?.map((tag) => tag.id));

@@ -27,8 +27,8 @@ async function loadFields(
     return null;
   }
 
-  const definitions = await blocks(supabase)
-    .customFields.listDefinitions(tenant, entity)
+  const definitions = await blocks(supabase, tenant)
+    .customFields.listDefinitions(entity)
     .orThrow();
 
   return definitions.map((definition) => ({

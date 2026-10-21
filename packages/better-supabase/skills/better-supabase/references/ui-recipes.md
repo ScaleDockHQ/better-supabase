@@ -786,7 +786,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -794,12 +793,10 @@ import { useErrorMessage } from "@/lib/use-error-message";
  * any type in `config.subjects`, such as a customer or a project.
  */
 export function CommentThread({
-  organizationId,
   subject,
   authors,
   canComment,
 }: {
-  organizationId: string;
   subject: { readonly type: string; readonly id: string };
   /** Display names by user id. */
   authors: Readonly<Record<string, string>>;
@@ -812,12 +809,7 @@ export function CommentThread({
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
 
-  const { comments, error, add } = useComments({
-    organizationId,
-    subjectType: subject.type,
-    subjectId: subject.id,
-    schema: blockConfig.comments.api,
-  });
+  const { comments, error, add } = useComments({ subject });
 
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
@@ -898,7 +890,6 @@ React Native, with `ActivityIndicator`, `Button`, `FlatList`, `Text`, `TextInput
 
 ```tsx title="apps/examples/expo-powersync/src/components/comment-thread.tsx"
 import { useComments } from "better-supabase/blocks/comments/react";
-import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -909,19 +900,13 @@ import {
   View,
 } from "react-native";
 
-import { API_SCHEMA } from "../lib/blocks";
-
 /** A customer's comments, oldest first, with a box to add one. */
 export function CommentThread({ customerId }: { readonly customerId: string }) {
-  const organizationId = tenantOf(useAuth());
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
 
   const { comments, error, add } = useComments({
-    organizationId,
-    subjectType: "customer",
-    subjectId: customerId,
-    schema: API_SCHEMA,
+    subject: { type: "customer", id: customerId },
   });
 
   const submit = async () => {
@@ -3375,7 +3360,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -3383,10 +3367,8 @@ import { useErrorMessage } from "@/lib/use-error-message";
  * kind with that name, or creates it for callers with `tags.manage`.
  */
 export function TagInput({
-  organizationId,
   subject,
 }: {
-  organizationId: string;
   subject: { readonly type: string; readonly id: string };
 }) {
   const t = useExtracted("customers");
@@ -3395,11 +3377,8 @@ export function TagInput({
   const [name, setName] = useState("");
 
   const { tags, available, pending, error, create, remove } = useTagInput({
-    organizationId,
-    subjectType: subject.type,
-    subjectId: subject.id,
+    subject,
     kind: subject.type,
-    schema: blockConfig.tags.api,
   });
 
   const applied = new Set(tags?.map((tag) => tag.id));
@@ -3482,7 +3461,6 @@ React Native, with `ActivityIndicator`, `Button`, `Pressable`, `Text`, `TextInpu
 
 ```tsx title="apps/examples/expo-powersync/src/components/tag-input.tsx"
 import { useTagInput } from "better-supabase/blocks/tags/react";
-import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -3493,8 +3471,6 @@ import {
   View,
 } from "react-native";
 
-import { API_SCHEMA } from "../lib/blocks";
-
 /**
  * A customer's tags as chips that remove themselves when pressed, the
  * organization's other tags as suggestions, and a field that adds or creates
@@ -3504,11 +3480,8 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
   const [name, setName] = useState("");
 
   const { tags, available, pending, error, add, remove, create } = useTagInput({
-    organizationId: tenantOf(useAuth()),
-    subjectType: "customer",
-    subjectId: customerId,
+    subject: { type: "customer", id: customerId },
     kind: "customer",
-    schema: API_SCHEMA,
   });
 
   if (tags === undefined) {
@@ -8861,27 +8834,23 @@ const EMOJIS = ["👍", "🎉", "❤️", "👀", "🚀"] as const;
  * when anyone in the organization reacts (the `reactions` topic).
  */
 export function ReactionsBar({
-  organizationId,
   customerId,
   canReact,
 }: {
-  organizationId: string;
   customerId: string;
   canReact: boolean;
 }) {
   const t = useExtracted("customers");
   const [busy, setBusy] = useState<string | null>(null);
 
+  const subject = { type: "customer", id: customerId };
+
   const { reactions, error, toggle, refresh } = useReactions({
-    organizationId,
-    subjectType: "customer",
-    subjectIds: [customerId],
-    topic: blockConfig.reactions.options.topic,
-    schema: blockConfig.reactions.api,
+    subjects: [subject],
   });
 
   const counts = new Map(
-    (reactions?.[customerId] ?? []).map((each) => [each.emoji, each]),
+    (reactions?.[subjectKey(subject)] ?? []).map((each) => [each.emoji, each]),
   );
 
   const total = [...counts.values()].reduce((sum, each) => sum + each.count, 0);
@@ -8934,7 +8903,7 @@ export function ReactionsBar({
                     disabled={!canReact || busy !== null}
                     onClick={() => {
                       setBusy(emoji);
-                      void toggle(customerId, emoji).finally(() => {
+                      void toggle(subject, emoji).finally(() => {
                         setBusy(null);
                       });
                     }}
@@ -18203,7 +18172,6 @@ export async function ProjectPage({
           </CardHeader>
           <CardContent>
             <CommentThread
-              organizationId={organizationId}
               subject={subject}
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
@@ -18254,7 +18222,7 @@ export async function ProjectPage({
             <CardTitle>{t("Tags")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <TagInput organizationId={organizationId} subject={subject} />
+            <TagInput subject={subject} />
           </CardContent>
         </Card>
         <Link

@@ -1,6 +1,5 @@
 // #region recipe:tag-input
 import { useTagInput } from "better-supabase/blocks/tags/react";
-import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -11,8 +10,6 @@ import {
   View,
 } from "react-native";
 
-import { API_SCHEMA } from "../lib/blocks";
-
 /**
  * A customer's tags as chips that remove themselves when pressed, the
  * organization's other tags as suggestions, and a field that adds or creates
@@ -22,11 +19,8 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
   const [name, setName] = useState("");
 
   const { tags, available, pending, error, add, remove, create } = useTagInput({
-    organizationId: tenantOf(useAuth()),
-    subjectType: "customer",
-    subjectId: customerId,
+    subject: { type: "customer", id: customerId },
     kind: "customer",
-    schema: API_SCHEMA,
   });
 
   if (tags === undefined) {

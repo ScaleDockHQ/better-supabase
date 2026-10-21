@@ -54,12 +54,12 @@ async function loadShareLinks(
   customerId: string,
 ): Promise<readonly ShareLinkRow[]> {
   "use cache: private";
-  const { supabase } = await caller();
+  const { organizationId, supabase } = await caller();
 
   const now = Temporal.Now.instant().epochMilliseconds;
 
-  const links = await blocks(supabase)
-    .shareLinks.list(SUBJECT, customerId)
+  const links = await blocks(supabase, organizationId)
+    .shareLinks.list({ type: SUBJECT, id: customerId })
     .orThrow();
 
   return links.map((link) => ({
@@ -92,8 +92,8 @@ async function loadAttachments(
   "use cache: private";
   const { organizationId, supabase } = await caller();
 
-  const files = await customerAttachments(supabase)
-    .list(organizationId, { type: SUBJECT, id: customerId })
+  const files = await customerAttachments(supabase, organizationId)
+    .list({ type: SUBJECT, id: customerId })
     .orThrow();
 
   return files.map((file) => ({
@@ -137,8 +137,8 @@ async function loadRelations(customerId: string): Promise<Relations> {
   const { organizationId, supabase, db } = await caller();
 
   const [links, customers] = await Promise.all([
-    blocks(supabase)
-      .relations.of(organizationId, { type: SUBJECT, id: customerId })
+    blocks(supabase, organizationId)
+      .relations.of({ type: SUBJECT, id: customerId })
       .orThrow(),
     db.customers
       .findMany({
@@ -185,8 +185,8 @@ async function loadVersions(
   "use cache: private";
   const { organizationId, supabase } = await caller();
 
-  const versions = await blocks(supabase)
-    .versions.list(organizationId, SUBJECT, customerId, { pageSize: 20 })
+  const versions = await blocks(supabase, organizationId)
+    .versions.list({ type: SUBJECT, id: customerId }, { pageSize: 20 })
     .orThrow();
 
   return versions.map((version) => ({
@@ -216,9 +216,9 @@ async function loadSlaClocks(
   customerId: string,
 ): Promise<readonly SlaClockRow[]> {
   "use cache: private";
-  const { supabase } = await caller();
+  const { organizationId, supabase } = await caller();
 
-  const clocks = await blocks(supabase)
+  const clocks = await blocks(supabase, organizationId)
     .sla.clocks({ type: SUBJECT, id: customerId })
     .orThrow();
 

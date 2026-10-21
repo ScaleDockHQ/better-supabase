@@ -116,7 +116,7 @@ export async function loadBookingSetup(): Promise<BookingSetup | null> {
   const at = (date: Temporal.PlainDate) =>
     date.toZonedDateTime(page.tz).toInstant();
 
-  const { bookings, shareLinks } = blocks(supabase);
+  const { bookings, shareLinks } = blocks(supabase, tenant);
 
   const [slots, links] = await Promise.all([
     bookings
@@ -126,7 +126,9 @@ export async function loadBookingSetup(): Promise<BookingSetup | null> {
         { tz: page.tz, resourceId: page.resourceId },
       )
       .orThrow(),
-    shareLinks.list(BOOKING_SERVICE_SUBJECT, page.serviceId).orThrow(),
+    shareLinks
+      .list({ type: BOOKING_SERVICE_SUBJECT, id: page.serviceId })
+      .orThrow(),
   ]);
 
   const now = Temporal.Now.instant();

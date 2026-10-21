@@ -11,6 +11,7 @@ import * as SecureStore from "expo-secure-store";
 import { AppState } from "react-native";
 
 import { betterSupabase } from ".";
+import { blockConfig } from "../blocks";
 
 export const supabase = createClient(
   process.env.EXPO_PUBLIC_SUPABASE_URL,
@@ -31,9 +32,10 @@ autoRefreshOnForeground(supabase, AppState);
 /**
  * Writes go to PostgREST as the signed-in user, so RLS applies. The ports give
  * the block hooks (`useNotifications` and the rest) their React Native deep
- * links, push token and uploads.
+ * links, push token and uploads, and `blocks` the schema they call.
  */
 export const bs = createNativeClient(betterSupabase, supabase, {
+  blocks: blockConfig,
   ports: nativePorts({
     supabase,
     linking: Linking,

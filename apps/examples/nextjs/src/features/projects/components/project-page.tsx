@@ -157,7 +157,6 @@ export async function ProjectPage({
           </CardHeader>
           <CardContent>
             <CommentThread
-              organizationId={organizationId}
               subject={subject}
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
@@ -208,7 +207,7 @@ export async function ProjectPage({
             <CardTitle>{t("Tags")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <TagInput organizationId={organizationId} subject={subject} />
+            <TagInput subject={subject} />
           </CardContent>
         </Card>
         <Link

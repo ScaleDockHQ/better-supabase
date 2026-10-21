@@ -162,10 +162,8 @@ export const createBookingLink = bs.action(
       return notSetUp();
     }
 
-    const created = await blocks(supabase).shareLinks.create(
-      tenant,
-      BOOKING_SERVICE_SUBJECT,
-      page.serviceId,
+    const created = await blocks(supabase, tenant).shareLinks.create(
+      { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId },
       { role: "view" },
     );
 

@@ -56,10 +56,8 @@ export const createShareLink = bs.action(
             }),
           };
 
-    const created = await blocks(supabase).shareLinks.create(
-      organizationId,
-      SUBJECT,
-      customerId,
+    const created = await blocks(supabase, organizationId).shareLinks.create(
+      { type: SUBJECT, id: customerId },
       options,
     );
 
@@ -122,14 +120,14 @@ export const startAttachmentUpload = bs.action(
     { customerId, name, mimeType, size },
     { tenant: organizationId, supabase },
   ) => {
-    const upload = await customerAttachments(supabase).upload({
-      organizationId,
-      name,
-      mimeType: mimeType === "" ? "application/octet-stream" : mimeType,
-      size,
-      subjectType: SUBJECT,
-      subjectId: customerId,
-    });
+    const upload = await customerAttachments(supabase, organizationId).upload(
+      { type: SUBJECT, id: customerId },
+      {
+        name,
+        mimeType: mimeType === "" ? "application/octet-stream" : mimeType,
+        size,
+      },
+    );
 
     if (!upload.ok) {
       return upload;
@@ -213,12 +211,11 @@ export const linkCustomer = bs.action(
       return err(dbError("invalid_input", "A customer can't link to itself"));
     }
 
-    const linked = await blocks(supabase).relations.link({
-      organizationId,
-      kind: RELATED_KIND,
-      source: { type: SUBJECT, id: customerId },
-      target: { type: SUBJECT, id: targetId },
-    });
+    const linked = await blocks(supabase, organizationId).relations.link(
+      { type: SUBJECT, id: customerId },
+      { type: SUBJECT, id: targetId },
+      { kind: RELATED_KIND },
+    );
 
     if (!linked.ok) {
       return linked;
@@ -246,12 +243,11 @@ export const unlinkCustomer = bs.action(
     { customerId, kind, subjectType, subjectId },
     { tenant: organizationId, supabase, auth },
   ) => {
-    const unlinked = await blocks(supabase).relations.unlink({
-      organizationId,
-      kind,
-      source: { type: SUBJECT, id: customerId },
-      target: { type: subjectType, id: subjectId },
-    });
+    const unlinked = await blocks(supabase, organizationId).relations.unlink(
+      { type: SUBJECT, id: customerId },
+      { type: subjectType, id: subjectId },
+      { kind },
+    );
 
     if (!unlinked.ok) {
       return unlinked;
@@ -275,10 +271,9 @@ export const saveCustomerVersion = bs.action(
   },
   async ({ customerId }, { tenant: organizationId, supabase, auth }) => {
     // Without content the block copies the customer's configured columns.
-    const saved = await blocks(supabase).versions.snapshot({
-      organizationId,
-      subjectType: SUBJECT,
-      subjectId: customerId,
+    const saved = await blocks(supabase, organizationId).versions.snapshot({
+      type: SUBJECT,
+      id: customerId,
     });
 
     if (!saved.ok) {
@@ -306,25 +301,24 @@ export const restoreCustomerVersion = bs.action(
     { customerId, versionId },
     { tenant: organizationId, supabase, auth },
   ) => {
-    const { versions } = blocks(supabase);
+    const { versions } = blocks(supabase, organizationId);
     const version = await versions.get(versionId);
 
     if (!version.ok) {
       return version;
     }
 
-    if (version.data.subjectId !== customerId) {
+    if (
+      version.data.subject.type !== SUBJECT ||
+      version.data.subject.id !== customerId
+    ) {
       return err(
         dbError("not_found", "This version belongs to another record"),
       );
     }
 
     // Unchanged details return the latest version instead of a new one.
-    const kept = await versions.snapshot({
-      organizationId,
-      subjectType: SUBJECT,
-      subjectId: customerId,
-    });
+    const kept = await versions.snapshot({ type: SUBJECT, id: customerId });
 
     if (!kept.ok) {
       return kept;
@@ -382,7 +376,7 @@ export const startCustomerSla = bs.action(
     { customerId },
     { tenant: organizationId, supabase, session, auth },
   ) => {
-    const { sla } = blocks(supabase);
+    const { sla } = blocks(supabase, organizationId);
     const subject = { type: SUBJECT, id: customerId };
     const started = await sla.start(subject);
 
@@ -401,10 +395,7 @@ export const startCustomerSla = bs.action(
       );
     }
 
-    const policy = await sla.savePolicy(
-      organizationId,
-      DEFAULT_CUSTOMER_POLICY,
-    );
+    const policy = await sla.savePolicy(DEFAULT_CUSTOMER_POLICY);
 
     if (!policy.ok) {
       return policy;
