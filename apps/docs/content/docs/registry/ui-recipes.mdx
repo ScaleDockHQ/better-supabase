@@ -7848,6 +7848,173 @@ export function RuleBuilderSkeleton() {
 }
 ```
 
+## Can
+
+Shows an action only to members who hold a permission key; the checks of one render share one round trip. It calls `Can` from `better-supabase/blocks/access/react`; the [access block](https://bettersupabase.com/blocks/access) must be installed (`npx better-supabase add access`). Page: https://bettersupabase.com/recipes/can.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add
+```
+
+```tsx title="apps/examples/nextjs/src/features/projects/components/task-import-action.tsx"
+"use client";
+
+import { Can } from "better-supabase/blocks/access/react";
+
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+import { TaskImportDialog } from "./task-import-dialog";
+
+/**
+ * The import button, for members with `imports.manage` in the active
+ * organization. The `<Can>` checks of one render share one `my_permissions`
+ * call; the import action checks the key again on the server.
+ */
+export function TaskImportAction({ projectId }: { projectId: string }) {
+  return (
+    <Can permission={permissions.imports.manage}>
+      <TaskImportDialog projectId={projectId} />
+    </Can>
+  );
+}
+```
+
+## Subject link
+
+A link to any subject type, titled and routed by subject_titles, with plain text for a record the caller can't read. It calls `useSubject` from `better-supabase/blocks/subjects/react`; the [subjects block](https://bettersupabase.com/blocks/subjects) must be installed (`npx better-supabase add subjects`). Page: https://bettersupabase.com/recipes/subject-link.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/subjects/components/subject-link.tsx"
+"use client";
+
+import type { SubjectRef } from "better-supabase/blocks/subjects";
+
+import { useSubject } from "better-supabase/blocks/subjects/react";
+import { RotateCwIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+
+/**
+ * A link to any subject in `config.subjects`, titled and routed by
+ * `subject_titles`. The links rendered in one pass share one round trip, and
+ * a subject the caller can't read shows as plain text.
+ */
+export function SubjectLink({ subject }: { subject: SubjectRef }) {
+  const t = useExtracted("subjects");
+  const { subject: resolved, error, refresh } = useSubject(subject);
+
+  if (error) {
+    return (
+      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+        {t("The title didn't load")}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={t("Retry")}
+          onClick={() => {
+            void refresh();
+          }}
+        >
+          <RotateCwIcon />
+        </Button>
+      </span>
+    );
+  }
+
+  if (resolved === undefined) {
+    return <Skeleton className="h-4 w-32" />;
+  }
+
+  if (resolved === null) {
+    return (
+      <span className="truncate text-sm text-muted-foreground">
+        {t("A record you can't open")}
+      </span>
+    );
+  }
+
+  const title = resolved.title ?? t("Untitled");
+
+  return resolved.url === undefined ? (
+    <span className="truncate text-sm font-medium">{title}</span>
+  ) : (
+    <Link
+      href={resolved.url}
+      className="truncate text-sm font-medium underline-offset-4 transition-colors hover:underline"
+    >
+      {title}
+    </Link>
+  );
+}
+```
+
+## Subject chip
+
+A compact badge with a subject's type and title that links to its page. It calls `useSubject` from `better-supabase/blocks/subjects/react`; the [subjects block](https://bettersupabase.com/blocks/subjects) must be installed (`npx better-supabase add subjects`). Page: https://bettersupabase.com/recipes/subject-chip.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/subjects/components/subject-chip.tsx"
+"use client";
+
+import type { SubjectRef } from "better-supabase/blocks/subjects";
+
+import { useSubject } from "better-supabase/blocks/subjects/react";
+import { useExtracted } from "next-intl";
+
+import { Badge } from "@/components/reui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+
+/**
+ * A compact badge for a subject: its type and title, linking to its page.
+ * Rows that each render a chip share one `subject_titles` call.
+ */
+export function SubjectChip({ subject }: { subject: SubjectRef }) {
+  const t = useExtracted("subjects");
+  const { subject: resolved, error } = useSubject(subject);
+
+  if (resolved === undefined && !error) {
+    return <Skeleton className="h-5 w-24" />;
+  }
+
+  const label = resolved?.title ?? t("Unavailable");
+
+  const content = (
+    <>
+      <span className="text-muted-foreground">{subject.type}</span>
+      <span className="truncate">{label}</span>
+    </>
+  );
+
+  return resolved?.url === undefined ? (
+    <Badge variant="outline">{content}</Badge>
+  ) : (
+    <Badge
+      variant="outline"
+      className="transition-colors hover:bg-accent"
+      render={<Link href={resolved.url} />}
+    >
+      {content}
+    </Badge>
+  );
+}
+```
+
 ## Sessions list
 
 The caller's signed-in devices with the last activity and a button to end each session. It loads its data on the server through the block's client; the [sessions block](https://bettersupabase.com/blocks/sessions) must be installed (`npx better-supabase add sessions`). Page: https://bettersupabase.com/recipes/sessions-list.
@@ -11027,8 +11194,14 @@ export async function ApprovalsQueue() {
                 return (
                   <TableRow key={request.id}>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col items-start gap-1">
                         <span className="font-medium">{label}</span>
+                        <SubjectChip
+                          subject={{
+                            type: request.subjectType,
+                            id: request.subjectId,
+                          }}
+                        />
                         {request.reason ? (
                           <span className="text-xs text-muted-foreground">
                             {request.reason}
@@ -11787,18 +11960,9 @@ function RelatedList({
           className="flex items-center justify-between gap-2 py-2"
         >
           <div className="flex min-w-0 items-center gap-2">
-            {link.subjectType === "customer" && link.name !== null ? (
-              <Link
-                href={`/customers/${link.subjectId}`}
-                className="truncate text-sm font-medium underline-offset-4 transition-colors hover:underline"
-              >
-                {link.name}
-              </Link>
-            ) : (
-              <span className="truncate text-sm text-muted-foreground">
-                {t("A record you can't open")}
-              </span>
-            )}
+            <SubjectLink
+              subject={{ type: link.subjectType, id: link.subjectId }}
+            />
             {link.kind === "relates" ? null : (
               <Badge variant="outline">{link.kind}</Badge>
             )}
@@ -18123,9 +18287,7 @@ export async function ProjectPage({
               })}
             </CardDescription>
             <CardAction className="flex items-center gap-2">
-              {can(session, "imports.manage") ? (
-                <TaskImportDialog projectId={record.id} />
-              ) : null}
+              <TaskImportAction projectId={record.id} />
               <TaskFormDialog
                 projects={[{ id: record.id, name: record.name }]}
                 members={members.data}
