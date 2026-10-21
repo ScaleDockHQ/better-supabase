@@ -213,7 +213,7 @@ without stamping it again, one another user owns is `forbidden` (code
 `AccessDenied`), and a missing one is `not_found`. A refused or failed claim
 removes nothing: the claim can't tell the browser's upload from another
 object without an owner on that path, so removing it would let a session
-delete files it can't write. The object stays without an owner until a
+delete files the target may not delete. The object stays without an owner until a
 [`sweep`](/docs/platform/storage#orphan-sweep) removes it. `uploadToSignedUrl`
 on the server claims what it stores and removes the object when the claim
 fails or is refused. Outside a support session `claimReserved` succeeds
