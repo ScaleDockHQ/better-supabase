@@ -6,6 +6,7 @@ import { createAttachments } from "./attachments.ts";
 import { attachmentsEvents } from "./events.ts";
 import { attachmentsSqlOptions } from "./options.ts";
 import { attachmentInputSchema } from "./schemas.ts";
+import { attachmentsSection } from "./section.ts";
 
 /** The `attachments` block's manifest (ADR 0029). */
 export const attachmentsBlock: BlockOf<
@@ -13,7 +14,8 @@ export const attachmentsBlock: BlockOf<
   typeof createAttachments,
   AttachmentsEvents,
   Record<never, never>,
-  "attachments"
+  "attachments",
+  { readonly attachments: typeof attachmentsSection }
 > = defineBlock({
   name: "attachments",
   sql: ["attachments"],
@@ -22,6 +24,7 @@ export const attachmentsBlock: BlockOf<
   schemas: { attachment: { input: attachmentInputSchema } },
   provides: { attachments: (client) => client },
   create: createAttachments,
+  sections: { attachments: attachmentsSection },
   category: "collaboration",
   recipes: ["attachments-uploader"],
 });

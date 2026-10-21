@@ -34,6 +34,8 @@ export function batchSubjects(source: Subjects): Subjects {
   };
 
   return {
+    summary: (subject, sections, options) =>
+      source.summary(subject, sections, options),
     resolve: (refs) =>
       AsyncResult.from(
         () =>

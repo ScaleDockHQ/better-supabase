@@ -6,7 +6,7 @@ import type { BlockOptions } from "../shared.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectKey } from "../../core/block-subjects.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import { blockCall, isRecord, optionalText } from "../shared.ts";
+import { blockCall, instantArg, isRecord, optionalText } from "../shared.ts";
 
 /** The most refs one `subject_titles` call takes; `resolve` splits above it. */
 export const SUBJECT_TITLES_LIMIT = 500;
@@ -26,6 +26,19 @@ export interface ResolvedSubject extends SubjectRef {
   readonly url?: string;
 }
 
+/** A record page's header and tab badges, from `record_summary`. */
+export interface RecordSummary extends ResolvedSubject {
+  /** Rows per section the caller can read, for each installed section asked. */
+  readonly counts: Readonly<Record<string, number>>;
+  /** Per section, whether a row is newer than `seenAt`. */
+  readonly unread: Readonly<Record<string, boolean>>;
+}
+
+export interface RecordSummaryOptions {
+  /** When the caller last saw the record; every section is read without it. */
+  readonly seenAt?: Temporal.Instant | null;
+}
+
 /** The subjects block's registry as typed calls. */
 export interface Subjects {
   /**
@@ -36,6 +49,16 @@ export interface Subjects {
   resolve(
     refs: readonly SubjectRef[],
   ): AsyncResult<Readonly<Record<string, ResolvedSubject>>>;
+  /**
+   * The subject's title and path with a count and unread state for each of
+   * `sections` (`comments`, `attachments`, `tags`), in one round trip;
+   * `undefined` when the caller can't read the subject.
+   */
+  summary(
+    subject: SubjectRef,
+    sections: readonly string[],
+    options?: RecordSummaryOptions,
+  ): AsyncResult<RecordSummary | undefined>;
 }
 
 function resolvedOf(value: unknown): ResolvedSubject | undefined {
@@ -59,6 +82,38 @@ function resolvedOf(value: unknown): ResolvedSubject | undefined {
     ...(title === undefined ? {} : { title }),
     ...(url === undefined ? {} : { url }),
   };
+}
+
+function numbersOf(value: unknown): Record<string, number> {
+  return isRecord(value)
+    ? Object.fromEntries(
+        Object.entries(value).flatMap(([key, each]) =>
+          typeof each === "number" ? [[key, each]] : [],
+        ),
+      )
+    : {};
+}
+
+function flagsOf(value: unknown): Record<string, boolean> {
+  return isRecord(value)
+    ? Object.fromEntries(
+        Object.entries(value).flatMap(([key, each]) =>
+          typeof each === "boolean" ? [[key, each]] : [],
+        ),
+      )
+    : {};
+}
+
+function summaryOf(value: unknown): RecordSummary | undefined {
+  const resolved = resolvedOf(value);
+
+  return resolved === undefined || !isRecord(value)
+    ? undefined
+    : {
+        ...resolved,
+        counts: numbersOf(value["counts"]),
+        unread: flagsOf(value["unread"]),
+      };
 }
 
 const resolvedList = (value: unknown): ResolvedSubject[] =>
@@ -116,6 +171,17 @@ export function createSubjects(options: SubjectsOptions): Subjects {
 
         return ok(found);
       }),
+    summary: (subject, sections, summaryOptions = {}) =>
+      call(
+        "record_summary",
+        {
+          subject_type: subject.type,
+          subject_id: subject.id,
+          sections: [...sections],
+          seen_at: instantArg(summaryOptions.seenAt) ?? null,
+        },
+        summaryOf,
+      ),
   };
 
   return withBlockHooks(client, options.hooks, {

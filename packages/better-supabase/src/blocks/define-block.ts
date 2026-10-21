@@ -3,6 +3,7 @@ import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
+import type { AnySection, SectionMap } from "./sections.ts";
 
 /** Where a block sits in the catalog and in presets, in catalog order. */
 export const BLOCK_CATEGORIES = [
@@ -74,6 +75,7 @@ export interface BlockDefinition<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
+  S extends SectionMap = Nothing,
 > {
   readonly name: Name;
   /** The SQL modules (`SqlModule` keys) this block installs. */
@@ -102,6 +104,11 @@ export interface BlockDefinition<
    * method of the block stale.
    */
   readonly invalidates?: BlockInvalidates;
+  /**
+   * The parts of a record page the block owns (`defineSection`), by name, for
+   * `loadSections` and `createRecordController`.
+   */
+  readonly sections?: S;
 }
 
 /**
@@ -123,6 +130,7 @@ export interface Block<
   M extends EventMap = Nothing,
   C extends BlockConsumes = Nothing,
   P extends PortName = never,
+  S extends SectionMap = Nothing,
 > {
   readonly apiVersion: 1;
   readonly name: Name;
@@ -143,6 +151,8 @@ export interface Block<
    * method of the block stale.
    */
   readonly invalidates: BlockInvalidates;
+  /** The parts of a record page the block owns, by name. */
+  readonly sections: S;
   /**
    * The options `with` set, passed to `create` and the providers over the
    * shared ones.
@@ -152,7 +162,7 @@ export interface Block<
    * This block with `settings` merged into the options `createBlocks` passes
    * it.
    */
-  with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P>;
+  with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P, S>;
   /**
    * This block built by `create` instead, keeping its SQL, events and ports:
    * for a creator's type parameters (`notificationsBlock.using((options) =>
@@ -163,7 +173,7 @@ export interface Block<
    */
   using<Next>(
     create: (options: UsingOptions<C>) => Next,
-  ): Block<Name, UsingOptions<C>, Next, M, C, P>;
+  ): Block<Name, UsingOptions<C>, Next, M, C, P, S>;
 }
 
 /** Any block, for constraints. */
@@ -181,6 +191,7 @@ export interface AnyBlock {
   readonly recipes: readonly string[];
   readonly schemas?: BlockSchemas;
   readonly invalidates?: BlockInvalidates;
+  readonly sections?: Readonly<Record<string, AnySection>>;
   readonly settings: object;
   with(settings: never): AnyBlock;
   using(create: never): AnyBlock;
@@ -196,7 +207,8 @@ export type BlockOf<
   M extends EventMap = Nothing,
   C extends BlockConsumes = Nothing,
   P extends PortName = never,
-> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C, P>;
+  S extends SectionMap = Nothing,
+> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C, P, S>;
 
 /** The client a block's creator returns. */
 export type ClientOf<B> = B extends {
@@ -213,10 +225,11 @@ export function defineBlock<
   M extends EventMap = Nothing,
   const C extends BlockConsumes = Nothing,
   P extends PortName = never,
+  const S extends SectionMap = Nothing,
 >(
-  definition: BlockDefinition<Name, Options, Client, M, C, P>,
-): Block<Name, Options, Client, M, C, P> {
-  const { create, consumes, provides, ...rest } = definition;
+  definition: BlockDefinition<Name, Options, Client, M, C, P, S>,
+): Block<Name, Options, Client, M, C, P, S> {
+  const { create, consumes, provides, sections, ...rest } = definition;
 
   return blockOf(
     {
@@ -228,6 +241,9 @@ export function defineBlock<
       // `createBlocks` passes it; a block without `provides` provides
       // nothing, which is `ProvidedPorts<never>` when `P` is left to its default.
       provides: (provides ?? {}) as ProvidedPorts<P>,
+      // SAFETY: a block without `sections` has none, which is `Nothing` when
+      // `S` is left to its default.
+      sections: sections ?? ({} as S),
     },
     create,
     {},
@@ -239,12 +255,14 @@ interface BlockParts<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
+  S extends SectionMap,
 > extends Omit<
-  BlockDefinition<Name, never, never, M, C, P>,
-  "create" | "consumes" | "provides"
+  BlockDefinition<Name, never, never, M, C, P, S>,
+  "create" | "consumes" | "provides" | "sections"
 > {
   readonly consumes: C;
   readonly provides: ProvidedPorts<P>;
+  readonly sections: S;
 }
 
 function blockOf<
@@ -254,11 +272,12 @@ function blockOf<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
+  S extends SectionMap,
 >(
-  parts: BlockParts<Name, M, C, P>,
+  parts: BlockParts<Name, M, C, P, S>,
   create: ((options: Options) => Client) | undefined,
   settings: object,
-): Block<Name, Options, Client, M, C, P> {
+): Block<Name, Options, Client, M, C, P, S> {
   return {
     apiVersion: 1,
     name: parts.name,
@@ -273,6 +292,7 @@ function blockOf<
     recipes: parts.recipes ?? [],
     schemas: parts.schemas ?? {},
     invalidates: parts.invalidates ?? {},
+    sections: parts.sections,
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),
     using: (next) => blockOf(parts, next, settings),
