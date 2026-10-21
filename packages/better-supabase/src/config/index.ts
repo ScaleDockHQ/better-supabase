@@ -187,6 +187,11 @@ export {
   type JsonSchemaTarget,
 } from "../generators/json-schema.ts";
 
+export {
+  factories,
+  type FactoriesGeneratorOptions,
+} from "../generators/factories.ts";
+
 export { nuqs, type NuqsGeneratorOptions } from "../generators/nuqs.ts";
 
 export {

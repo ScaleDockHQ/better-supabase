@@ -8,6 +8,7 @@ import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
 import {
+  factories,
   jsonSchema,
   nuqs,
   resolveConfig,
@@ -78,6 +79,7 @@ export async function renderFixtures(): Promise<
         valibot(),
         jsonSchema(),
         nuqs(),
+        factories({ testingImport: "../../src/testing/index.ts" }),
         standardSchema(),
       ],
     },
