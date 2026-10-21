@@ -159,6 +159,10 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
+  comment: {
+    read: "comments.read",
+    write: "comments.create",
+  },
   comments: {
     read: "comments.read",
     create: "comments.create",

@@ -18,6 +18,8 @@ writes every thread.
 better-supabase add comments   # adds tenant and access as well
 ```
 
+The block's entity is `comment` (the `comments` table). Installing it registers `comment` as a subject, so other blocks such as reactions accept comments. Rename it with `blocks.comments.entities`, for example `{ comment: "note" }`; see [Typed blocks](/docs/blocks/typed-blocks). `commentInputSchema` and `commentChangeSchema` validate what `create` and `edit` take.
+
 | Table              | Holds                                                                                                        |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `comments`         | `subject_type`, `subject_id`, `author_id`, `body`, `mentions`, `parent_id`, `edited_at` and `deleted_at`     |

@@ -143,7 +143,7 @@ as $$
 declare
   v_row "better_supabase"."reactions"%rowtype;
 begin
-  if current_setting('better_supabase.reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then
@@ -464,7 +464,6 @@ security invoker
 set search_path = ''
 as $$
   select case reaction_subject_visible.subject_type
-    when 'comment' then exists (select 1 from "better_supabase"."comments" c where c."id"::text = reaction_subject_visible.subject_id and c."organization_id" = reaction_subject_visible.tenant and c."deleted_at" is null)
     when 'inbox_message' then exists (select 1 from "better_supabase"."inbox_messages" m where m."id"::text = reaction_subject_visible.subject_id and m."tenant_id" = reaction_subject_visible.tenant)
     else true
   end
@@ -523,7 +522,7 @@ as $$
 declare
   v_row "better_supabase"."reactions"%rowtype;
 begin
-  if current_setting('better_supabase.reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then
@@ -755,7 +754,7 @@ grant select on better_supabase.modules to service_role;
 
 -- Copies the reactions inbox messages kept in their jsonb column, without
 -- recording them as new reactions.
-select set_config('better_supabase.reactions_backfill', 'on', true);
+select set_config('better_supabase.bs_reactions_backfill', 'on', true);
 insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "emoji")
 select m."tenant_id", 'inbox_message', m."id"::text, a.actor,
   case when a.actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then a.actor::uuid end,
@@ -765,7 +764,7 @@ cross join lateral jsonb_each(case when jsonb_typeof(m."reactions") = 'object' t
 cross join lateral jsonb_array_elements_text(case when jsonb_typeof(e.value) = 'array' then e.value else '[]'::jsonb end) a(actor)
 where length(e.key) between 1 and 64 and e.key !~ '\s' and e.key !~ '^:[a-z0-9_+-]{1,32}:$'
 on conflict do nothing;
-select set_config('better_supabase.reactions_backfill', '', true);
+select set_config('better_supabase.bs_reactions_backfill', '', true);
 
 insert into better_supabase.modules (name, version, mode)
 values ('reactions', 1, 'managed')
@@ -919,7 +918,7 @@ as $$
 declare
   v_row "app_private"."reactions"%rowtype;
 begin
-  if current_setting('better_supabase.reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then
@@ -1295,7 +1294,7 @@ as $$
 declare
   v_row "better_supabase"."reactions"%rowtype;
 begin
-  if current_setting('better_supabase.reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then

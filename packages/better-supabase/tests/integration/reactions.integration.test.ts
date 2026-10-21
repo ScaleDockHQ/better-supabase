@@ -9,12 +9,17 @@ import {
   createReactions,
   sqlTransport,
 } from "../../src/blocks/reactions/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
 const layout: ModuleLayout = {
-  subjects: { doc: { table: "reactions_it.docs", idType: "uuid" } },
+  subjects: withBlockSubjects(
+    { doc: { table: "reactions_it.docs", idType: "uuid" } },
+    ["comments"],
+    {},
+  ),
 };
 
 const TABLES = `create schema reactions_it;

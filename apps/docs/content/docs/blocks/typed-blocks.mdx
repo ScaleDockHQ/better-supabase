@@ -51,8 +51,10 @@ The package ships the same keys as JSON Schema, in
 
 A block's entities register as subjects on their own: `deals` registers
 `deal`, `catalog` registers `product` and `product_variant`, `work-items`
-registers `work_item` under its final name. Comments, attachments, reactions
-and the other subject blocks then accept them with no entry in `subjects`.
+registers `work_item` under its final name. The collaboration blocks register
+`comment`, `engagement`, `document` and `calendar_event`. Comments,
+attachments, reactions and the other subject blocks then accept them with no
+entry in `subjects`.
 `url` sets the page `subject_url` returns, and `subject: false` keeps an
 entity out of the registry:
 
@@ -130,8 +132,10 @@ export const renameTask = bs.blockAction(
 
 ## Input schemas
 
-The entity blocks (catalog, deals, employees, parties and work-items) export
-a Standard Schema for each input, such as `workItemInputSchema`. It
+The entity blocks (catalog, deals, employees, parties and work-items) and the
+collaboration blocks with an input object (comments, attachments, engagements
+and calendar) export a Standard Schema for each input, such as
+`workItemInputSchema` or `commentInputSchema`. It
 validates without a validation library and converts to JSON Schema. A
 renamed block carries its schemas under the new names, with renamed
 property names and titles: `tasksBlock.schemas.task.input`.

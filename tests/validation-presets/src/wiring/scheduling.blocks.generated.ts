@@ -127,6 +127,10 @@ export const permissions = {
     write: "calendar.write",
     read: "calendar.read",
   },
+  calendar_event: {
+    read: "calendar.read",
+    write: "calendar.write",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",

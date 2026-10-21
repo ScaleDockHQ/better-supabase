@@ -29,6 +29,9 @@ const EVENTS: ModuleEvents<RemindersEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    reminder: { table: "reminders", singular: "reminder", primary: true },
+  },
   events: EVENTS,
   options: ["ruleFormat", "extraColumns"],
   tables: {

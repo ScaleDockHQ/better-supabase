@@ -73,6 +73,18 @@ const EVENTS: ModuleEvents<CommentsEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    comment: {
+      table: "comments",
+      singular: "comment",
+      primary: true,
+      subject: {
+        title: "body",
+        deletedAt: "deletedAt",
+        permissions: { read: "read", write: "create" },
+      },
+    },
+  },
   events: EVENTS,
   options: [
     "subjects",
@@ -557,9 +569,9 @@ create table if not exists ${comments} (
   check (${c("deletedAt")} is not null or length(btrim(${c("body")})) > 0)
 );
 alter table ${comments} add column if not exists ${c("document")} jsonb;${addExtraColumns(comments, extras)}
-create index if not exists comments_subject_idx on ${comments} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("createdAt")});
-create index if not exists comments_author_idx on ${comments} (${c("author")});
-create index if not exists comments_parent_idx on ${comments} (${c("parent")});
+create index if not exists ${ctx.naming.rename("comments_subject_idx")} on ${comments} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("createdAt")});
+create index if not exists ${ctx.naming.rename("comments_author_idx")} on ${comments} (${c("author")});
+create index if not exists ${ctx.naming.rename("comments_parent_idx")} on ${comments} (${c("parent")});
 alter table ${comments} enable row level security;
 ${revokeTable(comments)}
 grant select on ${comments} to authenticated;
@@ -579,17 +591,17 @@ as $$
   select ${readable}
 $$;
 
-drop policy if exists "comments_read" on ${comments};
-create policy "comments_read" on ${comments} for select to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("comments").name}_read`)} on ${comments};
+create policy ${sqlIdent(`${ctx.tableName("comments").name}_read`)} on ${comments} for select to authenticated
   using (${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "read")}${subjectCheck}${readableByCheck});
-drop policy if exists "comments_insert" on ${comments};
-create policy "comments_insert" on ${comments} for insert to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("comments").name}_insert`)} on ${comments};
+create policy ${sqlIdent(`${ctx.tableName("comments").name}_insert`)} on ${comments} for insert to authenticated
   with check (
     ${c("author")} = (select auth.uid())
     and ${access.canOn(c("tenant"), c("subjectType"), c("subjectId"), "create")}${subjectCheck}
   );
-drop policy if exists "comments_update" on ${comments};
-create policy "comments_update" on ${comments} for update to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("comments").name}_update`)} on ${comments};
+create policy ${sqlIdent(`${ctx.tableName("comments").name}_update`)} on ${comments} for update to authenticated
   using (${c("author")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "moderate")})
   with check (${c("author")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "moderate")});
 

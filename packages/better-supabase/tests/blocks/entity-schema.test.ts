@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
+import { calendarBlock } from "../../src/blocks/calendar/manifest.ts";
+import { calendarEventInputSchema } from "../../src/blocks/calendar/schemas.ts";
+import { commentsBlock } from "../../src/blocks/comments/manifest.ts";
+import { commentInputSchema } from "../../src/blocks/comments/schemas.ts";
 import { dealInputSchema } from "../../src/blocks/deals/schemas.ts";
+import { engagementsBlock } from "../../src/blocks/engagements/manifest.ts";
+import { engagementInputSchema } from "../../src/blocks/engagements/schemas.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
 import { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
 import {
@@ -81,6 +88,34 @@ describe("entity schemas", () => {
     expect(workItemsBlock.schemas["work_item"]?.change).toBe(
       workItemChangeSchema,
     );
+  });
+
+  it("validates the collaboration blocks' inputs", async () => {
+    const comment = await commentInputSchema["~standard"].validate({
+      organizationId: ID,
+      subjectType: "deal",
+      subjectId: ID,
+      body: "",
+    });
+
+    const engagement = await engagementInputSchema["~standard"].validate({
+      type: "call",
+      title: "x".repeat(501),
+      dueAt: null,
+    });
+
+    const event = await calendarEventInputSchema["~standard"].validate({
+      status: "maybe",
+      rrule: null,
+    });
+
+    expect(comment.issues?.map((issue) => issue.path)).toEqual([["body"]]);
+    expect(engagement.issues?.map((issue) => issue.path)).toEqual([["title"]]);
+    expect(event.issues?.map((issue) => issue.path)).toEqual([["status"]]);
+    expect(Object.keys(commentsBlock.schemas)).toEqual(["comment"]);
+    expect(Object.keys(attachmentsBlock.schemas)).toEqual(["attachment"]);
+    expect(Object.keys(engagementsBlock.schemas)).toEqual(["engagement"]);
+    expect(Object.keys(calendarBlock.schemas)).toEqual(["calendar_event"]);
   });
 
   it("renames the schemas of a renamed block", async () => {

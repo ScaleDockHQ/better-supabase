@@ -40,6 +40,18 @@ const EVENTS: ModuleEvents<EngagementsEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    engagement: {
+      table: "engagements",
+      singular: "engagement",
+      primary: true,
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "write" },
+        search: { title: "title", body: ["body", "outcome"] },
+      },
+    },
+  },
   events: EVENTS,
   hooks: ["before_engagement_log", "after_engagement_log"],
   options: ["types", "extraColumns"],
@@ -203,9 +215,9 @@ ${
   ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now()
 );
-create index if not exists engagements_owner_open_idx on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
-create index if not exists engagements_tenant_created_idx on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
-create unique index if not exists engagements_external_ref_idx on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;${addExtraColumns(t("engagements"), extras)}
+create index if not exists ${ctx.naming.rename("engagements_owner_open_idx")} on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
+create index if not exists ${ctx.naming.rename("engagements_tenant_created_idx")} on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
+create unique index if not exists ${ctx.naming.rename("engagements_external_ref_idx")} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;${addExtraColumns(t("engagements"), extras)}
 ${lockTable(t("engagements"), { read: true })}
 create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,
@@ -215,15 +227,15 @@ create table if not exists ${t("links")} (
   ${l("position")} integer not null default 1,
   primary key (${l("engagement")}, ${l("subjectType")}, ${l("subjectId")})
 );
-create index if not exists engagement_subjects_subject_idx on ${t("links")} (${l("subjectType")}, ${l("subjectId")});
+create index if not exists ${ctx.naming.rename("engagement_subjects_subject_idx")} on ${t("links")} (${l("subjectType")}, ${l("subjectId")});
 ${lockTable(t("links"), { read: true })}
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none.
-drop policy if exists engagement_subjects_read on ${t("links")};
-create policy engagement_subjects_read on ${t("links")} for select to authenticated
+drop policy if exists ${ctx.tableName("links").name}_read on ${t("links")};
+create policy ${ctx.tableName("links").name}_read on ${t("links")} for select to authenticated
 using (${ctx.scope.check(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read'));
-drop policy if exists engagements_read on ${t("engagements")};
-create policy engagements_read on ${t("engagements")} for select to authenticated
+drop policy if exists ${ctx.tableName("engagements").name}_read on ${t("engagements")};
+create policy ${ctx.tableName("engagements").name}_read on ${t("engagements")} for select to authenticated
 using (${ctx.scope.check(e("tenant"), read)} and (
   not exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")})
   or exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")} and ${canSubject}(x.${l("subjectType")}, x.${l("subjectId")}, 'read'))

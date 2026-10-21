@@ -53,6 +53,9 @@ const EVENTS: ModuleEvents<AttachmentsEvents> = {
 const RESERVED = ["fields"] as const;
 
 const NAMES: ModuleNames = {
+  entities: {
+    attachment: { table: "attachments", singular: "attachment", primary: true },
+  },
   events: EVENTS,
   options: [
     "bucket",
@@ -500,9 +503,9 @@ alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
 ${ensureCheck(t, "bs_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
 ${ensureCheck(t, "bs_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
 ${mimeCheck}
-create unique index if not exists attachments_object_idx on ${t} (${c("bucket")}, ${c("path")});
-create index if not exists attachments_subject_idx on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
-create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}
+create unique index if not exists ${ctx.naming.rename("attachments_object_idx")} on ${t} (${c("bucket")}, ${c("path")});
+create index if not exists ${ctx.naming.rename("attachments_subject_idx")} on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
+create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
@@ -523,18 +526,18 @@ $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 
-drop policy if exists "attachments_read" on ${t};
-create policy "attachments_read" on ${t} for select to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_read`)} on ${t};
+create policy ${sqlIdent(`${ctx.tableName("attachments").name}_read`)} on ${t} for select to authenticated
   using (${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
-drop policy if exists "attachments_insert" on ${t};
-create policy "attachments_insert" on ${t} for insert to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_insert`)} on ${t};
+create policy ${sqlIdent(`${ctx.tableName("attachments").name}_insert`)} on ${t} for insert to authenticated
   with check (
     ${c("uploadedBy")} = (select auth.uid())
     and ${inTenant("", "upload")}
     and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
-drop policy if exists "attachments_delete" on ${t};
-create policy "attachments_delete" on ${t} for delete to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_delete`)} on ${t};
+create policy ${sqlIdent(`${ctx.tableName("attachments").name}_delete`)} on ${t} for delete to authenticated
   using (${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")});
 
 -- Whether the caller may run action (insert, select or delete) on the

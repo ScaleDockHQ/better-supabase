@@ -159,8 +159,10 @@ export interface BlockNameRegistry {
     readonly functions: "attachment_object_allowed" | "attachment_object_visible" | "attachment_subject_readable" | "confirm_attachment" | "create_attachment" | "delete_attachment" | "get_attachment" | "list_attachments" | "object_clean" | "object_scan" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "metadata";
+    };
+    readonly primary: "attachment";
   };
   readonly "audit": {
     readonly tables: {
@@ -217,8 +219,11 @@ export interface BlockNameRegistry {
     readonly functions: "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "split_calendar_event";
     readonly actions: "manage" | "write" | "read";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "created_by" | "created_at" | "updated_at";
+      readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at";
+    };
+    readonly primary: "calendar_event";
   };
   readonly "catalog": {
     readonly tables: {
@@ -279,8 +284,10 @@ export interface BlockNameRegistry {
     readonly functions: "activity_subject_deliveries" | "activity_subject_readable" | "comment_counts" | "comment_subject_readable" | "comments_after_write" | "comments_before_write" | "copy_comments" | "create_comment" | "delete_comment" | "edit_comment" | "list_activity" | "list_comments" | "record_activity";
     readonly actions: "read" | "create" | "moderate" | "activity";
     readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "comment": "id" | "organization_id" | "subject_type" | "subject_id" | "author_id" | "body" | "document" | "mentions" | "parent_id" | "created_at" | "edited_at" | "deleted_at";
+    };
+    readonly primary: "comment";
   };
   readonly "connectors": {
     readonly tables: {
@@ -354,8 +361,10 @@ export interface BlockNameRegistry {
     readonly functions: "compact_document" | "document_access" | "document_topic_access" | "document_updates_after" | "documents_to_compact" | "open_document" | "pull_document_updates" | "push_document_update";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_document_create" | "after_document_create";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "document": "id" | "tenant_id" | "subject_type" | "subject_id" | "name" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "document";
   };
   readonly "domains": {
     readonly tables: {
@@ -408,8 +417,10 @@ export interface BlockNameRegistry {
     readonly functions: "complete_engagement" | "delete_engagement" | "engagements_of" | "log_engagement" | "next_engagement" | "open_engagements" | "update_engagement";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_engagement_log" | "after_engagement_log";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "engagement": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "engagement";
   };
   readonly "ensure-rls": {
     readonly tables: {};
@@ -830,8 +841,10 @@ export interface BlockNameRegistry {
     readonly functions: "delete_custom_emoji" | "list_custom_emoji" | "react" | "reaction_list" | "reaction_subject_visible" | "reaction_summary" | "reactions_changed" | "reactions_check" | "save_custom_emoji";
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_react" | "after_react";
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "reaction": "id" | "tenant_id" | "subject_type" | "subject_id" | "actor" | "user_id" | "emoji" | "created_at";
+    };
+    readonly primary: "reaction";
   };
   readonly "read-sets": {
     readonly tables: {};
@@ -868,8 +881,10 @@ export interface BlockNameRegistry {
     readonly functions: "delete_reminder" | "list_my_reminders" | "list_reminder_schedule" | "mark_reminder_sent" | "save_reminder";
     readonly actions: "manage" | "read";
     readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "reminder": "id" | "tenant_id" | "subject_type" | "subject_id" | "user_id" | "method" | "offset_minutes";
+    };
+    readonly primary: "reminder";
   };
   readonly "reserved-slugs": {
     readonly tables: {};

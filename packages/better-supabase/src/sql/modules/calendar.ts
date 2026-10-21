@@ -41,6 +41,19 @@ const EVENTS: ModuleEvents<CalendarEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    calendar_event: {
+      table: "events",
+      singular: "calendar_event",
+      primary: true,
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "write" },
+        search: { title: "title", body: ["description", "location"] },
+      },
+    },
+    calendar: { table: "calendars", singular: "calendar" },
+  },
   events: EVENTS,
   hooks: ["before_calendar_event_save", "after_calendar_event_save"],
   options: ["extraColumns"],
@@ -372,8 +385,8 @@ function build(ctx: ModuleContext): string {
 );
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
-drop policy if exists calendars_read on ${calendars};
-create policy calendars_read on ${calendars} for select to authenticated
+drop policy if exists ${ctx.tableName("calendars").name}_read on ${calendars};
+create policy ${ctx.tableName("calendars").name}_read on ${calendars} for select to authenticated
 using (${ctx.scope.check(k("tenant"), read)});
 create table if not exists ${events} (
   ${e("id")} uuid primary key default gen_random_uuid(),
@@ -402,11 +415,11 @@ create table if not exists ${events} (
   check ((${e("recurrence")} is null) = (${e("originalStart")} is null)),
   unique nulls not distinct (${e("calendar")}, ${e("uid")}, ${e("originalStart")})
 );
-create index if not exists calendar_events_recurrence_idx on ${events} (${e("recurrence")}) where ${e("recurrence")} is not null;
-create index if not exists calendar_events_range_idx on ${events} (${e("calendar")}, ${e("startsAt")});${addExtraColumns(events, eventExtras(ctx))}
+create index if not exists ${ctx.naming.rename("calendar_events_recurrence_idx")} on ${events} (${e("recurrence")}) where ${e("recurrence")} is not null;
+create index if not exists ${ctx.naming.rename("calendar_events_range_idx")} on ${events} (${e("calendar")}, ${e("startsAt")});${addExtraColumns(events, eventExtras(ctx))}
 ${lockTable(events, { read: true })}
-drop policy if exists calendar_events_read on ${events};
-create policy calendar_events_read on ${events} for select to authenticated
+drop policy if exists ${ctx.tableName("events").name}_read on ${events};
+create policy ${ctx.tableName("events").name}_read on ${events} for select to authenticated
 using (${ctx.scope.check(e("tenant"), read)});
 create table if not exists ${attendees} (
   ${a("id")} uuid primary key default gen_random_uuid(),
@@ -425,8 +438,8 @@ ${addCheck({
   name: `${ctx.tableName("attendees").name}_role_check`,
   expression: `${a("role")} in ${ROLES}`,
 })}
-drop policy if exists calendar_attendees_read on ${attendees};
-create policy calendar_attendees_read on ${attendees} for select to authenticated
+drop policy if exists ${ctx.tableName("attendees").name}_read on ${attendees};
+create policy ${ctx.tableName("attendees").name}_read on ${attendees} for select to authenticated
 using (${ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
 `
     : "";

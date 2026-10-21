@@ -6,6 +6,7 @@ import type {
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, schemaPreamble, SERVICE_CALLER, userGrant } from "../shared.ts";
@@ -30,6 +31,9 @@ const EVENTS: ModuleEvents<ReactionsEvents> = {
 };
 
 const NAMES: ModuleNames = {
+  entities: {
+    reaction: { table: "reactions", singular: "reaction", primary: true },
+  },
   events: EVENTS,
   hooks: ["before_react", "after_react"],
   options: ["subjects", "topic"],
@@ -64,9 +68,6 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** The subject type of a comment from the `comments` module. */
-const COMMENT_SUBJECT = "comment";
-
 /** The subject type of an inbox message from the `inbox` module. */
 const INBOX_MESSAGE_SUBJECT = "inbox_message";
 
@@ -86,6 +87,22 @@ function topicOf(ctx: ModuleContext): string {
 }
 
 /**
+ * The module's subjects. Comments always join them when the comments module is
+ * installed, under the comment entity's subject type, even when
+ * `options.subjects` lists other types.
+ */
+function reactionSubjects(ctx: ModuleContext): readonly [string, Subject][] {
+  const comments =
+    ctx.installed("comments") && ctx.of("comments").mode !== "custom"
+      ? ctx.of("comments").table("comments").replaceAll('"', "")
+      : undefined;
+
+  return subjectsOption(ctx, ["deletedAt"], {
+    always: (entry) => entry.table === comments,
+  });
+}
+
+/**
  * Whether the caller sees the subject, as a `case` on the subject type. The
  * function that wraps it runs as the caller, so the subject tables' own
  * policies apply.
@@ -94,16 +111,8 @@ function visibleCase(
   ctx: ModuleContext,
   args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
-  const subjects = subjectsOption(ctx);
+  const subjects = reactionSubjects(ctx);
   const whens: string[] = [];
-
-  if (ctx.installed("comments") && ctx.of("comments").mode !== "custom") {
-    const comments = ctx.of("comments");
-    const cc = (column: string): string => comments.col("comments", column);
-    whens.push(
-      `    when ${sqlString(COMMENT_SUBJECT)} then exists (select 1 from ${comments.table("comments")} c where c.${cc("id")}::text = ${args.id} and c.${cc("tenant")} = ${args.tenant} and c.${cc("deletedAt")} is null)`,
-    );
-  }
 
   if (ctx.installed("inbox") && ctx.of("inbox").mode !== "custom") {
     const inbox = ctx.of("inbox");
@@ -113,7 +122,7 @@ function visibleCase(
     );
   }
 
-  const rest = subjectReadable(ctx, subjects, args);
+  const rest = subjectReadable(ctx, subjects, args, { live: true });
 
   if (whens.length === 0) {
     return rest;
@@ -141,7 +150,7 @@ function inboxBackfill(ctx: ModuleContext): string {
 
   return `-- Copies the reactions inbox messages kept in their jsonb column, without
 -- recording them as new reactions.
-select set_config('better_supabase.reactions_backfill', 'on', true);
+select set_config('better_supabase.bs_reactions_backfill', 'on', true);
 insert into ${ctx.table("reactions")} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("emoji")})
 select m.${mc("tenant")}, ${sqlString(INBOX_MESSAGE_SUBJECT)}, m.${mc("id")}::text, a.actor,
   case when a.actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then a.actor::uuid end,
@@ -151,7 +160,7 @@ cross join lateral jsonb_each(case when jsonb_typeof(m.${mc("reactions")}) = 'ob
 cross join lateral jsonb_array_elements_text(case when jsonb_typeof(e.value) = 'array' then e.value else '[]'::jsonb end) a(actor)
 where length(e.key) between 1 and 64 and e.key !~ '\\s' and e.key !~ ${sqlString(SHORTCODE)}
 on conflict do nothing;
-select set_config('better_supabase.reactions_backfill', '', true);
+select set_config('better_supabase.bs_reactions_backfill', '', true);
 `;
 }
 
@@ -168,7 +177,7 @@ function build(ctx: ModuleContext): string {
   const create = ctx.permission("create", OPERATIONS["reactions.create"]);
   const manage = ctx.permission("manage", OPERATIONS["reactions.manage"]);
   const topic = topicOf(ctx);
-  const subjects = subjectsOption(ctx);
+  const subjects = reactionSubjects(ctx);
   const fn = (name: string): string => ctx.fn(name);
   const visible = fn("reaction_subject_visible");
   const name = ctx.tableName("reactions").name;
@@ -254,19 +263,19 @@ $$;
 revoke execute on function ${visible}(text, text, ${ctx.idType}) from public, anon;
 grant execute on function ${visible}(text, text, ${ctx.idType}) to authenticated, service_role;
 
-drop policy if exists "reactions_read" on ${reactions};
-create policy "reactions_read" on ${reactions} for select to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_read`)} on ${reactions};
+create policy ${sqlIdent(`${ctx.tableName("reactions").name}_read`)} on ${reactions} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
-drop policy if exists "reactions_insert" on ${reactions};
-create policy "reactions_insert" on ${reactions} for insert to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_insert`)} on ${reactions};
+create policy ${sqlIdent(`${ctx.tableName("reactions").name}_insert`)} on ${reactions} for insert to authenticated
   with check (
     ${c("user")} = (select auth.uid())
     and ${c("actor")} = (select auth.uid())::text
     and ${ctx.scope.check(c("tenant"), create)}${insertCheck}
     and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
-drop policy if exists "reactions_delete" on ${reactions};
-create policy "reactions_delete" on ${reactions} for delete to authenticated
+drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_delete`)} on ${reactions};
+create policy ${sqlIdent(`${ctx.tableName("reactions").name}_delete`)} on ${reactions} for delete to authenticated
   using (${c("user")} = (select auth.uid())${insertCheck});
 
 drop trigger if exists ${ctx.trigger("reactions_check")} on ${reactions};
@@ -305,7 +314,7 @@ as $$
 declare
   v_row ${reactions}%rowtype;
 begin
-  if current_setting('better_supabase.reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then

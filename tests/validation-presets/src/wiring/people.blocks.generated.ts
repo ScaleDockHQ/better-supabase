@@ -149,6 +149,14 @@ export const permissions = {
     write: "calendar.write",
     read: "calendar.read",
   },
+  calendar_event: {
+    read: "calendar.read",
+    write: "calendar.write",
+  },
+  document: {
+    read: "documents.read",
+    write: "documents.write",
+  },
   documents: {
     read: "documents.read",
     write: "documents.write",
