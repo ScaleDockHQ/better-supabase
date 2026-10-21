@@ -76,6 +76,7 @@ import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 export const blockConfig = {
   access: {
     schema: "better_supabase",
+    api: "api",
     options: {},
   },
   "access-requests": {
@@ -1525,7 +1526,11 @@ export const blockEventSchemas = {
   "workflow_run.failed": true,
 } as const;
 
-/** The path of each block entity, from `blocks.<name>.entities.<entity>.url`. @public */
+/**
+ * The path of each subject type with a `url`: block entities, `subjects`
+ * and app table subjects.
+ * @public
+ */
 export const urls = {
   product: () => "/shop",
   deal: () => "/crm/deals",
@@ -1533,6 +1538,10 @@ export const urls = {
   company: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
   person: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
   workItem: () => "/work",
+  customer: (v: { readonly id: string | number }) => `/customers/${String(v.id)}`,
+  application: () => "/people/hiring",
+  project: (v: { readonly id: string | number }) => `/projects/${String(v.id)}`,
+  task: (v: { readonly projectId: string | number }) => `/projects/${String(v.projectId)}`,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

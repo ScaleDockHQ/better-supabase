@@ -230,9 +230,10 @@ export default defineConfig({
     // count: they are the roles invitations and member updates accept.
     // Their permissions live in
     // supabase/schemas/better_supabase/functions/role_permissions.sql.
+    // `<Can>` reads my_permissions through the hand-written
+    // supabase/schemas/api/functions/my_permissions.sql.
     access: {
       mode: "custom",
-      api: false,
       activeTenant: "claim",
       roles: { owner: [], admin: [], member: [] },
     },
