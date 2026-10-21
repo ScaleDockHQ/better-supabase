@@ -106,17 +106,56 @@ with a message to update better-supabase instead of losing keys.
 `decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
 table that `appTables` wouldn't accept, a column type outside a plain SQL
 type, a block with no table for extra columns, or a code that inflates past
-256 KB. `encodeDesign` throws a `TypeError` for an invalid design, and a
-`DesignTooLongError` (a `TypeError` with the code's `length`) when a valid
+256 KB. `encodeDesign` throws a `DesignParseError` for an invalid design, and a
+`DesignTooLongError` (a `DesignParseError` with the code's `length`) when a valid
 design would pass `MAX_DESIGN_CODE_LENGTH` (6000 characters); write a
 [design file](#design-files) then. Check for `DesignTooLongError` to tell the
 two apart.
 
 `parseDesign(value)` checks the shape of a design object, such as a JSON body
 or an AI tool's input, with the same rules, and returns it with its empty
-parts dropped. It throws a `TypeError` naming the first problem. To check a
-design against a preset as well, use
+parts dropped. It throws a `DesignParseError` naming the first problem. To
+check a design against a preset as well, use
 [`checkDesign`](/docs/presets/create#check-a-design).
+
+`safeParseDesign(value)` runs the same checks without throwing, so a route
+handler can answer a bad body with a 400 and the issue:
+
+```ts
+import { safeParseDesign } from "better-supabase/preset";
+
+const result = safeParseDesign(await request.json());
+
+if (!result.ok) {
+  return Response.json({ issues: result.issues }, { status: 400 });
+}
+
+// result.design is the checked design
+```
+
+A `DesignParseError` is a `TypeError` with a `code` and a `path`, and each
+issue in `issues` is the same three keys as plain JSON. `path` is a
+[JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the key at fault,
+such as `/appTables/tasks/columns/title/type`, or its nearest parent when
+the key is missing. The codes are stable; the messages may change.
+
+| Code                  | What it means                                                     |
+| --------------------- | ----------------------------------------------------------------- |
+| `invalid_design`      | a value has the wrong type, such as a design that isn't an object |
+| `unknown_key`         | a key a design or design file doesn't have                        |
+| `unsupported_format`  | `version` is newer than this release reads                        |
+| `too_large`           | more tables, extra columns or positions than a design may hold    |
+| `unknown_block`       | `extraColumns` names a block that doesn't exist                   |
+| `no_extra_columns`    | `extraColumns` names a block that takes no extra columns          |
+| `block_not_installed` | `extraColumns` names a block the preset doesn't install           |
+| `invalid_name`        | a column or table name that isn't a lower snake identifier        |
+| `invalid_type`        | an extra column whose type isn't a SQL type                       |
+| `invalid_position`    | a canvas position that isn't two finite numbers                   |
+| `invalid_app_table`   | an app table that `appTables` rejects                             |
+| `invalid_code`        | a design code that is malformed, damaged or too long to read      |
+| `too_long`            | a valid design whose code is too long for a URL                   |
+| `invalid_file`        | a design file that isn't JSON or lacks its keys                   |
+| `invalid_preset`      | a design file's preset that isn't a preset name or code           |
 
 ### Design files
 
@@ -144,8 +183,11 @@ const { preset, design: read } = readDesignFile(source);
 The file holds the preset code and the design as plain JSON, with no length
 limit. A design that needs format 1 carries `"version": 1`, as its code would.
 `readDesignFile` accepts only the keys `preset` and `design`, decodes the
-preset and checks the design with `parseDesign`, and throws a `TypeError` for
-anything else. The canvas positions don't travel in the file.
+preset and checks the design with `parseDesign`, and throws a
+`DesignParseError` for anything else; a path into the design starts with
+`/design`. `safeDesignFileSource(resolved, design)` returns
+`{ ok: true, source }` or the issues instead of throwing. The canvas
+positions don't travel in the file.
 
 Two helpers check a design before it is encoded. `appReservedColumns(tenant)`
 lists the columns every app table can get from its scope (`id`,
@@ -186,9 +228,11 @@ The AI instructions for a design are at
 | `designConfigSource`   | `better-supabase.config.ts` with the design, and the `/create` URL with both codes in its comment     |
 | `designInstallCommand` | `init --preset` with the quoted URL; the preset command when the code is empty                        |
 | `designApplyCommand`   | `apply --preset` with the quoted URL                                                                  |
-| `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `TypeError`                   |
+| `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `DesignParseError`            |
+| `safeParseDesign`      | `parseDesign` without the throw: `{ ok: true, design }` or `{ ok: false, issues }`                    |
 | `designFileSource`     | the design file: the preset code and the design as JSON                                               |
-| `readDesignFile`       | the preset and design from a design file; throws a `TypeError` for anything else                      |
+| `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`               |
+| `readDesignFile`       | the preset and design from a design file; throws a `DesignParseError` for anything else               |
 
 ## Resolving
 
