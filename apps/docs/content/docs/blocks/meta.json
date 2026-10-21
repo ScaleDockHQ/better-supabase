@@ -29,6 +29,7 @@
     "billing",
     "flags",
     "comments",
+    "messaging",
     "attachments",
     "data-lifecycle",
     "sso",

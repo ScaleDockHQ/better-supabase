@@ -115,6 +115,7 @@ expose the module schema itself.
 | [AI files](/docs/blocks/ai-files)                           | `better-supabase/blocks/ai-files`                                                                                                  | `ai-files`                             |
 | [Knowledge](/docs/blocks/knowledge)                         | `better-supabase/blocks/knowledge`                                                                                                 | `knowledge`                            |
 | [Memory](/docs/blocks/memory)                               | `better-supabase/blocks/memory`                                                                                                    | `memory`                               |
+| [Messaging](/docs/blocks/messaging)                         | `better-supabase/blocks/messaging`                                                                                                 | `messaging`                            |
 | [Agents](/docs/blocks/agents)                               | `better-supabase/blocks/agents`                                                                                                    | `agents`                               |
 | [Connectors](/docs/blocks/connectors)                       | `better-supabase/blocks/connectors`                                                                                                | `connectors`                           |
 | [AI tasks](/docs/blocks/ai-tasks)                           | `better-supabase/blocks/ai-tasks`                                                                                                  | `ai-tasks`                             |
@@ -310,6 +311,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `leave`              | `tenant`, `access`, `approvals`             | `outbox`, `audit`                                                                                                                                |
 | `rules`              | `tenant`, `access`                          | none                                                                                                                                             |
 | `vercel-marketplace` | none                                        | `outbox`, `audit`                                                                                                                                |
+| `messaging`          | `tenant`, `access`, `subjects`              | `notifications`, `jobs`, `profiles`, `attachments`, `reactions`, `data-lifecycle`                                                                |
 | `ensure-rls`         | none                                        | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

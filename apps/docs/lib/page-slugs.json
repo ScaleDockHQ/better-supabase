@@ -69,6 +69,7 @@
   "blocks/knowledge",
   "blocks/leave",
   "blocks/memory",
+  "blocks/messaging",
   "blocks/metrics",
   "blocks/notifications",
   "blocks/number-sequences",
