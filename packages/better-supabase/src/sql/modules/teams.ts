@@ -5,7 +5,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -19,6 +19,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { providerTeamIds } from "./team-ids.ts";
 
 const EVENTS: ModuleEvents<TeamsEvents> = {
   "team.created": {
@@ -101,7 +102,7 @@ function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
   return value;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -171,6 +172,12 @@ ${membershipFk(ctx, members, memberTenant, memberUser)}
     : "";
 
   const fn = (value: string): string => ctx.fn(value);
+  const provided = providerTeamIds(ctx, layout, "team_ids_of.member");
+
+  const teamIdsBody =
+    provided === undefined
+      ? `select ${memberTeam} from ${members} where ${memberUser} = team_ids_of.member`
+      : `select t.id::${idType} from ${provided} as t(id)`;
 
   return `${schemaPreamble(ctx)}
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
@@ -183,7 +190,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${memberTeam} from ${members} where ${memberUser} = team_ids_of.member
+  ${teamIdsBody}
 $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 

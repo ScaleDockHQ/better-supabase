@@ -995,3 +995,60 @@ describe("BS416", () => {
     ).toEqual([]);
   });
 });
+
+describe("BS417", () => {
+  const withTeams: AuthorizationProvider = {
+    ...stubProvider,
+    scopes: [
+      ...stubProvider.scopes,
+      { name: "team", idType: "uuid", parent: "organization" },
+    ],
+  };
+
+  const blocks = {
+    access: { model: "provider" as const },
+    "saved-views": {},
+  };
+
+  it("warns when the provider declares teams without teamIdsOf", async () => {
+    expect(
+      await findings("BS417", { authorization: withTeams, blocks }),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "authorization.functions.teamIdsOf",
+        message: expect.stringContaining("saved-views"),
+      }),
+    ]);
+  });
+
+  it("stays quiet with the template, without teams, team blocks or the provider model", async () => {
+    expect(
+      await findings("BS417", {
+        authorization: {
+          ...withTeams,
+          functions: {
+            ...withTeams.functions,
+            teamIdsOf: "authz.team_ids_of({user})",
+          },
+        },
+        blocks,
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS417", { authorization: stubProvider, blocks }),
+    ).toEqual([]);
+    expect(
+      await findings("BS417", {
+        authorization: withTeams,
+        blocks: { access: { model: "provider" } },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS417", {
+        authorization: withTeams,
+        blocks: { access: { model: "roles" }, "saved-views": {} },
+      }),
+    ).toEqual([]);
+  });
+});

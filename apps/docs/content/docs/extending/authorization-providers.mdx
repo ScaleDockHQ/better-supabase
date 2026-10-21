@@ -147,6 +147,7 @@ puts the result into a policy or a module function:
 | `isPlatformFor`  | `{user}`, `{permission}`                                    | as `isPlatform`, for another user                                             |
 | `memberIds`      | `{scope}`                                                   | the `{scope}` ids the caller is a member of                                   |
 | `memberIdsFor`   | `{user}`, `{scope}`                                         | as `memberIds`, for another user                                              |
+| `teamIdsOf`      | `{user}`                                                    | a set of the team ids `{user}` belongs to                                     |
 | `canAssign`      | `{role}`, `{tenant}`, `{scope}`                             | `boolean`: the caller may give `{role}` in `{tenant}`                         |
 | `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}`                   | as `canAssign`, for another user                                              |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                             | `text[]`: the permission keys `{user}` holds in `{tenant}`                    |
@@ -169,6 +170,12 @@ the inviter again when an invitation is accepted; `inbox`, `comments`, `sso`,
 `usage` reads memberships through `memberIds`; `approvals` checks that a
 delegate is a member through `memberIdsFor`. Doctor (BS411) warns for each
 installed module whose template the provider doesn't set.
+
+`teamIdsOf` is for a provider that keeps its own teams. `team_ids_of()` in
+the `teams` block returns its set instead of reading `team_members`, and
+`saved-views` and `collections` share with those teams even without the
+`teams` block. Doctor (BS417) warns when the provider declares a `team`
+scope and leaves it unset.
 
 `permissionsFor` fills `better_supabase.member_permissions` and
 `permission_claims`, so the access token hook can carry permission keys. The

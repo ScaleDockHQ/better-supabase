@@ -851,6 +851,10 @@
             "memberIdsFor": {
               "type": "string"
             },
+            "teamIdsOf": {
+              "type": "string",
+              "description": "The team ids {user} belongs to, as a set. Under the provider model team_ids_of(), saved-views and collections call it."
+            },
             "canAssign": {
               "type": "string"
             },

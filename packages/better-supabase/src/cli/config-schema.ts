@@ -178,6 +178,7 @@ const authorization = v.strictObject({
     isPlatformFor: v.optional(v.string()),
     memberIds: v.optional(v.string()),
     memberIdsFor: v.optional(v.string()),
+    teamIdsOf: v.optional(v.string()),
     canAssign: v.optional(v.string()),
     canAssignFor: v.optional(v.string()),
     permissionsFor: v.optional(v.string()),

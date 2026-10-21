@@ -929,7 +929,45 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       ];
     },
   },
+  {
+    code: "BS417",
+    severity: "warning",
+    title: "The provider declares teams but sets no teamIdsOf template",
+    description:
+      "With the provider access model, `team_ids_of()` and the team sharing in `saved-views` and `collections` call `authorization.functions.teamIdsOf` for a caller's teams. Without it, `team_ids_of()` reads the teams block's own `team_members`, which a provider that keeps its own teams never fills, and `saved-views` and `collections` without the teams block share with no team. Doctor warns when the provider declares a `team` scope, one of those blocks is installed, and the template is unset.",
+    check: (context) => {
+      const provider = context.config.authorization;
+
+      if (
+        provider === undefined ||
+        provider.functions.teamIdsOf !== undefined ||
+        (context.config.blocks.access?.model ?? "roles") !== "provider" ||
+        !provider.scopes.some((scope) => TEAM_SCOPE.test(scope.name))
+      ) {
+        return [];
+      }
+
+      const sharing = TEAM_BLOCKS.filter((name) =>
+        context.config.blockNames.includes(name),
+      );
+
+      if (sharing.length === 0) {
+        return [];
+      }
+
+      return [
+        {
+          message: `${providerLabel(provider)} declares a team scope, but sets no authorization.functions.teamIdsOf, so ${sharing.join(", ")} can't see its teams. Set teamIdsOf to a set-returning call with {user}, for example "provider.team_ids_of({user})".`,
+          target: "authorization.functions.teamIdsOf",
+        },
+      ];
+    },
+  },
 ];
+
+const TEAM_SCOPE = /^teams?$/;
+
+const TEAM_BLOCKS = ["teams", "saved-views", "collections"] as const;
 
 const TEMPLATE_CALL =
   /\b("?[a-z_][a-z0-9_$]*"?)\s*\.\s*("?[a-z_][a-z0-9_$]*"?)\s*\(/gi;

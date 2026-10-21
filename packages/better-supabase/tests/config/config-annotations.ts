@@ -181,6 +181,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "authorization.functions.permissionsFor": {
     description: "The permission keys {user} holds in {tenant}, as a text[].",
   },
+  "authorization.functions.teamIdsOf": {
+    description:
+      "The team ids {user} belongs to, as a set. Under the provider model team_ids_of(), saved-views and collections call it.",
+  },
   "authorization.functions.canApprove": {
     description:
       "Whether the caller may decide the tool call {tool} waits on in {tenant}.",
