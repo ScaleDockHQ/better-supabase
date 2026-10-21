@@ -119,6 +119,36 @@ describe("record features", () => {
     expect(emitFeatures(bare, ["next"])).toEqual([]);
   });
 
+  it("adds a section and its actions when a block is installed", () => {
+    const before = contents(emitFeatures(config(), ["next"]));
+
+    const after = contents(
+      emitFeatures(
+        config({
+          blocks: {
+            tenant: {},
+            access: {},
+            comments: {},
+            tags: {},
+            versions: {},
+            sla: {},
+            "share-links": {},
+          },
+        }),
+        ["next"],
+      ),
+    );
+
+    const feature = "src/lib/supabase/features/customer/customer-feature.ts";
+    const actions = "src/lib/supabase/features/customer/customer-actions.ts";
+
+    expect(before[feature]).not.toContain("shareLinks");
+    expect(after[feature]).toContain("    shareLinks: shareLinksBlock,");
+    expect(after[actions]).toContain(
+      "export const createCustomerShareLinks = customerRecord.actions.shareLinks.create;",
+    );
+  });
+
   it("renders the same files twice", () => {
     expect(emitFeatures(config(), ["next"])).toEqual(
       emitFeatures(config(), ["next"]),

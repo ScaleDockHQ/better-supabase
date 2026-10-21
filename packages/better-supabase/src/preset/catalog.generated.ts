@@ -2832,6 +2832,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentStorage"
         },
         {
+          "name": "AttachmentsWrites"
+        },
+        {
           "name": "AttachmentUpload",
           "fields": true
         },
@@ -3573,6 +3576,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CommentSubject"
+        },
+        {
+          "name": "CommentsWrites"
         },
         {
           "name": "ListCommentsOptions"

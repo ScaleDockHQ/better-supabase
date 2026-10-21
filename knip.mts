@@ -86,6 +86,7 @@ const config: KnipConfig = {
         ...exampleIgnore,
         "src/components/ui/**",
         "src/components/reui/**",
+        "src/lib/supabase/features/**",
       ],
       // Knip's Playwright plugin finds the specs and the `webServer`
       // command; the setup project is a `testMatch` regex, which it can't read.
