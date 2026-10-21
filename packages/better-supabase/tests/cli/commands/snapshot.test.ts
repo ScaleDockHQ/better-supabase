@@ -176,14 +176,16 @@ describe("openSource on the local stack", () => {
     ]);
   });
 
-  it("falls back to port 54322 when no stack answers", async () => {
+  it("fails instead of guessing port 54322 when no stack answers", async () => {
     await writeFile(join(root, "supabase/config.toml"), "[api]\n");
     const bin = await fakeSupabase("exit 1");
     const open = fakeConnect(fakeSql().pg);
-    await openSource(config({}, root), { SUPABASE_BIN: bin }, {}, open.connect);
-    expect(open.urls).toEqual([
-      "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
-    ]);
+
+    await expect(
+      openSource(config({}, root), { SUPABASE_BIN: bin }, {}, open.connect),
+    ).rejects.toMatchObject({ code: "not_found" });
+
+    expect(open.urls).toEqual([]);
   });
 });
 

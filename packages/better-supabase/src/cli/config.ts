@@ -262,7 +262,7 @@ export async function stdinDatabaseUrl(
 /**
  * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`, then the
  * local stack: the `[db] port` in `config.toml`, else the running stack's
- * `DB_URL`, else port 54322.
+ * `DB_URL`. With neither it fails with `not_found` rather than guess a port.
  */
 export async function databaseUrl(
   config: ResolvedConfig,
@@ -277,7 +277,7 @@ export async function databaseUrl(
   }
 
   if (stack !== undefined && stack !== "") {
-    return namedStackUrl(config.root, stack);
+    return namedStackUrl(config.root, stack, env);
   }
 
   let resolved = localUrls.get(config);
@@ -291,7 +291,11 @@ export async function databaseUrl(
 }
 
 /** The database of `supabase/stacks/<name>/config.toml`, a stack kept for one purpose such as tests or a demo. */
-async function namedStackUrl(root: string, name: string): Promise<string> {
+async function namedStackUrl(
+  root: string,
+  name: string,
+  env: CliEnv,
+): Promise<string> {
   if (!/^[a-z0-9][a-z0-9_-]*$/u.test(name)) {
     throw new CliError(
       "invalid_value",
@@ -319,15 +323,16 @@ async function namedStackUrl(root: string, name: string): Promise<string> {
       ? db.port
       : undefined;
 
-  if (port === undefined) {
-    throw new CliError(
-      "not_found",
-      `The stack "${name}" has no [db] port in supabase/stacks/${name}/config.toml.`,
-      { flag: "--stack" },
-    );
+  if (port !== undefined) {
+    return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
   }
 
-  return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
+  return statusDatabaseUrl(
+    root,
+    env,
+    name,
+    `supabase/stacks/${name}/config.toml sets no [db] port`,
+  );
 }
 
 /** One lookup per loaded config, so a run asks `supabase status` at most once. */
@@ -336,16 +341,72 @@ const localUrls = new WeakMap<ResolvedConfig, Promise<string>>();
 async function localDatabaseUrl(root: string, env: CliEnv): Promise<string> {
   const port = await readSupabasePort(root, "db");
 
-  if (port === undefined && (await readSupabaseToml(root))) {
-    // The stack engine (`[experimental] stack`) picks the ports per checkout,
-    // so only its status knows them.
-    const stack = await readStackStatus(root, env).catch(() => undefined);
-    const url = stack?.ok ? stack.status["DB_URL"] : undefined;
+  if (port !== undefined) {
+    return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
+  }
+
+  // The stack engine (`supabase start --runtime native`) picks the ports per
+  // checkout, so only its status knows them. Guessing 54322 could reach
+  // another project's stack.
+  return statusDatabaseUrl(
+    root,
+    env,
+    undefined,
+    (await readSupabaseToml(root))
+      ? "supabase/config.toml sets no [db] port"
+      : "there is no supabase/config.toml",
+  );
+}
+
+/** The running stack's `DB_URL`, or `not_found` naming both places it looked. */
+async function statusDatabaseUrl(
+  root: string,
+  env: CliEnv,
+  stack: string | undefined,
+  noPort: string,
+): Promise<string> {
+  let failure: string;
+
+  try {
+    const status = await readStackStatus(
+      root,
+      env,
+      stack === undefined ? {} : { stack },
+    );
+
+    const url = status.ok ? status.status["DB_URL"] : undefined;
 
     if (typeof url === "string" && url.length > 0) {
       return url;
     }
+
+    failure = status.ok
+      ? "printed no DB_URL"
+      : `failed (exit ${String(status.code)})`;
+  } catch (error) {
+    if (error instanceof CliError && error.code === "supabase_cli_missing") {
+      failure = "could not run";
+    } else if (error instanceof CliError) {
+      failure = `failed: ${error.message}`;
+    } else {
+      throw error;
+    }
   }
 
-  return `postgresql://postgres:postgres@127.0.0.1:${port ?? 54_322}/postgres`;
+  const command =
+    stack === undefined
+      ? "supabase status"
+      : `supabase status --stack ${stack}`;
+
+  throw new CliError(
+    "not_found",
+    `No database to connect to: ${noPort}, and \`${command}\` ${failure}. Start the stack, set [db] port, or pass $DATABASE_URL or --db-url-stdin.`,
+    {
+      suggestion:
+        stack === undefined
+          ? "supabase start"
+          : `supabase start --stack ${stack}`,
+      ...(stack === undefined ? {} : { flag: "--stack" }),
+    },
+  );
 }
