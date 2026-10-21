@@ -51,8 +51,8 @@ export interface Subjects {
   ): AsyncResult<Readonly<Record<string, ResolvedSubject>>>;
   /**
    * The subject's title and path with a count and unread state for each of
-   * `sections` (`comments`, `attachments`, `tags`), in one round trip;
-   * `undefined` when the caller can't read the subject.
+   * `sections` (`comments`, `attachments`), in one round trip; `undefined` when
+   * the caller can't read the subject.
    */
   summary(
     subject: SubjectRef,

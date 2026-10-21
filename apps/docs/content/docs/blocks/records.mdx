@@ -1,0 +1,175 @@
+---
+title: Record sections
+description: Load the comments, files and tags of one record page in parallel, each settled, hidden when the caller can't read it, and kept current over one realtime subscription.
+---
+
+A record page, such as a customer, shows parts that different blocks own: a
+comment thread, its files, its tags. Each block declares those parts as
+sections on its manifest, and `better-supabase/records` loads them for one
+`SubjectRef`. Every section settles on its own, so a failed or forbidden
+section never takes the page down:
+
+| `kind`   | Means                                                      |
+| -------- | ---------------------------------------------------------- |
+| `ok`     | `data` holds the section's rows                            |
+| `error`  | `error` holds a plain `DbError`; show it with a Retry      |
+| `hidden` | The caller can't read the section, and no query ran for it |
+
+| Block         | Section       | Rows                    | Optimistic reducer      |
+| ------------- | ------------- | ----------------------- | ----------------------- |
+| `comments`    | `comments`    | the thread              | `commentsOptimistic`    |
+| `attachments` | `attachments` | the files, newest first | `attachmentsOptimistic` |
+| `tags`        | `tags`        | the record's tags       | `tagsOptimistic`        |
+
+## Load a record
+
+`loadSections(source, subject, names, options?)` takes the manifests and the
+clients built from them, keyed alike, such as `blockSet.blocks` and the
+blocks you built with `blockSet.create(...)`. It runs the sections in
+parallel and never throws:
+
+```ts title="src/features/customers/customer-queries.ts"
+import { loadSections, sectionCan } from "better-supabase/records";
+
+import { blockSet, blocks } from "@/lib/blocks";
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export async function customerSections(supabase: Client, id: string) {
+  const built = blocks(supabase);
+  const set = await built.access.permissions();
+
+  return loadSections(
+    { blocks: blockSet.blocks, clients: built },
+    { type: "customer", id },
+    ["comments", "attachments", "tags"],
+    {
+      can: sectionCan(set.ok ? set.data : null, permissions),
+      options: { comments: { limit: 20 } },
+    },
+  );
+}
+```
+
+`sectionCan(permissionSet, permissions)` takes the caller's
+[`PermissionSet`](/docs/blocks/access) and checks the key each section's module
+names in the `permissions` constant of `blocks.generated.ts`, so a renamed
+permission still matches. With no set (`null`), every section that needs a
+key is hidden. Without `can`, every section loads and RLS decides
+what it returns. Section names are unique across the app: when two blocks
+declare the same name, the first block in the set wins.
+
+`countSection(source, name, subjects)` returns the row count of one section
+for many records, keyed `type:id`, for a badge on each row of a list. It
+fails with `unsupported` for a section without `count`.
+
+### With `"use cache"`
+
+A cached function stores what it returns, so a settled `error` would stay
+cached. Call `loadSections` outside `"use cache"`, or throw on `error` inside
+it so the failure isn't stored, and tag the cached read with
+[`sectionTag`](/docs/frameworks/next#record-sections) so a write drops it.
+
+## Header and badges
+
+`subjects.summary(subject, sections, { seenAt })` calls `record_summary` and
+returns the record's title and path with a count and an unread flag for each
+section, in one round trip. Pass `seenAt`, when the caller last opened the
+record, to get unread state; without it every section counts as read. It
+counts `comments` and `attachments`; it returns `undefined` when the caller
+can't read the record.
+
+```ts
+const summary = await subjects
+  .summary({ type: "customer", id }, ["comments", "attachments"], {
+    seenAt: lastVisit,
+  })
+  .orThrow();
+
+summary?.counts.comments; // 12
+summary?.unread.attachments; // true
+```
+
+`record_summary` runs as the caller, so the counts are the rows the caller
+can read.
+
+## Keep it current
+
+`createRecordController` loads the sections, and the summary when you pass
+the subjects client, then listens on one private topic. A message whose event
+a section lists in its `events` loads that section again; any other message
+loads every section. Like the other
+[block controllers](/docs/frontend/block-controllers), it imports no UI code.
+
+```ts title="lib/customer-record.ts"
+import { createRecordController } from "better-supabase/records";
+import { topicPort } from "better-supabase/realtime";
+
+const record = createRecordController({
+  source: { blocks: blockSet.blocks, clients: blocks(supabase) },
+  auth: bs.auth,
+  ports: { topic: topicPort(supabase) },
+  subject: { type: "customer", id },
+  sections: ["comments", "attachments"],
+  topic: `customer:${id}`,
+  summary: subjects,
+});
+
+record.subscribe(() => {
+  const { sections, summary } = record.getSnapshot();
+});
+await record.actions.refresh(["comments"]);
+```
+
+## Optimistic writes
+
+Each section exports a reducer for React's `useOptimistic`, so a pending
+write shows before the server answers:
+
+```tsx
+import { attachmentsOptimistic } from "better-supabase/blocks/attachments";
+
+const [files, applyPending] = useOptimistic(rows, attachmentsOptimistic);
+
+startTransition(async () => {
+  applyPending({ type: "remove", id });
+  await removeAttachment({ id, customerId });
+});
+```
+
+On the server, [`bs.sectionAction`](/docs/frameworks/next#record-sections)
+runs the write and drops the cached section.
+
+## Write a section
+
+`defineSection` describes a section of your own block. It is an extension
+interface (`apiVersion: 1`); put it on the manifest's `sections`:
+
+```ts title="blocks/work-notes/section.ts"
+import { defineSection } from "better-supabase/records";
+
+export const workNotesSection = defineSection({
+  permissions: { read: "read", write: "create" },
+  load: (client: WorkNotes, subject) => client.list(subject),
+  count: (client: WorkNotes, subjects) => client.countFor(subjects),
+  events: ["work-note.*"],
+});
+
+export const workNotesBlock = defineBlock({
+  name: "work-notes",
+  sql: ["work-notes"],
+  sections: { "work-notes": workNotesSection },
+  // ...
+});
+```
+
+| Field         | What it is                                                                           |
+| ------------- | ------------------------------------------------------------------------------------ |
+| `permissions` | The module actions the section reads and writes with, keys of `permissions.<module>` |
+| `module`      | The SQL module those actions belong to; default the block's first one                |
+| `load`        | The rows for one subject, as an `AsyncResult`                                        |
+| `count`       | Optional: rows per subject, keyed `type:id`                                          |
+| `events`      | The block events that make the section stale; `*` ends a prefix                      |
+| `optimistic`  | Optional: a reducer for `useOptimistic`                                              |
+
+`testSection` in `better-supabase/testing` checks a section against this
+contract ([Conformance](/docs/extending/conformance)).

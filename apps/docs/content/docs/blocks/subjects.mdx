@@ -51,6 +51,10 @@ found[subjectKey({ type: "customer", id: customerId })];
 `subject_titles` fails with `SUBJECT_REFS_INVALID` when `refs` is not a JSON
 array and `SUBJECT_REFS_TOO_MANY` above 500 refs.
 
+`summary(subject, sections, { seenAt })` returns one record's title and path
+with a count and unread flag per section, for a record page's header and tab
+badges ([Record sections](/docs/blocks/records#header-and-badges)).
+
 ## Paths in code
 
 `gen` writes a `urls` constant to `blocks.generated.ts` with a function for
