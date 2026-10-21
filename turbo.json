@@ -151,6 +151,9 @@
         "$TURBO_ROOT$/supabase/migrations/**"
       ]
     },
+    "//#test:scripts": {
+      "inputs": ["scripts/*.ts"]
+    },
     "//#check:prose": {
       "inputs": [
         "scripts/check-prose.ts",
