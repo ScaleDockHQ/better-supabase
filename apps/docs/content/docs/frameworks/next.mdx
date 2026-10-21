@@ -364,7 +364,10 @@ provider exports.
 - `permission` names a permission the `authorizer` passed to `createNext`
   must grant, checked after `roles` and before `authorize`. The resource the
   authorizer sees is `{ type: "action", properties: input }` for an action
-  and `{ type: "route" }` for `bs.route()`. A denial is `forbidden` with
+  and `{ type: "route" }` for `bs.route()`; pass `resource: (input, ctx) =>`
+  to load the row it acts on instead (see
+  [Load the resource](/docs/extending/authorizers#load-the-resource)). A
+  denial is `forbidden` with
   `code: "PERMISSION_DENIED"` (or `APPROVAL_REQUIRED`) and the permission
   key; without an authorizer, every caller is refused (see
   [Authorizers](/docs/extending/authorizers)).

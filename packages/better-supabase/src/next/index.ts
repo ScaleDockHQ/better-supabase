@@ -51,6 +51,7 @@ export type {
   ActionResult,
   AuthorizedContext,
   AuthorizeOptions,
+  ResourceLoaderContext,
 } from "../server/kit.ts";
 
 export { REQUEST_ID_HEADER, type DbBudget } from "./collector.ts";

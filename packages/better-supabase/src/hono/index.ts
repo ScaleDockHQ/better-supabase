@@ -25,7 +25,11 @@ import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { type CorsOptions, corsConfig } from "../server/cors.ts";
-import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
+import {
+  type BlockRequireOptions,
+  requireCaller,
+  type ResourceLoaderContext,
+} from "../server/kit.ts";
 import {
   type RateLimitRouteOptions,
   rateLimitGate,
@@ -131,7 +135,13 @@ export interface BetterHono<
    * ```
    */
   require: (
-    options?: BlockRequireOptions<C, P, boolean, Ref>,
+    options?: BlockRequireOptions<
+      C,
+      P,
+      boolean,
+      Ref,
+      ServerContext<M, F, E, C, P, B> & ResourceLoaderContext<C, P>
+    >,
   ) => MiddlewareHandler<HonoEnv<M, F, E, C, P, B>>;
   /**
    * Counts a hit per request with a rate limiter, such as `createRateLimit()`,
@@ -320,6 +330,7 @@ export function createHono<
           requireOptions,
           c.get("tenant"),
           options.authorizer,
+          ctx,
         );
 
         if ("kind" in caller) {

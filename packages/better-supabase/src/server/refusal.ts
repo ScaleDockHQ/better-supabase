@@ -4,7 +4,11 @@ import type { DbError } from "../core/errors.ts";
 
 import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
-import { type BlockRequireOptions, requireCaller } from "./kit.ts";
+import {
+  type BlockRequireOptions,
+  requireCaller,
+  type ResourceLoaderContext,
+} from "./kit.ts";
 import { defaultExpose } from "./respond.ts";
 
 /** Where refused callers go instead of a Problem Details response. */
@@ -81,7 +85,15 @@ export interface GuardedLocals {
 }
 
 export interface RouteGuardOptions<C = unknown, P = unknown>
-  extends BlockRequireOptions<C, P>, RefusalRedirects {
+  extends
+    BlockRequireOptions<
+      C,
+      P,
+      boolean,
+      unknown,
+      GuardedLocals & ResourceLoaderContext<C, P>
+    >,
+    RefusalRedirects {
   /** Include internal error messages in Problem Details. Defaults to development only. */
   readonly expose?: boolean;
   /** Decides `permission`; without one, a route with a `permission` refuses every caller. */
@@ -99,6 +111,7 @@ export async function routeRefusal(
     options,
     locals.tenant,
     options.authorizer,
+    locals,
   );
 
   if (!("kind" in caller)) {

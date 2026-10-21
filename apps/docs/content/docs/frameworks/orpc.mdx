@@ -214,6 +214,33 @@ export const remove = bs
   );
 ```
 
+To decide on the row the procedure acts on, put `bs.middleware()` after
+`.input()` and pass `resource`. It gets the validated input and the context
+(`db`, `session`, `tenant`), and its return value is the resource the
+authorizer sees ([Load the resource](/docs/extending/authorizers#load-the-resource)):
+
+```ts title="src/router.ts"
+export const rename = bs
+  .authed()
+  .input(v.object({ id: v.string(), name: v.string() }))
+  .use(
+    bs.middleware({
+      permission: "customers.update",
+      resource: async (input, { db }) => {
+        const { id } = v.parse(v.object({ id: v.string() }), input);
+        const row = await db.customers
+          .findById(id, { select: ["id", "ownerId"] })
+          .orThrow();
+
+        return { type: "customer", id, properties: { ownerId: row.ownerId } };
+      },
+    }),
+  )
+  .handler(({ input, context }) =>
+    bs.unwrap(context.db.customers.update(input.id, { name: input.name })),
+  );
+```
+
 A refused caller gets an `ORPCError` with code `FORBIDDEN` and the Problem
 Details in `data`: `NO_TENANT`, `MISSING_ROLE`, `PERMISSION_DENIED`,
 `APPROVAL_REQUIRED` or `NOT_AUTHORIZED`. Without an authorizer, a procedure

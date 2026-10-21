@@ -9,6 +9,7 @@ import { around } from "../bridges/shared.ts";
 import { flushEvents } from "../server/adapter.ts";
 import {
   type FrameworkLocals,
+  type LocalsResource,
   type FrameworkOptions,
   frameworkEntry,
   localsOf,
@@ -80,7 +81,13 @@ export interface BetterAstro<
    */
   guard(
     context: AstroContextLike,
-    options?: BlockRequireOptions<C, P>,
+    options?: BlockRequireOptions<
+      C,
+      P,
+      boolean,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
   ): Promise<Response | undefined>;
   /**
    * The caller, or a thrown refusal `Response`, for endpoints that return
@@ -88,7 +95,13 @@ export interface BetterAstro<
    */
   require<R extends boolean = false>(
     context: AstroContextLike,
-    options?: BlockRequireOptions<C, P, R>,
+    options?: BlockRequireOptions<
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
   /**
    * The `handler` of `defineAction`, returning an `ActionResult`:
@@ -100,7 +113,14 @@ export interface BetterAstro<
    * ```
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: BlockActionOptions<S, C, P, R>,
+    options: BlockActionOptions<
+      S,
+      C,
+      P,
+      R,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
@@ -151,7 +171,13 @@ export function createAstro<
 
   const refusalOf = async (
     context: AstroContextLike,
-    requireOptions: BlockRequireOptions<C, P>,
+    requireOptions: BlockRequireOptions<
+      C,
+      P,
+      boolean,
+      unknown,
+      LocalsResource<M, F, E, C, P, B>
+    >,
   ) => {
     const scope = scopeOf(context);
 
@@ -160,6 +186,7 @@ export function createAstro<
       requireOptions,
       scope.tenant,
       options.authorizer,
+      scope,
     );
 
     return { scope, caller };
@@ -221,6 +248,7 @@ export function createAstro<
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
+          scope,
         );
 
         // SAFETY: the settled data is what fn returned, unwrapped.

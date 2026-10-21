@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
@@ -202,5 +203,76 @@ describe("a permission on one contract procedure", () => {
       code: "FORBIDDEN",
       data: { code: "PERMISSION_DENIED" },
     });
+  });
+});
+
+describe("a resource loader on a contract procedure", () => {
+  const loaded: unknown[] = [];
+
+  const bs = createOrpc(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks },
+    authorizer: defineAuthorizer({
+      name: "owner",
+      key: (ref: string) => ref,
+      evaluate: (request) =>
+        request.resource.properties?.["ownerId"] === request.subject.id
+          ? { outcome: "granted" }
+          : { outcome: "denied" },
+    }),
+  });
+
+  const os = implement({ customers: { get: contract.customers.get } })
+    .$context<OrpcRequestContext>()
+    .use(bs.middleware());
+
+  const router = os.router({
+    customers: {
+      get: os.customers.get
+        .use(
+          bs.middleware({
+            permission: "customers.read",
+            resource: (input, ctx) => {
+              loaded.push({ input, db: typeof ctx.db, tenant: ctx.tenant });
+
+              return {
+                type: "customer",
+                properties: {
+                  ownerId:
+                    typeof input === "object" &&
+                    input !== null &&
+                    "id" in input &&
+                    input.id === "mine"
+                      ? USER
+                      : "someone-else",
+                },
+              };
+            },
+          }),
+        )
+        .handler(({ input }) => ({ id: input.id, name: "Acme" })),
+    },
+  });
+
+  const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+    prefix: "/api",
+  });
+
+  const get = async (id: string) =>
+    handle(
+      new Request(`https://app.test/api/customers/${id}`, {
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+        },
+      }),
+    );
+
+  it("checks the permission against the resource loaded from the input", async () => {
+    expect((await get("mine")).status).toBe(200);
+    expect((await get("theirs")).status).toBe(403);
+    expect(loaded).toEqual([
+      { input: { id: "mine" }, db: "object", tenant: undefined },
+      { input: { id: "theirs" }, db: "object", tenant: undefined },
+    ]);
   });
 });

@@ -196,6 +196,35 @@ describe("next.action", () => {
   });
 });
 
+describe("resource", () => {
+  it("gets the validated input and the request's context", () => {
+    bs.action(
+      {
+        input: v.object({ id: v.string() }),
+        permission: "customers.update",
+        resource: async (input, ctx) => {
+          expectTypeOf(input).toEqualTypeOf<{ id: string }>();
+          expectTypeOf(ctx.tenant).toEqualTypeOf<string | undefined>();
+          expectTypeOf(ctx.session).toEqualTypeOf<AuthSession>();
+          expectTypeOf(ctx.db).toHaveProperty("customers");
+
+          return { type: "customer", id: input.id };
+        },
+      },
+      () => "done",
+    );
+    bs.require({
+      permission: "customers.read",
+      resource: (input, ctx) => {
+        expectTypeOf(input).toEqualTypeOf<undefined>();
+        expectTypeOf(ctx.db).toHaveProperty("customers");
+
+        return { type: "route" };
+      },
+    });
+  });
+});
+
 describe("authorize and requireTenant", () => {
   it("narrows ctx.tenant to a string only with requireTenant", () => {
     bs.action({ requireTenant: true }, (_input, ctx) => {

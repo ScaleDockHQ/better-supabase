@@ -5,6 +5,7 @@ import type {
   BetterSupabaseEntry,
 } from "./composite.ts";
 import type { SessionEntryConfig } from "./entries/session.ts";
+import type { ResourceLoaderContext } from "./kit.ts";
 import type { RefusalRedirects } from "./refusal.ts";
 import type { AllowedCaller } from "./respond.ts";
 import type { BetterServer, ServerOptions } from "./server-types.ts";
@@ -50,6 +51,16 @@ export type FrameworkLocals<
   /** The caller as plain data, safe to return from a loader to the browser. */
   readonly session: AuthSession<C, P>;
 };
+
+/** What a `resource` loader gets in a framework adapter: the locals, with the checked tenant. */
+export type LocalsResource<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+  B = unknown,
+> = FrameworkLocals<M, F, E, C, P, B> & ResourceLoaderContext<C, P>;
 
 /** The `withBetterSupabase` entry the framework factories run, admitting every caller. */
 export function frameworkEntry<
