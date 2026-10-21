@@ -208,9 +208,13 @@ or replaced after the session started (`updated_at` at or after
 `session.startedAt`), and in a versioned bucket only the current version. An
 older object is `forbidden` (code `AccessDenied`), so the claim can't hand
 the target an export, an import or another file the service role stored
-before the session. A repeated claim of an object the target already owns
-succeeds without stamping it again, one another user owns is `forbidden`
-(code `AccessDenied`), and a missing one is `not_found`. `uploadToSignedUrl`
+before the session. A claim of an object the target already owns succeeds
+without stamping it again, one another user owns is `forbidden` (code
+`AccessDenied`), and a missing one is `not_found`. A refused or failed claim
+removes nothing: the claim can't tell the browser's upload from another
+object without an owner on that path, so removing it would let a session
+delete files it can't write. The object stays without an owner until a
+[`sweep`](/docs/platform/storage#orphan-sweep) removes it. `uploadToSignedUrl`
 on the server claims what it stores and removes the object when the claim
 fails or is refused. Outside a support session `claimReserved` succeeds
 without a request, since Storage already set the owner from the caller's
@@ -228,8 +232,9 @@ index, so a duplicate key means the target may store the object there.
   to make.
 - An upsert reservation is gated by the update policy when the URL is
   signed. The claim can't check that policy again.
-- Another service-role process can store an object without an owner on
-  exactly that path during the session. The claim can't tell that object
+- Another service-role process can store or update an object without an
+  owner on exactly that path during the session, which moves its
+  `updated_at` past the session's start. The claim can't tell that object
   from the browser's upload.
 
 A signed upload URL is valid for about two hours. When the claim never

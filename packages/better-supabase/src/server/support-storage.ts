@@ -622,38 +622,54 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
     const objectVersioned = await isVersioned();
     const since = active.startedAt.toString();
 
-    const [claimed] = await ownerSql.queryRaw<Row>(
-      ownSignedUpload(objectVersioned),
-      [
-        bucket,
-        name,
-        ownerOf(active.targetUserId),
-        active.targetUserId,
-        JSON.stringify(stampOf(active)),
-        since,
-      ],
-    );
+    const own = async (): Promise<boolean> => {
+      const [claimed] = await ownerSql.queryRaw<Row>(
+        ownSignedUpload(objectVersioned),
+        [
+          bucket,
+          name,
+          ownerOf(active.targetUserId),
+          active.targetUserId,
+          JSON.stringify(stampOf(active)),
+          since,
+        ],
+      );
 
-    if (claimed) {
+      return claimed !== undefined;
+    };
+
+    const inspect = async (): Promise<Row | undefined> => {
+      const [found] = await ownerSql.queryRaw<Row>(
+        signedUploadOwner(objectVersioned),
+        [bucket, name, since],
+      );
+
+      return found;
+    };
+
+    if (await own()) {
       return { data: { path: name }, error: null };
     }
 
-    const [found] = await ownerSql.queryRaw<Row>(
-      signedUploadOwner(objectVersioned),
-      [bucket, name, since],
-    );
+    let found = await inspect();
+
+    if (found?.["owner_id"] === null && found["recent"] === true) {
+      if (await own()) {
+        return { data: { path: name }, error: null };
+      }
+
+      found = await inspect();
+    }
 
     if (!found) {
       return failed(NOT_FOUND);
     }
 
-    if (found["recent"] !== true) {
-      return failed(STALE);
+    if (found["owner_id"] === active.targetUserId) {
+      return { data: { path: name }, error: null };
     }
 
-    return found["owner_id"] === active.targetUserId
-      ? { data: { path: name }, error: null }
-      : failed(OWNED);
+    return found["recent"] === true ? failed(OWNED) : failed(STALE);
   };
 
   const claimSignedUpload = (

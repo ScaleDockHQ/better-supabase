@@ -10,6 +10,7 @@ import { createPostgres } from "../../src/postgres/pool.ts";
 import { supportStorage } from "../../src/server/support-storage.ts";
 import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
+import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
@@ -197,6 +198,26 @@ const SESSION = {
   targetUserId: USER,
   startedAt: Temporal.Now.instant(),
 };
+
+beforeAll(async () => {
+  if (!live) {
+    return;
+  }
+
+  const clock = new Pool({ connectionString: dbUrl, max: 1 });
+
+  try {
+    const {
+      rows: [now],
+    } = await clock.query<{ now: Date }>("select now() as now");
+
+    SESSION.startedAt = Temporal.Instant.fromEpochMilliseconds(
+      (now?.now ?? new Date()).getTime(),
+    );
+  } finally {
+    await clock.end();
+  }
+});
 
 const plain = defineBucket({
   id: "bs-it-support-plain",
@@ -686,6 +707,8 @@ create policy bs_it_revocable_insert on storage.objects for insert to authentica
   });
 });
 
+const OWNER = "00000000-0000-4000-8000-0000000000a1";
+
 describe.skipIf(!live)("attachments in a support session", () => {
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
@@ -694,43 +717,15 @@ describe.skipIf(!live)("attachments in a support session", () => {
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const created: string[] = [];
-  const target = crypto.randomUUID();
-  let organization = "";
-
-  const session = { ...SESSION, id: crypto.randomUUID(), targetUserId: target };
-
-  const asTarget = async <T>(
-    query: string,
-    values: unknown[],
-  ): Promise<T | undefined> => {
-    const client = await pool.connect();
-
-    try {
-      await client.query("begin");
-      await client.query("select set_config('request.jwt.claims', $1, true)", [
-        JSON.stringify({ sub: target, role: "authenticated" }),
-      ]);
-      await client.query("set local role authenticated");
-      const { rows } = await client.query<{ value: T }>(query, values);
-      await client.query("commit");
-
-      return rows[0]?.value;
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
-    }
-  };
 
   const supportClaims = (readOnly: boolean) => ({
-    sub: target,
+    sub: OWNER,
     role: "authenticated",
-    tenant_id: organization,
+    tenant_id: ACME,
     act: {
       kind: "support",
-      sub: session.adminId,
-      session_id: session.id,
+      sub: SESSION.adminId,
+      session_id: SESSION.id,
       read_only: readOnly,
     },
   });
@@ -744,27 +739,11 @@ describe.skipIf(!live)("attachments in a support session", () => {
         admin: service.storage,
         sql,
         adminSql: postgres.admin,
-        session,
+        session: { ...SESSION, targetUserId: OWNER },
         readOnly,
       }),
     });
   };
-
-  beforeAll(async () => {
-    await pool.query(
-      `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
-       values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
-      [target, `support-${target.slice(0, 8)}@example.test`],
-    );
-
-    const slug = `support-${target.slice(0, 8)}`;
-
-    organization =
-      (await asTarget<string>(
-        "select better_supabase.create_organization($1::jsonb) as value",
-        [JSON.stringify({ name: slug, slug })],
-      )) ?? "";
-  });
 
   const object = async (path: string) =>
     (
@@ -776,6 +755,10 @@ describe.skipIf(!live)("attachments in a support session", () => {
         [path],
       )
     ).rows[0];
+
+  beforeAll(async () => {
+    await pool.query(FIXTURE_HELPERS_SQL);
+  });
 
   afterAll(async () => {
     if (created.length > 0) {
@@ -789,14 +772,6 @@ describe.skipIf(!live)("attachments in a support session", () => {
         .remove(rows.map((row) => row.object_path));
     }
 
-    if (organization) {
-      await asTarget(
-        "select better_supabase.delete_organization($1) as value",
-        [organization],
-      );
-    }
-
-    await pool.query("delete from auth.users where id = $1", [target]);
     await postgres.end();
     await pool.end();
   });
@@ -806,7 +781,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
 
     const upload = await attachments
       .upload({
-        organizationId: organization,
+        organizationId: ACME,
         name: "plan.pdf",
         mimeType: "application/pdf",
         size: 3,
@@ -833,12 +808,12 @@ describe.skipIf(!live)("attachments in a support session", () => {
     const confirmed = await attachments.confirm(upload.attachment.id).orThrow();
 
     expect(confirmed.uploadedAt).toBeDefined();
-    expect(confirmed.uploadedBy).toBe(target);
+    expect(confirmed.uploadedBy).toBe(OWNER);
     expect(await object(upload.attachment.path)).toEqual({
-      owner_id: target,
+      owner_id: OWNER,
       user_metadata: {
-        supportSessionId: session.id,
-        supportAdminId: session.adminId,
+        supportSessionId: SESSION.id,
+        supportAdminId: SESSION.adminId,
       },
     });
     expect((await attachments.confirm(upload.attachment.id)).error).toBeNull();
@@ -847,11 +822,11 @@ describe.skipIf(!live)("attachments in a support session", () => {
   it("refuses the upload in a read-only session and leaves no record", async () => {
     const before = await pool.query(
       "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
-      [organization],
+      [ACME],
     );
 
     const upload = await attachmentsAs(true).upload({
-      organizationId: organization,
+      organizationId: ACME,
       name: "plan.pdf",
       mimeType: "application/pdf",
       size: 3,
@@ -862,7 +837,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
 
     const after = await pool.query(
       "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
-      [organization],
+      [ACME],
     );
 
     expect(after.rows).toEqual(before.rows);

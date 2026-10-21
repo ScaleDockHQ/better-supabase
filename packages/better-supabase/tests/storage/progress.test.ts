@@ -207,10 +207,7 @@ describe("upload progress", () => {
         )
         .upload(A, "x", { onProgress: () => undefined }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
-    expect(calls.at(-1)).toMatchObject({
-      method: "remove",
-      args: [["o1/a.txt"]],
-    });
+    expect(calls.some((call) => call.method === "remove")).toBe(false);
   });
 
   it("cancels the request on abort", async () => {

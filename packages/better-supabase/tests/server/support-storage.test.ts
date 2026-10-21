@@ -1209,15 +1209,68 @@ describe("supportStorage signed uploads", () => {
       },
     });
 
+    const theirs = writableOf(
+      [],
+      [DUPLICATE],
+      [["as recent", [{ owner_id: "someone-else", recent: false }]]],
+    );
+
+    expect((await claimOf(theirs.storage)("a")).error).toMatchObject({
+      code: "AccessDenied",
+      message: "The object was stored before the support session started",
+    });
+    expect(theirs.calls.some((call) => call.method === "remove")).toBe(false);
+
     const mine = writableOf(
       [],
       [DUPLICATE],
       [["as recent", [{ owner_id: SESSION.targetUserId, recent: false }]]],
     );
 
-    expect((await claimOf(mine.storage)("a")).error).toMatchObject({
+    expect(await claimOf(mine.storage)("a")).toEqual({
+      data: { path: "a" },
+      error: null,
+    });
+  });
+
+  it("claims again when the upload lands between the update and the check", async () => {
+    let attempts = 0;
+
+    const { storage } = writableOf(
+      [],
+      [DUPLICATE],
+      [
+        [
+          "returning name",
+          () => {
+            attempts += 1;
+
+            return attempts === 1 ? [] : [{ name: "a" }];
+          },
+        ],
+        ["as recent", [{ owner_id: null, recent: true }]],
+      ],
+    );
+
+    expect(await claimOf(storage)("a")).toEqual({
+      data: { path: "a" },
+      error: null,
+    });
+    expect(attempts).toBe(2);
+  });
+
+  it("removes nothing when a claim is refused", async () => {
+    const { storage, calls } = writableOf(
+      [],
+      [["insert into", { throws: pgError("42501", RLS) }]],
+      [["as recent", [{ owner_id: null, recent: true }]]],
+    );
+
+    expect((await claimOf(storage)("a")).error).toMatchObject({
+      status: 403,
       code: "AccessDenied",
     });
+    expect(calls.some((call) => call.method === "remove")).toBe(false);
   });
 
   it("only claims the current version once Storage versions objects", async () => {

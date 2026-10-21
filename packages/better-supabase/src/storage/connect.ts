@@ -257,7 +257,6 @@ export function connectBucket<P extends string, Id extends string>(
         const claimed = await claim(path);
 
         if (!claimed.ok) {
-          await run(() => api().remove([path]));
           evict([path]);
 
           return claimed;
