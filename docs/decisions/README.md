@@ -64,3 +64,4 @@ add one, and link it from the code or config it explains.
 | [0056](0056-audit-tenant-resolution-and-acting-member.md) | Audit resolves tenants through a path or function and names the acting member                                                  |
 | [0057](0057-create-runs-in-the-cloud-app.md)              | Create runs in the cloud app at app.bettersupabase.com, public without login; marketing redirects /create there                |
 | [0058](0058-design-files-for-large-designs.md)            | A design too large for a URL reaches init and apply as a JSON design file; checkDesign shares one validation path              |
+| [0059](0059-diff-inside-the-running-stack.md)             | db diff falls back to a diff inside the running stack when the shadow database cannot start; stack ls and prune free segments  |

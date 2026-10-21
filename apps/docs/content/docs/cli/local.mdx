@@ -63,6 +63,12 @@ Docker daemon and rejects `supabase status -o json`. `env` then reads
 `SUPABASE_JWT_SECRET` is left out, and HS256 test tokens use the CLI's default
 secret.
 
+The native stack starts one stack per checkout and branch, and each running
+Postgres holds a System V shared memory segment. When segments run out,
+[`stack prune`](/docs/cli/stack) removes the stacks of deleted worktrees and
+branches, and [`db diff`](/docs/cli/db#diff) diffs the declarative schema
+without a shadow database.
+
 Side effects: Writes files.
 
 ## run
@@ -164,6 +170,59 @@ Tests import the same rows: `seed.rows.customers.first`, and
 `await seed.insert(sql)` in a `beforeAll`. Node loads `seed.ts` directly,
 so use `.ts` extensions in its relative imports.
 
+### Seeds per tenant
+
+A tenant seed builds rows from a tenant, so every organization can start
+with the same demo data. Put it in `seed.perTenant`
+(`supabase/seed.tenant.ts` by default):
+
+```ts title="supabase/seed.tenant.ts"
+import { defineTenantSeed } from "better-supabase/testing";
+import { betterSupabase } from "../src/lib/supabase/index.ts";
+
+export const seed = defineTenantSeed(betterSupabase, (tenant) => ({
+  customers: {
+    demo: { organizationId: tenant.id, name: "Demo customer" },
+  },
+}));
+```
+
+```bash
+pnpm better-supabase seed --tenant acme  # one organization, by slug or id
+pnpm better-supabase seed --tenant '*'   # every organization
+```
+
+`--tenant` looks organizations up in the
+[organizations block](/docs/blocks/organizations) and inserts the rows for
+all of them in one transaction, so a failure leaves none behind. `--entry`
+overrides `seed.perTenant`. The database and consent rules are the ones
+`--apply` follows: the local stack needs no consent, any other database
+does, and `--dry-run` connects to nothing. `tenant.slug` and `tenant.name`
+are set when the organization has them. Every insert is
+`on conflict do nothing`, so give rows a key when the seed may run twice
+for the same tenant; a row whose id comes from a default is inserted again.
+
+To seed each organization as it's created in development, register the
+seed once on the server with a service-role client:
+
+```ts title="src/lib/supabase/dev-seed.ts"
+import { createPostgres } from "better-supabase/postgres";
+import { seedTenantOnCreate } from "better-supabase/testing";
+import { seed } from "../../../supabase/seed.tenant.ts";
+import { betterSupabase } from "./index.ts";
+
+const postgres = createPostgres({
+  connectionString: process.env.SUPABASE_DB_URL,
+});
+
+seedTenantOnCreate(betterSupabase, seed, { sql: postgres.admin });
+```
+
+It listens for `organization.created` and runs only when `NODE_ENV` is
+`development` (pass `enabled` to decide yourself). The seed runs after the
+create call has returned, so it can't change its result; a failed seed goes
+to `onError`, or to `console.error` by default.
+
 ### One stack per purpose
 
 `seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
@@ -185,11 +244,15 @@ machine (`sysctl kern.sysv.shmmni`). Once they are used up, the next
 `supabase start` fails because its Postgres can't get a segment. `ipcs -m`
 lists the segments in use.
 
-Stop the stacks you aren't using. `supabase stack list` shows every stack on
-the machine, and `supabase stop --stack-id <id>` stops one without deleting
-its data. Stop the stacks of branches you have merged first.
+Stop the stacks you aren't using. [`stack ls`](/docs/cli/stack) shows every
+stack on the machine with its branch and whether its worktree still exists,
+and `stack prune` destroys the stacks of deleted worktrees and merged
+branches (`--stop-idle` also stops the idle ones). `supabase stop --stack-id
 
-Side effects: Writes files, writes to the database with `--apply`.
+<id>` stops one stack without deleting its data. `doctor` reports the segment
+use as BS700 before it runs out.
+
+Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`.
 
 ## OpenAPI files
 

@@ -304,6 +304,7 @@ export function resolveConfig(
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
       output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,
+      perTenant: config.seed?.perTenant ?? CONFIG_DEFAULTS.seed.perTenant,
     },
     openapi: {
       entry: legacyOpenApi?.entry ?? CONFIG_DEFAULTS.openapi.entry,

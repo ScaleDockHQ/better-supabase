@@ -33,6 +33,7 @@ describe("__complete", () => {
       "skills",
       "spec",
       "scaffold",
+      "stack",
       "seed",
       "sql",
     ]);

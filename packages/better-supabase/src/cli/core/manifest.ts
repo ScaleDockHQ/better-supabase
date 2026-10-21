@@ -30,6 +30,7 @@ export type CommandEffect = (
   | { readonly kind: "database"; readonly access: "read" | "write" }
   | { readonly kind: "network"; readonly target: NetworkTarget }
   | { readonly kind: "process" }
+  | { readonly kind: "stacks"; readonly access: "read" | "write" }
 ) & {
   /** The flag that turns the effect on, when the command doesn't always have it. */
   readonly when?: string;
@@ -343,12 +344,46 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES],
   },
   {
+    name: "stack",
+    description:
+      "Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone",
+    group: "local",
+    docs: "/docs/cli/stack",
+    effects: [{ kind: "stacks", access: "write" }],
+    subcommands: [
+      {
+        name: "ls",
+        description:
+          "Lists every managed stack with its branch, worktree, running state and shared memory segments",
+        docs: "/docs/cli/stack#ls",
+        effects: [{ kind: "stacks", access: "read" }],
+      },
+      {
+        name: "prune",
+        description:
+          "Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks",
+        docs: "/docs/cli/stack#prune",
+        examples: [
+          {
+            command: "better-supabase stack prune --stop-idle --dry-run",
+            description: "Print what it would destroy and stop",
+          },
+        ],
+        effects: [{ kind: "stacks", access: "write" }],
+      },
+    ],
+  },
+  {
     name: "seed",
     description:
       "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
     group: "local",
     docs: "/docs/cli/local#seed",
-    effects: [FILES, { kind: "database", access: "write", when: "--apply" }],
+    effects: [
+      FILES,
+      { kind: "database", access: "write", when: "--apply" },
+      { kind: "database", access: "write", when: "--tenant" },
+    ],
   },
   {
     name: "db",
@@ -371,6 +406,27 @@ export const COMMANDS: readonly CommandSpec[] = [
           },
         ],
         effects: [{ kind: "database", access: "write" }],
+      },
+      {
+        name: "diff",
+        description:
+          "Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start",
+        docs: "/docs/cli/db#diff",
+        examples: [
+          {
+            command: "better-supabase db diff -f add_invoices",
+            description:
+              "Save the diff as a migration, falling back to the running stack",
+          },
+          {
+            command: "better-supabase db diff --in-stack",
+            description: "Print the diff without starting a shadow database",
+          },
+        ],
+        effects: [
+          { kind: "database", access: "write" },
+          { kind: "files", when: "--file" },
+        ],
       },
     ],
   },

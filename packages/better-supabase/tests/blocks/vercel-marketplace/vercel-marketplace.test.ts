@@ -161,15 +161,21 @@ describe("createVercelMarketplace", () => {
     expect(calls).toEqual([]);
   });
 
+  const meterRow = (extra: Record<string, unknown> = {}) => ({
+    id: "r1",
+    installation_id: "i1",
+    resource_external_id: "",
+    meter_id: "requests",
+    period_start: "2026-10-01T00:00:00Z",
+    period_end: "2026-11-01T00:00:00Z",
+    quantity: 12,
+    reported_quantity: 0,
+    reported_at: null,
+    ...extra,
+  });
+
   it("stores meter quantities and sends the unreported ones, then marks them", async () => {
-    const report = {
-      id: "r1",
-      installation_id: "i1",
-      resource_external_id: "",
-      meter_id: "requests",
-      quantity: 12,
-      reported_at: null,
-    };
+    const report = meterRow();
 
     const { calls, transport } = fakeTransport({
       record_marketplace_meter_report: report,
@@ -200,14 +206,165 @@ describe("createVercelMarketplace", () => {
       meters: [{ meterId: "requests", quantity: 12 }],
     });
 
-    expect(result.data?.[0]?.reported).toBe(true);
+    expect(result.data?.[0]).toMatchObject({
+      reported: true,
+      reportedQuantity: 12,
+    });
     expect(requests[0]?.url).toBe(
       "https://api.vercel.com/v1/installations/icfg_1/billing",
     );
     expect(calls.map(([name]) => name)).toEqual([
       "record_marketplace_meter_report",
       "unreported_marketplace_meter_reports",
-      "mark_marketplace_meter_reported",
+      "mark_marketplace_meter_sent",
+    ]);
+    expect(calls[2]?.[1]).toEqual({ reports: [{ id: "r1", quantity: 12 }] });
+  });
+
+  it("sends one request per period with the total and the part not reported before", async () => {
+    const october = meterRow({ quantity: 30, reported_quantity: 12 });
+
+    const september = meterRow({
+      id: "r0",
+      period_start: "2026-09-01T00:00:00Z",
+      period_end: "2026-10-01T00:00:00Z",
+      quantity: 50,
+      reported_quantity: 40,
+    });
+
+    const { calls, transport } = fakeTransport({
+      record_marketplace_meter_report: october,
+      unreported_marketplace_meter_reports: [september, october],
+    });
+
+    const bodies: Record<string, unknown>[] = [];
+
+    const marketplace = createVercelMarketplace({
+      transport,
+      clientId: "oac_1",
+      clientSecret: SECRET,
+      accessToken: () => Promise.resolve("tok"),
+      fetch: (_input, init) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      },
+    });
+
+    await marketplace.reportUsage({
+      configurationId: "icfg_1",
+      periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+      periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      meters: [{ meterId: "requests", quantity: 30 }],
+    });
+
+    expect(bodies).toMatchObject([
+      {
+        period: { start: "2026-09-01T00:00:00Z", end: "2026-10-01T00:00:00Z" },
+        usage: [{ name: "requests", dayValue: 10, periodValue: 50 }],
+      },
+      {
+        period: { start: "2026-10-01T00:00:00Z", end: "2026-11-01T00:00:00Z" },
+        usage: [{ name: "requests", dayValue: 18, periodValue: 30 }],
+      },
+    ]);
+    expect(bodies[0]?.["usage"]).toEqual([
+      expect.not.objectContaining({ planValue: expect.anything() }),
+    ]);
+    expect(
+      calls.filter(([name]) => name === "mark_marketplace_meter_sent").length,
+    ).toBe(2);
+  });
+
+  it("uses the access token sealed at installation when no accessToken is passed", async () => {
+    const report = meterRow();
+
+    const { calls, transport } = fakeTransport({
+      record_marketplace_meter_report: report,
+      unreported_marketplace_meter_reports: [report],
+      marketplace_access_token: "vat_sealed",
+    });
+
+    const headers: (string | null)[] = [];
+
+    const marketplace = createVercelMarketplace({
+      transport,
+      clientId: "oac_1",
+      clientSecret: SECRET,
+      fetch: (_input, init) => {
+        headers.push(new Headers(init?.headers).get("authorization"));
+
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      },
+    });
+
+    const result = await marketplace.reportUsage({
+      configurationId: "icfg_1",
+      periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+      periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      meters: [{ meterId: "requests", quantity: 12 }],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(headers).toEqual(["Bearer vat_sealed"]);
+    expect(calls.map(([name]) => name)).toContain("marketplace_access_token");
+  });
+
+  it("maps the tenant and installation helpers to their functions", async () => {
+    const { calls, transport } = fakeTransport({
+      link_marketplace_tenant: {
+        id: "i1",
+        configuration_id: "icfg_1",
+        tenant: "org_1",
+        tenant_created: true,
+      },
+      marketplace_resource: {
+        id: "r1",
+        installation_id: "i1",
+        external_id: "res",
+        name: "db",
+        tenant: "org_1",
+        tenant_created: true,
+        secret_refs: ["key_1", 2],
+      },
+      marketplace_resources: [],
+    });
+
+    const marketplace = createVercelMarketplace({
+      transport,
+      clientId: "oac_1",
+      clientSecret: SECRET,
+    });
+
+    expect(
+      (
+        await marketplace.linkTenant({
+          configurationId: "icfg_1",
+          tenant: "org_1",
+          created: true,
+        })
+      ).data,
+    ).toMatchObject({ tenant: "org_1", tenantCreated: true });
+    expect((await marketplace.resource("icfg_1", "res")).data).toMatchObject({
+      tenant: "org_1",
+      tenantCreated: true,
+      secretRefs: ["key_1"],
+    });
+    expect((await marketplace.resources("icfg_1")).data).toEqual([]);
+    expect((await marketplace.deleteResource("icfg_1", "res")).data).toBe(
+      undefined,
+    );
+    expect((await marketplace.removeInstallation("icfg_1")).data).toBe(
+      undefined,
+    );
+    expect((await marketplace.sealAccessToken("icfg_1", "vat")).ok).toBe(true);
+    expect(calls.map(([name]) => name)).toEqual([
+      "link_marketplace_tenant",
+      "marketplace_resource",
+      "marketplace_resources",
+      "delete_marketplace_resource",
+      "remove_marketplace_installation",
+      "seal_marketplace_access_token",
     ]);
   });
 
@@ -250,7 +407,7 @@ describe("createVercelMarketplace", () => {
 
     expect(result.ok).toBe(false);
     expect(calls.map(([name]) => name)).not.toContain(
-      "mark_marketplace_meter_reported",
+      "mark_marketplace_meter_sent",
     );
   });
 
@@ -492,7 +649,7 @@ describe("createVercelMarketplace", () => {
     for (const failing of [
       "record_marketplace_meter_report",
       "unreported_marketplace_meter_reports",
-      "mark_marketplace_meter_reported",
+      "mark_marketplace_meter_sent",
     ]) {
       const transport: BlockTransport = {
         call: (_schema, fn) =>
@@ -522,6 +679,107 @@ describe("createVercelMarketplace", () => {
 
       expect(result.ok).toBe(false);
     }
+  });
+
+  it("reports why it has no access token: the lookup failed, none is sealed, or the callback threw", async () => {
+    const input = {
+      configurationId: "icfg_1",
+      invoiceDate: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+      periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      items: [],
+    };
+
+    const down = createVercelMarketplace({
+      transport: { call: () => Promise.reject(new Error("db down")) },
+      clientId: "oac_1",
+      clientSecret: SECRET,
+    });
+
+    const throwing = make(
+      {},
+      {
+        accessToken: () => Promise.reject(new Error("vault down")),
+      },
+    );
+
+    expect((await down.submitInvoice(input)).error?.message).toContain(
+      "db down",
+    );
+    expect((await make().marketplace.submitInvoice(input)).error?.hint).toBe(
+      "MARKETPLACE_NO_TOKEN",
+    );
+    expect(
+      (await throwing.marketplace.submitInvoice(input)).error?.message,
+    ).toBe("vault down");
+  });
+
+  describe("usageRoute", () => {
+    const period = {
+      periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+      periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      meters: [{ meterId: "requests", quantity: 12 }],
+    };
+
+    const cron = (secret = "cron") =>
+      new Request("https://app.test/api/cron/usage", {
+        headers: { authorization: `Bearer ${secret}` },
+      });
+
+    it("reports every installation and names the ones that failed", async () => {
+      const errors: string[] = [];
+
+      const { marketplace } = make(
+        {
+          record_marketplace_meter_report: meterRow(),
+          unreported_marketplace_meter_reports: [meterRow()],
+        },
+        {
+          accessToken: (id) =>
+            id === "icfg_bad"
+              ? Promise.reject(new Error("no token"))
+              : Promise.resolve("tok"),
+          fetch: () => Promise.resolve(new Response("{}", { status: 200 })),
+        },
+      );
+
+      const route = marketplace.usageRoute({
+        secret: "cron",
+        usage: () =>
+          Promise.resolve([
+            { configurationId: "icfg_1", ...period },
+            { configurationId: "icfg_bad", ...period },
+          ]),
+        onError: (_error, id) => errors.push(id),
+      });
+
+      const response = await route(cron());
+
+      expect(response.status).toBe(502);
+      expect(await response.json()).toEqual({
+        reported: ["icfg_1"],
+        failed: ["icfg_bad"],
+      });
+      expect(errors).toEqual(["icfg_bad"]);
+    });
+
+    it("answers 200 when every report went out, 401 without the secret and 500 when usage throws", async () => {
+      const { marketplace } = make();
+
+      const empty = marketplace.usageRoute({
+        secret: "cron",
+        usage: () => Promise.resolve([]),
+      });
+
+      const broken = marketplace.usageRoute({
+        secret: "cron",
+        usage: () => Promise.reject(new Error("usage down")),
+      });
+
+      expect((await empty(cron())).status).toBe(200);
+      expect((await empty(cron("wrong"))).status).toBe(401);
+      expect((await broken(cron())).status).toBe(500);
+    });
   });
 
   describe("exchangeSso", () => {
@@ -662,6 +920,48 @@ describe("createVercelMarketplace", () => {
 
         expect((await marketplace.exchangeSso({ code: "c" })).ok).toBe(false);
       }
+    });
+
+    it("stores an installation without account or user claims", async () => {
+      const { token, jwks } = await idToken(
+        claims({ account_id: undefined, user_id: undefined }),
+      );
+
+      const { calls, marketplace } = make(
+        {
+          upsert_marketplace_installation: {
+            id: "i1",
+            configuration_id: "icfg_1",
+          },
+        },
+        { jwks, fetch: respond(token) },
+      );
+
+      const result = await marketplace.exchangeSso({ code: "c" });
+
+      expect(result.data).toMatchObject({
+        teamId: undefined,
+        userId: undefined,
+      });
+      expect(calls[0]?.[0]).toBe("upsert_marketplace_installation");
+    });
+
+    it("retries with refreshed keys for a kid it does not know, then refuses", async () => {
+      const { token, jwks } = await idToken(claims());
+
+      const renamed = {
+        keys: jwks.keys.map((key) => ({ ...key, kid: "k2" })),
+      };
+
+      const { marketplace } = make(
+        {},
+        { jwks: renamed, fetch: respond(token) },
+      );
+
+      const result = await marketplace.exchangeSso({ code: "c" });
+
+      expect(result.error?.kind).toBe("unauthorized");
+      expect(result.error?.hint).toBe("MARKETPLACE_TOKEN");
     });
 
     it("refuses a refused code, a response without a token and a key it does not know", async () => {

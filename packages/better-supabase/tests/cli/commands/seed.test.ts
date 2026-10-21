@@ -154,4 +154,195 @@ describe("seed", () => {
       "Unchanged supabase/seeds/000_better_supabase.sql (2 tables)",
     );
   });
+
+  describe("--tenant", () => {
+    const TENANT_SEED = `export const seed = {
+  [Symbol.for("better-supabase.tenant-seed")]: true,
+  statements: (tenant) => [\`insert into projects values ('\${tenant.id}', '\${tenant.slug ?? ""}');\`],
+};
+`;
+
+    const withOrganizations = () =>
+      resolveConfig({ blocks: { organizations: {} } }, root);
+
+    const run = (
+      argv: string[],
+      open: ReturnType<typeof fakeConnect>,
+      config = withOrganizations(),
+      url = "postgresql://postgres@127.0.0.1:54322/postgres",
+      requests: unknown[] = [],
+    ) =>
+      runSeed(
+        config,
+        parseCommandArgs(seedCommand, argv),
+        { DATABASE_URL: url },
+        open.connect,
+        undefined,
+        (request) => {
+          requests.push(request);
+        },
+      );
+
+    const tenants = [
+      { id: "o1", slug: "acme", name: "Acme" },
+      { id: "o2", slug: null, name: null },
+    ];
+
+    it("inserts the tenant seed for every organization in one transaction", async () => {
+      await write("supabase/seed.tenant.mjs", TENANT_SEED);
+
+      const db = fakeSql([
+        [/from "better_supabase"\."organizations"/, tenants],
+      ]);
+
+      const open = fakeConnect(db.pg);
+
+      const result = await run(
+        ["--tenant", "*", "--entry", "supabase/seed.tenant.mjs"],
+        open,
+      );
+
+      expect(result).toEqual({
+        code: 0,
+        output:
+          "Inserted supabase/seed.tenant.mjs for acme, o2 (existing rows were kept).",
+        data: { tenant: "*", applied: true, tenants: ["acme", "o2"] },
+      });
+      expect(db.calls[0]?.values).toEqual([]);
+      expect(db.calls[0]?.text).not.toContain("$1");
+      expect(db.texts().slice(1)).toEqual([
+        "begin",
+        "insert into projects values ('o1', 'acme');",
+        "insert into projects values ('o2', '');",
+        "commit",
+      ]);
+      expect(open.closed()).toBe(1);
+    });
+
+    it("looks one tenant up by slug or id", async () => {
+      await write("supabase/seed.tenant.mjs", TENANT_SEED);
+      const db = fakeSql([["organizations", [tenants[0]!]]]);
+
+      await run(
+        ["--tenant", "acme", "--entry", "supabase/seed.tenant.mjs"],
+        fakeConnect(db.pg),
+      );
+
+      expect(db.calls[0]?.values).toEqual(["acme"]);
+      expect(db.calls[0]?.text).toContain(
+        `lower(o."slug"::text) = lower($1) or o."id"::text = $1`,
+      );
+      expect(db.calls[0]?.text).toContain(`o."deleted_at" is null`);
+    });
+
+    it("reads seed.perTenant by default", async () => {
+      await write("supabase/seed.tenant.ts", "export const seed = 1;\n");
+      const result = await run(["--tenant", "acme"], fakeConnect(fakeSql().pg));
+
+      expect(result).toEqual({
+        code: 1,
+        errorCode: "invalid_input",
+        error:
+          "supabase/seed.tenant.ts must export defineTenantSeed(...) as `seed` or default.",
+      });
+    });
+
+    it("needs the organizations block", async () => {
+      await write("supabase/seed.tenant.mjs", TENANT_SEED);
+
+      const result = await run(
+        ["--tenant", "acme", "--entry", "supabase/seed.tenant.mjs"],
+        fakeConnect(fakeSql().pg),
+        resolveConfig({}, root),
+      );
+
+      expect(result).toMatchObject({ code: 1, errorCode: "invalid_input" });
+    });
+
+    it("reports an unknown tenant without opening a transaction", async () => {
+      await write("supabase/seed.tenant.mjs", TENANT_SEED);
+      const db = fakeSql();
+      const open = fakeConnect(db.pg);
+
+      expect(
+        await run(
+          ["--tenant", "nope", "--entry", "supabase/seed.tenant.mjs"],
+          open,
+        ),
+      ).toEqual({
+        code: 1,
+        errorCode: "not_found",
+        error: 'No organization has the slug or id "nope".',
+      });
+      expect(
+        await run(
+          ["--tenant", "*", "--entry", "supabase/seed.tenant.mjs"],
+          open,
+        ),
+      ).toMatchObject({ error: "There are no organizations to seed." });
+      expect(db.texts()).not.toContain("begin");
+      expect(open.closed()).toBe(2);
+    });
+
+    it("rolls back when a statement fails", async () => {
+      await write("supabase/seed.tenant.mjs", TENANT_SEED);
+
+      const db = fakeSql([
+        ["organizations", tenants],
+        ["'o2'", { throws: pgError("23505", "duplicate key") }],
+      ]);
+
+      const open = fakeConnect(db.pg);
+
+      await expect(
+        run(["--tenant", "*", "--entry", "supabase/seed.tenant.mjs"], open),
+      ).rejects.toThrow("duplicate key");
+      expect(db.texts().at(-1)).toBe("rollback");
+      expect(open.closed()).toBe(1);
+    });
+
+    it("asks for consent off the local stack and skips the database on a dry run", async () => {
+      await write("supabase/seed.tenant.mjs", TENANT_SEED);
+      const requests: unknown[] = [];
+      const db = fakeSql([["organizations", tenants]]);
+      const open = fakeConnect(db.pg);
+      const remote = "postgresql://u:pw@db.abc.supabase.co:5432/postgres";
+      const argv = ["--tenant", "acme", "--entry", "supabase/seed.tenant.mjs"];
+
+      expect(
+        await run(
+          [...argv, "--dry-run"],
+          open,
+          withOrganizations(),
+          remote,
+          requests,
+        ),
+      ).toEqual({
+        code: 0,
+        output: "Would insert supabase/seed.tenant.mjs for acme.",
+        data: { tenant: "acme", applied: false, tenants: [] },
+      });
+      expect(open.urls).toEqual([]);
+
+      expect(
+        await run(
+          ["--tenant", "*", "--check", "--entry", "supabase/seed.tenant.mjs"],
+          open,
+          withOrganizations(),
+          remote,
+          requests,
+        ),
+      ).toMatchObject({
+        output: "Would insert supabase/seed.tenant.mjs for every organization.",
+      });
+
+      await run(argv, open, withOrganizations(), remote, requests);
+      expect(requests).toEqual([
+        {
+          effect: "database-write",
+          detail: "seed --tenant inserts rows into db.abc.supabase.co:5432",
+        },
+      ]);
+    });
+  });
 });

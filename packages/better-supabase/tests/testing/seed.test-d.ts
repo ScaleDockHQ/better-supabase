@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import { defineSeed } from "../../src/testing/seed.ts";
+import { defineSeed, defineTenantSeed } from "../../src/testing/seed.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -43,5 +43,29 @@ describe("seed types", () => {
       // @ts-expect-error unknown table
       nope: {},
     });
+  });
+
+  it("checks tenant seed rows against Insert types", () => {
+    defineTenantSeed(betterSupabase, (tenant) => ({
+      customers: {
+        demo: { organizationId: tenant.id, name: "Demo", status: "lead" },
+      },
+    }));
+    defineTenantSeed(betterSupabase, (tenant) => ({
+      customers: {
+        demo: {
+          organizationId: tenant.id,
+          name: "Demo",
+          // @ts-expect-error status is a union
+          status: "nope",
+        },
+      },
+    }));
+    defineTenantSeed(betterSupabase, (tenant) => ({
+      customers: {
+        // @ts-expect-error unknown column
+        demo: { organizationId: tenant.id, name: "Demo", nope: 1 },
+      },
+    }));
   });
 });

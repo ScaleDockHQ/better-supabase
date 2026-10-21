@@ -73,6 +73,8 @@ import { settings } from "@/features/settings/settings-definition";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { metrics } from "@/metrics";
 
+import { betterSupabase } from "./supabase";
+
 /** `sql.api` in better-supabase.config.ts, as `gen` wrote it. */
 const API_SCHEMA = blockConfig.organizations.api;
 
@@ -157,7 +159,7 @@ const blockSet = defineBlocks(blockConfig, {
  */
 export function blocks(supabase: RpcClient) {
   const transport = rpcTransport(supabase);
-  const built = blockSet.create({ transport });
+  const built = blockSet.create({ transport, events: betterSupabase.events });
 
   return {
     ...built,

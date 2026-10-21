@@ -44,6 +44,8 @@ const NAMES: ModuleNames = {
         teamId: "team_id",
         userId: "user_id",
         tenant: "tenant",
+        tenantCreated: "tenant_created",
+        accessTokenSecret: "access_token_secret_id",
         status: "status",
         metadata: "metadata",
         removedAt: "removed_at",
@@ -61,6 +63,9 @@ const NAMES: ModuleNames = {
         plan: "plan_id",
         status: "status",
         metadata: "metadata",
+        tenant: "tenant",
+        tenantCreated: "tenant_created",
+        secretRefs: "secret_refs",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -103,6 +108,7 @@ const NAMES: ModuleNames = {
         periodStart: "period_start",
         periodEnd: "period_end",
         quantity: "quantity",
+        reportedQuantity: "reported_quantity",
         reportedAt: "reported_at",
         createdAt: "created_at",
       },
@@ -171,6 +177,11 @@ create table if not exists ${i} (
   ${ic("createdAt")} timestamptz not null default now()
 );
 ${updatedAt(i, ic("updatedAt"))}
+-- tenant_created: the installation created its tenant, so removing the
+-- installation may delete it. access_token_secret_id: the Vault secret with
+-- the access token Vercel handed out at installation.
+alter table ${i} add column if not exists ${ic("tenantCreated")} boolean not null default false;
+alter table ${i} add column if not exists ${ic("accessTokenSecret")} uuid;
 create index if not exists ${ctx.naming.rename("marketplace_installations_tenant_idx")} on ${i} (${ic("tenant")}) where ${ic("tenant")} is not null;
 ${lockTable(i)}
 
@@ -196,6 +207,12 @@ create table if not exists ${r} (
   unique (${rc("installation")}, ${rc("externalId")})
 );
 ${updatedAt(r, rc("updatedAt"))}
+-- tenant: the app's tenant the provision hook created or chose for the
+-- resource. secret_refs: the app's handles for the secrets it handed out
+-- (never the values), so a rotation can revoke the previous ones.
+alter table ${r} add column if not exists ${rc("tenant")} text;
+alter table ${r} add column if not exists ${rc("tenantCreated")} boolean not null default false;
+alter table ${r} add column if not exists ${rc("secretRefs")} jsonb not null default '[]'::jsonb;
 create index if not exists ${ctx.naming.rename("marketplace_resources_plan_idx")} on ${r} (${rc("plan")}) where ${rc("plan")} is not null;
 ${lockTable(r)}
 
@@ -228,6 +245,9 @@ create table if not exists ${m} (
   ${mc("createdAt")} timestamptz not null default now(),
   unique (${mc("installation")}, ${mc("resourceExternalId")}, ${mc("meterId")}, ${mc("periodStart")}, ${mc("periodEnd")})
 );
+-- reported_quantity: the total Vercel accepted for the period, so the next
+-- report sends the rest as dayValue.
+alter table ${m} add column if not exists ${mc("reportedQuantity")} numeric not null default 0;
 ${lockTable(m)}
 
 -- Records an installation (or reactivates a removed one) for a configuration id.
@@ -285,6 +305,11 @@ begin${guard}
   returning * into v_row;
   if v_row.${ic("id")} is null then
     return null;
+  end if;
+  if v_row.${ic("accessTokenSecret")} is not null then
+    delete from vault.secrets vs where vs.id = v_row.${ic("accessTokenSecret")};
+    update ${i} x set ${ic("accessTokenSecret")} = null where x.${ic("id")} = v_row.${ic("id")}
+    returning * into v_row;
   end if;
   update ${r} y set ${rc("status")} = 'deleted' where y.${rc("installation")} = v_row.${ic("id")} and y.${rc("status")} <> 'deleted';
   ${installationEvent("marketplace_installation.removed", "v_row")}
@@ -415,7 +440,7 @@ begin${guard}
 end;
 $$;
 
--- Marks reports as sent once Vercel accepted them.
+-- Marks reports as sent once Vercel accepted them, at their current quantity.
 create or replace function ${fn("mark_marketplace_meter_reported")}(ids uuid[])
 returns integer
 language plpgsql
@@ -425,7 +450,29 @@ as $$
 declare
   v_count integer;
 begin${guard}
-  update ${m} x set ${mc("reportedAt")} = now() where x.${mc("id")} = any (mark_marketplace_meter_reported.ids) and x.${mc("reportedAt")} is null;
+  update ${m} x set ${mc("reportedAt")} = now(), ${mc("reportedQuantity")} = x.${mc("quantity")} where x.${mc("id")} = any (mark_marketplace_meter_reported.ids) and x.${mc("reportedAt")} is null;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Records what Vercel accepted: reports is [{ id, quantity }], the totals
+-- sent. A report whose quantity grew since stays unreported, with the rest
+-- left for the next call.
+create or replace function ${fn("mark_marketplace_meter_sent")}(reports jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin${guard}
+  update ${m} x set
+    ${mc("reportedQuantity")} = (y.value ->> 'quantity')::numeric,
+    ${mc("reportedAt")} = case when x.${mc("quantity")} = (y.value ->> 'quantity')::numeric then now() end
+  from jsonb_array_elements(coalesce(mark_marketplace_meter_sent.reports, '[]'::jsonb)) y
+  where x.${mc("id")} = (y.value ->> 'id')::uuid;
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -448,6 +495,150 @@ begin${guard}
 end;
 $$;
 
+-- Seals the access token Vercel handed out for an installation in Vault.
+create or replace function ${fn("seal_marketplace_access_token")}(configuration_id text, access_token text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${i};
+begin${guard}
+  select * into v_row from ${i} x where x.${ic("configurationId")} = seal_marketplace_access_token.configuration_id;
+  if v_row.${ic("id")} is null then
+    ${missing()}
+  end if;
+  if v_row.${ic("accessTokenSecret")} is null then
+    update ${i} x set ${ic("accessTokenSecret")} = vault.create_secret(
+      seal_marketplace_access_token.access_token,
+      'bs:marketplace:' || v_row.${ic("configurationId")} || ':' || gen_random_uuid()::text,
+      'better-supabase Vercel Marketplace access token'
+    ) where x.${ic("id")} = v_row.${ic("id")};
+  else
+    perform vault.update_secret(v_row.${ic("accessTokenSecret")}, seal_marketplace_access_token.access_token);
+  end if;
+end;
+$$;
+
+-- The sealed access token of an installation, or null.
+create or replace function ${fn("marketplace_access_token")}(configuration_id text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin${guard}
+  return (
+    select ds.decrypted_secret from ${i} x
+    join vault.decrypted_secrets ds on ds.id = x.${ic("accessTokenSecret")}
+    where x.${ic("configurationId")} = marketplace_access_token.configuration_id
+  );
+end;
+$$;
+
+-- Links the app's tenant to an installation; created says the installation
+-- made it, so removing the installation may delete it.
+create or replace function ${fn("link_marketplace_tenant")}(configuration_id text, tenant text, created boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${i};
+begin${guard}
+  update ${i} x set ${ic("tenant")} = link_marketplace_tenant.tenant, ${ic("tenantCreated")} = coalesce(link_marketplace_tenant.created, false)
+  where x.${ic("configurationId")} = link_marketplace_tenant.configuration_id
+  returning * into v_row;
+  if v_row.${ic("id")} is null then
+    ${missing()}
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Stores the tenant and secret handles the provision hook returned; null
+-- keeps the stored value.
+create or replace function ${fn("set_marketplace_resource_state")}(configuration_id text, external_id text, tenant text default null, tenant_created boolean default null, secret_refs text[] default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${r};
+begin${guard}
+  update ${r} y set
+    ${rc("tenant")} = coalesce(set_marketplace_resource_state.tenant, y.${rc("tenant")}),
+    ${rc("tenantCreated")} = coalesce(set_marketplace_resource_state.tenant_created, y.${rc("tenantCreated")}),
+    ${rc("secretRefs")} = coalesce(to_jsonb(set_marketplace_resource_state.secret_refs), y.${rc("secretRefs")})
+  from ${i} x
+  where x.${ic("id")} = y.${rc("installation")}
+    and x.${ic("configurationId")} = set_marketplace_resource_state.configuration_id
+    and y.${rc("externalId")} = set_marketplace_resource_state.external_id
+  returning y.* into v_row;
+  if v_row.${rc("id")} is null then
+    ${fail("MARKETPLACE_RESOURCE_NOT_FOUND", "The installation has no resource with this id", "P0002")}
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- A resource of an installation, or null.
+create or replace function ${fn("marketplace_resource")}(configuration_id text, external_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin${guard}
+  return (
+    select to_jsonb(y) from ${r} y join ${i} x on x.${ic("id")} = y.${rc("installation")}
+    where x.${ic("configurationId")} = marketplace_resource.configuration_id and y.${rc("externalId")} = marketplace_resource.external_id
+  );
+end;
+$$;
+
+-- The resources of an installation that are not deleted.
+create or replace function ${fn("marketplace_resources")}(configuration_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin${guard}
+  return (
+    select coalesce(jsonb_agg(to_jsonb(y) order by y.${rc("createdAt")}), '[]'::jsonb)
+    from ${r} y join ${i} x on x.${ic("id")} = y.${rc("installation")}
+    where x.${ic("configurationId")} = marketplace_resources.configuration_id and y.${rc("status")} <> 'deleted'
+  );
+end;
+$$;
+
+-- Marks a resource deleted; the row stays for invoices and audit.
+create or replace function ${fn("delete_marketplace_resource")}(configuration_id text, external_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${r};
+begin${guard}
+  update ${r} y set ${rc("status")} = 'deleted'
+  from ${i} x
+  where x.${ic("id")} = y.${rc("installation")}
+    and x.${ic("configurationId")} = delete_marketplace_resource.configuration_id
+    and y.${rc("externalId")} = delete_marketplace_resource.external_id
+  returning y.* into v_row;
+  return case when v_row.${rc("id")} is null then null else to_jsonb(v_row) end;
+end;
+$$;
+
 ${serviceGrant(`${fn("upsert_marketplace_installation")}(text, text, text, text, jsonb)`)}
 ${serviceGrant(`${fn("marketplace_installation")}(text)`)}
 ${serviceGrant(`${fn("remove_marketplace_installation")}(text)`)}
@@ -456,7 +647,15 @@ ${serviceGrant(`${fn("upsert_marketplace_resource")}(text, text, text, text, tex
 ${serviceGrant(`${fn("record_marketplace_invoice")}(text, text, text, timestamptz, timestamptz, numeric, text, jsonb, timestamptz)`)}
 ${serviceGrant(`${fn("record_marketplace_meter_report")}(text, text, timestamptz, timestamptz, numeric, text)`)}
 ${serviceGrant(`${fn("mark_marketplace_meter_reported")}(uuid[])`)}
-${serviceGrant(`${fn("unreported_marketplace_meter_reports")}(text)`)}`;
+${serviceGrant(`${fn("unreported_marketplace_meter_reports")}(text)`)}
+${serviceGrant(`${fn("mark_marketplace_meter_sent")}(jsonb)`)}
+${serviceGrant(`${fn("seal_marketplace_access_token")}(text, text)`)}
+${serviceGrant(`${fn("marketplace_access_token")}(text)`)}
+${serviceGrant(`${fn("link_marketplace_tenant")}(text, text, boolean)`)}
+${serviceGrant(`${fn("set_marketplace_resource_state")}(text, text, text, boolean, text[])`)}
+${serviceGrant(`${fn("marketplace_resource")}(text, text)`)}
+${serviceGrant(`${fn("marketplace_resources")}(text)`)}
+${serviceGrant(`${fn("delete_marketplace_resource")}(text, text)`)}`;
 }
 
 function contract(): readonly ModuleContractFunction[] {
@@ -512,6 +711,34 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["text"],
       returns: "jsonb",
     },
+    {
+      name: "mark_marketplace_meter_sent",
+      args: ["jsonb"],
+      returns: "integer",
+    },
+    {
+      name: "seal_marketplace_access_token",
+      args: ["text", "text"],
+      returns: "void",
+    },
+    { name: "marketplace_access_token", args: ["text"], returns: "text" },
+    {
+      name: "link_marketplace_tenant",
+      args: ["text", "text", "boolean"],
+      returns: "jsonb",
+    },
+    {
+      name: "set_marketplace_resource_state",
+      args: ["text", "text", "text", "boolean", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "marketplace_resource", args: ["text", "text"], returns: "jsonb" },
+    { name: "marketplace_resources", args: ["text"], returns: "jsonb" },
+    {
+      name: "delete_marketplace_resource",
+      args: ["text", "text"],
+      returns: "jsonb",
+    },
   ];
 }
 
@@ -519,11 +746,28 @@ export const VERCEL_MARKETPLACE: ModuleDefinition = {
   name: "vercel-marketplace",
   title: "Vercel Marketplace",
   description:
-    "Vercel Marketplace provider state: installations per configuration id, provisioned resources, plans, invoices kept by event time and meter reports sent to Vercel. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace verifies webhooks, exchanges SSO codes and reports usage.",
+    "Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.",
   requires: [],
   integrates: ["outbox", "audit"],
   target: "schema",
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Seals installation access tokens in Vault, keeps each resource's tenant and secret handles for the Partner API, and reports usage per period with reported_quantity.",
+      // Rows reported before reported_quantity existed were accepted at their quantity.
+      sql: (ctx) => {
+        const table = ctx.table("meterReports");
+        const column = (name: string): string => ctx.col("meterReports", name);
+
+        return [
+          `alter table ${table} add column if not exists ${column("reportedQuantity")} numeric not null default 0;`,
+          `update ${table} set ${column("reportedQuantity")} = ${column("quantity")} where ${column("reportedAt")} is not null;`,
+        ].join("\n");
+      },
+    },
+  ],
   names: NAMES,
   contract,
   build,

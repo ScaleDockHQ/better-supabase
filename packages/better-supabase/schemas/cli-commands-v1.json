@@ -228,6 +228,24 @@
               "type": "string"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "access"],
+          "properties": {
+            "kind": {
+              "description": "Reads, stops or destroys the Supabase CLI's managed stacks.",
+              "const": "stacks"
+            },
+            "access": {
+              "enum": ["read", "write"]
+            },
+            "when": {
+              "description": "The flag that turns the effect on.",
+              "type": "string"
+            }
+          }
         }
       ]
     }

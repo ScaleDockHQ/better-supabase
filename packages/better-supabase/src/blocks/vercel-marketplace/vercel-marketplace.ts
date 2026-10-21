@@ -1,15 +1,18 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
+import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Jwks } from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { ProblemFormat } from "../../core/problem.ts";
 import type { Result } from "../../core/result.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { cronRoute } from "../../core/cron-route.ts";
 import { dbError } from "../../core/errors.ts";
 import { timingSafeEqual } from "../../core/hmac.ts";
 import { jwksSource } from "../../core/jwks-cache.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
+import { problemResponse } from "../../core/problem.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -22,9 +25,10 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { createPartnerApi, type PartnerApiOptions } from "./partner-api.ts";
 
 const API = "https://api.vercel.com";
-const JWKS = "https://marketplace.vercel.com/.well-known/jwks.json";
+const JWKS = "https://marketplace.vercel.com/.well-known/jwks";
 const ISSUER = "https://marketplace.vercel.com";
 const SIGNATURE_HEADER = "x-vercel-signature";
 
@@ -38,6 +42,8 @@ export interface MarketplaceInstallation {
   readonly userId: string | undefined;
   /** The app's own tenant for this installation, once the app linked one. */
   readonly tenant: string | undefined;
+  /** Whether the installation created its tenant, so removing it may delete the tenant. */
+  readonly tenantCreated: boolean;
   readonly status: "active" | "suspended" | "removed";
   readonly metadata: Readonly<Record<string, unknown>>;
 }
@@ -51,6 +57,11 @@ export interface MarketplaceResource {
   readonly planId: string | undefined;
   readonly status: "pending" | "ready" | "suspended" | "deleted";
   readonly metadata: Readonly<Record<string, unknown>>;
+  /** The app's tenant the provision hook created or chose. */
+  readonly tenant: string | undefined;
+  readonly tenantCreated: boolean;
+  /** The app's handles for the secrets handed out, for the next rotation's revoke. */
+  readonly secretRefs: readonly string[];
 }
 
 export interface MarketplaceInvoice {
@@ -67,7 +78,12 @@ export interface MeterReport {
   readonly installationId: string;
   readonly resourceExternalId: string;
   readonly meterId: string;
+  readonly periodStart: string;
+  readonly periodEnd: string;
+  /** The period's total so far. */
   readonly quantity: number;
+  /** The total Vercel accepted; the next report sends the rest as `dayValue`. */
+  readonly reportedQuantity: number;
   readonly reported: boolean;
 }
 
@@ -98,7 +114,8 @@ export interface VercelMarketplaceOptions extends BlockTemporalOptions {
   readonly clientId: string;
   /**
    * A bearer token for the Marketplace API on behalf of an installation, for
-   * invoices and usage. Vercel hands it out at installation; the app stores it.
+   * invoices and usage. Default: the token Vercel handed out at installation,
+   * which the Partner API seals in Vault.
    */
   readonly accessToken?: (configurationId: string) => Promise<string>;
   readonly schema?: string;
@@ -148,6 +165,15 @@ export interface ReportUsageInput {
   }[];
 }
 
+export interface UsageRouteOptions {
+  /** The bearer token the cron caller sends, such as `process.env.CRON_SECRET`. */
+  readonly secret: string | undefined;
+  /** The period totals to report, one entry per installation. */
+  readonly usage: () => Promise<readonly ReportUsageInput[]>;
+  readonly onError?: (error: DbError, configurationId: string) => void;
+  readonly problem?: ProblemFormat;
+}
+
 export interface VercelMarketplace {
   /** Whether `signature` is the HMAC-SHA1 of the raw body under the client secret. */
   verifyWebhook(body: string, signature: string | null): Promise<boolean>;
@@ -189,10 +215,53 @@ export interface VercelMarketplace {
     input: SubmitInvoiceInput,
   ): AsyncResult<{ readonly id: string }>;
   /**
-   * Stores the quantities, then sends the ones Vercel has not accepted yet.
-   * A failed send leaves them stored, so the next call retries them.
+   * Stores the period totals, then sends what Vercel has not accepted yet,
+   * one request per billing period: `periodValue` is the total and
+   * `dayValue` the part not reported before. A failed send leaves the rest
+   * stored, so the next call resends it.
    */
   reportUsage(input: ReportUsageInput): AsyncResult<readonly MeterReport[]>;
+  /** Marks the installation removed and its resources deleted, and drops its sealed token. */
+  removeInstallation(
+    configurationId: string,
+  ): AsyncResult<MarketplaceInstallation | undefined>;
+  /** Seals the installation's access token in Vault. */
+  sealAccessToken(configurationId: string, token: string): AsyncResult<void>;
+  /** Links the app's tenant to an installation; `created` lets removal delete it. */
+  linkTenant(input: {
+    readonly configurationId: string;
+    readonly tenant: string;
+    readonly created?: boolean;
+  }): AsyncResult<MarketplaceInstallation>;
+  resource(
+    configurationId: string,
+    externalId: string,
+  ): AsyncResult<MarketplaceResource | undefined>;
+  /** The installation's resources that are not deleted. */
+  resources(
+    configurationId: string,
+  ): AsyncResult<readonly MarketplaceResource[]>;
+  /** Marks a resource deleted; the row stays for invoices and audit. */
+  deleteResource(
+    configurationId: string,
+    externalId: string,
+  ): AsyncResult<MarketplaceResource | undefined>;
+  /**
+   * The Partner API Vercel calls (installations, resources, secret rotation
+   * and plans) as one `Request` to `Response` handler, every request checked
+   * against Vercel's OIDC token.
+   */
+  partnerApi(
+    options: PartnerApiOptions,
+  ): (request: Request) => Promise<Response>;
+  /**
+   * A cron route that reports the totals `usage` returns. It answers 200 with
+   * the configuration ids it reported, or 502 when one failed; the failed
+   * ones are sent again on the next run.
+   */
+  usageRoute(
+    options: UsageRouteOptions,
+  ): (request: Request) => Promise<Response>;
 }
 
 function installationOf(value: unknown): MarketplaceInstallation {
@@ -205,6 +274,7 @@ function installationOf(value: unknown): MarketplaceInstallation {
     teamId: optionalText(row["team_id"]),
     userId: optionalText(row["user_id"]),
     tenant: optionalText(row["tenant"]),
+    tenantCreated: row["tenant_created"] === true,
     status: status === "suspended" || status === "removed" ? status : "active",
     metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
   };
@@ -225,6 +295,13 @@ function resourceOf(value: unknown): MarketplaceResource {
         ? status
         : "ready",
     metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
+    tenant: optionalText(row["tenant"]),
+    tenantCreated: row["tenant_created"] === true,
+    secretRefs: Array.isArray(row["secret_refs"])
+      ? row["secret_refs"].filter(
+          (ref): ref is string => typeof ref === "string",
+        )
+      : [],
   };
 }
 
@@ -236,7 +313,10 @@ function meterReportOf(value: unknown): MeterReport {
     installationId: textOf(row["installation_id"]),
     resourceExternalId: textOf(row["resource_external_id"]),
     meterId: textOf(row["meter_id"]),
+    periodStart: textOf(row["period_start"]),
+    periodEnd: textOf(row["period_end"]),
     quantity: Number(row["quantity"]),
+    reportedQuantity: Number(row["reported_quantity"] ?? 0),
     reported: row["reported_at"] !== null && row["reported_at"] !== undefined,
   };
 }
@@ -296,16 +376,36 @@ export function createVercelMarketplace(
     path: string,
     payload: unknown,
   ): Promise<Result<unknown>> => {
+    let token: string;
+
     if (options.accessToken === undefined) {
-      return invalid(
-        "Pass accessToken to talk to the Marketplace API",
-        "MARKETPLACE_NO_TOKEN",
+      const sealed = await call(
+        "marketplace_access_token",
+        { configuration_id: configurationId },
+        (value) => (typeof value === "string" ? value : undefined),
       );
+
+      if (!sealed.ok) {
+        return err(sealed.error);
+      }
+
+      if (sealed.data === undefined) {
+        return invalid(
+          "The installation has no sealed access token; pass accessToken or let the Partner API store it",
+          "MARKETPLACE_NO_TOKEN",
+        );
+      }
+
+      token = sealed.data;
+    } else {
+      try {
+        token = await options.accessToken(configurationId);
+      } catch (cause) {
+        return err(dbError("network", errorText(cause)));
+      }
     }
 
     try {
-      const token = await options.accessToken(configurationId);
-
       const response = await http(
         `${base}/v1/installations/${encodeURIComponent(configurationId)}${path}`,
         {
@@ -333,6 +433,93 @@ export function createVercelMarketplace(
     } catch (cause) {
       return err(dbError("network", errorText(cause)));
     }
+  };
+
+  const verifySignature = async (
+    token: string,
+  ): Promise<Result<Readonly<Record<string, unknown>>>> => {
+    let verified = await keys(false);
+
+    if (!verified.ok) {
+      return err(verified.error);
+    }
+
+    try {
+      return ok(
+        (await verifyCompact(token, verified.data, { algorithms: ["RS256"] }))
+          .payload,
+      );
+    } catch (cause) {
+      if (!(cause instanceof JwsError) || cause.code !== "JWS_KEY") {
+        return err(
+          dbError(
+            "unauthorized",
+            `Vercel's token does not verify: ${errorText(cause)}`,
+            {
+              hint: "MARKETPLACE_TOKEN",
+            },
+          ),
+        );
+      }
+    }
+
+    verified = await keys(true);
+
+    if (!verified.ok) {
+      return err(verified.error);
+    }
+
+    try {
+      return ok(
+        (await verifyCompact(token, verified.data, { algorithms: ["RS256"] }))
+          .payload,
+      );
+    } catch (cause) {
+      return err(
+        dbError(
+          "unauthorized",
+          `Vercel's token does not verify: ${errorText(cause)}`,
+          {
+            hint: "MARKETPLACE_TOKEN",
+          },
+        ),
+      );
+    }
+  };
+
+  /** Checks a token Vercel signed: signature, issuer, audience and expiry. */
+  const verifyToken = async (
+    token: string,
+  ): Promise<Result<Readonly<Record<string, unknown>>>> => {
+    const verified = await verifySignature(token);
+
+    if (!verified.ok) {
+      return verified;
+    }
+
+    const claims = verified.data;
+    const audience = claims["aud"];
+    const now = Math.floor(Date.now() / 1000);
+
+    if (
+      claims["iss"] !== ISSUER ||
+      !(
+        audience === options.clientId ||
+        (Array.isArray(audience) && audience.includes(options.clientId))
+      ) ||
+      typeof claims["exp"] !== "number" ||
+      claims["exp"] <= now
+    ) {
+      return err(
+        dbError(
+          "forbidden",
+          "The token is not for this integration or has expired",
+          { hint: "MARKETPLACE_TOKEN_CLAIMS" },
+        ),
+      );
+    }
+
+    return ok(claims);
   };
 
   const client: VercelMarketplace = {
@@ -452,56 +639,18 @@ export function createVercelMarketplace(
             );
           }
 
-          let verified = await keys(false);
+          const verified = await verifyToken(token);
 
           if (!verified.ok) {
-            return err(verified.error);
+            return verified.error.kind === "forbidden"
+              ? invalid(
+                  "The id_token is not for this integration or has expired",
+                  "MARKETPLACE_SSO_CLAIMS",
+                )
+              : err(verified.error);
           }
 
-          let claims;
-
-          try {
-            claims = (
-              await verifyCompact(token, verified.data, {
-                algorithms: ["RS256"],
-              })
-            ).payload;
-          } catch (cause) {
-            if (!(cause instanceof JwsError) || cause.code !== "JWS_KEY") {
-              throw cause;
-            }
-
-            verified = await keys(true);
-
-            if (!verified.ok) {
-              return err(verified.error);
-            }
-
-            claims = (
-              await verifyCompact(token, verified.data, {
-                algorithms: ["RS256"],
-              })
-            ).payload;
-          }
-
-          const audience = claims["aud"];
-          const now = Math.floor(Date.now() / 1000);
-
-          if (
-            claims["iss"] !== ISSUER ||
-            !(
-              audience === options.clientId ||
-              (Array.isArray(audience) && audience.includes(options.clientId))
-            ) ||
-            typeof claims["exp"] !== "number" ||
-            claims["exp"] <= now
-          ) {
-            return invalid(
-              "The id_token is not for this integration or has expired",
-              "MARKETPLACE_SSO_CLAIMS",
-            );
-          }
-
+          const claims = verified.data;
           const configurationId = textOf(claims["installation_id"]);
 
           if (configurationId === "") {
@@ -639,50 +788,173 @@ export function createVercelMarketplace(
           return err(pending.error);
         }
 
-        if (pending.data.length === 0) {
-          return ok(stored);
+        const periods = new Map<
+          string,
+          { start: string; end: string; reports: MeterReport[] }
+        >();
+
+        for (const report of pending.data) {
+          const key = `${report.periodStart}\0${report.periodEnd}`;
+
+          const period = periods.get(key) ?? {
+            start: report.periodStart,
+            end: report.periodEnd,
+            reports: [],
+          };
+
+          period.reports.push(report);
+          periods.set(key, period);
         }
 
-        const sent = await send(input.configurationId, "/billing", {
-          timestamp: input.periodEnd.toString(),
-          eod: input.periodEnd.toString(),
-          period: {
-            start: input.periodStart.toString(),
-            end: input.periodEnd.toString(),
-          },
-          usage: pending.data.map((report) => ({
-            ...(report.resourceExternalId === ""
-              ? {}
-              : { resourceId: report.resourceExternalId }),
-            name: report.meterId,
-            type: "total",
-            units: "count",
-            dayValue: report.quantity,
-            periodValue: report.quantity,
-            planValue: report.quantity,
-          })),
-        });
+        const accepted = new Map<string, number>();
 
-        if (!sent.ok) {
-          return err(sent.error);
+        for (const { start, end, reports } of periods.values()) {
+          const sent = await send(input.configurationId, "/billing", {
+            timestamp: new Date().toISOString(),
+            eod: end,
+            period: { start, end },
+            usage: reports.map((report) => ({
+              ...(report.resourceExternalId === ""
+                ? {}
+                : { resourceId: report.resourceExternalId }),
+              name: report.meterId,
+              type: "total",
+              units: "count",
+              dayValue: Math.max(report.quantity - report.reportedQuantity, 0),
+              periodValue: report.quantity,
+            })),
+          });
+
+          if (!sent.ok) {
+            return err(sent.error);
+          }
+
+          const marked = await call(
+            "mark_marketplace_meter_sent",
+            {
+              reports: reports.map((report) => ({
+                id: report.id,
+                quantity: report.quantity,
+              })),
+            },
+            () => undefined,
+          );
+
+          if (!marked.ok) {
+            return err(marked.error);
+          }
+
+          for (const report of reports) {
+            accepted.set(report.id, report.quantity);
+          }
         }
 
-        const marked = await call(
-          "mark_marketplace_meter_reported",
-          { ids: pending.data.map((report) => report.id) },
-          () => undefined,
+        return ok(
+          stored.map((report) => {
+            const quantity = accepted.get(report.id);
+
+            return quantity === undefined
+              ? report
+              : {
+                  ...report,
+                  reportedQuantity: quantity,
+                  reported: quantity === report.quantity,
+                };
+          }),
         );
-
-        if (!marked.ok) {
-          return err(marked.error);
-        }
-
-        return ok(stored.map((report) => ({ ...report, reported: true })));
       }),
+
+    removeInstallation: (configurationId) =>
+      call(
+        "remove_marketplace_installation",
+        { configuration_id: configurationId },
+        (value) => (isRecord(value) ? installationOf(value) : undefined),
+      ),
+
+    sealAccessToken: (configurationId, token) =>
+      call(
+        "seal_marketplace_access_token",
+        { configuration_id: configurationId, access_token: token },
+        () => undefined,
+      ),
+
+    linkTenant: (input) =>
+      call(
+        "link_marketplace_tenant",
+        {
+          configuration_id: input.configurationId,
+          tenant: input.tenant,
+          created: input.created ?? false,
+        },
+        installationOf,
+      ),
+
+    resource: (configurationId, externalId) =>
+      call(
+        "marketplace_resource",
+        { configuration_id: configurationId, external_id: externalId },
+        (value) => (isRecord(value) ? resourceOf(value) : undefined),
+      ),
+
+    resources: (configurationId) =>
+      call(
+        "marketplace_resources",
+        { configuration_id: configurationId },
+        (value) => recordsOf(value, "marketplace_resources").map(resourceOf),
+      ),
+
+    deleteResource: (configurationId, externalId) =>
+      call(
+        "delete_marketplace_resource",
+        { configuration_id: configurationId, external_id: externalId },
+        (value) => (isRecord(value) ? resourceOf(value) : undefined),
+      ),
+
+    usageRoute: (route) =>
+      cronRoute(
+        { name: "usage", secret: route.secret, problem: route.problem },
+        async (_request, instance) => {
+          let inputs: readonly ReportUsageInput[];
+
+          try {
+            inputs = await route.usage();
+          } catch (cause) {
+            return problemResponse(dbError("unexpected", errorText(cause)), {
+              instance,
+              realm: "vercel-marketplace",
+              format: route.problem,
+            });
+          }
+
+          const reported: string[] = [];
+          const failed: string[] = [];
+
+          for (const input of inputs) {
+            const result = await hooked.reportUsage(input);
+
+            if (result.ok) {
+              reported.push(input.configurationId);
+            } else {
+              failed.push(input.configurationId);
+              route.onError?.(result.error, input.configurationId);
+            }
+          }
+
+          return Response.json(
+            { reported, failed },
+            { status: failed.length === 0 ? 200 : 502 },
+          );
+        },
+      ),
+
+    partnerApi: (partner) =>
+      createPartnerApi({ marketplace: hooked, call, verifyToken }, partner),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const hooked = withBlockHooks(client, options.hooks, {
     block: "vercel-marketplace",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
+  return hooked;
 }

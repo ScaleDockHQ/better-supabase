@@ -28,6 +28,8 @@ export interface RecipeSource {
   /** A recipe is available once its web side exists; native is optional. */
   readonly web?: Side;
   readonly native?: Side;
+  /** A caveat shown under the install commands, such as a fix a registry component still needs. */
+  readonly note?: string;
   /** For a planned recipe: what has to ship first. */
   readonly missing?: string;
 }

@@ -214,6 +214,39 @@ function statement(
   return `insert into ${target} (${list}) values\n${values.join(",\n")}\non conflict do nothing;`;
 }
 
+function statementsOf(
+  meta: SchemaMeta,
+  fixtures: Readonly<Record<string, unknown>>,
+  label: string,
+): string[] {
+  const keys = Object.keys(fixtures).filter(
+    (key) => fixtures[key] !== undefined,
+  );
+
+  for (const key of keys) {
+    const table = meta.tables[key];
+
+    if (!table) {
+      throw new TypeError(`${label}: unknown table "${key}"`);
+    }
+
+    if (table.kind === "view") {
+      throw new TypeError(`${label}: "${key}" is a view`);
+    }
+  }
+
+  return order(meta, keys).flatMap((key) => {
+    // SAFETY: the loop above rejected unknown tables, and each fixture maps
+    // row names to rows.
+    const sql = statement(
+      meta.tables[key]!,
+      fixtures[key] as Readonly<Record<string, Record<string, unknown>>>,
+    );
+
+    return sql ? [sql] : [];
+  });
+}
+
 /**
  * Typed fixtures shared by `supabase/seeds` and your tests. Rows use app
  * casing and Insert types; `better-supabase seed` renders them to SQL.
@@ -235,36 +268,8 @@ export function defineSeed<
   betterSupabase: BetterSupabase<M, D, F, E>,
   fixtures: S & ExactSeed<M, S>,
 ): Seed<S> {
-  const meta = betterSupabase.meta;
-
-  const statements = (): string[] => {
-    const keys = Object.keys(fixtures).filter(
-      (key) => fixtures[key] !== undefined,
-    );
-
-    for (const key of keys) {
-      const table = meta.tables[key];
-
-      if (!table) {
-        throw new TypeError(`seed: unknown table "${key}"`);
-      }
-
-      if (table.kind === "view") {
-        throw new TypeError(`seed: "${key}" is a view`);
-      }
-    }
-
-    return order(meta, keys).flatMap((key) => {
-      // SAFETY: the loop above rejected unknown tables, and each fixture maps
-      // row names to rows.
-      const sql = statement(
-        meta.tables[key]!,
-        fixtures[key] as Readonly<Record<string, Record<string, unknown>>>,
-      );
-
-      return sql ? [sql] : [];
-    });
-  };
+  const statements = (): string[] =>
+    statementsOf(betterSupabase.meta, fixtures, "seed");
 
   return {
     [SEED]: true,
@@ -273,6 +278,66 @@ export function defineSeed<
     sql: () => statements().join("\n\n"),
     async insert(sql) {
       for (const text of statements()) {
+        await sql.queryRaw(text);
+      }
+    },
+  };
+}
+
+/** The tenant a tenant seed fills. `slug` and `name` are set when known. */
+export interface TenantSeedTarget {
+  readonly id: string;
+  readonly slug?: string | undefined;
+  readonly name?: string | undefined;
+}
+
+// SAFETY: the symbol is only read through this constant, so typing it as unique
+// symbol is sound.
+const TENANT_SEED: unique symbol = Symbol.for(
+  "better-supabase.tenant-seed",
+) as never;
+
+export interface TenantSeed {
+  readonly [TENANT_SEED]: true;
+  /** One `insert ... on conflict do nothing` per table, parents before children. */
+  statements(tenant: TenantSeedTarget): string[];
+  /** Inserts the tenant's fixtures. Needs a service-role client. */
+  insert(sql: SqlClient, tenant: TenantSeedTarget): Promise<void>;
+}
+
+export function isTenantSeed(value: unknown): value is TenantSeed {
+  return typeof value === "object" && value !== null && TENANT_SEED in value;
+}
+
+/**
+ * Fixtures for one tenant, built from its id. `better-supabase seed --tenant`
+ * applies them to existing tenants, and `seedTenantOnCreate` to each tenant
+ * created in development.
+ *
+ * ```ts
+ * export const seed = defineTenantSeed(betterSupabase, (tenant) => ({
+ *   projects: { demo: { organizationId: tenant.id, name: 'Demo project' } },
+ * }));
+ * ```
+ */
+export function defineTenantSeed<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  const S extends SeedFixtures<M>,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E>,
+  fixtures: (tenant: TenantSeedTarget) => S & ExactSeed<M, S>,
+): TenantSeed {
+  const statements = (tenant: TenantSeedTarget): string[] =>
+    statementsOf(betterSupabase.meta, fixtures(tenant), "tenant seed");
+
+  return {
+    [TENANT_SEED]: true,
+    statements,
+    async insert(sql, tenant) {
+      for (const text of statements(tenant)) {
         await sql.queryRaw(text);
       }
     },

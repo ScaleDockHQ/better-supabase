@@ -175,6 +175,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0056: audit resolves tenants through a path or function and names the acting member.
 - 0057: Create runs in the cloud app at `app.bettersupabase.com`; marketing redirects `/create` there.
 - 0058: a design too large for a URL reaches `init` and `apply` as a JSON design file.
+- 0059: `db diff` diffs inside the running stack when the shadow database can't start; `stack prune` frees segments.
 
 ## Pre-release pins
 

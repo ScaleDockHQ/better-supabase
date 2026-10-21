@@ -9,9 +9,24 @@ export {
   type MeterReport,
   type ReportUsageInput,
   type SubmitInvoiceInput,
+  type UsageRouteOptions,
   type VercelMarketplace,
   type VercelMarketplaceOptions,
 } from "./vercel-marketplace.ts";
+
+export {
+  type MarketplaceOrganizations,
+  type MarketplacePlan,
+  type MarketplaceProvisionInput,
+  type MarketplaceProvisionResult,
+  type MarketplaceResourceHooks,
+  type MarketplaceResourceRequest,
+  type MarketplaceSecret,
+  type MarketplaceTenantRemoval,
+  type PartnerApiOptions,
+  VERCEL_ENVIRONMENTS,
+  type VercelEnvironment,
+} from "./partner-api.ts";
 
 export { sqlTransport } from "../../core/block-transport.ts";
 

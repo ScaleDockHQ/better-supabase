@@ -29,6 +29,7 @@ export const RECORD_RECIPES: readonly RecipeSource[] = [
       ],
       glue: [],
     },
+    note: "A copy of `@reui/data-grid` installed from ReUI 2.8.0 or earlier memoizes its context on `recordCount` but not on the rows, so an edit that keeps the row count (a status change, a renamed task) doesn't repaint the cells. Reinstall it with `npx shadcn add @reui/data-grid --overwrite`, or add `table.options.data` to the dependency list of the `value` memo in `DataGridProvider`.",
   },
   {
     slug: "record-form",

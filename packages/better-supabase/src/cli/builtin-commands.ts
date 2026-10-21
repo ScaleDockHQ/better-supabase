@@ -71,6 +71,15 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   ],
   ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
   ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
+  ["db diff", () => import("./commands/db.ts").then((m) => m.dbDiffCommand)],
+  [
+    "stack ls",
+    () => import("./commands/stack.ts").then((m) => m.stackLsCommand),
+  ],
+  [
+    "stack prune",
+    () => import("./commands/stack.ts").then((m) => m.stackPruneCommand),
+  ],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
   ["mcp", () => import("./commands/mcp.ts").then((m) => m.mcpCommand)],

@@ -42,12 +42,13 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
       });
 
       // BS303 compares the app's generated client with the database; the
-      // fixture has no app code to generate.
+      // fixture has no app code to generate. BS700 and BS701 report the
+      // host's shared memory, which other local stacks fill.
       const result = await run([
         "doctor",
         "--json",
         "--ignore",
-        "BS303",
+        "BS303,BS700,BS701",
         "--snapshot",
         join(dir, "snapshot.json"),
         "--cwd",

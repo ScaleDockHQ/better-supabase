@@ -146,6 +146,12 @@ function effectText(effect: CommandEffect): string {
         return "runs the command you pass";
       }
 
+      case "stacks": {
+        return effect.access === "read"
+          ? "reads the local stacks"
+          : "stops or destroys local stacks";
+      }
+
       case "network": {
         switch (effect.target) {
           case "supabase-api": {

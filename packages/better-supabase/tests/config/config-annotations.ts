@@ -451,6 +451,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "seed.entry": { default: "supabase/seed.ts" },
   "seed.output": { default: "supabase/seeds/000_better_supabase.sql" },
+  "seed.perTenant": { default: "supabase/seed.tenant.ts" },
   openapi: {
     description:
       "Deprecated: use specs. openapi.entry and openapi.output map onto it.",

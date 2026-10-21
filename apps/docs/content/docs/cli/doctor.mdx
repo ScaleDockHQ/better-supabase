@@ -1608,3 +1608,31 @@ peer can break at runtime. Doctor reads the version from the nearest
 `node_modules` above the project root and skips peers that aren't installed.
 Install a version in the range, or remove the package if nothing imports it.
 [Peers](/docs/getting-started/peers) lists which subpath needs which peer.
+
+## Local stacks
+
+These checks read the machine's System V shared memory with `ipcs`, so they
+report on every stack the Supabase CLI runs, not only this project's. They
+skip on Windows.
+
+### BS700
+
+**Warning: shared memory segments almost used up.** At least 80% of the
+System V shared memory segment limit is in use. Every running Postgres keeps
+one small segment as an interlock, even with `shared_memory_type = mmap`, and
+macOS allows 32 (`kern.sysv.shmmni`). When they run out, the next stack or
+shadow database fails with `could not create shared memory segment: No space
+left on device`, which is how `supabase db diff` and `declarative sync` fail
+on a machine with many worktrees. The finding names the stacks that hold
+segments. Run [`stack prune --stop-idle`](/docs/cli/stack#prune) to destroy
+the stacks of deleted worktrees and branches and stop the others, or raise
+the limit. [`db diff`](/docs/cli/db#diff) needs no shadow database.
+
+### BS701
+
+**Warning: local stack uses System V shared memory.** A stack holds more than
+the one small interlock segment, so its Postgres sets `shared_memory_type` or
+`dynamic_shared_memory_type` to `sysv`. Its shared buffers and parallel query
+memory then take segments of their own and fill the limit faster. The
+defaults on macOS and Linux are `mmap` and `posix`; remove the override from
+the stack's Postgres settings.
