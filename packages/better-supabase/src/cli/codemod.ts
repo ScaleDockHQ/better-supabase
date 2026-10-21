@@ -21,6 +21,10 @@ import {
   moveSqlModulesToBlocks,
   moveSqlModulesToBlocksJson,
 } from "./sql/config-move.ts";
+import {
+  pinWebhookFormat,
+  type WebhookFormat,
+} from "./sql/config-webhook-format.ts";
 
 /** `better-supabase.config.*`, the files a codemod's `configFile` edit applies to. */
 export const CONFIG_FILE: RegExp =
@@ -44,10 +48,26 @@ export interface Codemod {
   /** Changes too ambiguous to rewrite; matching lines are listed for review. */
   readonly review?: readonly ReviewHint[];
   /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
-  readonly configFile?: (source: string, json: boolean) => ConfigEdit;
+  readonly configFile?: (source: string, json: boolean) => CodemodConfigEdit;
   /** Renamed CLI calls, rewritten in `package.json` and workflows and listed in other shell files. */
   readonly cliCalls?: CliCallMigration;
+  /** CLI calls left as they are, listed for review in scripts, workflows and shell files. */
+  readonly cliReview?: readonly ReviewHint[];
 }
+
+export interface ReviewLine {
+  readonly line: number;
+  readonly message: string;
+}
+
+/** A config rewrite, with the lines it changed that need a look. */
+export type CodemodConfigEdit =
+  | ConfigEdit
+  | {
+      readonly ok: true;
+      readonly text: string;
+      readonly review: readonly ReviewLine[];
+    };
 
 export interface MemberRename {
   readonly from: string;
@@ -101,6 +121,77 @@ const OFFSET_PIN = {
   message:
     'Lists and resources page by cursor (`after`, `nextCursor`, no total) unless `pagination: "offset"` is set. This file shows no page numbers, so the codemod left it: add `pagination: "offset"` if a UI elsewhere reads `page` or the total, or the list sorts by a relation',
 } as const;
+
+/** Review lines for `sql.modules` left in environment blocks after the move. */
+function environmentModules(text: string): ReviewLine[] {
+  return mask(text)
+    .split("\n")
+    .flatMap((line, index) =>
+      /\bmodules\s*:/.test(line)
+        ? [
+            {
+              line: index + 1,
+              message:
+                "`sql.modules` in an environment block moves to `blocks` too",
+            },
+          ]
+        : [],
+    );
+}
+
+/** `edit` with `defaultFormat` pinned to `format` where an adopted webhooks-out block needs it. */
+function withWebhookFormat(
+  edit: CodemodConfigEdit,
+  json: boolean,
+  format: WebhookFormat,
+): CodemodConfigEdit {
+  if (!edit.ok) {
+    return edit;
+  }
+
+  const earlier = "review" in edit ? edit.review : [];
+  const pin = pinWebhookFormat(edit.text, json, format);
+
+  if (pin === undefined) {
+    return { ok: true, text: edit.text, review: earlier };
+  }
+
+  if (!pin.ok) {
+    return {
+      ok: true,
+      text: edit.text,
+      review: [
+        ...earlier,
+        {
+          line: 1,
+          message: `blocks["webhooks-out"] is adopted and maps no columns.endpoints.format, but defaultFormat wasn't pinned: ${pin.reason}. Set options.defaultFormat to "${format}" to keep the body endpoints get now`,
+        },
+      ],
+    };
+  }
+
+  const line =
+    pin.text.split("\n").findIndex((text) => text.includes("defaultFormat")) +
+    1;
+
+  return {
+    ok: true,
+    text: pin.text,
+    review: [
+      ...earlier,
+      {
+        line: Math.max(line, 1),
+        message: `blocks["webhooks-out"] is adopted and maps no columns.endpoints.format, so the codemod set options.defaultFormat to "${format}", the body its endpoints get now. Change it if your receivers expect the other format`,
+      },
+    ],
+  };
+}
+
+const SQL_ADD_HINT: ReviewHint = {
+  pattern: /(?<![\w.@-])(?:better-supabase|bsb)(?:@[\w.^~-]+)?\s+sql\s+add\b/,
+  message:
+    "`sql add` still only writes the block's SQL; `add` also wires its clients and config. Use `add` unless the script needs the SQL alone",
+};
 
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.4": {
@@ -251,11 +342,21 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       AccessModuleConfig: "AccessBlockConfig",
       ModuleMode: "BlockMode",
     },
-    configFile: (source, json) =>
-      json
+    configFile: (source, json) => {
+      const moved = json
         ? moveSqlModulesToBlocksJson(source)
-        : moveSqlModulesToBlocks(source),
+        : moveSqlModulesToBlocks(source);
+
+      return withWebhookFormat(
+        moved.ok && !json
+          ? { ...moved, review: environmentModules(moved.text) }
+          : moved,
+        json,
+        "standard",
+      );
+    },
     cliCalls: migrateCliCall,
+    cliReview: [SQL_ADD_HINT],
     pins: [
       { call: "defineListQuery", argument: 2, ...OFFSET_PIN },
       {
@@ -349,6 +450,13 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
           "With `config.subjects` set and no `subjects` option, comments accept only the registered subject types and require read on the subject row",
       },
     ],
+  },
+  "0.11": {
+    name: "0.11",
+    description:
+      'Pins blocks["webhooks-out"].options.defaultFormat to "cloudevents" in better-supabase.config.* when the block is adopted and maps no columns.endpoints.format, since adopt mode requires it from 0.11; the 0.9 codemod pins "standard" instead for configs coming from 0.8',
+    configFile: (source, json) =>
+      withWebhookFormat({ ok: true, text: source }, json, "cloudevents"),
   },
 };
 
@@ -868,13 +976,18 @@ export function applyCodemod(
     file !== undefined &&
     (CLI_CALL_FILE.test(file) || SHELL_FILE.test(file))
   ) {
+    const hints = linesMatching(source, codemod.cliReview ?? []);
+
     if (!codemod.cliCalls) {
-      return { text: source, review: [] };
+      return { text: source, review: hints };
     }
 
     return CLI_CALL_FILE.test(file)
-      ? { text: rewriteCliCalls(source, codemod.cliCalls), review: [] }
-      : { text: source, review: cliCallHints(source, codemod.cliCalls) };
+      ? { text: rewriteCliCalls(source, codemod.cliCalls), review: hints }
+      : {
+          text: source,
+          review: [...cliCallHints(source, codemod.cliCalls), ...hints],
+        };
   }
 
   let text = source;
@@ -886,21 +999,7 @@ export function applyCodemod(
 
     if (edit.ok) {
       text = edit.text;
-      refused.push(
-        ...mask(text)
-          .split("\n")
-          .flatMap((line, index) =>
-            /\bmodules\s*:/.test(line)
-              ? [
-                  {
-                    line: index + 1,
-                    message:
-                      "`sql.modules` in an environment block moves to `blocks` too",
-                  },
-                ]
-              : [],
-          ),
-      );
+      refused.push(...("review" in edit ? edit.review : []));
     } else {
       refused.push({
         line: 1,
@@ -945,18 +1044,24 @@ export function applyCodemod(
     refused.push(...pinned.review);
   }
 
-  const review = [
-    ...refused,
-    ...(codemod.review ?? []).flatMap((hint) =>
-      text
-        .split("\n")
-        .flatMap((line, index) =>
-          hint.pattern.test(line)
-            ? [{ line: index + 1, message: hint.message }]
-            : [],
-        ),
-    ),
-  ];
+  return {
+    text,
+    review: [...refused, ...linesMatching(text, codemod.review ?? [])],
+  };
+}
 
-  return { text, review };
+/** One review line per line of `text` that a hint's pattern matches. */
+function linesMatching(
+  text: string,
+  hints: readonly ReviewHint[],
+): ReviewLine[] {
+  return hints.flatMap((hint) =>
+    text
+      .split("\n")
+      .flatMap((line, index) =>
+        hint.pattern.test(line)
+          ? [{ line: index + 1, message: hint.message }]
+          : [],
+      ),
+  );
 }
