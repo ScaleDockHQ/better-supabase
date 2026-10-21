@@ -267,7 +267,9 @@ describe("doctor rules", () => {
       );
 
       expect(
-        findings.filter((finding) => finding.target.startsWith("public.notes")),
+        findings.filter((finding) =>
+          finding.target?.startsWith("public.notes"),
+        ),
       ).toEqual([]);
     }
   });
