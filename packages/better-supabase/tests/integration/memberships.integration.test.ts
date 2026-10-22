@@ -30,7 +30,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
           template_id uuid references ${projects} (id)
         );
         grant select, insert, update on ${projects}, ${tasks} to authenticated;`);
-      await s.install(["tenant"], {
+      await s.install(["memberships"], {
         modules: {
           memberships: {
             options: {
@@ -135,7 +135,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
           asset_id uuid references ${assets} (id)
         );
         grant select, insert, update on ${assets}, ${jobs} to authenticated;`);
-      await s.install(["tenant"], {
+      await s.install(["memberships"], {
         modules: {
           memberships: {
             options: {
@@ -232,7 +232,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
           quote_id uuid references ${quotes} (id),
           asset_id uuid references ${assets} (id)
         );`);
-      await s.install(["tenant"], {
+      await s.install(["memberships"], {
         modules: {
           memberships: {
             options: {

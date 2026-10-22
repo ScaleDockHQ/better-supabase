@@ -27,7 +27,7 @@ const MODULES = [
 ];
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties", "deals"], {}),
+  subjects: withBlockSubjects({}, ["contacts", "deals"], {}),
 };
 
 describe.skipIf(!live)("forecasts", () => {

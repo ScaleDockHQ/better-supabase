@@ -54,7 +54,7 @@ describe.skipIf(!live)("activity", () => {
           "subjects",
           "messaging",
           "comments",
-          "activity",
+          "timeline",
         ],
         { subjects: { project: { table } } },
       );
@@ -176,7 +176,7 @@ describe.skipIf(!live)("activity", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "activity"], {});
+      await s.install(["organizations", "timeline"], {});
       const owner = await s.user("owner");
       const organization = await s.organization(owner, {});
       const quote = crypto.randomUUID();
@@ -235,7 +235,7 @@ describe.skipIf(!live)("activity", () => {
     try {
       const table = await ownedTable(s, "quotes");
       await s.install(
-        ["organizations", "notifications", "audit", "subjects", "activity"],
+        ["organizations", "notifications", "audit", "subjects", "timeline"],
         {
           subjects: { quote: { table: table.replace("public.", "") } },
           modules: { audit: { options: { readPolicy: true } } },
@@ -329,7 +329,7 @@ describe.skipIf(!live)("activity", () => {
     try {
       const table = await ownedTable(s, "deals");
       await s.install(
-        ["organizations", "notifications", "workflows", "subjects", "activity"],
+        ["organizations", "notifications", "workflows", "subjects", "timeline"],
         { subjects: { deal: { table: table.replace("public.", "") } } },
       );
       const owner = await s.user("owner");

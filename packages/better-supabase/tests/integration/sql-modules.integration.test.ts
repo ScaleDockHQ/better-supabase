@@ -2175,7 +2175,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("runs jobs, idempotency and leases through the api wrappers over rpcTransport", async () => {
     const api = `bsb_api_${RUN}`;
     await pool.query(
-      ["jobs", "idempotency"]
+      ["queue", "idempotency"]
         .map((module) =>
           apiWrappers(
             moduleBody(module)!,

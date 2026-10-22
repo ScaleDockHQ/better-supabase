@@ -21,7 +21,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
 };
 
 const people = defineRuleFields("person", {
@@ -59,8 +59,8 @@ describe.skipIf(!live)("lead-scoring module in Postgres", () => {
         "organizations",
         "outbox",
         "subjects",
-        "parties",
-        "rules",
+        "contacts",
+        "automations",
         "scores",
         "lead-scoring",
       ],
