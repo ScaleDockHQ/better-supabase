@@ -20,6 +20,7 @@ import { invoiceLedger } from "./invoices-ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
+  entities: { target: { table: "targets", singular: "target", primary: true } },
   options: ["extraColumns"],
   tables: {
     targets: {
@@ -150,10 +151,10 @@ ${
   ${c("updatedAt")} timestamptz not null default now(),
   check (${c("periodEnd")} >= ${c("periodStart")})
 );${addExtraColumns(t, extras)}
-create index if not exists targets_period_idx on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")}) where ${c("archivedAt")} is null;
+create index if not exists ${ctx.naming.rename("targets_period_idx")} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")}) where ${c("archivedAt")} is null;
 ${lockTable(t, { read: true })}
-drop policy if exists targets_read on ${t};
-create policy targets_read on ${t} for select to authenticated
+drop policy if exists ${ctx.naming.rename("targets_read")} on ${t};
+create policy ${ctx.naming.rename("targets_read")} on ${t} for select to authenticated
 using (${ctx.scope.check(c("tenant"), read)});
 `
     : ""

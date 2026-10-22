@@ -428,7 +428,7 @@ alter table "better_supabase"."team_members"
   foreign key ("tenant_id", "user_id")
   references "better_supabase"."memberships" ("organization_id", "user_id");
 
-do $inbox_teams$
+do $shared_teams$
 declare
   legacy record;
 begin
@@ -455,7 +455,7 @@ begin
   drop table "better_supabase"."inbox_team_members";
   drop table "better_supabase"."inbox_teams";
 end
-$inbox_teams$;
+$shared_teams$;
 alter table "better_supabase"."inbox_conversations"
   drop constraint if exists conversations_team_fkey;
 alter table "better_supabase"."inbox_conversations"

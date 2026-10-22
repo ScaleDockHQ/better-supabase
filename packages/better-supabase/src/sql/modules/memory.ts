@@ -57,6 +57,14 @@ const DOCUMENTS = {
 } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    memory: {
+      table: "memories",
+      singular: "memory",
+      plural: "memories",
+      primary: true,
+    },
+  },
   options: ["dimensions", "type", "textSearch", "maxContent"],
   tables: {
     memories: {
@@ -221,23 +229,23 @@ create table if not exists ${memories} (
   check ((${m.kind} = 'core') = (${m.path} is not null)),
   check ((${m.scope} = 'organization') = (${m.owner} is null))
 );
-create unique index if not exists memories_path_idx on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.path}) nulls not distinct
+create unique index if not exists ${ctx.naming.rename("memories_path_idx")} on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.path}) nulls not distinct
   where ${m.path} is not null and ${m.supersededBy} is null;
-create index if not exists memories_owner_idx on ${memories} (${m.owner}, ${m.tenant}) where ${m.owner} is not null;
-create index if not exists memories_tenant_idx on ${memories} (${m.tenant}, ${m.scope});
-create index if not exists memories_chat_idx on ${memories} (${m.chat}) where ${m.chat} is not null;
-create index if not exists memories_project_idx on ${memories} (${m.project}) where ${m.project} is not null;
-create index if not exists memories_superseded_idx on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
-create index if not exists memories_embedding_idx on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
-create index if not exists memories_tsv_idx on ${memories} using gin (${m.tsv});
-create index if not exists memories_pending_embedding_idx on ${memories} (${m.updatedAt})
+create index if not exists ${ctx.naming.rename("memories_owner_idx")} on ${memories} (${m.owner}, ${m.tenant}) where ${m.owner} is not null;
+create index if not exists ${ctx.naming.rename("memories_tenant_idx")} on ${memories} (${m.tenant}, ${m.scope});
+create index if not exists ${ctx.naming.rename("memories_chat_idx")} on ${memories} (${m.chat}) where ${m.chat} is not null;
+create index if not exists ${ctx.naming.rename("memories_project_idx")} on ${memories} (${m.project}) where ${m.project} is not null;
+create index if not exists ${ctx.naming.rename("memories_superseded_idx")} on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
+create index if not exists ${ctx.naming.rename("memories_embedding_idx")} on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
+create index if not exists ${ctx.naming.rename("memories_tsv_idx")} on ${memories} using gin (${m.tsv});
+create index if not exists ${ctx.naming.rename("memories_pending_embedding_idx")} on ${memories} (${m.updatedAt})
   where ${m.embedding} is null and ${m.supersededBy} is null;
 alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
-drop policy if exists memories_read on ${memories};
-create policy memories_read on ${memories} for select to authenticated
+drop policy if exists ${ctx.naming.rename("memories_read")} on ${memories};
+create policy ${ctx.naming.rename("memories_read")} on ${memories} for select to authenticated
   using (${m.owner} = (select auth.uid()) or (${m.scope} = 'organization' and ${ctx.scope.check(m.tenant, read)}));
 
 -- One embedding per message, so an assistant can recall earlier chats.
@@ -717,7 +725,7 @@ create table if not exists ${documents} (
   ${d.updatedAt} timestamptz not null default now(),
   primary key (${d.scopeKey}, ${d.path})
 );
-create index if not exists memory_documents_expires_idx on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;
+create index if not exists ${ctx.naming.rename("memory_documents_expires_idx")} on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;
 ${lockTable(documents)}
 
 -- A document and its version, or null.

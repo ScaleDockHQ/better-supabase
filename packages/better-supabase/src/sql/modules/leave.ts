@@ -59,6 +59,10 @@ const EVENTS: BlockSqlEvents<LeaveEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    request: { table: "requests", singular: "leave_request", primary: true },
+    type: { table: "types", singular: "leave_type" },
+  },
   events: EVENTS,
   hooks: ["before_leave_request", "after_leave_request"],
   options: ["policy", "workingDays", "allowNegative", "extraColumns"],
@@ -267,8 +271,8 @@ function build(ctx: BlockSqlContext): string {
   unique (${ty("tenant")}, ${ty("id")})
 );
 ${lockTable(types, { read: true })}
-drop policy if exists "leave_types_read" on ${types};
-create policy "leave_types_read" on ${types} for select to authenticated
+drop policy if exists ${ctx.naming.rename("leave_types_read")} on ${types};
+create policy ${ctx.naming.rename("leave_types_read")} on ${types} for select to authenticated
   using (${ctx.scope.check(ty("tenant"), request)} or ${ctx.scope.check(ty("tenant"), read)});
 
 create table if not exists ${requests} (
@@ -296,8 +300,8 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_i
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockTable(requests, { read: true })}
-drop policy if exists "leave_requests_read" on ${requests};
-create policy "leave_requests_read" on ${requests} for select to authenticated
+drop policy if exists ${ctx.naming.rename("leave_requests_read")} on ${requests};
+create policy ${ctx.naming.rename("leave_requests_read")} on ${requests} for select to authenticated
   using (${q("user")} = (select auth.uid()) or ${ctx.scope.check(q("tenant"), read)});
 
 `

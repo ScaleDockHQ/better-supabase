@@ -150,6 +150,7 @@ ${readable("recipe_scheduling.bookings")}`,
       },
     },
     blocks: {
+      bookings: { names: { booking: { subject: false } } },
       "custom-fields": {},
       "share-links": {},
       "state-machine": {
@@ -251,12 +252,6 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
   config: defineConfig({
     preset: "commerce",
     records: {
-      order: {
-        table: "better_supabase.orders",
-        idType: "uuid",
-        tenant: "tenant_id",
-        title: "number",
-      },
       promotion: {
         table: "better_supabase.promotions",
         idType: "uuid",

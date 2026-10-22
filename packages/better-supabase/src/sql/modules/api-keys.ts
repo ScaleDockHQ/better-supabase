@@ -68,6 +68,7 @@ const KEY_KEYS: readonly string[] = [
 ];
 
 const NAMES: BlockSqlNames = {
+  entities: { key: { table: "keys", singular: "api_key", primary: true } },
   events: EVENTS,
   options: ["scopes", "kinds", "touchInterval", "prefix", "extraColumns"],
   tables: {
@@ -223,7 +224,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const kindCheck =
     kinds.length === 0
-      ? `alter table ${t} drop constraint if exists api_keys_kind_check;`
+      ? `alter table ${t} drop constraint if exists ${ctx.naming.rename("api_keys_kind_check")};`
       : ensureCheck(
           t,
           "api_keys_kind_check",
@@ -297,10 +298,10 @@ create table if not exists ${t} (
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table ${t} set (fillfactor = 80);
-create index if not exists api_keys_tenant_idx on ${t} (${c("tenant")});
-create index if not exists api_keys_user_idx on ${t} (${c("user")});
-create index if not exists api_keys_rotated_from_idx on ${t} (${c("rotatedFrom")});
-create index if not exists api_keys_created_by_idx on ${t} (${c("createdBy")});
+create index if not exists ${ctx.naming.rename("api_keys_tenant_idx")} on ${t} (${c("tenant")});
+create index if not exists ${ctx.naming.rename("api_keys_user_idx")} on ${t} (${c("user")});
+create index if not exists ${ctx.naming.rename("api_keys_rotated_from_idx")} on ${t} (${c("rotatedFrom")});
+create index if not exists ${ctx.naming.rename("api_keys_created_by_idx")} on ${t} (${c("createdBy")});
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
 alter table ${t} add column if not exists ${c("kind")} text;
 ${kindCheck}${addExtraColumns(t, extras)}

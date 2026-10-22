@@ -123,7 +123,7 @@ begin
     end if;
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
-  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'work_item', 'employee', 'ledger_account', 'product', 'product_variant', 'calendar_event', 'asset', 'asset_location', 'lease', 'maintenance_request', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'document', 'customer', 'drive_node', 'application', 'project', 'task') then
+  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'maintenance_request', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'form', 'document', 'customer', 'drive_node', 'application', 'project', 'task') then
     raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
@@ -273,12 +273,16 @@ begin
     when 'course' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.read'), false)
     when 'post' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.read'), false)
     when 'engagement' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'engagements.read'), false)
+    when 'quote' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'quotes.read'), false)
     when 'work_item' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'work_items.read'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read'), false)
+    when 'invoice' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false)
     when 'product' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'catalog.read'), false)
     when 'product_variant' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'catalog.read'), false)
+    when 'order' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'orders.read'), false)
     when 'calendar_event' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'calendar.read'), false)
+    when 'booking' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'bookings.read'), false)
     when 'asset' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)
     when 'asset_location' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)
     when 'lease' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)
@@ -292,6 +296,7 @@ begin
     when 'control' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)
     when 'policy' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)
     when 'incident' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.read'), false)
+    when 'form' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)
     when 'document' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'documents.read'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'customers.read'), false)
     when 'drive_node' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'drive.read'), false)
@@ -338,12 +343,16 @@ as $$
     when 'course' then coalesce(better_supabase.can('tenant', x."tenant_id", 'courses.read'), false)
     when 'post' then coalesce(better_supabase.can('tenant', x."tenant_id", 'posts.read'), false)
     when 'engagement' then coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.read'), false)
+    when 'quote' then coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
+    when 'invoice' then coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'product' then coalesce(better_supabase.can('tenant', x."tenant_id", 'catalog.read'), false)
     when 'product_variant' then coalesce(better_supabase.can('tenant', x."tenant_id", 'catalog.read'), false)
+    when 'order' then coalesce(better_supabase.can('tenant', x."tenant_id", 'orders.read'), false)
     when 'calendar_event' then coalesce(better_supabase.can('tenant', x."tenant_id", 'calendar.read'), false)
+    when 'booking' then coalesce(better_supabase.can('tenant', x."tenant_id", 'bookings.read'), false)
     when 'asset' then coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)
     when 'asset_location' then coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)
     when 'lease' then coalesce(better_supabase.can('tenant', x."tenant_id", 'leases.read'), false)
@@ -357,6 +366,7 @@ as $$
     when 'control' then coalesce(better_supabase.can('tenant', x."tenant_id", 'controls.read'), false)
     when 'policy' then coalesce(better_supabase.can('tenant', x."tenant_id", 'controls.read'), false)
     when 'incident' then coalesce(better_supabase.can('tenant', x."tenant_id", 'incidents.read'), false)
+    when 'form' then coalesce(better_supabase.can('tenant', x."tenant_id", 'forms.read'), false)
     when 'document' then coalesce(better_supabase.can('tenant', x."tenant_id", 'documents.read'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
     when 'drive_node' then coalesce(better_supabase.can('tenant', x."tenant_id", 'drive.read'), false)
@@ -454,6 +464,13 @@ begin
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;
+  elsif v_row."subject_type" = 'quote' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."quotes" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
   elsif v_row."subject_type" = 'work_item' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."work_items" s
@@ -464,6 +481,13 @@ begin
   elsif v_row."subject_type" = 'employee' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."employees" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'invoice' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."invoices" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
@@ -489,9 +513,23 @@ begin
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;
+  elsif v_row."subject_type" = 'order' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."orders" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
   elsif v_row."subject_type" = 'calendar_event' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."calendar_events" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'booking' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."bookings" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
@@ -583,6 +621,13 @@ begin
   elsif v_row."subject_type" = 'incident' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."incidents" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'form' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."forms" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001

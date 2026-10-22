@@ -790,6 +790,10 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
+  booking: {
+    read: "bookings.read",
+    write: "bookings.manage",
+  },
   bookings: {
     manage: "bookings.manage",
     create: "bookings.create",
@@ -975,6 +979,10 @@ export const permissions = {
     read: "forecasts.read",
     snapshot: "forecasts.snapshot",
   },
+  form: {
+    read: "forms.read",
+    write: "forms.manage",
+  },
   forms: {
     read: "forms.read",
     manage: "forms.manage",
@@ -1027,6 +1035,10 @@ export const permissions = {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  invoice: {
+    read: "invoices.read",
+    write: "invoices.write",
   },
   invoices: {
     read: "invoices.read",
@@ -1107,6 +1119,10 @@ export const permissions = {
     read: "onboarding.read",
     complete: "onboarding.complete",
   },
+  order: {
+    read: "orders.read",
+    write: "orders.manage",
+  },
   orders: {
     manage: "orders.manage",
     read: "orders.read",
@@ -1153,6 +1169,10 @@ export const permissions = {
   promotions: {
     manage: "promotions.manage",
     read: "promotions.read",
+  },
+  quote: {
+    read: "quotes.read",
+    write: "quotes.write",
   },
   quotes: {
     read: "quotes.read",

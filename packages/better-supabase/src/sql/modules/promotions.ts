@@ -41,6 +41,9 @@ const EVENTS: BlockSqlEvents<PromotionsEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    promotion: { table: "promotions", singular: "promotion", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_promotion_save",
@@ -173,7 +176,7 @@ create table if not exists ${t("promotions")} (
   check ((${p("amount")} is null and ${p("minSubtotal")} is null) or ${p("currency")} is not null),
   check (${p("endsAt")} is null or ${p("startsAt")} is null or ${p("endsAt")} > ${p("startsAt")})
 );
-create index if not exists promotions_tenant_idx on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});${addExtraColumns(t("promotions"), promotionExtras(ctx))}
+create index if not exists ${ctx.naming.rename("promotions_tenant_idx")} on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});${addExtraColumns(t("promotions"), promotionExtras(ctx))}
 ${lockTable(t("promotions"), { read: true })}
 ${policy("promotions", tenantRead("promotions"))}
 
@@ -187,7 +190,7 @@ create table if not exists ${t("codes")} (
   ${k("createdAt")} timestamptz not null default now(),
   unique (${k("tenant")}, ${k("code")})
 );
-create index if not exists promotion_codes_promotion_idx on ${t("codes")} (${k("promotion")});
+create index if not exists ${ctx.naming.rename("promotion_codes_promotion_idx")} on ${t("codes")} (${k("promotion")});
 ${lockTable(t("codes"), { read: true })}
 ${policy("codes", tenantRead("codes"))}
 
@@ -198,7 +201,7 @@ create table if not exists ${t("cartCodes")} (
   ${cc("createdAt")} timestamptz not null default now(),
   primary key (${cc("cart")}, ${cc("code")})
 );
-create index if not exists cart_promotion_codes_code_idx on ${t("cartCodes")} (${cc("code")});
+create index if not exists ${ctx.naming.rename("cart_promotion_codes_code_idx")} on ${t("cartCodes")} (${cc("code")});
 ${lockTable(t("cartCodes"), { read: true })}
 ${policy("cartCodes", `${tenantRead("cartCodes")} or exists (select 1 from ${orders.table("carts")} x where x.${cart("id")} = ${cc("cart")} and x.${cart("user")} = (select auth.uid()))`)}
 
@@ -217,9 +220,9 @@ create table if not exists ${t("redemptions")} (
   ${r("releasedAt")} timestamptz,
   unique (${r("order")}, ${r("promotion")})
 );
-create index if not exists promotion_redemptions_promotion_idx on ${t("redemptions")} (${r("promotion")}, ${r("status")});
-create index if not exists promotion_redemptions_customer_idx on ${t("redemptions")} (${r("customer")});
-create index if not exists promotion_redemptions_code_idx on ${t("redemptions")} (${r("code")});
+create index if not exists ${ctx.naming.rename("promotion_redemptions_promotion_idx")} on ${t("redemptions")} (${r("promotion")}, ${r("status")});
+create index if not exists ${ctx.naming.rename("promotion_redemptions_customer_idx")} on ${t("redemptions")} (${r("customer")});
+create index if not exists ${ctx.naming.rename("promotion_redemptions_code_idx")} on ${t("redemptions")} (${r("code")});
 ${lockTable(t("redemptions"), { read: true })}
 ${policy("redemptions", `${tenantRead("redemptions")} or ${r("customer")} = (select auth.uid())`)}
 `;

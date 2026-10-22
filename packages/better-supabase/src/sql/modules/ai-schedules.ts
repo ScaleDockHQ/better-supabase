@@ -50,6 +50,9 @@ const RUNS = {
 } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    task: { table: "tasks", singular: "ai_scheduled_task", primary: true },
+  },
   options: ["queue", "staleAfter", "maxPrompt", "extraColumns"],
   tables: {
     tasks: {
@@ -158,15 +161,15 @@ create table if not exists ${tasks} (
   ${t.createdAt} timestamptz not null default now(),
   ${t.updatedAt} timestamptz not null default now()
 );
-create index if not exists ai_scheduled_tasks_due_idx on ${tasks} (${t.nextRunAt}) where ${t.enabled};
-create index if not exists ai_scheduled_tasks_user_idx on ${tasks} (${t.user}, ${t.tenant});
-create index if not exists ai_scheduled_tasks_agent_idx on ${tasks} (${t.agent});${addExtraColumns(tasks, extras)}
+create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_due_idx")} on ${tasks} (${t.nextRunAt}) where ${t.enabled};
+create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});
+create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});${addExtraColumns(tasks, extras)}
 alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
-drop policy if exists ai_scheduled_tasks_read on ${tasks};
-create policy ai_scheduled_tasks_read on ${tasks} for select to authenticated
+drop policy if exists ${ctx.naming.rename("ai_scheduled_tasks_read")} on ${tasks};
+create policy ${ctx.naming.rename("ai_scheduled_tasks_read")} on ${tasks} for select to authenticated
   using (${t.user} = (select auth.uid()) or ${ctx.scope.check(t.tenant, manage)});
 
 create table if not exists ${runs} (

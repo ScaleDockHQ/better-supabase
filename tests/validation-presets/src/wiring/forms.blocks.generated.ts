@@ -131,6 +131,10 @@ export const permissions = {
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
   },
+  form: {
+    read: "forms.read",
+    write: "forms.manage",
+  },
   forms: {
     read: "forms.read",
     manage: "forms.manage",

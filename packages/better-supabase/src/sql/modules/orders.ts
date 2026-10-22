@@ -84,6 +84,18 @@ const EVENTS: BlockSqlEvents<OrdersEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    order: {
+      table: "orders",
+      singular: "order",
+      primary: true,
+      subject: {
+        title: "number",
+        permissions: { read: "read", write: "manage" },
+      },
+    },
+    cart: { table: "carts", singular: "cart" },
+  },
   events: EVENTS,
   hooks: [
     "before_order_place",
@@ -383,10 +395,10 @@ create table if not exists ${t("carts")} (
   ${c("updatedAt")} timestamptz not null default now(),
   ${c("convertedAt")} timestamptz
 );
-create unique index if not exists carts_open_idx on ${t("carts")} (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${c("status")} = 'open';
-create index if not exists carts_user_idx on ${t("carts")} (${c("user")});
-create index if not exists carts_rate_idx on ${t("carts")} (${c("shippingRate")});
-${c("priceList") && priceList ? `create index if not exists carts_price_list_idx on ${t("carts")} (${c("priceList")});\n` : ""}${lockTable(t("carts"), { read: true })}
+create unique index if not exists ${ctx.naming.rename("carts_open_idx")} on ${t("carts")} (${c("tenant")}, ${c("user")}, ${c("currency")}) where ${c("status")} = 'open';
+create index if not exists ${ctx.naming.rename("carts_user_idx")} on ${t("carts")} (${c("user")});
+create index if not exists ${ctx.naming.rename("carts_rate_idx")} on ${t("carts")} (${c("shippingRate")});
+${c("priceList") && priceList ? `create index if not exists ${ctx.naming.rename("carts_price_list_idx")} on ${t("carts")} (${c("priceList")});\n` : ""}${lockTable(t("carts"), { read: true })}
 ${policy("carts", `${c("user")} = (select auth.uid()) or ${tenantRead("carts")}`)}
 
 create table if not exists ${t("cartLines")} (
@@ -400,7 +412,7 @@ create table if not exists ${t("cartLines")} (
   ${cl("updatedAt")} timestamptz not null default now(),
   unique (${cl("cart")}, ${cl("variant")})
 );
-create index if not exists cart_lines_variant_idx on ${t("cartLines")} (${cl("variant")});
+create index if not exists ${ctx.naming.rename("cart_lines_variant_idx")} on ${t("cartLines")} (${cl("variant")});
 ${lockTable(t("cartLines"), { read: true })}
 ${policy("cartLines", `${tenantRead("cartLines")} or exists (select 1 from ${t("carts")} x where x.${c("id")} = ${cl("cart")} and x.${c("user")} = (select auth.uid()))`)}
 
@@ -441,9 +453,9 @@ create table if not exists ${t("orders")} (
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
 );
-create index if not exists orders_status_idx on ${t("orders")} (${o("tenant")}, ${o("status")}, ${o("placedAt")});
-create index if not exists orders_customer_idx on ${t("orders")} (${o("customer")});
-create index if not exists orders_sequence_idx on ${t("orders")} (${o("tenant")}, ${o("sequence")});${addExtraColumns(t("orders"), names.extras)}
+create index if not exists ${ctx.naming.rename("orders_status_idx")} on ${t("orders")} (${o("tenant")}, ${o("status")}, ${o("placedAt")});
+create index if not exists ${ctx.naming.rename("orders_customer_idx")} on ${t("orders")} (${o("customer")});
+create index if not exists ${ctx.naming.rename("orders_sequence_idx")} on ${t("orders")} (${o("tenant")}, ${o("sequence")});${addExtraColumns(t("orders"), names.extras)}
 ${lockTable(t("orders"), { read: true })}
 ${policy("orders", `${o("customer")} = (select auth.uid()) or ${tenantRead("orders")}`)}
 
@@ -469,8 +481,8 @@ create table if not exists ${t("orderLines")} (
   ${ol("returned")} integer not null default 0 check (${ol("returned")} between 0 and ${ol("quantity")}),
   ${ol("backordered")} boolean not null default false
 );
-create index if not exists order_lines_order_idx on ${t("orderLines")} (${ol("order")});
-create index if not exists order_lines_variant_idx on ${t("orderLines")} (${ol("variant")});
+create index if not exists ${ctx.naming.rename("order_lines_order_idx")} on ${t("orderLines")} (${ol("order")});
+create index if not exists ${ctx.naming.rename("order_lines_variant_idx")} on ${t("orderLines")} (${ol("variant")});
 ${lockTable(t("orderLines"), { read: true })}
 ${policy("orderLines", ofOrder("orderLines"))}
 
@@ -489,7 +501,7 @@ create table if not exists ${t("payments")} (
   ${p("updatedAt")} timestamptz not null default now(),
   unique (${p("provider")}, ${p("reference")})
 );
-create index if not exists order_payments_order_idx on ${t("payments")} (${p("order")});
+create index if not exists ${ctx.naming.rename("order_payments_order_idx")} on ${t("payments")} (${p("order")});
 ${lockTable(t("payments"), { read: true })}
 ${policy("payments", ofOrder("payments"))}
 
@@ -506,7 +518,7 @@ create table if not exists ${t("fulfillments")} (
   ${f("shippedAt")} timestamptz,
   ${f("deliveredAt")} timestamptz
 );
-create index if not exists fulfillments_order_idx on ${t("fulfillments")} (${f("order")});
+create index if not exists ${ctx.naming.rename("fulfillments_order_idx")} on ${t("fulfillments")} (${f("order")});
 ${lockTable(t("fulfillments"), { read: true })}
 ${policy("fulfillments", ofOrder("fulfillments"))}
 
@@ -531,7 +543,7 @@ create table if not exists ${t("returns")} (
   ${r("createdAt")} timestamptz not null default now(),
   ${r("receivedAt")} timestamptz
 );
-create index if not exists order_returns_order_idx on ${t("returns")} (${r("order")});
+create index if not exists ${ctx.naming.rename("order_returns_order_idx")} on ${t("returns")} (${r("order")});
 ${lockTable(t("returns"), { read: true })}
 ${policy("returns", ofOrder("returns"))}
 
@@ -542,7 +554,7 @@ create table if not exists ${t("returnLines")} (
   ${rl("quantity")} integer not null check (${rl("quantity")} > 0),
   primary key (${rl("return")}, ${rl("line")})
 );
-create index if not exists order_return_lines_line_idx on ${t("returnLines")} (${rl("line")});
+create index if not exists ${ctx.naming.rename("order_return_lines_line_idx")} on ${t("returnLines")} (${rl("line")});
 ${lockTable(t("returnLines"), { read: true })}
 ${policy("returnLines", tenantRead("returnLines"))}
 
@@ -560,10 +572,10 @@ create table if not exists ${t("refunds")} (
   ${rf("createdAt")} timestamptz not null default now(),
   ${rf("completedAt")} timestamptz
 );
-create index if not exists order_refunds_order_idx on ${t("refunds")} (${rf("order")});
-create index if not exists order_refunds_payment_idx on ${t("refunds")} (${rf("payment")});
-create index if not exists order_refunds_return_idx on ${t("refunds")} (${rf("return")});
-create unique index if not exists order_refunds_provider_reference_idx on ${t("refunds")} (${rf("providerReference")}) where ${rf("providerReference")} is not null;
+create index if not exists ${ctx.naming.rename("order_refunds_order_idx")} on ${t("refunds")} (${rf("order")});
+create index if not exists ${ctx.naming.rename("order_refunds_payment_idx")} on ${t("refunds")} (${rf("payment")});
+create index if not exists ${ctx.naming.rename("order_refunds_return_idx")} on ${t("refunds")} (${rf("return")});
+create unique index if not exists ${ctx.naming.rename("order_refunds_provider_reference_idx")} on ${t("refunds")} (${rf("providerReference")}) where ${rf("providerReference")} is not null;
 ${lockTable(t("refunds"), { read: true })}
 ${policy("refunds", ofOrder("refunds"))}
 `;

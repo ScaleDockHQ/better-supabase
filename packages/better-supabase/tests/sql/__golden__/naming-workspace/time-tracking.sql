@@ -111,8 +111,8 @@ alter table "better_supabase"."time_entries" enable row level security;
 revoke all on "better_supabase"."time_entries" from anon, authenticated;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-drop policy if exists "time_entries_read" on "better_supabase"."time_entries";
-create policy "time_entries_read" on "better_supabase"."time_entries" for select to authenticated
+drop policy if exists time_entries_read on "better_supabase"."time_entries";
+create policy time_entries_read on "better_supabase"."time_entries" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
 create table if not exists "better_supabase"."timesheets" (
@@ -133,8 +133,8 @@ alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from anon, authenticated;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-drop policy if exists "timesheets_read" on "better_supabase"."timesheets";
-create policy "timesheets_read" on "better_supabase"."timesheets" for select to authenticated
+drop policy if exists timesheets_read on "better_supabase"."timesheets";
+create policy timesheets_read on "better_supabase"."timesheets" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
 -- The Monday of the week an instant falls in, in options.timeZone.

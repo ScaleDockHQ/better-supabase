@@ -193,6 +193,10 @@ export const permissions = {
     revoke: "members.invite",
     view: "members.invite",
   },
+  invoice: {
+    read: "invoices.read",
+    write: "invoices.write",
+  },
   invoices: {
     read: "invoices.read",
     write: "invoices.write",

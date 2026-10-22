@@ -27,8 +27,8 @@ alter table "better_supabase"."activity_entries" enable row level security;
 revoke all on "better_supabase"."activity_entries" from anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
-drop policy if exists "activity_entries_read" on "better_supabase"."activity_entries";
-create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
+drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
+create policy activity_entries_read on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
 drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
@@ -163,8 +163,8 @@ alter table "better_supabase"."activity_entries" enable row level security;
 revoke all on "better_supabase"."activity_entries" from anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
-drop policy if exists "activity_entries_read" on "better_supabase"."activity_entries";
-create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
+drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
+create policy activity_entries_read on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
 drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
@@ -301,8 +301,8 @@ alter table "app_private"."activity_entries" enable row level security;
 revoke all on "app_private"."activity_entries" from anon, authenticated;
 grant select on "app_private"."activity_entries" to authenticated;
 grant all on "app_private"."activity_entries" to service_role;
-drop policy if exists "activity_entries_read" on "app_private"."activity_entries";
-create policy "activity_entries_read" on "app_private"."activity_entries" for select to authenticated
+drop policy if exists activity_entries_read on "app_private"."activity_entries";
+create policy activity_entries_read on "app_private"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "app_private"."activity_subject_readable"(text, text);
 drop function if exists "app_private"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
@@ -437,8 +437,8 @@ alter table "better_supabase"."activity_entries" enable row level security;
 revoke all on "better_supabase"."activity_entries" from anon, authenticated;
 grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
-drop policy if exists "activity_entries_read" on "better_supabase"."activity_entries";
-create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
+drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
+create policy activity_entries_read on "better_supabase"."activity_entries" for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
 drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);

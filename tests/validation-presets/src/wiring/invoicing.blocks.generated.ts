@@ -151,6 +151,10 @@ export const permissions = {
     revoke: "members.invite",
     view: "members.invite",
   },
+  invoice: {
+    read: "invoices.read",
+    write: "invoices.write",
+  },
   invoices: {
     read: "invoices.read",
     write: "invoices.write",
@@ -187,6 +191,10 @@ export const permissions = {
   person: {
     read: "parties.read",
     write: "parties.write",
+  },
+  quote: {
+    read: "quotes.read",
+    write: "quotes.write",
   },
   quotes: {
     read: "quotes.read",

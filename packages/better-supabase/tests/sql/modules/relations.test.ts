@@ -96,7 +96,7 @@ describe("relations module", () => {
       `when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (link.target_id)::uuid`,
     );
     expect(sql).toContain(
-      "pg_advisory_xact_lock(hashtext(link.tenant::text || ':relations:' || v_kind))",
+      "pg_advisory_xact_lock(hashtext(link.tenant::text || ':relation:' || v_kind))",
     );
     expect(sql).toContain(
       `when 'task' then v_table := '"public"."tasks"'; v_id_col := 'id'; v_tenant_col := 'organization_id';`,

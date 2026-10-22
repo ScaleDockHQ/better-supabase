@@ -48,9 +48,9 @@ export function inboxDetailsDdl(q: InboxSql): string {
   ${dt("replyTo")} uuid,
   ${dt("metadata")} jsonb not null default '{}'::jsonb
 );
-create unique index if not exists inbox_message_details_external_idx on ${table} (${dt("conversation")}, ${dt("externalId")}) where ${dt("externalId")} is not null;
-create index if not exists inbox_message_details_conversation_idx on ${table} (${dt("conversation")});
-create index if not exists inbox_message_details_reply_idx on ${table} (${dt("replyTo")}) where ${dt("replyTo")} is not null;`;
+create unique index if not exists ${q.ctx.naming.rename("inbox_message_details_external_idx")} on ${table} (${dt("conversation")}, ${dt("externalId")}) where ${dt("externalId")} is not null;
+create index if not exists ${q.ctx.naming.rename("inbox_message_details_conversation_idx")} on ${table} (${dt("conversation")});
+create index if not exists ${q.ctx.naming.rename("inbox_message_details_reply_idx")} on ${table} (${dt("replyTo")}) where ${dt("replyTo")} is not null;`;
 }
 
 /** Tables, indexes, grants and read policies. Writes go through functions. */
@@ -103,11 +103,11 @@ create table if not exists ${T.inboxes} (
   ${ib("createdAt")} timestamptz not null default now(),
   ${ib("archivedAt")} timestamptz
 );
-create index if not exists inboxes_tenant_idx on ${T.inboxes} (${ib("tenant")});
-create unique index if not exists inboxes_address_idx on ${T.inboxes} (${ib("channel")}, ${ib("address")}) where ${ib("address")} is not null and ${ib("archivedAt")} is null;
+create index if not exists ${q.ctx.naming.rename("inboxes_tenant_idx")} on ${T.inboxes} (${ib("tenant")});
+create unique index if not exists ${q.ctx.naming.rename("inboxes_address_idx")} on ${T.inboxes} (${ib("channel")}, ${ib("address")}) where ${ib("address")} is not null and ${ib("archivedAt")} is null;
 ${updatedAt(T.inboxes, ib("updatedAt"))}
 ${lockTable(T.inboxes, { read: true })}
-${policy(T.inboxes, "inboxes_staff_read", q.staff(ib("tenant")))}
+${policy(T.inboxes, q.ctx.naming.rename("inboxes_staff_read"), q.staff(ib("tenant")))}
 
 create table if not exists ${T.members} (
   ${mb("inbox")} uuid not null references ${T.inboxes} (${ib("id")}) on delete cascade,
@@ -116,9 +116,9 @@ create table if not exists ${T.members} (
   ${mb("createdAt")} timestamptz not null default now(),
   primary key (${mb("inbox")}, ${mb("user")})
 );
-create index if not exists inbox_members_user_idx on ${T.members} (${mb("user")});
+create index if not exists ${q.ctx.naming.rename("inbox_members_user_idx")} on ${T.members} (${mb("user")});
 ${lockTable(T.members, { read: true })}
-${policy(T.members, "inbox_members_staff_read", `exists (select 1 from ${T.inboxes} i where i.${ib("id")} = ${mb("inbox")} and ${q.staff(`i.${ib("tenant")}`)})`)}
+${policy(T.members, q.ctx.naming.rename("inbox_members_staff_read"), `exists (select 1 from ${T.inboxes} i where i.${ib("id")} = ${mb("inbox")} and ${q.staff(`i.${ib("tenant")}`)})`)}
 
 ${
   sharedTeams
@@ -131,7 +131,7 @@ ${
   unique (${tm("tenant")}, ${tm("name")})
 );
 ${lockTable(T.teams, { read: true })}
-${policy(T.teams, "inbox_teams_staff_read", q.staff(tm("tenant")))}
+${policy(T.teams, q.ctx.naming.rename("inbox_teams_staff_read"), q.staff(tm("tenant")))}
 
 create table if not exists ${T.teamMembers} (
   ${tmm("team")} uuid not null references ${T.teams} (${tm("id")}) on delete cascade,
@@ -141,7 +141,7 @@ create table if not exists ${T.teamMembers} (
 );
 create index if not exists inbox_team_members_user_idx on ${T.teamMembers} (${tmm("user")});
 ${lockTable(T.teamMembers, { read: true })}
-${policy(T.teamMembers, "inbox_team_members_staff_read", `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}`
+${policy(T.teamMembers, q.ctx.naming.rename("inbox_team_members_staff_read"), `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}`
 }
 
 -- The people staff talk to. user_id links a signed-in widget visitor (an
@@ -162,7 +162,7 @@ create index if not exists contacts_email_idx on ${T.contacts} (${ct("tenant")},
 create index if not exists contacts_user_id_idx on ${T.contacts} (${ct("user")});
 ${updatedAt(T.contacts, ct("updatedAt"))}
 ${lockTable(T.contacts, { read: true })}
-${policy(T.contacts, "contacts_read", `${q.staff(ct("tenant"))} or ${ct("user")} = (select auth.uid())`)}
+${policy(T.contacts, q.ctx.naming.rename("contacts_read"), `${q.staff(ct("tenant"))} or ${ct("user")} = (select auth.uid())`)}
 
 -- A contact's address on a channel: a WhatsApp number, a Slack user id.
 create table if not exists ${T.identities} (
@@ -176,7 +176,7 @@ create table if not exists ${T.identities} (
 );
 create index if not exists contact_identities_contact_idx on ${T.identities} (${ci("contact")});
 ${lockTable(T.identities, { read: true })}
-${policy(T.identities, "contact_identities_staff_read", q.staff(ci("tenant")))}
+${policy(T.identities, q.ctx.naming.rename("contact_identities_staff_read"), q.staff(ci("tenant")))}
 
 -- The inbox side of a core conversation of kind inbox, with the same id:
 -- one per channel thread (thread_id is the Chat SDK thread id), reopened
@@ -206,7 +206,7 @@ create unique index if not exists conversations_thread_idx on ${T.conversations}
 create index if not exists conversations_list_idx on ${T.conversations} (${cv("tenant")}, ${cv("status")}, ${cv("lastMessageAt")} desc, ${cv("id")});
 create index if not exists conversations_assignee_idx on ${T.conversations} (${cv("assignee")}) where ${cv("assignee")} is not null;
 create index if not exists conversations_contact_idx on ${T.conversations} (${cv("contact")});
-create index if not exists conversations_inbox_idx on ${T.conversations} (${cv("inbox")});
+create index if not exists ${q.ctx.naming.rename("conversations_inbox_idx")} on ${T.conversations} (${cv("inbox")});
 create index if not exists conversations_team_idx on ${T.conversations} (${cv("team")}) where ${cv("team")} is not null;
 ${updatedAt(T.conversations, cv("updatedAt"))}
 ${lockTable(T.conversations, { read: true })}
@@ -224,11 +224,11 @@ create table if not exists ${T.events} (
 create index if not exists conversation_events_conversation_idx on ${T.events} (${ev("conversation")}, ${ev("id")});
 create index if not exists conversation_events_actor_idx on ${T.events} (${ev("actor")});
 ${lockTable(T.events, { read: true })}
-${policy(T.events, "conversation_events_staff_read", q.staff(ev("tenant")))}
+${policy(T.events, q.ctx.naming.rename("conversation_events_staff_read"), q.staff(ev("tenant")))}
 
 ${inboxDetailsDdl(q)}
 ${lockTable(T.details, { read: true })}
-${policy(T.details, "inbox_message_details_staff_read", q.staff(dt("tenant")))}
+${policy(T.details, q.ctx.naming.rename("inbox_message_details_staff_read"), q.staff(dt("tenant")))}
 
 -- What happened to an outbound message on its channel. Status only moves
 -- forward: queued, sent, delivered, read; failed before delivery.
@@ -247,7 +247,7 @@ create table if not exists ${T.deliveries} (
 create index if not exists message_deliveries_external_idx on ${T.deliveries} (${dl("channel")}, ${dl("externalId")}) where ${dl("externalId")} is not null;
 ${updatedAt(T.deliveries, dl("updatedAt"))}
 ${lockTable(T.deliveries, { read: true })}
-${policy(T.deliveries, "message_deliveries_staff_read", q.staff(dl("tenant")))}
+${policy(T.deliveries, q.ctx.naming.rename("message_deliveries_staff_read"), q.staff(dl("tenant")))}
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
 -- failed handler loses nothing. external_id dedupes a platform's retries.
@@ -267,7 +267,7 @@ create table if not exists ${T.inbound} (
 );
 create unique index if not exists inbound_events_external_idx on ${T.inbound} (${ie("adapter")}, ${ie("externalId")}) where ${ie("externalId")} is not null;
 create index if not exists inbound_events_status_idx on ${T.inbound} (${ie("status")}, ${ie("receivedAt")});
-create index if not exists inbound_events_inbox_idx on ${T.inbound} (${ie("inbox")});
+create index if not exists ${q.ctx.naming.rename("inbound_events_inbox_idx")} on ${T.inbound} (${ie("inbox")});
 ${lockTable(T.inbound)}
 
 -- Approved templates for channels that need one outside a reply window
@@ -285,10 +285,10 @@ create table if not exists ${T.templates} (
   ${tp("createdAt")} timestamptz not null default now(),
   unique (${tp("tenant")}, ${tp("channel")}, ${tp("name")}, ${tp("language")})
 );
-create index if not exists message_templates_inbox_idx on ${T.templates} (${tp("inbox")});
+create index if not exists ${q.ctx.naming.rename("message_templates_inbox_idx")} on ${T.templates} (${tp("inbox")});
 ${updatedAt(T.templates, tp("updatedAt"))}
 ${lockTable(T.templates, { read: true })}
-${policy(T.templates, "message_templates_staff_read", q.staff(tp("tenant")))}
+${policy(T.templates, q.ctx.naming.rename("message_templates_staff_read"), q.staff(tp("tenant")))}
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
 -- through the normal reply path once scheduled_for passes; until then only
@@ -302,12 +302,12 @@ create table if not exists ${T.scheduled} (
   ${sm("scheduledFor")} timestamptz not null,
   ${sm("createdAt")} timestamptz not null default now()
 );
-create index if not exists scheduled_inbox_messages_due_idx on ${T.scheduled} (${sm("scheduledFor")});
-create index if not exists scheduled_inbox_messages_conversation_idx on ${T.scheduled} (${sm("conversation")});
-create index if not exists scheduled_inbox_messages_author_idx on ${T.scheduled} (${sm("author")}, ${sm("scheduledFor")});
+create index if not exists ${q.ctx.naming.rename("scheduled_inbox_messages_due_idx")} on ${T.scheduled} (${sm("scheduledFor")});
+create index if not exists ${q.ctx.naming.rename("scheduled_inbox_messages_conversation_idx")} on ${T.scheduled} (${sm("conversation")});
+create index if not exists ${q.ctx.naming.rename("scheduled_inbox_messages_author_idx")} on ${T.scheduled} (${sm("author")}, ${sm("scheduledFor")});
 ${updatedAt(T.scheduled, sm("updatedAt"))}
 ${lockTable(T.scheduled, { read: true })}
-${policy(T.scheduled, "scheduled_inbox_messages_author_read", `${sm("author")} = (select auth.uid()) and ${q.staff(sm("tenant"), "reply")}`)}`;
+${policy(T.scheduled, q.ctx.naming.rename("scheduled_inbox_messages_author_read"), `${sm("author")} = (select auth.uid()) and ${q.staff(sm("tenant"), "reply")}`)}`;
 }
 
 /**

@@ -17,6 +17,14 @@ import { moduleOperations } from "./permissions-model.ts";
 import { activityReads } from "./timeline-reads.ts";
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    entry: {
+      table: "activity",
+      singular: "activity_entry",
+      plural: "activity_entries",
+      primary: true,
+    },
+  },
   tables: {
     activity: {
       name: "activity_entries",
@@ -74,15 +82,15 @@ create table if not exists ${activity} (
   ${a("data")} jsonb not null default '{}'::jsonb,
   ${a("occurredAt")} timestamptz not null default now()
 );
-create index if not exists activity_entries_feed_idx on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
-create index if not exists activity_entries_subject_idx on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
-create index if not exists activity_entries_actor_idx on ${activity} (${a("actor")});
+create index if not exists ${ctx.naming.rename("activity_entries_feed_idx")} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
+create index if not exists ${ctx.naming.rename("activity_entries_subject_idx")} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
+create index if not exists ${ctx.naming.rename("activity_entries_actor_idx")} on ${activity} (${a("actor")});
 alter table ${activity} enable row level security;
 ${revokeTable(activity)}
 grant select on ${activity} to authenticated;
 grant all on ${activity} to service_role;
-${reads.readable}drop policy if exists "activity_entries_read" on ${activity};
-create policy "activity_entries_read" on ${activity} for select to authenticated
+${reads.readable}drop policy if exists ${ctx.naming.rename("activity_entries_read")} on ${activity};
+create policy ${ctx.naming.rename("activity_entries_read")} on ${activity} for select to authenticated
   using (${ctx.scope.check(a("tenant"), read)}${reads.rowCheck});${reads.dropReadable}${reads.helpers}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,

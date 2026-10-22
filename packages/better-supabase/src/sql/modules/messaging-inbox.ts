@@ -25,7 +25,7 @@ export function messagingInbox(q: MessagingSql): string {
   );
 
   const detailKey = sqlIdent(`${inbox.tableName("details").name}_core_fkey`);
-  const trigger = ctx.trigger("messaging_inbox_broadcast");
+  const trigger = ctx.trigger(inbox.naming.rename("messaging_inbox_broadcast"));
 
   return `-- The inbox's conversations and message details belong to core rows.
 alter table ${conversations} drop constraint if exists ${conversationKey};

@@ -31,6 +31,13 @@ const EVENTS: BlockSqlEvents<AnnouncementsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    announcement: {
+      table: "announcements",
+      singular: "announcement",
+      primary: true,
+    },
+  },
   events: EVENTS,
   options: ["topic", "event", "extraColumns"],
   tables: {
@@ -152,8 +159,8 @@ create table if not exists ${a} (
 -- the check.
 alter table ${a} drop constraint if exists bsb_announcements_audience;
 alter table ${a} add constraint bsb_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
-create index if not exists announcements_window_idx on ${a} (${ca("startsAt")}, ${ca("endsAt")});
-create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});${addExtraColumns(a, extras)}
+create index if not exists ${ctx.naming.rename("announcements_window_idx")} on ${a} (${ca("startsAt")}, ${ca("endsAt")});
+create index if not exists ${ctx.naming.rename("announcements_created_by_idx")} on ${a} (${ca("createdBy")});${addExtraColumns(a, extras)}
 ${lockTable(a)}
 
 create table if not exists ${d} (
@@ -162,7 +169,7 @@ create table if not exists ${d} (
   ${cd("dismissedAt")} timestamptz not null default now(),
   primary key (${cd("announcement")}, ${cd("user")})
 );
-create index if not exists announcement_dismissals_user_idx on ${d} (${cd("user")});
+create index if not exists ${ctx.naming.rename("announcement_dismissals_user_idx")} on ${d} (${cd("user")});
 ${lockTable(d)}
 
 -- The caller's live, undismissed announcements, newest first. Pass the

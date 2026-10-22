@@ -42,7 +42,7 @@ describe("versions module", () => {
 
   it("refuses restores when no subject can take one", () => {
     const sql = sqlOf(withSubjects({ file: { table: "public.files" } }));
-    expect(sql).not.toContain("versions_restoring', 'on'");
+    expect(sql).not.toContain("restoring_version', 'on'");
   });
 
   it("adds auto and freeze triggers", () => {

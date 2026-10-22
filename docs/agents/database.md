@@ -76,7 +76,7 @@ data files changed. The example's `gen:check` fails while they are stale.
 `supabase/snapshot.json` is the only snapshot: the CLI and generator tests
 and `scripts/gen-fixtures.ts` read it. Refresh it from a freshly reset stack
 (`pnpm supabase:reset`, then
-`node packages/better-supabase/src/cli/bin.ts introspect --cwd .`), never after
+`node packages/better-supabase/src/cli/bin.ts gen --save-snapshot --cwd .`), never after
 the integration tests, which install every SQL module into the same database.
 Then run `pnpm --filter better-supabase gen:fixtures`. The database workflow
 runs `gen --save-snapshot --check` on its fresh stack, and the library's `gen:check`

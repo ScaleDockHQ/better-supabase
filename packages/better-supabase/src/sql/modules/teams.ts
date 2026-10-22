@@ -43,6 +43,7 @@ const EVENTS: BlockSqlEvents<TeamsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: { team: { table: "teams", singular: "team", primary: true } },
   events: EVENTS,
   hooks: ["before_team_create", "after_team_create"],
   options: ["teamIdType", "extraColumns"],
@@ -144,8 +145,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   unique (${tenant}, ${slug})
 );${addExtraColumns(teams, extras)}
 ${lockTable(teams, { read: true })}
-drop policy if exists teams_read on ${teams};
-create policy teams_read on ${teams} for select to authenticated
+drop policy if exists ${ctx.naming.rename("teams_read")} on ${teams};
+create policy ${ctx.naming.rename("teams_read")} on ${teams} for select to authenticated
 using (${tenant} in (select ${ctx.scope.ids(read)}));
 
 create table if not exists ${members} (
@@ -155,11 +156,11 @@ create table if not exists ${members} (
   ${memberCreated} timestamptz not null default now(),
   primary key (${memberTeam}, ${memberUser})
 );
-create index if not exists team_members_user_idx on ${members} (${memberUser});
-create index if not exists team_members_membership_idx on ${members} (${memberTenant}, ${memberUser});
+create index if not exists ${ctx.naming.rename("team_members_user_idx")} on ${members} (${memberUser});
+create index if not exists ${ctx.naming.rename("team_members_membership_idx")} on ${members} (${memberTenant}, ${memberUser});
 ${lockTable(members, { read: true })}
-drop policy if exists team_members_read on ${members};
-create policy team_members_read on ${members} for select to authenticated
+drop policy if exists ${ctx.naming.rename("team_members_read")} on ${members};
+create policy ${ctx.naming.rename("team_members_read")} on ${members} for select to authenticated
 using (${memberTenant} in (select ${ctx.scope.ids(read)}));
 ${membershipFk(ctx, members, memberTenant, memberUser)}
 `
@@ -389,9 +390,9 @@ function membershipFk(
 
   const memberships = ctx.of("memberships");
 
-  return `alter table ${members} drop constraint if exists team_members_membership_fkey;
+  return `alter table ${members} drop constraint if exists ${ctx.naming.rename("team_members_membership_fkey")};
 alter table ${members}
-  add constraint team_members_membership_fkey
+  add constraint ${ctx.naming.rename("team_members_membership_fkey")}
   foreign key (${tenant}, ${user})
   references ${memberships.table("memberships")} (${memberships.col("memberships", "tenant")}, ${memberships.col("memberships", "user")});`;
 }
@@ -443,7 +444,7 @@ function inboxMove(
   const memberUser = ctx.col("members", "user");
   const memberTenant = ctx.col("members", "tenant");
 
-  return `do $inbox_teams$
+  return `do $shared_teams$
 declare
   legacy record;
 begin
@@ -470,7 +471,7 @@ begin
   drop table ${oldMembers};
   drop table ${oldTeams};
 end
-$inbox_teams$;
+$shared_teams$;
 alter table ${conversations}
   drop constraint if exists conversations_team_fkey;
 alter table ${conversations}

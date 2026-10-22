@@ -216,6 +216,10 @@ export const permissions = {
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
   },
+  form: {
+    read: "forms.read",
+    write: "forms.manage",
+  },
   forms: {
     read: "forms.read",
     manage: "forms.manage",
@@ -232,6 +236,10 @@ export const permissions = {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  invoice: {
+    read: "invoices.read",
+    write: "invoices.write",
   },
   invoices: {
     read: "invoices.read",
@@ -274,6 +282,10 @@ export const permissions = {
   product_variant: {
     read: "catalog.read",
     write: "catalog.manage",
+  },
+  quote: {
+    read: "quotes.read",
+    write: "quotes.write",
   },
   quotes: {
     read: "quotes.read",

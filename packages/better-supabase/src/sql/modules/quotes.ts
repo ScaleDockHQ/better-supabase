@@ -41,6 +41,17 @@ const EVENTS: BlockSqlEvents<QuotesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    quote: {
+      table: "quotes",
+      singular: "quote",
+      primary: true,
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "write" },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_quote_send",
@@ -132,12 +143,12 @@ create table if not exists ${t("quotes")} (
   check ((${q("companyType")} is null) = (${q("companyId")} is null)),
   check ((${q("originType")} is null) = (${q("originId")} is null))
 );
-create index if not exists quotes_tenant_status_idx on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);
-create index if not exists quotes_origin_idx on ${t("quotes")} (${q("originType")}, ${q("originId")});
-create index if not exists quotes_supersedes_idx on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}
+create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);
+create index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});
+create index if not exists ${ctx.naming.rename("quotes_supersedes_idx")} on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}
 ${lockTable(t("quotes"), { read: true })}
-drop policy if exists quotes_read on ${t("quotes")};
-create policy quotes_read on ${t("quotes")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("quotes_read")} on ${t("quotes")};
+create policy ${ctx.naming.rename("quotes_read")} on ${t("quotes")} for select to authenticated
 using (${ctx.scope.check(q("tenant"), n.read)});
 `;
 }

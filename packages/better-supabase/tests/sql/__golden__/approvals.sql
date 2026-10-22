@@ -64,8 +64,8 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists "approval_requests_read" on "better_supabase"."approval_requests";
-create policy "approval_requests_read" on "better_supabase"."approval_requests" for select to authenticated
+drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
+create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -86,8 +86,8 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists "approval_decisions_read" on "better_supabase"."approval_decisions";
-create policy "approval_decisions_read" on "better_supabase"."approval_decisions" for select to authenticated
+drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
+create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -643,8 +643,8 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists "approval_requests_read" on "better_supabase"."approval_requests";
-create policy "approval_requests_read" on "better_supabase"."approval_requests" for select to authenticated
+drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
+create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('ai_tool_approval', 'support_request')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -665,8 +665,8 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists "approval_decisions_read" on "better_supabase"."approval_decisions";
-create policy "approval_decisions_read" on "better_supabase"."approval_decisions" for select to authenticated
+drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
+create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -1429,8 +1429,8 @@ alter table "app_private"."approval_requests" enable row level security;
 revoke all on "app_private"."approval_requests" from anon, authenticated;
 grant select on "app_private"."approval_requests" to authenticated;
 grant all on "app_private"."approval_requests" to service_role;
-drop policy if exists "approval_requests_read" on "app_private"."approval_requests";
-create policy "approval_requests_read" on "app_private"."approval_requests" for select to authenticated
+drop policy if exists approval_requests_read on "app_private"."approval_requests";
+create policy approval_requests_read on "app_private"."approval_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "app_private"."approval_decisions" (
@@ -1451,8 +1451,8 @@ alter table "app_private"."approval_decisions" enable row level security;
 revoke all on "app_private"."approval_decisions" from anon, authenticated;
 grant select on "app_private"."approval_decisions" to authenticated;
 grant all on "app_private"."approval_decisions" to service_role;
-drop policy if exists "approval_decisions_read" on "app_private"."approval_decisions";
-create policy "approval_decisions_read" on "app_private"."approval_decisions" for select to authenticated
+drop policy if exists approval_decisions_read on "app_private"."approval_decisions";
+create policy approval_decisions_read on "app_private"."approval_decisions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.
@@ -2008,8 +2008,8 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-drop policy if exists "approval_requests_read" on "better_supabase"."approval_requests";
-create policy "approval_requests_read" on "better_supabase"."approval_requests" for select to authenticated
+drop policy if exists approval_requests_read on "better_supabase"."approval_requests";
+create policy approval_requests_read on "better_supabase"."approval_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
 create table if not exists "better_supabase"."approval_decisions" (
@@ -2030,8 +2030,8 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-drop policy if exists "approval_decisions_read" on "better_supabase"."approval_decisions";
-create policy "approval_decisions_read" on "better_supabase"."approval_decisions" for select to authenticated
+drop policy if exists approval_decisions_read on "better_supabase"."approval_decisions";
+create policy approval_decisions_read on "better_supabase"."approval_decisions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
 -- The policy a new request snapshots, from options.policies.

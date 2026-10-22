@@ -69,6 +69,13 @@ const EVENTS: BlockSqlEvents<CollectionsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    collection: {
+      table: "collections",
+      singular: "subject_collection",
+      primary: true,
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_collection_create",
@@ -171,8 +178,8 @@ create table if not exists ${t("collections")} (
   check (${co("scope")} <> 'user' or ${co("owner")} is not null),
   check (${co("scope")} <> 'team' or ${co("team")} is not null)
 );
-create index if not exists subject_collections_tenant_type_idx on ${t("collections")} (${co("tenant")}, ${co("subjectType")}, lower(${co("name")}));
-create index if not exists subject_collections_owner_idx on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;${addExtraColumns(t("collections"), collectionExtras(ctx))}
+create index if not exists ${ctx.naming.rename("subject_collections_tenant_type_idx")} on ${t("collections")} (${co("tenant")}, ${co("subjectType")}, lower(${co("name")}));
+create index if not exists ${ctx.naming.rename("subject_collections_owner_idx")} on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;${addExtraColumns(t("collections"), collectionExtras(ctx))}
 ${lockTable(t("collections"), { read: true })}
 
 create table if not exists ${t("entries")} (
@@ -185,8 +192,8 @@ create table if not exists ${t("entries")} (
   ${en("addedAt")} timestamptz not null default now(),
   primary key (${en("collection")}, ${en("subjectId")})
 );
-create index if not exists subject_collection_entries_rank_idx on ${t("entries")} (${en("collection")}, ${en("rank")}, ${en("subjectId")});
-create index if not exists subject_collection_entries_subject_idx on ${t("entries")} (${en("subjectType")}, ${en("subjectId")});
+create index if not exists ${ctx.naming.rename("subject_collection_entries_rank_idx")} on ${t("entries")} (${en("collection")}, ${en("rank")}, ${en("subjectId")});
+create index if not exists ${ctx.naming.rename("subject_collection_entries_subject_idx")} on ${t("entries")} (${en("subjectType")}, ${en("subjectId")});
 ${lockTable(t("entries"), { read: true })}
 
 create table if not exists ${t("favorites")} (
@@ -222,7 +229,7 @@ ${lockTable(t("savedItems"), { read: true })}
 `;
 }
 
-function policies(names: CollectionNames): string {
+function policies(ctx: BlockSqlContext, names: CollectionNames): string {
   const { t, canSubject } = names;
   const co = (column: string): string => names.c("collections", column);
   const en = (column: string): string => names.c("entries", column);
@@ -234,15 +241,15 @@ function policies(names: CollectionNames): string {
 -- tenant. An entry is visible when its collection is and the caller can
 -- read its record, so a shared list never shows a record to someone who
 -- can't open it. Stars and saved items are the caller's own.
-drop policy if exists subject_collections_read on ${t("collections")};
-create policy subject_collections_read on ${t("collections")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("subject_collections_read")} on ${t("collections")};
+create policy ${ctx.naming.rename("subject_collections_read")} on ${t("collections")} for select to authenticated
 using (${names.scope.check(co("tenant"), names.read)} and (
   (${co("scope")} = 'user' and ${co("owner")} = (select auth.uid()))
   or (${co("scope")} = 'team' and ${names.inTeam(co("team"))})
   or ${co("scope")} = 'tenant'
 ));
-drop policy if exists subject_collection_entries_read on ${t("entries")};
-create policy subject_collection_entries_read on ${t("entries")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("subject_collection_entries_read")} on ${t("entries")};
+create policy ${ctx.naming.rename("subject_collection_entries_read")} on ${t("entries")} for select to authenticated
 using (${names.scope.check(en("tenant"), names.read)}
   and exists (select 1 from ${t("collections")} c where c.${co("id")} = ${en("collection")})
   and ${canSubject}(${en("subjectType")}, ${en("subjectId")}, 'read'));
@@ -315,7 +322,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
 -- to come back to, with a reminder) on config.records records.
-${tables(ctx, names)}${ctx.manages ? policies(names) : ""}${collectionFunctions(ctx, names)}${starFunctions(ctx, names)}${savedItemFunctions(ctx, names)}${subjectCascades(
+${tables(ctx, names)}${ctx.manages ? policies(ctx, names) : ""}${collectionFunctions(ctx, names)}${starFunctions(ctx, names)}${savedItemFunctions(ctx, names)}${subjectCascades(
     ctx,
     cascading(ctx),
     `delete from ${ctx.table("entries")} where ${en("subjectType")} = v_type and ${en("subjectId")} = v_id;

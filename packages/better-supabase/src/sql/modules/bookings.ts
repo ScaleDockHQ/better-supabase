@@ -53,6 +53,17 @@ const EVENTS: BlockSqlEvents<BookingsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    booking: {
+      table: "bookings",
+      singular: "booking",
+      primary: true,
+      subject: {
+        title: "customerName",
+        permissions: { read: "read", write: "manage" },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_booking_reserve",
@@ -181,8 +192,8 @@ alter table ${p.resources} add column if not exists ${r("host")} uuid;
 alter table ${p.resources} add column if not exists ${r("checkBusy")} boolean not null default false;
 ${lockTable(p.resources, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("resources").name}_tenant_idx`)} on ${p.resources} (${r("tenant")});
-drop policy if exists booking_resources_read on ${p.resources};
-create policy booking_resources_read on ${p.resources} for select to authenticated
+drop policy if exists ${ctx.naming.rename("booking_resources_read")} on ${p.resources};
+create policy ${ctx.naming.rename("booking_resources_read")} on ${p.resources} for select to authenticated
 using (${ctx.scope.check(r("tenant"), p.read)} or ${ctx.scope.check(r("tenant"), p.create)});
 create table if not exists ${p.availability} (
   ${av("id")} uuid primary key default gen_random_uuid(),
@@ -193,10 +204,10 @@ create table if not exists ${p.availability} (
   ${av("endsAt")} time not null,
   check (${av("endsAt")} > ${av("startsAt")})
 );
-create index if not exists booking_availability_resource_idx on ${p.availability} (${av("resource")}, ${av("weekday")});
+create index if not exists ${ctx.naming.rename("booking_availability_resource_idx")} on ${p.availability} (${av("resource")}, ${av("weekday")});
 ${lockTable(p.availability, { read: true })}
-drop policy if exists booking_availability_read on ${p.availability};
-create policy booking_availability_read on ${p.availability} for select to authenticated
+drop policy if exists ${ctx.naming.rename("booking_availability_read")} on ${p.availability};
+create policy ${ctx.naming.rename("booking_availability_read")} on ${p.availability} for select to authenticated
 using (${ctx.scope.check(av("tenant"), p.read)} or ${ctx.scope.check(av("tenant"), p.create)});
 create table if not exists ${p.exceptions} (
   ${x("id")} uuid primary key default gen_random_uuid(),
@@ -206,10 +217,10 @@ create table if not exists ${p.exceptions} (
   ${x("available")} boolean not null default false,
   ${x("reason")} text
 );
-create index if not exists booking_exceptions_resource_idx on ${p.exceptions} using gist (${x("resource")}, ${x("during")});
+create index if not exists ${ctx.naming.rename("booking_exceptions_resource_idx")} on ${p.exceptions} using gist (${x("resource")}, ${x("during")});
 ${lockTable(p.exceptions, { read: true })}
-drop policy if exists booking_exceptions_read on ${p.exceptions};
-create policy booking_exceptions_read on ${p.exceptions} for select to authenticated
+drop policy if exists ${ctx.naming.rename("booking_exceptions_read")} on ${p.exceptions};
+create policy ${ctx.naming.rename("booking_exceptions_read")} on ${p.exceptions} for select to authenticated
 using (${ctx.scope.check(x("tenant"), p.read)});
 create table if not exists ${p.services} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -228,8 +239,8 @@ create table if not exists ${p.services} (
 );
 ${lockTable(p.services, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("services").name}_tenant_idx`)} on ${p.services} (${s("tenant")});
-drop policy if exists booking_services_read on ${p.services};
-create policy booking_services_read on ${p.services} for select to authenticated
+drop policy if exists ${ctx.naming.rename("booking_services_read")} on ${p.services};
+create policy ${ctx.naming.rename("booking_services_read")} on ${p.services} for select to authenticated
 using (${ctx.scope.check(s("tenant"), p.read)} or ${ctx.scope.check(s("tenant"), p.create)});
 create table if not exists ${p.bookings} (
   ${b("id")} uuid primary key default gen_random_uuid(),
@@ -254,19 +265,19 @@ create table if not exists ${p.bookings} (
   ${b("cancelReason")} text,
   check (${b("blocked")} @> ${b("during")}),
   check ((${b("status")} = 'hold') = (${b("holdExpiresAt")} is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint ${ctx.naming.rename("bookings_no_overlap")} exclude using gist (
     ${b("resource")} with =,
     ${b("seat")} with =,
     ${b("blocked")} with &&
   ) where (${b("status")} <> 'cancelled')
 );
-create index if not exists bookings_tenant_during_idx on ${p.bookings} using gist (${b("tenant")}, ${b("during")});
-create index if not exists bookings_resource_idx on ${p.bookings} (${b("resource")});
-create index if not exists bookings_service_idx on ${p.bookings} (${b("service")});
-create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';${addExtraColumns(p.bookings, p.extras)}
+create index if not exists ${ctx.naming.rename("bookings_tenant_during_idx")} on ${p.bookings} using gist (${b("tenant")}, ${b("during")});
+create index if not exists ${ctx.naming.rename("bookings_resource_idx")} on ${p.bookings} (${b("resource")});
+create index if not exists ${ctx.naming.rename("bookings_service_idx")} on ${p.bookings} (${b("service")});
+create index if not exists ${ctx.naming.rename("bookings_hold_idx")} on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';${addExtraColumns(p.bookings, p.extras)}
 ${lockTable(p.bookings, { read: true })}
-drop policy if exists bookings_read on ${p.bookings};
-create policy bookings_read on ${p.bookings} for select to authenticated
+drop policy if exists ${ctx.naming.rename("bookings_read")} on ${p.bookings};
+create policy ${ctx.naming.rename("bookings_read")} on ${p.bookings} for select to authenticated
 using (${guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")])});
 ${recurringOn(ctx) ? seriesTables(p) : ""}`;
 }

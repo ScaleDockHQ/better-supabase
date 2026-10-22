@@ -66,6 +66,15 @@ const EVENTS: BlockSqlEvents<TimeTrackingEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    entry: {
+      table: "entries",
+      singular: "time_entry",
+      plural: "time_entries",
+      primary: true,
+    },
+    timesheet: { table: "timesheets", singular: "timesheet" },
+  },
   events: EVENTS,
   hooks: [
     "before_time_entry_save",
@@ -405,8 +414,8 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_r
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_user_idx`)} on ${entries} (${e("tenant")}, ${e("user")}, ${e("startedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_subject_idx`)} on ${entries} (${e("tenant")}, ${e("subjectType")}, ${e("subjectId")}) where ${e("subjectType")} is not null;
 ${lockTable(entries, { read: true })}
-drop policy if exists "time_entries_read" on ${entries};
-create policy "time_entries_read" on ${entries} for select to authenticated
+drop policy if exists ${ctx.naming.rename("time_entries_read")} on ${entries};
+create policy ${ctx.naming.rename("time_entries_read")} on ${entries} for select to authenticated
   using (${e("user")} = (select auth.uid()) or ${ctx.scope.check(e("tenant"), read)});
 
 create table if not exists ${timesheets} (
@@ -424,8 +433,8 @@ create table if not exists ${timesheets} (
 create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_approval_idx`)} on ${timesheets} (${t("approval")}) where ${t("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("timesheets").name}_week_idx`)} on ${timesheets} (${t("tenant")}, ${t("week")} desc);
 ${lockTable(timesheets, { read: true })}
-drop policy if exists "timesheets_read" on ${timesheets};
-create policy "timesheets_read" on ${timesheets} for select to authenticated
+drop policy if exists ${ctx.naming.rename("timesheets_read")} on ${timesheets};
+create policy ${ctx.naming.rename("timesheets_read")} on ${timesheets} for select to authenticated
   using (${t("user")} = (select auth.uid()) or ${ctx.scope.check(t("tenant"), read)});
 `
     : "";
@@ -481,8 +490,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("time_entry_guard")}() from public, anon, authenticated;
-drop trigger if exists bsb_time_entry_guard on ${entries};
-create trigger bsb_time_entry_guard
+drop trigger if exists ${ctx.naming.rename("bsb_time_entry_guard")} on ${entries};
+create trigger ${ctx.naming.rename("bsb_time_entry_guard")}
   before insert or update or delete on ${entries}
   for each row execute function ${fn("time_entry_guard")}();
 

@@ -48,6 +48,7 @@ const EVENTS: BlockSqlEvents<AutomationsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: { rule: { table: "rules", singular: "rule", primary: true } },
   events: EVENTS,
   options: ["maxConditions", "maxDepth", "maxActions"],
   hooks: [],
