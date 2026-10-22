@@ -96,3 +96,26 @@ name and avatar URL from the profiles module, through the new security
 definer functions `comment_authors(uuid[])` and `attachment_authors(uuid[])`.
 They return only authors of rows the caller may read. Without the profiles
 module, `author.name` and `author.avatarUrl` are `undefined`.
+
+## Stock, leave balances and invoice payments move onto the ledger
+
+Inventory, leave and invoices now require the new [ledger](/docs/blocks/ledger)
+module, and `better-supabase add` installs it with them. Their client methods
+and SQL functions keep their names and results. The tables underneath change:
+
+| Before                         | After                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------- |
+| `stock_movements`              | `ledger_transactions` of kind `stock.<reason>` on a `stock:<variant>:<location>` account |
+| `leave_ledger`                 | `ledger_transactions` of kind `leave.<entry>` on a `leave:<type>:<user>:<year>` account  |
+| `invoice_payments`             | `ledger_transactions` of kind `invoice.payment` or `invoice.refund` on `invoice:<id>`    |
+| `apply_stock_movement` trigger | the ledger's balance trigger and `ledger_balances`                                       |
+
+Run `better-supabase sql upgrade`. Each module's upgrade copies the old rows
+into ledger transactions with the same ids, so movement, entry and payment ids
+you stored stay valid, then drops the old table. A schema diff from `sql sync` alone
+drops the tables without copying them, so upgrade before you deploy.
+
+Code that read those tables directly reads the ledger instead: `ledger_entries`
+joined to `ledger_accounts` by code, or `createLedger(...).entries(accountId)`.
+An adopted `stock_movements`, `leave_ledger` or `invoice_payments` table in
+`blocks.<name>.tables` is no longer a key; remove it from the config.

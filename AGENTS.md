@@ -181,6 +181,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0062: one messaging core; channels first, then comments and the inbox move onto it (breaking).
 - 0063: the activity feed moves out of comments into its own `activity` block.
 - 0064: blocks compose through sections and flows; library logic, generated bindings and recipe UI.
+- 0065: balances live in one double-entry `ledger`; inventory stock, leave balances and invoice payments move onto it (breaking).
 
 ## Pre-release pins
 

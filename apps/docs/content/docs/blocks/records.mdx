@@ -24,6 +24,7 @@ section never takes the page down:
 | `relations`   | `relations`   | links to and from the record | `link`, `unlink`      | none                    |
 | `versions`    | `versions`    | the versions, newest first   | `snapshot`, `restore` | none                    |
 | `sla`         | `sla`         | the record's clocks          | `start`               | none                    |
+| `ledger`      | `ledger`      | the record's accounts        | none                  | none                    |
 
 A write takes the record's id and the write's input, such as
 `{ id, input: { kind: "relates", target } }` for `relations.link`.

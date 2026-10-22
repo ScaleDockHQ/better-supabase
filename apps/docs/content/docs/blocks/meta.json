@@ -75,6 +75,7 @@
     "documents",
     "catalog",
     "inventory",
+    "ledger",
     "drive",
     "orders",
     "promotions",

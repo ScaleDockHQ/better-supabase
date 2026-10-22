@@ -70,3 +70,4 @@ add one, and link it from the code or config it explains.
 | [0062](0062-messaging-core-and-breaking-moves.md)         | One messaging core; channels first, then comments and the inbox move onto it (breaking)                                        |
 | [0063](0063-activity-block.md)                            | The activity feed moves out of comments into its own `activity` block                                                          |
 | [0064](0064-sections-and-three-layers.md)                 | Blocks compose through sections, flows and three layers: library logic, generated bindings, recipes                            |
+| [0065](0065-double-entry-ledger.md)                       | Balances live in one double-entry ledger; inventory stock, leave balances and invoice payments move onto it (breaking)         |

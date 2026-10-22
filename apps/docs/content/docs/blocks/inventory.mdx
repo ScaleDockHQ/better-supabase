@@ -1,14 +1,16 @@
 ---
 title: Inventory
-description: Stock per catalog variant and location from an append-only movement ledger, reservations that expire, transfers between locations and purchase orders with partial receiving.
+description: Stock per catalog variant and location on the ledger block, reservations that expire, transfers between locations and purchase orders with partial receiving.
 ---
 
 `inventory` counts the stock of [catalog](/docs/blocks/catalog) variants at
-each location. Every change is a row in an append-only movement ledger, and a
-trigger keeps one level row per variant and location in step with it:
-on-hand, reserved, incoming, and available (on-hand minus reserved). On top
-of the ledger it adds reservations that expire, transfers between locations,
-and purchase orders that you receive in parts.
+each location. Every change is a transaction on the
+[ledger](/docs/blocks/ledger): each variant and location has a stock account,
+and a movement posts against a counter account (suppliers, customers,
+adjustments or in transit). One level row per variant and location keeps
+on-hand, reserved, incoming, and available (on-hand minus reserved) in step
+with it. On top of the ledger it adds reservations that expire, transfers
+between locations, and purchase orders that you receive in parts.
 
 ```bash
 better-supabase add inventory
@@ -100,8 +102,11 @@ await inventory
 
 `adjustStock` takes `adjustment`, `damage`, `loss`, `return` or `receipt`.
 The other movement reasons (`count`, `sale`, `transfer_out`, `transfer_in`)
-come from the functions that write them. Movements can't be updated
-(`INVENTORY_LEDGER_APPEND_ONLY`); a correction is a new movement.
+come from the functions that write them. A movement is a ledger transaction
+of kind `stock.<reason>`, and `movementId` is its id. Ledger entries can't be
+updated; a correction is a new movement. Read a variant's history with the
+ledger client's `entries(accountId)` on its stock accounts (`kind: "stock"`,
+`managedBy: "inventory"`).
 
 When the catalog variant has `trackInventory` on and `allowBackorder` off,
 the ledger refuses a movement that would take on-hand below zero, or take
@@ -234,8 +239,8 @@ by method name.
 
 ## Adopting existing tables
 
-In `adopt` mode, map `locations`, `levels`, `movements` and `reservations` to
-your tables. Transfers (`transfers`, `transferLines`) and purchase orders
+In `adopt` mode, map `locations`, `levels` and `reservations` to your tables;
+movements live in the ledger block's tables. Transfers (`transfers`, `transferLines`) and purchase orders
 (`purchaseOrders`, `purchaseOrderLines`) are optional: set them to `null`
 and their functions are left out.
 
