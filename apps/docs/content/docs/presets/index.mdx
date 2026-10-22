@@ -1,6 +1,6 @@
 ---
 title: Presets
-description: Start an app from a named preset or a code from /create, with every block it needs and the conventions it sets.
+description: Start an app from a named preset or a design from /create, with every block it needs and the conventions it sets.
 ---
 
 A preset is a block selection plus the conventions to install it with:
@@ -128,13 +128,14 @@ config on the local stack and drives the flows end to end.
 | [Scheduling](/docs/presets/scheduling) | `scheduling` | `booking`  | custom-fields, share-links, state-machine                          |
 | [Commerce](/docs/presets/commerce)     | `commerce`   | `order`    | imports, number-sequences, search, saved-views, metrics, approvals |
 
-## Codes and Create
+## Designs and Create
 
-[Create](https://app.bettersupabase.com/create) builds a preset in the browser
-and keeps it in the URL as `/create?preset=<code>`. The code also works as
-`preset` in the config, with `init --preset` and with `apply --preset`, and
-so does the whole URL. See
-[Codes and the resolver](/docs/presets/codes) for the encoding and the
+[Create](https://app.bettersupabase.com/create) builds a design in the browser
+and keeps it in the URL: `/create?preset=<name>` for an unchanged named
+preset, `/create?design=<code>` otherwise, with the preset inside the design.
+`init --preset` and `add --preset` take the whole URL, and the config's
+`preset` key takes the name or the preset object the design holds. See
+[Designs and the resolver](/docs/presets/designs) for the format and the
 `better-supabase/preset` API.
 
 Create runs in the better-supabase cloud app and needs no account for the
@@ -144,7 +145,7 @@ history and the cloud MCP server at `https://app.bettersupabase.com/api/mcp`.
 That server edits your saved designs; the docs MCP server at
 `https://bettersupabase.com/mcp` answers questions about these docs. Old
 `bettersupabase.com/create` links redirect to the app with their query
-string, so codes and URLs you already shared keep working.
+string, so links you already shared keep opening.
 
 To skip the blank canvas, pick "Start from a template" under Preset. Each
 template sets a named preset, adds the blocks its tables use and draws the

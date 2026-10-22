@@ -1,6 +1,6 @@
 ---
 title: Presets and blocks
-description: Apply a preset to an existing project, map blocks onto tables it already has, read a preset code, and find the blocks to add.
+description: Apply a preset to an existing project, map blocks onto tables it already has, read a preset or design, and find the blocks to add.
 ---
 
 [`add --preset`](/docs/cli/init#add) applies a [preset](/docs/presets) to
@@ -168,15 +168,16 @@ and settings of the installed blocks that a schema diff skips
 ## Reading a preset
 
 ```bash
-pnpm better-supabase blocks list --preset 1pWEF3d578B1iGt16
-pnpm better-supabase blocks list --preset "https://app.bettersupabase.com/create?preset=1pWEF3d578B1iGt16"
+pnpm better-supabase blocks list --preset crm
+pnpm better-supabase blocks list --preset "https://app.bettersupabase.com/create?design=0..."
 pnpm better-supabase config --preset
 ```
 
-`blocks list --preset` takes a name, a code or a `/create` URL and prints the
-conventions, every block the preset installs with the reason it is there,
-and anything that can't install, which exits 1. A code from an older
-version also lists the fields it predates, which decode at their defaults.
+`blocks list --preset` takes a name, a design code or a `/create` URL and
+prints the preset's name (or `custom`), its conventions, every block it
+installs with the reason it is there, and anything that can't install, which
+exits 1. A 0.14 preset code stops with the reason and names
+`better-supabase codemod 0.15`.
 
 `config --preset` reads the `preset` of the config and prints the same, then
 how the config differs from it: the blocks it adds (`+`), a casing that

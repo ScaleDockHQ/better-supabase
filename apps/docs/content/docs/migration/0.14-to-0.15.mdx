@@ -100,7 +100,7 @@ the codemod rewrites them in `package.json` scripts and GitHub workflows.
 | `sql data`                    | `add --adopt`                                 |
 | `sql list`                    | `blocks list --installed`                     |
 | `sql print <block>`           | `blocks view <block> --sql`                   |
-| `preset decode <code>`        | `blocks list --preset <code>`                 |
+| `preset decode <code>`        | `blocks list --preset <name or URL>`          |
 | `preset info`                 | `config --preset`                             |
 | `introspect`                  | `gen --save-snapshot`                         |
 | `seed`                        | `db seed`                                     |
@@ -113,3 +113,35 @@ needs `--allow-hook-overlap`. `remove` is new: it
 takes blocks out of the config and `lib/blocks.ts` and deletes their module
 files, and [`db diff`](/docs/cli/db#diff) writes the migration that drops
 their tables. See the [CLI reference](/docs/cli) for every command.
+
+## Designs replace preset codes
+
+Create URLs and the CLI carry the design JSON instead of a preset code. The
+config's `preset` key takes a preset name or an object with the conventions
+that differ from the defaults and the blocks:
+
+```ts title="better-supabase.config.ts"
+// 0.14
+preset: "1pWEF3d578B1iGt16",
+
+// 0.15
+preset: { casing: "camel", scope: "user", blocks: ["profiles", "tags"] },
+```
+
+A Create URL is `/create?preset=<name>` for an unchanged named preset and
+`/create?design=<code>` otherwise, with the preset inside the design. A design
+file is the design JSON with its `version` and `preset` keys, without the
+0.14 `design` wrapper. `init --preset`, `add --preset` and `blocks list
+--preset` take a name, a URL, a design code or a file, and stop on a 0.14 code
+with a message that names the codemod. The codemod turns a code in the
+config's `preset` into the name or object it holds, and rewrites
+`*.design.json` files.
+
+`encodePreset`, `decodePreset`, `isPresetCode`, `defaultPresetCode`,
+`withPresetField`, `PRESET_BLOCKS`, `PRESET_FIELDS`, `PRESET_VERSION` and the
+`DecodedPreset` type are gone from `better-supabase/preset`. Use
+`presetSpec`, `presetFromSpec` and `presetOfSpec` for the config value,
+`createUrl` for a link and `presetAndDesignOf` to read one.
+`designConfigSource`, `designInstallCommand` and `designApplyCommand` merge
+into `presetConfigSource`, `presetInstallCommand` and `presetApplyCommand`,
+which take an optional design and are now async.

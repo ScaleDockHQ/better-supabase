@@ -25,7 +25,7 @@ app can block a breaking change before it deploys.
 `checkDesign(input, preset)` runs every rule the canvas and `upgrade` apply
 to a design, so a server route, an MCP tool and the canvas give the same
 answer. `input` is a design object, a design code or a `/create` URL with
-`&design=`; `preset` is a preset name, code or object.
+`?design=`; `preset` is a preset name or object.
 
 ```ts
 import { checkDesign } from "better-supabase/create";
@@ -53,7 +53,7 @@ name a block already uses, or a reference to a block table the preset doesn't
 install. `path` is a [JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901)
 into the design, such as `/appTables/tasks/columns/title`, so a form can mark
 the field; it is `""` for an issue with the preset. A design that doesn't
-parse carries a [`DesignErrorCode`](/docs/presets/codes#designs); the
+parse carries a [`DesignErrorCode`](/docs/presets/designs#designs); the
 rules that need the preset add these codes:
 
 | Code                 | What it means                                                       |
@@ -68,12 +68,12 @@ rules that need the preset add these codes:
 | `missing_reference`  | a reference to a table the preset doesn't install                   |
 | `set_null_required`  | a set-null delete on a required column                              |
 | `preset_conflict`    | a conflict in the preset itself, such as a block that needs tenants |
-| `invalid_preset`     | a preset that isn't a preset name, code or object                   |
+| `invalid_preset`     | a preset that isn't a preset name or object                         |
 
 On success, `design` has its empty parts dropped and `fitsUrl` says whether
 its code fits in a `/create` URL. `code` is its `encodeDesign` code, and
 `null` only when `fitsUrl` is false; offer the
-[design file](/docs/presets/codes#design-files) then.
+[design file](/docs/presets/designs#design-files) then.
 
 To check only the shape of an untrusted payload, without a preset, use
 `parseDesign` from `better-supabase/preset`.
@@ -97,8 +97,9 @@ Pass your own `fetch` to trace or stub the calls in tests.
 Give every deploy an id so a project can be matched to the preset it came
 from. `newDeployId()` returns a random UUID, and `deployQuery(files, { id })`
 writes it as `-- better-supabase deploy <id>` on the first line of the
-migration. `DeployResponse` carries the `id`, the preset code and the design
-code (or `null`), and the host app stores them as a `DeployRecord`:
+migration. `DeployResponse` carries the `id`, the preset (a name or an object, as the
+config's `preset` key takes it) and the design code (or `null`), and the host
+app stores them as a `DeployRecord`:
 
 ```ts
 import {
@@ -115,7 +116,7 @@ const migration = deployQuery(files, { id });
 const record: DeployRecord = {
   id,
   ref: project.ref,
-  preset: presetCode,
+  preset: presetSpec(resolved.preset),
   design: designCode,
   migration: MIGRATION_NAME,
   deployedAt: Temporal.Now.instant().toString(),
@@ -166,14 +167,14 @@ cookies sealed before this subpath existed open with the default `info`.
 
 ## Migrate between versions
 
-`migrationBetween(code, base, next)` writes the migration that takes a project
+`migrationBetween(preset, base, next)` writes the migration that takes a project
 deployed from one design to the next. It covers added tables and added
 columns, which the app-table SQL applies idempotently.
 
 ```ts
 import { migrationBetween } from "better-supabase/create";
 
-const plan = migrationBetween(code, deployed, edited);
+const plan = migrationBetween("saas", deployed, edited);
 
 if (plan.ok) {
   await client.applyMigration(ref, "better_supabase_design", plan.sql);
@@ -198,9 +199,9 @@ Postgres rejects before anything reaches a project.
 ```ts
 import { previewFiles } from "better-supabase/create";
 import { validateDesign } from "better-supabase/create/lite";
-import { defaultPresetCode } from "better-supabase/preset";
+import { defaultPreset } from "better-supabase/preset";
 
-const files = previewFiles(defaultPresetCode());
+const files = previewFiles(defaultPreset());
 const { ok, issues, skipped } = await validateDesign(files);
 ```
 

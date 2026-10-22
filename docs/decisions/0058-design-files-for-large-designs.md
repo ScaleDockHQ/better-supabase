@@ -1,6 +1,6 @@
 # 0058: Hand designs too large for a URL to init as a design file
 
-- Status: accepted
+- Status: accepted; the file format superseded by 0093
 - Date: 2026-10-20
 
 ## Context

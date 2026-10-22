@@ -88,9 +88,10 @@ installs the access block. With `--access provider` it also writes a comment
 that points you at the `authorization` key.
 
 With `--preset`, each flag overrides that convention of the preset, and
-`init` writes the changed preset code. A code stores the tenant names Create
-offers (`organization`, `workspace`, `team`), so for another name leave
-`--tenant-name` out and set `blocks.tenant.names.organization` in the config. `add --preset` takes
+`init` writes the preset as an object with the fields that differ from the
+defaults. Its `tenantName` takes the names Create offers (`organization`,
+`workspace`, `team`), so for another name leave `--tenant-name` out and set
+`blocks.tenant.names.organization` in the config. `add --preset` takes
 the same flags.
 
 ```bash
@@ -131,16 +132,17 @@ a config, use [`add --preset`](/docs/cli/presets#applying-a-preseting-a-preset).
 
 ### A design from Create
 
-When you add tables or extra columns on the Create canvas, its URL carries a
-second code, `&design=`. Quote the whole URL so the shell keeps the `&`:
+When you change the preset or add tables or extra columns on the Create
+canvas, its URL carries the design as `?design=`, with the preset inside it.
+Quote the URL so the shell keeps it whole:
 
 ```bash
-npx better-supabase init --preset "https://app.bettersupabase.com/create?preset=1pWEF3d578B1iGt16&design=0..."
+npx better-supabase init --preset "https://app.bettersupabase.com/create?design=0..."
 ```
 
 `init` decodes the design locally, with no network call, and writes its
-[app tables](/docs/blocks/app-tables) into `tables` and its extra columns into
-each block's `options.extraColumns`, next to `preset`. The canvas positions
+preset into `preset`, its [app tables](/docs/blocks/app-tables) into `tables` and its extra columns into
+each block's `options.extraColumns`. The canvas positions
 stay in the URL. A design that doesn't decode, or that adds columns to a
 block the preset doesn't install, stops `init` with the reason.
 
@@ -152,11 +154,11 @@ pass its path to `--preset`:
 npx better-supabase init --preset ./better-supabase.design.json
 ```
 
-The file holds the preset code and the design as JSON, with no length limit,
+The file holds the design as JSON with its preset, with no length limit,
 and `init` reads it like a URL: the same checks, the same config keys and the
 same module files. A path ending in `.json` is read as a design file, relative
 to `--cwd`. [`add --preset`](/docs/cli/presets#applying-a-preseting-a-preset) takes the same file. The format
-is on [Preset codes](/docs/presets/codes#design-files).
+is on [Designs and the resolver](/docs/presets/designs#design-files).
 
 ## Supabase Lite
 
