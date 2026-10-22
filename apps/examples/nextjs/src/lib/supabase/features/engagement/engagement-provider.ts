@@ -12,6 +12,8 @@ import {
   removeEngagementComments,
   grantEngagementGuests,
   revokeEngagementGuests,
+  issueEngagementPasses,
+  revokeEngagementPasses,
   linkEngagementRelations,
   unlinkEngagementRelations,
   createEngagementShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantEngagementGuests,
     revoke: revokeEngagementGuests,
+  },
+  passes: {
+    issue: issueEngagementPasses,
+    revoke: revokeEngagementPasses,
   },
   relations: {
     link: linkEngagementRelations,

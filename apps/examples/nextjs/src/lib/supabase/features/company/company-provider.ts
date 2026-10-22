@@ -12,6 +12,8 @@ import {
   removeCompanyComments,
   grantCompanyGuests,
   revokeCompanyGuests,
+  issueCompanyPasses,
+  revokeCompanyPasses,
   linkCompanyRelations,
   unlinkCompanyRelations,
   createCompanyShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantCompanyGuests,
     revoke: revokeCompanyGuests,
+  },
+  passes: {
+    issue: issueCompanyPasses,
+    revoke: revokeCompanyPasses,
   },
   relations: {
     link: linkCompanyRelations,

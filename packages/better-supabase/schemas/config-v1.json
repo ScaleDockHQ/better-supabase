@@ -1823,6 +1823,7 @@
               "organizations",
               "outbox",
               "parties",
+              "passes",
               "pgtap",
               "pipelines",
               "profiles",
@@ -2069,6 +2070,9 @@
             },
             "parties": {
               "$ref": "#/$defs/blocks/parties"
+            },
+            "passes": {
+              "$ref": "#/$defs/blocks/passes"
             },
             "pgtap": {
               "$ref": "#/$defs/blocks/pgtap"
@@ -4521,6 +4525,26 @@
               "companyLifecycles": {},
               "personLifecycles": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "passes": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checkInOpens": {
+                "type": "string",
+                "default": "1 hour"
+              },
+              "dropInLength": {
+                "type": "string",
+                "default": "2 hours"
+              }
             }
           }
         }

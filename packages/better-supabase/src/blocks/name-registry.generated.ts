@@ -781,6 +781,20 @@ export interface BlockNameRegistry {
     };
     readonly primary: never;
   };
+  readonly "passes": {
+    readonly tables: {
+      readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
+      readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
+    };
+    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
+    readonly actions: "read" | "manage" | "checkIn";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
+      readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
+    };
+    readonly primary: "pass";
+  };
   readonly "pgtap": {
     readonly tables: {};
     readonly functions: never;

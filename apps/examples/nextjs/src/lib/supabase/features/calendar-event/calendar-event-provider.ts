@@ -12,6 +12,8 @@ import {
   removeCalendarEventComments,
   grantCalendarEventGuests,
   revokeCalendarEventGuests,
+  issueCalendarEventPasses,
+  revokeCalendarEventPasses,
   linkCalendarEventRelations,
   unlinkCalendarEventRelations,
   createCalendarEventShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantCalendarEventGuests,
     revoke: revokeCalendarEventGuests,
+  },
+  passes: {
+    issue: issueCalendarEventPasses,
+    revoke: revokeCalendarEventPasses,
   },
   relations: {
     link: linkCalendarEventRelations,

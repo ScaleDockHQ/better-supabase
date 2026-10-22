@@ -14,6 +14,10 @@ export const grantWorkItemGuests = workItemRecord.actions.guests.grant;
 
 export const revokeWorkItemGuests = workItemRecord.actions.guests.revoke;
 
+export const issueWorkItemPasses = workItemRecord.actions.passes.issue;
+
+export const revokeWorkItemPasses = workItemRecord.actions.passes.revoke;
+
 export const linkWorkItemRelations = workItemRecord.actions.relations.link;
 
 export const unlinkWorkItemRelations = workItemRecord.actions.relations.unlink;

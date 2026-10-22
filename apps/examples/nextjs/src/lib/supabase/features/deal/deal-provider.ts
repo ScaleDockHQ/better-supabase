@@ -12,6 +12,8 @@ import {
   removeDealComments,
   grantDealGuests,
   revokeDealGuests,
+  issueDealPasses,
+  revokeDealPasses,
   linkDealRelations,
   unlinkDealRelations,
   createDealShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantDealGuests,
     revoke: revokeDealGuests,
+  },
+  passes: {
+    issue: issueDealPasses,
+    revoke: revokeDealPasses,
   },
   relations: {
     link: linkDealRelations,

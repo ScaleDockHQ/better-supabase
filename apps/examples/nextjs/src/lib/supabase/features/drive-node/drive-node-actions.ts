@@ -14,6 +14,10 @@ export const grantDriveNodeGuests = driveNodeRecord.actions.guests.grant;
 
 export const revokeDriveNodeGuests = driveNodeRecord.actions.guests.revoke;
 
+export const issueDriveNodePasses = driveNodeRecord.actions.passes.issue;
+
+export const revokeDriveNodePasses = driveNodeRecord.actions.passes.revoke;
+
 export const linkDriveNodeRelations = driveNodeRecord.actions.relations.link;
 
 export const unlinkDriveNodeRelations = driveNodeRecord.actions.relations.unlink;

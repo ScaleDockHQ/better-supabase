@@ -14,6 +14,10 @@ export const grantApplicationGuests = applicationRecord.actions.guests.grant;
 
 export const revokeApplicationGuests = applicationRecord.actions.guests.revoke;
 
+export const issueApplicationPasses = applicationRecord.actions.passes.issue;
+
+export const revokeApplicationPasses = applicationRecord.actions.passes.revoke;
+
 export const linkApplicationRelations = applicationRecord.actions.relations.link;
 
 export const unlinkApplicationRelations = applicationRecord.actions.relations.unlink;

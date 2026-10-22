@@ -14,6 +14,10 @@ export const grantEngagementGuests = engagementRecord.actions.guests.grant;
 
 export const revokeEngagementGuests = engagementRecord.actions.guests.revoke;
 
+export const issueEngagementPasses = engagementRecord.actions.passes.issue;
+
+export const revokeEngagementPasses = engagementRecord.actions.passes.revoke;
+
 export const linkEngagementRelations = engagementRecord.actions.relations.link;
 
 export const unlinkEngagementRelations = engagementRecord.actions.relations.unlink;

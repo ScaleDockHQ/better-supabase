@@ -14,6 +14,10 @@ export const grantEmployeeGuests = employeeRecord.actions.guests.grant;
 
 export const revokeEmployeeGuests = employeeRecord.actions.guests.revoke;
 
+export const issueEmployeePasses = employeeRecord.actions.passes.issue;
+
+export const revokeEmployeePasses = employeeRecord.actions.passes.revoke;
+
 export const linkEmployeeRelations = employeeRecord.actions.relations.link;
 
 export const unlinkEmployeeRelations = employeeRecord.actions.relations.unlink;

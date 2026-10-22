@@ -2736,6 +2736,87 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "passes",
+      "title": "Passes",
+      "category": "scheduling",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "bookings",
+        "signing-keys"
+      ],
+      "manifest": "passes",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "pass": {
+            "table": "passes",
+            "singular": "pass",
+            "plural": "passes",
+            "primary": true
+          },
+          "pass_check_in": {
+            "table": "checkIns",
+            "singular": "pass_check_in"
+          }
+        },
+        "tables": {
+          "passes": {
+            "name": "passes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "holderUser": "holder_user_id",
+              "holderName": "holder_name",
+              "holderEmail": "holder_email",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "booking": "booking_id",
+              "resource": "resource_id",
+              "usesAllowed": "uses_allowed",
+              "uses": "uses",
+              "validFrom": "valid_from",
+              "validUntil": "valid_until",
+              "status": "status",
+              "nonce": "nonce",
+              "issuedBy": "issued_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "revokedAt": "revoked_at"
+            }
+          },
+          "checkIns": {
+            "name": "pass_check_ins",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "pass": "pass_id",
+              "resource": "resource_id",
+              "booking": "booking_id",
+              "gate": "gate",
+              "method": "method",
+              "admitted": "admitted",
+              "reason": "reason",
+              "checkedInBy": "checked_in_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "passes.read",
+          "manage": "passes.manage",
+          "checkIn": "passes.check_in"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -4730,6 +4811,217 @@ export const PRESET_CATALOG: PresetCatalog = {
           "guest.revoked",
           "guest_grant.created",
           "guest_grant.revoked"
+        ]
+      }
+    },
+    {
+      "name": "passes",
+      "sql": [
+        "passes"
+      ],
+      "category": "scheduling",
+      "client": {
+        "export": "passesBlock",
+        "subpath": "better-supabase/blocks/passes"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "IssuedPass"
+        },
+        {
+          "name": "Pass"
+        },
+        {
+          "name": "PassAdmittedEventData"
+        },
+        {
+          "name": "PassCheckIn"
+        },
+        {
+          "name": "PassCheckInListOptions"
+        },
+        {
+          "name": "PassCheckInOptions"
+        },
+        {
+          "name": "Passes"
+        },
+        {
+          "name": "PassesEvents"
+        },
+        {
+          "name": "PassesOptions"
+        },
+        {
+          "name": "PassesSqlOptions"
+        },
+        {
+          "name": "PassesWrites"
+        },
+        {
+          "name": "PassInput"
+        },
+        {
+          "name": "PassIssuedEventData"
+        },
+        {
+          "name": "PassListOptions"
+        },
+        {
+          "name": "PassManualCheckInOptions"
+        },
+        {
+          "name": "PassMethod"
+        },
+        {
+          "name": "PassOccupancy"
+        },
+        {
+          "name": "PassRejectedEventData"
+        },
+        {
+          "name": "PassRejection"
+        },
+        {
+          "name": "PassRevokedEventData"
+        },
+        {
+          "name": "PassScan"
+        },
+        {
+          "name": "PassSectionInput"
+        },
+        {
+          "name": "PassStatus"
+        },
+        {
+          "name": "PassTokenClaims"
+        }
+      ],
+      "entitySchemas": {
+        "pass": {
+          "input": {
+            "title": "PassInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "holderUserId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "holderName": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "holderEmail": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the pass is for: `{ type, id }`."
+              },
+              "bookingId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "resourceId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "usesAllowed": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "validFrom": {
+                "kind": "instant",
+                "optional": true
+              },
+              "validUntil": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PassInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "holderUserId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "holderName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "holderEmail": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "subject": {
+                  "description": "The record the pass is for: `{ type, id }`."
+                },
+                "bookingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "resourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "usesAllowed": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "validFrom": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "validUntil": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "passes": [
+          "issue",
+          "revoke"
+        ]
+      },
+      "events": {
+        "type": "PassesEvents",
+        "types": [
+          "pass.issued",
+          "pass.revoked",
+          "pass.admitted",
+          "pass.rejected"
         ]
       }
     },

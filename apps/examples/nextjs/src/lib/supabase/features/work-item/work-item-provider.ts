@@ -12,6 +12,8 @@ import {
   removeWorkItemComments,
   grantWorkItemGuests,
   revokeWorkItemGuests,
+  issueWorkItemPasses,
+  revokeWorkItemPasses,
   linkWorkItemRelations,
   unlinkWorkItemRelations,
   createWorkItemShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantWorkItemGuests,
     revoke: revokeWorkItemGuests,
+  },
+  passes: {
+    issue: issueWorkItemPasses,
+    revoke: revokeWorkItemPasses,
   },
   relations: {
     link: linkWorkItemRelations,

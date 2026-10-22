@@ -5891,6 +5891,54 @@
       "RpcClient"
     ]
   },
+  "./blocks/passes": {
+    "values": [
+      "createPasses",
+      "dbTransport",
+      "extendBlock",
+      "PASS_TOKEN_TYPE",
+      "passesBlock",
+      "passesEvents",
+      "passesSection",
+      "passesSqlOptions",
+      "passInputSchema",
+      "passSectionInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "IssuedPass",
+      "Pass",
+      "PassAdmittedEventData",
+      "PassCheckIn",
+      "PassCheckInListOptions",
+      "PassCheckInOptions",
+      "Passes",
+      "PassesEvents",
+      "PassesOptions",
+      "PassesSqlOptions",
+      "PassesWrites",
+      "PassInput",
+      "PassIssuedEventData",
+      "PassListOptions",
+      "PassManualCheckInOptions",
+      "PassMethod",
+      "PassOccupancy",
+      "PassRejectedEventData",
+      "PassRejection",
+      "PassRevokedEventData",
+      "PassScan",
+      "PassSectionInput",
+      "PassStatus",
+      "PassTokenClaims",
+      "RpcClient"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",

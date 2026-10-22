@@ -14,6 +14,10 @@ export const grantProjectGuests = projectRecord.actions.guests.grant;
 
 export const revokeProjectGuests = projectRecord.actions.guests.revoke;
 
+export const issueProjectPasses = projectRecord.actions.passes.issue;
+
+export const revokeProjectPasses = projectRecord.actions.passes.revoke;
+
 export const linkProjectRelations = projectRecord.actions.relations.link;
 
 export const unlinkProjectRelations = projectRecord.actions.relations.unlink;

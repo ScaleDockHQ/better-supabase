@@ -66,6 +66,7 @@ import type { ordersBlock } from "../../src/blocks/orders/manifest.ts";
 import type { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import type { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
 import type { partiesBlock } from "../../src/blocks/parties/manifest.ts";
+import type { passesBlock } from "../../src/blocks/passes/manifest.ts";
 import type { pgtapBlock } from "../../src/blocks/pgtap/manifest.ts";
 import type { pipelinesBlock } from "../../src/blocks/pipelines/manifest.ts";
 import type { profilesBlock } from "../../src/blocks/profiles/manifest.ts";
@@ -168,6 +169,7 @@ export type AllBlocks = {
   readonly rateLimit: typeof rateLimitBlock;
   readonly webhookInbox: typeof webhookInboxBlock;
   readonly guests: typeof guestsBlock;
+  readonly passes: typeof passesBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

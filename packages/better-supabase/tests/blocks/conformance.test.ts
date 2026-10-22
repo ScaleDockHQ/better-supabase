@@ -89,6 +89,8 @@ const NO_FIELDS: readonly string[] = [
   "onboarding",
   // An event log; the app's data goes in each event's payload.
   "outbox",
+  // A pass is an admission credential; what it admits to lives on its booking or record.
+  "passes",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   "reactions",
   // Rules hold a filter tree and action references the editor writes; the

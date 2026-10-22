@@ -6,6 +6,7 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
+import { passesBlock } from "better-supabase/blocks/passes";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { slaBlock } from "better-supabase/blocks/sla";
@@ -24,6 +25,7 @@ export const calendarEventFeature = defineRecordFeature({
     comments: commentsBlock,
     ledger: ledgerBlock,
     guests: guestsBlock,
+    passes: passesBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

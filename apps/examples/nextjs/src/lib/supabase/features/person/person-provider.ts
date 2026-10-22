@@ -12,6 +12,8 @@ import {
   removePersonComments,
   grantPersonGuests,
   revokePersonGuests,
+  issuePersonPasses,
+  revokePersonPasses,
   linkPersonRelations,
   unlinkPersonRelations,
   createPersonShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantPersonGuests,
     revoke: revokePersonGuests,
+  },
+  passes: {
+    issue: issuePersonPasses,
+    revoke: revokePersonPasses,
   },
   relations: {
     link: linkPersonRelations,

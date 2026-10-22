@@ -14,6 +14,10 @@ export const grantCalendarEventGuests = calendarEventRecord.actions.guests.grant
 
 export const revokeCalendarEventGuests = calendarEventRecord.actions.guests.revoke;
 
+export const issueCalendarEventPasses = calendarEventRecord.actions.passes.issue;
+
+export const revokeCalendarEventPasses = calendarEventRecord.actions.passes.revoke;
+
 export const linkCalendarEventRelations = calendarEventRecord.actions.relations.link;
 
 export const unlinkCalendarEventRelations = calendarEventRecord.actions.relations.unlink;

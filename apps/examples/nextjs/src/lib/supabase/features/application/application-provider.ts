@@ -12,6 +12,8 @@ import {
   removeApplicationComments,
   grantApplicationGuests,
   revokeApplicationGuests,
+  issueApplicationPasses,
+  revokeApplicationPasses,
   linkApplicationRelations,
   unlinkApplicationRelations,
   createApplicationShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantApplicationGuests,
     revoke: revokeApplicationGuests,
+  },
+  passes: {
+    issue: issueApplicationPasses,
+    revoke: revokeApplicationPasses,
   },
   relations: {
     link: linkApplicationRelations,

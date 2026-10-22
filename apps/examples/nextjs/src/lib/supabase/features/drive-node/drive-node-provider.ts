@@ -12,6 +12,8 @@ import {
   removeDriveNodeComments,
   grantDriveNodeGuests,
   revokeDriveNodeGuests,
+  issueDriveNodePasses,
+  revokeDriveNodePasses,
   linkDriveNodeRelations,
   unlinkDriveNodeRelations,
   createDriveNodeShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantDriveNodeGuests,
     revoke: revokeDriveNodeGuests,
+  },
+  passes: {
+    issue: issueDriveNodePasses,
+    revoke: revokeDriveNodePasses,
   },
   relations: {
     link: linkDriveNodeRelations,

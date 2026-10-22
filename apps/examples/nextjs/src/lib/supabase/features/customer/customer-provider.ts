@@ -12,6 +12,8 @@ import {
   removeCustomerComments,
   grantCustomerGuests,
   revokeCustomerGuests,
+  issueCustomerPasses,
+  revokeCustomerPasses,
   linkCustomerRelations,
   unlinkCustomerRelations,
   createCustomerShareLinks,
@@ -37,6 +39,10 @@ const writes = {
   guests: {
     grant: grantCustomerGuests,
     revoke: revokeCustomerGuests,
+  },
+  passes: {
+    issue: issueCustomerPasses,
+    revoke: revokeCustomerPasses,
   },
   relations: {
     link: linkCustomerRelations,

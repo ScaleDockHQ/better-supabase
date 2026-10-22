@@ -14,6 +14,10 @@ export const grantProductGuests = productRecord.actions.guests.grant;
 
 export const revokeProductGuests = productRecord.actions.guests.revoke;
 
+export const issueProductPasses = productRecord.actions.passes.issue;
+
+export const revokeProductPasses = productRecord.actions.passes.revoke;
+
 export const linkProductRelations = productRecord.actions.relations.link;
 
 export const unlinkProductRelations = productRecord.actions.relations.unlink;

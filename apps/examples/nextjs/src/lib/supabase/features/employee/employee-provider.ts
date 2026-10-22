@@ -12,6 +12,8 @@ import {
   removeEmployeeComments,
   grantEmployeeGuests,
   revokeEmployeeGuests,
+  issueEmployeePasses,
+  revokeEmployeePasses,
   linkEmployeeRelations,
   unlinkEmployeeRelations,
   createEmployeeShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantEmployeeGuests,
     revoke: revokeEmployeeGuests,
+  },
+  passes: {
+    issue: issueEmployeePasses,
+    revoke: revokeEmployeePasses,
   },
   relations: {
     link: linkEmployeeRelations,

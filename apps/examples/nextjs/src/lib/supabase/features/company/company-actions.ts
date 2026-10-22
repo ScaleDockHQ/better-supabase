@@ -14,6 +14,10 @@ export const grantCompanyGuests = companyRecord.actions.guests.grant;
 
 export const revokeCompanyGuests = companyRecord.actions.guests.revoke;
 
+export const issueCompanyPasses = companyRecord.actions.passes.issue;
+
+export const revokeCompanyPasses = companyRecord.actions.passes.revoke;
+
 export const linkCompanyRelations = companyRecord.actions.relations.link;
 
 export const unlinkCompanyRelations = companyRecord.actions.relations.unlink;

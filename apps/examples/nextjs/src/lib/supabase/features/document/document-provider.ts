@@ -12,6 +12,8 @@ import {
   removeDocumentComments,
   grantDocumentGuests,
   revokeDocumentGuests,
+  issueDocumentPasses,
+  revokeDocumentPasses,
   linkDocumentRelations,
   unlinkDocumentRelations,
   createDocumentShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantDocumentGuests,
     revoke: revokeDocumentGuests,
+  },
+  passes: {
+    issue: issueDocumentPasses,
+    revoke: revokeDocumentPasses,
   },
   relations: {
     link: linkDocumentRelations,

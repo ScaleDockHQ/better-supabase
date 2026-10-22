@@ -36,6 +36,7 @@ import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
+import { passesBlock } from "better-supabase/blocks/passes";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
 import { quotesBlock } from "better-supabase/blocks/quotes";
@@ -137,6 +138,7 @@ const blockSet = defineBlocks(blockConfig, {
   inventory: inventoryBlock,
   ledger: ledgerBlock,
   guests: guestsBlock,
+  passes: passesBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
   calendar: calendarBlock,

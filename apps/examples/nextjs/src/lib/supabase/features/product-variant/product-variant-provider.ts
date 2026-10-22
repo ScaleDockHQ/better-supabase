@@ -12,6 +12,8 @@ import {
   removeProductVariantComments,
   grantProductVariantGuests,
   revokeProductVariantGuests,
+  issueProductVariantPasses,
+  revokeProductVariantPasses,
   linkProductVariantRelations,
   unlinkProductVariantRelations,
   createProductVariantShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantProductVariantGuests,
     revoke: revokeProductVariantGuests,
+  },
+  passes: {
+    issue: issueProductVariantPasses,
+    revoke: revokeProductVariantPasses,
   },
   relations: {
     link: linkProductVariantRelations,

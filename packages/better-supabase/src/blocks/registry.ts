@@ -64,6 +64,7 @@ import { ordersBlock } from "./orders/manifest.ts";
 import { organizationsBlock } from "./organizations/manifest.ts";
 import { outboxBlock } from "./outbox/manifest.ts";
 import { partiesBlock } from "./parties/manifest.ts";
+import { passesBlock } from "./passes/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
@@ -150,6 +151,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   leaveBlock,
   ledgerBlock,
   guestsBlock,
+  passesBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

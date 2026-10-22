@@ -12,6 +12,8 @@ import {
   removeTaskComments,
   grantTaskGuests,
   revokeTaskGuests,
+  issueTaskPasses,
+  revokeTaskPasses,
   linkTaskRelations,
   unlinkTaskRelations,
   createTaskShareLinks,
@@ -35,6 +37,10 @@ const writes = {
   guests: {
     grant: grantTaskGuests,
     revoke: revokeTaskGuests,
+  },
+  passes: {
+    issue: issueTaskPasses,
+    revoke: revokeTaskPasses,
   },
   relations: {
     link: linkTaskRelations,

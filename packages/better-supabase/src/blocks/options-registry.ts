@@ -57,6 +57,7 @@ import type {
 } from "./organizations/options.ts";
 import type { OutboxSqlOptions } from "./outbox/options.ts";
 import type { PartiesSqlOptions } from "./parties/options.ts";
+import type { PassesSqlOptions } from "./passes/options.ts";
 import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
 import type { PromotionsSqlOptions } from "./promotions/options.ts";
@@ -160,6 +161,7 @@ import {
 } from "./organizations/options.ts";
 import { outboxSqlOptions } from "./outbox/options.ts";
 import { partiesSqlOptions } from "./parties/options.ts";
+import { passesSqlOptions } from "./passes/options.ts";
 import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
 import { promotionsSqlOptions } from "./promotions/options.ts";
@@ -275,6 +277,7 @@ export interface BlockOptionsRegistry {
   readonly organizations: OrganizationsSqlOptions;
   readonly outbox: OutboxSqlOptions;
   readonly parties: PartiesSqlOptions;
+  readonly passes: PassesSqlOptions;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -397,6 +400,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   organizations: organizationsSqlOptions,
   outbox: outboxSqlOptions,
   parties: partiesSqlOptions,
+  passes: passesSqlOptions,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,

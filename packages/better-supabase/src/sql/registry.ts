@@ -71,6 +71,7 @@ import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PARTIES } from "./modules/parties.ts";
+import { PASSES } from "./modules/passes.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
@@ -311,6 +312,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(VERCEL_MARKETPLACE),
       built(LEDGER),
       built(GUESTS),
+      built(PASSES),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

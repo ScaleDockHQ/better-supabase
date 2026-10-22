@@ -14,6 +14,10 @@ export const grantDocumentGuests = documentRecord.actions.guests.grant;
 
 export const revokeDocumentGuests = documentRecord.actions.guests.revoke;
 
+export const issueDocumentPasses = documentRecord.actions.passes.issue;
+
+export const revokeDocumentPasses = documentRecord.actions.passes.revoke;
+
 export const linkDocumentRelations = documentRecord.actions.relations.link;
 
 export const unlinkDocumentRelations = documentRecord.actions.relations.unlink;
