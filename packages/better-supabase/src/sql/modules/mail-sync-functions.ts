@@ -525,7 +525,8 @@ ${serviceGrant(`${fn("ingest_mail")}(uuid, jsonb, text)`)}
 
 -- Records a message the caller sent from their mailbox through the provider
 -- (the block's send does both), so it shows on the thread before the next
--- sync. Returns the stored message.
+-- sync. The service role records for any mailbox, as a server-side sender
+-- such as the sequences runner does. Returns the stored message.
 create or replace function ${fn("record_sent_mail")}(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -539,11 +540,11 @@ declare
 begin
   select k.${a("id")} as id, k.${a("tenant")} as tenant, k.${a("user")} as owner into v_account
   from ${t("accounts")} k
-  where k.${a("id")} = record_sent_mail.account and k.${a("user")} = auth.uid() and k.${a("status")} <> 'disconnected';
+  where k.${a("id")} = record_sent_mail.account and (k.${a("user")} = auth.uid() or ${SERVICE_CALLER}) and k.${a("status")} <> 'disconnected';
   if v_account.id is null then
     ${fail("MAIL_ACCOUNT_NOT_FOUND", "no such mailbox of yours", "P0002")}
   end if;
-  if not ${ctx.scope.can("v_account.tenant", n.send)} then
+  if not (${SERVICE_CALLER}) and not ${ctx.scope.can("v_account.tenant", n.send)} then
     ${fail("MAIL_FORBIDDEN", "not allowed to send mail")}
   end if;
   v_stored := ${fn("store_mail_message")}(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);

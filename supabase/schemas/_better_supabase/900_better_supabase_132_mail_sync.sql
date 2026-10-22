@@ -655,7 +655,8 @@ grant execute on function "better_supabase"."ingest_mail"(uuid, jsonb, text) to 
 
 -- Records a message the caller sent from their mailbox through the provider
 -- (the block's send does both), so it shows on the thread before the next
--- sync. Returns the stored message.
+-- sync. The service role records for any mailbox, as a server-side sender
+-- such as the sequences runner does. Returns the stored message.
 create or replace function "better_supabase"."record_sent_mail"(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -672,11 +673,11 @@ begin
   end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
   from "better_supabase"."mail_accounts" k
-  where k."id" = record_sent_mail.account and k."user_id" = auth.uid() and k."status" <> 'disconnected';
+  where k."id" = record_sent_mail.account and (k."user_id" = auth.uid() or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and k."status" <> 'disconnected';
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -733,6 +734,7 @@ begin
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)

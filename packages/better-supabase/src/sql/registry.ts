@@ -75,6 +75,7 @@ import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
+import { LEAD_SCORING } from "./modules/lead-scoring.ts";
 import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
@@ -95,6 +96,7 @@ import { PARTIES } from "./modules/parties.ts";
 import { PASSES } from "./modules/passes.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
+import { POSTS } from "./modules/posts.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
@@ -113,6 +115,7 @@ import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
 import { SEGMENTS } from "./modules/segments.ts";
+import { SEQUENCES } from "./modules/sequences.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
@@ -360,6 +363,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ENRICHMENT),
       built(FORECASTS),
       built(FIELD_HISTORY),
+      built(SEQUENCES),
+      built(LEAD_SCORING),
+      built(POSTS),
       built(FIELD_ENCRYPTION),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),

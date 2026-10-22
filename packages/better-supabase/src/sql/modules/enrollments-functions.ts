@@ -522,6 +522,10 @@ begin
   if v_row.${e("program")} like 'course:%' then
     ${invalid("this enrollment belongs to a course; complete its lessons through courses")}
   end if;
+  -- A sequence's steps run on its schedule, so only its runner marks them.
+  if v_row.${e("program")} like 'sequence:%' then
+    ${invalid("this enrollment belongs to a sequence; its steps run on the sequence's schedule")}
+  end if;
   perform ${fn("enrollment_mark")}(v_row.${e("id")}, enrollment_step.step, enrollment_step.done, auth.uid());
   return ${fn("enrollment_json")}(v_row.${e("id")});
 end;

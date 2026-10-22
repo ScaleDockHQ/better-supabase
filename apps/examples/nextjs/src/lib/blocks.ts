@@ -40,6 +40,7 @@ import { inboxBlock } from "better-supabase/blocks/inbox";
 import { incidentsBlock } from "better-supabase/blocks/incidents";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { leadScoringBlock } from "better-supabase/blocks/lead-scoring";
 import { leasesBlock } from "better-supabase/blocks/leases";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
@@ -57,6 +58,7 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
 import { passesBlock } from "better-supabase/blocks/passes";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
+import { postsBlock } from "better-supabase/blocks/posts";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
 import { quotesBlock } from "better-supabase/blocks/quotes";
 import { rankBlock } from "better-supabase/blocks/rank";
@@ -68,6 +70,7 @@ import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { searchBlock } from "better-supabase/blocks/search";
 import { segmentsBlock } from "better-supabase/blocks/segments";
+import { sequencesBlock } from "better-supabase/blocks/sequences";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
 import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -136,6 +139,7 @@ const blockSet = defineBlocks(blockConfig, {
   sso: ssoBlock,
   accessRequests: accessRequestsBlock,
   reactions: reactionsBlock,
+  posts: postsBlock,
   shareLinks: shareLinksBlock,
   attachments: attachmentsBlock,
   waitlist: waitlistBlock,
@@ -145,6 +149,8 @@ const blockSet = defineBlocks(blockConfig, {
   engagements: engagementsBlock,
   mailSync: mailSyncBlock,
   segments: segmentsBlock,
+  sequences: sequencesBlock,
+  "lead-scoring": leadScoringBlock,
   assignment: assignmentBlock,
   enrichment: enrichmentBlock,
   forecasts: forecastsBlock,

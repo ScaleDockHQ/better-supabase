@@ -356,7 +356,7 @@ export const invoicingBlock = defineBlock({
 | `recipes`  | The [UI recipes](/docs/registry/ui-recipes) that use it                                                    |
 | `sections` | The parts of a record page it owns, from `defineSection` ([Record sections](/docs/blocks/records))         |
 
-The ports are `notifier`, `files`, `attachments`, `workflows` and `sink`
+The ports are `notifier`, `files`, `attachments`, `workflows`, `mailer` and `sink`
 ([the table](/docs/blocks/create-blocks#ports) says who provides each).
 A block reaches another block only through a port it consumes, and never
 builds another block's client.

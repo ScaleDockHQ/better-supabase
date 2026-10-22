@@ -312,6 +312,9 @@ export default defineConfig({
     enrollments: {},
     // Courses behind /courses: each learner's progress is an enrollment.
     courses: {},
+    // Outreach sequences behind /crm/sequences: each recipient's run is an
+    // enrollment, and email steps send through mail-sync (ADR 0091).
+    sequences: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
     usage: {},
@@ -331,6 +334,9 @@ export default defineConfig({
     rules: {},
     // Lead scoring and account health are score models over parties (ADR 0067).
     scores: {},
+    // People scored under the "lead" model, again when their segments, mail
+    // or enrichment change.
+    "lead-scoring": {},
     // Comment reports, the review queue and bans (ADR 0076).
     moderation: {},
     // Vault-backed secrets behind the builder's credential references.
@@ -393,6 +399,8 @@ export default defineConfig({
     grants: {},
     subjects: {},
     reactions: {},
+    // Forum and feedback boards behind /community (ADR 0092).
+    posts: {},
     "share-links": {},
     // The example runs no malware scanner, so uploads are readable at once.
     attachments: { options: { requireScan: false } },

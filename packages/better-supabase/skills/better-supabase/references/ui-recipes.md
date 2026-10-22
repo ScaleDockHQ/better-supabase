@@ -11468,6 +11468,187 @@ export async function DealBoard() {
 }
 ```
 
+## Sequence builder
+
+Each sequence's email, wait and task steps in order, with its enrollment counts, an Add step dialog and an Activate or Pause button. It loads its data on the server through the block's client; the [sequences block](https://bettersupabase.com/blocks/sequences) must be installed (`npx better-supabase add sequences`). Page: https://bettersupabase.com/recipes/sequence-builder.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card dialog empty field input select skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/sequences/components/sequence-builder.tsx"
+const statusVariants = {
+  draft: "secondary",
+  active: "success-light",
+  paused: "warning-light",
+  archived: "outline",
+} as const satisfies Record<SequenceStatus, string>;
+
+const stepIcons = {
+  email: MailIcon,
+  wait: ClockIcon,
+  task: ListChecksIcon,
+} as const satisfies Record<SequenceStep["kind"], LucideIcon>;
+
+/** Render inside `<Suspense>`: the organization's sequences and their steps. */
+export async function SequenceBuilder() {
+  const [view, session, t] = await Promise.all([
+    getSequences(),
+    getSession(),
+    getExtracted("sequences"),
+  ]);
+
+  if (view.kind === "no-organization") {
+    return null;
+  }
+
+  if (view.kind === "error") {
+    return (
+      <Alert variant="destructive">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The sequences didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const manage = can(session, "sequences.manage");
+
+  if (view.data.length === 0) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <SendIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No sequences yet")}</EmptyTitle>
+          <EmptyDescription>
+            {manage
+              ? t(
+                  "Create a sample sequence, then activate it to enroll contacts.",
+                )
+              : t(
+                  "An admin sets up the sequences your team enrolls contacts in.",
+                )}
+          </EmptyDescription>
+        </EmptyHeader>
+        {manage ? (
+          <EmptyContent>
+            <SampleSequenceButton />
+          </EmptyContent>
+        ) : null}
+      </Empty>
+    );
+  }
+
+  const statusLabels: Record<SequenceStatus, string> = {
+    draft: t("Draft"),
+    active: t("Active"),
+    paused: t("Paused"),
+    archived: t("Archived"),
+  };
+
+  const stepLabel = (step: SequenceStep): string => {
+    switch (step.kind) {
+      case "email": {
+        return step.subject;
+      }
+
+      case "wait": {
+        return t("Wait {minutes} minutes", { minutes: String(step.minutes) });
+      }
+
+      case "task": {
+        return step.title;
+      }
+
+      default: {
+        const unknown: never = step;
+
+        return unknown;
+      }
+    }
+  };
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {view.data.map((sequence) => (
+        <Card key={sequence.id}>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CardTitle>{sequence.name}</CardTitle>
+              <Badge variant={statusVariants[sequence.status]}>
+                {statusLabels[sequence.status]}
+              </Badge>
+            </div>
+            {manage && sequence.status !== "archived" ? (
+              <CardAction className="flex gap-2">
+                <AddStepDialog sequenceId={sequence.id} />
+                <SequenceStatusButton
+                  sequenceId={sequence.id}
+                  active={sequence.status === "active"}
+                />
+              </CardAction>
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            {sequence.steps.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t("No steps yet.")}
+              </p>
+            ) : (
+              <ol className="flex flex-col gap-2">
+                {sequence.steps.map((step, index) => {
+                  const Icon = stepIcons[step.kind];
+
+                  return (
+                    <li
+                      key={step.id}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <span className="w-5 text-xs text-muted-foreground tabular-nums">
+                        {index + 1}
+                      </span>
+                      <Icon
+                        aria-hidden
+                        className="size-4 text-muted-foreground"
+                      />
+                      <span className="truncate">{stepLabel(step)}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </CardContent>
+          <CardFooter className="gap-4 text-xs text-muted-foreground tabular-nums">
+            <span>
+              {t("{count} active", { count: String(sequence.counts.active) })}
+            </span>
+            <span>
+              {t("{count} completed", {
+                count: String(sequence.counts.completed),
+              })}
+            </span>
+            <span>
+              {t("{count} replied", { count: String(sequence.counts.replied) })}
+            </span>
+          </CardFooter>
+        </Card>
+      ))}
+    </div>
+  );
+}
+```
+
 ## Activity timeline
 
 Calls, emails and meetings with a contact, newest first. It loads its data on the server through the block's client; the [engagements block](https://bettersupabase.com/blocks/engagements) must be installed (`npx better-supabase add engagements`). Page: https://bettersupabase.com/recipes/activity-timeline.
@@ -17803,6 +17984,201 @@ export function FormBuilderSkeleton() {
         <Skeleton className="h-80 rounded-xl" />
       </div>
       <Skeleton className="h-48 rounded-xl" />
+    </div>
+  );
+}
+```
+
+## Post board
+
+A feedback board's posts ranked by votes, with an upvote toggle, the roadmap status, moderation state and a New post dialog. It loads its data on the server through the block's client; the [posts block](https://bettersupabase.com/blocks/posts) must be installed (`npx better-supabase add posts`). Page: https://bettersupabase.com/recipes/post-board.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card dialog empty field input skeleton textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/community/components/post-board.tsx"
+const statusVariants = {
+  open: "outline",
+  under_review: "info-light",
+  planned: "primary-light",
+  in_progress: "warning-light",
+  done: "success-light",
+  closed: "secondary",
+} as const satisfies Record<PostStatus, string>;
+
+const moderationVariants = {
+  visible: null,
+  pending: "warning-light",
+  hidden: "destructive-light",
+  removed: "destructive-light",
+} as const satisfies Record<PostModeration, string | null>;
+
+/** Render inside `<Suspense>`: the board's posts, top voted first. */
+export async function PostBoard() {
+  const [view, session, t] = await Promise.all([
+    getBoard(),
+    getSession(),
+    getExtracted("community"),
+  ]);
+
+  if (view.kind === "no-organization") {
+    return null;
+  }
+
+  if (view.kind === "error") {
+    return (
+      <Alert variant="destructive">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The board didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const board = view.data;
+
+  if (board === null) {
+    const manage = can(session, "posts.manage");
+
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <MessageSquareTextIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No board yet")}</EmptyTitle>
+          <EmptyDescription>
+            {manage
+              ? t("Open a feedback board where members post and vote on ideas.")
+              : t("An admin opens the board your team posts on.")}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          {manage ? (
+            <CreateBoardButton />
+          ) : (
+            <Link href="/" className={buttonVariants({ variant: "outline" })}>
+              {t("Back to the dashboard")}
+            </Link>
+          )}
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  const write = can(session, "posts.write");
+
+  const statusLabels: Record<PostStatus, string> = {
+    open: t("Open"),
+    under_review: t("Under review"),
+    planned: t("Planned"),
+    in_progress: t("In progress"),
+    done: t("Done"),
+    closed: t("Closed"),
+  };
+
+  const moderationLabels: Record<PostModeration, string> = {
+    visible: t("Visible"),
+    pending: t("Awaiting review"),
+    hidden: t("Hidden"),
+    removed: t("Removed"),
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium">{board.name}</h2>
+        {write ? <NewPostDialog boardId={board.id} /> : null}
+      </div>
+      {board.posts.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <MessageSquareIcon />
+            </EmptyMedia>
+            <EmptyTitle>{t("No posts yet")}</EmptyTitle>
+            <EmptyDescription>
+              {t("Post the first idea for others to vote on.")}
+            </EmptyDescription>
+          </EmptyHeader>
+          {write ? (
+            <EmptyContent>
+              <NewPostDialog boardId={board.id} />
+            </EmptyContent>
+          ) : null}
+        </Empty>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {board.posts.map((post) => {
+            const moderation = moderationVariants[post.moderation];
+
+            return (
+              <li key={post.id}>
+                <Card size="sm">
+                  <CardContent className="flex items-start gap-3">
+                    <VoteButton
+                      postId={post.id}
+                      score={post.score}
+                      voted={post.vote > 0}
+                      disabled={post.moderation !== "visible"}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {post.pinned ? (
+                          <PinIcon
+                            aria-label={t("Pinned")}
+                            className="size-4 text-muted-foreground"
+                          />
+                        ) : null}
+                        <span className="text-sm font-medium">
+                          {post.title}
+                        </span>
+                        <Badge variant={statusVariants[post.status]}>
+                          {statusLabels[post.status]}
+                        </Badge>
+                        {moderation === null ? null : (
+                          <Badge variant={moderation}>
+                            {moderationLabels[post.moderation]}
+                          </Badge>
+                        )}
+                      </div>
+                      {post.body ? (
+                        <p className="line-clamp-2 text-sm text-muted-foreground">
+                          {post.body}
+                        </p>
+                      ) : null}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                        <span className="flex items-center gap-1">
+                          <MessageSquareIcon aria-hidden className="size-3.5" />
+                          {t("{count} replies", {
+                            count: String(post.replyCount),
+                          })}
+                        </span>
+                        {post.locked ? (
+                          <span className="flex items-center gap-1">
+                            <LockIcon aria-hidden className="size-3.5" />
+                            {t("Locked")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

@@ -273,6 +273,7 @@ const UNIQUE_PORTS: readonly Exclude<PortName, "sink">[] = [
   "files",
   "attachments",
   "workflows",
+  "mailer",
 ];
 
 /** `key`'s entry in `hooks`, which `BlocksHooks` keys like the blocks. */

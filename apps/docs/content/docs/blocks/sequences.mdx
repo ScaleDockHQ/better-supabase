@@ -1,0 +1,155 @@
+---
+title: Sequences
+description: Multi-step outreach with email, wait and task steps that run per contact from their owner's mailbox until the contact replies.
+---
+
+The `sequences` block runs outreach: a sequence is an ordered list of email,
+wait and task steps, and each contact you enroll runs through it on their
+own clock. Email steps go out from a connected [mail-sync](/docs/blocks/mail-sync)
+mailbox, later emails reply on the first one's thread, and a reply ends the
+contact's run. A sequence is an [enrollments](/docs/blocks/enrollments)
+program, so every run is an enrollment with step progress.
+
+```bash
+better-supabase add sequences   # adds tenant, access and enrollments as well
+```
+
+| Permission         | Lets a member                                      | Default roles           |
+| ------------------ | -------------------------------------------------- | ----------------------- |
+| `sequences.read`   | list sequences and the runs in them                | `member`, `admin`       |
+| `sequences.enroll` | enroll records, and pause, resume or end their run | `member`, `admin`       |
+| `sequences.manage` | create, change, activate and delete sequences      | `admin` (`sequences.*`) |
+
+The example app's [sequence builder](/docs/registry/ui-recipes#sequence-builder)
+recipe lists the sequences with their steps and counts, adds steps and
+activates or pauses a sequence.
+
+## Write a sequence
+
+```ts
+import {
+  createSequences,
+  rpcTransport,
+} from "better-supabase/blocks/sequences";
+
+const sequences = createSequences({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const welcome = await sequences
+  .save({
+    key: "welcome",
+    name: "Welcome series",
+    status: "active",
+    steps: [
+      {
+        id: "intro",
+        kind: "email",
+        subject: "Welcome, {{firstName}}",
+        text: "Reply to this email if you have questions.",
+      },
+      { id: "wait", kind: "wait", minutes: 2880 },
+      {
+        id: "call",
+        kind: "task",
+        title: "Call {{firstName}}",
+        dueInMinutes: 1440,
+      },
+    ],
+  })
+  .orThrow();
+```
+
+`save` creates a sequence, or with `id` changes the keys you pass. A sequence
+starts as `draft`; only an `active` one takes enrollments, `paused` holds
+every run where it is, and `archived` ends the runs as `archived`. Changing
+the steps raises `version`, and recipients past the old end run the new
+steps on their next turn. `sequenceInputSchema` validates what `save` takes.
+
+| Step    | What it does                                                                                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `email` | sends `subject` with `text` or `html` from the run's mailbox; `track: false` turns off open and click tracking for it     |
+| `wait`  | waits `minutes` (1 to 525600) before the next step                                                                        |
+| `task`  | creates a [work item](/docs/blocks/work-items) for whoever enrolled the contact, due `dueInMinutes` later, when installed |
+
+Email subjects and bodies take `{{key}}` placeholders, filled from the run's
+`variables`. An unknown key becomes empty and HTML bodies escape the values.
+`fillPlaceholders(template, variables)` does the same in TypeScript, for a
+preview.
+
+## Enroll contacts
+
+```ts
+const run = await sequences
+  .enroll(
+    welcome.id,
+    { type: "person", id: person.id },
+    { variables: { firstName: person.firstName } },
+  )
+  .orThrow();
+```
+
+`enroll` takes any registered record. A [person](/docs/blocks/parties) sends
+to its email unless you pass `address`, and the mailbox is the run's
+`accountId`, then the sequence's, then the caller's own. Enrolling a record
+that is already running returns its run; a finished or ended run starts
+over.
+
+`pause(enrollmentId)`, `resume(enrollmentId)` and `exit(enrollmentId)`
+change one run, and `enrollments({ sequenceId, subject, status })` pages
+through runs, newest first. `list()`, `get(sequenceId)` and
+`delete(sequenceId)` read and remove sequences; a sequence's `counts` says
+how many runs are active, paused, completed, exited and replied.
+
+## Run the due steps
+
+`runDue()` runs as the service role. It finishes due wait and task steps in
+Postgres and sends due emails through the `mailer` port, which
+[`createBlocks`](/docs/blocks/create-blocks#ports) fills from the
+`mail-sync` block. Call it from a cron route every few minutes.
+
+```ts title="app/api/cron/sequences/route.ts"
+export async function GET() {
+  const report = await blocks.sequences.runDue({ limit: 100 }).orThrow();
+
+  return Response.json(report); // { ran, sent, failed }
+}
+```
+
+A send that fails runs again after `retryMinutes` times the attempts so far.
+After `maxAttempts` the run ends with the reason `failed`. A run whose
+contact replies on the thread ends with the reason `replied`, unless the
+sequence sets `exitOnReply: false`.
+
+## Options
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sequences: { options: { maxAttempts: 5 } },
+},
+```
+
+| Option         | Default | What it does                                               |
+| -------------- | ------- | ---------------------------------------------------------- |
+| `maxAttempts`  | `3`     | send attempts of an email step before the run fails        |
+| `retryMinutes` | `15`    | minutes before a failed send runs again, times the attempt |
+
+## Events
+
+The block writes `sequence.saved` and `sequence.deleted`, and per run
+`sequence_enrollment.created`, `.step_completed`, `.paused`, `.resumed`,
+`.exited` and `.completed`, to the [outbox](/docs/blocks/outbox). A run event
+names the record (`subjectType`, `subjectId`), so record timelines and the
+[watcher sink](/docs/blocks/notifications#watchers) handle it like any other
+subject event. See [Events](/docs/extending/events).
+
+| Error code                      | When                                                  |
+| ------------------------------- | ----------------------------------------------------- |
+| `SEQUENCE_FORBIDDEN`            | the caller lacks the permission the call needs        |
+| `SEQUENCE_INVALID`              | a step, status or key doesn't validate                |
+| `SEQUENCE_NOT_FOUND`            | there is no such sequence in the organization         |
+| `SEQUENCE_ENROLLMENT_NOT_FOUND` | there is no such run                                  |
+| `SEQUENCE_NOT_ACTIVE`           | `enroll` named a sequence that isn't `active`         |
+| `SEQUENCE_NO_MAILER`            | `runDue` found due emails but the set has no `mailer` |
+| `SEQUENCE_NO_MAILBOX`           | a run has no mailbox to send from                     |

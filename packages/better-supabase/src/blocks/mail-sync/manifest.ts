@@ -11,7 +11,9 @@ import { mailAccountInputSchema, mailDraftSchema } from "./schemas.ts";
 export const mailSyncBlock: BlockOf<
   "mail-sync",
   typeof createMailSync,
-  MailSyncEvents
+  MailSyncEvents,
+  Record<never, never>,
+  "mailer"
 > = defineBlock({
   name: "mail-sync",
   sql: ["mail-sync"],
@@ -21,6 +23,7 @@ export const mailSyncBlock: BlockOf<
     mail_account: { input: mailAccountInputSchema },
     mail_message: { input: mailDraftSchema },
   },
+  provides: { mailer: (client) => client },
   create: createMailSync,
   category: "crm",
 });

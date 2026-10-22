@@ -12853,3 +12853,408 @@ msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
 msgctxt "errors.L-85Jk"
 msgid "Your plan's limit is reached. Upgrade to continue."
 msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
+
+#: src/app/[locale]/(app)/community/page.tsx
+msgctxt "community.4CrCbD"
+msgid "Community"
+msgstr "Community"
+
+#: src/app/[locale]/(app)/community/page.tsx
+msgctxt "community.tb4_CP"
+msgid "Post ideas and questions, and vote on the ones you want."
+msgstr "Plaats ideeën en vragen, en stem op de ideeën die je wilt."
+
+#: src/app/[locale]/(app)/crm/sequences/page.tsx
+msgctxt "sequences.fqIG9Q"
+msgid "Sequences"
+msgstr "Reeksen"
+
+#: src/app/[locale]/(app)/crm/sequences/page.tsx
+msgctxt "sequences.emb3EJ"
+msgid "Email, wait and task steps that run for each enrolled contact until they reply."
+msgstr "Stappen voor e-mail, wachten en taken die voor elk ingeschreven contact lopen tot het antwoordt."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.yUcWBK"
+msgid "The board didn't load"
+msgstr "Het bord is niet geladen"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.dQRvIA"
+msgid "No board yet"
+msgstr "Nog geen bord"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.GI38BD"
+msgid "Open a feedback board where members post and vote on ideas."
+msgstr "Open een feedbackbord waar leden ideeën plaatsen en erop stemmen."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JFFn5z"
+msgid "An admin opens the board your team posts on."
+msgstr "Een beheerder opent het bord waarop je team berichten plaatst."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.lxtHzL"
+msgid "Under review"
+msgstr "In beoordeling"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.kp0NPF"
+msgid "Planned"
+msgstr "Gepland"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community._TlAIY"
+msgid "Visible"
+msgstr "Zichtbaar"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.ObLwzE"
+msgid "Awaiting review"
+msgstr "Wacht op beoordeling"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.ThUvIL"
+msgid "Hidden"
+msgstr "Verborgen"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.KGzfLt"
+msgid "Removed"
+msgstr "Verwijderd"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.s6RK5S"
+msgid "No posts yet"
+msgstr "Nog geen berichten"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.wZXQfk"
+msgid "Post the first idea for others to vote on."
+msgstr "Plaats het eerste idee waarop anderen kunnen stemmen."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.fWZYP5"
+msgid "Pinned"
+msgstr "Vastgezet"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.SfLG8q"
+msgid "{count} replies"
+msgstr "{count} reacties"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.oL0rU6"
+msgid "Locked"
+msgstr "Vergrendeld"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.RKbGb8"
+msgid "Feedback board opened"
+msgstr "Feedbackbord geopend"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.Ejhdi4"
+msgid "Feedback"
+msgstr "Feedback"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community._bwhcd"
+msgid "Open a feedback board"
+msgstr "Open een feedbackbord"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.J3YEb1"
+msgid "Remove your vote, {score} votes"
+msgstr "Haal je stem weg, {score} stemmen"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.dPTbLK"
+msgid "Vote up, {score} votes"
+msgstr "Stem omhoog, {score} stemmen"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.N2pA2e"
+msgid "Posted; it shows once a moderator approves it"
+msgstr "Geplaatst; het verschijnt zodra een moderator het goedkeurt"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.QYYHH3"
+msgid "Posted"
+msgstr "Geplaatst"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.TCJDlW"
+msgid "New post"
+msgstr "Nieuw bericht"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.xiK7Kz"
+msgid "Share an idea; others vote on it and reply."
+msgstr "Deel een idee; anderen stemmen erop en reageren."
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.eKv7yX"
+msgid "Post"
+msgstr "Plaatsen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.fqIG9Q"
+msgid "Sequences"
+msgstr "Reeksen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.4CrCbD"
+msgid "Community"
+msgstr "Community"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.xiZz44"
+msgid "The sequences didn't load"
+msgstr "De reeksen zijn niet geladen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.uhLiFs"
+msgid "No sequences yet"
+msgstr "Nog geen reeksen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.jo2BZv"
+msgid "Create a sample sequence, then activate it to enroll contacts."
+msgstr "Maak een voorbeeldreeks en activeer die om contacten in te schrijven."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.OdK47I"
+msgid "An admin sets up the sequences your team enrolls contacts in."
+msgstr "Een beheerder stelt de reeksen in waarin je team contacten inschrijft."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.C2iTEH"
+msgid "Paused"
+msgstr "Gepauzeerd"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.iOWjNm"
+msgid "Wait {minutes} minutes"
+msgstr "Wacht {minutes} minuten"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.8nWPbU"
+msgid "No steps yet."
+msgstr "Nog geen stappen."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.bz-S_R"
+msgid "{count} active"
+msgstr "{count} actief"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.cjYin_"
+msgid "{count} completed"
+msgstr "{count} voltooid"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.TE_1u-"
+msgid "{count} replied"
+msgstr "{count} beantwoord"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.5YeDsT"
+msgid "Sample sequence created"
+msgstr "Voorbeeldreeks gemaakt"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dEl5ay"
+msgid "Welcome series"
+msgstr "Welkomstreeks"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dC1LJX"
+msgid "Welcome to the team"
+msgstr "Welkom bij het team"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.oPKWQ6"
+msgid "Reply to this email if you have questions."
+msgstr "Beantwoord deze e-mail als je vragen hebt."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nIHcMI"
+msgid "Call the new customer"
+msgstr "Bel de nieuwe klant"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KTZS4Z"
+msgid "Create a sample sequence"
+msgstr "Maak een voorbeeldreeks"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.u3ID8A"
+msgid "Sequence active"
+msgstr "Reeks actief"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.GFYx5s"
+msgid "Sequence paused"
+msgstr "Reeks gepauzeerd"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.tFFMkF"
+msgid "Pause"
+msgstr "Pauzeren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.AcxDgz"
+msgid "Activate"
+msgstr "Activeren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.6QushX"
+msgid "Step added"
+msgstr "Stap toegevoegd"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.Mmft-L"
+msgid "Wait"
+msgstr "Wachten"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KWJ4W2"
+msgid "Add step"
+msgstr "Stap toevoegen"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nj4dGB"
+msgid "Add a step"
+msgstr "Voeg een stap toe"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.BGcreS"
+msgid "Recipients already past the end run the new step on their next turn."
+msgstr "Ontvangers die al aan het einde zijn, doorlopen de nieuwe stap bij hun volgende beurt."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.LLtKhp"
+msgid "Subject"
+msgstr "Onderwerp"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nXsjRT"
+msgid "Following up"
+msgstr "Opvolging"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.1c9W9U"
+msgid "Minutes to wait"
+msgstr "Minuten wachten"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.rM6yDL"
+msgid "Task title"
+msgstr "Taaktitel"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.ifgK-P"
+msgid "Call the contact"
+msgstr "Bel het contact"

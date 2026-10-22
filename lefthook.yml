@@ -6,6 +6,8 @@ pre-commit:
       exclude:
         - "{.agents,.cursor,.claude}/**"
         - "tests/validation-*/src/wiring/*.generated.ts"
+        - "apps/examples/**/lib/supabase/*.generated.ts"
+        - "supabase/snapshot.json"
       run: pnpm exec ultracite fix {staged_files}
       stage_fixed: true
     - name: lint

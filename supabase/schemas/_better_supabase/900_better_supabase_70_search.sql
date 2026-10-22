@@ -145,6 +145,12 @@ begin
         from "better_supabase"."courses" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'post' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."body"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."posts" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'engagement' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."body"::text, s."outcome"::text), ''), null
         into v_tenant, v_title, v_body, v_url
@@ -313,6 +319,13 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'post' then
+    for v_id in select s."id"::text from "better_supabase"."posts" s loop
+      if "better_supabase"."search_refresh"('post', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'engagement' then
     for v_id in select s."id"::text from "better_supabase"."engagements" s loop
       if "better_supabase"."search_refresh"('engagement', v_id) then
@@ -432,6 +445,11 @@ drop trigger if exists "bs_search_course_index" on "better_supabase"."courses";
 create trigger "bs_search_course_index"
   after insert or delete or update of "id", "tenant_id", "title", "summary" on "better_supabase"."courses"
   for each row execute function "better_supabase"."search_index_row"('course', 'id');
+
+drop trigger if exists "bs_search_post_index" on "better_supabase"."posts";
+create trigger "bs_search_post_index"
+  after insert or delete or update of "id", "tenant_id", "title", "body" on "better_supabase"."posts"
+  for each row execute function "better_supabase"."search_index_row"('post', 'id');
 
 drop trigger if exists "bs_search_engagement_index" on "better_supabase"."engagements";
 create trigger "bs_search_engagement_index"
