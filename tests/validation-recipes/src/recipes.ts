@@ -33,49 +33,13 @@ grant select, update on ${table} to authenticated;`;
 export const crm: Recipe = {
   name: "crm",
   schema: "recipe_crm",
-  tables: `create schema recipe_crm;
-grant usage on schema recipe_crm to authenticated, service_role;
-create table recipe_crm.deals (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
-  name text not null,
-  stage text not null default 'lead',
-  rank text collate "C" not null default 'V'
-);
-create index on recipe_crm.deals (organization_id, stage, rank);
-${readable("recipe_crm.deals")}`,
+  // Deals, pipelines and stages are module tables; the app adds none.
+  tables: "",
   config: defineConfig({
     preset: "crm",
-    subjects: {
-      deal: {
-        table: "recipe_crm.deals",
-        idType: "uuid",
-        title: "name",
-        url: "/deals/{id}",
-        rank: { column: "rank", group: "stage" },
-      },
-    },
     blocks: {
-      rank: {},
+      deals: { entities: { deal: { url: "/deals/{id}" } } },
       reminders: {},
-      "state-machine": {
-        options: {
-          machines: {
-            deal: {
-              table: "recipe_crm.deals",
-              column: "stage",
-              initial: "lead",
-              tenant: "organization_id",
-              transitions: {
-                lead: ["qualified", "lost"],
-                qualified: ["won", "lost"],
-                won: [],
-                lost: ["lead"],
-              },
-            },
-          },
-        },
-      },
     },
   }),
 };

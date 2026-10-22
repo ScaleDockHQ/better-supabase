@@ -8,12 +8,14 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
+import type { DealsEvents } from "better-supabase/blocks/deals";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PartiesEvents } from "better-supabase/blocks/parties";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
+import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TagsEvents } from "better-supabase/blocks/tags";
@@ -46,6 +48,10 @@ export const blockConfig = {
     options: {},
   },
   "custom-fields": {
+    schema: "better_supabase",
+    options: {},
+  },
+  deals: {
     schema: "better_supabase",
     options: {},
   },
@@ -97,6 +103,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  quotes: {
+    schema: "better_supabase",
+    options: {},
+  },
   "saved-views": {
     schema: "better_supabase",
     options: {},
@@ -114,6 +124,10 @@ export const blockConfig = {
     options: {},
   },
   tags: {
+    schema: "better_supabase",
+    options: {},
+  },
+  targets: {
     schema: "better_supabase",
     options: {},
   },
@@ -173,6 +187,15 @@ export const permissions = {
     read: "custom_fields.read",
     sensitive: "custom_fields.sensitive.read",
   },
+  deal: {
+    read: "deals.read",
+    write: "deals.write",
+  },
+  deals: {
+    read: "deals.read",
+    write: "deals.write",
+    manage: "deals.manage",
+  },
   engagement: {
     read: "engagements.read",
     write: "engagements.write",
@@ -226,6 +249,11 @@ export const permissions = {
     read: "pipelines.read",
     manage: "pipelines.manage",
   },
+  quotes: {
+    read: "quotes.read",
+    write: "quotes.write",
+    manage: "quotes.manage",
+  },
   "saved-views": {
     read: "views.read",
     share: "views.share",
@@ -243,6 +271,10 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
+  targets: {
+    read: "targets.read",
+    manage: "targets.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -254,13 +286,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "engagements.manage" | "engagements.read" | "engagements.write" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & EngagementsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & DealsEvents & EngagementsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & QuotesEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -291,6 +323,12 @@ export const blockEvents: Events<BlockEvents> = {
     "conversation.member_removed",
     "custom_field.deleted",
     "custom_field.saved",
+    "deal.archived",
+    "deal.closed",
+    "deal.created",
+    "deal.deleted",
+    "deal.reopened",
+    "deal.updated",
     "engagement.completed",
     "engagement.deleted",
     "engagement.logged",
@@ -340,6 +378,15 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.saved",
     "platform_setting.reset",
     "platform_setting.updated",
+    "quote.accepted",
+    "quote.changes_requested",
+    "quote.created",
+    "quote.expired",
+    "quote.rejected",
+    "quote.revised",
+    "quote.sent",
+    "quote.updated",
+    "quote.viewed",
     "saved_view.deleted",
     "saved_view.saved",
     "subject.tagged",
@@ -383,6 +430,12 @@ export const blockEventSchemas = {
   "conversation.member_removed": true,
   "custom_field.deleted": true,
   "custom_field.saved": true,
+  "deal.archived": true,
+  "deal.closed": true,
+  "deal.created": true,
+  "deal.deleted": true,
+  "deal.reopened": true,
+  "deal.updated": true,
   "engagement.completed": true,
   "engagement.deleted": true,
   "engagement.logged": true,
@@ -432,6 +485,15 @@ export const blockEventSchemas = {
   "pipeline_stage.saved": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "quote.accepted": true,
+  "quote.changes_requested": true,
+  "quote.created": true,
+  "quote.expired": true,
+  "quote.rejected": true,
+  "quote.revised": true,
+  "quote.sent": true,
+  "quote.updated": true,
+  "quote.viewed": true,
   "saved_view.deleted": true,
   "saved_view.saved": true,
   "subject.tagged": true,

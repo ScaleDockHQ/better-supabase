@@ -1,101 +1,131 @@
 ---
 title: CRM
-description: A deal pipeline with stages on a board, comments, tags, custom fields and follow-up reminders.
+description: Deals in pipeline stages, quotes made from deals, sales targets, comments, tags, custom fields and follow-up reminders.
 ---
 
-Deals move through a pipeline of stages. The board orders cards with rank
-keys and groups them by stage, the state machine refuses a jump the pipeline
-does not allow, and the people watching a deal hear about comments, tags and
-stage moves.
+The `crm` preset holds your deals for you: the [deals](/docs/blocks/deals)
+block stores each deal with its amount, company, owner and close date, and
+the [pipelines](/docs/blocks/pipelines) block moves it through stages the
+organization edits. [Quotes](/docs/blocks/quotes) start from a deal, and
+[targets](/docs/blocks/targets) measure won deals against each rep's quota.
+The pipeline's transitions refuse a jump it does not allow, and the people
+watching a deal hear about comments, tags and stage moves.
 
-## Table
+## Tables
 
-```sql title="supabase/schemas/deals.sql"
-create table public.deals (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
-  name text not null,
-  stage text not null default 'lead',
-  rank text collate "C" not null default 'V'
-);
-create index on public.deals (organization_id, stage, rank);
-alter table public.deals enable row level security;
-```
-
-Add read and update policies for the organization's members, as for any
-tenant table.
+The app adds no table. Deals live in `better_supabase.deals`, their stages
+in `better_supabase.pipeline_stages`, and every stage change in
+`better_supabase.pipeline_stage_history`. The deals table takes no writes
+from the Data API: create and edit deals through the block's functions
+(`create_deal`, `update_deals`, `close_deal`), which check `deals.write` and
+the deal team. Add your own deal columns with `blocks.deals.options.extraColumns`
+([your own fields](/docs/blocks/deals#your-own-fields)).
 
 ## Config
 
 The `crm` preset brings the SaaS blocks (organizations, notifications, the
-outbox, ...) plus parties, pipelines, engagements, tags, comments, custom
-fields, saved views and search. The board adds `rank`, `reminders` and a
-state machine on top:
+outbox, ...) plus parties, pipelines, deals, quotes, targets, engagements,
+tags, comments, an activity feed, custom fields, saved views and search. The
+deals block registers `deal` as a subject, so the config names no
+`subjects.deal`; set the deal page on the block's entity and add `reminders`
+for follow-ups:
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
   preset: "crm",
-  subjects: {
-    deal: {
-      table: "public.deals",
-      idType: "uuid",
-      title: "name",
-      url: "/deals/{id}",
-      rank: { column: "rank", group: "stage" },
-    },
-  },
   blocks: {
-    rank: {},
+    deals: { entities: { deal: { url: "/deals/{id}" } } },
     reminders: {},
-    "state-machine": {
-      options: {
-        machines: {
-          deal: {
-            table: "public.deals",
-            column: "stage",
-            initial: "lead",
-            tenant: "organization_id",
-            transitions: {
-              lead: ["qualified", "lost"],
-              qualified: ["won", "lost"],
-              won: [],
-              lost: ["lead"],
-            },
-          },
-        },
-      },
-    },
   },
 });
 ```
+
+A deal created without a pipeline lands in the organization's default deal
+pipeline, which the first call creates from the deals block's stages
+(Qualified to Closed won and Closed lost). An admin can also set up the
+organization's own pipeline:
+
+```ts
+const sales = await pipelines
+  .save(organizationId, { subjectType: "deal", key: "sales", name: "Sales" })
+  .orThrow();
+const lead = await pipelines
+  .saveStage(sales.id, { key: "lead", name: "Lead", category: "open" })
+  .orThrow();
+// ... qualified (open), won (won), lost (lost)
+
+const deal = await deals
+  .create(organizationId, {
+    name: "Acme renewal",
+    closeOn: Temporal.PlainDate.from("2026-12-31"),
+    pipelineId: sales.id,
+    stageId: lead.id,
+  })
+  .orThrow();
+```
+
+The first pipeline of a type becomes its default. The deal's owner (the
+caller, unless you pass `ownerId`) watches it.
 
 ## Event flow
 
 Each call takes the record as a subject, `deal` being `{ type: "deal", id: dealId }`, and acts in the tenant of the block client (see [one block per request](/docs/blocks/create-blocks#one-block-per-request)).
 
-| The user                         | Call                                                   | Event             | Watchers get                    |
-| -------------------------------- | ------------------------------------------------------ | ----------------- | ------------------------------- |
-| Comments on a deal               | `comments.create(deal, { body })`                      | `message.sent`    | `comment.posted`, from comments |
-| Tags it                          | `tags.tag(deal, tagId)`                                | `subject.tagged`  | `subject.tagged`                |
-| Drags its card to another stage  | `rank.move("deal", dealId, { previous, next, group })` | `status.changed`  | `subject.moved`                 |
-| Sets a custom field (deal value) | `customFields.setValue(...)`                           | `field_value.set` | map it if you want              |
-| Gets a follow-up reminder        | `reminders.deliver(payload)`                           | `reminder.sent`   | `reminder.due`                  |
+| The user                  | Call                                                   | Event                                    | Watchers get                                           |
+| ------------------------- | ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
+| Creates a deal            | `deals.create(organizationId, { name, closeOn, ... })` | `deal.created`                           | nothing; the owner starts watching                     |
+| Comments on a deal        | `comments.create(deal, { body })`                      | `message.sent`                           | `comment.posted`, from comments                        |
+| Tags it                   | `tags.tag(deal, tagId)`                                | `subject.tagged`                         | `subject.tagged`                                       |
+| Moves it to another stage | `deals.update([{ dealId, field: "stageId", value }])`  | `deal.updated`, `pipeline.stage_changed` | `pipeline.stage_changed`, from pipelines               |
+| Marks it won or lost      | `deals.win(dealId)` or `deals.lose(dealId, reason)`    | `pipeline.stage_changed`, `deal.closed`  | `pipeline.stage_changed` and `deal.closed`, from deals |
+| Sends a quote             | `quotes.fromDeal(dealId)`                              | `quote.created`                          | map it if you want                                     |
+| Sets a custom field       | `customFields.setValue(deal, fieldId, value)`          | `field_value.set`                        | `subject.field_changed`                                |
+| Gets a follow-up reminder | `reminders.deliver(payload)`                           | `reminder.sent`                          | `reminder.due`                                         |
 
-A drag from `lead` onto `won` fails with `STATE_TRANSITION_INVALID`: the
-rank and the stage change in one update, and the state-machine trigger
-checks it. Move the card back in the UI when `move` returns that error.
+Comments and pipelines notify the deal's watchers themselves; the outbox
+events in the other rows reach them through a
+[watcher handler](/docs/blocks/notifications), which leaves out the user who
+acted. A sales target with the metric `deals.won_amount` counts a deal once
+it is won.
+
+## Transitions
+
+Without transitions, a deal moves from any stage to any other. To refuse a
+jump, list the moves the pipeline allows:
+
+```ts
+await pipelines
+  .setTransitions(sales.id, [
+    { from: lead.id, to: qualified.id },
+    { from: lead.id, to: lost.id },
+    { from: qualified.id, to: won.id },
+    { from: qualified.id, to: lost.id },
+    { from: lost.id, to: lead.id },
+  ])
+  .orThrow();
+```
+
+A move from Lead onto Won is then rejected: `deals.update` returns it in
+`rejected` with the hint `PIPELINE_TRANSITION_INVALID` and keeps the other
+changes of the batch, and `deals.win` fails with the same hint until the deal
+is in Qualified.
 
 ## With ReUI
 
-- Kanban for the pipeline board. Each column is a stage; on drop, call
-  `rank.move` with the neighbours' ids and the new stage.
-- Data Grid for the deal table, with Filters editing the
+- Kanban for the pipeline board. Read the columns, with their counts and
+  totals per currency, from `pipelines.board("deal", pipelineId)`. On drop,
+  call `deals.update` with the column's stage id as `stageId`, and move the
+  card back when the change comes back in `rejected`.
+- Data Grid for the deal table: send a batched edit as one `deals.update`
+  call and show each `rejected` reason in a toast. Filters edit the
   [filter tree](/docs/platform/list#filter-trees) of a `defineListQuery` on
   `deals`.
-- Timeline for the deal's history: `status_history` rows and comments,
-  newest first.
+- Timeline for the deal's history: `pipeline_stage_history` rows and
+  comments, newest first, or the [activity feed](/docs/blocks/activity).
 
-The ReUI Pro CRM blocks fit the same data; their source is licensed per user,
-so copy them into your app from [reui.io](https://reui.io).
+The ReUI Pro CRM blocks fit the same data (see
+[wire it to ReUI](/docs/blocks/deals#wire-it-to-reui) on the deals page);
+their source is licensed per user, so copy them into your app from
+[reui.io](https://reui.io).

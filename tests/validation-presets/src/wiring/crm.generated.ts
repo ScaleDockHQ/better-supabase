@@ -9,6 +9,7 @@ import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
+import { dealsBlock } from "better-supabase/blocks/deals";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { messagingBlock } from "better-supabase/blocks/messaging";
@@ -20,11 +21,13 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { quotesBlock } from "better-supabase/blocks/quotes";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { tagsBlock } from "better-supabase/blocks/tags";
+import { targetsBlock } from "better-supabase/blocks/targets";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./crm.blocks.generated.ts";
@@ -37,6 +40,7 @@ export const blockSet = defineBlocks(blockConfig, {
   billing: billingBlock,
   comments: commentsBlock,
   customFields: customFieldsBlock,
+  deals: dealsBlock,
   engagements: engagementsBlock,
   entitlements: entitlementsBlock,
   messaging: messagingBlock,
@@ -48,11 +52,13 @@ export const blockSet = defineBlocks(blockConfig, {
   parties: partiesBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
+  quotes: quotesBlock,
   savedViews: savedViewsBlock,
   search: searchBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,
   tags: tagsBlock,
+  targets: targetsBlock,
   teams: teamsBlock,
 });
 

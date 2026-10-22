@@ -111,12 +111,15 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "crm",
     title: "CRM",
     description:
-      "SaaS plus parties, pipelines and engagements, with tags, comments, an activity feed, custom fields, saved views and search.",
+      "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
       ...SAAS,
       "parties",
       "pipelines",
+      "deals",
+      "quotes",
+      "targets",
       "engagements",
       "tags",
       "comments",

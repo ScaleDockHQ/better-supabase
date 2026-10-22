@@ -32,7 +32,7 @@ import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
 import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { FormsEvents } from "better-supabase/blocks/forms";
-import type { SignaturesEvents } from "better-supabase/blocks/forms";
+import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { HiringEvents } from "better-supabase/blocks/hiring";
 import type { ImportsEvents } from "better-supabase/blocks/imports";
 import type { InboxEvents } from "better-supabase/blocks/inbox";

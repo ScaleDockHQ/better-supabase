@@ -39,7 +39,7 @@ how your config differs from its preset ([CLI](/docs/cli/presets)).
 | `minimal`       | Starters   | profiles                                                                                                                         |
 | `saas`          | Starters   | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox |
 | `consumer`      | Starters   | profiles, identities, mfa, sessions, notifications, push, with `scope: "user"`                                                   |
-| `crm`           | Products   | `saas` plus parties, pipelines, engagements, tags, comments, custom-fields, saved-views, search                                  |
+| `crm`           | Products   | `saas` plus parties, pipelines, deals, quotes, targets, engagements, tags, comments, custom-fields, saved-views, search          |
 | `projects`      | Products   | `saas` plus tags, comments, attachments, state-machine, rank, reminders, time-tracking                                           |
 | `helpdesk`      | Products   | `saas` plus inbox, work-items, sla, comments, attachments, tags, saved-views, knowledge, search                                  |
 | `chat`          | Products   | `saas` plus messaging, channels, reactions, attachments                                                                          |
@@ -70,13 +70,13 @@ as one migration, and typechecks the `lib/blocks.ts` it generates.
 
 ## Apps built on a preset
 
-These pages start from a preset and add the subject table, the options and
-the event flow of one product. `tests/validation-recipes` installs each
+These pages start from a preset and add the subject (a table of their own or
+a block's), the options and the event flow of one product. `tests/validation-recipes` installs each
 config on the local stack and drives the flows end to end.
 
 | App                                    | Preset       | Subject    | Adds                                                               |
 | -------------------------------------- | ------------ | ---------- | ------------------------------------------------------------------ |
-| [CRM](/docs/presets/crm)               | `crm`        | `deal`     | rank, reminders, state-machine                                     |
+| [CRM](/docs/presets/crm)               | `crm`        | `deal`     | reminders                                                          |
 | [Projects](/docs/presets/projects)     | `projects`   | `task`     | number-sequences, the state machine's workflow                     |
 | [Drive](/docs/presets/drive)           | `saas`       | `document` | comments, tags, attachments, share-links, rank                     |
 | [Scheduling](/docs/presets/scheduling) | `scheduling` | `booking`  | custom-fields, share-links, state-machine                          |

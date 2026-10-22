@@ -37,7 +37,7 @@ import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { flagsBlock } from "better-supabase/blocks/flags";
 import { formsBlock } from "better-supabase/blocks/forms";
-import { signaturesBlock } from "better-supabase/blocks/forms";
+import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { identitiesBlock } from "better-supabase/blocks/identities";
 import { importsBlock } from "better-supabase/blocks/imports";
