@@ -13870,6 +13870,7 @@ export async function CalendarView({
           >
             <ChevronRightIcon />
           </Link>
+          {calendars.length > 0 ? <WorkingHoursDialog /> : null}
           {canWrite && calendars.length > 0 ? (
             <CreateEventDialog
               calendars={calendars}

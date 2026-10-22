@@ -3122,6 +3122,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarEventInput"
         },
         {
+          "name": "CalendarEventKind"
+        },
+        {
           "name": "CalendarEvents"
         },
         {
@@ -3141,6 +3144,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarSnapshot"
+        },
+        {
+          "name": "CalendarTransparency"
         },
         {
           "name": "EventCalendarEvent"
