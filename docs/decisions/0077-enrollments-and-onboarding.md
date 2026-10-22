@@ -1,4 +1,4 @@
-# 0074: Enrollments in programs of steps, with onboarding on top
+# 0077: Enrollments in programs of steps, with onboarding on top
 
 - Status: accepted
 - Date: 2026-10-22
