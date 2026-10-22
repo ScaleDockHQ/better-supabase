@@ -9,6 +9,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
+import { inboxScheduleFunctions } from "./inbox-schedule.ts";
 import { inboxServiceFunctions } from "./inbox-service.ts";
 import {
   inboxDetailsDdl,
@@ -52,6 +53,8 @@ ${inboxFunctions(
 )}
 
 ${inboxServiceFunctions(q)}
+
+${inboxScheduleFunctions(q)}
 
 ${inboxRealtime(q)}
 
@@ -311,6 +314,23 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "integer",
     },
     { name: "wake_snoozed_conversations", args: [], returns: "integer" },
+    {
+      name: "schedule_inbox_message",
+      args: ["uuid", "jsonb", "timestamptz"],
+      returns: "jsonb",
+    },
+    { name: "list_scheduled_inbox_messages", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "reschedule_inbox_message",
+      args: ["uuid", "timestamptz"],
+      returns: "jsonb",
+    },
+    { name: "cancel_inbox_message", args: ["uuid"], returns: "boolean" },
+    {
+      name: "publish_due_inbox_messages",
+      args: ["integer"],
+      returns: "integer",
+    },
     {
       name: "upsert_message_template",
       args: ["{id}", "jsonb"],

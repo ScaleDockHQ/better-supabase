@@ -4051,6 +4051,7 @@
               },
               "botQueue": {},
               "outboundQueue": {},
+              "scheduleQueue": {},
               "notify": {
                 "type": "boolean",
                 "default": true

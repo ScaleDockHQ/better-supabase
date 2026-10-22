@@ -9,6 +9,7 @@ export type InboxEvents = {
   readonly "inbox_conversation.assigned": InboxEventData;
   readonly "inbox_conversation.resolved": InboxEventData;
   readonly "inbox_conversation.reopened": InboxEventData;
+  readonly "inbox_conversation.unsnoozed": InboxEventData;
   readonly "inbox_message.received": InboxEventData;
 };
 
@@ -18,5 +19,6 @@ export const inboxEvents: Events<InboxEvents> = defineEvents({
   "inbox_conversation.assigned": event<InboxEventData>(),
   "inbox_conversation.resolved": event<InboxEventData>(),
   "inbox_conversation.reopened": event<InboxEventData>(),
+  "inbox_conversation.unsnoozed": event<InboxEventData>(),
   "inbox_message.received": event<InboxEventData>(),
 });

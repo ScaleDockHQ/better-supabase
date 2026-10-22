@@ -156,23 +156,6 @@ end;
 $$;
 ${serviceGrant(`${fn("purge_inbound_events")}(interval, integer)`)}
 
--- Reopens snoozed conversations whose time came, for a periodic job.
-create or replace function ${fn("wake_snoozed_conversations")}()
-returns integer
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_count integer;
-begin
-  update ${T("conversations")} set ${cv("status")} = 'open', ${cv("snoozedUntil")} = null
-  where ${cv("status")} = 'snoozed' and ${cv("snoozedUntil")} <= now();
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-${serviceGrant(`${fn("wake_snoozed_conversations")}()`)}
-
 create or replace function ${fn("upsert_message_template")}(tenant ${id}, input jsonb)
 returns jsonb
 language plpgsql

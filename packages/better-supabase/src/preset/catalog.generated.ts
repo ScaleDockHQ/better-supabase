@@ -4987,6 +4987,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "inbox_conversation.assigned",
           "inbox_conversation.resolved",
           "inbox_conversation.reopened",
+          "inbox_conversation.unsnoozed",
           "inbox_message.received"
         ]
       }

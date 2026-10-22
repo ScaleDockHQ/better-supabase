@@ -365,4 +365,82 @@ describe("createInbox", () => {
   it("lists the channels", () => {
     expect(INBOX_CHANNELS).toContain("in_app");
   });
+
+  it("schedules, lists, moves, cancels and publishes replies", async () => {
+    const scheduledRow = {
+      id: "s1",
+      tenant_id: "org",
+      conversation_id: "c1",
+      author_id: "u1",
+      input: {
+        body: "Back tomorrow",
+        format: "markdown",
+        attachments: ["f1"],
+        mentions: ["u2"],
+        reply_to: "m1",
+        metadata: { source: "composer" },
+      },
+      scheduled_for: AT,
+      created_at: AT,
+    };
+
+    const { transport, call } = fakeTransport({
+      schedule_inbox_message: scheduledRow,
+      list_scheduled_inbox_messages: [
+        scheduledRow,
+        { ...scheduledRow, id: "s2", input: { format: "html" } },
+      ],
+      reschedule_inbox_message: scheduledRow,
+      cancel_inbox_message: true,
+      publish_due_inbox_messages: 2,
+    });
+
+    const inbox = createInbox({ transport });
+    const at = Temporal.Instant.from(AT);
+
+    const scheduled = await inbox.messages
+      .schedule("c1", { body: "Back tomorrow", format: "markdown" }, at)
+      .orThrow();
+
+    expect(scheduled).toMatchObject({
+      id: "s1",
+      conversationId: "c1",
+      authorId: "u1",
+      body: "Back tomorrow",
+      format: "markdown",
+      attachments: ["f1"],
+      mentions: ["u2"],
+      replyTo: "m1",
+      metadata: { source: "composer" },
+    });
+    expect(scheduled.scheduledFor.toString()).toBe(AT);
+
+    const [, second] = await inbox.messages.scheduled().orThrow();
+    expect(second).toMatchObject({
+      id: "s2",
+      body: "",
+      format: null,
+      attachments: [],
+      replyTo: null,
+    });
+    await inbox.messages.scheduled("c1").orThrow();
+    await inbox.messages.reschedule("s1", at).orThrow();
+    await inbox.messages.cancelScheduled("s1").orThrow();
+    expect(await inbox.publishDue(5).orThrow()).toBe(2);
+    expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toEqual([
+      [
+        "schedule_inbox_message",
+        {
+          conversation: "c1",
+          input: { body: "Back tomorrow", format: "markdown" },
+          scheduled_for: AT,
+        },
+      ],
+      ["list_scheduled_inbox_messages", { conversation: null }],
+      ["list_scheduled_inbox_messages", { conversation: "c1" }],
+      ["reschedule_inbox_message", { scheduled: "s1", scheduled_for: AT }],
+      ["cancel_inbox_message", { scheduled: "s1" }],
+      ["publish_due_inbox_messages", { max_rows: 5 }],
+    ]);
+  });
 });

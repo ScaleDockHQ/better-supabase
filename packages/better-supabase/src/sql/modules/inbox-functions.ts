@@ -837,8 +837,8 @@ begin
   if not (${service} or ${command("set_status", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;
-  if status = 'snoozed' and snoozed_until is null then
-    ${fail("INBOX_SNOOZE_UNTIL", "snoozing needs snoozed_until", "22023")}
+  if status = 'snoozed' and (snoozed_until is null or snoozed_until <= now()) then
+    ${fail("INBOX_SNOOZE_UNTIL", "snoozing needs a snoozed_until in the future", "22023")}
   end if;
   v_before := v_conv.${cv("status")};
   update ${T("conversations")} set
@@ -847,6 +847,9 @@ begin
     ${cv("resolvedAt")} = case when set_conversation_status.status = 'resolved' then now() end
   where ${cv("id")} = v_conv.${cv("id")}
   returning * into v_conv;
+  if status = 'snoozed' then
+    ${ctx.enqueue(q.scheduleQueue, `jsonb_build_object('type', 'inbox.wake', 'conversation_id', v_conv.${cv("id")})`, `'inbox-wake:' || v_conv.${cv("id")}::text || ':' || extract(epoch from set_conversation_status.snoozed_until)::text`, { delay: `greatest(ceil(extract(epoch from (set_conversation_status.snoozed_until - now())))::integer, 0)` })}
+  end if;
   if v_before is distinct from status then
     ${log("status", "jsonb_build_object('from', v_before, 'to', set_conversation_status.status)")}
     if status = 'resolved' then

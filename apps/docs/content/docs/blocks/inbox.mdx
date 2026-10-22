@@ -164,6 +164,66 @@ handlers in [Chat SDK adapters](/docs/chat-sdk) run the bot and post the
 reply on its channel. A staff reply or `handoff` switches the conversation
 to `human`, so the bot stops answering.
 
+## Snooze and scheduled replies
+
+Snooze a conversation until a time in the future, or schedule a staff reply
+to go out later:
+
+```ts
+const tomorrow = Temporal.Now.instant().add({ hours: 24 });
+
+await inbox.conversations.snooze(conversation.id, tomorrow).orThrow();
+const scheduled = await inbox.messages
+  .schedule(conversation.id, { body: "Following up as promised." }, tomorrow)
+  .orThrow();
+
+await inbox.messages.reschedule(scheduled.id, tomorrow.add({ hours: 1 }));
+await inbox.messages.cancelScheduled(scheduled.id);
+```
+
+| Method                                               | Does                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `conversations.snooze(id, until)`                    | Hides the conversation until `until`; a past time fails with `22023` |
+| `messages.schedule(id, input, at)`                   | A staff reply for later: messages only, no notes, `at` in the future |
+| `messages.scheduled(conversationId?)`                | The caller's scheduled replies, soonest first                        |
+| `messages.reschedule(id, at)`, `cancelScheduled(id)` | Moves or deletes the caller's scheduled reply                        |
+| `publishDue(maxRows?)`                               | Service only: sends the replies whose time came, as their authors    |
+| `wakeSnoozed()`                                      | Service only: reopens the conversations whose snooze ended           |
+
+Only the author sees a scheduled reply before it is sent, and it needs
+`inbox.reply`. When it is due, `publishDue` sends it through the same path
+as `messages.send` (deliveries, the outbound job, the bot hand-off) as the
+author; a reply whose author has lost `inbox.reply` is dropped. Waking a
+conversation sets it to `open`, logs `unsnoozed` in its events, emits
+`inbox_conversation.unsnoozed` and notifies the assignee, or the inbox's
+members while nobody is assigned (`inbox.snooze_ended`).
+
+With the [jobs](/docs/blocks/jobs) block, snoozing and scheduling each
+queue a delayed job on `inbox_schedule` (`scheduleQueue`) for the right
+time: `{ type: "inbox.wake", conversation_id }` or
+`{ type: "inbox.publish", scheduled_id }`. A handler calls `wakeSnoozed()`
+or `publishDue()` on a service client; a job left by a reschedule finds
+nothing due and does nothing. Without jobs, run both from a cron;
+`maintain()` in the [Chat SDK adapters](/docs/chat-sdk/channels) calls
+them.
+
+```ts title="app/api/jobs/drain/route.ts"
+import "server-only";
+
+import { jobs } from "@/lib/jobs";
+import { serviceInbox } from "@/lib/inbox";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: {
+    inbox_schedule: async () => {
+      await serviceInbox.wakeSnoozed().orThrow();
+      await serviceInbox.publishDue().orThrow();
+    },
+  },
+});
+```
+
 ## Realtime
 
 Changes broadcast without row data on private topics. A thread uses the
@@ -304,19 +364,21 @@ export function Component(props: { organizationId: string }) {
 
 With the outbox installed the module emits `inbox_message.received`,
 `inbox_conversation.opened`, `inbox_conversation.assigned`,
-`inbox_conversation.resolved` and `inbox_conversation.reopened`, each with
+`inbox_conversation.resolved`, `inbox_conversation.reopened` and
+`inbox_conversation.unsnoozed`, each with
 the conversation, organization, inbox, contact, assignee and status.
 
 ## Options
 
-| Option                               | Default          | Meaning                                        |
-| ------------------------------------ | ---------------- | ---------------------------------------------- |
-| `blocks.inbox.options.topic`         | `inbox`          | The prefix of the organization topic           |
-| `blocks.inbox.options.bucket`        | `inbox-files`    | Where files from before 0.14 live, for imports |
-| `blocks.inbox.options.maxBodyLength` | `20000`          | The longest message body                       |
-| `blocks.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                  |
-| `blocks.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries           |
-| `blocks.inbox.options.notify`        | `true`           | Notifications for assignments and mentions     |
+| Option                               | Default          | Meaning                                                 |
+| ------------------------------------ | ---------------- | ------------------------------------------------------- |
+| `blocks.inbox.options.topic`         | `inbox`          | The prefix of the organization topic                    |
+| `blocks.inbox.options.bucket`        | `inbox-files`    | Where files from before 0.14 live, for imports          |
+| `blocks.inbox.options.maxBodyLength` | `20000`          | The longest message body                                |
+| `blocks.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                           |
+| `blocks.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries                    |
+| `blocks.inbox.options.scheduleQueue` | `inbox_schedule` | The job queue for snooze wake-ups and scheduled replies |
+| `blocks.inbox.options.notify`        | `true`           | Notifications for assignments and mentions              |
 
 ## Example
 

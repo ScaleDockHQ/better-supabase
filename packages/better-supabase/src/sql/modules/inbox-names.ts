@@ -69,6 +69,17 @@ const EVENTS: ModuleEvents<InboxEvents> = {
       "status",
     ],
   },
+  "inbox_conversation.unsnoozed": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "inboxId",
+      "contactId",
+      "assigneeId",
+      "status",
+    ],
+  },
 };
 
 export const INBOX_NAMES: ModuleNames = {
@@ -79,6 +90,7 @@ export const INBOX_NAMES: ModuleNames = {
     "maxBodyLength",
     "botQueue",
     "outboundQueue",
+    "scheduleQueue",
     "notify",
   ],
   tables: {
@@ -256,6 +268,20 @@ export const INBOX_NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
     },
+    scheduled: {
+      name: "scheduled_inbox_messages",
+      lifecycle: { tenant: "tenant", user: "author" },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        conversation: "conversation_id",
+        author: "author_id",
+        input: "input",
+        scheduledFor: "scheduled_for",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
   },
   migrations: [
     {
@@ -302,6 +328,7 @@ export interface InboxSql {
   readonly maxBody: number;
   readonly botQueue: string;
   readonly outboundQueue: string;
+  readonly scheduleQueue: string;
   /** The messaging core, which holds the conversations and messages. */
   readonly core: {
     readonly ctx: ModuleContext;
@@ -406,6 +433,7 @@ export function inboxSql(
     maxBody,
     botQueue: queue("botQueue", "inbox_bot"),
     outboundQueue: queue("outboundQueue", "inbox_outbound"),
+    scheduleQueue: queue("scheduleQueue", "inbox_schedule"),
   };
 }
 

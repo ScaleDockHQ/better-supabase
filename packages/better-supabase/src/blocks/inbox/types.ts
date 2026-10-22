@@ -201,6 +201,22 @@ export interface MessageTemplate {
   readonly externalId: string | null;
 }
 
+/** A staff reply waiting for `scheduledFor`; only its author sees it. */
+export interface ScheduledInboxMessage {
+  readonly id: string;
+  readonly tenant: string;
+  readonly conversationId: string;
+  readonly authorId: string;
+  readonly body: string;
+  readonly format: "text" | "markdown" | null;
+  readonly attachments: readonly string[];
+  readonly mentions: readonly string[];
+  readonly replyTo: string | null;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly scheduledFor: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+}
+
 export interface StoredInboundEvent {
   readonly id: string;
   readonly adapter: string;

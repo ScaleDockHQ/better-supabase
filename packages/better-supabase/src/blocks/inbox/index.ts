@@ -18,6 +18,7 @@ export type {
   InboxOptions,
   InboxPatch,
   MessageInput,
+  ScheduledMessageInput,
   StartConversationInput,
   TemplateInput,
 } from "./inbox.ts";
@@ -51,6 +52,7 @@ export type {
   MessageTemplate,
   PendingInboxFile,
   PurgedContact,
+  ScheduledInboxMessage,
   StoredInboundEvent,
 } from "./types.ts";
 

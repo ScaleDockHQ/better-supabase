@@ -68,6 +68,7 @@ export function inboxTables(q: InboxSql, sharedTeams = false): string {
   const dl = q.cols("deliveries");
   const ie = q.cols("inbound");
   const tp = q.cols("templates");
+  const sm = q.cols("scheduled");
 
   const T = {
     inboxes: q.t("inboxes"),
@@ -82,6 +83,7 @@ export function inboxTables(q: InboxSql, sharedTeams = false): string {
     deliveries: q.t("deliveries"),
     inbound: q.t("inbound"),
     templates: q.t("templates"),
+    scheduled: q.t("scheduled"),
   };
 
   const botModes = list(["bot", "human", "paused"]);
@@ -286,7 +288,26 @@ create table if not exists ${T.templates} (
 create index if not exists message_templates_inbox_idx on ${T.templates} (${tp("inbox")});
 ${updatedAt(T.templates, tp("updatedAt"))}
 ${lockTable(T.templates, { read: true })}
-${policy(T.templates, "message_templates_staff_read", q.staff(tp("tenant")))}`;
+${policy(T.templates, "message_templates_staff_read", q.staff(tp("tenant")))}
+
+-- Staff replies to send later. publish_due_inbox_messages sends each one
+-- through the normal reply path once scheduled_for passes; until then only
+-- its author sees it.
+create table if not exists ${T.scheduled} (
+  ${sm("id")} uuid primary key default gen_random_uuid(),
+  ${sm("tenant")} ${id} not null,
+  ${sm("conversation")} uuid not null references ${T.conversations} (${cv("id")}) on delete cascade,
+  ${sm("author")} uuid not null references auth.users (id) on delete cascade,
+  ${sm("input")} jsonb not null check (jsonb_typeof(${sm("input")}) = 'object'),
+  ${sm("scheduledFor")} timestamptz not null,
+  ${sm("createdAt")} timestamptz not null default now()
+);
+create index if not exists scheduled_inbox_messages_due_idx on ${T.scheduled} (${sm("scheduledFor")});
+create index if not exists scheduled_inbox_messages_conversation_idx on ${T.scheduled} (${sm("conversation")});
+create index if not exists scheduled_inbox_messages_author_idx on ${T.scheduled} (${sm("author")}, ${sm("scheduledFor")});
+${updatedAt(T.scheduled, sm("updatedAt"))}
+${lockTable(T.scheduled, { read: true })}
+${policy(T.scheduled, "scheduled_inbox_messages_author_read", `${sm("author")} = (select auth.uid()) and ${q.staff(sm("tenant"), "reply")}`)}`;
 }
 
 /**

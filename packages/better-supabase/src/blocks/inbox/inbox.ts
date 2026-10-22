@@ -23,6 +23,7 @@ import type {
   MessageTemplate,
   PendingInboxFile,
   PurgedContact,
+  ScheduledInboxMessage,
   StoredInboundEvent,
 } from "./types.ts";
 
@@ -53,6 +54,8 @@ import {
   pendingFilesOf,
   uploadOf,
   purgedOf,
+  scheduledListOf,
+  scheduledOf,
   storedEventsOf,
   templateOf,
 } from "./rows.ts";
@@ -135,6 +138,12 @@ export interface MessageInput {
    */
   readonly deliveredByCaller?: boolean;
 }
+
+/** What a scheduled reply carries: a message without the service's fields. */
+export type ScheduledMessageInput = Pick<
+  MessageInput,
+  "body" | "format" | "attachments" | "mentions" | "replyTo" | "metadata"
+>;
 
 export interface StartConversationInput {
   /**
@@ -320,6 +329,30 @@ export interface Inbox {
     ): AsyncResult<InboxUpload>;
     /** Marks the uploaded file as stored (the `attachments` module). */
     confirmUpload(attachmentId: string): AsyncResult<void>;
+    /**
+     * Schedules a staff reply for `at` (in the future). It is sent as the
+     * caller when `publishDue` runs after that time; until then only the caller
+     * sees it.
+     */
+    schedule(
+      conversationId: string,
+      input: ScheduledMessageInput,
+      at: Temporal.Instant,
+    ): AsyncResult<ScheduledInboxMessage>;
+    /**
+     * The caller's scheduled replies, soonest first, on one conversation or
+     * all.
+     */
+    scheduled(
+      conversationId?: string,
+    ): AsyncResult<readonly ScheduledInboxMessage[]>;
+    /** Moves the caller's scheduled reply to another future time. */
+    reschedule(
+      scheduledId: string,
+      at: Temporal.Instant,
+    ): AsyncResult<ScheduledInboxMessage>;
+    /** Deletes the caller's scheduled reply before it is sent. */
+    cancelScheduled(scheduledId: string): AsyncResult<void>;
   };
   /** Service only: the files that arrived on channels. */
   readonly files: {
@@ -380,8 +413,17 @@ export interface Inbox {
       readonly batch?: number;
     }): AsyncResult<number>;
   };
-  /** Service only: reopens snoozed conversations whose time came. */
+  /**
+   * Service only: reopens snoozed conversations whose time came, with the
+   * `inbox_conversation.unsnoozed` event and a notification. Returns the
+   * count.
+   */
   wakeSnoozed(): AsyncResult<number>;
+  /**
+   * Service only: sends the scheduled replies whose time came, as their
+   * authors. Returns the number sent.
+   */
+  publishDue(maxRows?: number): AsyncResult<number>;
   /**
    * Erases a contact and its conversations for a data subject request
    * (`inbox.manage` or the service). Remove the returned Storage objects
@@ -712,6 +754,34 @@ export function createInbox(options: InboxOptions): Inbox {
           uploadOf,
         ),
       confirmUpload: (attachmentId) => confirm(attachmentId),
+      schedule: (conversationId, input, at) =>
+        call(
+          "schedule_inbox_message",
+          {
+            conversation: conversationId,
+            input: compact(messageArg(input)),
+            scheduled_for: instantArg(at),
+          },
+          scheduledOf,
+        ),
+      scheduled: (conversationId) =>
+        call(
+          "list_scheduled_inbox_messages",
+          { conversation: conversationId ?? null },
+          scheduledListOf,
+        ),
+      reschedule: (scheduledId, at) =>
+        call(
+          "reschedule_inbox_message",
+          { scheduled: scheduledId, scheduled_for: instantArg(at) },
+          scheduledOf,
+        ),
+      cancelScheduled: (scheduledId) =>
+        call(
+          "cancel_inbox_message",
+          { scheduled: scheduledId },
+          () => undefined,
+        ),
     },
     files: {
       pending: (limit) =>
@@ -837,6 +907,8 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     wakeSnoozed: () => call("wake_snoozed_conversations", {}, Number),
+    publishDue: (maxRows) =>
+      call("publish_due_inbox_messages", { max_rows: maxRows }, Number),
     purgeContact: (contactId) =>
       call("purge_contact", { contact: contactId }, purgedOf),
   };

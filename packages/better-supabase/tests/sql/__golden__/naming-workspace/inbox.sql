@@ -302,6 +302,33 @@ drop policy if exists message_templates_staff_read on "better_supabase"."message
 create policy message_templates_staff_read on "better_supabase"."message_templates" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
+-- Staff replies to send later. publish_due_inbox_messages sends each one
+-- through the normal reply path once scheduled_for passes; until then only
+-- its author sees it.
+create table if not exists "better_supabase"."scheduled_inbox_messages" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
+  "author_id" uuid not null references auth.users (id) on delete cascade,
+  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "scheduled_for" timestamptz not null,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists scheduled_inbox_messages_due_idx on "better_supabase"."scheduled_inbox_messages" ("scheduled_for");
+create index if not exists scheduled_inbox_messages_conversation_idx on "better_supabase"."scheduled_inbox_messages" ("conversation_id");
+create index if not exists scheduled_inbox_messages_author_idx on "better_supabase"."scheduled_inbox_messages" ("author_id", "scheduled_for");
+alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "updated_at" timestamptz not null default now();
+drop trigger if exists bs_updated_at on "better_supabase"."scheduled_inbox_messages";
+create trigger bs_updated_at before update on "better_supabase"."scheduled_inbox_messages"
+  for each row execute function better_supabase.set_updated_at('updated_at');
+alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
+revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authenticated;
+grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
+grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
+drop policy if exists scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages";
+create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages" for select to authenticated
+  using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
+
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
 language sql
@@ -1100,8 +1127,8 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false)) then
     raise exception 'not allowed to change this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  if status = 'snoozed' and snoozed_until is null then
-    raise exception 'snoozing needs snoozed_until' using errcode = '22023', hint = 'INBOX_SNOOZE_UNTIL';
+  if status = 'snoozed' and (snoozed_until is null or snoozed_until <= now()) then
+    raise exception 'snoozing needs a snoozed_until in the future' using errcode = '22023', hint = 'INBOX_SNOOZE_UNTIL';
   end if;
   v_before := v_conv."status";
   update "better_supabase"."inbox_conversations" set
@@ -1110,6 +1137,9 @@ begin
     "resolved_at" = case when set_conversation_status.status = 'resolved' then now() end
   where "id" = v_conv."id"
   returning * into v_conv;
+  if status = 'snoozed' then
+    null;
+  end if;
   if v_before is distinct from status then
     insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'status', (select auth.uid()), jsonb_build_object('from', v_before, 'to', set_conversation_status.status));
@@ -1525,24 +1555,6 @@ $$;
 revoke execute on function "better_supabase"."purge_inbound_events"(interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_inbound_events"(interval, integer) to service_role;
 
--- Reopens snoozed conversations whose time came, for a periodic job.
-create or replace function "better_supabase"."wake_snoozed_conversations"()
-returns integer
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_count integer;
-begin
-  update "better_supabase"."inbox_conversations" set "status" = 'open', "snoozed_until" = null
-  where "status" = 'snoozed' and "snoozed_until" <= now();
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-revoke execute on function "better_supabase"."wake_snoozed_conversations"() from public, anon, authenticated;
-grant execute on function "better_supabase"."wake_snoozed_conversations"() to service_role;
-
 create or replace function "better_supabase"."upsert_message_template"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
@@ -1697,6 +1709,196 @@ end;
 $$;
 revoke execute on function "better_supabase"."inbox_file_failed"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."inbox_file_failed"(uuid, text) to service_role;
+
+-- Reopens snoozed conversations whose time came: the delayed job from
+-- set_conversation_status, or a periodic sweep. Each one logs unsnoozed, emits
+-- inbox_conversation.unsnoozed and tells the assignee (or the inbox's members).
+create or replace function "better_supabase"."wake_snoozed_conversations"()
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_until timestamptz;
+  v_count integer := 0;
+begin
+  for v_conv in
+    select * from "better_supabase"."inbox_conversations"
+    where "status" = 'snoozed' and "snoozed_until" <= now()
+    order by "snoozed_until"
+    for update skip locked
+  loop
+    v_until := v_conv."snoozed_until";
+    update "better_supabase"."inbox_conversations" set "status" = 'open', "snoozed_until" = null
+    where "id" = v_conv."id"
+    returning * into v_conv;
+    insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
+    values (v_conv."tenant_id", v_conv."id", 'unsnoozed', null, jsonb_build_object('snoozed_until', v_until));
+    null;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."wake_snoozed_conversations"() from public, anon, authenticated;
+grant execute on function "better_supabase"."wake_snoozed_conversations"() to service_role;
+
+-- Schedules a staff reply on the conversation for scheduled_for. Only
+-- messages: notes post right away. The input is the one send_inbox_message
+-- takes, without the service's fields.
+create or replace function "better_supabase"."schedule_inbox_message"(conversation uuid, input jsonb, scheduled_for timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_row "better_supabase"."scheduled_inbox_messages"%rowtype;
+  v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = schedule_inbox_message.conversation;
+  if not found then
+    raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
+  end if;
+  if (select auth.uid()) is null or not coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    raise exception 'not allowed to reply in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
+  end if;
+  if coalesce(v_input ->> 'kind', 'message') <> 'message' then
+    raise exception 'only messages can be scheduled' using errcode = '22023', hint = 'INBOX_KIND_INVALID';
+  end if;
+  if length(btrim(coalesce(v_input ->> 'body', ''))) = 0 and coalesce(jsonb_array_length(v_input -> 'attachments'), 0) = 0 then
+    raise exception 'a message needs a body or an attachment' using errcode = '22023', hint = 'INBOX_MESSAGE_EMPTY';
+  end if;
+  if length(coalesce(v_input ->> 'body', '')) > 20000 then
+    raise exception 'a message is at most 20000 characters' using errcode = '22023', hint = 'INBOX_MESSAGE_TOO_LONG';
+  end if;
+  if schedule_inbox_message.scheduled_for is null or schedule_inbox_message.scheduled_for <= now() then
+    raise exception 'scheduled_for must be in the future' using errcode = '22023', hint = 'INBOX_SCHEDULE_TIME';
+  end if;
+  insert into "better_supabase"."scheduled_inbox_messages" ("tenant_id", "conversation_id", "author_id", "input", "scheduled_for")
+  values (v_conv."tenant_id", v_conv."id", (select auth.uid()), v_input, schedule_inbox_message.scheduled_for)
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."schedule_inbox_message"(uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "better_supabase"."schedule_inbox_message"(uuid, jsonb, timestamptz) to authenticated, service_role;
+
+-- The caller's scheduled messages, soonest first; on one conversation when
+-- conversation is set.
+create or replace function "better_supabase"."list_scheduled_inbox_messages"(conversation uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(s) order by s."scheduled_for", s."id"), '[]'::jsonb)
+  from "better_supabase"."scheduled_inbox_messages" s
+  where s."author_id" = (select auth.uid())
+    and (list_scheduled_inbox_messages.conversation is null or s."conversation_id" = list_scheduled_inbox_messages.conversation);
+$$;
+revoke execute on function "better_supabase"."list_scheduled_inbox_messages"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_scheduled_inbox_messages"(uuid) to authenticated, service_role;
+
+-- Moves the caller's scheduled message to another time in the future.
+create or replace function "better_supabase"."reschedule_inbox_message"(scheduled uuid, scheduled_for timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."scheduled_inbox_messages"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."scheduled_inbox_messages" where "id" = reschedule_inbox_message.scheduled and "author_id" = (select auth.uid()) for update;
+  if not found then
+    raise exception 'scheduled message not found' using errcode = 'P0002', hint = 'SCHEDULED_MESSAGE_NOT_FOUND';
+  end if;
+  if reschedule_inbox_message.scheduled_for is null or reschedule_inbox_message.scheduled_for <= now() then
+    raise exception 'scheduled_for must be in the future' using errcode = '22023', hint = 'INBOX_SCHEDULE_TIME';
+  end if;
+  update "better_supabase"."scheduled_inbox_messages" set "scheduled_for" = reschedule_inbox_message.scheduled_for
+  where "id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."reschedule_inbox_message"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."reschedule_inbox_message"(uuid, timestamptz) to authenticated, service_role;
+
+-- Deletes the caller's scheduled message before it is sent.
+create or replace function "better_supabase"."cancel_inbox_message"(scheduled uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."scheduled_inbox_messages"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."scheduled_inbox_messages" where "id" = cancel_inbox_message.scheduled and "author_id" = (select auth.uid()) for update;
+  if not found then
+    raise exception 'scheduled message not found' using errcode = 'P0002', hint = 'SCHEDULED_MESSAGE_NOT_FOUND';
+  end if;
+  delete from "better_supabase"."scheduled_inbox_messages" where "id" = v_row."id";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_inbox_message"(uuid) from public, anon;
+grant execute on function "better_supabase"."cancel_inbox_message"(uuid) to authenticated, service_role;
+
+-- Sends the scheduled messages whose time came, oldest first, as their
+-- authors. A message whose author can no longer reply is dropped. Returns
+-- the number sent.
+create or replace function "better_supabase"."publish_due_inbox_messages"(max_rows integer default 100)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."scheduled_inbox_messages"%rowtype;
+  v_conv "better_supabase"."inbox_conversations"%rowtype;
+  v_count integer := 0;
+begin
+  for v_row in
+    select * from "better_supabase"."scheduled_inbox_messages"
+    where "scheduled_for" <= now()
+    order by "scheduled_for", "id"
+    limit greatest(coalesce(max_rows, 100), 1)
+    for update skip locked
+  loop
+    delete from "better_supabase"."scheduled_inbox_messages" where "id" = v_row."id";
+    if not coalesce(better_supabase.can_user(v_row."author_id", 'tenant', v_row."tenant_id", 'inbox.reply'), false) then
+      continue;
+    end if;
+    perform "better_supabase"."inbox_add_message"(v_row."conversation_id", v_row."input", 'agent', v_row."author_id", 'outbound');
+    select * into v_conv from "better_supabase"."inbox_conversations" where "id" = v_row."conversation_id";
+    if v_conv."bot_mode" = 'bot' then
+      update "better_supabase"."inbox_conversations" set "bot_mode" = 'human' where "id" = v_conv."id" returning * into v_conv;
+      insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
+    values (v_conv."tenant_id", v_conv."id", 'handoff', v_row."author_id", jsonb_build_object('from', 'bot', 'to', 'human', 'reason', 'agent_reply'));
+    end if;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."publish_due_inbox_messages"(integer) to service_role;
 
 -- A core message in an inbox conversation pings the staff topic. The
 -- messaging module attaches it to its messages table.

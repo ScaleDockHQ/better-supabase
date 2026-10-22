@@ -17,6 +17,7 @@ import type {
   InboxUpload,
   MessageTemplate,
   PendingInboxFile,
+  ScheduledInboxMessage,
   StoredInboundEvent,
 } from "./types.ts";
 
@@ -247,6 +248,38 @@ export function templateOf(value: unknown): MessageTemplate {
     externalId: nullableText(row["external_id"]),
   };
 }
+
+export function scheduledOf(value: unknown): ScheduledInboxMessage {
+  const row = recordOf(value, "scheduled_inbox_message");
+  const input = recordOrEmpty(row["input"]);
+  const format = input["format"];
+
+  return {
+    id: textOf(row["id"]),
+    tenant: textOf(row["tenant_id"]),
+    conversationId: textOf(row["conversation_id"]),
+    authorId: textOf(row["author_id"]),
+    body: optionalText(input["body"]) ?? "",
+    format: format === "text" || format === "markdown" ? format : null,
+    attachments: stringsOf(input["attachments"]),
+    mentions: stringsOf(input["mentions"]),
+    replyTo: nullableText(input["reply_to"]),
+    metadata: recordOrEmpty(input["metadata"]),
+    scheduledFor: requiredInstant(
+      row["scheduled_for"],
+      "scheduled_inbox_message.scheduled_for",
+    ),
+    createdAt: requiredInstant(
+      row["created_at"],
+      "scheduled_inbox_message.created_at",
+    ),
+  };
+}
+
+export const scheduledListOf = (
+  value: unknown,
+): readonly ScheduledInboxMessage[] =>
+  recordsOf(value, "list_scheduled_inbox_messages").map(scheduledOf);
 
 export const storedEventsOf = (value: unknown): readonly StoredInboundEvent[] =>
   recordsOf(value, "pending_inbound_events").map((row) => {

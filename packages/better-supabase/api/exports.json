@@ -4362,6 +4362,8 @@
       "PendingInboxFile",
       "PurgedContact",
       "RpcClient",
+      "ScheduledInboxMessage",
+      "ScheduledMessageInput",
       "StartConversationInput",
       "StoredInboundEvent",
       "TemplateInput"
