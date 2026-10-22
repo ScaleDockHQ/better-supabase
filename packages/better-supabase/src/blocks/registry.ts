@@ -56,6 +56,7 @@ import { ledgerBlock } from "./ledger/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
 import { mfaBlock } from "./mfa/manifest.ts";
+import { moderationBlock } from "./moderation/manifest.ts";
 import { notificationsBlock } from "./notifications/manifest.ts";
 import { numberSequencesBlock } from "./number-sequences/manifest.ts";
 import { oauthServerBlock } from "./oauth-server/manifest.ts";
@@ -152,6 +153,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   ledgerBlock,
   assetsBlock,
   scoresBlock,
+  moderationBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

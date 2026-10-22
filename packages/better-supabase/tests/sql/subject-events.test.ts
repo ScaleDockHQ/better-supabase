@@ -125,6 +125,8 @@ const SUBJECT_EVENTS = [
   "review.deleted",
   "rule.matched",
   "score.changed",
+  "moderation_report.created",
+  "moderation_item.decided",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

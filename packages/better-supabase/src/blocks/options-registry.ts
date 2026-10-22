@@ -46,6 +46,7 @@ import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
+import type { ModerationSqlOptions } from "./moderation/options.ts";
 import type { NotificationsSqlOptions } from "./notifications/options.ts";
 import type { NumberSequencesSqlOptions } from "./number-sequences/options.ts";
 import type { OAuthServerSqlOptions } from "./oauth-server/options.ts";
@@ -151,6 +152,7 @@ import { knowledgeSqlOptions } from "./knowledge/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
+import { moderationSqlOptions } from "./moderation/options.ts";
 import { notificationsSqlOptions } from "./notifications/options.ts";
 import { numberSequencesSqlOptions } from "./number-sequences/options.ts";
 import { oauthServerSqlOptions } from "./oauth-server/options.ts";
@@ -296,6 +298,7 @@ export interface BlockOptionsRegistry {
   readonly reviews: ReviewsSqlOptions;
   readonly rules: RulesSqlOptions;
   readonly scores: ScoresSqlOptions;
+  readonly moderation: ModerationSqlOptions;
   readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
@@ -419,6 +422,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   reviews: reviewsSqlOptions,
   rules: rulesSqlOptions,
   scores: scoresSqlOptions,
+  moderation: moderationSqlOptions,
   "vercel-marketplace": vercelMarketplaceSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,

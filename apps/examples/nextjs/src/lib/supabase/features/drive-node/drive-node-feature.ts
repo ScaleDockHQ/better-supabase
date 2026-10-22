@@ -6,6 +6,7 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
+import { moderationBlock } from "better-supabase/blocks/moderation";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -26,6 +27,7 @@ export const driveNodeFeature = defineRecordFeature({
     ledger: ledgerBlock,
     assets: assetsBlock,
     scores: scoresBlock,
+    moderation: moderationBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

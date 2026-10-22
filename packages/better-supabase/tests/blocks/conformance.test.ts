@@ -81,6 +81,9 @@ const NO_FIELDS: readonly string[] = [
   "memory",
   // Points are metric samples written by the sink.
   "metrics",
+  // Items, reports and bans point at the app's subjects; the content stays in
+  // its own table.
+  "moderation",
   // Gapless counters the module owns; an app reads numbers, not these rows.
   "number-sequences",
   // Clients, grants and codes are protocol state; RFC 7591 metadata beyond the columns goes in metadata.

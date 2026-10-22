@@ -1809,6 +1809,7 @@
               "memory",
               "metrics",
               "mfa",
+              "moderation",
               "notifications",
               "number-sequences",
               "oauth-server",
@@ -2040,6 +2041,9 @@
             },
             "mfa": {
               "$ref": "#/$defs/blocks/mfa"
+            },
+            "moderation": {
+              "$ref": "#/$defs/blocks/moderation"
             },
             "notifications": {
               "$ref": "#/$defs/blocks/notifications"
@@ -4300,6 +4304,36 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "moderation": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "autoHideThreshold": {
+                "type": "number",
+                "default": 3
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "spam",
+                  "abuse",
+                  "harassment",
+                  "off_topic",
+                  "illegal",
+                  "other"
+                ]
+              }
+            }
           }
         }
       },

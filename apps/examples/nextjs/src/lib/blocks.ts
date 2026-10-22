@@ -27,6 +27,7 @@ import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
+import { moderationBlock } from "better-supabase/blocks/moderation";
 import {
   createNotifications,
   notificationsBlock,
@@ -126,6 +127,7 @@ const blockSet = defineBlocks(blockConfig, {
   approvals: approvalsBlock,
   rules: rulesBlock,
   scores: scoresBlock,
+  moderation: moderationBlock,
   sla: slaBlock,
   customFields: customFieldsBlock,
   bulk: bulkBlock,

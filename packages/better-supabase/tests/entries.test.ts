@@ -51,6 +51,7 @@ const PURE_BARRELS = [
   "blocks/ledger",
   "blocks/assets",
   "blocks/scores",
+  "blocks/moderation",
   "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",

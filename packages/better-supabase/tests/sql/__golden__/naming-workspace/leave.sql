@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_109_leave.sql
+-- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
@@ -731,7 +731,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_109_leave.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module-data leave
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

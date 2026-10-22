@@ -674,6 +674,21 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "moderation": {
+    readonly tables: {
+      readonly "items": "id" | "tenant" | "subjectType" | "subjectId" | "author" | "status" | "openReports" | "reason" | "decidedBy" | "decidedAt" | "createdAt" | "updatedAt";
+      readonly "reports": "id" | "tenant" | "item" | "reporter" | "reason" | "note" | "status" | "resolvedBy" | "resolvedAt" | "createdAt";
+      readonly "actions": "id" | "tenant" | "item" | "action" | "fromStatus" | "toStatus" | "reason" | "actor" | "createdAt";
+      readonly "bans": "id" | "tenant" | "user" | "reason" | "bannedBy" | "expiresAt" | "liftedBy" | "liftedAt" | "createdAt";
+    };
+    readonly functions: "ban_user" | "list_bans" | "moderate" | "moderation_apply" | "moderation_banned" | "moderation_item" | "moderation_queue" | "moderation_statuses" | "moderation_track" | "report_content" | "unban_user";
+    readonly actions: "read" | "report" | "manage" | "ban";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "moderation_item": "id" | "tenant_id" | "subject_type" | "subject_id" | "author_id" | "status" | "open_reports" | "reason" | "decided_by" | "decided_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "moderation_item";
+  };
   readonly "notifications": {
     readonly tables: {
       readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "priority" | "data" | "key" | "createdBy" | "createdAt";
@@ -927,10 +942,10 @@ export interface BlockNameRegistry {
   };
   readonly "reviews": {
     readonly tables: {
-      readonly "reviews": "id" | "tenant" | "subjectType" | "subjectId" | "author" | "authorName" | "rating" | "title" | "body" | "status" | "verified" | "rejectionReason" | "reply" | "repliedBy" | "repliedAt" | "moderatedBy" | "moderatedAt" | "publishedAt" | "createdAt" | "updatedAt";
+      readonly "reviews": "id" | "tenant" | "subjectType" | "subjectId" | "author" | "authorName" | "rating" | "title" | "body" | "status" | "verified" | "rejectionReason" | "reply" | "repliedBy" | "repliedAt" | "publishedAt" | "createdAt" | "updatedAt";
       readonly "stats": "tenant" | "subjectType" | "subjectId" | "count" | "total" | "histogram" | "updatedAt";
     };
-    readonly functions: "delete_review" | "list_reviews" | "my_review" | "publish_review" | "reject_review" | "reply_to_review" | "review_queue" | "review_stats_refresh" | "review_subject_readable" | "review_summary" | "reviews_changed" | "submit_review";
+    readonly functions: "delete_review" | "list_reviews" | "my_review" | "publish_review" | "reject_review" | "reply_to_review" | "review_moderation_item" | "review_queue" | "review_stats_refresh" | "review_subject_readable" | "review_summary" | "reviews_changed" | "reviews_moderated" | "submit_review";
     readonly actions: "manage";
     readonly hooks: "before_review_submit" | "after_review_submit";
     readonly entities: {};

@@ -63,6 +63,7 @@ import { LEDGER } from "./modules/ledger.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
+import { MODERATION } from "./modules/moderation.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
 import { OAUTH_SERVER } from "./modules/oauth-server.ts";
@@ -306,6 +307,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SHARED_SIGNALS),
       built(OAUTH_SERVER),
       built(DOMAINS),
+      built(MODERATION),
       built(REVIEWS),
       built(LEAVE),
       built(RULES),

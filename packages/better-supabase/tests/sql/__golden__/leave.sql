@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_109_leave.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
@@ -731,7 +731,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_109_leave.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module-data leave
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -744,7 +744,7 @@ values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_109_leave.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
@@ -1513,7 +1513,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_leave.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module-data leave
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1526,7 +1526,7 @@ values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_109_leave.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
@@ -2261,7 +2261,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_109_leave.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module-data leave
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -2274,7 +2274,7 @@ values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_109_leave.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
@@ -3139,7 +3139,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_109_leave.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bs-module-data leave
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

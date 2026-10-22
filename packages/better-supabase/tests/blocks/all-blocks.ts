@@ -58,6 +58,7 @@ import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
 import type { metricsBlock } from "../../src/blocks/metrics/manifest.ts";
 import type { mfaBlock } from "../../src/blocks/mfa/manifest.ts";
+import type { moderationBlock } from "../../src/blocks/moderation/manifest.ts";
 import type { notificationsBlock } from "../../src/blocks/notifications/manifest.ts";
 import type { numberSequencesBlock } from "../../src/blocks/number-sequences/manifest.ts";
 import type { oauthServerBlock } from "../../src/blocks/oauth-server/manifest.ts";
@@ -174,6 +175,7 @@ export type AllBlocks = {
   readonly ledger: typeof ledgerBlock;
   readonly assets: typeof assetsBlock;
   readonly scores: typeof scoresBlock;
+  readonly moderation: typeof moderationBlock;
   readonly memory: typeof memoryBlock;
   readonly metrics: typeof metricsBlock;
   readonly mfa: typeof mfaBlock;

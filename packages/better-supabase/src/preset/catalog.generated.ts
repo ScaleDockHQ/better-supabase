@@ -2490,12 +2490,65 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "moderation",
+      "title": "Moderation",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "comments",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "moderation",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "moderation_item": {
+            "table": "items",
+            "singular": "moderation_item",
+            "primary": true
+          }
+        },
+        "tables": {
+          "items": {
+            "name": "moderation_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "author": "author_id",
+              "status": "status",
+              "openReports": "open_reports",
+              "reason": "reason",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "moderation.read",
+          "report": "moderation.report",
+          "manage": "moderation.manage",
+          "ban": "moderation.ban"
+        }
+      }
+    },
+    {
       "name": "reviews",
       "title": "Reviews",
       "category": "commerce",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "moderation"
       ],
       "integrates": [
         "catalog",
@@ -4754,6 +4807,39 @@ export const PRESET_CATALOG: PresetCatalog = {
           "score_model.saved",
           "score_model.deleted",
           "score.changed"
+        ]
+      }
+    },
+    {
+      "name": "moderation",
+      "sql": [
+        "moderation"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "moderationBlock",
+        "subpath": "better-supabase/blocks/moderation"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ModerationItem"
+        },
+        {
+          "name": "ModerationItemDetail"
+        }
+      ],
+      "sections": {
+        "moderation": []
+      },
+      "events": {
+        "type": "ModerationEvents",
+        "types": [
+          "moderation_report.created",
+          "moderation_item.decided",
+          "moderation_ban.created",
+          "moderation_ban.lifted"
         ]
       }
     },

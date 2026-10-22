@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_114_scores.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module scores@1 managed
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
@@ -524,7 +524,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_114_scores.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module-data scores
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -537,7 +537,7 @@ values ('scores', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_114_scores.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module scores@1 managed
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
@@ -1083,7 +1083,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_114_scores.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module-data scores
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1096,7 +1096,7 @@ values ('scores', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_114_scores.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module scores@1 managed
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
@@ -1624,7 +1624,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_114_scores.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module-data scores
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1637,7 +1637,7 @@ values ('scores', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_114_scores.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module scores@1 managed
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
@@ -2257,7 +2257,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_114_scores.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bs-module-data scores
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

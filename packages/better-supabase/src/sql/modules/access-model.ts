@@ -75,6 +75,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "ledger.*",
     "assets.*",
     "scores.*",
+    "moderation.*",
   ],
   member: [
     "organization.read",
@@ -155,6 +156,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "rules.read",
     "assets.read",
     "scores.read",
+    "moderation.report",
   ],
   viewer: ["organization.read"],
 };
@@ -385,6 +387,10 @@ export const OPERATIONS = {
   "scores.read": "scores.read",
   "scores.manage": "scores.manage",
   "scores.compute": "scores.compute",
+  "moderation.read": "moderation.read",
+  "moderation.report": "moderation.report",
+  "moderation.manage": "moderation.manage",
+  "moderation.ban": "moderation.ban",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -595,6 +601,12 @@ export const MODULE_PERMISSION_SCOPES: {
   ledger: { read: "tenant", manage: "tenant", post: "tenant" },
   assets: { read: "tenant", manage: "tenant", assign: "tenant" },
   scores: { read: "tenant", manage: "tenant", compute: "tenant" },
+  moderation: {
+    read: "tenant",
+    report: "tenant",
+    manage: "tenant",
+    ban: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

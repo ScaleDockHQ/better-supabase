@@ -119,6 +119,7 @@ const entries = [
   "blocks/ledger/index",
   "blocks/assets/index",
   "blocks/scores/index",
+  "blocks/moderation/index",
   "blocks/shared-signals/index",
   "blocks/identities/index",
   "blocks/service-principals/index",

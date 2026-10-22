@@ -1,7 +1,7 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_108_reviews.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
--- @bs-module reviews@1 managed
--- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing, with a per-subject aggregate public storefronts can read.
+-- @bs-module reviews@2 managed
+-- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -57,8 +57,6 @@ create table if not exists "better_supabase"."reviews" (
   "reply" text check ("reply" is null or length("reply") <= 5000),
   "replied_by" uuid,
   "replied_at" timestamptz,
-  "moderated_by" uuid,
-  "moderated_at" timestamptz,
   "published_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -136,6 +134,10 @@ begin
   if tg_op in ('UPDATE', 'DELETE') then
     perform "better_supabase"."review_stats_refresh"(old."tenant_id", old."subject_type", old."subject_id");
   end if;
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."moderation_items" x
+    where x."tenant_id" = old."tenant_id" and x."subject_type" = 'review' and x."subject_id" = old."id"::text;
+  end if;
   if tg_op in ('INSERT', 'UPDATE') then
     perform "better_supabase"."review_stats_refresh"(new."tenant_id", new."subject_type", new."subject_id");
   end if;
@@ -197,8 +199,9 @@ begin
     set "rating" = excluded."rating", "title" = excluded."title", "body" = excluded."body",
       "author_name" = excluded."author_name", "verified" = excluded."verified",
       "status" = excluded."status", "published_at" = excluded."published_at",
-      "rejection_reason" = null, "moderated_by" = null, "moderated_at" = null, "updated_at" = now()
+      "rejection_reason" = null, "updated_at" = now()
   returning * into v_row;
+  perform "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_me, 'pending');
   null;
   
   declare
@@ -245,7 +248,68 @@ $$;
 revoke execute on function "better_supabase"."delete_review"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_review"(uuid) to authenticated, service_role;
 
--- Publishes a pending or rejected review.
+-- Projects a review's moderation item onto the review: visible publishes it,
+-- hidden and removed reject it with the item's reason. A decision (from
+-- publish_review, reject_review or the moderation block) records
+-- review.published or review.rejected and tells the author.
+create or replace function "better_supabase"."reviews_moderated"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+begin
+  update "better_supabase"."reviews" x
+  set "status" = case new."status" when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end,
+    "published_at" = case when new."status" = 'visible' then coalesce(x."published_at", now()) end,
+    "rejection_reason" = case when new."status" in ('hidden', 'removed') then new."reason" end,
+    "updated_at" = now()
+  where x."id"::text = new."subject_id" and x."tenant_id" = new."tenant_id"
+  returning * into v_row;
+  if v_row."id" is null or new."decided_at" is null or old."status" = new."status" then
+    return null;
+  end if;
+  if new."status" = 'visible' then
+    null;
+  elsif old."status" not in ('hidden', 'removed') then
+    null;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."reviews_moderated"() from public, anon, authenticated;
+drop trigger if exists "bs_reviews_moderated" on "better_supabase"."moderation_items";
+create trigger "bs_reviews_moderated"
+  after update of "status", "decided_at" on "better_supabase"."moderation_items"
+  for each row when (new."subject_type" = 'review')
+  execute function "better_supabase"."reviews_moderated"();
+
+-- The moderation item of a review, created when the review predates it.
+create or replace function "better_supabase"."review_moderation_item"(review_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+  v_item uuid;
+begin
+  select * into v_row from "better_supabase"."reviews" x where x."id" = review_moderation_item.review_id;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = v_row."tenant_id" and x."subject_type" = 'review' and x."subject_id" = v_row."id"::text;
+  if v_item is null then
+    v_item := "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_row."author_id",
+      case when v_row."status" = 'published' then 'visible' else 'pending' end);
+  end if;
+  return v_item;
+end;
+$$;
+revoke execute on function "better_supabase"."review_moderation_item"(uuid) from public, anon, authenticated;
+
+-- Publishes a pending or rejected review: approves its moderation item.
 create or replace function "better_supabase"."publish_review"(review_id uuid)
 returns jsonb
 language plpgsql
@@ -255,9 +319,6 @@ as $$
 declare
   v_row "better_supabase"."reviews"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id for update;
   if not found then
     raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
@@ -268,19 +329,16 @@ begin
   if v_row."status" = 'published' then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
   end if;
-  update "better_supabase"."reviews" x
-  set "status" = 'published', "published_at" = now(), "rejection_reason" = null,
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  null;
+  perform "better_supabase"."moderation_apply"("better_supabase"."review_moderation_item"(v_row."id"), 'approve', null, false);
+  select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_review"(uuid) from public, anon;
 grant execute on function "better_supabase"."publish_review"(uuid) to authenticated, service_role;
 
--- Rejects a review with an optional reason the author sees.
+-- Rejects a review with an optional reason the author sees: hides its
+-- moderation item.
 create or replace function "better_supabase"."reject_review"(review_id uuid, reason text default null)
 returns jsonb
 language plpgsql
@@ -290,9 +348,6 @@ as $$
 declare
   v_row "better_supabase"."reviews"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id for update;
   if not found then
     raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
@@ -300,12 +355,8 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
     raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
   end if;
-  update "better_supabase"."reviews" x
-  set "status" = 'rejected', "published_at" = null, "rejection_reason" = nullif(trim(reject_review.reason), ''),
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  null;
+  perform "better_supabase"."moderation_apply"("better_supabase"."review_moderation_item"(v_row."id"), 'hide', reject_review.reason, false);
+  select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -468,7 +519,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_108_reviews.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bs-module-data reviews
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -476,15 +527,23 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Puts the reviews written before the moderation module under it.
+insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
+  select x."tenant_id", 'review', x."id"::text, x."author_id",
+    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
+  from "better_supabase"."reviews" x
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+
 insert into better_supabase.modules (name, version, mode)
-values ('reviews', 1, 'managed')
+values ('reviews', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_108_reviews.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
--- @bs-module reviews@1 managed
--- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing, with a per-subject aggregate public storefronts can read.
+-- @bs-module reviews@2 managed
+-- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -540,8 +599,6 @@ create table if not exists "better_supabase"."reviews" (
   "reply" text check ("reply" is null or length("reply") <= 5000),
   "replied_by" uuid,
   "replied_at" timestamptz,
-  "moderated_by" uuid,
-  "moderated_at" timestamptz,
   "published_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -622,6 +679,10 @@ begin
   if tg_op in ('UPDATE', 'DELETE') then
     perform "better_supabase"."review_stats_refresh"(old."tenant_id", old."subject_type", old."subject_id");
   end if;
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."moderation_items" x
+    where x."tenant_id" = old."tenant_id" and x."subject_type" = 'review' and x."subject_id" = old."id"::text;
+  end if;
   if tg_op in ('INSERT', 'UPDATE') then
     perform "better_supabase"."review_stats_refresh"(new."tenant_id", new."subject_type", new."subject_id");
   end if;
@@ -689,8 +750,9 @@ begin
     set "rating" = excluded."rating", "title" = excluded."title", "body" = excluded."body",
       "author_name" = excluded."author_name", "verified" = excluded."verified",
       "status" = excluded."status", "published_at" = excluded."published_at",
-      "rejection_reason" = null, "moderated_by" = null, "moderated_at" = null, "updated_at" = now()
+      "rejection_reason" = null, "updated_at" = now()
   returning * into v_row;
+  perform "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_me, 'pending');
   perform "better_supabase".emit_event('review.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified"), 'reviews/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reviews');
   
   declare
@@ -746,9 +808,12 @@ $$;
 revoke execute on function "better_supabase"."delete_review"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_review"(uuid) to authenticated, service_role;
 
--- Publishes a pending or rejected review.
-create or replace function "better_supabase"."publish_review"(review_id uuid)
-returns jsonb
+-- Projects a review's moderation item onto the review: visible publishes it,
+-- hidden and removed reject it with the item's reason. A decision (from
+-- publish_review, reject_review or the moderation block) records
+-- review.published or review.rejected and tells the author.
+create or replace function "better_supabase"."reviews_moderated"()
+returns trigger
 language plpgsql
 security definer
 set search_path = ''
@@ -757,25 +822,18 @@ declare
   v_row "better_supabase"."reviews"%rowtype;
   v_claims text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id for update;
-  if not found then
-    raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
-    raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
-  end if;
-  if v_row."status" = 'published' then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-  end if;
   update "better_supabase"."reviews" x
-  set "status" = 'published', "published_at" = now(), "rejection_reason" = null,
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
+  set "status" = case new."status" when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end,
+    "published_at" = case when new."status" = 'visible' then coalesce(x."published_at", now()) end,
+    "rejection_reason" = case when new."status" in ('hidden', 'removed') then new."reason" end,
+    "updated_at" = now()
+  where x."id"::text = new."subject_id" and x."tenant_id" = new."tenant_id"
   returning * into v_row;
-  perform "better_supabase".emit_event('review.published', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified"), 'reviews/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reviews');
+  if v_row."id" is null or new."decided_at" is null or old."status" = new."status" then
+    return null;
+  end if;
+  if new."status" = 'visible' then
+    perform "better_supabase".emit_event('review.published', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified"), 'reviews/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reviews');
   perform better_supabase.audit_event(
     event_type => 'review.published',
     category => 'data',
@@ -800,39 +858,8 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."publish_review"(uuid) from public, anon;
-grant execute on function "better_supabase"."publish_review"(uuid) to authenticated, service_role;
-
--- Rejects a review with an optional reason the author sees.
-create or replace function "better_supabase"."reject_review"(review_id uuid, reason text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_row "better_supabase"."reviews"%rowtype;
-  v_claims text;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id for update;
-  if not found then
-    raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
-    raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
-  end if;
-  update "better_supabase"."reviews" x
-  set "status" = 'rejected', "published_at" = null, "rejection_reason" = nullif(trim(reject_review.reason), ''),
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  perform "better_supabase".emit_event('review.rejected', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified"), 'reviews/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reviews');
+  elsif old."status" not in ('hidden', 'removed') then
+    perform "better_supabase".emit_event('review.rejected', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'rating', v_row."rating", 'status', v_row."status", 'verified', v_row."verified"), 'reviews/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reviews');
   perform better_supabase.audit_event(
     event_type => 'review.rejected',
     category => 'data',
@@ -857,6 +884,88 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."reviews_moderated"() from public, anon, authenticated;
+drop trigger if exists "bs_reviews_moderated" on "better_supabase"."moderation_items";
+create trigger "bs_reviews_moderated"
+  after update of "status", "decided_at" on "better_supabase"."moderation_items"
+  for each row when (new."subject_type" = 'review')
+  execute function "better_supabase"."reviews_moderated"();
+
+-- The moderation item of a review, created when the review predates it.
+create or replace function "better_supabase"."review_moderation_item"(review_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+  v_item uuid;
+begin
+  select * into v_row from "better_supabase"."reviews" x where x."id" = review_moderation_item.review_id;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = v_row."tenant_id" and x."subject_type" = 'review' and x."subject_id" = v_row."id"::text;
+  if v_item is null then
+    v_item := "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_row."author_id",
+      case when v_row."status" = 'published' then 'visible' else 'pending' end);
+  end if;
+  return v_item;
+end;
+$$;
+revoke execute on function "better_supabase"."review_moderation_item"(uuid) from public, anon, authenticated;
+
+-- Publishes a pending or rejected review: approves its moderation item.
+create or replace function "better_supabase"."publish_review"(review_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+begin
+  select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id for update;
+  if not found then
+    raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
+    raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
+  end if;
+  if v_row."status" = 'published' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  perform "better_supabase"."moderation_apply"("better_supabase"."review_moderation_item"(v_row."id"), 'approve', null, false);
+  select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."publish_review"(uuid) from public, anon;
+grant execute on function "better_supabase"."publish_review"(uuid) to authenticated, service_role;
+
+-- Rejects a review with an optional reason the author sees: hides its
+-- moderation item.
+create or replace function "better_supabase"."reject_review"(review_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+begin
+  select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id for update;
+  if not found then
+    raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
+    raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
+  end if;
+  perform "better_supabase"."moderation_apply"("better_supabase"."review_moderation_item"(v_row."id"), 'hide', reject_review.reason, false);
+  select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -1044,7 +1153,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_108_reviews.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bs-module-data reviews
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1052,15 +1161,23 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Puts the reviews written before the moderation module under it.
+insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
+  select x."tenant_id", 'review', x."id"::text, x."author_id",
+    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
+  from "better_supabase"."reviews" x
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+
 insert into better_supabase.modules (name, version, mode)
-values ('reviews', 1, 'managed')
+values ('reviews', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_reviews.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
--- @bs-module reviews@1 managed
--- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing, with a per-subject aggregate public storefronts can read.
+-- @bs-module reviews@2 managed
+-- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1118,8 +1235,6 @@ create table if not exists "app_private"."reviews" (
   "reply" text check ("reply" is null or length("reply") <= 5000),
   "replied_by" uuid,
   "replied_at" timestamptz,
-  "moderated_by" uuid,
-  "moderated_at" timestamptz,
   "published_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1197,6 +1312,10 @@ begin
   if tg_op in ('UPDATE', 'DELETE') then
     perform "app_private"."review_stats_refresh"(old."tenant_id", old."subject_type", old."subject_id");
   end if;
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."moderation_items" x
+    where x."tenant_id" = old."tenant_id" and x."subject_type" = 'review' and x."subject_id" = old."id"::text;
+  end if;
   if tg_op in ('INSERT', 'UPDATE') then
     perform "app_private"."review_stats_refresh"(new."tenant_id", new."subject_type", new."subject_id");
   end if;
@@ -1258,8 +1377,9 @@ begin
     set "rating" = excluded."rating", "title" = excluded."title", "body" = excluded."body",
       "author_name" = excluded."author_name", "verified" = excluded."verified",
       "status" = excluded."status", "published_at" = excluded."published_at",
-      "rejection_reason" = null, "moderated_by" = null, "moderated_at" = null, "updated_at" = now()
+      "rejection_reason" = null, "updated_at" = now()
   returning * into v_row;
+  perform "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_me, 'pending');
   null;
   
   declare
@@ -1306,7 +1426,68 @@ $$;
 revoke execute on function "app_private"."delete_review"(uuid) from public, anon;
 grant execute on function "app_private"."delete_review"(uuid) to authenticated, service_role;
 
--- Publishes a pending or rejected review.
+-- Projects a review's moderation item onto the review: visible publishes it,
+-- hidden and removed reject it with the item's reason. A decision (from
+-- publish_review, reject_review or the moderation block) records
+-- review.published or review.rejected and tells the author.
+create or replace function "app_private"."reviews_moderated"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."reviews"%rowtype;
+begin
+  update "app_private"."reviews" x
+  set "status" = case new."status" when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end,
+    "published_at" = case when new."status" = 'visible' then coalesce(x."published_at", now()) end,
+    "rejection_reason" = case when new."status" in ('hidden', 'removed') then new."reason" end,
+    "updated_at" = now()
+  where x."id"::text = new."subject_id" and x."tenant_id" = new."tenant_id"
+  returning * into v_row;
+  if v_row."id" is null or new."decided_at" is null or old."status" = new."status" then
+    return null;
+  end if;
+  if new."status" = 'visible' then
+    null;
+  elsif old."status" not in ('hidden', 'removed') then
+    null;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "app_private"."reviews_moderated"() from public, anon, authenticated;
+drop trigger if exists "bs_reviews_moderated" on "better_supabase"."moderation_items";
+create trigger "bs_reviews_moderated"
+  after update of "status", "decided_at" on "better_supabase"."moderation_items"
+  for each row when (new."subject_type" = 'review')
+  execute function "app_private"."reviews_moderated"();
+
+-- The moderation item of a review, created when the review predates it.
+create or replace function "app_private"."review_moderation_item"(review_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."reviews"%rowtype;
+  v_item uuid;
+begin
+  select * into v_row from "app_private"."reviews" x where x."id" = review_moderation_item.review_id;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = v_row."tenant_id" and x."subject_type" = 'review' and x."subject_id" = v_row."id"::text;
+  if v_item is null then
+    v_item := "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_row."author_id",
+      case when v_row."status" = 'published' then 'visible' else 'pending' end);
+  end if;
+  return v_item;
+end;
+$$;
+revoke execute on function "app_private"."review_moderation_item"(uuid) from public, anon, authenticated;
+
+-- Publishes a pending or rejected review: approves its moderation item.
 create or replace function "app_private"."publish_review"(review_id uuid)
 returns jsonb
 language plpgsql
@@ -1316,9 +1497,6 @@ as $$
 declare
   v_row "app_private"."reviews"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select * into v_row from "app_private"."reviews" x where x."id" = publish_review.review_id for update;
   if not found then
     raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
@@ -1329,19 +1507,16 @@ begin
   if v_row."status" = 'published' then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
   end if;
-  update "app_private"."reviews" x
-  set "status" = 'published', "published_at" = now(), "rejection_reason" = null,
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  null;
+  perform "better_supabase"."moderation_apply"("app_private"."review_moderation_item"(v_row."id"), 'approve', null, false);
+  select * into v_row from "app_private"."reviews" x where x."id" = publish_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."publish_review"(uuid) from public, anon;
 grant execute on function "app_private"."publish_review"(uuid) to authenticated, service_role;
 
--- Rejects a review with an optional reason the author sees.
+-- Rejects a review with an optional reason the author sees: hides its
+-- moderation item.
 create or replace function "app_private"."reject_review"(review_id uuid, reason text default null)
 returns jsonb
 language plpgsql
@@ -1351,9 +1526,6 @@ as $$
 declare
   v_row "app_private"."reviews"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select * into v_row from "app_private"."reviews" x where x."id" = reject_review.review_id for update;
   if not found then
     raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
@@ -1361,12 +1533,8 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
     raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
   end if;
-  update "app_private"."reviews" x
-  set "status" = 'rejected', "published_at" = null, "rejection_reason" = nullif(trim(reject_review.reason), ''),
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  null;
+  perform "better_supabase"."moderation_apply"("app_private"."review_moderation_item"(v_row."id"), 'hide', reject_review.reason, false);
+  select * into v_row from "app_private"."reviews" x where x."id" = reject_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -1529,7 +1697,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_108_reviews.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bs-module-data reviews
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1537,15 +1705,23 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Puts the reviews written before the moderation module under it.
+insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
+  select x."tenant_id", 'review', x."id"::text, x."author_id",
+    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
+  from "app_private"."reviews" x
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+
 insert into better_supabase.modules (name, version, mode)
-values ('reviews', 1, 'managed')
+values ('reviews', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_108_reviews.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
--- @bs-module reviews@1 managed
--- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing, with a per-subject aggregate public storefronts can read.
+-- @bs-module reviews@2 managed
+-- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1601,8 +1777,6 @@ create table if not exists "better_supabase"."reviews" (
   "reply" text check ("reply" is null or length("reply") <= 5000),
   "replied_by" uuid,
   "replied_at" timestamptz,
-  "moderated_by" uuid,
-  "moderated_at" timestamptz,
   "published_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1680,6 +1854,10 @@ begin
   if tg_op in ('UPDATE', 'DELETE') then
     perform "better_supabase"."review_stats_refresh"(old."tenant_id", old."subject_type", old."subject_id");
   end if;
+  if tg_op = 'DELETE' then
+    delete from "better_supabase"."moderation_items" x
+    where x."tenant_id" = old."tenant_id" and x."subject_type" = 'review' and x."subject_id" = old."id"::text;
+  end if;
   if tg_op in ('INSERT', 'UPDATE') then
     perform "better_supabase"."review_stats_refresh"(new."tenant_id", new."subject_type", new."subject_id");
   end if;
@@ -1741,8 +1919,9 @@ begin
     set "rating" = excluded."rating", "title" = excluded."title", "body" = excluded."body",
       "author_name" = excluded."author_name", "verified" = excluded."verified",
       "status" = excluded."status", "published_at" = excluded."published_at",
-      "rejection_reason" = null, "moderated_by" = null, "moderated_at" = null, "updated_at" = now()
+      "rejection_reason" = null, "updated_at" = now()
   returning * into v_row;
+  perform "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_me, 'pending');
   null;
   
   declare
@@ -1789,7 +1968,68 @@ $$;
 revoke execute on function "better_supabase"."delete_review"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_review"(uuid) to authenticated, service_role;
 
--- Publishes a pending or rejected review.
+-- Projects a review's moderation item onto the review: visible publishes it,
+-- hidden and removed reject it with the item's reason. A decision (from
+-- publish_review, reject_review or the moderation block) records
+-- review.published or review.rejected and tells the author.
+create or replace function "better_supabase"."reviews_moderated"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+begin
+  update "better_supabase"."reviews" x
+  set "status" = case new."status" when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end,
+    "published_at" = case when new."status" = 'visible' then coalesce(x."published_at", now()) end,
+    "rejection_reason" = case when new."status" in ('hidden', 'removed') then new."reason" end,
+    "updated_at" = now()
+  where x."id"::text = new."subject_id" and x."tenant_id" = new."tenant_id"
+  returning * into v_row;
+  if v_row."id" is null or new."decided_at" is null or old."status" = new."status" then
+    return null;
+  end if;
+  if new."status" = 'visible' then
+    null;
+  elsif old."status" not in ('hidden', 'removed') then
+    null;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."reviews_moderated"() from public, anon, authenticated;
+drop trigger if exists "bs_reviews_moderated" on "better_supabase"."moderation_items";
+create trigger "bs_reviews_moderated"
+  after update of "status", "decided_at" on "better_supabase"."moderation_items"
+  for each row when (new."subject_type" = 'review')
+  execute function "better_supabase"."reviews_moderated"();
+
+-- The moderation item of a review, created when the review predates it.
+create or replace function "better_supabase"."review_moderation_item"(review_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+  v_item uuid;
+begin
+  select * into v_row from "better_supabase"."reviews" x where x."id" = review_moderation_item.review_id;
+  select x."id" into v_item from "better_supabase"."moderation_items" x
+  where x."tenant_id" = v_row."tenant_id" and x."subject_type" = 'review' and x."subject_id" = v_row."id"::text;
+  if v_item is null then
+    v_item := "better_supabase"."moderation_track"(v_row."tenant_id", 'review', v_row."id"::text, v_row."author_id",
+      case when v_row."status" = 'published' then 'visible' else 'pending' end);
+  end if;
+  return v_item;
+end;
+$$;
+revoke execute on function "better_supabase"."review_moderation_item"(uuid) from public, anon, authenticated;
+
+-- Publishes a pending or rejected review: approves its moderation item.
 create or replace function "better_supabase"."publish_review"(review_id uuid)
 returns jsonb
 language plpgsql
@@ -1799,9 +2039,6 @@ as $$
 declare
   v_row "better_supabase"."reviews"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id for update;
   if not found then
     raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
@@ -1812,19 +2049,16 @@ begin
   if v_row."status" = 'published' then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
   end if;
-  update "better_supabase"."reviews" x
-  set "status" = 'published', "published_at" = now(), "rejection_reason" = null,
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  null;
+  perform "better_supabase"."moderation_apply"("better_supabase"."review_moderation_item"(v_row."id"), 'approve', null, false);
+  select * into v_row from "better_supabase"."reviews" x where x."id" = publish_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_review"(uuid) from public, anon;
 grant execute on function "better_supabase"."publish_review"(uuid) to authenticated, service_role;
 
--- Rejects a review with an optional reason the author sees.
+-- Rejects a review with an optional reason the author sees: hides its
+-- moderation item.
 create or replace function "better_supabase"."reject_review"(review_id uuid, reason text default null)
 returns jsonb
 language plpgsql
@@ -1834,9 +2068,6 @@ as $$
 declare
   v_row "better_supabase"."reviews"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id for update;
   if not found then
     raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
@@ -1844,12 +2075,8 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'reviews.manage'), false)) then
     raise exception 'not allowed to moderate reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
   end if;
-  update "better_supabase"."reviews" x
-  set "status" = 'rejected', "published_at" = null, "rejection_reason" = nullif(trim(reject_review.reason), ''),
-    "moderated_by" = auth.uid(), "moderated_at" = now(), "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  null;
+  perform "better_supabase"."moderation_apply"("better_supabase"."review_moderation_item"(v_row."id"), 'hide', reject_review.reason, false);
+  select * into v_row from "better_supabase"."reviews" x where x."id" = reject_review.review_id;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -2117,7 +2344,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_108_reviews.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bs-module-data reviews
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -2125,7 +2352,15 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+-- Puts the reviews written before the moderation module under it.
+insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id", "status", "reason", "decided_by", "decided_at", "created_at", "updated_at")
+  select x."tenant_id", 'review', x."id"::text, x."author_id",
+    case x."status" when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case when x."status" = 'rejected' then x."rejection_reason" end, null, null, x."created_at", x."updated_at"
+  from "better_supabase"."reviews" x
+  on conflict ("tenant_id", "subject_type", "subject_id") do nothing;
+
 insert into better_supabase.modules (name, version, mode)
-values ('reviews', 1, 'managed')
+values ('reviews', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

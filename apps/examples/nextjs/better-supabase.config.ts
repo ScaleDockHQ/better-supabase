@@ -290,6 +290,8 @@ export default defineConfig({
     rules: {},
     // Lead scoring and account health are score models over parties (ADR 0067).
     scores: {},
+    // Comment reports, the review queue and bans (ADR 0072).
+    moderation: {},
     // Vault-backed secrets behind the builder's credential references.
     credentials: {},
     // The support inbox behind /inbox and the Help sheet: jobs carry bot

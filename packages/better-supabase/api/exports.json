@@ -5930,6 +5930,42 @@
       "ScoresSqlOptions"
     ]
   },
+  "./blocks/moderation": {
+    "values": [
+      "createModeration",
+      "dbTransport",
+      "extendBlock",
+      "moderationBlock",
+      "moderationEvents",
+      "moderationSection",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Moderation",
+      "ModerationAction",
+      "ModerationActionKind",
+      "ModerationBan",
+      "ModerationBanEventData",
+      "ModerationDecision",
+      "ModerationDecisionEventData",
+      "ModerationEvents",
+      "ModerationItem",
+      "ModerationItemDetail",
+      "ModerationOptions",
+      "ModerationQueueFilter",
+      "ModerationReport",
+      "ModerationReportEventData",
+      "ModerationSqlOptions",
+      "ModerationStatus",
+      "RpcClient"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",
