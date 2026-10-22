@@ -82,4 +82,45 @@ describe("createCustomFields", () => {
       { tenant: "org-2", entity: "customer" },
     ]);
   });
+
+  it("encrypts a definition and lists whether one is encrypted", async () => {
+    const fake = fakeTransport({
+      encrypt_field_definition: true,
+      list_field_definitions: [
+        {
+          id: "d1",
+          entity: "contact",
+          key: "notes",
+          label: "Notes",
+          type: "text",
+          required: false,
+          sensitive: false,
+          encrypted: true,
+        },
+        {
+          id: "d2",
+          entity: "contact",
+          key: "tier",
+          label: "Tier",
+          type: "option",
+        },
+      ],
+    });
+
+    const fields = createCustomFields({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    expect(await fields.encryptDefinition("d1").orThrow()).toBe(true);
+    expect(fake.calls[0]).toEqual([
+      "encrypt_field_definition",
+      { definition: "d1" },
+    ]);
+    expect(
+      (await fields.listDefinitions("contact").orThrow()).map(
+        (definition) => definition.encrypted,
+      ),
+    ).toEqual([true, false]);
+  });
 });

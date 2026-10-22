@@ -138,3 +138,67 @@ describe("appTablesOf column access", () => {
     ).not.toThrow();
   });
 });
+
+describe("appTablesOf encrypted columns", () => {
+  const patients = (extra: Record<string, unknown> = {}) => ({
+    columns: {
+      name: { type: "text", nullable: false },
+      ssn: { type: "text", encrypted: true },
+    },
+    ...extra,
+  });
+
+  it("keeps encrypted and auditReads", () => {
+    const tables = appTablesOf({ patients: patients({ auditReads: true }) });
+
+    expect(tables["patients"]?.columns?.["ssn"]?.encrypted).toBe(true);
+    expect(tables["patients"]?.auditReads).toBe(true);
+  });
+
+  it.each([
+    [{ type: "text[]", encrypted: true }, "a text[] column"],
+    [{ type: "text", encrypted: true, unique: true }, "a unique column"],
+    [
+      { type: "uuid", encrypted: true, references: { table: "patients" } },
+      "a reference",
+    ],
+    [{ type: "bigint", encrypted: true, identity: true }, "an identity"],
+  ])("refuses an encrypted %o", (column, message) => {
+    fails(
+      { patients: { columns: { b: column } } },
+      `${message} can't be encrypted`,
+    );
+  });
+
+  it("refuses a non-boolean encrypted", () => {
+    fails(
+      { patients: { columns: { b: { type: "text", encrypted: "yes" } } } },
+      "appTables.patients.columns.b.encrypted",
+    );
+  });
+
+  it("refuses auditReads without an encrypted column", () => {
+    fails(
+      { patients: { auditReads: true, columns: { b: { type: "text" } } } },
+      "patients_reveal, which needs an encrypted column",
+    );
+  });
+
+  it.each(["unique", "indexes"])("refuses an encrypted column in %s", (key) => {
+    fails(
+      { patients: patients({ [key]: [["name", "ssn"]] }) },
+      `appTables.patients.${key}: ssn is encrypted`,
+    );
+  });
+
+  it("refuses an encrypted column where the database reads it", () => {
+    fails(
+      { patients: patients({ subject: { type: "patient", title: "ssn" } }) },
+      "patients.ssn is encrypted, so the database only sees ciphertext here",
+    );
+    fails(
+      { patients: patients({ subject: { type: "patient", versions: true } }) },
+      "hidden from signed-in users (access server or encrypted)",
+    );
+  });
+});

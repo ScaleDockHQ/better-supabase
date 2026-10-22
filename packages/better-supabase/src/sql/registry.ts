@@ -52,6 +52,7 @@ import { ENROLLMENTS } from "./modules/enrollments.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { EXPENSES } from "./modules/expenses.ts";
+import { FIELD_ENCRYPTION } from "./modules/field-encryption.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
@@ -341,6 +342,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(CONTROLS),
       built(INCIDENTS),
       built(COURSES),
+      built(FIELD_ENCRYPTION),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

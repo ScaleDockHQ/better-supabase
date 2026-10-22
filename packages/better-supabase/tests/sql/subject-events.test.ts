@@ -68,6 +68,7 @@ const SUBJECT_EVENTS = [
   "status.resumed",
   "status.flagged",
   "field_value.set",
+  "field_value.viewed",
   "share_link.created",
   "subject.viewed",
   "reminder.sent",

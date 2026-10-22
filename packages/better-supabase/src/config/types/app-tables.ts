@@ -94,6 +94,14 @@ export interface AppColumnConfig {
    * `server` hides it from them, so only the service role reads and writes it.
    */
   readonly access?: AppColumnAccess;
+  /**
+   * Stores the column encrypted with the row's tenant (or user) data key from
+   * Supabase Vault, through the `field-encryption` block. Signed-in users write
+   * plaintext and never select the column; they read it through
+   * `public.<table>_reveal(ids)`, which checks the row's policy and decrypts.
+   * It can't be unique, a reference, an identity, indexed or searched.
+   */
+  readonly encrypted?: boolean;
 }
 
 export const APP_COLUMN_ACCESS = ["read", "server"] as const;
@@ -154,6 +162,12 @@ export interface AppTableConfig {
    * `outbox` block.
    */
   readonly events?: true | AppTableEvents;
+  /**
+   * Writes an audit log entry in the `read` category for each call of
+   * `public.<table>_reveal`: who read which rows and when, one entry per tenant
+   * per call. Needs an `encrypted` column and the `audit` block.
+   */
+  readonly auditReads?: boolean;
 }
 
 export const APP_TABLE_EVENT_KINDS = ["created", "updated", "deleted"] as const;

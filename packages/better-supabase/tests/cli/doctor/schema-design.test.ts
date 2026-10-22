@@ -406,6 +406,61 @@ describe("schema design rules", () => {
     ]);
   });
 
+  it("expects text for an encrypted app table column (BS228)", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.columns = [
+        ...notes.columns,
+        column({ name: "born", udt: "text", format: "text" }),
+        column({ name: "plain", udt: "date", format: "date" }),
+      ];
+    });
+
+    const withBorn = (encrypted: boolean): DoctorContext =>
+      context(snap, {
+        config: resolveConfig(
+          {
+            plugins: { tenant: true },
+            appTables: {
+              notes: { columns: { born: { type: "date", encrypted } } },
+            },
+          },
+          "/project",
+        ),
+      });
+
+    expect(await run(withBorn(true), "BS228")).toEqual([]);
+    expect(await run(withBorn(false), "BS228")).toMatchObject([
+      {
+        target: "public.notes.born",
+        message: expect.stringContaining(
+          "is text in the database and date in appTables",
+        ),
+      },
+    ]);
+
+    const encryptedPlain = context(snap, {
+      config: resolveConfig(
+        {
+          plugins: { tenant: true },
+          appTables: {
+            notes: { columns: { plain: { type: "date", encrypted: true } } },
+          },
+        },
+        "/project",
+      ),
+    });
+
+    expect(await run(encryptedPlain, "BS228")).toMatchObject([
+      {
+        target: "public.notes.plain",
+        message: expect.stringContaining(
+          "is date in the database and encrypted text in appTables",
+        ),
+      },
+    ]);
+  });
+
   it("reports offset pagination and exact counts (BS227)", async () => {
     const sources = [
       {

@@ -499,6 +499,7 @@
       "duplicateTable",
       "editTable",
       "EMPTY_DESIGN",
+      "encryptable",
       "eventsColumnsEdited",
       "filterColumns",
       "fitted",

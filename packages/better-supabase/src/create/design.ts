@@ -58,6 +58,11 @@ export interface AppColumn {
    * (ADR 0051).
    */
   readonly access?: AppColumnAccess;
+  /**
+   * Stores ciphertext with the tenant's Vault key; read through
+   * `<table>_reveal`.
+   */
+  readonly encrypted?: boolean;
 }
 
 export type AppScope = "inherit" | "user" | "none";
@@ -77,6 +82,8 @@ export interface AppTable {
   readonly lookups?: Readonly<Record<string, AppLookup>>;
   /** Outbox events on insert, update and delete; the shape of `AppTableEvents`. */
   readonly events?: true | AppEvents;
+  /** One `read` audit entry per tenant per reveal call. */
+  readonly auditReads?: boolean;
 }
 
 /**

@@ -1,0 +1,55 @@
+---
+title: Restaurants and POS
+description: The pos preset installs a menu in the catalog, orders with an optional kitchen display, stock in inventory, table reservations, promotions and the ledger.
+---
+
+The `pos` preset is for an app in the style of Toast or Square for
+restaurants. Staff take an order from the menu, the kitchen prepares its
+lines at their stations, stock goes down as items sell, guests reserve
+tables, and the day's takings land on the ledger.
+
+## Config
+
+Turn on the kitchen display with the orders block's `kitchen` option; it is
+off by default, so the preset leaves it to your config:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: "pos",
+  blocks: { orders: { options: { kitchen: true } } },
+});
+```
+
+`npx better-supabase init --preset pos` starts a new project from it, and
+`npx better-supabase apply --preset pos` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                 | Role in the app                                          |
+| ------------------------------------- | -------------------------------------------------------- |
+| [catalog](/docs/blocks/catalog)       | Menu items and their variants with prices                |
+| [orders](/docs/blocks/orders)         | Tickets at the till, and kitchen stations with `kitchen` |
+| [inventory](/docs/blocks/inventory)   | Stock that goes down as items sell                       |
+| [bookings](/docs/blocks/bookings)     | Table reservations                                       |
+| [promotions](/docs/blocks/promotions) | Happy hours and discount codes                           |
+| [ledger](/docs/blocks/ledger)         | Takings and payouts                                      |
+
+## How the blocks connect
+
+An order's lines are catalog variants. With `kitchen`, `orders.kitchen.send`
+routes each line to its station with a note, and the line moves through its
+preparation states on a kitchen display that refreshes on the kitchen event
+([orders](/docs/blocks/orders#kitchen)). A table is a bookable resource, so a
+reservation can't double book it.
+
+## With ReUI
+
+- Kanban for the kitchen display, one column per preparation state.
+- A card grid of menu items for the till.
+- Event Calendar for the table reservations of a service.

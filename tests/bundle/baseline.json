@@ -1,12 +1,12 @@
 {
   ".": 68982,
-  "./config": 82142,
-  "./preset": 63281,
-  "./create": 1163687,
+  "./config": 83004,
+  "./preset": 64363,
+  "./create": 1171016,
   "./create/lite": 2661,
   "./create/oauth": 1586,
   "./create/supabase": 4646,
-  "./cli": 588560,
+  "./cli": 588780,
   "./client": 30019,
   "./client/native": 27895,
   "./react": 67087,
@@ -184,7 +184,7 @@
   "./blocks/undo/solid": 5953,
   "./blocks/tags": 33392,
   "./blocks/state-machine": 22589,
-  "./blocks/custom-fields": 24700,
+  "./blocks/custom-fields": 24750,
   "./blocks/share-links": 30325,
   "./blocks/signing-keys": 27408,
   "./blocks/oauth-server": 25235,
@@ -326,8 +326,8 @@
   "./plugins/tenant": 10017,
   "./plugins/actor": 6927,
   "./plugins/validation": 12425,
-  "./sql": 1067168,
-  "./testing": 255368,
+  "./sql": 1074064,
+  "./testing": 256232,
   "./expo-sqlite": 34286,
   "./tanstack-db": 1674,
   "./tanstack-db/supabase": 4105,
@@ -344,5 +344,5 @@
   "./blocks/leases": 35491,
   "./blocks/expenses": 34758,
   "./blocks/donations": 37881,
-  "better-supabase CLI (startup)": 30649
+  "better-supabase CLI (startup)": 30644
 }

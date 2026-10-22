@@ -566,14 +566,20 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
                 return [];
               }
 
-              const format = APP_COLUMN_FORMAT[column.type];
+              const encrypted = column.encrypted === true;
+
+              // An encrypted column holds ciphertext, so the database type is text.
+              const format = encrypted
+                ? "text"
+                : APP_COLUMN_FORMAT[column.type];
+
               const nullable = column.nullable !== false;
 
               const drift = [
                 ...(found.format === format
                   ? []
                   : [
-                      `is ${found.format} in the database and ${column.type} in appTables`,
+                      `is ${found.format} in the database and ${encrypted ? "encrypted text" : column.type} in appTables`,
                     ]),
                 ...(found.is_nullable === nullable
                   ? []

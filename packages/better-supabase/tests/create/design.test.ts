@@ -484,6 +484,28 @@ describe("column keys", () => {
     expect(
       fitted({ type: "text", format: "email", min: -1, max: 200 }),
     ).toEqual({ type: "text", format: "email", max: 200 });
+
+    expect(fitted({ type: "text", encrypted: true })).toEqual({
+      type: "text",
+      encrypted: true,
+    });
+    expect(fitted({ type: "text[]", encrypted: true })).toEqual({
+      type: "text[]",
+    });
+    expect(fitted({ type: "text", unique: true, encrypted: true })).toEqual({
+      type: "text",
+      unique: true,
+    });
+    expect(
+      fitted({
+        type: "uuid",
+        references: { table: "projects" },
+        encrypted: true,
+      }),
+    ).toEqual({ type: "uuid", references: { table: "projects" } });
+    expect(fitted({ type: "bigint", identity: true, encrypted: true })).toEqual(
+      { type: "bigint", identity: true },
+    );
   });
 
   it("checks options and bounds", () => {

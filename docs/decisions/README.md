@@ -84,3 +84,4 @@ add one, and link it from the code or config it explains.
 | [0084](0084-anonymous-status-page.md)                     | The public status page is one security definer function anon may call; it builds every public field by name                               |
 | [0085](0085-courses-on-enrollments.md)                    | Courses enroll learners through enrollments; quizzes are graded by forms in SQL                                                           |
 | [0086](0086-booking-series-and-class-credits.md)          | Recurring bookings place every occurrence through place_booking; class credits are a ledger with a refund on an early cancellation        |
+| [0087](0087-field-encryption-and-read-audit.md)           | Encrypted fields use one Vault data key per owner and decrypt only through scoped definer functions, which can audit each read            |

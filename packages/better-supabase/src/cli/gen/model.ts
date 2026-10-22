@@ -37,7 +37,13 @@ import { restrictSchemas, tsTypeOf } from "../introspect/typegen.ts";
 import { commentMeta } from "./comment.ts";
 import { buildFunctions } from "./model-functions.ts";
 import { buildRelations, namingColumns } from "./model-relations.ts";
-import { CODEC_TYPE, applyCasing, codecFor, enumType } from "./model-types.ts";
+import {
+  APP_COLUMN_UDT,
+  CODEC_TYPE,
+  applyCasing,
+  codecFor,
+  enumType,
+} from "./model-types.ts";
 import {
   arrayOf,
   configFor,
@@ -351,7 +357,22 @@ function draftTables(ctx: ModelContext): DraftTable[] {
         : undefined;
 
       const values = enumValues ?? checks.get(column.name);
-      const json = isJsonUdt(column.udt);
+
+      const appColumn =
+        table.schema === "public"
+          ? config.appTables[table.name]?.columns?.[column.name]
+          : undefined;
+
+      // An encrypted column stores ciphertext as text; app code writes and
+      // reveals its configured type.
+      const sealed =
+        appColumn?.encrypted === true
+          ? APP_COLUMN_UDT[appColumn.type]
+          : undefined;
+
+      const udt = sealed ?? column.udt;
+      const format = sealed ?? column.format;
+      const json = isJsonUdt(udt);
 
       const override = json
         ? jsonTypeFor(table.schema, table.name, column.name)
@@ -361,13 +382,11 @@ function draftTables(ctx: ModelContext): DraftTable[] {
         table.schema,
         table.name,
         column.name,
-        column.udt,
+        udt,
       );
 
       const codec =
-        override || values || storage
-          ? undefined
-          : codecFor(column.udt, config);
+        override || values || storage ? undefined : codecFor(udt, config);
 
       const base =
         override ??
@@ -381,7 +400,11 @@ function draftTables(ctx: ModelContext): DraftTable[] {
 
       const columnType =
         base === undefined
-          ? tsType(table.schema, column.format, column.typeSchema)
+          ? tsType(
+              table.schema,
+              format,
+              sealed === undefined ? column.typeSchema : "pg_catalog",
+            )
           : column.isArray
             ? arrayOf(base)
             : base;
@@ -406,9 +429,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
       const updatable = !readonly && table.updatable && column.updatable;
 
       const hidden =
-        table.schema === "public" &&
-        config.appTables[table.name]?.columns?.[column.name]?.access ===
-          "server";
+        appColumn?.access === "server" || appColumn?.encrypted === true;
 
       return {
         ...(hidden ? { selectable: false as const } : {}),

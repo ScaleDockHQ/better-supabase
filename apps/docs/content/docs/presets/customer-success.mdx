@@ -1,0 +1,57 @@
+---
+title: Customer success
+description: The customer-success preset installs accounts with health scores, metrics, rules, NPS surveys, playbooks as enrollments and engagements.
+---
+
+The `customer-success` preset is for an app in the style of Gainsight or
+Vitally. Each account has a health score from usage and survey answers, a
+rule starts a playbook when the score drops, and the customer success
+manager logs calls and follow-ups on the account.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "customer-success" });
+```
+
+`npx better-supabase init --preset customer-success` starts a new project
+from it, and `npx better-supabase apply --preset customer-success` adds it
+to one you have ([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                      |
+| --------------------------------------- | ---------------------------------------------------- |
+| [parties](/docs/blocks/parties)         | Customer accounts and their contacts                 |
+| [engagements](/docs/blocks/engagements) | Calls, meetings, notes and follow-up tasks           |
+| [scores](/docs/blocks/scores)           | Account health as a scoring model with bands         |
+| [metrics](/docs/blocks/metrics)         | Usage and adoption charts per account                |
+| [rules](/docs/blocks/rules)             | Triggers such as "health dropped to red"             |
+| [forms](/docs/blocks/forms)             | NPS and CSAT surveys                                 |
+| [enrollments](/docs/blocks/enrollments) | Playbooks: an account enrolled in a program of steps |
+| [reminders](/docs/blocks/reminders)     | Renewal dates and check-ins                          |
+
+## How the blocks connect
+
+Account health is a `health` model in scores over the account's subject
+type. It adds rule points, each a filter tree that matches the account, and
+metrics, each a number field of the account times a weight, and its bands
+name ranges of the total such as `red` and `green`. An NPS survey is a form
+with an `nps` field, and `forms.nps(formId)` returns the score, so your app
+can store an account's latest answer in a number field the model weighs
+([scores](/docs/blocks/scores), [forms](/docs/blocks/forms)).
+
+When a score moves into a band, a rule names the action your app runs, such
+as enrolling the account in a recovery playbook. A playbook is an enrollment
+program, and each step can be an engagement task for the account's owner.
+
+## With ReUI
+
+- Data Grid for accounts, with the health band as a Badge and Filters on it.
+- Statistic cards for the portfolio's health and renewals.
+- Timeline for an account's engagements and score changes.

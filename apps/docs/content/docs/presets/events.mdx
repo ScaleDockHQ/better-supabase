@@ -1,0 +1,52 @@
+---
+title: Events and ticketing
+description: The events preset installs tickets in a catalog, orders, capacity through bookings, QR passes signed with signing keys and checked in, a waitlist and reminders.
+---
+
+The `events` preset is for an app in the style of Eventbrite or Luma. An
+organizer publishes an event with ticket types, attendees buy tickets, each
+ticket is a signed QR pass, and the door checks passes in against the
+event's capacity. A sold-out event fills from its waitlist.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "events" });
+```
+
+`npx better-supabase init --preset events` starts a new project from it, and
+`npx better-supabase apply --preset events` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                     | Role in the app                                    |
+| ----------------------------------------- | -------------------------------------------------- |
+| [catalog](/docs/blocks/catalog)           | Ticket types as products, with prices per currency |
+| [orders](/docs/blocks/orders)             | Checkout for tickets, refunds and invoices         |
+| [bookings](/docs/blocks/bookings)         | The event's capacity as a bookable resource        |
+| [passes](/docs/blocks/passes)             | QR and NFC tickets, checked in at the door         |
+| [signing-keys](/docs/blocks/signing-keys) | The organization's key that signs each pass        |
+| [waitlist](/docs/blocks/waitlist)         | A waitlist for sold-out events                     |
+| [reminders](/docs/blocks/reminders)       | Reminders before the event starts                  |
+
+## How the blocks connect
+
+The event is a bookable resource with a capacity. When an order is paid,
+your payment handler books a seat on that resource and issues a pass for the
+booking, so the bookings block refuses a sale past capacity. The pass token
+is signed on the server with the organization's key and goes in a QR code;
+at the door a scanner verifies it and the database checks the pass in once.
+A drop-in pass on the resource is counted against the same capacity
+([passes](/docs/blocks/passes)).
+
+## With ReUI
+
+- Card grid for the event list and ticket types.
+- Data Grid for attendees, with Filters on ticket type and check-in.
+- A scanner page that checks a pass in and shows the result as a Badge.
