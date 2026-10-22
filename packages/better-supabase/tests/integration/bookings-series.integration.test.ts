@@ -48,7 +48,7 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
         "reminders",
         "calendar",
         "bookings",
-        "passes",
+        "admission-passes",
       ],
       {
         modules: {

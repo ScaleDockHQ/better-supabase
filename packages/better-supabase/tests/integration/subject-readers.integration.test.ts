@@ -21,7 +21,7 @@ describe.skipIf(!live)("can_subject_for", () => {
            title text not null
          )`,
       );
-      await s.install(["access", "organizations", "subjects"], {
+      await s.install(["permissions", "organizations", "subjects"], {
         subjects: {
           memo: {
             table: "public.bsb_memos",

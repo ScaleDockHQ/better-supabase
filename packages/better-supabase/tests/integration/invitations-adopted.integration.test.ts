@@ -418,7 +418,7 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
       const member = await s.user("member");
       const schema = await sharedSchema(s, crypto.randomUUID(), owner, staff);
       const layout = sharedLayout(schema);
-      const tenant = layout.modules!["tenant"]!;
+      const tenant = layout.modules!["memberships"]!;
       await s.install(["organizations", "invitations"], {
         ...layout,
         modules: {

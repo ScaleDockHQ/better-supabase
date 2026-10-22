@@ -92,7 +92,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const row = await inTransaction(
       pool,
       "",
-      ["organizations", "access"],
+      ["organizations", "permissions"],
       {},
       async (client) => {
         await client.query(
@@ -139,7 +139,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const rows = await inTransaction(
       pool,
       "",
-      ["organizations", "access"],
+      ["organizations", "permissions"],
       {
         modules: {
           permissions: { scopes: { "members:write": ["members.*"] } },
@@ -242,7 +242,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const [before, after] = await inTransaction(
       pool,
       setup,
-      ["access"],
+      ["permissions"],
       layout,
       async (client) => {
         await asUser(client);
@@ -299,7 +299,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     const active = await inTransaction(
       pool,
       "",
-      ["tenant"],
+      ["memberships"],
       { modules: { permissions: { activeTenant: "resolver" } } },
       async (client) => {
         await asUser(client);
@@ -329,7 +329,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
        create table public.bsb_active_users (id uuid primary key, banned_at timestamptz);
        insert into public.bsb_active_tenants values ('${ORG}', 'active'), ('${SUSPENDED}', 'closed');
        insert into public.bsb_active_users values ('${USER}', null);`,
-      ["access"],
+      ["permissions"],
       {
         modules: {
           permissions: {
@@ -386,7 +386,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
       `create function public.bsb_access_can(scope text, id uuid, perm text) returns boolean language sql as $$ select perm = 'ok' $$;
        create function public.bsb_access_ids(perm text) returns setof uuid language sql as $$ select '${ORG}'::uuid where perm = 'ok' $$;
        create function public.bsb_access_platform(perm text) returns boolean language sql as $$ select perm = 'ok' $$;`,
-      ["access"],
+      ["permissions"],
       {
         modules: {
           permissions: {
