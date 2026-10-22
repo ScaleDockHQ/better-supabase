@@ -1349,6 +1349,50 @@ const ref: SubjectRef<SubjectType> = { type: "task", id: taskId };
 Doctor reports a registered table or column the database lacks (BS331) and a
 registered table without row level security (BS332).
 
+### Merging subject records
+
+When two rows of a subject table are merged, one call moves every module's
+rows from the dropped record to the kept one:
+
+```sql
+perform better_supabase.merge_subject_refs('public.customers', keep::text, drop::text);
+```
+
+Each module that stores rows per subject installs a handler, and
+`merge_subject_refs` runs them all:
+
+| Module        | What moves                                                                                |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| `comments`    | Comments; the activity feed stays on the dropped record                                   |
+| `attachments` | Attachments                                                                               |
+| `reactions`   | Reactions, except one the same person already left on the kept record with the same emoji |
+| `tags`        | Taggings, except a tag the kept record already has                                        |
+| `relations`   | Links on either end; a link that becomes a self-link or a duplicate is deleted            |
+| `guests`      | Guest grants, except a grant the guest already has on the kept record                     |
+
+The function isn't granted to any API role. Call it from your own `security
+definer` function that has already checked the caller, as the parties
+`merge_companies` and `merge_people` functions do. Merging doesn't re-check a
+relation kind's `single` or `acyclic` rule.
+
+To move your own tables in the same call, add a function with the signature
+`(subject_table text, keep text, drop text)`, owned by the role that owns the
+migrations, and give it the comment `better-supabase:subject-merge`. The
+dispatcher skips marked functions another role owns.
+
+```sql
+create function app.deals_subject_merge(subject_table text, keep text, drop text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if subject_table = 'better_supabase.companies' then
+    update app.deals set company_id = keep::uuid where company_id = drop::uuid;
+  end if;
+end;
+$$;
+revoke execute on function app.deals_subject_merge(text, text, text) from public, anon, authenticated;
+comment on function app.deals_subject_merge(text, text, text) is 'better-supabase:subject-merge';
+```
+
 ## RLS on every new table
 
 `better-supabase add ensure-rls` installs an event trigger that enables row level

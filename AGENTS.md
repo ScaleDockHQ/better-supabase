@@ -183,6 +183,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0064: blocks compose through sections and flows; library logic, generated bindings and recipe UI.
 - 0065: balances live in one double-entry `ledger`; inventory stock, leave balances and invoice payments move onto it (breaking).
 - 0070: guests reach granted records through `ctx.scope.guest`, never as members; providers answer through `portalSubjects`.
+- 0072: a record merge moves every module's rows through handlers marked `better-supabase:subject-merge`.
 
 ## Pre-release pins
 
