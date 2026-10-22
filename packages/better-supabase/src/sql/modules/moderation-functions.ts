@@ -1,8 +1,9 @@
 import type { ModuleContext } from "../context.ts";
 
-import { sqlIdent, sqlString } from "../../core/template.ts";
-import { fail, pageSize, SERVICE_CALLER, triggerGrant } from "../shared.ts";
+import { sqlString } from "../../core/template.ts";
+import { fail, pageSize, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { moderatedMessageType } from "./messaging-moderation.ts";
 
 const WHERE = "blocks.moderation.options";
 
@@ -43,21 +44,6 @@ function reasonsOf(ctx: ModuleContext): readonly string[] {
   return reasons;
 }
 
-/** The comment entity's subject type, when moderation covers comments. */
-function commentSubject(ctx: ModuleContext): string | undefined {
-  if (!ctx.installed("comments")) {
-    return undefined;
-  }
-
-  const comments = ctx.of("comments");
-
-  if (!comments.manages) {
-    return undefined;
-  }
-
-  return comments.resolved.entities["comment"]?.to.singular ?? "comment";
-}
-
 /** The moderation module's functions. */
 export function moderationFunctions(ctx: ModuleContext): string {
   const items = ctx.table("items");
@@ -77,7 +63,7 @@ export function moderationFunctions(ctx: ModuleContext): string {
   const ban = ctx.permission("ban", permissions.ban);
   const threshold = thresholdOf(ctx);
   const reasons = reasonsOf(ctx);
-  const comment = commentSubject(ctx);
+  const message = moderatedMessageType(ctx);
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -123,40 +109,42 @@ export function moderationFunctions(ctx: ModuleContext): string {
   const active = (row: string): string =>
     `${row}.${b("liftedAt")} is null and (${row}.${b("expiresAt")} is null or ${row}.${b("expiresAt")} > now())`;
 
-  const comments = comment === undefined ? undefined : ctx.of("comments");
+  const messaging = message === undefined ? undefined : ctx.of("messaging");
 
-  const cc = (column: string): string =>
-    comments === undefined ? column : comments.col("comments", column);
+  const mc = (column: string): string =>
+    messaging === undefined ? column : messaging.col("messages", column);
 
-  const isComment = (type: string): string =>
-    comment === undefined ? "false" : `${type} = ${sqlString(comment)}`;
+  const isMessage = (type: string): string =>
+    message === undefined ? "false" : `${type} = ${sqlString(message)}`;
 
-  const commentRemove =
-    comments === undefined
+  const messageRemove =
+    messaging === undefined
       ? ""
       : `
-  if ${isComment(`v_row.${i("subjectType")}`)} and v_status = 'removed' then
-    update ${comments.table("comments")} x set ${cc("deletedAt")} = now()
-    where x.${cc("id")}::text = v_row.${i("subjectId")} and x.${cc("deletedAt")} is null;
+  if ${isMessage(`v_row.${i("subjectType")}`)} and v_status = 'removed' then
+    update ${messaging.table("messages")} x
+    set ${mc("body")} = '', ${mc("document")} = null, ${mc("mentions")} = '{}', ${mc("mentionScope")} = null,
+      ${mc("pinnedAt")} = null, ${mc("pinnedBy")} = null, ${mc("deletedAt")} = now()
+    where x.${mc("id")}::text = v_row.${i("subjectId")} and x.${mc("deletedAt")} is null;
   end if;`;
 
-  const commentRestore =
-    comments === undefined
+  const messageRestore =
+    messaging === undefined
       ? ""
       : `
-  if moderation_apply.action = 'restore' and v_old.${i("status")} = 'removed' and ${isComment(`v_old.${i("subjectType")}`)} then
-    ${invalid("a removed comment can't be restored")}
+  if moderation_apply.action = 'restore' and v_old.${i("status")} = 'removed' and ${isMessage(`v_old.${i("subjectType")}`)} then
+    ${invalid("a removed message can't be restored")}
   end if;`;
 
-  const commentAuthor =
-    comments === undefined
+  const messageAuthor =
+    messaging === undefined
       ? ""
       : `
-  if ${isComment("report_content.subject_type")} then
-    select x.${cc("author")} into v_author from ${comments.table("comments")} x
-    where x.${cc("id")}::text = report_content.subject_id and x.${cc("tenant")} = report_content.tenant and x.${cc("deletedAt")} is null;
+  if ${isMessage("report_content.subject_type")} then
+    select x.${mc("author")} into v_author from ${messaging.table("messages")} x
+    where x.${mc("id")}::text = report_content.subject_id and x.${mc("tenant")} = report_content.tenant and x.${mc("deletedAt")} is null;
     if not found then
-      ${fail("MODERATION_SUBJECT_NOT_FOUND", "there is no such comment to report", "P0002")}
+      ${fail("MODERATION_SUBJECT_NOT_FOUND", "there is no such message to report", "P0002")}
     end if;
   end if;`;
 
@@ -264,7 +252,7 @@ begin
   end if;
   if moderation_apply.action = 'ban' and v_old.${i("author")} is null then
     ${invalid("this content has no author to ban")}
-  end if;${commentRestore}
+  end if;${messageRestore}
   update ${items} x
   set ${i("status")} = v_status,
     ${i("reason")} = case when v_status = 'visible' then null else nullif(trim(moderation_apply.reason), '') end,
@@ -282,7 +270,7 @@ begin
   end if;
   insert into ${actions} (${a("tenant")}, ${a("item")}, ${a("action")}, ${a("fromStatus")}, ${a("toStatus")}, ${a("reason")}, ${a("actor")})
   values (v_row.${i("tenant")}, v_row.${i("id")}, moderation_apply.action, v_old.${i("status")}, v_status, nullif(trim(moderation_apply.reason), ''),
-    case when moderation_apply.automatic then null else auth.uid() end);${commentRemove}
+    case when moderation_apply.automatic then null else auth.uid() end);${messageRemove}
   if moderation_apply.action = 'ban' and not ${fn("moderation_banned")}(v_row.${i("tenant")}, v_row.${i("author")}) then
     delete from ${bans} x where x.${b("tenant")} = v_row.${i("tenant")} and x.${b("user")} = v_row.${i("author")} and x.${b("liftedAt")} is null;
     insert into ${bans} (${b("tenant")}, ${b("user")}, ${b("reason")}, ${b("bannedBy")})
@@ -343,7 +331,7 @@ begin
   if report_content.subject_type is null or report_content.subject_type !~ '^[a-z][a-z0-9_-]{0,62}$'
     or report_content.subject_id is null or length(report_content.subject_id) not between 1 and 200 then
     ${invalid("a report needs a subject type and id")}
-  end if;${commentAuthor}
+  end if;${messageAuthor}
   insert into ${items} (${i("tenant")}, ${i("subjectType")}, ${i("subjectId")}, ${i("author")})
   values (report_content.tenant, report_content.subject_type, report_content.subject_id, v_author)
   on conflict (${i("tenant")}, ${i("subjectType")}, ${i("subjectId")}) do nothing;
@@ -598,28 +586,19 @@ end;
 $$;
 revoke execute on function ${fn("list_bans")}(${idType}, boolean, integer) from public, anon;
 grant execute on function ${fn("list_bans")}(${idType}, boolean, integer) to authenticated, service_role;
-${commentsIntegration(ctx)}`;
+${moderationHidden(ctx)}`;
 }
 
 /**
- * On the comments table: hidden, removed and pending comments stay readable
- * only to their author and moderators, and banned members can't comment.
+ * Whether a moderator hid, removed or holds back a subject, for the messages
+ * read policy the messaging module adds.
  */
-function commentsIntegration(ctx: ModuleContext): string {
-  const type = commentSubject(ctx);
-
-  if (type === undefined || !ctx.manages) {
+function moderationHidden(ctx: ModuleContext): string {
+  if (moderatedMessageType(ctx) === undefined) {
     return "";
   }
 
-  const comments = ctx.of("comments");
-  const table = comments.table("comments");
-  const c = (column: string): string => comments.col("comments", column);
   const i = (column: string): string => ctx.col("items", column);
-  const read = ctx.permission("read", moduleOperations("moderation").read);
-  const policy = sqlIdent(`${comments.tableName("comments").name}_moderation`);
-  const guard = ctx.fn("comments_moderation_guard");
-
   const hidden = ctx.fn("moderation_hidden");
 
   return `
@@ -639,33 +618,5 @@ as $$
 $$;
 revoke execute on function ${hidden}(text, text) from public, anon;
 grant execute on function ${hidden}(text, text) to authenticated, service_role;
-
-drop policy if exists ${policy} on ${table};
-create policy ${policy} on ${table} as restrictive for select to authenticated
-  using (
-    ${c("author")} = (select auth.uid())
-    or not ${hidden}(${sqlString(type)}, ${table}.${c("id")}::text)
-    or ${ctx.scope.check(`${table}.${c("tenant")}`, read)}
-  );
-
--- Refuses comments from members banned in the organization.
-create or replace function ${guard}()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if ${ctx.fn("moderation_banned")}(new.${c("tenant")}, new.${c("author")}) then
-    ${fail("MODERATION_BANNED", "you are banned in this organization")}
-  end if;
-  return new;
-end;
-$$;
-${triggerGrant(`${guard}()`)}
-drop trigger if exists ${ctx.trigger("comments_moderation_guard")} on ${table};
-create trigger ${ctx.trigger("comments_moderation_guard")}
-  before insert on ${table}
-  for each row execute function ${guard}();
 `;
 }

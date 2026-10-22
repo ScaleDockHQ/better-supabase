@@ -64,7 +64,7 @@ async function comment(
   return created.id;
 }
 
-/** Whether `user` reads the comment through the table's policies. */
+/** Whether `user` reads the comment through the messages policies. */
 async function reads(
   s: BlockSession,
   user: TestUser,
@@ -73,7 +73,7 @@ async function reads(
   await s.asRole(user);
 
   const rows = await s.rows(
-    "select id from better_supabase.comments where id = $1",
+    "select id from better_supabase.messages where id = $1",
     [commentId],
   );
 
@@ -93,12 +93,18 @@ describe.skipIf(!live)("moderation", () => {
     try {
       await s.client.query(PROJECTS);
       await s.install(
-        ["organizations", "outbox", "audit", "comments", "moderation"],
+        [
+          "organizations",
+          "outbox",
+          "audit",
+          "subjects",
+          "messaging",
+          "comments",
+          "moderation",
+        ],
         {
+          subjects: { project: { table: "public.bs_mod_projects" } },
           modules: {
-            comments: {
-              options: { subjects: { project: { table: "bs_mod_projects" } } },
-            },
             moderation: {
               options: { autoHideThreshold: 2, reasons: ["spam", "rude"] },
             },
@@ -128,28 +134,28 @@ describe.skipIf(!live)("moderation", () => {
 
       expect(
         await s.hint(
-          "better_supabase.report_content($1, 'comment', $2, 'abuse')",
+          "better_supabase.report_content($1, 'message', $2, 'abuse')",
           [tenant, spam],
         ),
       ).toBe("MODERATION_INVALID");
       expect(
         await s.hint(
-          "better_supabase.report_content($1, 'comment', $2, 'spam')",
+          "better_supabase.report_content($1, 'message', $2, 'spam')",
           [tenant, crypto.randomUUID()],
         ),
       ).toBe("MODERATION_SUBJECT_NOT_FOUND");
       expect(
         await asFirst
-          .report({ type: "comment", id: spam }, { reason: "spam" })
+          .report({ type: "message", id: spam }, { reason: "spam" })
           .orThrow(),
       ).toMatchObject({ status: "open", reason: "spam", autoHidden: false });
       expect((await asFirst.queue()).ok).toBe(false);
-      expect(await asFirst.statuses("comment", [spam]).orThrow()).toEqual({});
+      expect(await asFirst.statuses("message", [spam]).orThrow()).toEqual({});
 
       await s.as(second);
       expect(
         await s.value<{ autoHidden: boolean }>(
-          "better_supabase.report_content($1, 'comment', $2, 'rude', 'Ads')",
+          "better_supabase.report_content($1, 'message', $2, 'rude', 'Ads')",
           [tenant, spam],
         ),
       ).toMatchObject({ autoHidden: true });
@@ -168,7 +174,7 @@ describe.skipIf(!live)("moderation", () => {
       const [queued] = await asOwner.queue().orThrow();
 
       expect(queued).toMatchObject({
-        subject: { type: "comment", id: spam },
+        subject: { type: "message", id: spam },
         authorId: writer.id,
         status: "hidden",
         openReports: 2,
@@ -176,7 +182,7 @@ describe.skipIf(!live)("moderation", () => {
       expect(queued?.decidedBy).toBeUndefined();
 
       const detail = await asOwner
-        .item({ type: "comment", id: spam })
+        .item({ type: "message", id: spam })
         .orThrow();
 
       expect(detail?.reports).toHaveLength(2);
@@ -202,7 +208,7 @@ describe.skipIf(!live)("moderation", () => {
       expect(removed.status).toBe("removed");
       expect(
         await s.rows<{ deleted: boolean }>(
-          "select deleted_at is not null as deleted from better_supabase.comments where id = $1",
+          "select deleted_at is not null as deleted from better_supabase.messages where id = $1",
           [spam],
         ),
       ).toEqual([{ deleted: true }]);

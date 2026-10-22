@@ -4,6 +4,8 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { schemaPreamble } from "../shared.ts";
 import { messagingFunctions } from "./messaging-functions.ts";
 import { messagingInbox } from "./messaging-inbox.ts";
+import { messagingSubjectMerge } from "./messaging-merge.ts";
+import { messagingModeration } from "./messaging-moderation.ts";
 import { MESSAGING_NAMES, messagingSql } from "./messaging-names.ts";
 import { messagingRealtime, messagingTables } from "./messaging-tables.ts";
 
@@ -29,7 +31,7 @@ ${messagingRealtime(q)}${
 
 ${messagingInbox(q)}`
       : ""
-  }`;
+  }${messagingModeration(ctx)}${messagingSubjectMerge(ctx)}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -157,6 +159,7 @@ export const MESSAGING: ModuleDefinition = {
     "reactions",
     "data-lifecycle",
     "inbox",
+    "moderation",
   ],
   target: "schema",
   modes: ["managed", "custom"],

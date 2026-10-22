@@ -47,3 +47,11 @@ banned members from commenting.
   and apps react to `moderation_item.decided` with a rule or sink.
 - Inserting the module before reviews shifts the later module file numbers
   by one; the 0.13 to 0.14 guide says to resync.
+
+## Update: moderation moves onto messaging
+
+With the messaging core (ADR 0062), comments are messages, so moderation
+integrates with `messaging` instead of `comments`. Reports name a message as
+`{ type: "message", id }`, the restrictive read policy and the ban trigger sit
+on the messages table, and removing a message empties it the way
+`delete_message` does. Reviews are unchanged.

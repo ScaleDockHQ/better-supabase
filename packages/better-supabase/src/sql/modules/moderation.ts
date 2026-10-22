@@ -314,9 +314,9 @@ export const MODERATION: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Moderation",
   description:
-    "Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes comments.",
+    "Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.",
   requires: ["tenant", "access"],
-  integrates: ["comments", "outbox", "audit"],
+  integrates: ["messaging", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

@@ -17,7 +17,7 @@ select set_config('test.comment', better_supabase.create_comment(
 ) ->> 'id', true);
 
 select throws_ok(
-  $$select better_supabase.report_content('00000000-0000-4000-8000-000000000001', 'comment', current_setting('test.comment'), 'spam')$$,
+  $$select better_supabase.report_content('00000000-0000-4000-8000-000000000001', 'message', current_setting('test.comment'), 'spam')$$,
   '22023',
   null,
   'nobody reports their own comment'
@@ -31,7 +31,7 @@ select set_config(
 
 select is(
   (better_supabase.report_content(
-    '00000000-0000-4000-8000-000000000001', 'comment', current_setting('test.comment'), 'spam', 'A watch shop'
+    '00000000-0000-4000-8000-000000000001', 'message', current_setting('test.comment'), 'spam', 'A watch shop'
   ) ->> 'status'),
   'open',
   'a member reports a comment'
@@ -41,10 +41,10 @@ select is(
   1,
   'reporting the same comment again keeps one open report'
 ) from (select better_supabase.report_content(
-  '00000000-0000-4000-8000-000000000001', 'comment', current_setting('test.comment'), 'spam'
+  '00000000-0000-4000-8000-000000000001', 'message', current_setting('test.comment'), 'spam'
 )) again;
 select throws_ok(
-  $$select better_supabase.report_content('00000000-0000-4000-8000-000000000001', 'comment', current_setting('test.comment'), 'boring')$$,
+  $$select better_supabase.report_content('00000000-0000-4000-8000-000000000001', 'message', current_setting('test.comment'), 'boring')$$,
   '22023',
   null,
   'a report names one of the configured reasons'
@@ -65,7 +65,7 @@ select set_config(
 select set_config('test.item', (better_supabase.moderation_queue('00000000-0000-4000-8000-000000000001') -> 0 ->> 'id'), true);
 select is(
   (better_supabase.moderation_item(
-    '00000000-0000-4000-8000-000000000001', 'comment', current_setting('test.comment')
+    '00000000-0000-4000-8000-000000000001', 'message', current_setting('test.comment')
   ) ->> 'openReports')::integer,
   1,
   'the reported comment waits in the queue with its open report'
@@ -81,7 +81,7 @@ select is(
   'the decision resolves the open report'
 );
 select is(
-  (select count(*)::integer from better_supabase.comments where id = current_setting('test.comment')::uuid),
+  (select count(*)::integer from better_supabase.messages where id = current_setting('test.comment')::uuid),
   1,
   'the author still reads a hidden comment'
 );
@@ -92,7 +92,7 @@ select set_config(
   true
 );
 select is(
-  (select count(*)::integer from better_supabase.comments where id = current_setting('test.comment')::uuid),
+  (select count(*)::integer from better_supabase.messages where id = current_setting('test.comment')::uuid),
   0,
   'other members no longer read a hidden comment'
 );

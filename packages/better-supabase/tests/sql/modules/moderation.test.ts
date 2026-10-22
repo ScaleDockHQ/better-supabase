@@ -30,13 +30,17 @@ describe("moderation module", () => {
     expect(sql).not.toContain("comments_moderation");
   });
 
-  it("guards comments when the comments block is installed", () => {
-    const sql = sqlOf(["comments", "moderation"]);
+  it("guards messages, comments included, when messaging is installed", () => {
+    const modules = ["messaging", "comments", "moderation"];
+    const sql = sqlOf(modules);
+    const messages = sqlOf(modules, {}, "messaging");
 
-    expect(sql).toContain('create policy "comments_moderation"');
-    expect(sql).toContain('"better_supabase"."moderation_hidden"(\'comment\'');
-    expect(sql).toContain('before insert on "better_supabase"."comments"');
-    expect(sql).toContain("a removed comment can''t be restored");
+    expect(sql).toContain("a removed message can''t be restored");
+    expect(messages).toContain('create policy "messages_moderation"');
+    expect(messages).toContain(
+      '"better_supabase"."moderation_hidden"(\'message\'',
+    );
+    expect(messages).toContain('before insert on "better_supabase"."messages"');
   });
 
   it("takes the threshold and the reasons from the options", () => {
