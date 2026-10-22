@@ -35,22 +35,6 @@ export {
 } from "./questionnaire.ts";
 
 export {
-  createSignatures,
-  type Signature,
-  type SignatureMethod,
-  type SignatureOrder,
-  type SignatureRequest,
-  type SignatureRequestDetail,
-  type SignatureRequestInput,
-  type SignatureRequestListOptions,
-  type SignatureRequestStatus,
-  type Signatures,
-  type SignaturesOptions,
-  type SignatureVerification,
-  type SignInput,
-} from "./signatures.ts";
-
-export {
   answersSchema,
   type FormAnswers,
   validateAnswers,
@@ -90,8 +74,8 @@ export type {
   QuestionnaireSnapshot,
 } from "./client.ts";
 
-export { formsBlock, signaturesBlock } from "./manifest.ts";
+export { formsBlock } from "./manifest.ts";
 
-export { formsEvents, signaturesEvents } from "./events.ts";
+export { formsEvents } from "./events.ts";
 
-export type { FormsEvents, SignaturesEvents } from "./events.ts";
+export type { FormsEvents } from "./events.ts";

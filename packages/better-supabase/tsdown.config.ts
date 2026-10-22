@@ -158,6 +158,7 @@ const entries = [
   "blocks/access-requests/index",
   "blocks/documents/index",
   "blocks/drive/index",
+  "blocks/signatures/index",
   "blocks/forms/index",
   "blocks/forms/react/index",
   "blocks/forms/react/server",

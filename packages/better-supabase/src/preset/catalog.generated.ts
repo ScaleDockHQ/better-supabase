@@ -4877,7 +4877,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "content",
       "client": {
         "export": "signaturesBlock",
-        "subpath": "better-supabase/blocks/forms"
+        "subpath": "better-supabase/blocks/signatures"
       },
       "consumes": {},
       "provides": [],

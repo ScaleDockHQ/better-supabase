@@ -6630,13 +6630,39 @@
       "NewDriveFolder"
     ]
   },
+  "./blocks/signatures": {
+    "values": [
+      "createSignatures",
+      "dbTransport",
+      "rpcTransport",
+      "signaturesBlock",
+      "signaturesEvents",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Signature",
+      "SignatureMethod",
+      "SignatureOrder",
+      "SignatureRequest",
+      "SignatureRequestDetail",
+      "SignatureRequestInput",
+      "SignatureRequestListOptions",
+      "SignatureRequestStatus",
+      "Signatures",
+      "SignaturesEvents",
+      "SignaturesOptions",
+      "SignaturesSqlOptions",
+      "SignatureVerification",
+      "SignInput"
+    ]
+  },
   "./blocks/forms": {
     "values": [
       "answersSchema",
       "conditionHolds",
       "createForms",
       "createQuestionnaireController",
-      "createSignatures",
       "dbTransport",
       "finishQuestionnaire",
       "FORM_DEFINITION_SCHEMA",
@@ -6652,8 +6678,6 @@
       "questionnaireReducer",
       "questionnaireSteps",
       "rpcTransport",
-      "signaturesBlock",
-      "signaturesEvents",
       "sqlTransport",
       "stepIssues",
       "validateAnswers",
@@ -6694,19 +6718,6 @@
       "QuestionnaireSnapshot",
       "QuestionnaireState",
       "QuestionnaireStepView",
-      "Signature",
-      "SignatureMethod",
-      "SignatureOrder",
-      "SignatureRequest",
-      "SignatureRequestDetail",
-      "SignatureRequestInput",
-      "SignatureRequestListOptions",
-      "SignatureRequestStatus",
-      "Signatures",
-      "SignaturesEvents",
-      "SignaturesOptions",
-      "SignatureVerification",
-      "SignInput",
       "SubmissionListOptions",
       "SubmitOptions"
     ]

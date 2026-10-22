@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSignatures } from "../../../src/blocks/forms/index.ts";
+import { createSignatures } from "../../../src/blocks/signatures/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];

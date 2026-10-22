@@ -1165,6 +1165,11 @@
       "types": "./dist/blocks/drive/index.d.ts",
       "default": "./dist/blocks/drive/index.js"
     },
+    "./blocks/signatures": {
+      "@better-supabase/source": "./src/blocks/signatures/index.ts",
+      "types": "./dist/blocks/signatures/index.d.ts",
+      "default": "./dist/blocks/signatures/index.js"
+    },
     "./blocks/forms": {
       "@better-supabase/source": "./src/blocks/forms/index.ts",
       "types": "./dist/blocks/forms/index.d.ts",
@@ -2493,6 +2498,10 @@
       "./blocks/drive": {
         "types": "./dist/blocks/drive/index.d.ts",
         "default": "./dist/blocks/drive/index.js"
+      },
+      "./blocks/signatures": {
+        "types": "./dist/blocks/signatures/index.d.ts",
+        "default": "./dist/blocks/signatures/index.js"
       },
       "./blocks/forms": {
         "types": "./dist/blocks/forms/index.d.ts",

@@ -35,10 +35,7 @@ import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts"
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
-import type {
-  formsBlock,
-  signaturesBlock,
-} from "../../src/blocks/forms/manifest.ts";
+import type { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
 import type { hiringBlock } from "../../src/blocks/hiring/manifest.ts";
 import type { identitiesBlock } from "../../src/blocks/identities/manifest.ts";
@@ -89,6 +86,7 @@ import type { sessionsBlock } from "../../src/blocks/sessions/manifest.ts";
 import type { settingsBlock } from "../../src/blocks/settings/manifest.ts";
 import type { shareLinksBlock } from "../../src/blocks/share-links/manifest.ts";
 import type { sharedSignalsBlock } from "../../src/blocks/shared-signals/manifest.ts";
+import type { signaturesBlock } from "../../src/blocks/signatures/manifest.ts";
 import type { signingKeysBlock } from "../../src/blocks/signing-keys/manifest.ts";
 import type { slaBlock } from "../../src/blocks/sla/manifest.ts";
 import type { ssoBlock } from "../../src/blocks/sso/manifest.ts";

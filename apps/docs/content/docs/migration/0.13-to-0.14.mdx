@@ -196,3 +196,19 @@ before the old table goes:
 
 Review the generated migration before you apply it: the step runs once, and
 the old table is gone afterwards.
+
+## Signatures get their own block
+
+The signatures client, its manifest and its events moved out of
+`better-supabase/blocks/forms` into `better-supabase/blocks/signatures`. The
+SQL module, its tables, `blocks.signatures` in the config and the block name
+stay the same, so no migration is needed. Change the imports:
+
+| Before (`better-supabase/blocks/forms`) | After (`better-supabase/blocks/signatures`) |
+| --------------------------------------- | ------------------------------------------- |
+| `createSignatures` and its types        | `createSignatures` and its types            |
+| `signaturesBlock`                       | `signaturesBlock`                           |
+| `signaturesEvents`, `SignaturesEvents`  | `signaturesEvents`, `SignaturesEvents`      |
+
+`better-supabase/blocks/forms` keeps the forms client, the questionnaire
+controller and `formsBlock`.

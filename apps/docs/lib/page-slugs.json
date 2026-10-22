@@ -99,6 +99,7 @@
   "blocks/settings",
   "blocks/share-links",
   "blocks/shared-signals",
+  "blocks/signatures",
   "blocks/signing-keys",
   "blocks/sla",
   "blocks/sql",
