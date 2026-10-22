@@ -259,6 +259,8 @@ export default defineConfig({
     // Conversations and messages under the channels block (ADR 0062).
     messaging: {},
     channels: {},
+    // The record history the customer page shows, moved out of comments.
+    activity: {},
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.

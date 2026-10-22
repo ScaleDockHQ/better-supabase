@@ -260,7 +260,6 @@ begin
     raise exception 'the job isn''t open' using errcode = '55000', hint = 'HIRING_JOB_NOT_OPEN';
   end if;
   if v_id is null or not (case v_type
-      when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)

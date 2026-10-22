@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -78,18 +78,19 @@ create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function "better_supabase"."reaction_subject_visible"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select case reaction_subject_visible.subject_type
+begin
+  return case reaction_subject_visible.subject_type
     when 'inbox_message' then exists (select 1 from "better_supabase"."inbox_messages" m where m."id"::text = reaction_subject_visible.subject_id and m."tenant_id" = reaction_subject_visible.tenant)
     else case reaction_subject_visible.subject_type
-    when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant and s."deleted_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'comments.read'), false)
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."deleted_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'messages.read'), false)
     when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'messages.read'), false)
@@ -110,7 +111,8 @@ as $$
     when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant)
     else false
   end
-  end
+  end;
+end;
 $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;

@@ -576,7 +576,6 @@ begin
   select * into v_job from "better_supabase"."jobs" x where x."id" = v_application."job_id";
   return "better_supabase"."create_employee"(v_application."tenant_id", jsonb_strip_nulls(jsonb_build_object(
       'name', (case v_application."candidate_type"
-      when 'comment' then (select s."body"::text from "better_supabase"."comments" s where s."id" = (v_application."candidate_id")::uuid)
       when 'message' then (select s."body"::text from "better_supabase"."messages" s where s."id" = (v_application."candidate_id")::uuid)
       when 'conversation' then (select s."title"::text from "better_supabase"."conversations" s where s."id" = (v_application."candidate_id")::uuid)
       when 'channel' then (select s."name"::text from "better_supabase"."channels" s where s."id" = (v_application."candidate_id")::uuid)

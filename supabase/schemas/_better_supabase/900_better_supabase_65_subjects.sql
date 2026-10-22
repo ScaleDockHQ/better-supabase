@@ -14,7 +14,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{comment,message,conversation,channel,company,person,deal,engagement,work_item,employee,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,engagement,work_item,employee,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -28,8 +28,6 @@ set search_path = ''
 as $$
 begin
   case subject_title.subject_type
-    when 'comment' then
-      return (select s."body"::text from "better_supabase"."comments" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
     when 'message' then
       return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
     when 'conversation' then
@@ -132,12 +130,6 @@ begin
     raise exception 'subject_titles takes at most 500 refs'
       using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
   end if;
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
-      'type', 'comment', 'id', s."id"::text,
-      'title', s."body"::text, 'url', null::text))
-    from "better_supabase"."comments" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'comment')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'message', 'id', s."id"::text,
@@ -268,17 +260,6 @@ set search_path = ''
 as $$
 begin
   case can_subject.subject_type
-    when 'comment' then
-      return exists (
-        select 1 from "better_supabase"."comments" s
-        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
-          when 'upload' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
-          else true
-        end)
-      );
     when 'message' then
       return exists (
         select 1 from "better_supabase"."messages" s
@@ -478,6 +459,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > 20 then
     raise exception 'record_summary takes at most 20 sections'
@@ -487,15 +469,21 @@ begin
     return null;
   end if;
   if 'comments' = any (record_summary.sections) then
-    select count(*), max(x."created_at")
+    select count(*), max(x."sent_at")
       into v_count, v_latest
-      from "better_supabase"."comments" x
-      where x."subject_type"::text = record_summary.subject_type
-        and x."subject_id"::text = record_summary.subject_id
-        and x."deleted_at" is null;
+      from "better_supabase"."messages" x
+      join "better_supabase"."conversations" c on c."id" = x."conversation_id"
+        and c."kind" = 'subject'
+      where c."subject_type"::text = record_summary.subject_type
+        and c."subject_id"::text = record_summary.subject_id
+        and x."sent_at" is not null and x."deleted_at" is null;
+    v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
+        where c."kind" = 'subject'
+          and c."subject_type" = record_summary.subject_type
+          and c."subject_id" = record_summary.subject_id), record_summary.seen_at);
     v_counts := v_counts || jsonb_build_object('comments', v_count);
     v_unread := v_unread || jsonb_build_object('comments',
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;
   if 'attachments' = any (record_summary.sections) then
     select count(*), max(x."uploaded_at")
@@ -504,9 +492,10 @@ begin
       where x."subject_type"::text = record_summary.subject_type
         and x."subject_id"::text = record_summary.subject_id
         and x."uploaded_at" is not null and x."status" <> 'infected';
+    v_seen := record_summary.seen_at;
     v_counts := v_counts || jsonb_build_object('attachments', v_count);
     v_unread := v_unread || jsonb_build_object('attachments',
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;
   return jsonb_build_object(
     'type', record_summary.subject_type,
@@ -534,17 +523,6 @@ set search_path = ''
 as $$
 begin
   case can_subject_for.subject_type
-    when 'comment' then
-      return exists (
-        select 1 from "better_supabase"."comments" s
-        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
-          and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
-          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
-          else false
-        end
-      );
     when 'message' then
       return exists (
         select 1 from "better_supabase"."messages" s
