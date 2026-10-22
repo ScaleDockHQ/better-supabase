@@ -161,6 +161,20 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "assignment": {
+    readonly tables: {
+      readonly "queues": "id" | "tenant" | "name" | "subjectType" | "strategy" | "conditions" | "rank" | "enabled" | "createdAt" | "updatedAt";
+      readonly "members": "queue" | "tenant" | "user" | "weight" | "active" | "credit" | "assignedCount" | "lastAssignedAt";
+      readonly "log": "id" | "tenant" | "queue" | "subjectType" | "subjectId" | "user" | "assignedAt";
+    };
+    readonly functions: "assign_subject" | "assignment_history" | "list_assignment_queues" | "remove_assignment_queue" | "save_assignment_queue" | "set_assignment_members";
+    readonly actions: "read" | "manage" | "assign";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "assignment_queue": "id" | "tenant_id" | "name" | "subject_type" | "strategy" | "conditions" | "rank" | "enabled" | "created_at" | "updated_at";
+    };
+    readonly primary: "assignment_queue";
+  };
   readonly "attachments": {
     readonly tables: {
       readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata";
@@ -990,6 +1004,19 @@ export interface BlockNameRegistry {
     readonly hooks: "before_search_document_index" | "after_search_document_index";
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "segments": {
+    readonly tables: {
+      readonly "segments": "id" | "tenant" | "name" | "description" | "subjectType" | "conditions" | "memberCount" | "refreshedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "members": "segment" | "tenant" | "subjectId" | "enteredAt";
+    };
+    readonly functions: "evaluate_segment" | "list_segment_members" | "refresh_due_segments" | "refresh_segment" | "remove_segment" | "save_segment" | "segment_get" | "segments_list" | "segments_of";
+    readonly actions: "read" | "edit";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "segment": "id" | "tenant_id" | "name" | "description" | "subject_type" | "conditions" | "member_count" | "refreshed_at" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "segment";
   };
   readonly "service-principals": {
     readonly tables: {

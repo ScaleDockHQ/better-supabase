@@ -72,6 +72,7 @@ import type { ReviewsSqlOptions } from "./reviews/options.ts";
 import type { RulesSqlOptions } from "./rules/options.ts";
 import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
+import type { SegmentsSqlOptions } from "./segments/options.ts";
 import type { ServicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
@@ -178,6 +179,7 @@ import { reviewsSqlOptions } from "./reviews/options.ts";
 import { rulesSqlOptions } from "./rules/options.ts";
 import { savedViewsSqlOptions } from "./saved-views/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
+import { segmentsSqlOptions } from "./segments/options.ts";
 import { servicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
@@ -273,6 +275,8 @@ export interface BlockOptionsRegistry {
   readonly messaging: MessagingSqlOptions;
   readonly channels: None;
   readonly "mail-sync": MailSyncSqlOptions;
+  readonly segments: SegmentsSqlOptions;
+  readonly assignment: None;
   readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -396,6 +400,8 @@ export const BLOCK_OPTION_SCHEMAS: {
   memory: memorySqlOptions,
   channels: NO_OPTIONS,
   "mail-sync": mailSyncSqlOptions,
+  segments: segmentsSqlOptions,
+  assignment: NO_OPTIONS,
   activity: NO_OPTIONS,
   messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,

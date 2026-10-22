@@ -13,6 +13,7 @@ import { aiTasksBlock } from "./ai-tasks/manifest.ts";
 import { announcementsBlock } from "./announcements/manifest.ts";
 import { apiKeysBlock } from "./api-keys/manifest.ts";
 import { approvalsBlock } from "./approvals/manifest.ts";
+import { assignmentBlock } from "./assignment/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
@@ -83,6 +84,7 @@ import { reviewsBlock } from "./reviews/manifest.ts";
 import { rulesBlock } from "./rules/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
 import { searchBlock } from "./search/manifest.ts";
+import { segmentsBlock } from "./segments/manifest.ts";
 import { servicePrincipalsBlock } from "./service-principals/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
@@ -177,6 +179,8 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   channelsBlock,
   activityBlock,
   mailSyncBlock,
+  segmentsBlock,
+  assignmentBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

@@ -54,6 +54,8 @@ import { messagingBlock } from "better-supabase/blocks/messaging";
 import { channelsBlock } from "better-supabase/blocks/channels";
 import { activityBlock } from "better-supabase/blocks/activity";
 import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
+import { segmentsBlock } from "better-supabase/blocks/segments";
+import { assignmentBlock } from "better-supabase/blocks/assignment";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
@@ -155,6 +157,8 @@ export const blockSet = defineBlocks(blockConfig, {
   channels: channelsBlock,
   activity: activityBlock,
   mailSync: mailSyncBlock,
+  segments: segmentsBlock,
+  assignment: assignmentBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,

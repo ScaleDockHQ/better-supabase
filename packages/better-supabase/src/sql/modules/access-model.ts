@@ -70,6 +70,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "messages.*",
     "channels.*",
     "mail.*",
+    "segments.*",
+    "assignment.*",
     "domains.*",
     "rules.*",
     "reviews.*",
@@ -156,6 +158,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "mail.read",
     "mail.connect",
     "mail.send",
+    "segments.read",
+    "assignment.read",
   ],
   viewer: ["organization.read"],
 };
@@ -387,6 +391,11 @@ export const OPERATIONS = {
   "mail-sync.connect": "mail.connect",
   "mail-sync.send": "mail.send",
   "mail-sync.manage": "mail.manage",
+  "segments.read": "segments.read",
+  "segments.edit": "segments.edit",
+  "assignment.read": "assignment.read",
+  "assignment.manage": "assignment.manage",
+  "assignment.assign": "assignment.assign",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -598,6 +607,8 @@ export const MODULE_PERMISSION_SCOPES: {
     send: "tenant",
     manage: "tenant",
   },
+  segments: { read: "tenant", edit: "tenant" },
+  assignment: { read: "tenant", manage: "tenant", assign: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

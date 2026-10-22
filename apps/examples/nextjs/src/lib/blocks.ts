@@ -4,6 +4,7 @@ import { defineBlocks, rpcTransport } from "better-supabase/blocks";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
+import { assignmentBlock } from "better-supabase/blocks/assignment";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
@@ -47,6 +48,7 @@ import { remindersBlock } from "better-supabase/blocks/reminders";
 import { rulesBlock } from "better-supabase/blocks/rules";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
+import { segmentsBlock } from "better-supabase/blocks/segments";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
 import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -119,6 +121,8 @@ const blockSet = defineBlocks(blockConfig, {
   pipelines: pipelinesBlock,
   engagements: engagementsBlock,
   mailSync: mailSyncBlock,
+  segments: segmentsBlock,
+  assignment: assignmentBlock,
   quotes: quotesBlock,
   targets: targetsBlock,
   workItems: workItemsBlock,

@@ -67,6 +67,39 @@ export interface MailTrackingEventData {
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
+/**
+ * `segment.saved` and `segment.removed`: a tenant's filter over one subject
+ * type.
+ */
+export interface SegmentEventData {
+  readonly organizationId: string;
+  readonly segmentId: string;
+  readonly subjectType: string;
+  readonly name: string;
+}
+
+/**
+ * `segment.entered` and `segment.left`: a record started or stopped matching a
+ * segment's conditions when the segment was refreshed.
+ */
+export interface SegmentMemberEventData {
+  readonly organizationId: string;
+  readonly segmentId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
+/** `subject.assigned`: an assignment queue picked an owner for a record. */
+export interface AssignmentEventData {
+  readonly organizationId: string;
+  readonly queueId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** The member the queue picked. */
+  readonly userId: string;
+  readonly strategy: "round_robin" | "weighted";
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;

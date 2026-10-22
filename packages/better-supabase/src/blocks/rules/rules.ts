@@ -225,9 +225,10 @@ function isFilterNode(value: unknown): value is FilterQuery | FilterRule {
   );
 }
 
-function conditionsOf(value: unknown): FilterQuery {
+/** A stored filter tree, checked to be a group. */
+export function conditionsOf(value: unknown): FilterQuery {
   if (!isFilterNode(value) || value.type !== "group") {
-    throw new TypeError(`a rule's conditions are ${JSON.stringify(value)}`);
+    throw new TypeError(`filter conditions are ${JSON.stringify(value)}`);
   }
 
   return value;

@@ -22,6 +22,7 @@ import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { APPROVALS } from "./modules/approvals.ts";
+import { ASSIGNMENT } from "./modules/assignment.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
@@ -91,6 +92,7 @@ import { REVIEWS } from "./modules/reviews.ts";
 import { RULES } from "./modules/rules.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SEARCH } from "./modules/search.ts";
+import { SEGMENTS } from "./modules/segments.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
@@ -315,6 +317,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(CHANNELS),
       built(ACTIVITY),
       built(MAIL_SYNC),
+      built(SEGMENTS),
+      built(ASSIGNMENT),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

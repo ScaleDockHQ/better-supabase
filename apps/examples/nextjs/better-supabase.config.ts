@@ -264,6 +264,10 @@ export default defineConfig({
     // Members' Gmail and Outlook mail, linked to parties and logged as
     // email engagements.
     "mail-sync": {},
+    // Saved filters over companies and deals, refreshed on a schedule.
+    segments: {},
+    // Round robin and weighted queues that pick an owner for new records.
+    assignment: {},
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.

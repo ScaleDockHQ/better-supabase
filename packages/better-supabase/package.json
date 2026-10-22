@@ -772,6 +772,16 @@
       "types": "./dist/blocks/mail-sync/index.d.ts",
       "default": "./dist/blocks/mail-sync/index.js"
     },
+    "./blocks/segments": {
+      "@better-supabase/source": "./src/blocks/segments/index.ts",
+      "types": "./dist/blocks/segments/index.d.ts",
+      "default": "./dist/blocks/segments/index.js"
+    },
+    "./blocks/assignment": {
+      "@better-supabase/source": "./src/blocks/assignment/index.ts",
+      "types": "./dist/blocks/assignment/index.d.ts",
+      "default": "./dist/blocks/assignment/index.js"
+    },
     "./blocks/messaging": {
       "@better-supabase/source": "./src/blocks/messaging/index.ts",
       "types": "./dist/blocks/messaging/index.d.ts",
@@ -2187,6 +2197,14 @@
       "./blocks/mail-sync": {
         "types": "./dist/blocks/mail-sync/index.d.ts",
         "default": "./dist/blocks/mail-sync/index.js"
+      },
+      "./blocks/segments": {
+        "types": "./dist/blocks/segments/index.d.ts",
+        "default": "./dist/blocks/segments/index.js"
+      },
+      "./blocks/assignment": {
+        "types": "./dist/blocks/assignment/index.d.ts",
+        "default": "./dist/blocks/assignment/index.js"
       },
       "./blocks/messaging": {
         "types": "./dist/blocks/messaging/index.d.ts",

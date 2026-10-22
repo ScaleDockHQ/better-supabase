@@ -49,6 +49,8 @@ const NO_FIELDS: readonly string[] = [
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
   "ai-providers",
+  // Queues and picks route records to members; app data lives on the records.
+  "assignment",
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",
@@ -100,6 +102,8 @@ const NO_FIELDS: readonly string[] = [
   "rules",
   // A derived index the sink rebuilds from each subject's own row.
   "search",
+  // A segment is a saved filter; app data lives on the records it matches.
+  "segments",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
   // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.

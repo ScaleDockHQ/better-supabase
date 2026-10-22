@@ -2816,6 +2816,106 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "segments",
+      "title": "Segments",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "rules"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "segments",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "segment": {
+            "table": "segments",
+            "singular": "segment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "segments": {
+            "name": "segments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "subjectType": "subject_type",
+              "conditions": "conditions",
+              "memberCount": "member_count",
+              "refreshedAt": "refreshed_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "segments.read",
+          "edit": "segments.edit"
+        }
+      }
+    },
+    {
+      "name": "assignment",
+      "title": "Assignment",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "rules"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "assignment",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "assignment_queue": {
+            "table": "queues",
+            "singular": "assignment_queue",
+            "primary": true
+          }
+        },
+        "tables": {
+          "queues": {
+            "name": "assignment_queues",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "subjectType": "subject_type",
+              "strategy": "strategy",
+              "conditions": "conditions",
+              "rank": "rank",
+              "enabled": "enabled",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "assignment.read",
+          "manage": "assignment.manage",
+          "assign": "assignment.assign"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5889,6 +5989,217 @@ export const PRESET_CATALOG: PresetCatalog = {
           "mail_message.opened",
           "mail_message.clicked"
         ]
+      }
+    },
+    {
+      "name": "segments",
+      "sql": [
+        "segments"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "segmentsBlock",
+        "subpath": "better-supabase/blocks/segments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Segment"
+        },
+        {
+          "name": "SegmentInput"
+        },
+        {
+          "name": "SegmentMember"
+        },
+        {
+          "name": "SegmentMembership"
+        },
+        {
+          "name": "SegmentRefresh"
+        },
+        {
+          "name": "SegmentRefreshReport"
+        },
+        {
+          "name": "Segments"
+        },
+        {
+          "name": "SegmentsOptions"
+        },
+        {
+          "name": "SegmentsSqlOptions"
+        }
+      ],
+      "entitySchemas": {
+        "segment": {
+          "input": {
+            "title": "SegmentInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "optional": true
+              },
+              "description": {
+                "kind": "string",
+                "maxLength": 2000,
+                "optional": true
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "A FilterQuery over the subject type's rule fields."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "SegmentInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "conditions": {
+                  "description": "A FilterQuery over the subject type's rule fields."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "assignment",
+      "sql": [
+        "assignment"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "assignmentBlock",
+        "subpath": "better-supabase/blocks/assignment"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AssignmentQueue"
+        },
+        {
+          "name": "AssignmentQueueInput"
+        }
+      ],
+      "entitySchemas": {
+        "assignment_queue": {
+          "input": {
+            "title": "AssignmentQueueInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "optional": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "optional": true
+              },
+              "strategy": {
+                "kind": "enum",
+                "values": [
+                  "round_robin",
+                  "weighted"
+                ],
+                "optional": true
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "The territory, a FilterQuery over the rule fields."
+              },
+              "rank": {
+                "kind": "integer",
+                "optional": true
+              },
+              "enabled": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AssignmentQueueInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "round_robin",
+                    "weighted"
+                  ]
+                },
+                "conditions": {
+                  "description": "The territory, a FilterQuery over the rule fields."
+                },
+                "rank": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
       }
     },
     {

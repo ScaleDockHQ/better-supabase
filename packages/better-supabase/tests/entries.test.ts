@@ -133,6 +133,8 @@ const PURE_BARRELS = [
   "blocks/messaging",
   "blocks/channels",
   "blocks/mail-sync",
+  "blocks/segments",
+  "blocks/assignment",
   "chat-sdk",
   "eve",
   "flags-sdk",

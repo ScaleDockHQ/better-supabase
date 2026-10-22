@@ -2714,6 +2714,7 @@
       "AnnouncementEventData",
       "ApiKeyEventData",
       "ApplicationEventData",
+      "AssignmentEventData",
       "AttachmentEventData",
       "AuditRevealEventData",
       "BillingEventData",
@@ -2775,6 +2776,8 @@
       "SaasSubjectEventData",
       "SchedulingEventData",
       "ScimEventData",
+      "SegmentEventData",
+      "SegmentMemberEventData",
       "SettingEventData",
       "SignatureEventData",
       "SlaEventData",
@@ -4885,6 +4888,64 @@
       "MailTemplateStats",
       "MailThread",
       "MailThreadDetail",
+      "RpcClient"
+    ]
+  },
+  "./blocks/segments": {
+    "values": [
+      "createSegments",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "segmentInputSchema",
+      "segmentsBlock",
+      "segmentsEvents",
+      "segmentsSqlOptions",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Segment",
+      "SegmentInput",
+      "SegmentMember",
+      "SegmentMembership",
+      "SegmentRefresh",
+      "SegmentRefreshReport",
+      "Segments",
+      "SegmentsOptions",
+      "SegmentsSqlOptions"
+    ]
+  },
+  "./blocks/assignment": {
+    "values": [
+      "assignmentBlock",
+      "assignmentEvents",
+      "assignmentQueueInputSchema",
+      "createAssignment",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Assignment",
+      "AssignmentClient",
+      "AssignmentMember",
+      "AssignmentOptions",
+      "AssignmentQueue",
+      "AssignmentQueueInput",
+      "AssignmentRecord",
+      "AssignmentStrategy",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
       "RpcClient"
     ]
   },

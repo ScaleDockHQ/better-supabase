@@ -121,4 +121,6 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "channels",
   "activity",
   "mail-sync",
+  "segments",
+  "assignment",
 ];

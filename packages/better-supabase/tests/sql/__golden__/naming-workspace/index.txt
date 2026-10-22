@@ -44,3 +44,4 @@ domains
 leave
 rules
 activity
+assignment
