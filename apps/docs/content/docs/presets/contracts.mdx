@@ -1,0 +1,49 @@
+---
+title: Contracts
+description: The contracts preset installs a contract lifecycle with renewals and obligations, counterparties, signatures, versions, approvals and reminders.
+---
+
+The `contracts` preset is for an app in the style of Ironclad. Legal drafts a
+contract with a counterparty, it goes through approval, both sides sign, and
+the app then tracks the obligations it creates and warns before it renews or
+expires.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "contracts" });
+```
+
+`npx better-supabase init --preset contracts` starts a new project from it,
+and `npx better-supabase apply --preset contracts` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                               | Role in the app                                      |
+| ----------------------------------- | ---------------------------------------------------- |
+| [contracts](/docs/blocks/contracts) | Contracts, their lifecycle, renewals and obligations |
+| [parties](/docs/blocks/parties)     | Counterparties                                       |
+| signatures                          | Signing on a frozen version of the contract          |
+| [versions](/docs/blocks/versions)   | Drafts and redlines as numbered versions             |
+| [approvals](/docs/blocks/approvals) | Legal and finance approval before signing            |
+| [reminders](/docs/blocks/reminders) | Renewal and obligation due dates                     |
+
+## How the blocks connect
+
+A contract moves from draft through approval and signature to active, then
+renews or ends. The approved draft is a frozen version, and the signatures
+are taken on that version, so what was signed never changes. Renewal
+notices and obligation due dates are reminders delivered through
+notifications.
+
+## With ReUI
+
+- Data Grid for contracts, with Filters on counterparty, status and end date.
+- Timeline for a contract's versions, approvals and signatures.
+- Calendar view of upcoming renewals.

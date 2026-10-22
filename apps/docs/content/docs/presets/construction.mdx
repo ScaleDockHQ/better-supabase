@@ -1,0 +1,49 @@
+---
+title: Construction
+description: The construction preset installs punch lists and RFIs as work items, sites in assets, daily logs as forms, drawings with versions and markup, and submittal approvals.
+---
+
+The `construction` preset is for an app in the style of Procore. A project
+team keeps the drawings and their revisions, marks them up, raises punch
+list items and requests for information (RFIs), files a daily log from site,
+and routes submittals for approval.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "construction" });
+```
+
+`npx better-supabase init --preset construction` starts a new project from
+it, and `npx better-supabase apply --preset construction` adds it to one you
+have ([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                            |
+| --------------------------------------- | ---------------------------------------------------------- |
+| [work-items](/docs/blocks/work-items)   | Punch list items and RFIs, with a due date and an assignee |
+| [assets](/docs/blocks/assets)           | Sites, buildings, floors and rooms                         |
+| [forms](/docs/blocks/forms)             | Daily logs and inspection checklists                       |
+| [attachments](/docs/blocks/attachments) | Drawings, photos and submittal files                       |
+| [versions](/docs/blocks/versions)       | Drawing revisions                                          |
+| [comments](/docs/blocks/comments)       | Markup anchored to a region of a drawing                   |
+| [approvals](/docs/blocks/approvals)     | Submittal review by the architect and engineer             |
+
+## How the blocks connect
+
+A drawing is an attachment with its revisions as versions. A comment
+anchored to a page and region of the drawing is the markup, and a punch
+list item can link back to it. An RFI is a work item with its own pipeline,
+and a submittal is an approval request on the submitted files.
+
+## With ReUI
+
+- Data Grid for punch list items and RFIs, with Filters on location and status.
+- A drawing viewer that places comment pins on their anchors.
+- Stepper for the daily log form.

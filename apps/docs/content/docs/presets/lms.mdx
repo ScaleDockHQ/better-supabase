@@ -1,0 +1,49 @@
+---
+title: Courses and learning
+description: The lms preset installs courses with lessons and scored quizzes, enrollments with progress, comments and attachments.
+---
+
+The `lms` preset is for an app in the style of Teachable or Canvas. An
+instructor builds a course from lessons and quizzes, learners enroll and work
+through it, quizzes are scored, and each learner's progress and completion
+is kept per lesson.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "lms" });
+```
+
+`npx better-supabase init --preset lms` starts a new project from it, and
+`npx better-supabase apply --preset lms` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                  |
+| --------------------------------------- | ------------------------------------------------ |
+| [courses](/docs/blocks/courses)         | Courses, lessons and quizzes                     |
+| [enrollments](/docs/blocks/enrollments) | A learner's enrollment, with progress per lesson |
+| [forms](/docs/blocks/forms)             | Quizzes, with scoring                            |
+| [comments](/docs/blocks/comments)       | Questions and discussion on a lesson             |
+| [attachments](/docs/blocks/attachments) | Lesson files and assignment uploads              |
+
+The `entitlements` block from `saas` decides who may enroll in a paid
+course.
+
+## How the blocks connect
+
+A course runs on an enrollments program, with a step per lesson, so a
+learner's progress and completion are enrollment progress. A quiz is a form
+with scoring, and a passing score completes its lesson step.
+
+## With ReUI
+
+- Progress and Stepper for a learner's way through a course.
+- Data Grid for the enrollments of a course, with Filters on progress.
+- Card grid for the course catalog.

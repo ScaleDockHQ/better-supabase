@@ -1,0 +1,81 @@
+---
+title: Insurance and claims
+description: The claims preset installs claimants, a claim state machine, approvals, evidence attachments, SLA clocks and comments.
+---
+
+The `claims` preset is for a claims system in the style of Guidewire. A
+claimant reports a claim, an adjuster investigates it with the evidence
+attached, a payout above a limit needs approval, and SLA clocks keep each
+step on time.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "claims" });
+```
+
+`npx better-supabase init --preset claims` starts a new project from it, and
+`npx better-supabase apply --preset claims` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                       | Role in the app                             |
+| ------------------------------------------- | ------------------------------------------- |
+| [parties](/docs/blocks/parties)             | Policyholders, claimants and third parties  |
+| [state-machine](/docs/blocks/state-machine) | The claim's status, from reported to closed |
+| [approvals](/docs/blocks/approvals)         | Payout approval above a limit               |
+| [attachments](/docs/blocks/attachments)     | Photos, reports and invoices as evidence    |
+| [sla](/docs/blocks/sla)                     | First contact and resolution clocks         |
+| [comments](/docs/blocks/comments)           | Adjusters' notes on the claim               |
+
+## How the blocks connect
+
+A claim is your own table, registered as a subject, with a state machine on
+its status column. The final approval of a payout runs the transition to
+`approved`, so a claim can't be paid without it. SLA clocks start when the
+claim is reported and pause while it waits on the claimant.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: "claims",
+  subjects: {
+    claim: { table: "public.claims", idType: "uuid", title: "number" },
+  },
+  blocks: {
+    "state-machine": {
+      options: {
+        machines: {
+          claim: {
+            table: "public.claims",
+            column: "status",
+            initial: "reported",
+            tenant: "organization_id",
+            transitions: {
+              reported: ["investigating", "rejected"],
+              investigating: ["approved", "rejected"],
+              approved: ["paid"],
+              paid: ["closed"],
+              rejected: ["closed"],
+              closed: [],
+            },
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+## With ReUI
+
+- Data Grid for the claim queue, with Filters on status, adjuster and SLA.
+- Stepper for the claim's status on its page.
+- Timeline for the claim's history, evidence and notes.

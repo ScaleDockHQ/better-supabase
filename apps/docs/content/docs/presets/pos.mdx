@@ -1,0 +1,48 @@
+---
+title: Restaurants and POS
+description: The pos preset installs a menu in the catalog, orders with a kitchen board, inventory, table bookings, promotions and loyalty points on the ledger.
+---
+
+The `pos` preset is for an app in the style of Toast or Square. Staff take
+an order from the menu, the kitchen display shows it as it moves from new to
+ready, stock goes down as dishes sell, guests book tables, and regulars earn
+loyalty points.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "pos" });
+```
+
+`npx better-supabase init --preset pos` starts a new project from it, and
+`npx better-supabase apply --preset pos` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                 | Role in the app                                        |
+| ------------------------------------- | ------------------------------------------------------ |
+| [catalog](/docs/blocks/catalog)       | The menu: dishes, options and prices                   |
+| [orders](/docs/blocks/orders)         | Orders, payments and the kitchen board of order states |
+| [inventory](/docs/blocks/inventory)   | Stock per location, reserved as orders come in         |
+| [bookings](/docs/blocks/bookings)     | Table reservations, with no double booking             |
+| [promotions](/docs/blocks/promotions) | Happy hours and discount codes                         |
+| [ledger](/docs/blocks/ledger)         | Loyalty points and gift cards as account kinds         |
+
+## How the blocks connect
+
+An order prices its lines from the catalog, applies promotions and reserves
+stock in inventory. The kitchen board reads the order states and updates
+live as the kitchen moves an order along. Loyalty points and gift cards are
+ledger accounts, so earning and redeeming are balanced transactions.
+
+## With ReUI
+
+- Kanban for the kitchen board, one column per order state.
+- Card grid for the menu on the order screen.
+- Event Calendar for table reservations.

@@ -1,0 +1,56 @@
+---
+title: Property management
+description: The property preset installs units and leases with recurring charges on the ledger, tenants with a portal, invoices and maintenance work items.
+---
+
+The `property` preset is for an app in the style of AppFolio or Buildium. A
+property manager keeps buildings and units, signs leases with tenants, bills
+the rent every period and handles maintenance requests, and each tenant signs
+in to a portal that shows their own lease, invoices and requests.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "property" });
+```
+
+`npx better-supabase init --preset property` starts a new project from it,
+and `npx better-supabase apply --preset property` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| [assets](/docs/blocks/assets)           | Sites, buildings and units as a location hierarchy, and appliances in them   |
+| [leases](/docs/blocks/leases)           | Leases on units with their tenants, terms and recurring charges              |
+| [ledger](/docs/blocks/ledger)           | The account each lease posts its charges, payments and deposits to           |
+| [parties](/docs/blocks/parties)         | Tenants, owners and vendors                                                  |
+| [guests](/docs/blocks/guests)           | The tenant portal: a tenant reads the lease, invoices and requests they hold |
+| [invoices](/docs/blocks/invoices)       | Rent invoices with payments and overdue aging                                |
+| [work-items](/docs/blocks/work-items)   | Maintenance requests, with the unit or asset they affect                     |
+| [attachments](/docs/blocks/attachments) | Signed leases, inspection photos and receipts                                |
+| [reminders](/docs/blocks/reminders)     | Lease renewals and inspections                                               |
+
+## How the blocks connect
+
+A lease points at a unit in `assets` and a tenant in `parties`. Its
+recurring charges post to the lease's account on the ledger, so the balance
+a tenant owes is a ledger balance, never a separate column. Rent invoices
+come from those charges, and a payment on an invoice posts back through the
+ledger.
+
+A maintenance request is a work item that names the affected unit or asset.
+The tenant is a guest tied to their party, so the portal shows the records
+granted to that party and nothing else in the organization.
+
+## With ReUI
+
+- Data Grid for units and leases, with Filters on occupancy and the lease end.
+- Kanban for maintenance requests by status.
+- Timeline for a lease's charges and payments, newest first.

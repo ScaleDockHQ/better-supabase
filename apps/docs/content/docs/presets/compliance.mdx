@@ -1,0 +1,49 @@
+---
+title: Compliance
+description: The compliance preset installs controls with recurring evidence, evidence files, policy documents with acknowledgements and reminders.
+---
+
+The `compliance` preset is for an app in the style of Vanta or Drata. A
+company maps its controls to a framework, collects evidence for each control
+on a schedule, publishes policies that every employee acknowledges, and
+shows an auditor the evidence trail.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "compliance" });
+```
+
+`npx better-supabase init --preset compliance` starts a new project from it,
+and `npx better-supabase apply --preset compliance` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                   |
+| --------------------------------------- | ------------------------------------------------- |
+| [controls](/docs/blocks/controls)       | Controls, frameworks and recurring evidence tasks |
+| [attachments](/docs/blocks/attachments) | Evidence files                                    |
+| [documents](/docs/blocks/documents)     | Policies, written together                        |
+| signatures                              | Policy acknowledgements on a frozen version       |
+| [reminders](/docs/blocks/reminders)     | Evidence due dates and policy reviews             |
+
+The `audit` block from `saas` keeps who changed a control or its evidence.
+
+## How the blocks connect
+
+A control has evidence tasks that recur, and each piece of evidence is an
+attachment on the task. A policy is a document; publishing it freezes a
+version, and each employee signs that version as their acknowledgement.
+Reminders warn the owner before evidence or a policy review is due.
+
+## With ReUI
+
+- Data Grid for controls, with their status as a Badge and Filters on framework.
+- Progress for each framework's readiness.
+- Timeline for a control's evidence.

@@ -1,0 +1,49 @@
+---
+title: IT service management
+description: The itsm preset installs tickets with SLAs, change approvals, an asset registry, relations, incidents with a public status page and a knowledge base.
+---
+
+The `itsm` preset is for an app in the style of ServiceNow or Jira Service
+Management. Requests and problems are tickets with SLA clocks, changes go
+through approval, every ticket names the configuration item it affects, and
+an outage is an incident with a public status page.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "itsm" });
+```
+
+`npx better-supabase init --preset itsm` starts a new project from it, and
+`npx better-supabase apply --preset itsm` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                 | Role in the app                                            |
+| ------------------------------------- | ---------------------------------------------------------- |
+| [work-items](/docs/blocks/work-items) | Requests, problems and changes, with the asset they affect |
+| [sla](/docs/blocks/sla)               | Response and resolution clocks per priority                |
+| [approvals](/docs/blocks/approvals)   | The change advisory approval                               |
+| [assets](/docs/blocks/assets)         | The configuration items (CMDB) and where they run          |
+| [relations](/docs/blocks/relations)   | Links between tickets, problems and incidents              |
+| [incidents](/docs/blocks/incidents)   | Incidents, their updates and the public status page        |
+| [knowledge](/docs/blocks/knowledge)   | Searchable articles for agents and requesters              |
+
+## How the blocks connect
+
+A ticket is a work item with an SLA policy by priority, and it names the
+asset it affects. A change request waits on its approval before the work
+starts. During an outage, an incident links the tickets it causes through
+relations, and its updates appear on the public status page.
+
+## With ReUI
+
+- Data Grid for the ticket queue, with Filters on priority, SLA and assignee.
+- Kanban for changes by stage.
+- A status page with each component's state as a Badge.

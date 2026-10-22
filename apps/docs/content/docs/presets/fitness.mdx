@@ -1,0 +1,50 @@
+---
+title: Fitness and memberships
+description: The fitness preset installs class schedules, recurring bookings with class credits on the ledger, and passes with check-in.
+---
+
+The `fitness` preset is for an app in the style of Mindbody. A studio
+publishes a class schedule, members book a class or a recurring slot and pay
+with class credits from their membership, and the front desk checks them in
+with a pass.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "fitness" });
+```
+
+`npx better-supabase init --preset fitness` starts a new project from it,
+and `npx better-supabase apply --preset fitness` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                               | Role in the app                                      |
+| ----------------------------------- | ---------------------------------------------------- |
+| [calendar](/docs/blocks/calendar)   | The class schedule and instructors' calendars        |
+| [bookings](/docs/blocks/bookings)   | Class bookings, recurring bookings and class credits |
+| [passes](/docs/blocks/passes)       | Membership passes checked in at the front desk       |
+| [ledger](/docs/blocks/ledger)       | Each member's class credit balance                   |
+| [reminders](/docs/blocks/reminders) | Class reminders                                      |
+
+Memberships are plans in the `billing` block from `saas`.
+
+## How the blocks connect
+
+A class is a bookable resource with a capacity. A member's credits are a
+ledger account: buying a pack posts credits in, and each booking spends one,
+so a cancelled booking returns it as another balanced transaction. A check-in
+with a pass counts against the class's capacity, so a drop-in fills a seat
+too.
+
+## With ReUI
+
+- Event Calendar for the class schedule.
+- Data Grid for members, with their credit balance and Filters on plan.
+- A check-in page that scans a pass and shows the result as a Badge.

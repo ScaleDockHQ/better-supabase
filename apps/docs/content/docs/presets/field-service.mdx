@@ -1,0 +1,52 @@
+---
+title: Field service
+description: The field-service preset installs a dispatch board, jobs on customer assets, quotes to invoices, job checklists and a signature on completion.
+---
+
+The `field-service` preset is for an app in the style of ServiceTitan or
+Jobber. An office quotes a job, schedules it on the dispatch board, and a
+technician works through the day plan, fills in the checklist on site, has
+the customer sign and leaves an invoice behind.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "field-service" });
+```
+
+`npx better-supabase init --preset field-service` starts a new project from
+it, and `npx better-supabase apply --preset field-service` adds it to one you
+have ([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                           |
+| --------------------------------------- | --------------------------------------------------------- |
+| [parties](/docs/blocks/parties)         | Customers and their sites' contacts                       |
+| [work-items](/docs/blocks/work-items)   | Jobs, with the customer's equipment they concern          |
+| [dispatch](/docs/blocks/dispatch)       | The schedule board, routes and each technician's day plan |
+| [assets](/docs/blocks/assets)           | Customer sites and the equipment installed there          |
+| [quotes](/docs/blocks/quotes)           | Quotes the customer accepts through a public link         |
+| [invoices](/docs/blocks/invoices)       | Invoices from accepted quotes, with payments              |
+| [forms](/docs/blocks/forms)             | Job checklists and inspection forms                       |
+| signatures                              | The customer's signature on the completed job             |
+| [attachments](/docs/blocks/attachments) | Photos before and after the work                          |
+
+## How the blocks connect
+
+A job is a work item that names the asset it concerns. Dispatch assigns the
+job to a technician and a time slot, so the board and the technician's day
+plan read the same assignment. A quote the customer accepts becomes an
+invoice, and the job's checklist is a form submission linked to the job.
+The signature freezes the version of the job sheet the customer signed.
+
+## With ReUI
+
+- Event Calendar for the dispatch board, one row per technician.
+- Data Grid for jobs, with Filters on status, technician and date.
+- Stepper for the on-site flow: checklist, photos, signature.

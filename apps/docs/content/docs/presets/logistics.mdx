@@ -1,0 +1,46 @@
+---
+title: Logistics and fleet
+description: The logistics preset installs orders, shipments with carrier tracking events, vehicles and depots in assets, and a dispatch board for routes.
+---
+
+The `logistics` preset is for an app in the style of Shippo or Samsara. An
+order ships through a carrier or the company's own fleet, every tracking
+event lands on the shipment, and dispatch plans each vehicle's route.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "logistics" });
+```
+
+`npx better-supabase init --preset logistics` starts a new project from it,
+and `npx better-supabase apply --preset logistics` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                               | Role in the app                                         |
+| ----------------------------------- | ------------------------------------------------------- |
+| [parties](/docs/blocks/parties)     | Shippers, consignees and carriers                       |
+| [orders](/docs/blocks/orders)       | The orders to fulfil                                    |
+| [shipments](/docs/blocks/shipments) | Shipments, labels and tracking events through a carrier |
+| [assets](/docs/blocks/assets)       | Depots, vehicles and trailers, with coordinates         |
+| [dispatch](/docs/blocks/dispatch)   | Routes and each driver's day plan                       |
+
+## How the blocks connect
+
+A fulfilment of an order becomes a shipment. A carrier provider buys the
+label and reports tracking events, which the shipment records in order. For
+the company's own fleet, dispatch assigns the stops to a vehicle from
+`assets` and a driver, and the day plan lists them in route order.
+
+## With ReUI
+
+- Data Grid for shipments, with Filters on status and carrier.
+- Timeline for a shipment's tracking events.
+- Event Calendar for the dispatch board, one row per vehicle.

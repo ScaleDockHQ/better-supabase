@@ -1,0 +1,46 @@
+---
+title: Nonprofit fundraising
+description: The nonprofit preset installs donors, donations and recurring gifts on the ledger, campaign targets and saved views for donor segments.
+---
+
+The `nonprofit` preset is for an app in the style of Bloomerang. A
+fundraiser keeps donors, records one-off and recurring gifts against a
+campaign, follows progress towards the campaign goal and sends tax receipts.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "nonprofit" });
+```
+
+`npx better-supabase init --preset nonprofit` starts a new project from it,
+and `npx better-supabase apply --preset nonprofit` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                    |
+| --------------------------------------- | -------------------------------------------------- |
+| [parties](/docs/blocks/parties)         | Donors, households and organizations               |
+| [donations](/docs/blocks/donations)     | Gifts, recurring gifts, campaigns and tax receipts |
+| [ledger](/docs/blocks/ledger)           | The funds each gift is posted to                   |
+| [targets](/docs/blocks/targets)         | Campaign goals per period                          |
+| [saved-views](/docs/blocks/saved-views) | Donor segments, such as lapsed or major donors     |
+
+## How the blocks connect
+
+A donation names its donor in `parties` and its campaign, and posts to a
+fund on the ledger, so fund balances are ledger balances. A campaign goal is
+a target whose progress the app keeps from the campaign's donations. A
+segment is a saved view on donors with a filter tree.
+
+## With ReUI
+
+- Data Grid for donors and gifts, with Filters for segments.
+- Progress for each campaign towards its goal.
+- Statistic cards for the period's total, donors and average gift.
