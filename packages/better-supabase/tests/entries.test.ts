@@ -48,6 +48,7 @@ const PURE_BARRELS = [
   "blocks/vercel-marketplace",
   "blocks/reviews",
   "blocks/leave",
+  "blocks/ledger",
   "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",

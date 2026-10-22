@@ -966,6 +966,11 @@
       "types": "./dist/blocks/leave/index.d.ts",
       "default": "./dist/blocks/leave/index.js"
     },
+    "./blocks/ledger": {
+      "@better-supabase/source": "./src/blocks/ledger/index.ts",
+      "types": "./dist/blocks/ledger/index.d.ts",
+      "default": "./dist/blocks/ledger/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2302,6 +2307,10 @@
       "./blocks/leave": {
         "types": "./dist/blocks/leave/index.d.ts",
         "default": "./dist/blocks/leave/index.js"
+      },
+      "./blocks/ledger": {
+        "types": "./dist/blocks/ledger/index.d.ts",
+        "default": "./dist/blocks/ledger/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

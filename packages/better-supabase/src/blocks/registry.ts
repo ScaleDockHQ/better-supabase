@@ -51,6 +51,7 @@ import {
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
+import { ledgerBlock } from "./ledger/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
 import { mfaBlock } from "./mfa/manifest.ts";
@@ -146,6 +147,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   domainsBlock,
   reviewsBlock,
   leaveBlock,
+  ledgerBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

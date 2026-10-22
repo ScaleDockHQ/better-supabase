@@ -23,6 +23,7 @@ import {
   strict,
   threshold,
 } from "./inventory-stock.ts";
+import { ledgerRebalance, ledgerTables } from "./ledger.ts";
 
 type CommerceKey = keyof CommerceEventData;
 
@@ -134,23 +135,6 @@ const NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
     },
-    movements: {
-      name: "stock_movements",
-      lifecycle: tenantExport,
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        variant: "variant_id",
-        location: "location_id",
-        quantity: "quantity",
-        reason: "reason",
-        referenceType: "reference_type",
-        referenceId: "reference_id",
-        note: "note",
-        actor: "actor_id",
-        createdAt: "created_at",
-      },
-    },
     reservations: {
       name: "stock_reservations",
       lifecycle: tenantExport,
@@ -248,7 +232,6 @@ using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
 
   const l = columns(ctx, "locations");
   const lv = columns(ctx, "levels");
-  const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
   const location = `${t("locations")} (${l("id")}) on delete cascade`;
   const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
@@ -291,24 +274,6 @@ create table if not exists ${t("levels")} (
 create index if not exists stock_levels_location_idx on ${t("levels")} (${lv("location")});
 ${lockTable(t("levels"), { read: true })}
 ${read("levels")}
-
-create table if not exists ${t("movements")} (
-  ${m("id")} uuid primary key default gen_random_uuid(),
-  ${m("tenant")} ${ctx.idType} not null,
-  ${m("variant")} uuid not null references ${variants},
-  ${m("location")} uuid not null references ${location},
-  ${m("quantity")} integer not null check (${m("quantity")} <> 0),
-  ${m("reason")} text not null check (${m("reason")} in ('adjustment', 'damage', 'loss', 'return', 'receipt', 'count', 'sale', 'transfer_out', 'transfer_in')),
-  ${m("referenceType")} text,
-  ${m("referenceId")} text,
-  ${m("note")} text,
-  ${m("actor")} uuid default auth.uid(),
-  ${m("createdAt")} timestamptz not null default now()
-);
-create index if not exists stock_movements_variant_idx on ${t("movements")} (${m("variant")}, ${m("location")}, ${m("createdAt")});
-create index if not exists stock_movements_location_idx on ${t("movements")} (${m("location")});
-${lockTable(t("movements"), { read: true })}
-${read("movements")}
 
 create table if not exists ${t("reservations")} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -401,74 +366,148 @@ ${read("purchaseOrderLines")}
   }`;
 }
 
+/** The stock movement reasons and the counter account each posts against. */
+const STOCK_COUNTERS: Readonly<Record<string, readonly [string, string]>> = {
+  adjustment: ["stock:adjustments", "Adjustments"],
+  damage: ["stock:adjustments", "Adjustments"],
+  loss: ["stock:adjustments", "Adjustments"],
+  count: ["stock:adjustments", "Adjustments"],
+  receipt: ["stock:suppliers", "Suppliers"],
+  sale: ["stock:customers", "Customers"],
+  return: ["stock:customers", "Customers"],
+  transfer_out: ["stock:transit", "In transit"],
+  transfer_in: ["stock:transit", "In transit"],
+};
+
+const counterCase = (reason: string, index: 0 | 1): string =>
+  `case ${reason} ${Object.entries(STOCK_COUNTERS)
+    .map(([key, value]) => `when '${key}' then '${value[index]}'`)
+    .join(" ")} end`;
+
 /**
- * The ledger: every movement updates its level in the same transaction, and
- * refuses to take a tracked variant below zero.
+ * The stock ledger lives in the ledger block: a movement is a transaction
+ * between the variant's stock account at the location and a counter account for
+ * its reason (suppliers, customers, in transit, adjustments). Levels stay a
+ * projection the movement updates in the same transaction.
  */
-function ledger(ctx: ModuleContext, names: InventoryNames): string {
+function stockLedger(ctx: ModuleContext, names: InventoryNames): string {
   const { fn } = names;
+  const ledger = ctx.of("ledger");
   const levels = ctx.table("levels");
-  const movements = ctx.table("movements");
   const lv = columns(ctx, "levels");
-  const m = columns(ctx, "movements");
-  const { name } = ctx.tableName("movements");
+
+  const reasons = Object.keys(STOCK_COUNTERS)
+    .map((reason) => `'${reason}'`)
+    .join(", ");
 
   return `
--- Applies a stock movement to its level. A tracked variant without
--- backorders can't go below zero on hand, and a sale or a transfer out
--- can't take available (on hand minus reserved) below zero.
-create or replace function ${fn("apply_stock_movement")}()
-returns trigger
+-- Posts a stock movement to the ledger and applies it to its level. A
+-- tracked variant without backorders can't go below zero on hand, and a
+-- sale or a transfer out can't take available (on hand minus reserved)
+-- below zero. Returns the ledger transaction, the movement's id.
+create or replace function ${fn("move_stock")}(tenant ${ctx.idType}, variant uuid, location uuid, quantity integer, reason text, reference_type text default null, reference_id text default null, note text default null)
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
+  v_stock uuid;
+  v_counter uuid;
+  v_id uuid;
   v_on_hand integer;
   v_after integer;
   v_point integer;
 begin
+  if move_stock.quantity is null or move_stock.quantity = 0 then
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must not be zero", "22023")}
+  end if;
+  if move_stock.reason is null or move_stock.reason not in (${reasons}) then
+    ${fail("INVENTORY_REASON_INVALID", "unknown stock movement reason", "22023")}
+  end if;
+  v_stock := ${ledger.fn("ledger_account_for")}(move_stock.tenant, 'stock', 'stock:' || move_stock.variant::text || ':' || move_stock.location::text,
+    'Stock', 'item', 0::smallint, 'product-variants', move_stock.variant::text, null, true, ${names.read}, 'inventory',
+    jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location));
+  v_counter := ${ledger.fn("ledger_account_for")}(move_stock.tenant, 'stock_counter', ${counterCase("move_stock.reason", 0)},
+    ${counterCase("move_stock.reason", 1)}, 'item', 0::smallint, null, null, null, true, ${names.read}, 'inventory', null);
+  v_id := ${ledger.fn("ledger_post")}(move_stock.tenant, 'stock.' || move_stock.reason,
+    jsonb_build_array(
+      jsonb_build_object('account', v_stock, 'amount', move_stock.quantity),
+      jsonb_build_object('account', v_counter, 'amount', -move_stock.quantity)),
+    move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
+    jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason));
   insert into ${levels} as x (${lv("tenant")}, ${lv("variant")}, ${lv("location")}, ${lv("onHand")})
-  values (new.${m("tenant")}, new.${m("variant")}, new.${m("location")}, new.${m("quantity")})
+  values (move_stock.tenant, move_stock.variant, move_stock.location, move_stock.quantity)
   on conflict (${lv("variant")}, ${lv("location")}) do update
     set ${lv("onHand")} = x.${lv("onHand")} + excluded.${lv("onHand")}, ${lv("updatedAt")} = now()
   returning x.${lv("onHand")}, x.${lv("available")}, x.${lv("reorderPoint")} into v_on_hand, v_after, v_point;
-  if new.${m("quantity")} < 0
-    and (v_on_hand < 0 or (v_after < 0 and new.${m("reason")} in ('sale', 'transfer_out')))
-    and ${strict(ctx, `new.${m("variant")}`)} then
+  if move_stock.quantity < 0
+    and (v_on_hand < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')))
+    and ${strict(ctx, "move_stock.variant")} then
     ${fail("INVENTORY_INSUFFICIENT", "not enough stock at this location", "23514")}
   end if;
   ${threshold(ctx, {
-    tenant: `new.${m("tenant")}`,
-    variant: `new.${m("variant")}`,
-    location: `new.${m("location")}`,
-    before: `(v_after - new.${m("quantity")})`,
+    tenant: "move_stock.tenant",
+    variant: "move_stock.variant",
+    location: "move_stock.location",
+    before: "(v_after - move_stock.quantity)",
     after: "v_after",
     point: "v_point",
   })}
-  return null;
+  return v_id;
 end;
 $$;
-revoke execute on function ${fn("apply_stock_movement")}() from public, anon, authenticated;
-drop trigger if exists ${name}_apply on ${movements};
-create trigger ${name}_apply after insert on ${movements}
-for each row execute function ${fn("apply_stock_movement")}();
-
--- The ledger is append-only: correct a movement with another one.
-create or replace function ${fn("stock_movements_append_only")}()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  ${fail("INVENTORY_LEDGER_APPEND_ONLY", "stock movements can't change; write a correcting movement", "55000")}
-end;
-$$;
-revoke execute on function ${fn("stock_movements_append_only")}() from public, anon, authenticated;
-drop trigger if exists ${name}_append_only on ${movements};
-create trigger ${name}_append_only before update on ${movements}
-for each row execute function ${fn("stock_movements_append_only")}();
+revoke execute on function ${fn("move_stock")}(${ctx.idType}, uuid, uuid, integer, text, text, text, text) from public, anon, authenticated;
 `;
+}
+
+/** Copies `stock_movements` into the ledger, keeping each movement's id. */
+function stockMovementsUpgrade(ctx: ModuleContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const ledger = ctx.of("ledger");
+  const a = columns(ledger, "accounts");
+  const t = columns(ledger, "transactions");
+  const e = columns(ledger, "entries");
+  const old = `${ctx.schema}.stock_movements`;
+  const read = ctx.permission("read", OPERATIONS["inventory.read"]);
+  const accounts = ledger.table("accounts");
+
+  return `${ledgerTables(ledger)}
+do $upgrade$
+begin
+  if to_regclass('${ctx.schemaName}.stock_movements') is null then
+    return;
+  end if;
+  insert into ${accounts} (${a("tenant")}, ${a("kind")}, ${a("code")}, ${a("name")}, ${a("unit")}, ${a("holderType")}, ${a("holderId")}, ${a("allowNegative")}, ${a("readPermission")}, ${a("managedBy")}, ${a("metadata")})
+  select distinct m.tenant_id, 'stock', 'stock:' || m.variant_id::text || ':' || m.location_id::text, 'Stock', 'item', 'product-variants', m.variant_id::text, true, ${read}, 'inventory',
+    jsonb_build_object('variantId', m.variant_id, 'locationId', m.location_id)
+  from ${old} m
+  on conflict do nothing;
+  insert into ${accounts} (${a("tenant")}, ${a("kind")}, ${a("code")}, ${a("name")}, ${a("unit")}, ${a("allowNegative")}, ${a("readPermission")}, ${a("managedBy")})
+  select distinct m.tenant_id, 'stock_counter', ${counterCase("m.reason", 0)}, ${counterCase("m.reason", 1)}, 'item', true, ${read}, 'inventory'
+  from ${old} m
+  on conflict do nothing;
+  insert into ${ledger.table("transactions")} (${t("id")}, ${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}, ${t("memo")}, ${t("metadata")}, ${t("effectiveAt")}, ${t("actor")}, ${t("createdAt")})
+  select m.id, m.tenant_id, 'stock.' || m.reason, m.reference_type, m.reference_id, m.note,
+    jsonb_build_object('variantId', m.variant_id, 'locationId', m.location_id, 'reason', m.reason), m.created_at, m.actor_id, m.created_at
+  from ${old} m
+  on conflict do nothing;
+  insert into ${ledger.table("entries")} (${e("tenant")}, ${e("transaction")}, ${e("account")}, ${e("amount")}, ${e("unit")}, ${e("createdAt")})
+  select m.tenant_id, m.id, x.${a("id")}, m.quantity, 'item', m.created_at
+  from ${old} m join ${accounts} x on x.${a("tenant")} = m.tenant_id and x.${a("code")} = 'stock:' || m.variant_id::text || ':' || m.location_id::text
+  union all
+  select m.tenant_id, m.id, x.${a("id")}, -m.quantity, 'item', m.created_at
+  from ${old} m join ${accounts} x on x.${a("tenant")} = m.tenant_id and x.${a("code")} = ${counterCase("m.reason", 0)};
+  ${ledgerRebalance(ledger)}
+  drop table ${old};
+  drop function if exists ${ctx.fn("apply_stock_movement")}();
+  drop function if exists ${ctx.fn("stock_movements_append_only")}();
+end;
+$upgrade$;`;
 }
 
 function build(ctx: ModuleContext): string {
@@ -487,9 +526,9 @@ function build(ctx: ModuleContext): string {
   };
 
   return `${schemaPreamble(ctx)}
--- Stock per catalog variant and location: an append-only movement ledger,
+-- Stock per catalog variant and location: movements posted to the ledger,
 -- reservations with expiry, transfers and purchase orders with receiving.
-${tables(ctx, names)}${ledger(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -579,12 +618,20 @@ export const INVENTORY: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Inventory",
   description:
-    "Stock per catalog variant and location: an append-only movement ledger, reservations with expiry, transfers and purchase orders with partial receiving.",
-  requires: ["tenant", "access", "catalog"],
+    "Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.",
+  requires: ["tenant", "access", "catalog", "ledger"],
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Stock movements move onto the ledger block: each movement becomes a ledger transaction between the variant's stock account and a counter account, and stock_movements is dropped.",
+      sql: stockMovementsUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,

@@ -1586,7 +1586,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "tenant",
         "access",
-        "catalog"
+        "catalog",
+        "ledger"
       ],
       "integrates": [
         "outbox"
@@ -2553,6 +2554,110 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ]
+    },
+    {
+      "name": "ledger",
+      "title": "Ledger",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "ledger",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "ledger_account": {
+            "table": "accounts",
+            "singular": "ledger_account",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "ledger_transaction": {
+            "table": "transactions",
+            "singular": "ledger_transaction"
+          },
+          "ledger_hold": {
+            "table": "holds",
+            "singular": "ledger_hold"
+          }
+        },
+        "tables": {
+          "accounts": {
+            "name": "ledger_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "code": "code",
+              "name": "name",
+              "unit": "unit",
+              "scale": "scale",
+              "holderType": "holder_type",
+              "holderId": "holder_id",
+              "owner": "owner_id",
+              "allowNegative": "allow_negative",
+              "readPermission": "read_permission",
+              "managedBy": "managed_by",
+              "metadata": "metadata",
+              "closedAt": "closed_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "transactions": {
+            "name": "ledger_transactions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "referenceType": "reference_type",
+              "referenceId": "reference_id",
+              "memo": "memo",
+              "key": "idempotency_key",
+              "reverses": "reverses",
+              "metadata": "metadata",
+              "effectiveAt": "effective_at",
+              "actor": "actor_id",
+              "createdAt": "created_at"
+            }
+          },
+          "holds": {
+            "name": "ledger_holds",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "amount": "amount",
+              "status": "status",
+              "referenceType": "reference_type",
+              "referenceId": "reference_id",
+              "expiresAt": "expires_at",
+              "transaction": "transaction_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ledger.read",
+          "manage": "ledger.manage",
+          "post": "ledger.post"
+        }
+      }
     },
     {
       "name": "ensure-rls",
@@ -4293,6 +4398,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "leave.cancelled",
           "leave.adjusted"
         ]
+      }
+    },
+    {
+      "name": "ledger",
+      "sql": [
+        "ledger"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "ledgerBlock",
+        "subpath": "better-supabase/blocks/ledger"
+      },
+      "consumes": {},
+      "provides": [],
+      "sections": {
+        "ledger": []
       }
     },
     {

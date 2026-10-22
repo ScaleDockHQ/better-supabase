@@ -2,6 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { moveStock } from "./inventory-stock.ts";
 import {
   columns,
   guard,
@@ -18,13 +19,11 @@ function restock(ctx: ModuleContext): string {
   const inventory = ctx.of("inventory");
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
-  const m = columns(inventory, "movements");
 
   return `
     if receive_return.restock and v_line.variant is not null and coalesce(receive_return.location, v_line.location) is not null
       and exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = v_line.variant and cv.${v("trackInventory")}) then
-      insert into ${inventory.table("movements")} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("referenceType")}, ${m("referenceId")})
-      values (v_order.tenant, v_line.variant, coalesce(receive_return.location, v_line.location), v_line.quantity, 'return', 'order_return', receive_return.return_id::text);
+      perform ${moveStock(inventory, { tenant: "v_order.tenant", variant: "v_line.variant", location: "coalesce(receive_return.location, v_line.location)", quantity: "v_line.quantity", reason: "'return'", referenceType: "'order_return'", referenceId: "receive_return.return_id::text" })};
     end if;`;
 }
 

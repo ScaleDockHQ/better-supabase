@@ -9,6 +9,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { moveStock } from "./inventory-stock.ts";
 import {
   amountOf,
   asService,
@@ -155,7 +156,6 @@ function commitLines(ctx: ModuleContext): string {
   }
 
   const inventory = ctx.of("inventory");
-  const m = columns(inventory, "movements");
   const ol = columns(ctx, "orderLines");
 
   return `
@@ -171,8 +171,7 @@ function commitLines(ctx: ModuleContext): string {
       exception when sqlstate '55000' then
         begin
           ${asService(`perform ${inventory.fn("release_reservation")}(v_line.reservation);`)}
-          insert into ${inventory.table("movements")} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("referenceType")}, ${m("referenceId")})
-          values (v_order.tenant, v_line.variant, v_line.location, -v_line.quantity, 'sale', 'order', v_order.id::text);
+          perform ${moveStock(inventory, { tenant: "v_order.tenant", variant: "v_line.variant", location: "v_line.location", quantity: "-v_line.quantity", reason: "'sale'", referenceType: "'order'", referenceId: "v_order.id::text" })};
         exception when sqlstate '23514' then
           update ${ctx.table("orderLines")} x set ${ol("backordered")} = true where x.${ol("id")} = v_line.id;
         end;

@@ -539,14 +539,13 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "locations": "id" | "tenant" | "code" | "name" | "kind" | "active" | "createdAt" | "updatedAt";
       readonly "levels": "tenant" | "variant" | "location" | "onHand" | "reserved" | "incoming" | "available" | "reorderPoint" | "updatedAt";
-      readonly "movements": "id" | "tenant" | "variant" | "location" | "quantity" | "reason" | "referenceType" | "referenceId" | "note" | "actor" | "createdAt";
       readonly "reservations": "id" | "tenant" | "variant" | "location" | "quantity" | "status" | "referenceType" | "referenceId" | "expiresAt" | "createdAt" | "updatedAt";
       readonly "transfers": "id" | "tenant" | "from" | "to" | "status" | "note" | "createdAt" | "shippedAt" | "receivedAt";
       readonly "transferLines": "tenant" | "transfer" | "variant" | "quantity";
       readonly "purchaseOrders": "id" | "tenant" | "location" | "supplierType" | "supplierId" | "status" | "currency" | "expectedAt" | "note" | "createdAt" | "updatedAt" | "placedAt";
       readonly "purchaseOrderLines": "id" | "tenant" | "order" | "variant" | "quantity" | "received" | "unitCost";
     };
-    readonly functions: "adjust_stock" | "apply_stock_movement" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "delete_location" | "expire_reservations" | "place_purchase_order" | "receive_purchase_order" | "receive_transfer" | "release_reservation" | "reserve_stock" | "save_location" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "ship_transfer" | "stock_movements_append_only";
+    readonly functions: "adjust_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "delete_location" | "expire_reservations" | "move_stock" | "place_purchase_order" | "receive_purchase_order" | "receive_transfer" | "release_reservation" | "reserve_stock" | "save_location" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "ship_transfer";
     readonly actions: "manage" | "read" | "reserve" | "purchase";
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {};
@@ -613,6 +612,24 @@ export interface BlockNameRegistry {
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "ledger": {
+    readonly tables: {
+      readonly "accounts": "id" | "tenant" | "kind" | "code" | "name" | "unit" | "scale" | "holderType" | "holderId" | "owner" | "allowNegative" | "readPermission" | "managedBy" | "metadata" | "closedAt" | "createdAt" | "updatedAt";
+      readonly "transactions": "id" | "tenant" | "kind" | "referenceType" | "referenceId" | "memo" | "key" | "reverses" | "metadata" | "effectiveAt" | "actor" | "createdAt";
+      readonly "entries": "id" | "tenant" | "transaction" | "account" | "amount" | "unit" | "createdAt";
+      readonly "balances": "account" | "tenant" | "balance" | "held" | "available" | "updatedAt";
+      readonly "holds": "id" | "tenant" | "account" | "amount" | "status" | "referenceType" | "referenceId" | "expiresAt" | "transaction" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_check_balanced" | "ledger_post" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
+    readonly actions: "read" | "manage" | "post";
+    readonly hooks: "before_ledger_transaction_post" | "after_ledger_transaction_post";
+    readonly entities: {
+      readonly "ledger_account": "id" | "tenant_id" | "kind" | "code" | "name" | "unit" | "scale" | "holder_type" | "holder_id" | "owner_id" | "allow_negative" | "read_permission" | "managed_by" | "metadata" | "closed_at" | "created_at" | "updated_at";
+      readonly "ledger_transaction": "id" | "tenant_id" | "kind" | "reference_type" | "reference_id" | "memo" | "idempotency_key" | "reverses" | "metadata" | "effective_at" | "actor_id" | "created_at";
+      readonly "ledger_hold": "id" | "tenant_id" | "account_id" | "amount" | "status" | "reference_type" | "reference_id" | "expires_at" | "transaction_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "ledger_account";
   };
   readonly "memory": {
     readonly tables: {
