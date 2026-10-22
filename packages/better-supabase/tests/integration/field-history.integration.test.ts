@@ -27,7 +27,7 @@ const MODULES = [
 ];
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties", "deals"], {}),
+  subjects: withBlockSubjects({}, ["contacts", "deals"], {}),
   modules: {
     "field-history": {
       on: { deal: { fields: ["amount", "forecast_category"] } },

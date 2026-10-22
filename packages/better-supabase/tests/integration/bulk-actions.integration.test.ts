@@ -85,7 +85,14 @@ end;
 $$;
 grant execute on function bulk_it.archive_task(uuid, text, text, jsonb) to authenticated;`);
     await db.install(
-      ["organizations", "outbox", "jobs", "relations", "trash", "bulk"],
+      [
+        "organizations",
+        "outbox",
+        "queue",
+        "relations",
+        "trash",
+        "bulk-actions",
+      ],
       layout,
     );
     owner = await db.user("owner");

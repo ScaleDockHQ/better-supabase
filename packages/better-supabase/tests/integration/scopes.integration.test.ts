@@ -46,18 +46,18 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
   describe("per user", () => {
     beforeEach(async () => {
-      await s.install(["tags", "activity", "notifications"], userApp("user"));
+      await s.install(["tags", "timeline", "notifications"], userApp("user"));
     });
 
     it("installs no tenant module or access contract", async () => {
       const modules = await s.rows<{ name: string }>(
-        "select name from better_supabase.blocks where name in ('tags', 'activity', 'notifications') order by name",
+        "select name from better_supabase.blocks where name in ('tags', 'timeline', 'notifications') order by name",
       );
 
       expect(modules.map((row) => row.name)).toEqual([
-        "activity",
         "notifications",
         "tags",
+        "timeline",
       ]);
 
       const nullable = await s.rows<{ table_name: string }>(
@@ -183,7 +183,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
   describe("in one shared space", () => {
     beforeEach(async () => {
-      await s.install(["tags", "activity"], userApp("none"));
+      await s.install(["tags", "timeline"], userApp("none"));
     });
 
     it("gives every signed-in user one set of tags and one activity feed", async () => {

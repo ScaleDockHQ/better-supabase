@@ -15,7 +15,7 @@ describe.skipIf(!live)("read-only actors", () => {
     const session = await BlockSession.open(pool);
 
     try {
-      await session.install(["actor"]);
+      await session.install(["created-by"]);
 
       const may = async (act: object | undefined): Promise<boolean> => {
         await session.as(
@@ -42,7 +42,7 @@ describe.skipIf(!live)("read-only actors", () => {
     const session = await BlockSession.open(pool);
 
     try {
-      await session.install(["actor"]);
+      await session.install(["created-by"]);
 
       const answers: Record<string, boolean> = {};
 
