@@ -153,6 +153,7 @@ create index if not exists messaging_messages_thread_idx on "better_supabase"."m
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from anon, authenticated;
@@ -766,6 +767,45 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "better_supabase"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
 -- body as plain text), anchor (where on the record a top-level message
 -- points, such as a text range), mentions (user ids, merged with the body's
@@ -814,6 +854,12 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "better_supabase"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    raise exception 'install the attachments block to anchor a message to a file' using errcode = '22023', hint = 'MESSAGING_ATTACHMENTS_UNAVAILABLE';
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -1121,6 +1167,27 @@ $$;
 revoke execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "better_supabase"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."messaging_messages_json"(array(
+    select m."id" from "better_supabase"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "better_supabase"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "better_supabase"."get_message"(message uuid)
 returns jsonb
@@ -1408,6 +1475,7 @@ create index if not exists messaging_messages_thread_idx on "better_supabase"."m
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from anon, authenticated;
@@ -2191,6 +2259,45 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "better_supabase"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
 -- body as plain text), anchor (where on the record a top-level message
 -- points, such as a text range), mentions (user ids, merged with the body's
@@ -2239,6 +2346,23 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "better_supabase"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    if not exists (
+      select 1 from "better_supabase"."attachments" a
+      where a."id" = (send_message.attrs -> 'anchor' ->> 'attachmentId')::uuid
+        and a."organization_id" = v_conv."tenant_id"
+        and a."status" <> 'infected'
+        and ((a."subject_type" = v_conv."subject_type" and a."subject_id" = v_conv."subject_id")
+          or (a."subject_type" = 'message' and exists (
+            select 1 from "better_supabase"."messages" m
+            where m."id"::text = a."subject_id" and m."conversation_id" = v_conv."id")))
+    ) then
+      raise exception 'anchor the message to a file on this record or in this conversation' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -2564,6 +2688,27 @@ $$;
 revoke execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "better_supabase"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."messaging_messages_json"(array(
+    select m."id" from "better_supabase"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "better_supabase"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "better_supabase"."get_message"(message uuid)
 returns jsonb
@@ -2853,6 +2998,7 @@ create index if not exists messaging_messages_thread_idx on "app_private"."messa
 create index if not exists messaging_messages_parent_idx on "app_private"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "app_private"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "app_private"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "app_private"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "app_private"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "app_private"."messages" enable row level security;
 revoke all on "app_private"."messages" from anon, authenticated;
@@ -3466,6 +3612,45 @@ $$;
 revoke execute on function "app_private"."parse_mentions"(text) from public, anon;
 grant execute on function "app_private"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "app_private"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "app_private"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "app_private"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
 -- body as plain text), anchor (where on the record a top-level message
 -- points, such as a text range), mentions (user ids, merged with the body's
@@ -3514,6 +3699,12 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "app_private"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    raise exception 'install the attachments block to anchor a message to a file' using errcode = '22023', hint = 'MESSAGING_ATTACHMENTS_UNAVAILABLE';
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -3821,6 +4012,27 @@ $$;
 revoke execute on function "app_private"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "app_private"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "app_private"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "app_private"."messaging_messages_json"(array(
+    select m."id" from "app_private"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "app_private"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "app_private"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "app_private"."get_message"(message uuid)
 returns jsonb
@@ -4108,6 +4320,7 @@ create index if not exists messaging_messages_thread_idx on "better_supabase"."m
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from anon, authenticated;
@@ -4721,6 +4934,45 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "better_supabase"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
 -- body as plain text), anchor (where on the record a top-level message
 -- points, such as a text range), mentions (user ids, merged with the body's
@@ -4769,6 +5021,12 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "better_supabase"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    raise exception 'install the attachments block to anchor a message to a file' using errcode = '22023', hint = 'MESSAGING_ATTACHMENTS_UNAVAILABLE';
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -5076,6 +5334,27 @@ $$;
 revoke execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "better_supabase"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."messaging_messages_json"(array(
+    select m."id" from "better_supabase"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "better_supabase"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "better_supabase"."get_message"(message uuid)
 returns jsonb
@@ -5310,6 +5589,15 @@ as $$ select "better_supabase"."set_typing"($1, $2) $$;
 revoke execute on function "api"."set_typing"(uuid, boolean) from public, anon;
 grant execute on function "api"."set_typing"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."messaging_file_anchor_valid"($1) $$;
+revoke execute on function "api"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "api"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 create or replace function "api"."send_message"(conversation uuid, body text, attrs jsonb default '{}', attachments uuid[] default '{}')
 returns jsonb
 language sql
@@ -5381,6 +5669,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_replies"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "api"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_file_anchors"($1, $2) $$;
+revoke execute on function "api"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "api"."list_file_anchors"(uuid, integer) to authenticated, service_role;
 
 create or replace function "api"."get_message"(message uuid)
 returns jsonb

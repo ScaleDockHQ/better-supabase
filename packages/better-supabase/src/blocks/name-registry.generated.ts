@@ -302,7 +302,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "tasks": "message" | "tenant" | "task" | "createdBy" | "createdAt";
     };
-    readonly functions: "comment_conversation" | "comment_counts" | "comment_message_readable" | "comments_json" | "copy_comments" | "create_comment" | "get_comment" | "list_comments";
+    readonly functions: "comment_conversation" | "comment_counts" | "comment_message_readable" | "comments_json" | "copy_comments" | "create_comment" | "get_comment" | "list_comments" | "list_file_comments";
     readonly actions: "read" | "create" | "moderate";
     readonly hooks: never;
     readonly entities: {};
@@ -653,7 +653,7 @@ export interface BlockNameRegistry {
       readonly "edits": "id" | "tenant" | "message" | "body" | "document" | "editor" | "editedAt";
       readonly "reads": "tenant" | "user" | "conversation" | "thread" | "lastReadAt";
     };
-    readonly functions: "add_conversation_members" | "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "delete_message" | "edit_message" | "get_message" | "is_conversation_member" | "list_conversations" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_replies" | "mark_read" | "messaging_message_broadcast" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "open_conversation" | "parse_mentions" | "pin_message" | "publish_due_messages" | "remove_conversation_member" | "resolve_message" | "send_message" | "set_conversation_notify" | "set_typing" | "unread_counts";
+    readonly functions: "add_conversation_members" | "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "delete_message" | "edit_message" | "get_message" | "is_conversation_member" | "list_conversations" | "list_file_anchors" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_replies" | "mark_read" | "messaging_file_anchor_valid" | "messaging_message_broadcast" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "open_conversation" | "parse_mentions" | "pin_message" | "publish_due_messages" | "remove_conversation_member" | "resolve_message" | "send_message" | "set_conversation_notify" | "set_typing" | "unread_counts";
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {

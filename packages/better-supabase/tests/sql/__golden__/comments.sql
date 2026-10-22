@@ -237,6 +237,30 @@ $$;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
+-- The top-level comments anchored to a file, oldest first: on its pages,
+-- regions and moments, on any record the caller can read.
+create or replace function "better_supabase"."list_file_comments"(attachment uuid, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return "better_supabase"."comments_json"(array(
+    select x."id" from "better_supabase"."messages" x
+    join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
+    where x."anchor" ->> 'kind' = 'file'
+      and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
+      and x."sent_at" is not null and x."deleted_at" is null
+    order by x."sent_at", x."id"
+    limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
+  ));
+end;
+$$;
+revoke execute on function "better_supabase"."list_file_comments"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_comments"(uuid, integer) to authenticated, service_role;
+
 -- Comments per record the caller can read, for counters in a list:
 -- { subject_id: count }, deleted ones left out.
 create or replace function "better_supabase"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
@@ -642,6 +666,30 @@ $$;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
+-- The top-level comments anchored to a file, oldest first: on its pages,
+-- regions and moments, on any record the caller can read.
+create or replace function "better_supabase"."list_file_comments"(attachment uuid, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return "better_supabase"."comments_json"(array(
+    select x."id" from "better_supabase"."messages" x
+    join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
+    where x."anchor" ->> 'kind' = 'file'
+      and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
+      and x."sent_at" is not null and x."deleted_at" is null
+    order by x."sent_at", x."id"
+    limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
+  ));
+end;
+$$;
+revoke execute on function "better_supabase"."list_file_comments"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_comments"(uuid, integer) to authenticated, service_role;
+
 -- Comments per record the caller can read, for counters in a list:
 -- { subject_id: count }, deleted ones left out.
 create or replace function "better_supabase"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
@@ -1033,6 +1081,30 @@ $$;
 revoke execute on function "app_private"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 grant execute on function "app_private"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
+-- The top-level comments anchored to a file, oldest first: on its pages,
+-- regions and moments, on any record the caller can read.
+create or replace function "app_private"."list_file_comments"(attachment uuid, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return "app_private"."comments_json"(array(
+    select x."id" from "better_supabase"."messages" x
+    join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
+    where x."anchor" ->> 'kind' = 'file'
+      and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
+      and x."sent_at" is not null and x."deleted_at" is null
+    order by x."sent_at", x."id"
+    limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
+  ));
+end;
+$$;
+revoke execute on function "app_private"."list_file_comments"(uuid, integer) from public, anon;
+grant execute on function "app_private"."list_file_comments"(uuid, integer) to authenticated, service_role;
+
 -- Comments per record the caller can read, for counters in a list:
 -- { subject_id: count }, deleted ones left out.
 create or replace function "app_private"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
@@ -1383,6 +1455,30 @@ $$;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
+-- The top-level comments anchored to a file, oldest first: on its pages,
+-- regions and moments, on any record the caller can read.
+create or replace function "better_supabase"."list_file_comments"(attachment uuid, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return "better_supabase"."comments_json"(array(
+    select x."id" from "better_supabase"."messages" x
+    join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
+    where x."anchor" ->> 'kind' = 'file'
+      and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
+      and x."sent_at" is not null and x."deleted_at" is null
+    order by x."sent_at", x."id"
+    limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
+  ));
+end;
+$$;
+revoke execute on function "better_supabase"."list_file_comments"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_comments"(uuid, integer) to authenticated, service_role;
+
 -- Comments per record the caller can read, for counters in a list:
 -- { subject_id: count }, deleted ones left out.
 create or replace function "better_supabase"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
@@ -1532,6 +1628,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6, $7) $$;
 revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
 grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
+
+create or replace function "api"."list_file_comments"(attachment uuid, max_rows integer default 100)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_file_comments"($1, $2) $$;
+revoke execute on function "api"."list_file_comments"(uuid, integer) from public, anon;
+grant execute on function "api"."list_file_comments"(uuid, integer) to authenticated, service_role;
 
 create or replace function "api"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb

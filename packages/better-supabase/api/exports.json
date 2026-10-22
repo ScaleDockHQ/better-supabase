@@ -3533,11 +3533,14 @@
       "createComments",
       "createCommentsController",
       "dbTransport",
+      "fileAnchor",
+      "isFileAnchor",
       "mentionsIn",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
+      "AnchorRegion",
       "Author",
       "BlockTransport",
       "Comment",
@@ -3552,6 +3555,8 @@
       "CommentsOptions",
       "CommentsSnapshot",
       "CommentsSqlOptions",
+      "FileAnchor",
+      "FileAnchorAt",
       "ListCommentsOptions",
       "MessageEdit",
       "NewComment"
@@ -4830,6 +4835,8 @@
       "createMessaging",
       "dbTransport",
       "extendBlock",
+      "fileAnchor",
+      "isFileAnchor",
       "messageChangeSchema",
       "messageInputSchema",
       "messagingBlock",
@@ -4840,6 +4847,7 @@
       "wrapTransport"
     ],
     "types": [
+      "AnchorRegion",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -4851,6 +4859,8 @@
       "ConversationsControllerOptions",
       "ConversationsSnapshot",
       "ConversationSummary",
+      "FileAnchor",
+      "FileAnchorAt",
       "FollowTarget",
       "Message",
       "MessageCursor",

@@ -455,6 +455,29 @@ end;
 $$;
 ${userGrant(`${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid)`)}
 
+-- The top-level comments anchored to a file, oldest first: on its pages,
+-- regions and moments, on any record the caller can read.
+create or replace function ${fn("list_file_comments")}(attachment uuid, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return ${fn("comments_json")}(array(
+    select x.${ms("id")} from ${m.table("messages")} x
+    join ${m.table("conversations")} c on c.${cv("id")} = x.${ms("conversation")} and c.${cv("kind")} = 'subject'
+    where x.${ms("anchor")} ->> 'kind' = 'file'
+      and x.${ms("anchor")} ->> 'attachmentId' = list_file_comments.attachment::text
+      and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null
+    order by x.${ms("sentAt")}, x.${ms("id")}
+    limit ${pageSize("list_file_comments.max_rows", 100, 500)}
+  ));
+end;
+$$;
+${userGrant(`${fn("list_file_comments")}(uuid, integer)`)}
+
 -- Comments per record the caller can read, for counters in a list:
 -- { subject_id: count }, deleted ones left out.
 create or replace function ${fn("comment_counts")}(tenant ${id}, subject_type text, subject_ids text[])
