@@ -336,7 +336,10 @@ describe("collections block", () => {
       });
 
       const completed = await collections
-        .saved("o", { completed: true, cursor: page.next })
+        .saved("o", {
+          completed: true,
+          ...(page.next && { cursor: page.next }),
+        })
         .orThrow();
 
       expect(completed.next).toBeUndefined();
