@@ -16,18 +16,34 @@ import { bs } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["mail-sync"].api;
 
+/** The route that records opens and clicks, under the app's origin. */
+const TRACKING_PATH = "/api/mail/t";
+
 /**
  * Mail sync acting as `supabase`'s caller, or as the service role without one.
  * Each member's Gmail or Outlook grant lives in Vercel Connect, which the
- * adapter loads only when a sync or a send asks it for a token.
+ * adapter loads only when a sync or a send asks it for a token. With `origin`,
+ * sent HTML is tracked through the route at `TRACKING_PATH`.
  */
-export function mailSync(supabase?: RpcClient): MailSync {
-  return createMailSync({
+export function mailSync(
+  supabase?: RpcClient,
+  options: { readonly origin?: string } = {},
+): MailSync {
+  const base = {
     ...generatedOptions(blockConfig["mail-sync"]),
     transport: rpcTransport(supabase ?? bs.admin().$client, {
       schema: API_SCHEMA,
     }),
     credentials: vercelConnectCredentials(),
     providers: [gmailMail(), outlookMail()],
-  });
+  };
+
+  return createMailSync(
+    options.origin === undefined
+      ? base
+      : {
+          ...base,
+          tracking: { url: new URL(TRACKING_PATH, options.origin).href },
+        },
+  );
 }
