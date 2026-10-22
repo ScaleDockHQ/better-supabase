@@ -88,7 +88,7 @@ export interface AuthorizationFunctions {
    * subject_id text)`: it is used as `select g.tenant, g.subject_type,
    * g.subject_id from <template> as g(tenant, subject_type, subject_id)`.
    * `ctx.scope.guest` calls it, so comments, attachments, invoices and bookings
-   * let a provider's external users in (ADR 0069). With the `guests` block
+   * let a provider's external users in (ADR 0070). With the `guests` block
    * installed its grants are added to these.
    */
   readonly portalSubjects?: string;

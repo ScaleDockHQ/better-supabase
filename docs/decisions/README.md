@@ -71,4 +71,4 @@ add one, and link it from the code or config it explains.
 | [0063](0063-activity-block.md)                            | The activity feed moves out of comments into its own `activity` block                                                                     |
 | [0064](0064-sections-and-three-layers.md)                 | Blocks compose through sections, flows and three layers: library logic, generated bindings, recipes                                       |
 | [0065](0065-double-entry-ledger.md)                       | Balances live in one double-entry ledger; inventory stock, leave balances and invoice payments move onto it (breaking)                    |
-| [0069](0069-guest-and-portal-access.md)                   | Guests reach granted records through `ctx.scope.guest`, never as members; a provider answers through `portalSubjects` and `portalParties` |
+| [0070](0070-guest-and-portal-access.md)                   | Guests reach granted records through `ctx.scope.guest`, never as members; a provider answers through `portalSubjects` and `portalParties` |

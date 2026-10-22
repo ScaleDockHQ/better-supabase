@@ -56,7 +56,7 @@ export interface ModuleScope {
   members(): string;
   /**
    * True when the caller holds a guest grant for `action` on record `type`/`id`
-   * in tenant `tenant` (ADR 0069). A guest is not a member, so `can` stays
+   * in tenant `tenant` (ADR 0070). A guest is not a member, so `can` stays
    * false for them. `false` without the `guests` module and without a provider
    * that answers for guests, and outside `tenant` scope.
    */

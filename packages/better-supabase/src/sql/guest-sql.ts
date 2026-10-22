@@ -86,7 +86,7 @@ const union = (
 
 /**
  * `better_supabase.portal_subjects(action)` and `portal_parties()`, the sets
- * `ctx.scope.guest` and `ctx.scope.guestParty` read (ADR 0069), over every
+ * `ctx.scope.guest` and `ctx.scope.guestParty` read (ADR 0070), over every
  * source. A source without one of the two adds nothing to it.
  */
 export function guestFunctions(sources: readonly GuestSource[]): string {

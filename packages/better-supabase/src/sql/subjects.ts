@@ -423,7 +423,7 @@ export function subjectReadable(
      */
     readonly live?: boolean;
     /**
-     * Also let in a guest granted `read` on the record (ADR 0069), whom the
+     * Also let in a guest granted `read` on the record (ADR 0070), whom the
      * subject table's policies and the tenant permission don't.
      */
     readonly guest?: boolean;
@@ -562,7 +562,7 @@ export function subjectAccess<A extends string>(
     readonly permission: (action: A) => string;
     readonly provider: ModuleAccessProvider | undefined;
     /**
-     * The guest action each module action needs (ADR 0069): a guest granted it
+     * The guest action each module action needs (ADR 0070): a guest granted it
      * on the record passes the check without being a member.
      */
     readonly guest?: Partial<Readonly<Record<A, GuestAction>>>;

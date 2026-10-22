@@ -24,7 +24,7 @@ workflow; this page is the checklist for a new block.
   `ctx.scope.platform`, `ctx.scope.members()`, and `ctx.scope.guest(tenant,
   type, id, action)` or `ctx.scope.guestParty(tenant, type, id)` to let guests
   in, or-ed onto the member check with `guestOr` (`false` without guests, ADR
-  0069). In `tenant` scope they render
+  0070). In `tenant` scope they render
   the access contract (`can`, `tenant_ids_with`, `is_platform`);
   `tests/sql/scope.test.ts` fails on a literal call in `src/sql/modules`. A
   module that needs tenants declares `scopes: ["tenant"]`. One that runs per

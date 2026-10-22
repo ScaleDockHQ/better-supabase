@@ -1,4 +1,4 @@
-# 0069: Let guests in through `ctx.scope.guest`, never as members
+# 0070: Let guests in through `ctx.scope.guest`, never as members
 
 - Status: accepted
 - Date: 2026-10-22
