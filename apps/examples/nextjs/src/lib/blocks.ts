@@ -21,6 +21,8 @@ import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { enrichmentBlock } from "better-supabase/blocks/enrichment";
+import { fieldHistoryBlock } from "better-supabase/blocks/field-history";
+import { forecastsBlock } from "better-supabase/blocks/forecasts";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { importsBlock } from "better-supabase/blocks/imports";
@@ -125,6 +127,8 @@ const blockSet = defineBlocks(blockConfig, {
   segments: segmentsBlock,
   assignment: assignmentBlock,
   enrichment: enrichmentBlock,
+  forecasts: forecastsBlock,
+  fieldHistory: fieldHistoryBlock,
   quotes: quotesBlock,
   targets: targetsBlock,
   workItems: workItemsBlock,

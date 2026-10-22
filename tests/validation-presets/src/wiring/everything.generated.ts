@@ -57,6 +57,8 @@ import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
 import { segmentsBlock } from "better-supabase/blocks/segments";
 import { assignmentBlock } from "better-supabase/blocks/assignment";
 import { enrichmentBlock } from "better-supabase/blocks/enrichment";
+import { fieldHistoryBlock } from "better-supabase/blocks/field-history";
+import { forecastsBlock } from "better-supabase/blocks/forecasts";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
@@ -161,6 +163,8 @@ export const blockSet = defineBlocks(blockConfig, {
   segments: segmentsBlock,
   assignment: assignmentBlock,
   enrichment: enrichmentBlock,
+  fieldHistory: fieldHistoryBlock,
+  forecasts: forecastsBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,
