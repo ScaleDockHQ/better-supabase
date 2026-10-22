@@ -10,6 +10,6 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.modules (name, version, mode)
-values ('attachments', 3, 'managed')
+values ('attachments', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
