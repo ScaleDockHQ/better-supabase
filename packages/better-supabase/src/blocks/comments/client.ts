@@ -10,11 +10,25 @@ import { dbError } from "../../core/errors.ts";
 import { err } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 import { conversationTopic } from "../messaging/messaging.ts";
+import { isRecord } from "../shared.ts";
+
+const idOf = (payload: unknown, key: string): string | undefined => {
+  const value = isRecord(payload) ? payload[key] : undefined;
+
+  return typeof value === "string" && value !== "" ? value : undefined;
+};
 
 export interface CommentsControllerOptions {
   readonly client: Pick<
     Comments,
-    "list" | "create" | "edit" | "remove" | "resolve" | "pin" | "conversation"
+    | "list"
+    | "get"
+    | "create"
+    | "edit"
+    | "remove"
+    | "resolve"
+    | "pin"
+    | "conversation"
   >;
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
@@ -22,8 +36,9 @@ export interface CommentsControllerOptions {
   readonly subject: SubjectRef | null;
   /**
    * `blocks.messaging.options.topic`, default `messages`: the thread joins the
-   * record conversation's private topic and loads again for each ping. `null`
-   * turns Realtime off, so the thread loads again after its own writes only.
+   * record conversation's private topic and fetches the comment each ping
+   * names, with its thread's root for the reply count. `null` turns Realtime
+   * off, so the thread loads again after its own writes only.
    */
   readonly topic?: string | null;
   /** The most comments to load, default 100, at most 500. */
@@ -66,8 +81,9 @@ export type CommentsController = Controller<CommentsSnapshot, CommentsActions>;
 
 /**
  * One subject's comment thread for the signed-in user: loads it, keeps it
- * current after its own writes, and loads it again for each ping on the record
- * conversation's topic (joined once the record has a conversation).
+ * current after its own writes, and fetches the one comment each ping on the
+ * record conversation's topic names (joined once the record has a
+ * conversation), so a busy thread never reloads whole.
  */
 export function createCommentsController(
   options: CommentsControllerOptions,
@@ -106,13 +122,60 @@ export function createCommentsController(
         );
       };
 
+      const merge = (comment: Comment): void => {
+        state.set((current) => {
+          const comments = current.comments ?? [];
+
+          return {
+            error: undefined,
+            comments: comments.some((each) => each.id === comment.id)
+              ? comments.map((each) =>
+                  each.id === comment.id ? comment : each,
+                )
+              : [...comments, comment],
+          };
+        });
+      };
+
+      const replace = (comment: Comment): void => {
+        // A load that started before the write would answer without it.
+        ticket += 1;
+        merge(comment);
+      };
+
+      const fetch = async (id: string): Promise<void> => {
+        const result = await client.get(id);
+
+        // Before the first load answers, that load brings the comment.
+        if (result.ok && state.get().comments !== undefined) {
+          merge(result.data);
+        }
+      };
+
+      const ping = async (payload: unknown): Promise<void> => {
+        const messageId = idOf(payload, "messageId");
+
+        if (messageId === undefined) {
+          return;
+        }
+
+        const threadId = idOf(payload, "threadId");
+
+        await Promise.all([
+          fetch(messageId),
+          ...(threadId === undefined || threadId === messageId
+            ? []
+            : [fetch(threadId)]),
+        ]);
+      };
+
       const join = (conversationId: string): void => {
         if (topic === null || !watching || leave !== undefined) {
           return;
         }
 
         leave = options.ports.topic(conversationTopic(conversationId, topic), {
-          onMessage: () => void refresh(),
+          onMessage: (_event, payload) => void ping(payload),
           onRejoin: () => void refresh(),
           onStatus: (status) => {
             state.set({ status });
@@ -130,23 +193,6 @@ export function createCommentsController(
         if (found.ok && found.data !== undefined) {
           join(found.data);
         }
-      };
-
-      const replace = (comment: Comment): void => {
-        // A load that started before the write would answer without it.
-        ticket += 1;
-        state.set((current) => {
-          const comments = current.comments ?? [];
-
-          return {
-            error: undefined,
-            comments: comments.some((each) => each.id === comment.id)
-              ? comments.map((each) =>
-                  each.id === comment.id ? comment : each,
-                )
-              : [...comments, comment],
-          };
-        });
       };
 
       const write = async (
@@ -180,7 +226,7 @@ export function createCommentsController(
             const result = await client.remove(id);
 
             if (result.ok) {
-              await refresh();
+              await fetch(id);
             } else {
               state.set({ error: result.error });
             }

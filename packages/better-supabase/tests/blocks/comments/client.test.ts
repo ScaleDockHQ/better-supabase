@@ -41,6 +41,7 @@ function setup(
   const topic = fakeTopic();
   const auth = fakeAuth();
   const list = vi.fn(() => resolved<readonly Comment[]>([comment("c1")]));
+  const get = vi.fn((id: string) => resolved(comment(id, `Fetched ${id}`)));
   const create = vi.fn(() => resolved(comment("c2", "New")));
   const edit = vi.fn(() => resolved(comment("c1", "Edited")));
   const remove = vi.fn(() => resolved(true));
@@ -52,7 +53,7 @@ function setup(
   );
 
   const controller = createCommentsController({
-    client: { list, create, edit, remove, resolve, pin, conversation },
+    client: { list, get, create, edit, remove, resolve, pin, conversation },
     auth,
     ports: { topic: topic.port },
     subject: options.subject === undefined ? CUSTOMER : options.subject,
@@ -64,6 +65,7 @@ function setup(
     topic,
     auth,
     list,
+    get,
     create,
     edit,
     remove,
@@ -76,10 +78,10 @@ function setup(
 
 describe("createCommentsController", () => {
   it("loads the thread and keeps it current after writes", async () => {
-    const { list, create, edit, remove, controller } = setup();
+    const { list, get, create, edit, remove, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
-    expect(list).toHaveBeenCalledWith(CUSTOMER, { limit: 20 });
+    expect(list).toHaveBeenCalledExactlyOnceWith(CUSTOMER, { limit: 20 });
     expect(view().comments?.map((each) => each.id)).toEqual(["c1"]);
 
     expect((await view().add("New", { parentId: "c1" })).ok).toBe(true);
@@ -94,7 +96,7 @@ describe("createCommentsController", () => {
 
     expect(await view().remove("c2")).toMatchObject({ ok: true, data: true });
     expect(remove).toHaveBeenCalledWith("c2");
-    expect(list).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledWith("c2");
     expect(edit).toHaveBeenCalledOnce();
     unmount();
   });
@@ -118,18 +120,61 @@ describe("createCommentsController", () => {
     unmount();
   });
 
-  it("loads again for each ping on the conversation's topic and stops when signed out", async () => {
-    const { topic, auth, list, controller } = setup({ conversation: "conv-1" });
+  it("fetches the comment each ping names and stops when signed out", async () => {
+    const { topic, auth, list, get, controller } = setup({
+      conversation: "conv-1",
+    });
 
     const { view, unmount } = mount(controller);
     await flush();
     expect(topic.open()).toEqual(["messages:conv-1"]);
     expect(view().status).toBe("subscribed");
-    topic.emit("messages:conv-1", "message");
+
+    topic.emit("messages:conv-1", "message", {
+      conversationId: "conv-1",
+      messageId: "c3",
+      threadId: "c1",
+    });
+    await flush();
+    expect(get.mock.calls.map(([id]) => id)).toEqual(["c3", "c1"]);
+    expect(view().comments?.map((each) => [each.id, each.body])).toEqual([
+      ["c1", "Fetched c1"],
+      ["c3", "Fetched c3"],
+    ]);
+
+    topic.emit("messages:conv-1", "message_updated", { messageId: "c1" });
+    topic.emit("messages:conv-1", "message", {});
+    topic.emit("messages:conv-1", "message", "not an object");
+    await flush();
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(list).toHaveBeenCalledOnce();
+
+    get.mockReturnValueOnce(failed("gone"));
+    topic.emit("messages:conv-1", "message_deleted", { messageId: "c3" });
+    await flush();
+    expect(view().comments).toHaveLength(2);
+    expect(view().error).toBeUndefined();
+
     topic.rejoin("messages:conv-1");
-    expect(list).toHaveBeenCalledTimes(3);
+    expect(list).toHaveBeenCalledTimes(2);
     auth.set(SIGNED_OUT);
     expect(topic.open()).toEqual([]);
+    unmount();
+  });
+
+  it("leaves a ping before the first load to that load", async () => {
+    const { topic, list, get, controller } = setup({ conversation: "conv-1" });
+    const slow = held<readonly Comment[]>([comment("c1"), comment("c3")]);
+    list.mockReturnValueOnce(slow.result);
+    const { view, unmount } = mount(controller);
+    await flush();
+    topic.emit("messages:conv-1", "message", { messageId: "c3" });
+    await flush();
+    expect(get).toHaveBeenCalledWith("c3");
+    expect(view().comments).toBeUndefined();
+    slow.release();
+    await flush();
+    expect(view().comments?.map((each) => each.id)).toEqual(["c1", "c3"]);
     unmount();
   });
 

@@ -304,8 +304,10 @@ Each record conversation has a private Realtime topic,
 `conversationTopic(conversationId, topic)`, which is `<topic>:<conversation id>`
 with `blocks.messaging.options.topic` (default `messages`). Only callers who
 read the record can join it. The messaging triggers broadcast a ping for each
-new, edited or deleted comment, and the comments hooks load the thread again
-for each ping.
+new, edited or deleted comment with its `messageId` and `threadId`. The
+comments hooks fetch that comment and its thread's root, for the reply count,
+so a busy thread never loads whole again; they load it whole only after the
+topic rejoins.
 
 ## In the browser
 
