@@ -23,14 +23,12 @@ import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
-  oneOf,
-  optionalInstant,
-  optionalText,
   recordOf,
   recordsOf,
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { bookingOf } from "./rows.ts";
 import { bookingSeriesOf, recurrenceItem } from "./series.ts";
 
 export interface BookingsOptions<
@@ -292,44 +290,6 @@ export interface Bookings<F extends object = Record<never, never>> {
     ): AsyncResult<PlacedBooking & F>;
     confirm(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
     cancel(bookingId: string, accessToken: string): AsyncResult<Booking & F>;
-  };
-}
-
-const STATUSES: readonly BookingStatus[] = ["hold", "confirmed", "cancelled"];
-
-/** A booking row as `hold_booking`, `list_bookings` and the others return it. */
-export function bookingOf(value: unknown): Booking {
-  const row = recordOf(value, "booking");
-
-  const text = (key: string) => {
-    const found = optionalText(row[key]);
-
-    return found === undefined ? {} : { [key]: found };
-  };
-
-  const instant = (key: string) => {
-    const found = optionalInstant(row[key]);
-
-    return found === undefined ? {} : { [key]: found };
-  };
-
-  return {
-    id: textOf(row["id"]),
-    resourceId: textOf(row["resourceId"]),
-    serviceId: textOf(row["serviceId"]),
-    seat: Number(row["seat"] ?? 1),
-    startsAt: requiredInstant(row["startsAt"], "startsAt"),
-    endsAt: requiredInstant(row["endsAt"], "endsAt"),
-    status: oneOf(row["status"], STATUSES, "hold"),
-    ...instant("holdExpiresAt"),
-    ...text("customerName"),
-    ...text("customerEmail"),
-    ...text("customerUserId"),
-    ...text("notes"),
-    ...instant("createdAt"),
-    ...instant("cancelledAt"),
-    ...text("cancelReason"),
-    ...text("seriesId"),
   };
 }
 

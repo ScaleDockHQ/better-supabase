@@ -15,7 +15,7 @@ import { dbError } from "../../core/errors.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { bookingOf } from "../bookings/bookings.ts";
+import { bookingOf } from "../bookings/rows.ts";
 import {
   applyTemporal,
   blockCall,

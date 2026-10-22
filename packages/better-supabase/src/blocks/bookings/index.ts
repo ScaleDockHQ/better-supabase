@@ -1,6 +1,7 @@
+export { bookingOf } from "./rows.ts";
+
 export {
   BOOKING_EXPIRE_QUEUE,
-  bookingOf,
   createBookings,
   type Booking,
   type BookingCustomer,
