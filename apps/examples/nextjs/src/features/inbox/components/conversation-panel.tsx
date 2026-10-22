@@ -5,6 +5,7 @@ import { useAction } from "better-supabase/react";
 import {
   CheckCheckIcon,
   CheckIcon,
+  MoonIcon,
   RotateCcwIcon,
   UserCheckIcon,
   UserMinusIcon,
@@ -16,6 +17,11 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/hooks";
 import { useErrorMessage } from "@/lib/use-error-message";
@@ -28,10 +34,13 @@ import {
   loadMessage,
   loadThread,
   setStatus,
+  snooze,
   takeOver,
 } from "../inbox-actions";
 import { unwrap } from "../inbox-load";
 import { Composer } from "./composer";
+import { LaterItems } from "./later-items";
+import { ScheduledReplies } from "./scheduled-replies";
 
 export function ConversationPanel({
   conversationId,
@@ -45,6 +54,7 @@ export function ConversationPanel({
 
   // A full load also brings the header; a ping fetches only its message.
   const [conversation, setConversation] = useState<ConversationRow | null>();
+  const [scheduledVersion, setScheduledVersion] = useState(0);
 
   const thread = useConversation({
     conversationId,
@@ -68,6 +78,7 @@ export function ConversationPanel({
   const assignAction = useAction(assign, { onError, onSuccess });
   const mode = useAction(takeOver, { onError, onSuccess });
   const status = useAction(setStatus, { onError, onSuccess });
+  const snoozeAction = useAction(snooze, { onError, onSuccess });
 
   if (thread.items === undefined || conversation === undefined) {
     return (
@@ -88,6 +99,12 @@ export function ConversationPanel({
   }
 
   const resolved = conversation.status === "resolved";
+
+  const snoozedUntil =
+    conversation.status === "snoozed" && conversation.snoozedUntil !== null
+      ? new Date(conversation.snoozedUntil)
+      : null;
+
   const mine = userId !== null && conversation.assigneeId === userId;
 
   const contactReadAt =
@@ -98,7 +115,11 @@ export function ConversationPanel({
   const seen = (message: MessageRow): boolean =>
     contactReadAt !== null && Date.parse(message.createdAt) <= contactReadAt;
 
-  const busy = assignAction.pending || mode.pending || status.pending;
+  const busy =
+    assignAction.pending ||
+    mode.pending ||
+    status.pending ||
+    snoozeAction.pending;
 
   return (
     <section
@@ -115,9 +136,20 @@ export function ConversationPanel({
             {conversation.inboxName ? ` · ${conversation.inboxName}` : ""}
           </p>
         </div>
-        <Badge variant={resolved ? "secondary" : "default"}>
-          {resolved ? t("Resolved") : t("Open")}
-        </Badge>
+        {snoozedUntil === null ? (
+          <Badge variant={resolved ? "secondary" : "default"}>
+            {resolved ? t("Resolved") : t("Open")}
+          </Badge>
+        ) : (
+          <Badge variant="secondary">
+            {t("Snoozed until {time}", {
+              time: format.dateTime(snoozedUntil, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+            })}
+          </Badge>
+        )}
         <Badge variant="outline">
           {conversation.botMode === "bot"
             ? t("Bot answers")
@@ -147,6 +179,24 @@ export function ConversationPanel({
             {t("Take over from the bot")}
           </Button>
         ) : null}
+        {resolved ? null : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={busy}
+              render={<Button size="sm" variant="outline" />}
+            >
+              <MoonIcon />
+              {t("Snooze")}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <LaterItems
+                onSelect={(until) => {
+                  void snoozeAction.run({ conversationId, until });
+                }}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button
           size="sm"
           variant={resolved ? "outline" : "default"}
@@ -210,10 +260,17 @@ export function ConversationPanel({
           {t("Someone is typing…")}
         </output>
       ) : null}
+      <ScheduledReplies
+        key={scheduledVersion}
+        conversationId={conversationId}
+      />
       <Composer
         conversationId={conversationId}
         onTyping={thread.setTyping}
         onSent={thread.refresh}
+        onScheduled={() => {
+          setScheduledVersion((current) => current + 1);
+        }}
       />
     </section>
   );

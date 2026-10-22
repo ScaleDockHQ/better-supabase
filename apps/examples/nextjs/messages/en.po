@@ -5500,6 +5500,11 @@ msgid "Import another file"
 msgstr "Import another file"
 
 #: src/features/inbox/components/composer.tsx
+msgctxt "inbox.X4M1tJ"
+msgid "Reply scheduled"
+msgstr "Reply scheduled"
+
+#: src/features/inbox/components/composer.tsx
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
@@ -5524,6 +5529,11 @@ msgstr "Write a reply"
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Internal note"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.7tFha1"
+msgid "Send later"
+msgstr "Send later"
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.KgAlAZ"
@@ -5571,6 +5581,11 @@ msgid "Open"
 msgstr "Open"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9OHSlH"
+msgid "Snoozed until {time}"
+msgstr "Snoozed until {time}"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot answers"
@@ -5594,6 +5609,11 @@ msgstr "Assign to me"
 msgctxt "inbox.vpzvF9"
 msgid "Take over from the bot"
 msgstr "Take over from the bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9qc7BX"
+msgid "Snooze"
+msgstr "Snooze"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.8ujEro"
@@ -5719,6 +5739,46 @@ msgstr "Open Help in the header to start one as a customer."
 msgctxt "inbox.bW7B87"
 msgid "New"
 msgstr "New"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox._qJpQY"
+msgid "In 1 hour"
+msgstr "In 1 hour"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox.MtrTNy"
+msgid "Tomorrow"
+msgstr "Tomorrow"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox.iMjjOH"
+msgid "Next week"
+msgstr "Next week"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.TMrzNl"
+msgid "The scheduled replies didn't load"
+msgstr "The scheduled replies didn't load"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.yGEFsz"
+msgid "Scheduled replies"
+msgstr "Scheduled replies"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.pC2KQV"
+msgid "Cancel scheduled reply"
+msgstr "Cancel scheduled reply"
 
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"

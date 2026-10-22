@@ -1,30 +1,40 @@
 "use client";
 
 import { useAction } from "better-supabase/react";
-import { SendIcon, StickyNoteIcon } from "lucide-react";
+import { ClockIcon, SendIcon, StickyNoteIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { reply } from "../inbox-actions";
+import type { Later } from "../inbox-types";
+
+import { reply, scheduleReply } from "../inbox-actions";
+import { LaterItems } from "./later-items";
 
 const TYPING_EVERY_MS = 2000;
 
-/** Replies, or internal notes that only staff see. */
+/** Replies, replies sent later, or internal notes that only staff see. */
 export function Composer({
   conversationId,
   onTyping,
   onSent,
+  onScheduled,
 }: {
   conversationId: string;
   onTyping: (typing: boolean) => void;
   onSent: () => Promise<void>;
+  onScheduled: () => void;
 }) {
   const t = useExtracted("inbox");
   const errorMessage = useErrorMessage();
@@ -45,13 +55,28 @@ export function Composer({
     },
   });
 
+  const later = useAction(scheduleReply, {
+    onSuccess: () => {
+      setBody("");
+      onTyping(false);
+      onScheduled();
+      toast.success(t("Reply scheduled"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const empty = body.trim() === "";
+  const busy = send.pending || later.pending;
+
   return (
     <form
       className="space-y-2 border-t p-3"
       onSubmit={(event) => {
         event.preventDefault();
 
-        if (body.trim() === "") {
+        if (empty) {
           return;
         }
 
@@ -83,11 +108,36 @@ export function Composer({
         <Label htmlFor={noteId} className="text-sm font-normal">
           {t("Internal note")}
         </Label>
+        {note ? null : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={busy || empty}
+              render={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto"
+                />
+              }
+            >
+              <ClockIcon />
+              {t("Send later")}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <LaterItems
+                onSelect={(at: Later) => {
+                  void later.run({ conversationId, body, at });
+                }}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button
           type="submit"
           size="sm"
-          className="ml-auto"
-          disabled={send.pending || body.trim() === ""}
+          className={note ? "ml-auto" : undefined}
+          disabled={busy || empty}
         >
           {note ? <StickyNoteIcon /> : <SendIcon />}
           {note ? t("Add note") : t("Send")}
