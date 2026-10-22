@@ -121,7 +121,7 @@ describe.skipIf(!live)("bookings to engagements", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where type like 'engagement.%' order by id",
+        "select type from better_supabase.outbox_events where type like 'engagement.%' order by position",
       );
 
       expect(events.map((event) => event.type)).toEqual([
