@@ -20,6 +20,6 @@ on conflict do nothing;
 select set_config('better_supabase.bs_reactions_backfill', '', true);
 
 insert into better_supabase.modules (name, version, mode)
-values ('reactions', 1, 'managed')
+values ('reactions', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

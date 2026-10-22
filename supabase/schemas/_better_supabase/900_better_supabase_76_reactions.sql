@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
--- @bs-module reactions@1 managed
--- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- @bs-module reactions@2 managed
+-- Emoji reactions and up or down votes on any subject, comments and inbox messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -47,16 +47,38 @@ create table if not exists "better_supabase"."reactions" (
   "subject_id" text not null,
   "actor" text not null,
   "user_id" uuid,
+  "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
   "emoji" text not null check (length("emoji") between 1 and 64 and "emoji" !~ '\s'),
+  -- A vote's direction; an emoji counts once.
+  "value" smallint not null default 1 check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),
-  unique ("subject_type", "subject_id", "actor", "emoji")
+  check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
+create unique index if not exists "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index if not exists "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "reactions_user_idx" on "better_supabase"."reactions" ("user_id");
 alter table "better_supabase"."reactions" enable row level security;
 revoke all on "better_supabase"."reactions" from anon;
 grant select, insert, delete on "better_supabase"."reactions" to authenticated;
 grant all on "better_supabase"."reactions" to service_role;
+
+-- Each subject's vote score (up minus down), kept by reactions_tally so lists
+-- can sort by it.
+create table if not exists "better_supabase"."reaction_scores" (
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "score" integer not null default 0,
+  "up" integer not null default 0 check ("up" >= 0),
+  "down" integer not null default 0 check ("down" >= 0),
+  "updated_at" timestamptz not null default now(),
+  primary key ("tenant_id", "subject_type", "subject_id")
+);
+create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
+alter table "better_supabase"."reaction_scores" enable row level security;
+revoke all on "better_supabase"."reaction_scores" from anon, authenticated;
+grant select on "better_supabase"."reaction_scores" to authenticated;
+grant all on "better_supabase"."reaction_scores" to service_role;
 
 create table if not exists "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
@@ -130,7 +152,12 @@ drop policy if exists "reactions_delete" on "better_supabase"."reactions";
 create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
   using (("user_id" = (select auth.uid()) and "subject_type" <> 'inbox_message') and (select better_supabase.actor_may_write()));
 
+drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scores";
+create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
+
 drop trigger if exists "bs_reactions_check" on "better_supabase"."reactions";
+drop trigger if exists "bs_reactions_tally" on "better_supabase"."reactions";
 drop trigger if exists "bs_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
@@ -171,10 +198,10 @@ begin
   end if;
   if tg_op = 'INSERT' then
     v_row := new;
-    perform "better_supabase".emit_event('reaction.added', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
+    perform "better_supabase".emit_event('reaction.added', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   else
     v_row := old;
-    perform "better_supabase".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
+    perform "better_supabase".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
     perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'reactions:' || v_row."tenant_id"::text, true);
@@ -186,6 +213,48 @@ revoke execute on function "better_supabase"."reactions_changed"() from public, 
 create trigger "bs_reactions_changed"
   after insert or delete on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_changed"();
+
+-- Keeps reaction_scores in step with the vote rows; a subject without votes
+-- has no row.
+create or replace function "better_supabase"."reactions_tally"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reactions"%rowtype;
+  v_sign integer;
+begin
+  if tg_op = 'INSERT' then
+    v_row := new;
+    v_sign := 1;
+  else
+    v_row := old;
+    v_sign := -1;
+  end if;
+  if v_row."kind" <> 'vote' then
+    return null;
+  end if;
+  insert into "better_supabase"."reaction_scores" as x ("tenant_id", "subject_type", "subject_id", "score", "up", "down")
+  values (v_row."tenant_id", v_row."subject_type", v_row."subject_id", v_sign * v_row."value",
+    case when v_row."value" > 0 then greatest(v_sign, 0) else 0 end,
+    case when v_row."value" < 0 then greatest(v_sign, 0) else 0 end)
+  on conflict ("tenant_id", "subject_type", "subject_id") do update set
+    "score" = x."score" + v_sign * v_row."value",
+    "up" = x."up" + case when v_row."value" > 0 then v_sign else 0 end,
+    "down" = x."down" + case when v_row."value" < 0 then v_sign else 0 end,
+    "updated_at" = now();
+  delete from "better_supabase"."reaction_scores" x
+  where x."tenant_id" = v_row."tenant_id" and x."subject_type" = v_row."subject_type"
+    and x."subject_id" = v_row."subject_id" and x."up" = 0 and x."down" = 0;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."reactions_tally"() from public, anon, authenticated;
+create trigger "bs_reactions_tally"
+  after insert or delete on "better_supabase"."reactions"
+  for each row execute function "better_supabase"."reactions_tally"();
 
 -- One subject's reactions under the read policy: emoji, count, whether the
 -- caller reacted and the first ten actors, most used first.
@@ -205,6 +274,7 @@ as $$
     where r."tenant_id" = reaction_list.tenant
       and r."subject_type" = reaction_list.subject_type
       and r."subject_id" = reaction_list.subject_id
+      and r."kind" = 'emoji'
     group by r."emoji"
   ) g
 $$;
@@ -261,6 +331,7 @@ begin
       and r."subject_id" = react.subject_id
       and r."tenant_id" = react.tenant
       and r."actor" = v_actor
+      and r."kind" = 'emoji'
       and r."emoji" = react.emoji;
   end if;
   declare
@@ -276,6 +347,95 @@ end;
 $$;
 revoke execute on function "better_supabase"."react"(uuid, text, text, text, boolean, text) from public, anon;
 grant execute on function "better_supabase"."react"(uuid, text, text, text, boolean, text) to authenticated, service_role;
+
+-- One subject's vote score under the read policy, with the caller's vote
+-- (1, -1 or 0).
+create or replace function "better_supabase"."vote_tally"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'score', coalesce(x."score", 0),
+    'up', coalesce(x."up", 0),
+    'down', coalesce(x."down", 0),
+    'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = vote_tally.tenant and r."subject_type" = vote_tally.subject_type
+        and r."subject_id" = vote_tally.subject_id and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0)
+  )
+  from (select 1) one
+  left join "better_supabase"."reaction_scores" x on x."tenant_id" = vote_tally.tenant
+    and x."subject_type" = vote_tally.subject_type and x."subject_id" = vote_tally.subject_id
+$$;
+revoke execute on function "better_supabase"."vote_tally"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."vote_tally"(uuid, text, text) to authenticated, service_role;
+
+-- Sets the caller's vote on a subject: 1 up, -1 down, 0 clears it. Returns
+-- the subject's tally. It runs as the caller, like react; the service role
+-- passes the actor (default 'service').
+create or replace function "better_supabase"."vote"(tenant uuid, subject_type text, subject_id text, value integer, actor text default null)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_actor text;
+  v_user uuid;
+begin
+  if vote.value is null or vote.value not in (-1, 0, 1) then
+    raise exception 'a vote is 1, -1 or 0' using errcode = '22023', hint = 'REACTION_INVALID';
+  end if;
+  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    v_actor := coalesce(vote.actor, 'service');
+  elsif vote.actor is not null then
+    raise exception 'only the service role votes for another actor' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
+  elsif not (coalesce(better_supabase.can('tenant', vote.tenant, 'reactions.create'), false) and "better_supabase"."reaction_subject_visible"(vote.subject_type, vote.subject_id, vote.tenant)) then
+    raise exception 'not allowed to react to this record' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
+  else
+    v_user := (select auth.uid());
+    v_actor := v_user::text;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."reactions" r
+    where r."subject_type" = vote.subject_type and r."subject_id" = vote.subject_id
+      and r."tenant_id" = vote.tenant and r."actor" = v_actor
+      and r."kind" = 'vote' and r."value" = vote.value
+  ) then
+    return "better_supabase"."vote_tally"(vote.tenant, vote.subject_type, vote.subject_id);
+  end if;
+  delete from "better_supabase"."reactions" r
+  where r."subject_type" = vote.subject_type and r."subject_id" = vote.subject_id
+    and r."tenant_id" = vote.tenant and r."actor" = v_actor and r."kind" = 'vote';
+  if vote.value <> 0 then
+    insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
+    values (vote.tenant, vote.subject_type, vote.subject_id, v_actor, v_user, 'vote', 'vote', vote.value);
+  end if;
+  return "better_supabase"."vote_tally"(vote.tenant, vote.subject_type, vote.subject_id);
+end;
+$$;
+revoke execute on function "better_supabase"."vote"(uuid, text, text, integer, text) from public, anon;
+grant execute on function "better_supabase"."vote"(uuid, text, text, integer, text) to authenticated, service_role;
+
+-- The vote tallies of many subjects of one type, as { subjectId: tally }.
+create or replace function "better_supabase"."vote_summary"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, "better_supabase"."vote_tally"(vote_summary.tenant, vote_summary.subject_type, s.id)), '{}'::jsonb)
+  from (select distinct unnest(vote_summary.subject_ids[1:200]) as id) s
+$$;
+revoke execute on function "better_supabase"."vote_summary"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."vote_summary"(uuid, text, text[]) to authenticated, service_role;
 
 -- The reactions of many subjects of one type, as { subjectId: [...] }.
 create or replace function "better_supabase"."reaction_summary"(tenant uuid, subject_type text, subject_ids text[])
@@ -445,6 +605,33 @@ set search_path = ''
 as $$ select "better_supabase"."react"($1, $2, $3, $4, $5, $6) $$;
 revoke execute on function "api"."react"(uuid, text, text, text, boolean, text) from public, anon;
 grant execute on function "api"."react"(uuid, text, text, text, boolean, text) to authenticated, service_role;
+
+create or replace function "api"."vote_tally"(tenant uuid, subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."vote_tally"($1, $2, $3) $$;
+revoke execute on function "api"."vote_tally"(uuid, text, text) from public, anon;
+grant execute on function "api"."vote_tally"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."vote"(tenant uuid, subject_type text, subject_id text, value integer, actor text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."vote"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."vote"(uuid, text, text, integer, text) from public, anon;
+grant execute on function "api"."vote"(uuid, text, text, integer, text) to authenticated, service_role;
+
+create or replace function "api"."vote_summary"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."vote_summary"($1, $2, $3) $$;
+revoke execute on function "api"."vote_summary"(uuid, text, text[]) from public, anon;
+grant execute on function "api"."vote_summary"(uuid, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."reaction_summary"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb

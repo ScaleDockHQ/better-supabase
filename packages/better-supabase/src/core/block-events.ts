@@ -466,6 +466,10 @@ export interface CollaborationEventData extends SubjectEventData {
   readonly emoji?: string;
   /** Who reacted: a user id, or the name the service passed. */
   readonly actor?: string;
+  /** A reaction's kind: `emoji`, or `vote` (whose `emoji` is `vote`). */
+  readonly kind?: "emoji" | "vote";
+  /** A vote's direction, `1` or `-1`; `1` for an emoji. */
+  readonly value?: number;
   /** The action an approval request is for, such as `publish`. */
   readonly action?: string;
   /** An approval request's status after the event. */
