@@ -1,0 +1,52 @@
+---
+title: Legal practice
+description: The legal preset installs clients and matters, time billed from a rate card into invoices, a trust ledger, documents with versions and signatures.
+---
+
+The `legal` preset is for an app in the style of Clio. A firm opens a matter
+for a client, checks for conflicts against the parties it already knows,
+tracks time on the matter, bills it from a rate card, and holds the client's
+retainer in a trust account.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "legal" });
+```
+
+`npx better-supabase init --preset legal` starts a new project from it, and
+`npx better-supabase apply --preset legal` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                       | Role in the app                                               |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| [parties](/docs/blocks/parties)             | Clients and opposing parties, with dedupe for conflict checks |
+| [time-tracking](/docs/blocks/time-tracking) | Time on each matter, with approved timesheets                 |
+| [billable-time](/docs/blocks/billable-time) | Rate cards that turn tracked time into draft invoice lines    |
+| [invoices](/docs/blocks/invoices)           | Invoices to clients, with payments                            |
+| [ledger](/docs/blocks/ledger)               | Trust and retainer accounts per client                        |
+| [documents](/docs/blocks/documents)         | Briefs and pleadings, edited together                         |
+| [versions](/docs/blocks/versions)           | Numbered drafts of each document                              |
+| signatures                                  | Engagement letters signed by the client                       |
+
+## How the blocks connect
+
+A matter is your own table, registered as a subject, so time entries,
+documents and invoices point at it. Billable time prices the matter's time
+from the rate card and writes draft invoice lines in minor units. A retainer
+is a ledger account kind: money received into trust and money applied to an
+invoice are balanced ledger transactions, so the trust balance is always the
+ledger's.
+
+## With ReUI
+
+- Data Grid for matters and time entries, with Filters on client and status.
+- A weekly timesheet grid from the time-tracking week shape.
+- Timeline for a matter's documents, time and invoices.
