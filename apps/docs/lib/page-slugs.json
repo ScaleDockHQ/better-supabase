@@ -62,6 +62,7 @@
   "blocks/enrollments",
   "blocks/entitlements",
   "blocks/entity-forms",
+  "blocks/field-encryption",
   "blocks/flags",
   "blocks/flows",
   "blocks/forms",
