@@ -2,18 +2,18 @@ import type { AnyBlocksConfig, ResolvedConfig } from "../../config/index.ts";
 import type {
   Preset,
   PresetFieldKey,
+  PresetName,
+  PresetSpec,
   ResolvedPreset,
 } from "../../preset/index.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import {
-  decodePreset,
-  encodePreset,
-  isPresetCode,
-  listNames,
-  PRESET_FIELDS,
+  CONVENTION_FIELDS,
+  presetAndDesignOf,
   presetConfig,
   presetOf,
+  presetSpec,
   resolvePreset,
 } from "../../preset/index.ts";
 import { CliError } from "../core/errors.ts";
@@ -35,12 +35,13 @@ function fieldValue(preset: Preset, key: PresetFieldKey): string {
 /** A preset and what it resolves to, as lines. */
 function describe(resolved: ResolvedPreset): string[] {
   const { preset } = resolved;
-  const width = Math.max(...PRESET_FIELDS.map((field) => field.key.length));
+  const width = Math.max(...CONVENTION_FIELDS.map((field) => field.key.length));
+  const spec = presetSpec(preset);
 
   const lines = [
-    `Code: ${encodePreset(preset)}`,
+    `Preset: ${typeof spec === "string" ? spec : "custom"}`,
     "",
-    ...PRESET_FIELDS.map(
+    ...CONVENTION_FIELDS.map(
       (field) =>
         `  ${field.key.padEnd(width)}  ${fieldValue(preset, field.key)}`,
     ),
@@ -66,7 +67,8 @@ function describe(resolved: ResolvedPreset): string[] {
 }
 
 interface PresetData {
-  readonly code: string;
+  /** The preset as the config's `preset` key takes it. */
+  readonly spec: PresetName | PresetSpec;
   readonly preset: Preset;
   readonly blocks: ResolvedPreset["blocks"];
   readonly integrations: ResolvedPreset["integrations"];
@@ -75,7 +77,7 @@ interface PresetData {
 
 function presetData(resolved: ResolvedPreset): PresetData {
   return {
-    code: encodePreset(resolved.preset),
+    spec: presetSpec(resolved.preset),
     preset: resolved.preset,
     blocks: resolved.blocks,
     integrations: resolved.integrations,
@@ -83,46 +85,31 @@ function presetData(resolved: ResolvedPreset): PresetData {
   };
 }
 
-export function decodePresetInput(value: string | undefined): CommandResult {
+export async function decodePresetInput(
+  value: string | undefined,
+): Promise<CommandResult> {
   if (value === undefined) {
     throw new CliError(
       "input_required",
-      "Name a preset, a code or a /create URL.",
+      "Name a preset, a design code or a /create URL.",
       { missing: ["<preset>"] },
     );
   }
 
   let preset: Preset;
-  let derived: readonly PresetFieldKey[] = [];
 
   try {
-    const param = /[?&]preset=([^&#]+)/.exec(value)?.[1] ?? value;
-
-    if (isPresetCode(param)) {
-      const decoded = decodePreset(param);
-      preset = decoded.preset;
-      derived = decoded.derived;
-    } else {
-      preset = presetOf(param);
-    }
+    ({ preset } = await presetAndDesignOf(value));
   } catch (error) {
     throw new CliError("usage", messageOf(error));
   }
 
   const resolved = resolvePreset(preset);
-  const lines = describe(resolved);
-
-  if (derived.length > 0) {
-    lines.push(
-      "",
-      `The code predates ${listNames(derived)}, so they are at their defaults.`,
-    );
-  }
 
   return {
     code: resolved.conflicts.length > 0 ? 1 : 0,
-    output: lines.join("\n"),
-    data: { ...presetData(resolved), derived },
+    output: describe(resolved).join("\n"),
+    data: presetData(resolved),
   };
 }
 
@@ -164,7 +151,7 @@ export function presetInfo(config: ResolvedConfig): CommandResult {
     return {
       code: 0,
       output:
-        "The config names no preset. Start one with `better-supabase add --preset <name|code>`.",
+        "The config names no preset. Start one with `better-supabase add --preset <name>`.",
       data: { preset: null },
     };
   }
@@ -181,8 +168,6 @@ export function presetInfo(config: ResolvedConfig): CommandResult {
   const { added, changed } = drift(config, resolved);
 
   const lines = [
-    `Preset: ${config.preset}`,
-    "",
     ...describe(resolved),
     "",
     added.length === 0 && changed.length === 0
@@ -195,6 +180,6 @@ export function presetInfo(config: ResolvedConfig): CommandResult {
   return {
     code: 0,
     output: lines.join("\n"),
-    data: { name: config.preset, ...presetData(resolved), added, changed },
+    data: { ...presetData(resolved), added, changed },
   };
 }

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { ExistingTable } from "../../../src/cli/sql/adopt.ts";
 
@@ -11,7 +11,11 @@ import { runApply } from "../../../src/cli/commands/apply.ts";
 import { loadConfig } from "../../../src/cli/config.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { encodePreset } from "../../../src/preset/index.ts";
+import {
+  createUrl,
+  presetFromSpec,
+  resolvePreset,
+} from "../../../src/preset/index.ts";
 import { usageError } from "../fixtures/usage.ts";
 
 let dir: string;
@@ -191,7 +195,13 @@ describe("adopt", () => {
 });
 
 describe("apply --adopt", () => {
-  const preset = encodePreset({ scope: "tenant", blocks: ["teams"] });
+  let preset: string;
+
+  beforeAll(async () => {
+    preset = await createUrl(
+      resolvePreset(presetFromSpec({ scope: "tenant", blocks: ["teams"] })),
+    );
+  });
 
   it("adopts the blocks with existing tables and keeps the rest managed", async () => {
     await writeFile(configPath(), json({}));

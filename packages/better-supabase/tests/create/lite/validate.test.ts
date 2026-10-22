@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { previewFiles } from "../../../src/create/index.ts";
 import { validateDesign } from "../../../src/create/lite/index.ts";
-import { encodePreset, namedPreset } from "../../../src/preset/index.ts";
+import { presetSpec, namedPreset } from "../../../src/preset/index.ts";
 
 const files = (name: "saas" | "projects") =>
-  previewFiles(encodePreset(namedPreset(name)));
+  previewFiles(presetSpec(namedPreset(name)));
 
 describe("validateDesign", () => {
   it("applies the SaaS preset cleanly", async () => {

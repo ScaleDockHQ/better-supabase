@@ -7,7 +7,6 @@ import {
   DESIGN_FILE,
   designFileSource,
   encodeDesign,
-  encodePreset,
   namedPreset,
   parseDesign,
   readDesignFile,
@@ -55,10 +54,7 @@ describe("design files", () => {
     const text = designFileSource(minimal, DESIGN);
     const file: unknown = JSON.parse(text);
 
-    expect(file).toEqual({
-      preset: encodePreset(namedPreset("minimal")),
-      design: { version: 1, ...DESIGN },
-    });
+    expect(file).toEqual({ version: 7, preset: "minimal", ...DESIGN });
     expect(text.endsWith("}\n")).toBe(true);
     expect(readDesignFile(text)).toEqual({
       preset: namedPreset("minimal"),
@@ -70,6 +66,22 @@ describe("design files", () => {
     expect(DESIGN_FILE).toBe("better-supabase.design.json");
   });
 
+  it("writes a preset object for a preset that isn't a named one", () => {
+    const custom = resolvePreset({
+      ...namedPreset("minimal"),
+      casing: "camel",
+      blocks: ["tags"],
+    });
+
+    const file: unknown = JSON.parse(designFileSource(custom, {}));
+
+    expect(file).toEqual({
+      version: 7,
+      preset: { casing: "camel", blocks: ["tags"] },
+    });
+    expect(readDesignFile(JSON.stringify(file)).preset).toEqual(custom.preset);
+  });
+
   it("reads a preset name and a file without a design", () => {
     expect(readDesignFile(JSON.stringify({ preset: "crm" }))).toEqual({
       preset: namedPreset("crm"),
@@ -79,18 +91,18 @@ describe("design files", () => {
 
   it("rejects text that isn't a design file", () => {
     expect(() => readDesignFile("{")).toThrow("not JSON");
-    expect(() => readDesignFile("[]")).toThrow(
-      "expected an object with preset and design",
-    );
-    expect(() => readDesignFile(JSON.stringify({ design: {} }))).toThrow(
-      "preset must be a preset name or code",
+    expect(() => readDesignFile("[]")).toThrow("design must be an object");
+    expect(() => readDesignFile(JSON.stringify({}))).toThrow(
+      "design file: preset is missing",
     );
     expect(() =>
       readDesignFile(JSON.stringify({ preset: "crm", extra: 1 })),
     ).toThrow('unknown key "extra"');
     expect(() =>
-      readDesignFile(JSON.stringify({ preset: "crm", design: { tables: {} } })),
-    ).toThrow('design: unknown key "tables"');
+      readDesignFile(
+        JSON.stringify({ preset: "1pWEF3d578B1iGt16", design: {} }),
+      ),
+    ).toThrow("better-supabase codemod 0.15");
   });
 
   it("refuses an invalid design when writing", () => {

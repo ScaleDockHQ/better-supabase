@@ -1,4 +1,4 @@
-import type { CreateDesign, Preset } from "../preset/index.ts";
+import type { CreateDesign, Preset, PresetInput } from "../preset/index.ts";
 import type { BlockSqlAccessProvider } from "../sql/index.ts";
 import type { PresetMigrationFile } from "./types.ts";
 
@@ -34,14 +34,14 @@ export function previewAccessProvider(preset: Preset): BlockSqlAccessProvider {
  * the access functions come from `previewAccessProvider`.
  */
 export function previewFiles(
-  code: string,
+  input: PresetInput,
   design: CreateDesign = {},
 ): readonly PresetMigrationFile[] {
-  const preset = presetOf(code);
+  const preset = presetOf(input);
 
   const config = resolveConfig(
     Object.keys(design).length === 0
-      ? { preset: code }
+      ? { preset: input }
       : designConfig(resolvePreset(preset), design),
     "/",
   );

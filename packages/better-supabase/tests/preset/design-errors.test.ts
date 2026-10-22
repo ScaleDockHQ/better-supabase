@@ -122,16 +122,16 @@ describe("DesignParseError", () => {
     });
   });
 
-  it("prefixes a design file's design paths with /design", () => {
+  it("points into a design file at the same paths as a design", () => {
     const text = JSON.stringify({
       preset: "crm",
-      design: { extraColumns: { nope: { a: "text" } } },
+      extraColumns: { nope: { a: "text" } },
     });
 
     expect(() => readDesignFile(text)).toThrow(
       expect.objectContaining({
         code: "unknown_block",
-        path: "/design/extraColumns/nope",
+        path: "/extraColumns/nope",
       }),
     );
   });
@@ -147,8 +147,9 @@ describe("safeDesignFileSource", () => {
   it("returns the file text", () => {
     const result = safeDesignFileSource(crm, {});
 
-    expect(result.ok && JSON.parse(result.source)).toMatchObject({
-      design: {},
+    expect(result.ok && JSON.parse(result.source)).toEqual({
+      version: 7,
+      preset: "crm",
     });
   });
 

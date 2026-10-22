@@ -1,6 +1,6 @@
 # 0031: Install blocks through presets, ship glue through a shadcn registry, and show UI as recipes
 
-- Status: accepted
+- Status: accepted; preset codes superseded by 0093
 - Date: 2026-10-15
 
 ## Context

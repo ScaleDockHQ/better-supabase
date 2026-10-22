@@ -1,7 +1,12 @@
 import type { BlocksConfig } from "better-supabase/config";
+import type { PresetSpec } from "better-supabase/preset";
 
 import { run } from "better-supabase/cli";
-import { decodePreset, encodePreset } from "better-supabase/preset";
+import {
+  createUrl,
+  presetFromSpec,
+  resolvePreset,
+} from "better-supabase/preset";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +17,10 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 // The blocks the CRM already has tables for. `add --preset --adopt` maps them onto
 // those tables, and their requirements (updated-at, tenant) stay managed.
-const PRESET = encodePreset({
+const presetUrl = (spec: PresetSpec): Promise<string> =>
+  createUrl(resolvePreset(presetFromSpec(spec)));
+
+const PRESET = await presetUrl({
   scope: "tenant",
   blocks: ["organizations", "profiles", "teams"],
 });
@@ -99,7 +107,7 @@ describe("add --preset --adopt on the CRM schema", () => {
     const result = await run([
       "add",
       "--preset",
-      encodePreset({
+      await presetUrl({
         scope: "tenant",
         tenantName: "workspace",
         blocks: ["organizations", "profiles", "teams"],
@@ -117,8 +125,8 @@ describe("add --preset --adopt on the CRM schema", () => {
       data: { adopted: BlocksConfig; contents: string };
     };
 
-    const proposed = JSON.parse(data.contents) as { preset: string };
-    expect(decodePreset(proposed.preset).preset.tenantName).toBe("workspace");
+    const proposed = JSON.parse(data.contents) as { preset: PresetSpec };
+    expect(proposed.preset.tenantName).toBe("workspace");
 
     // The CRM's tables keep their names: adopted tables are named in the
     // config, and only the managed blocks' default names follow blocks.tenant.entities.

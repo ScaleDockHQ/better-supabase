@@ -1,4 +1,5 @@
 import type { PresetName } from "../../preset/presets.ts";
+import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from "../authorization.ts";
 import type { BlocksConfig } from "../blocks.ts";
@@ -228,10 +229,12 @@ export type PluginFlagsInput = Omit<PluginFlagsConfig, "tenant"> & {
 export interface BetterSupabaseConfig {
   readonly $schema?: string;
   /**
-   * A named preset (`saas`, `crm`, ...), a code from `/create`, or its URL. It
-   * expands into `blocks` and the conventions it sets; the keys you set win.
+   * A named preset (`saas`, `crm`, ...), or a preset object: the conventions
+   * that differ from the defaults and the blocks. It expands into `blocks`,
+   * with the blocks they require, and the conventions it sets; the keys you set
+   * win.
    */
-  readonly preset?: PresetName | (string & {});
+  readonly preset?: PresetName | (string & {}) | PresetSpec;
   readonly database?: DatabaseConfig;
   readonly auth?: AuthConfig;
   /**

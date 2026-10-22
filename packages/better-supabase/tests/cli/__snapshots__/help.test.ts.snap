@@ -13,7 +13,7 @@ Options
   --force                                   Overwrite files that exist
   --allow-hook-overlap                      With blocks: write modules whose claim the authorization provider's hook already writes
   --tests-dir <dir>                         With blocks: where the pgtap module goes. Defaults to database.sql.testsDir
-  --preset <name|code|url|file>             A named preset, a code from /create, its URL or a downloaded design file; the design (&design= or the file) adds its app tables and extra columns
+  --preset <name|code|url|file>             A named preset, a design code from /create, its URL or a downloaded design file; the design sets the preset and adds its app tables and extra columns
   --package <dir>                           Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too
   --only <blocks|conventions>               blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
   --adopt                                   Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for adopted blocks
@@ -92,7 +92,7 @@ Lists the blocks, the ones this project installed with --installed, or a preset'
 Options
   --category <name>         One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin, database
   --installed               Every block's SQL with whether this project installed it and lists it in blocks
-  --preset <name|code|url>  The blocks and conventions of a preset name, a preset code or a /create URL
+  --preset <name|code|url>  The blocks and conventions of a preset name, a design code or a /create URL
   --tests-dir <dir>         Where the pgtap module goes. Defaults to database.sql.testsDir
 
 Global options
@@ -854,7 +854,7 @@ Options
   --integration <integration,...>           Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
   --package <dir>                           Workspace package to write to, relative to --cwd
   --workflow <pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations
-  --preset <name|code|url|file>             A named preset, a code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts
+  --preset <name|code|url|file>             A named preset, a design code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts
   --lite                                    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps
   --dry-run                                 Print what would change, with a diff, and write nothing
   --check                                   Write nothing; exit 1 with a diff when a file would change

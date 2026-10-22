@@ -3,21 +3,20 @@ import { describe, expect, it } from "vitest";
 import type { CreateDesign } from "../../src/preset/index.ts";
 
 import {
+  createUrl,
   decodeDesign,
   DESIGN_FORMAT,
-  designApplyCommand,
   designFormat,
   designConfig,
-  designConfigSource,
-  designInstallCommand,
   designOf,
   DesignTooLongError,
   encodeDesign,
-  encodePreset,
   isDesignCode,
-  isPresetCode,
   MAX_DESIGN_CODE_LENGTH,
   namedPreset,
+  presetAndDesignOf,
+  presetApplyCommand,
+  presetConfigSource,
   presetInstallCommand,
   presetOf,
   resolvePreset,
@@ -49,7 +48,7 @@ const DESIGN: CreateDesign = {
 };
 
 const crm = resolvePreset(namedPreset("crm"));
-const CREATE = `https://app.bettersupabase.com/create?preset=${encodePreset(crm.preset)}`;
+const CREATE = "https://app.bettersupabase.com/create";
 
 async function deflated(text: string): Promise<string> {
   const bytes = new Uint8Array(
@@ -74,7 +73,6 @@ describe("design codes", () => {
     const code = await encodeDesign(DESIGN);
 
     expect(isDesignCode(code)).toBe(true);
-    expect(isPresetCode(code)).toBe(false);
     expect(await decodeDesign(code)).toEqual(DESIGN);
   });
 
@@ -108,7 +106,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 6; update better-supabase",
+      "design: the code needs format 9, and this better-supabase reads up to 7; update better-supabase",
     );
   });
 
@@ -223,8 +221,8 @@ describe("design codes", () => {
       },
     };
 
-    expect(designFormat(encrypted)).toBe(DESIGN_FORMAT);
-    expect(designFormat(audited)).toBe(DESIGN_FORMAT);
+    expect(designFormat(encrypted)).toBe(6);
+    expect(designFormat(audited)).toBe(6);
     expect(await decodeDesign(await encodeDesign(audited))).toEqual(audited);
   });
 
@@ -324,7 +322,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ tables: {} }))),
     ).rejects.toThrow(
-      'design: unknown key "tables"; a design has appTables, extraColumns and positions',
+      'design: unknown key "tables"; a design has preset, appTables, extraColumns and positions',
     );
   });
 
@@ -439,6 +437,34 @@ describe("designOf", () => {
     expect(presetOf(url)).toEqual(namedPreset("crm"));
   });
 
+  it("reads the preset inside a design", async () => {
+    const code = await encodeDesign({ ...DESIGN, preset: "crm" });
+
+    expect(await presetAndDesignOf(`${CREATE}?design=${code}`)).toEqual({
+      preset: namedPreset("crm"),
+      design: DESIGN,
+    });
+    expect(
+      (
+        await presetAndDesignOf(
+          await encodeDesign({ preset: { casing: "camel", blocks: ["tags"] } }),
+        )
+      ).preset,
+    ).toMatchObject({ casing: "camel", blocks: ["tags"] });
+    expect(await presetAndDesignOf("crm")).toEqual({
+      preset: namedPreset("crm"),
+      design: undefined,
+    });
+  });
+
+  it("writes format 7 for a design with a preset", async () => {
+    expect(designFormat({ preset: "crm" })).toBe(7);
+    expect(DESIGN_FORMAT).toBe(7);
+    await expect(
+      encodeDesign({ preset: "startup" } as unknown as CreateDesign),
+    ).rejects.toThrow('preset: "startup" is not a preset name');
+  });
+
   it("reads nothing from a URL or string without a design", async () => {
     expect(
       await designOf("https://bettersupabase.com/create?preset=crm"),
@@ -472,10 +498,10 @@ describe("design config", () => {
   });
 
   it("writes the config source with the design URL", async () => {
-    const code = await encodeDesign(DESIGN);
-    const source = designConfigSource(crm, DESIGN, code);
+    const code = await encodeDesign({ ...DESIGN, preset: "crm" });
+    const source = await presetConfigSource(crm, DESIGN);
 
-    expect(source).toContain(`// ${CREATE}&design=${code}`);
+    expect(source).toContain(`// ${CREATE}?design=${code}`);
     expect(source).toContain(
       `    tags: { options: { extraColumns: { color: "text not null default 'gray'" } } },`,
     );
@@ -484,14 +510,20 @@ describe("design config", () => {
   });
 
   it("quotes the URL in the commands", async () => {
-    const code = await encodeDesign(DESIGN);
+    const url = await createUrl(crm, DESIGN);
 
-    expect(designInstallCommand(crm, code)).toBe(
-      `npx better-supabase init --preset "${CREATE}&design=${code}"`,
+    expect(url).toBe(
+      `${CREATE}?design=${await encodeDesign({ ...DESIGN, preset: "crm" })}`,
     );
-    expect(designApplyCommand(crm, code)).toBe(
-      `npx better-supabase add --preset "${CREATE}&design=${code}"`,
+    expect(await presetInstallCommand(crm, DESIGN)).toBe(
+      `npx better-supabase init --preset "${url}"`,
     );
-    expect(designInstallCommand(crm, "")).toBe(presetInstallCommand(crm));
+    expect(await presetApplyCommand(crm, DESIGN)).toBe(
+      `npx better-supabase add --preset "${url}"`,
+    );
+    expect(await presetInstallCommand(crm, {})).toBe(
+      await presetInstallCommand(crm),
+    );
+    expect(await createUrl(crm)).toBe(`${CREATE}?preset=crm`);
   });
 });

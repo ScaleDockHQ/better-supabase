@@ -84,7 +84,10 @@ path. `defineApi` includes every instance and table, oRPC becomes its
 implementation, and the specs live under `better-supabase/spec`. Flows
 become default automations with one trigger (the outbox event), one action
 registry (ADR 0046) and one scheduler on the queue. Preset codes give way
-to the design JSON (ADR 0040, ADR 0058). The config groups into `database`,
+to the design JSON (ADR 0040, ADR 0058): the config's `preset` takes a name
+or an object with the conventions that differ and the blocks, a design
+carries it in its own `preset` key (format 7), a design file is that JSON,
+and `codemod 0.15` converts a 0.14 code with a frozen copy of its decoder. The config groups into `database`,
 `auth`, `records`, `tables`, `blocks`, `adapters`, `gen`, `api` and
 `tooling`, with one organization resolver at `auth.organization`. The CLI
 keeps one command per job and gains `remove`.

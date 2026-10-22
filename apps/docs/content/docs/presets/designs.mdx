@@ -1,6 +1,6 @@
 ---
-title: Codes and the resolver
-description: How better-supabase/preset encodes a preset as a short code, resolves its blocks and writes the config and wiring Create shows.
+title: Designs and the resolver
+description: How better-supabase/preset reads a preset name or a design, resolves its blocks and writes the config and wiring Create shows.
 ---
 
 `better-supabase/preset` is the model behind `preset` in the config and
@@ -10,20 +10,35 @@ the blocks and never imports the SQL renderers.
 
 ```ts
 import {
-  decodePreset,
-  encodePreset,
-  namedPreset,
   presetConfigSource,
+  presetFromSpec,
   resolvePreset,
 } from "better-supabase/preset";
 
-const preset = { ...namedPreset("saas"), api: "api", blocks: ["comments"] };
-const code = encodePreset(preset); // "1..."
-const { preset: decoded, derived } = decodePreset(code);
-const resolved = resolvePreset(decoded);
+const preset = presetFromSpec({ api: "api", blocks: ["comments"] });
+const resolved = resolvePreset(preset);
 // resolved.blocks: comments, plus tenant, access and updated-at, each with a reason
-console.log(presetConfigSource(resolved));
+console.log(await presetConfigSource(resolved));
 ```
+
+## The preset key
+
+The config's `preset` key takes a preset name, such as `"saas"`, or an object
+with the conventions that differ from the defaults and the blocks to install:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: { casing: "camel", access: "provider", blocks: ["profiles", "tags"] },
+});
+```
+
+`presetSpec(preset)` turns a `Preset` into that value: the name when the preset
+equals a named one, otherwise the object with only the fields that differ.
+`presetFromSpec` and `presetOfSpec` read it back; `presetOfSpec` takes an
+unknown value and throws for an unknown field or value. `CONVENTION_FIELDS`
+lists the fields in a fixed order.
 
 ## Conventions
 
@@ -41,67 +56,68 @@ Every field has a default, so a preset sets only what differs.
 | `api`          | `none`, `api`                                                                                  | `none`         | `database.sql.api`                                                                                                                    |
 | `integrations` | `next`, `hono`, `orpc`, `edge`, `expo`, `mcp`, `client`, `react` (any number)                  | none           | `integrations`                                                                                                                        |
 
-## Codes
-
-A code is a version character followed by base62 of one BigInt. The low
-bits hold each field's value index in a fixed number of bits, in the order
-of `PRESET_FIELDS`; above them sits one bit per entry of `PRESET_BLOCKS`.
-Both lists are append-only. A new block takes the next bit, and a removed
-block keeps its bit as a `null` tombstone, so every code keeps decoding.
-
-A new field raises `PRESET_VERSION`. `decodePreset` reads a code from an
-older version with the newer fields at their defaults and lists them in
-`derived`. A code from a newer release throws and names the upgrade. Each
-released version has a frozen fixture of codes in the package tests that
-must decode to the same selection forever.
-
-`presetOf` takes a named preset, a code or a `/create?preset=` URL, which
-is what the `preset` config key accepts.
-
 ## Designs
 
-A preset code holds blocks and conventions. What you add on the Create
-canvas, the [app tables](/docs/blocks/app-tables), extra columns on block
-tables and where each table sits, goes in a second code that rides on the
-URL as `&design=`:
+A design is plain JSON: the preset, the [app tables](/docs/blocks/app-tables),
+extra columns on block tables and where each table sits on the Create canvas.
+It rides on a Create URL as `?design=`, compressed:
 
 ```ts
 import {
-  designConfigSource,
-  designInstallCommand,
-  designOf,
+  createUrl,
   encodeDesign,
   namedPreset,
+  presetAndDesignOf,
+  presetInstallCommand,
   resolvePreset,
 } from "better-supabase/preset";
 
 const resolved = resolvePreset(namedPreset("crm"));
 
-const code = await encodeDesign({
+const design = {
   appTables: { projects: { columns: { name: { type: "text" } } } },
   extraColumns: { organizations: { tier: "text" } },
   positions: { "public.projects": [120, 40] },
-});
+};
 
-console.log(designConfigSource(resolved, (await designOf(code))!, code));
-console.log(designInstallCommand(resolved, code));
-// npx better-supabase init --preset "https://app.bettersupabase.com/create?preset=...&design=0..."
+await createUrl(resolved, design);
+// https://app.bettersupabase.com/create?design=0...
+
+await presetInstallCommand(resolved, design);
+// npx better-supabase init --preset "https://app.bettersupabase.com/create?design=0..."
+
+const { preset, design: read } = await presetAndDesignOf(
+  await createUrl(resolved, design),
+);
 ```
 
-A design code starts with `0`, the format version, which no preset name or
-code starts with, followed by base64url of the design's JSON compressed
-with `deflate-raw`. It uses `CompressionStream`, so encoding and decoding
-are async and run on every runtime.
+`createUrl` writes `?preset=<name>` for a named preset with nothing else, and
+`?design=<code>` with the preset inside the design otherwise.
+`presetAndDesignOf` reads a preset name, a Create URL or a bare design code: the
+design's own `preset` comes first, then a `preset=` parameter, then the default
+preset. The `preset` key takes a name or an object, as in the config.
 
-The `0` stays the encoding. The JSON's own format goes in a `version` key,
-which `encodeDesign` writes only for a design that needs it:
-`designFormat(design)` returns `1` when a table or column uses a key added
-after the first release (`format`, `options`, `min`, `max`, `comment`,
-`identity`, or a table's `id`, `unique`, `indexes` or `comment`), `2` when
-a table has a `subject`, `3` when a table has `rollups` or `lookups`, `4`
-when a table has `events` or its subject keeps `versions`, and `0` otherwise, so older codes stay byte for byte the same. `DESIGN_FORMAT` is
-the newest format this release reads; a code with a higher `version` fails
-with a message to update better-supabase instead of losing keys.
+A design code starts with `0`, which no preset name starts with, followed by
+base64url of the design's JSON compressed with `deflate-raw`. It uses
+`CompressionStream`, so encoding and decoding are async and run on every
+runtime.
+
+The JSON's own format goes in a `version` key. `designFormat(design)` returns
+the lowest format that reads the design: `1` when a table or column uses a key
+added after the first release (`format`, `options`, `min`, `max`, `comment`,
+`identity`, or a table's `id`, `unique`, `indexes` or `comment`), `2` for a
+table `subject`, `3` for `rollups` or `lookups`, `4` for `events` or subject
+`versions`, `5` for column `access`, `6` for column `encrypted` or table
+`auditReads`, `7` for `preset`, and `0` otherwise. `DESIGN_FORMAT` is the
+newest format this release reads; a code with a higher `version` fails with a
+message to update better-supabase instead of losing keys.
+
+### Codes from 0.14
+
+Releases up to 0.14 wrote a separate preset code (`?preset=1...`). Reading one
+now throws an error that names `better-supabase codemod 0.15`, which turns a
+code in the config's `preset` into the name or object it holds, and a 0.14
+design file into a design with its preset inside.
 
 `decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
 table that `tables` wouldn't accept, a column type outside a plain SQL
@@ -156,28 +172,28 @@ issue in `issues` is the same three keys as plain JSON. `path` is a
 such as `/appTables/tasks/columns/title/type`, or its nearest parent when
 the key is missing. The codes are stable; the messages may change.
 
-| Code                  | What it means                                                     |
-| --------------------- | ----------------------------------------------------------------- |
-| `invalid_design`      | a value has the wrong type, such as a design that isn't an object |
-| `unknown_key`         | a key a design or design file doesn't have                        |
-| `unsupported_format`  | `version` is newer than this release reads                        |
-| `too_large`           | more tables, extra columns or positions than a design may hold    |
-| `unknown_block`       | `extraColumns` names a block that doesn't exist                   |
-| `no_extra_columns`    | `extraColumns` names a block that takes no extra columns          |
-| `block_not_installed` | `extraColumns` names a block the preset doesn't install           |
-| `invalid_name`        | a column or table name that isn't a lower snake identifier        |
-| `invalid_type`        | an extra column whose type isn't a SQL type                       |
-| `invalid_position`    | a canvas position that isn't two finite numbers                   |
-| `invalid_app_table`   | an app table that `tables` rejects                                |
-| `invalid_code`        | a design code that is malformed, damaged or too long to read      |
-| `too_long`            | a valid design whose code is too long for a URL                   |
-| `invalid_file`        | a design file that isn't JSON or lacks its keys                   |
-| `invalid_preset`      | a design file's preset that isn't a preset name or code           |
+| Code                  | What it means                                                      |
+| --------------------- | ------------------------------------------------------------------ |
+| `invalid_design`      | a value has the wrong type, such as a design that isn't an object  |
+| `unknown_key`         | a key a design or design file doesn't have                         |
+| `unsupported_format`  | `version` is newer than this release reads                         |
+| `too_large`           | more tables, extra columns or positions than a design may hold     |
+| `unknown_block`       | `extraColumns` names a block that doesn't exist                    |
+| `no_extra_columns`    | `extraColumns` names a block that takes no extra columns           |
+| `block_not_installed` | `extraColumns` names a block the preset doesn't install            |
+| `invalid_name`        | a column or table name that isn't a lower snake identifier         |
+| `invalid_type`        | an extra column whose type isn't a SQL type                        |
+| `invalid_position`    | a canvas position that isn't two finite numbers                    |
+| `invalid_app_table`   | an app table that `tables` rejects                                 |
+| `invalid_code`        | a design code that is malformed, damaged or too long to read       |
+| `too_long`            | a valid design whose code is too long for a URL                    |
+| `invalid_file`        | a design file that isn't JSON or lacks its keys                    |
+| `invalid_preset`      | a preset that isn't a preset name or object, or a file without one |
 
 ### Design files
 
 A design too long for a URL travels as a file instead. `designFileSource`
-writes it, and `init --preset` and `apply --preset` read it from a path ending
+writes it, and `init --preset` and `add --preset` read it from a path ending
 in `.json`. `DESIGN_FILE` is the default name, `better-supabase.design.json`.
 
 ```ts
@@ -190,21 +206,20 @@ import {
 
 const source = designFileSource(resolvePreset(defaultPreset()), design);
 // {
-//   "preset": "...",
-//   "design": { "tables": { ... }, "extraColumns": { ... } }
+//   "version": 7,
+//   "preset": "saas",
+//   "appTables": { ... },
+//   "extraColumns": { ... }
 // }
 
 const { preset, design: read } = readDesignFile(source);
 ```
 
-The file holds the preset code and the design as plain JSON, with no length
-limit. A design that needs format 1 carries `"version": 1`, as its code would.
-`readDesignFile` accepts only the keys `preset` and `design`, decodes the
-preset and checks the design with `parseDesign`, and throws a
-`DesignParseError` for anything else; a path into the design starts with
-`/design`. `safeDesignFileSource(resolved, design)` returns
-`{ ok: true, source }` or the issues instead of throwing. The canvas
-positions don't travel in the file.
+The file is the design JSON with its `version` and `preset`, with no length
+limit. `readDesignFile` checks it with the same rules as `parseDesign`, needs a
+`preset`, and throws a `DesignParseError` for anything else.
+`safeDesignFileSource(resolved, design)` returns `{ ok: true, source }` or the
+issues instead of throwing.
 
 Two helpers check a design before it is encoded. `appReservedColumns(tenant)`
 lists the columns every app table can get from its scope (`id`,
@@ -236,34 +251,26 @@ const changes = diffAppTables(
 //    summary: "Changes notes.body from jsonb to text.", steps: [...] }]
 ```
 
-The AI instructions for a design are at
-`/create/prompt.md?preset=<code>&design=<code>`.
+The AI instructions for a design are at `/create/prompt.md?design=<code>`,
+or `/create/prompt.md?preset=<name>` for a named preset.
 
 | Function               | What it does                                                                                          |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |
 | `designConfig`         | the preset's config with the design merged in; throws for extra columns on a block it doesn't install |
-| `designConfigSource`   | `better-supabase.config.ts` with the design, and the `/create` URL with both codes in its comment     |
-| `designInstallCommand` | `init --preset` with the quoted URL; the preset command when the code is empty                        |
-| `designApplyCommand`   | `apply --preset` with the quoted URL                                                                  |
+| `createUrl`            | the `/create` URL for a preset and design; throws `DesignTooLongError` past the URL limit             |
+| `presetAndDesignOf`    | the preset and design a name, a `/create` URL or a design code holds                                  |
 | `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `DesignParseError`            |
 | `designSchema`         | `parseDesign` as a Standard Schema (v1)                                                               |
 | `safeParseDesign`      | `parseDesign` without the throw: `{ ok: true, design }` or `{ ok: false, issues }`                    |
-| `designFileSource`     | the design file: the preset code and the design as JSON                                               |
+| `designFileSource`     | the design file: the design JSON with its preset                                                      |
 | `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`               |
 | `readDesignFile`       | the preset and design from a design file; throws a `DesignParseError` for anything else               |
 
 ### The default preset
 
 `DEFAULT_PRESET_NAME` is `"saas"`, the preset `/create` and `init` start
-from. `defaultPreset()` returns it as a `Preset` and `defaultPresetCode()`
-returns its code, so an app that opens a new design doesn't hard-code
-either:
-
-```ts
-import { defaultPresetCode } from "better-supabase/preset";
-
-const url = `https://app.bettersupabase.com/create?preset=${defaultPresetCode()}`;
-```
+from. `defaultPreset()` returns it as a `Preset`, so an app that opens a new
+design doesn't hard-code it.
 
 ## Resolving
 
@@ -285,12 +292,15 @@ disables a block.
 
 ## Generated files
 
+`presetConfigSource`, `presetInstallCommand` and `presetApplyCommand` are
+async, because the URL in their output is.
+
 | Function               | Writes                                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------------- |
 | `presetConfigSource`   | `better-supabase.config.ts` with every block, each added block marked with its reason         |
 | `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `defineBlocks`               |
-| `presetInstallCommand` | `npx better-supabase init --preset <code>`, which starts a project from the preset            |
-| `presetApplyCommand`   | `npx better-supabase add --preset <code>`, which applies it to an existing project            |
+| `presetInstallCommand` | `npx better-supabase init --preset <name or URL>`, which starts a project from the preset     |
+| `presetApplyCommand`   | `npx better-supabase add --preset <name or URL>`, which applies it to an existing project     |
 | `presetGlue`           | the registry glue items for the preset's framework and platforms; `glueCommand` installs them |
 
 `scripts/build-catalog.ts` writes the catalog (`src/preset/catalog.generated.ts`)

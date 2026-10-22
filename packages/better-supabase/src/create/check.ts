@@ -7,7 +7,6 @@ import {
   DesignTooLongError,
   designOf,
   encodeDesign,
-  encodePreset,
   parseDesign,
   presetOf,
   resolvePreset,
@@ -136,10 +135,8 @@ export async function checkDesign(
     return { ok: false, issues: [parseIssue(error)] };
   }
 
-  const code = encodePreset(resolvedPreset);
-
   const data = schemaData(
-    parseSchema(previewFiles(code), {
+    parseSchema(previewFiles(resolvedPreset), {
       tenantColumn: tenantColumnOf(resolvedPreset),
     }),
     resolvedPreset.tenantName,

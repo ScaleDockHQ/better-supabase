@@ -8,7 +8,7 @@ import {
   newDeployId,
   suggestedProjectName,
 } from "../../src/create/index.ts";
-import { encodePreset, namedPreset } from "../../src/preset/index.ts";
+import { presetSpec, namedPreset } from "../../src/preset/index.ts";
 
 describe("deployQuery", () => {
   const files = [
@@ -33,7 +33,7 @@ describe("deployQuery", () => {
   });
 
   it("renders a preset's schema", () => {
-    const query = deployQuery(previewFiles(encodePreset(namedPreset("saas"))));
+    const query = deployQuery(previewFiles(presetSpec(namedPreset("saas"))));
 
     expect(query).toContain("create table");
     expect(query).not.toContain("plan(");

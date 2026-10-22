@@ -41,6 +41,11 @@ const config = createNextConfig({
         permanent: true,
       },
       {
+        source: "/docs/presets/codes",
+        destination: "/docs/presets/designs",
+        permanent: true,
+      },
+      {
         source: "/docs/cli/introspect",
         destination: "/docs/cli/gen",
         permanent: true,

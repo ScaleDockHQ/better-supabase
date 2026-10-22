@@ -1,13 +1,10 @@
 import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { PresetCatalog, PresetGlueItem } from "./catalog-types.ts";
+import type { presetConfig } from "./config.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { groupEntries } from "../config/groups.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
-import { encodePreset } from "./code.ts";
-import { presetConfig } from "./config.ts";
-
-const CREATE_URL = "https://app.bettersupabase.com/create";
 
 /** The comment a config with the provider access model gets above `blocks`. */
 export const PROVIDER_COMMENT: readonly string[] = [
@@ -47,13 +44,6 @@ function literal(value: unknown): string {
 export type ConfigSourceKeys = ReturnType<typeof presetConfig> & {
   readonly appTables?: AppTablesConfig;
 };
-
-/** The `/create` URL of a preset, with `&design=` when `designCode` isn't empty. */
-export function createUrl(resolved: ResolvedPreset, designCode = ""): string {
-  const preset = `${CREATE_URL}?preset=${encodePreset(resolved.preset)}`;
-
-  return designCode === "" ? preset : `${preset}&design=${designCode}`;
-}
 
 /**
  * `better-supabase.config.ts` with these keys: every block with its reason, the
@@ -111,14 +101,6 @@ export function configSource(
   lines.push("});", "");
 
   return lines.join("\n");
-}
-
-/**
- * `better-supabase.config.ts` for a resolved preset: every block with its
- * reason, and the conventions that differ from the defaults.
- */
-export function presetConfigSource(resolved: ResolvedPreset): string {
-  return configSource(resolved, presetConfig(resolved), createUrl(resolved));
 }
 
 /**
@@ -198,14 +180,4 @@ export function presetGlue(
 /** The shadcn command that copies glue items into the app. */
 export function glueCommand(items: readonly PresetGlueItem[]): string {
   return `npx shadcn@latest add ${items.map((item) => `@better-supabase/${item.name}`).join(" ")}`;
-}
-
-/** The command that starts a project from the preset. */
-export function presetInstallCommand(resolved: ResolvedPreset): string {
-  return `npx better-supabase init --preset ${encodePreset(resolved.preset)}`;
-}
-
-/** The command that applies the preset to an existing project. */
-export function presetApplyCommand(resolved: ResolvedPreset): string {
-  return `npx better-supabase add --preset ${encodePreset(resolved.preset)}`;
 }

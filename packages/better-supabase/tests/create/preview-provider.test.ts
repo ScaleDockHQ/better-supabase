@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Preset } from "../../src/preset/index.ts";
+import type { Preset, PresetName, PresetSpec } from "../../src/preset/index.ts";
 
 import {
   previewAccessProvider,
@@ -8,18 +8,18 @@ import {
   tableStatements,
 } from "../../src/create/index.ts";
 import {
-  encodePreset,
+  presetSpec,
   namedPreset,
   PRESET_NAMES,
   PRESETS,
 } from "../../src/preset/index.ts";
 
-const withProvider = (preset: Preset): string =>
-  encodePreset({ ...preset, access: "provider" });
+const withProvider = (preset: Preset): PresetName | PresetSpec =>
+  presetSpec({ ...preset, access: "provider" });
 
 describe("previewFiles", () => {
   it("renders a design's app tables", () => {
-    const files = previewFiles(encodePreset(namedPreset("saas")), {
+    const files = previewFiles(presetSpec(namedPreset("saas")), {
       appTables: {
         projects: { columns: { title: { type: "text", nullable: false } } },
       },
@@ -49,15 +49,15 @@ describe("previewFiles", () => {
   });
 
   it("calls the placeholder functions only for access: provider", () => {
-    const sql = (code: string): string =>
-      previewFiles(code)
+    const sql = (spec: PresetName | PresetSpec): string =>
+      previewFiles(spec)
         .map((file) => file.contents)
         .join("\n");
 
     expect(sql(withProvider(namedPreset("saas")))).toContain(
       "provider.ids_with(",
     );
-    expect(sql(encodePreset(namedPreset("saas")))).not.toContain(
+    expect(sql(presetSpec(namedPreset("saas")))).not.toContain(
       "provider.ids_with(",
     );
   });

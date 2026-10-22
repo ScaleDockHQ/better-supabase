@@ -6,7 +6,6 @@
 
 import type { CliCallMigration } from "./codemod-calls.ts";
 import type { ConfigEdit } from "./sql/config-edit.ts";
-import type { WebhookFormat } from "./sql/config-webhook-format.ts";
 
 import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
@@ -16,6 +15,12 @@ import {
   rewriteCliCalls,
   SHELL_FILE,
 } from "./codemod-calls.ts";
+import {
+  convertDesignFile,
+  DESIGN_FILE_NAME,
+  designFileResult,
+  thenConvertPresetCode,
+} from "./codemod-preset-code.ts";
 import { migrateCliCall } from "./core/moved.ts";
 import { mask } from "./sql/config-edit.ts";
 import { groupConfigJson, groupConfigSource } from "./sql/config-group.ts";
@@ -23,7 +28,7 @@ import {
   moveSqlModulesToBlocks,
   moveSqlModulesToBlocksJson,
 } from "./sql/config-move.ts";
-import { pinWebhookFormat } from "./sql/config-webhook-format.ts";
+import { withWebhookFormat } from "./sql/config-webhook-format.ts";
 
 /**
  * `better-supabase.config.*`, the files a codemod's `configFile` edit applies
@@ -62,6 +67,8 @@ export interface Codemod {
   readonly review?: readonly ReviewHint[];
   /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
   readonly configFile?: (source: string, json: boolean) => CodemodConfigEdit;
+  /** A rewrite of a design file; a refusal is listed for review. */
+  readonly designFile?: (source: string) => CodemodConfigEdit;
   /**
    * Renamed CLI calls, rewritten in `package.json` and workflows and listed in
    * other shell files.
@@ -159,57 +166,6 @@ function environmentModules(text: string): ReviewLine[] {
           ]
         : [],
     );
-}
-
-/**
- * `edit` with `defaultFormat` pinned to `format` where an adopted webhooks-out
- * block needs it.
- */
-function withWebhookFormat(
-  edit: CodemodConfigEdit,
-  json: boolean,
-  format: WebhookFormat,
-): CodemodConfigEdit {
-  if (!edit.ok) {
-    return edit;
-  }
-
-  const earlier = "review" in edit ? edit.review : [];
-  const pin = pinWebhookFormat(edit.text, json, format);
-
-  if (pin === undefined) {
-    return { ok: true, text: edit.text, review: earlier };
-  }
-
-  if (!pin.ok) {
-    return {
-      ok: true,
-      text: edit.text,
-      review: [
-        ...earlier,
-        {
-          line: 1,
-          message: `blocks["webhooks-out"] is adopted and maps no columns.endpoints.format, but defaultFormat wasn't pinned: ${pin.reason}. Set options.defaultFormat to "${format}" to keep the body endpoints get now`,
-        },
-      ],
-    };
-  }
-
-  const line =
-    pin.text.split("\n").findIndex((text) => text.includes("defaultFormat")) +
-    1;
-
-  return {
-    ok: true,
-    text: pin.text,
-    review: [
-      ...earlier,
-      {
-        line: Math.max(line, 1),
-        message: `blocks["webhooks-out"] is adopted and maps no columns.endpoints.format, so the codemod set options.defaultFormat to "${format}", the body its endpoints get now. Change it if your receivers expect the other format`,
-      },
-    ],
-  };
 }
 
 const SQL_ADD_HINT: ReviewHint = {
@@ -498,7 +454,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.15": {
     name: "0.15",
     description:
-      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); cache tags, query keys and the debug header and route that start with bs are listed for review",
+      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); turns a 0.14 preset code in the config's preset into the preset name or object it holds, and a 0.14 design file into a design with its preset inside; cache tags, query keys and the debug header and route that start with bs are listed for review",
     bindings: {
       bs: "bsb",
       SqlModule: "BlockSql",
@@ -530,7 +486,11 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     },
     members: [{ from: "bs", to: "bsb" }],
     configFile: (source, json) =>
-      json ? groupConfigJson(source) : groupConfigSource(source),
+      thenConvertPresetCode(
+        json ? groupConfigJson(source) : groupConfigSource(source),
+        json,
+      ),
+    designFile: convertDesignFile,
     cliCalls: migrateCliCall,
     review: [
       {
@@ -1120,6 +1080,10 @@ export function applyCodemod(
           text: source,
           review: [...cliCallHints(source, codemod.cliCalls), ...hints],
         };
+  }
+
+  if (file !== undefined && DESIGN_FILE_NAME.test(file)) {
+    return designFileResult(source, codemod.designFile);
   }
 
   let text = source;

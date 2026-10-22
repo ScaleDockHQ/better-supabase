@@ -13,7 +13,7 @@ const live = await reachable();
 
 describe("recipe module sets", () => {
   it.each(RECIPES)("$name starts from a named preset", (recipe) => {
-    const preset = recipe.config.preset ?? "";
+    const { preset } = recipe.config;
     expect(isPresetName(preset)).toBe(true);
     const named = Object.keys(recipe.config.blocks ?? {});
 

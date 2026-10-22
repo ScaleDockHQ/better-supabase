@@ -16,7 +16,7 @@ import { blockEntrySource } from "../../config/index.ts";
 import {
   designConfig,
   diffAppTables,
-  encodePreset,
+  presetSpec,
   isPresetName,
   resolvePreset,
 } from "../../preset/index.ts";
@@ -53,7 +53,7 @@ export const APPLY_ARGS = {
   preset: {
     type: "string",
     description:
-      "A named preset, a code from /create, its URL or a downloaded design file; the design (&design= or the file) adds its app tables and extra columns",
+      "A named preset, a design code from /create, its URL or a downloaded design file; the design sets the preset and adds its app tables and extra columns",
     valueHint: "name|code|url|file",
   },
   package: {
@@ -287,8 +287,8 @@ function edited(
 
   const value =
     only === "conventions"
-      ? encodePreset({ ...preset, blocks: [] })
-      : (name ?? encodePreset(preset));
+      ? presetSpec({ ...preset, blocks: [] })
+      : (name ?? presetSpec(preset));
 
   return json
     ? setPresetInJson(source, value)
@@ -451,7 +451,7 @@ export async function runApply(
   if (!edit.ok) {
     return {
       code: 1,
-      error: `${shown} wasn't changed: ${edit.reason}. Set preset: "${encodePreset(preset)}" in it yourself.`,
+      error: `${shown} wasn't changed: ${edit.reason}. Set preset: ${JSON.stringify(presetSpec(preset))} in it yourself.`,
     };
   }
 

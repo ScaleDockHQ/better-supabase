@@ -7,6 +7,8 @@
  * refused with a reason, and `add` prints the snippet instead.
  */
 
+import type { PresetSpec } from "../../preset/index.ts";
+
 import { codeRanges } from "../code-ranges.ts";
 import { isRecord } from "../guards.ts";
 
@@ -476,8 +478,14 @@ const jsonEdit = (
       : `${JSON.stringify(next, null, indent)}\n`,
 });
 
-/** `source` with `preset` set to `value`, replacing the one it has. */
-export function setPresetInConfig(source: string, value: string): ConfigEdit {
+/**
+ * `source` with `preset` set to `value` (a preset name or object), replacing
+ * the one it has.
+ */
+export function setPresetInConfig(
+  source: string,
+  value: string | PresetSpec,
+): ConfigEdit {
   const code = mask(source);
   const root = configObject(code);
 
@@ -496,27 +504,27 @@ export function setPresetInConfig(source: string, value: string): ConfigEdit {
 
   const current = rootProps.find((prop) => prop.key === "preset");
 
-  // Keep the file's quotes: a value of the preset alphabet needs no escaping.
+  // Keep the file's quotes.
   const quote =
     source[current?.valueStart ?? -1] === "'" ||
     (current === undefined && source.includes("'better-supabase/config'"))
       ? "'"
       : '"';
 
-  const literal = `${quote}${value}${quote}`;
+  const text = literal(value, "  ", quote);
 
   if (current) {
     return {
       ok: true,
       text:
         source.slice(0, current.valueStart) +
-        literal +
+        text +
         source.slice(current.valueEnd),
     };
   }
 
   const change = append(source, code, root, lastOf(rootProps), [
-    `preset: ${literal}`,
+    `preset: ${text}`,
   ]);
 
   return {
@@ -527,7 +535,10 @@ export function setPresetInConfig(source: string, value: string): ConfigEdit {
 }
 
 /** `setPresetInConfig` for `better-supabase.config.json`. */
-export function setPresetInJson(source: string, value: string): ConfigEdit {
+export function setPresetInJson(
+  source: string,
+  value: string | PresetSpec,
+): ConfigEdit {
   let config: unknown;
 
   try {

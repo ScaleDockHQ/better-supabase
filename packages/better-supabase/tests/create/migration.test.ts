@@ -4,9 +4,9 @@ import type { CreateDesign } from "../../src/preset/index.ts";
 
 import { migrationBetween, previewFiles } from "../../src/create/index.ts";
 import { validateDesign } from "../../src/create/lite/index.ts";
-import { encodePreset, namedPreset } from "../../src/preset/index.ts";
+import { presetSpec, namedPreset } from "../../src/preset/index.ts";
 
-const code = encodePreset(namedPreset("saas"));
+const code = presetSpec(namedPreset("saas"));
 
 const notes: CreateDesign = {
   appTables: {
@@ -73,7 +73,7 @@ describe("migrationBetween", () => {
   });
 
   it("refuses a change outside the app tables", () => {
-    const projects = encodePreset(namedPreset("projects"));
+    const projects = presetSpec(namedPreset("projects"));
 
     const plan = migrationBetween(projects, notes, {
       ...notes,

@@ -14,35 +14,28 @@ import type { ResolvedPreset } from "./resolve.ts";
 import { asBlocksConfig } from "../config/blocks.ts";
 import { flattenConfig, groupConfig } from "../config/groups.ts";
 import { DEFAULT_TENANT } from "../core/entity-naming.ts";
-import { decodePreset, isPresetCode } from "./code.ts";
-import { DEFAULT_CONVENTIONS } from "./fields.ts";
-import { isPresetName, namedPreset, PRESET_NAMES } from "./presets.ts";
+import { isPresetName, namedPreset } from "./presets.ts";
 import { listNames, resolvePreset } from "./resolve.ts";
+import { presetOfSpec } from "./spec.ts";
 
-/** A named preset, a code, a `/create?preset=` URL, or a preset object. */
+/** A named preset, a `/create?preset=` URL, or a preset object. */
 export type PresetInput =
   | string
   | (Partial<Preset> & { readonly blocks?: readonly string[] });
 
-/** Reads a named preset, a code or a `/create?preset=` URL into a `Preset`. */
+/**
+ * Reads a named preset, a `/create?preset=<name>` URL or a preset object
+ * (`PresetSpec`) into a `Preset`. A preset code from 0.14 throws, naming the
+ * codemod that converts it.
+ */
 export function presetOf(input: PresetInput): Preset {
   if (typeof input !== "string") {
-    return { ...DEFAULT_CONVENTIONS, ...input, blocks: input.blocks ?? [] };
+    return presetOfSpec(input);
   }
 
   const value = /[?&]preset=([^&#]+)/.exec(input)?.[1] ?? input;
 
-  if (isPresetName(value)) {
-    return namedPreset(value);
-  }
-
-  if (isPresetCode(value)) {
-    return decodePreset(value).preset;
-  }
-
-  throw new TypeError(
-    `preset: "${input}" is not a preset. Use a name (${PRESET_NAMES.join(", ")}), a code from /create, or its URL.`,
-  );
+  return isPresetName(value) ? namedPreset(value) : presetOfSpec(value);
 }
 
 /**

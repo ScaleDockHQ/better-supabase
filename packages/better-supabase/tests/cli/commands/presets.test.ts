@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { CreateDesign } from "../../../src/preset/index.ts";
+import type { CreateDesign, PresetSpec } from "../../../src/preset/index.ts";
 
 import { runApply } from "../../../src/cli/commands/apply.ts";
 import {
@@ -19,12 +19,13 @@ import {
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
+  createUrl,
   DESIGN_FILE,
   DesignTooLongError,
   designFileSource,
   encodeDesign,
-  encodePreset,
   namedPreset,
+  presetFromSpec,
   resolvePreset,
 } from "../../../src/preset/index.ts";
 import { inputRequired, usageError } from "../fixtures/usage.ts";
@@ -58,35 +59,40 @@ const design: CreateDesign = {
 
 /** The `/create` URL for the minimal preset with `value` as its design. */
 async function designUrl(value: CreateDesign = design): Promise<string> {
-  return `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&design=${await encodeDesign(value)}`;
+  return createUrl(resolvePreset(namedPreset("minimal")), value);
+}
+
+/** The `/create` URL for a preset object. */
+async function presetUrl(spec: PresetSpec): Promise<string> {
+  return createUrl(resolvePreset(presetFromSpec(spec)));
 }
 
 const APP_TABLES_FILE = "supabase/schemas/900_better_supabase_app_tables.sql";
 
 describe("preset decode", () => {
-  it("prints a named preset, a code and a /create URL", () => {
-    const named = decodePresetInput("minimal");
+  it("prints a named preset and a /create URL", async () => {
+    const named = await decodePresetInput("minimal");
     expect(named.code).toBe(0);
-    expect(named.output).toContain(
-      `Code: ${encodePreset(namedPreset("minimal"))}`,
-    );
+    expect(named.output).toContain("Preset: minimal");
     expect(named.output).toContain("  profiles");
-    const code = encodePreset({ blocks: ["comments"], casing: "camel" });
 
-    const decoded = decodePresetInput(
-      `https://bettersupabase.com/create?preset=${code}`,
+    const decoded = await decodePresetInput(
+      await presetUrl({ blocks: ["comments"], casing: "camel" }),
     );
 
+    expect(decoded.output).toContain("Preset: custom");
     expect(decoded.output).toContain("  casing        camel");
     expect(decoded.output).toContain(
       "  tenant (required by access, comments and messaging)",
     );
-    expect(decoded.data).toMatchObject({ code, derived: [] });
+    expect(decoded.data).toMatchObject({
+      spec: { casing: "camel", blocks: ["comments"] },
+    });
   });
 
   it("exits 1 on what can't install, and 2 on what isn't a preset", async () => {
-    const conflict = decodePresetInput(
-      encodePreset({ blocks: ["organizations"], scope: "user" }),
+    const conflict = await decodePresetInput(
+      await presetUrl({ blocks: ["organizations"], scope: "user" }),
     );
 
     expect(conflict.code).toBe(1);
@@ -117,7 +123,7 @@ describe("preset info", () => {
     expect(info.output).toContain("  + tags");
     expect(info.output).toContain("  ~ casing is camel, the preset sets snake");
     expect(info.output).toContain("  ~ profiles sets mode");
-    expect(info.data).toMatchObject({ name: "minimal", added: ["tags"] });
+    expect(info.data).toMatchObject({ spec: "minimal", added: ["tags"] });
   });
 
   it("says when the config adds nothing, or names no preset", () => {
@@ -209,7 +215,7 @@ describe("apply", () => {
     const blocks = await run([
       "add",
       "--preset",
-      encodePreset({ blocks: ["comments"] }),
+      await presetUrl({ blocks: ["comments"] }),
       "--only",
       "blocks",
       "--cwd",
@@ -242,7 +248,7 @@ describe("apply", () => {
 
     const result = await runApply(
       resolveConfig({}, dir),
-      { preset: encodePreset(preset), only: "conventions" },
+      { preset: await presetUrl(preset), only: "conventions" },
       {
         configFile: join(dir, "better-supabase.config.ts"),
         now,
@@ -252,10 +258,11 @@ describe("apply", () => {
     );
 
     expect(result.code).toBe(0);
-    const code = encodePreset({ ...preset, blocks: [] });
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
-    ).toContain(`  gen: { casing: 'snake' },\n  preset: '${code}',\n`);
+    ).toContain(
+      "  gen: { casing: 'snake' },\n  preset: {\n    casing: 'camel',\n  },\n",
+    );
   });
 
   it("overrides the preset's conventions with the convention flags", async () => {
@@ -276,13 +283,8 @@ describe("apply", () => {
 
     expect(result.code).toBe(0);
 
-    const code = encodePreset({
-      ...namedPreset("minimal"),
-      scope: "user",
-      api: "api",
-    });
-
-    expect(result.stdout).toContain(`+  "preset": "${code}"`);
+    expect(result.stdout).toContain('+  "preset": {');
+    expect(result.stdout).toContain('+    "scope": "user",');
 
     const config = resolveConfig({}, dir);
     const deps = { now, configFile: join(dir, "better-supabase.config.json") };
@@ -315,7 +317,7 @@ describe("apply", () => {
       "apps/web/package.json": json({ name: "web" }),
       "apps/web/better-supabase.config.json": json({}),
     });
-    const url = `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&authz=acme&package=apps/web`;
+    const url = `https://bettersupabase.com/create?preset=minimal&authz=acme&package=apps/web`;
 
     const result = await run(["add", "--preset", url, "--cwd", dir]);
 
@@ -330,7 +332,7 @@ describe("apply", () => {
           "utf-8",
         ),
       ),
-    ).toEqual({ preset: encodePreset(namedPreset("minimal")) });
+    ).toEqual({ preset: "minimal" });
     expect(
       (
         await run([
@@ -362,16 +364,14 @@ describe("apply", () => {
       message: expect.stringContaining("better-supabase init --preset saas"),
     });
     await usageError(() => runApply(config, { preset: "startup" }, deps));
+
+    const blocked = await presetUrl({
+      blocks: ["organizations"],
+      scope: "none",
+    });
+
     expect(
-      await usageError(() =>
-        runApply(
-          config,
-          {
-            preset: encodePreset({ blocks: ["organizations"], scope: "none" }),
-          },
-          deps,
-        ),
-      ),
+      await usageError(() => runApply(config, { preset: blocked }, deps)),
     ).toContain("The preset can't install: organizations");
     await files({ "better-supabase.config.ts": "export default config;\n" });
     expect((await runApply(config, { preset: "saas" }, deps)).error).toContain(
@@ -415,7 +415,7 @@ describe("apply with a design", () => {
         links: { owner: "user", columns: { url: { type: "text" } } },
         notes: { owner: "user", columns: { body: { type: "text" } } },
       },
-      preset: encodePreset(namedPreset("minimal")),
+      preset: "minimal",
     });
     expect(await readFile(join(dir, APP_TABLES_FILE), "utf-8")).toContain(
       '"public"."notes"',
@@ -717,14 +717,8 @@ describe("init --preset", () => {
       "utf-8",
     );
 
-    const code = encodePreset({
-      ...namedPreset("minimal"),
-      casing: "camel",
-      access: "provider",
-    });
-
     expect(config).toContain(
-      `  preset: '${code}',\n  gen: { casing: 'camel', output: 'lib/supabase/generated.ts' },`,
+      `  preset: { casing: 'camel', access: 'provider', blocks: ['profiles'] },\n  gen: { casing: 'camel', output: 'lib/supabase/generated.ts' },`,
     );
     expect(config).toContain("set `auth.authorization` to its adapter");
   });
@@ -772,7 +766,7 @@ describe("init --preset", () => {
       "pnpm-workspace.yaml": "packages:\n  - apps/*\n",
       "apps/web/package.json": json({ name: "web" }),
     });
-    const url = `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&package=apps/web`;
+    const url = `https://bettersupabase.com/create?preset=minimal&package=apps/web`;
 
     expect(
       (await run(["init", "--preset", url, "--yes", "--cwd", dir])).code,
@@ -782,14 +776,13 @@ describe("init --preset", () => {
     );
   });
 
-  it("writes a code for a selection, and refuses what can't install", async () => {
+  it("writes a preset object for a selection, and refuses what can't install", async () => {
     await files({ "package.json": json({ name: "app" }) });
-    const code = encodePreset({ blocks: ["tags"], integrations: ["mcp"] });
 
     const result = await run([
       "init",
       "--preset",
-      code,
+      await presetUrl({ blocks: ["tags"], integrations: ["mcp"] }),
       "--dry-run",
       "--cwd",
       dir,
@@ -804,7 +797,7 @@ describe("init --preset", () => {
     const blocked = await run([
       "init",
       "--preset",
-      encodePreset({ blocks: ["teams"], scope: "user" }),
+      await presetUrl({ blocks: ["teams"], scope: "user" }),
       "--cwd",
       dir,
     ]);
@@ -922,7 +915,7 @@ describe("init --preset", () => {
   it("refuses a missing or invalid design file", async () => {
     await files({
       "package.json": json({ name: "app" }),
-      "broken.json": json({ preset: "minimal", design: { tables: {} } }),
+      "broken.json": json({ version: 7, preset: "minimal", tables: {} }),
     });
 
     const missing = await run([
@@ -964,7 +957,7 @@ describe("apply with a design file", () => {
       ),
     ).toMatchObject({
       tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
-      preset: encodePreset(namedPreset("minimal")),
+      preset: "minimal",
     });
   });
 });
