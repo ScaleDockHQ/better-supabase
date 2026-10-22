@@ -61,6 +61,7 @@ import {
   ListTodoIcon,
   LockKeyholeIcon,
   LogInIcon,
+  MailIcon,
   MailPlusIcon,
   MegaphoneIcon,
   MessageCircleIcon,
@@ -163,6 +164,7 @@ export const BLOCK_ICONS = {
   // CRM & sales
   parties: ContactIcon,
   engagements: PhoneCallIcon,
+  "mail-sync": MailIcon,
   deals: HandCoinsIcon,
   quotes: ReceiptTextIcon,
   targets: TargetIcon,

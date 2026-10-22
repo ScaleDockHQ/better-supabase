@@ -84,6 +84,7 @@
     "pipelines",
     "parties",
     "engagements",
+    "mail-sync",
     "collections",
     "deals",
     "work-items",

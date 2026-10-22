@@ -180,6 +180,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0061: `gen` writes block schemas, name constants, nuqs parsers and factories; their libraries stay optional peers.
 - 0062: one messaging core; channels first, then comments and the inbox move onto it (breaking).
 - 0063: the activity feed moves out of comments into its own `activity` block.
+- 0078: member mailboxes sync into engagements through a versioned `MailProvider` over `fetch`.
 
 ## Pre-release pins
 

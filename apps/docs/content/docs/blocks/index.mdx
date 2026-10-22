@@ -159,6 +159,7 @@ expose the module schema itself.
 | [Pipelines](/docs/blocks/pipelines)                         | `better-supabase/blocks/pipelines`                                                                                                 | `pipelines`                            |
 | [Parties](/docs/blocks/parties)                             | `better-supabase/blocks/parties`                                                                                                   | `parties`                              |
 | [Engagements](/docs/blocks/engagements)                     | `better-supabase/blocks/engagements`                                                                                               | `engagements`                          |
+| [Mail sync](/docs/blocks/mail-sync)                         | `better-supabase/blocks/mail-sync`                                                                                                 | `mail-sync`                            |
 | [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                                                                     | `deals`                                |
 | [Work items](/docs/blocks/work-items)                       | `better-supabase/blocks/work-items`                                                                                                | `work-items`                           |
 | [Quotes](/docs/blocks/quotes)                               | `better-supabase/blocks/quotes`                                                                                                    | `quotes`                               |
@@ -317,6 +318,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `messaging`          | `tenant`, `access`, `subjects`                                        | `notifications`, `jobs`, `profiles`, `attachments`, `reactions`, `data-lifecycle`, `inbox`                                                       |
 | `channels`           | `tenant`, `access`, `subjects`, `messaging`                           | `outbox`, `audit`, `data-lifecycle`                                                                                                              |
 | `activity`           | `tenant`, `access`                                                    | `notifications`, `subjects`, `audit`, `workflows`                                                                                                |
+| `mail-sync`          | `tenant`, `access`, `subjects`                                        | `outbox`, `audit`, `parties`, `engagements`, `data-lifecycle`                                                                                    |
 | `ensure-rls`         | none                                                                  | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

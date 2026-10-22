@@ -70,6 +70,7 @@
   "blocks/jobs",
   "blocks/knowledge",
   "blocks/leave",
+  "blocks/mail-sync",
   "blocks/memory",
   "blocks/messaging",
   "blocks/metrics",
