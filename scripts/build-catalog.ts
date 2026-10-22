@@ -151,7 +151,7 @@ export interface Catalog {
 }
 
 /** The category of the block whose manifest installs the module. */
-function categoryOf(name: string): Category {
+export function categoryOf(name: string): Category {
   const block = BLOCK_MANIFESTS.find((each) => each.sql.includes(name));
 
   if (block === undefined) {

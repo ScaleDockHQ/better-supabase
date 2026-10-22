@@ -137,7 +137,7 @@ export function TaskImportAction({ projectId }: { projectId: string }) {
 `usePermissions` over it. Those bindings have no `<Can>` component; render
 on `can(state.permissions, key)` with `v-if`, `{#if}` or `<Show>`. Wrap the
 client in `batchPermissions` so the components of one render share a call.
-The [Can recipe](/docs/registry/ui-recipes) shows it in the Next.js example.
+The [Can recipe](/docs/registry/ui-recipes/can) shows it in the Next.js example.
 
 ```vue title="ImportButton.vue"
 <script setup lang="ts">
