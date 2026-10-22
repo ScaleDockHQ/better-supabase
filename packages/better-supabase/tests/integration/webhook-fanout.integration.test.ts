@@ -14,7 +14,12 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["access", "organizations", "outbox", "webhooks-out"]);
+      await s.install([
+        "permissions",
+        "organizations",
+        "outbox",
+        "webhooks-out",
+      ]);
       const owner = await s.user("owner");
       const admin = await s.user("admin");
       const organization = await s.organization(owner, { admin });

@@ -30,7 +30,7 @@ describe.skipIf(!live)("flags", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["flags"]);
+      await s.install(["feature-flags"]);
 
       for (const [key, target, bucket] of BUCKET_VECTORS) {
         expect(
@@ -50,7 +50,7 @@ describe.skipIf(!live)("flags", () => {
     const api = `bsb_api_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
-      await s.install(["flags", "announcements"], {
+      await s.install(["feature-flags", "announcements"], {
         modules: { "feature-flags": { api }, announcements: { api } },
       });
       await s.rows(
@@ -95,7 +95,7 @@ describe.skipIf(!live)("flags", () => {
     const api = `bsb_api_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
-      await s.install(["organizations", "flags"], {
+      await s.install(["organizations", "feature-flags"], {
         modules: { "feature-flags": { api } },
       });
       const owner = await s.user("owner");
@@ -170,7 +170,7 @@ describe.skipIf(!live)("flags", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "flags"]);
+      await s.install(["organizations", "feature-flags"]);
       await s.clear(["better_supabase.flags"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
@@ -305,7 +305,7 @@ describe.skipIf(!live)("flags", () => {
       await s.rows(
         "create table public.tenant_brands (tenant uuid primary key, brand text not null)",
       );
-      await s.install(["organizations", "flags"], {
+      await s.install(["organizations", "feature-flags"], {
         modules: {
           "feature-flags": {
             options: {
@@ -407,14 +407,14 @@ describe.skipIf(!live)("flags", () => {
     };
 
     try {
-      await s.install(["flags"], layout);
+      await s.install(["feature-flags"], layout);
       await s.rows(`insert into better_supabase.flags (key, expires_at, owner, archived) values
         ('expired', now() - interval '1 day', 'growth', false),
         ('archived', now() - interval '1 day', 'growth', true),
         ('current', now() + interval '1 day', null, false),
         ('open', null, null, false)`);
 
-      const query = expiredFlagsQuery(layout, ["flags"]);
+      const query = expiredFlagsQuery(layout, ["feature-flags"]);
 
       expect(query).toBeDefined();
       expect(

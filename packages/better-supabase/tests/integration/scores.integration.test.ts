@@ -72,7 +72,7 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     await session.install([
       "organizations",
       "outbox",
-      "rules",
+      "automations",
       "reactions",
       "scores",
     ]);

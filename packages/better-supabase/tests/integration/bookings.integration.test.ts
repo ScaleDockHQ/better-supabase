@@ -41,7 +41,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await session.install(
       [
         "organizations",
-        "jobs",
+        "queue",
         "rate-limit",
         "share-links",
         "reminders",
