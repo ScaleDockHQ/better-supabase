@@ -6,7 +6,7 @@ description: The modules, routes and components behind the example's /workflows 
 The Next.js example's `/workflows/builder` page lets members of a tenant
 draw a workflow as a graph, publish it, and start it by hand, from a
 webhook, on a schedule or on an event. Each run shows on the canvas node by
-node. The graph lives in the [workflow builder block](/docs/blocks/workflow-builder);
+node. The graph lives in the [workflow builder block](/docs/blocks/workflow-editor);
 the [Workflow SDK](/docs/blocks/workflow-sdk) runs it. Sign in as
 `admin@acme.test` (password `password123`) to edit and publish.
 
@@ -14,20 +14,20 @@ the [Workflow SDK](/docs/blocks/workflow-sdk) runs it. Sign in as
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  jobs: {},
+  queue: {},
   credentials: { api: "api" },
   workflows: { api: "api" },
-  "workflow-sdk-world": {},
-  "workflow-builder": { api: "api" },
+  "workflow-sdk": {},
+  "workflow-editor": { api: "api" },
 },
 ```
 
-| Module               | Gives the builder                                                    | Page                                              |
-| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
-| `workflows`          | the engine-neutral run registry, schedules, semaphores and admission | [Workflows](/docs/blocks/workflows)               |
-| `workflow-sdk-world` | the Workflow SDK's storage and queue on Postgres                     | [Workflow SDK](/docs/blocks/workflow-sdk)         |
-| `workflow-builder`   | definitions, versions, triggers, credentials, node runs and alerts   | [Workflow builder](/docs/blocks/workflow-builder) |
-| `credentials`        | the Vault functions credential rows resolve through                  | [Credentials](/docs/extending/credentials)        |
+| Module            | Gives the builder                                                    | Page                                             |
+| ----------------- | -------------------------------------------------------------------- | ------------------------------------------------ |
+| `workflows`       | the engine-neutral run registry, schedules, semaphores and admission | [Workflows](/docs/blocks/workflows)              |
+| `workflow-sdk`    | the Workflow SDK's storage and queue on Postgres                     | [Workflow SDK](/docs/blocks/workflow-sdk)        |
+| `workflow-editor` | definitions, versions, triggers, credentials, node runs and alerts   | [Workflow builder](/docs/blocks/workflow-editor) |
+| `credentials`     | the Vault functions credential rows resolve through                  | [Credentials](/docs/extending/credentials)       |
 
 Grant the `workflow.*` keys to your roles. The example's access contract
 (`supabase/schemas/better_supabase/functions/role_permissions.sql`) gives `owner` and `admin` all
@@ -69,17 +69,17 @@ and starts due schedules and queued admission requests through
 `workflowStarter(scheduledWorkflows, { runAs })`, where `runAs` names the
 organization's owner as the publisher, so the member who created the
 schedule lends it no rights; an app would usually name a
-[service principal](/docs/blocks/service-principals) there. Admission
+[service principal](/docs/blocks/service-accounts) there. Admission
 requests start without `runAs` and run as the member who queued them. See
 [Event and schedule starts run as a publisher](/docs/blocks/workflow-sdk#event-and-schedule-starts-run-as-a-publisher).
 
 Every step of a published version runs with its publisher's rights,
 capped to the permissions its nodes needed at publish, through
 `versions.runAs`. A version an organization owns runs as the tenant's
-service principal from the `service-principals` block. When the publisher
+service principal from the `service-accounts` block. When the publisher
 leaves or loses a permission, the next step fails instead of running as the
 service role. The provider's `automation.mayPublish` hook decides each
-publish; [Running a step as the publisher](/docs/blocks/workflow-builder#running-a-step-as-the-publisher)
+publish; [Running a step as the publisher](/docs/blocks/workflow-editor#running-a-step-as-the-publisher)
 has the details, and `testAuthorizationHooks` checks that an unknown
 publisher can neither publish nor run.
 

@@ -6,14 +6,14 @@ description: Link an email address or a chat user to an app user or a contact, t
 `identities` maps an email address or a chat user (a Slack, Teams or WhatsApp id) to an app user or a contact. A bot or a mail webhook sees only the platform's id; this table says who that is. An identity with no row is anonymous.
 
 ```bash
-better-supabase add identities
+better-supabase add linked-identities
 ```
 
 ```ts
 import {
-  createIdentities,
+  createLinkedIdentities,
   identityResolver,
-} from "better-supabase/blocks/identities";
+} from "better-supabase/blocks/linked-identities";
 ```
 
 ## How a row is created
@@ -27,13 +27,13 @@ A row comes from one of two places. Nobody inserts or updates `identity_links` d
 "use server";
 
 import {
-  createIdentities,
+  createLinkedIdentities,
   sqlTransport,
-} from "better-supabase/blocks/identities";
+} from "better-supabase/blocks/linked-identities";
 
 export async function linkSlack() {
   const ctx = await bsb.context();
-  const identities = createIdentities({
+  const identities = createLinkedIdentities({
     transport: sqlTransport(ctx.postgres),
   });
   const { code } = await identities.beginLink("chat", "slack").orThrow();
@@ -42,7 +42,10 @@ export async function linkSlack() {
 ```
 
 ```ts title="lib/bot.ts"
-import { redeemLink, sqlTransport } from "better-supabase/blocks/identities";
+import {
+  redeemLink,
+  sqlTransport,
+} from "better-supabase/blocks/linked-identities";
 import { chatIdentityOf } from "better-supabase/chat-sdk";
 
 const service = sqlTransport(postgres.asService());
@@ -69,7 +72,7 @@ bot.onSubscribedMessage(async (thread, message) => {
 import {
   identityResolver,
   sqlTransport,
-} from "better-supabase/blocks/identities";
+} from "better-supabase/blocks/linked-identities";
 import { createServer, defineAuthorizationHooks } from "better-supabase/server";
 
 export const bsb = createServer(betterSupabase, {
@@ -116,12 +119,12 @@ An email lookup is case-insensitive and also matches a row stored without a prov
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  identities: { options: { codeMinutes: 5 } },
+  "linked-identities": { options: { codeMinutes: 5 } },
 },
 ```
 
 ## Hooks
 
-`createIdentities` takes `hooks`, keyed by method name, that run your code
+`createLinkedIdentities` takes `hooks`, keyed by method name, that run your code
 before and after a call: refuse it with a `DbError`, rewrite its arguments
 or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).

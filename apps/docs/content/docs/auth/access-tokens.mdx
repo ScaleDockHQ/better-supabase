@@ -103,7 +103,7 @@ override the reserved ones (`sub`, `role`, `client_id`, `scope`, `iss`, `aud`,
 `ctx.sql` and `ctx.db` over direct Postgres set these claims as
 `request.jwt.claims`, so policies read `auth.uid()` and the token's `scope`
 narrows the user's permissions (see
-[Delegated tokens](/docs/blocks/access#delegated-tokens)). `ctx.supabase` forwards the token to
+[Delegated tokens](/docs/blocks/permissions#delegated-tokens)). `ctx.supabase` forwards the token to
 PostgREST, which accepts it only when the issuer is registered as a
 [third-party auth provider](https://supabase.com/docs/guides/auth/third-party/overview)
 of the project. Without that, use `ctx.sql` or `ctx.db` for these requests.

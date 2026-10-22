@@ -106,7 +106,7 @@ contract at its column:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  access: { disabled: { user: "better_supabase.profiles.disabled_at" } },
+  permissions: { disabled: { user: "better_supabase.profiles.disabled_at" } },
   profiles: {},
 },
 ```
@@ -166,7 +166,7 @@ profiles: {
 `readPolicy` also takes `{ members, platform }`. `platform` is a permission
 key that `is_platform()` checks, so platform staff read every profile, which
 admin consoles need. It writes its own policy, `bsb_profiles_platform_read`,
-in managed and adopt mode, and pulls in the `access` module. Column grants
+in managed and adopt mode, and pulls in the `permissions` module. Column grants
 still apply, so the private columns stay behind them.
 
 ```ts

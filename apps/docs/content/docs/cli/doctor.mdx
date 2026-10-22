@@ -164,9 +164,9 @@ every request fails with
 need exactly the privileges listed; other tables in the generated schemas need
 `select` for `authenticated`, except tables with RLS on and no permissive
 policy when
-`blocks.grants.options.fromPolicies` is on: those are service-only, so
+`blocks.data-api-grants.options.fromPolicies` is on: those are service-only, so
 BS106 expects no grants for them ([BS115](#bs115)). Add the table to `expose`
-and run `better-supabase add grants`. When `config.toml` sets
+and run `better-supabase add data-api-grants`. When `config.toml` sets
 `[api] auto_expose_new_tables = false`, the finding says so.
 
 A table that only the server reads, such as an audit log written with the
@@ -262,7 +262,7 @@ covers the functions policies call, and the functions those call.
 **Warning: table without a policy still granted to the Data API.** A table
 with RLS on and no permissive policy for `anon` or `authenticated` answers
 every request with no rows or a denied write, yet a grant lists it in the API
-schema. With `blocks.grants.options.fromPolicies`, `better-supabase upgrade`
+schema. With `blocks.data-api-grants.options.fromPolicies`, `better-supabase upgrade`
 revokes `anon`, `authenticated` and `public` on every table in `schemas` with
 RLS on that no `expose` entry and no permissive policy reaches, and keeps the privileges
 of `service_role`. Until the migration is applied, doctor reports the grants
@@ -808,8 +808,8 @@ view <module> --sql` lists the signatures.
 
 ### BS308
 
-**Warning: tenant claim the hook does not write.** With the `tenant` module and
-`blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the
+**Warning: tenant claim the hook does not write.** With the `memberships` module and
+`blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and the
 `tenant()` plugin read the active tenant from the `auth.organization.claim` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
@@ -988,10 +988,10 @@ your own role for anything else.
 `blocks`, and a table with RLS in `schemas` has no restrictive policy
 that calls `better_supabase.session_active()`, so a token whose session was
 signed out, or whose user was banned or deleted, keeps reaching the table
-until it expires. Set `blocks.sessions.options.policies` to `true` and
+until it expires. Set `blocks.session-revocation.options.policies` to `true` and
 run `better-supabase upgrade` to write the policy on every table, or add it
 by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
-other tables in `blocks.sessions.options.exclude` as `schema.table`
+other tables in `blocks.session-revocation.options.exclude` as `schema.table`
 globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
 
 ### BS321
@@ -1022,7 +1022,7 @@ against a database.
 
 **Warning: module event trigger missing.** A module in `blocks`
 creates an event trigger (`bsb_audit_forget_dropped` for `audit`,
-`bsb_ensure_rls` for `ensure-rls`) that the live database lacks, or, without
+`bsb_ensure_rls` for `rls-guard`) that the live database lacks, or, without
 a database, that no migration in `supabase/migrations` creates. Event
 triggers belong to no schema, so a schema diff limited to some schemas
 (`supabase db schema declarative sync -s ...`) leaves them out of the
@@ -1042,7 +1042,7 @@ platform role, or a platform invitation a tenant role. `better-supabase sql
 sync` refuses the config. Set `where` on both, a condition on the roles row
 `{row}` such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.
 A `roleThrough` from the provider's `roleSources` has no `where`, so set
-`blocks.tenant.options.roleThrough` in the config.
+`blocks.memberships.options.roleThrough` in the config.
 
 ### BS325
 
@@ -1121,14 +1121,14 @@ every row. Enable RLS and add the policies that scope the table.
 
 ### BS333
 
-**Warning: `admin()` inside a workflow-builder executor.** A source file that
-runs workflow-builder steps (it uses `executeGraph`, `nodeRunReporter` or
+**Warning: `admin()` inside a workflow-editor executor.** A source file that
+runs workflow-editor steps (it uses `executeGraph`, `nodeRunReporter` or
 `GraphStepCall`) calls `admin()`. A file that only builds the builder's
 `service` transport or starts runs with `graphStarter` isn't reported. The steps
 then run with the service role's rights, so a workflow keeps running after its
 publisher is demoted. Call `builder.versions.runAs(call.version)` in each step
 and query with the claims it returns. See
-[publisher rights](/docs/blocks/workflow-builder#publisher-rights).
+[publisher rights](/docs/blocks/workflow-editor#publisher-rights).
 
 ### BS334
 
@@ -1162,12 +1162,12 @@ table and swap the names in a maintenance window, or turn the option off.
 ### BS336
 
 **Warning: flag past its expiry.** The flags table has an `expires_at` column
-(`blocks.flags.options.extraColumns`), and a flag on the live database that
+(`blocks.feature-flags.options.extraColumns`), and a flag on the live database that
 isn't archived has an `expires_at` in the past. A release flag that outlives
 its rollout keeps a dead branch in the code. Remove its checks, then archive
 the flag (`flags.save(key, { archived: true })`), or move `expires_at` when
 the flag stays. The finding names the `owner` column when the table has one.
-See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
+See [owner and expiry](/docs/blocks/feature-flags#owner-and-expiry).
 
 ### BS337
 
@@ -1203,14 +1203,14 @@ Remove the exclusion, or exclude the column's new name. See
 
 ### BS340
 
-**Info: a tenant foreign key has no same-tenant trigger.** With the `tenant`
+**Info: a tenant foreign key has no same-tenant trigger.** With the `memberships`
 block, doctor lists each single-column foreign key between two tables that
 both have the tenant column, when the key doesn't include that column and
 the table has no `bsb_same_tenant_<column>` trigger. The foreign key checks
 that the referenced row exists, not that it belongs to the same tenant. Add
-the reference to `blocks.tenant.options.sameTenant`, or set
+the reference to `blocks.memberships.options.sameTenant`, or set
 `sameTenant: { auto: true }`. See
-[references within one tenant](/docs/blocks/access#references-within-one-tenant).
+[references within one tenant](/docs/blocks/permissions#references-within-one-tenant).
 
 ### BS341
 
@@ -1232,7 +1232,7 @@ that the snapshot declares as an enum; string literals are fine. Postgres has
 no implicit cast from text to an enum, so the module's functions fail when
 they run. Change the column to text with a check constraint on its values.
 The columns the module casts to their declared type may stay enums: the tags
-`kind` and `subjectType`, and the number-sequences `entity`. `upgrade` and
+`kind` and `subjectType`, and the numbering `entity`. `upgrade` and
 `better-supabase add --adopt` refuse the same columns when the schema files declare
 the enum. See
 [existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom).
@@ -1453,7 +1453,7 @@ disagree.** The provider's hook writes the active tenant to
 claim, because the tenant plugin, the guards and the module's RLS would then
 read a claim the hook never writes. It notes when `auth.claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
-`suspension` or `roleSources` while `blocks.access.model` is not
+`suspension` or `roleSources` while `blocks.permissions.model` is not
 `provider` (only that model reads them), and reports every entry of the
 provider's `problems`, such as a file version it can't read.
 
@@ -1477,13 +1477,13 @@ finding; verify the request there with `authHook` from
 ### BS411
 
 **Error: the provider access model can't use the authorization provider.**
-With `blocks.access.model: "provider"`, `can()` and the SQL modules fill
+With `blocks.permissions.model: "provider"`, `can()` and the SQL modules fill
 the provider's `idsWith` template for tenant checks and `isPlatform` for
 platform checks, at its `tenantScope`. Doctor reports, and `add` refuses:
 
 - a config without `authorization`;
 - a `tenantScope` the provider doesn't declare, a scope `idType` other than
-  `uuid`, `text`, `bigint` or `integer`, or a `blocks.access.idType`
+  `uuid`, `text`, `bigint` or `integer`, or a `blocks.permissions.idType`
   that differs from it;
 - a function those templates call that `authorization.requires` doesn't list,
   doesn't let `authenticated` execute, or the database lacks;
@@ -1493,21 +1493,21 @@ platform checks, at its `tenantScope`. Doctor reports, and `add` refuses:
   with other conditions would be granted everywhere in the scope. Map the
   action to another key in `blocks.<module>.permissions`.
 
-It warns when neither `blocks.access.functions.canAssign` nor the
+It warns when neither `blocks.permissions.functions.canAssign` nor the
 provider's `canAssign` is set, because only the service role then assigns
-roles. See [the access block](/docs/blocks/access) for the recipe.
+roles. See [the access block](/docs/blocks/permissions) for the recipe.
 
 It also warns for each optional template an installed module calls that the
 provider doesn't set, and names the modules:
 
-| Template        | Modules                                                                                        | Without it                                                                |
-| --------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `idsWithFor`    | `invitations`, `inbox`, `comments`, `sso`, `notifications`, `connectors`, `workflow-sdk-world` | checks of another user's tenant permissions raise `0A000` or are skipped  |
-| `isPlatformFor` | `invitations`                                                                                  | checks of another user's platform permissions answer false or are skipped |
-| `canAssignFor`  | `invitations`                                                                                  | the inviter's right to assign the role is not checked again at acceptance |
-| `memberIds`     | `usage`                                                                                        | membership checks read the tenant module's `memberships` table instead    |
+| Template        | Modules                                                                                  | Without it                                                                |
+| --------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `idsWithFor`    | `invitations`, `inbox`, `comments`, `sso`, `notifications`, `connectors`, `workflow-sdk` | checks of another user's tenant permissions raise `0A000` or are skipped  |
+| `isPlatformFor` | `invitations`                                                                            | checks of another user's platform permissions answer false or are skipped |
+| `canAssignFor`  | `invitations`                                                                            | the inviter's right to assign the role is not checked again at acceptance |
+| `memberIds`     | `usage`                                                                                  | membership checks read the tenant module's `memberships` table instead    |
 
-`blocks.access.functions.canAssignFor` silences the `canAssignFor`
+`blocks.permissions.functions.canAssignFor` silences the `canAssignFor`
 warning.
 
 ### BS412
@@ -1527,7 +1527,7 @@ cookie, or reads a session without one and `session.user` throws. Set the same
 ### BS413
 
 **Warning: support sessions are not tied to the provider's read-only check.**
-Support sessions are installed, `blocks.access.model` is `provider`, and
+Support sessions are installed, `blocks.permissions.model` is `provider`, and
 `authorization.functions.actorMayWrite` is not set. Writes still refuse a
 read-only `act` through the built-in check. Set `actorMayWrite` to the
 provider's read-only helper so that helper is the only check.
@@ -1535,7 +1535,7 @@ provider's read-only helper so that helper is the only check.
 ### BS414
 
 **Warning: the access contract answers from built-in roles next to a
-provider.** The config sets `authorization`, but `blocks.access.model`
+provider.** The config sets `authorization`, but `blocks.permissions.model`
 names another model, so `better_supabase.can()` and
 `better_supabase.tenant_ids_with()` answer from the built-in roles. Doctor
 reports each policy and each function in `schemas` that calls them. Remove
@@ -1552,13 +1552,13 @@ reads `canApprove` when `isApprover` is unset.
 ### BS416
 
 **Warning: `isApprover` has no branch for support sessions.** Under the
-provider access model, the `support-sessions` module asks
+provider access model, the `impersonation` module asks
 `authorization.functions.isApprover` who may approve a support request, with
 `{kind}` set to `'support-session'` and `{subject}` the request id. A
 template written only for `'ai-tool'` answers false, so no admin can approve
 and every start that needs a second admin stays pending. Doctor reads the
 template and the live definition of each function it calls. Add a
-`'support-session'` branch, or set `blocks["support-sessions"].options.approval`
+`'support-session'` branch, or set `blocks["impersonation"].options.approval`
 to `"none"`.
 
 ### BS417

@@ -18,7 +18,7 @@ better-supabase add incidents
 import { createIncidents } from "better-supabase/blocks/incidents";
 ```
 
-The module requires `tenant` and `access`. With
+The module requires `memberships` and `access`. With
 [notifications](/docs/blocks/notifications) the commander is notified when an
 incident opens, with `outbox` it records the events, and with `audit` every
 change is audited. The choices behind the anonymous surface are in

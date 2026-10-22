@@ -97,7 +97,7 @@ becomes `active` and `signedAt` is set; a decline or a cancel returns it to
 While a contract is active and has an end date, its owner has a reminder
 `reminderDays` (default 14) before the notice deadline, kept in step when the
 dates or the owner change. Run `runRenewals` daily with the service role, for
-example from a [job](/docs/blocks/jobs): an active contract past its end date
+example from a [job](/docs/blocks/queue): an active contract past its end date
 renews by `renewalMonths` when `autoRenew` is on, and expires otherwise.
 
 ```ts

@@ -8,15 +8,15 @@ description: Companies and people an organization works with, with lifecycle sta
 Reading needs `parties.read`, creating, changing, linking and archiving needs `parties.write`, and merging needs `parties.manage`. Admins get every permission, and members get `parties.read` and `parties.write`.
 
 ```bash
-better-supabase add parties
+better-supabase add contacts
 ```
 
-The module needs `tenant` and `access`.
+The module needs `memberships` and `access`.
 
 ```ts
-import { createParties } from "better-supabase/blocks/parties";
+import { createContacts } from "better-supabase/blocks/contacts";
 
-const parties = createParties({ transport });
+const parties = createContacts({ transport });
 const acme = await parties
   .saveCompany(organizationId, {
     name: "Acme",
@@ -72,7 +72,7 @@ Installing the block registers `company` and `person` as subjects, so [comments]
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    parties: {
+    contacts: {
       names: {
         company: { url: "/companies/{id}" },
         person: { url: "/people/{id}" },
@@ -102,14 +102,14 @@ const person = await parties
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  parties: { options: { extraColumns: { segment: "text", employees: "integer" } } },
+  contacts: { options: { extraColumns: { segment: "text", employees: "integer" } } },
 },
 ```
 
 Pass a Standard Schema as `fields` to type them: `saveCompany` validates the fields it writes (a `validation` error, before the database), and `saveCompany`, `mergeCompanies` and `listCompanies` parse them on read.
 
 ```ts
-const parties = createParties({
+const parties = createContacts({
   transport,
   fields: v.object({
     segment: v.optional(v.string()),
@@ -140,7 +140,7 @@ The module calls `before_company_save(tenant, company uuid, attrs jsonb)`, `afte
 
 ## Wire it to ReUI
 
-The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filters `search` and lifecycle values passed through, and its bulk owner action calls `savePerson` with `ownerId` per selected row (or the [bulk](/docs/blocks/bulk) block for many at once). Its CSV import maps rows to `savePerson`, and an email that is taken points at the existing record.
+The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filters `search` and lifecycle values passed through, and its bulk owner action calls `savePerson` with `ownerId` per selected row (or the [bulk](/docs/blocks/bulk-actions) block for many at once). Its CSV import maps rows to `savePerson`, and an email that is taken points at the existing record.
 
 ## Errors
 

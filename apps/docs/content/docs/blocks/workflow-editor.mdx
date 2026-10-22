@@ -3,14 +3,14 @@ title: Workflow builder
 description: Graph workflows that members edit and publish per tenant, with webhook, schedule and event triggers, credentials by reference, node-level run status and alerts on failed or slow runs.
 ---
 
-The `workflow-builder` block stores workflows as graphs that members edit on
+The `workflow-editor` block stores workflows as graphs that members edit on
 a canvas and publish per tenant. A published version runs on the engine you
 choose. The [Workflow SDK](/docs/blocks/workflow-sdk#graph-workflows)
 adapter compiles each version to a workflow and records the status of each
 node, so the canvas shows a run as it happens.
 
 ```bash
-better-supabase add workflow-builder   # adds workflows, tenant and access as well
+better-supabase add workflow-editor   # adds workflows, tenant and access as well
 ```
 
 | Table                        | Holds                                                                                                                                          |
@@ -35,7 +35,7 @@ better-supabase add workflow-builder   # adds workflows, tenant and access as we
 | `workflow.publish` | members publish a version                                                                   | none by default |
 | `workflow.admin`   | members manage triggers, credentials, alerts, opt-outs and grants, and restrict definitions | none by default |
 
-Grant the keys to your roles in `blocks.access.roles`.
+Grant the keys to your roles in `blocks.permissions.roles`.
 
 ## Graphs
 
@@ -46,7 +46,7 @@ start at never run. A trigger picks its node with `config.node`, and a
 graph with one trigger node starts there.
 
 ```ts
-import type { WorkflowGraph } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowGraph } from "better-supabase/blocks/workflow-editor";
 
 const graph: WorkflowGraph = {
   nodes: [
@@ -104,7 +104,7 @@ edges that were added, removed or changed.
 
 A `condition` node can test a whole tree instead of one path: the
 `FilterQuery` format of [list filters](/docs/platform/list) and the
-[rules](/docs/blocks/rules) block, with And and Or groups and every
+[rules](/docs/blocks/automations) block, with And and Or groups and every
 operator of its field types. `config.fields` declares each field the rules
 name; its `id` is the path it reads under `input`, `results` or `subject`.
 A date field compares instants unless its `columnType` is `date`.
@@ -156,9 +156,9 @@ replays deterministically.
 import "server-only";
 
 import {
-  createWorkflowBuilder,
+  createWorkflowEditor,
   sqlTransport,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 import {
   compileGraph,
   graphStarter,
@@ -168,7 +168,7 @@ import { steps, stepLibrary } from "@/workflows/steps";
 import { graphExecutor } from "@/workflows/graph";
 
 export const builderFor = (sql: Sql) =>
-  createWorkflowBuilder({
+  createWorkflowEditor({
     transport: sqlTransport(sql),
     service: sqlTransport(postgres.admin),
     steps: stepLibrary,
@@ -339,7 +339,7 @@ first: an entry `workflow.node.<step>` (such as `workflow.node.crm.lookup`)
 names the permission. Next comes the step's own `operation`, set on the
 step in `steps` (such as `invoices.void`): the provider's entry for it, or
 the operation name itself as the key. Without either, the step needs the module's `run` key,
-after the rename in `blocks.workflow-builder.permissions`. Trigger,
+after the rename in `blocks["workflow-editor"].permissions`. Trigger,
 sleep, approval and condition nodes need none. A user who doesn't hold every
 one of them in the tenant can't publish the version: the `forbidden` error
 has `hint: "WORKFLOW_PUBLISHER_FORBIDDEN"` and lists the keys they lack in
@@ -352,7 +352,7 @@ then decides each publish as well, with the publisher's claims:
 
 ```ts title="lib/workflow-builder.ts"
 export const builderFor = (sql: Sql) =>
-  createWorkflowBuilder({
+  createWorkflowEditor({
     transport: sqlTransport(sql),
     service: sqlTransport(postgres.admin),
     steps: stepLibrary,
@@ -389,7 +389,7 @@ The step fails with `WORKFLOW_PUBLISHER_REVOKED` when:
 - the publisher was demoted, lost their membership or was deleted;
 - `runAs` returns `null` or throws;
 - the version is organization-owned and the organization has no default
-  [service principal](/docs/blocks/service-principals), or its role no
+  [service principal](/docs/blocks/service-accounts), or its role no
   longer holds every stored permission;
 - the version was published before publishers were recorded (`owner_kind`
   is `null`). Publish it again.
@@ -403,7 +403,7 @@ the service role or `admin()`; [doctor](/docs/cli/doctor#bs333) reports
 Without a `runAs` hook, `versions.runAs` returns the publisher's claims
 capped to the stored permissions: `{ role: "authenticated", sub, tenant_id,
 bsb_permission_cap }`. An organization-owned version runs as the
-organization's default [service principal](/docs/blocks/service-principals)
+organization's default [service principal](/docs/blocks/service-accounts)
 when that module is installed: the SQL check resolves the principal and
 returns it as the publisher. Without the module, `runAs` receives
 `publisher: null` and must return claims for the tenant, or every step
@@ -438,7 +438,7 @@ token's SHA-256 is stored; rotating it ends the old one.
 
 An event trigger's `config.when` narrows which events start it. It is a
 filter condition (see [Filter conditions](#filter-conditions)) whose field
-ids start at `type`, `tenant` or `payload`:
+ids start at `type`, `memberships` or `payload`:
 
 ```ts
 await builder.triggers
@@ -499,7 +499,7 @@ Schedule triggers run on the `workflows` schedule tick. Pass
 ```ts
 import { vaultCredentials } from "better-supabase/credentials";
 
-const builder = createWorkflowBuilder({
+const builder = createWorkflowEditor({
   transport,
   service,
   credentials: vaultCredentials(sql),
@@ -541,9 +541,9 @@ with its error, in `workflow_node_runs`. Each record pings
 "use client";
 
 import {
-  useWorkflowBuilder,
+  useWorkflowEditor,
   useWorkflowCanvasRun,
-} from "better-supabase/blocks/workflow-builder/react";
+} from "better-supabase/blocks/workflow-editor/react";
 
 export function CanvasStatus({ runId }: { runId: string }) {
   const { run, nodes } = useWorkflowCanvasRun(runId);
@@ -557,7 +557,7 @@ export function CanvasStatus({ runId }: { runId: string }) {
 }
 ```
 
-`useWorkflowBuilder({ tenant })` returns the definitions, the step library
+`useWorkflowEditor({ tenant })` returns the definitions, the step library
 and a `builder` bound to the user's session. `useWorkflowCanvasRun(id)`
 returns the run and each node's status by node id, and loads them again on
 every message on `workflow-run:<id>`. Both are Client Component hooks; in
@@ -566,9 +566,9 @@ Server Components, call `builder.definitions.list()` and
 
 ## Vue
 
-`better-supabase/blocks/workflow-builder/vue` exports `useWorkflowBuilder`
+`better-supabase/blocks/workflow-editor/vue` exports `useWorkflowEditor`
 and `useWorkflowCanvasRun`. Each takes the options of the controller it
-wraps (`useWorkflowBuilder` those of `createWorkflowBuilderController`);
+wraps (`useWorkflowEditor` those of `createWorkflowEditorController`);
 `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass
 them. `state` is a shallow ref of the snapshot and `actions` are the
 controller's actions. The work starts on mount, and the controller is
@@ -577,16 +577,16 @@ disposed with the component.
 ```vue title="Component.vue"
 <script setup lang="ts">
 import { useSupabase } from "better-supabase/vue";
-import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/vue";
+import { useWorkflowEditor } from "better-supabase/blocks/workflow-editor/vue";
 import {
-  createWorkflowBuilder,
+  createWorkflowEditor,
   rpcTransport,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state } = useWorkflowBuilder({
-  client: createWorkflowBuilder({ transport: rpcTransport(supabase) }),
+const { state } = useWorkflowEditor({
+  client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
   tenant: organizationId,
 });
 </script>
@@ -602,10 +602,10 @@ const { state } = useWorkflowBuilder({
 
 ## Svelte
 
-`better-supabase/blocks/workflow-builder/svelte` exports
-`useWorkflowBuilder` and `useWorkflowCanvasRun`. Each takes the options of
-the controller it wraps (`useWorkflowBuilder` those of
-`createWorkflowBuilderController`); `auth` and `ports` come from
+`better-supabase/blocks/workflow-editor/svelte` exports
+`useWorkflowEditor` and `useWorkflowCanvasRun`. Each takes the options of
+the controller it wraps (`useWorkflowEditor` those of
+`createWorkflowEditorController`); `auth` and `ports` come from
 `setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
@@ -613,13 +613,13 @@ work starts on mount, and the controller is disposed with the component.
 ```svelte title="Component.svelte"
 <script lang="ts">
   import { getBetterSupabase } from "better-supabase/svelte";
-  import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/svelte";
-  import { createWorkflowBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";
+  import { useWorkflowEditor } from "better-supabase/blocks/workflow-editor/svelte";
+  import { createWorkflowEditor, rpcTransport } from "better-supabase/blocks/workflow-editor";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const builder = useWorkflowBuilder({
-    client: createWorkflowBuilder({ transport: rpcTransport(supabase) }),
+  const builder = useWorkflowEditor({
+    client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
     tenant: organizationId,
   });
 </script>
@@ -633,9 +633,9 @@ work starts on mount, and the controller is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/workflow-builder/solid` exports `useWorkflowBuilder`
+`better-supabase/blocks/workflow-editor/solid` exports `useWorkflowEditor`
 and `useWorkflowCanvasRun`. Each takes the options of the controller it
-wraps (`useWorkflowBuilder` those of `createWorkflowBuilderController`);
+wraps (`useWorkflowEditor` those of `createWorkflowEditorController`);
 `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless
 you pass them. `state()` reads the snapshot through `from`, and `actions`
 are the controller's actions. The work starts on mount, and the controller
@@ -644,16 +644,16 @@ is disposed with the owner.
 ```tsx title="Component.tsx"
 import { For } from "solid-js";
 import { useSupabase } from "better-supabase/solid";
-import { useWorkflowBuilder } from "better-supabase/blocks/workflow-builder/solid";
+import { useWorkflowEditor } from "better-supabase/blocks/workflow-editor/solid";
 import {
-  createWorkflowBuilder,
+  createWorkflowEditor,
   rpcTransport,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state } = useWorkflowBuilder({
-    client: createWorkflowBuilder({ transport: rpcTransport(supabase) }),
+  const { state } = useWorkflowEditor({
+    client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
     tenant: props.organizationId,
   });
   return (
@@ -717,17 +717,17 @@ match a definition on their `bsb.definition` attribute, which
 
 ## Your own columns
 
-Add columns to the workflow definition table with `blocks.workflow-builder.options.extraColumns`
+Add columns to the workflow definition table with `blocks["workflow-editor"].options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `definitions.save` validates and writes them, and `definitions.save`, `list`, `get` and `fork` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 
 ```ts
-import { createWorkflowBuilder } from "better-supabase/blocks/workflow-builder";
+import { createWorkflowEditor } from "better-supabase/blocks/workflow-editor";
 import { z } from "zod";
 
-const client = createWorkflowBuilder({
+const client = createWorkflowEditor({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });

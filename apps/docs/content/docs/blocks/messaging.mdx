@@ -215,7 +215,7 @@ threads still works.
 ## Scheduled messages
 
 `send` with `scheduledFor` stores the message unsent: only its author sees it
-until then. With the [jobs](/docs/blocks/jobs) block the module enqueues a
+until then. With the [jobs](/docs/blocks/queue) block the module enqueues a
 delayed `message.publish` job on `scheduleQueue`; without it, call
 `publishDue()` from a cron with the service role.
 

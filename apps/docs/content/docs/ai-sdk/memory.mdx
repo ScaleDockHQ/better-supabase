@@ -72,7 +72,7 @@ export const handlers = {
 };
 ```
 
-`extractMemories` is a [jobs](/docs/blocks/jobs) handler. Enqueue it after
+`extractMemories` is a [jobs](/docs/blocks/queue) handler. Enqueue it after
 a conversation with `organization_id`, `owner_id` and the conversation
 `text`; it asks the model for lasting facts about the user and saves up
 to `maxFacts` (10) that aren't already remembered. The memory block it

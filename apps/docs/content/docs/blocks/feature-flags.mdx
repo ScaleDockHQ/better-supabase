@@ -3,7 +3,7 @@ title: Feature flags
 description: Feature flags per tenant, per user and per custom context such as a brand, with targeting rules, overrides and percentage rollouts, evaluated the same way in RLS, in an OpenFeature provider and in the Flags SDK.
 ---
 
-The `flags` block stores feature flags in Postgres and evaluates them in
+The `feature-flags` block stores feature flags in Postgres and evaluates them in
 three places: `flag_enabled()` in policies and functions, an OpenFeature
 provider, and a [Flags SDK](/docs/flags-sdk) adapter in the app. All of them
 use the same rules and the same SHA-256 bucketing, so a user who sees a
@@ -14,7 +14,7 @@ tenant pays for stays in [entitlements](/docs/blocks/entitlements); a flag
 rule can still target plans.
 
 ```bash
-better-supabase add flags   # adds tenant as well
+better-supabase add feature-flags   # adds tenant as well
 ```
 
 | Table            | Holds                                                                                                                                |
@@ -68,7 +68,7 @@ tenant id and defaults to `id`, for a column on the tenant table:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  flags: {
+  "feature-flags": {
     options: {
       contexts: {
         brand: { table: "public.organizations", column: "brand_id" },
@@ -106,18 +106,21 @@ checks it gets the default instead of an unknown flag.
 
 ### Managing flags from an admin page
 
-`createFlags` manages flags for platform staff with `flags.manage` (the
+`createFeatureFlags` manages flags for platform staff with `flags.manage` (the
 module's `manage` permission, checked with `is_platform()` when the
-[access](/docs/blocks/access) module is installed) or the service role. It
+[access](/docs/blocks/permissions) module is installed) or the service role. It
 calls `list_flags`, `save_flag`, `delete_flag` and `set_flag_override`,
 which are granted to `authenticated`, so an app that only reaches the
-database through the Data API manages flags with `blocks.flags.api`
+database through the Data API manages flags with `blocks.feature-flags.api`
 and `rpcTransport`:
 
 ```ts
-import { createFlags, rpcTransport } from "better-supabase/blocks/flags";
+import {
+  createFeatureFlags,
+  rpcTransport,
+} from "better-supabase/blocks/feature-flags";
 
-const admin = createFlags({
+const admin = createFeatureFlags({
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 
@@ -137,7 +140,7 @@ Anyone else gets `FLAGS_FORBIDDEN`.
 
 ### Your own fields and hooks
 
-`blocks.flags.options.extraColumns` adds columns to the flags table, such as
+`blocks.feature-flags.options.extraColumns` adds columns to the flags table, such as
 an owner or a ticket. `save` writes them from `fields`, and `list`, `save`
 and `flag_definitions()` return them under `fields`. Pass a Standard Schema
 as `fields` to type them, parse them on reads and validate them on `save`,
@@ -147,7 +150,7 @@ and `hooks` to run code around a method (see
 ```ts
 import { z } from "zod";
 
-const admin = createFlags({
+const admin = createFeatureFlags({
   transport: rpcTransport(supabase, { schema: "api" }),
   fields: z.object({ owner: z.string().email() }),
   hooks: {
@@ -167,7 +170,7 @@ flags don't pile up. Add the columns as extra columns:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  flags: {
+  "feature-flags": {
     options: {
       extraColumns: { owner: "text", expires_at: "timestamptz" },
     },
@@ -206,7 +209,7 @@ any flag type, or null for an unknown flag. It is granted to the service role.
 
 ## With OpenFeature
 
-`createFlagsProvider` returns an object shaped like an OpenFeature server
+`createFeatureFlagsProvider` returns an object shaped like an OpenFeature server
 `Provider`. It loads every flag with `flag_definitions()` (service role only)
 and caches them for `ttl` milliseconds (default 30000). This package never
 imports OpenFeature; pass its `ErrorCode` enum so the types match:
@@ -214,11 +217,11 @@ imports OpenFeature; pass its `ErrorCode` enum so the types match:
 ```ts title="lib/flags.ts"
 import { ErrorCode, OpenFeature } from "@openfeature/server-sdk";
 import {
-  createFlagsProvider,
+  createFeatureFlagsProvider,
   sqlTransport,
-} from "better-supabase/blocks/flags";
+} from "better-supabase/blocks/feature-flags";
 
-const provider = createFlagsProvider({
+const provider = createFeatureFlagsProvider({
   transport: sqlTransport(postgres.admin),
   errorCodes: ErrorCode,
 });
@@ -236,7 +239,7 @@ user id as `targetingKey`, the tenant (`tenant_id`, then
 the caller's role from the `memberships` claim:
 
 ```ts
-import { flagContext } from "better-supabase/blocks/flags";
+import { flagContext } from "better-supabase/blocks/feature-flags";
 
 const details = await flags.getBooleanDetails(
   "new_editor",
@@ -246,7 +249,7 @@ const details = await flags.getBooleanDetails(
 ```
 
 The `memberships` claim can have either shape: an object of tenant id to
-role, as the `tenant` module's hook writes, or a list of
+role, as the `memberships` module's hook writes, or a list of
 `{ scope, id, roles }` entries, as an authorization provider's hook may
 write. For a list,
 `flagContext` reads the entry whose `id` is the tenant and that has no
@@ -263,18 +266,18 @@ Without the OpenFeature SDK, `createFlagClient({ transport, errorCodes })`
 returns the four `get*Details` methods that `withOpenFeature` calls (see
 [middleware](/docs/auth/middleware#feature-flags)). `evaluateFlag` and
 `flagBucket` are exported for tests and for flags defined in code
-(`createFlagsProvider({ definitions })`).
+(`createFeatureFlagsProvider({ definitions })`).
 
 ## Reference
 
-| Export                      | Does                                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `createFlagsProvider(opts)` | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions`; `definitions()` returns the cached list |
-| `createFlagClient(source)`  | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`                                           |
-| `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                                                          |
-| `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                                                          |
-| `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                                                             |
-| `createFlags(opts)`         | `list`, `save`, `remove` and `override` for platform staff or the service role                                            |
+| Export                             | Does                                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `createFeatureFlagsProvider(opts)` | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions`; `definitions()` returns the cached list |
+| `createFlagClient(source)`         | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`                                           |
+| `flagContext(ctx, opts?)`          | The evaluation context from `jwtClaims`; claim names are options                                                          |
+| `evaluateFlag(flag, ctx)`          | `{ value, variant, reason }`, as `flag_evaluation()` computes it                                                          |
+| `flagBucket(key, target)`          | The rollout bucket, 0 to 9999                                                                                             |
+| `createFeatureFlags(opts)`         | `list`, `save`, `remove` and `override` for platform staff or the service role                                            |
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).

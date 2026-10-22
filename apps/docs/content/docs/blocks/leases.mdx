@@ -119,7 +119,7 @@ transaction carries the key `leases.rent:<id>:<period start>`. Run it as
 often as you like; a second run posts nothing new, and `maxRows` caps one
 run. The SQL function `post_due_rent` called with the service role and a
 null tenant runs for every organization, which suits a
-[scheduled job](/docs/blocks/jobs).
+[scheduled job](/docs/blocks/queue).
 
 Each lease has a receivable account on the ledger (`leases.rent:<id>`). Rent
 moves an amount from rent income onto it, and `recordPayment` moves a

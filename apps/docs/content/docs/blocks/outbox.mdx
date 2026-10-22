@@ -16,7 +16,7 @@ pnpm better-supabase add outbox
 
 Once the module is installed, the other SQL modules write their events to
 it: `organizations` emits `organization.created`, `organization.switched` and the member
-events, and `support-sessions` emits `support.started` and
+events, and `impersonation` emits `support.started` and
 `support.ended`. Set
 `blocks.<module>.events` to `false` to keep one module out of the outbox.
 
@@ -199,7 +199,7 @@ claimed for that long, without removing it.
 
 ### Into a queue
 
-To process events with retries, relay them into a [job queue](/docs/blocks/jobs)
+To process events with retries, relay them into a [job queue](/docs/blocks/queue)
 with the event id as the dedupe key:
 
 ```ts

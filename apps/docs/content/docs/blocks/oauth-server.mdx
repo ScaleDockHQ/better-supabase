@@ -157,7 +157,7 @@ accessTokenResolver({ jwks, issuer, audience, revocation: oauth });
 For a connected-apps page, `listGrants(userId)` returns a user's grants with
 the client name. In the browser, the user calls `my_oauth_grants` and
 `revoke_my_oauth_grant` over RPC for their own grants only; a read-only
-support session can't revoke ([support sessions](/docs/blocks/sql#support-sessions)).
+support session can't revoke ([support sessions](/docs/blocks/sql#impersonation)).
 
 `purge()` deletes expired codes, device codes and revocation entries; run it
 from a daily job.

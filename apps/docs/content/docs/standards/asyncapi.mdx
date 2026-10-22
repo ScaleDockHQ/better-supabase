@@ -47,7 +47,7 @@ the `asyncapi` field.
   for the `apikey` query parameter Realtime reads on the upgrade, and the
   `servers` option for the HTTP channels.
 - **Channels:** one per table change signal (`bsb:t:<schema>.<table>`, with a
-  `tenant` or `userId` parameter when the table is scoped) and per broadcast
+  `memberships` or `userId` parameter when the table is scoped) and per broadcast
   topic, with the topic template's parameters. Private topics, presence and
   client broadcasts (`send: true`) show up as channel fields and
   operations. CloudEvents and outgoing webhooks get one HTTP channel each.

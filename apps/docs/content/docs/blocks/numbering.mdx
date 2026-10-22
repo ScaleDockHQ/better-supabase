@@ -3,14 +3,14 @@ title: Number sequences
 description: Gapless document numbers per tenant, entity and period, assigned inside the document's own transaction.
 ---
 
-`number-sequences` allocates `INV-2026-00042` style numbers without gaps. `next_number` locks the sequence row in the caller's transaction, and a rollback releases the number. The function is service-only. A document takes its number from a trigger, so a separate client round trip cannot commit a number the document never keeps.
+`numbering` allocates `INV-2026-00042` style numbers without gaps. `next_number` locks the sequence row in the caller's transaction, and a rollback releases the number. The function is service-only. A document takes its number from a trigger, so a separate client round trip cannot commit a number the document never keeps.
 
 ```bash
-better-supabase add number-sequences
+better-supabase add numbering
 ```
 
 ```ts
-import { createNumberSequences } from "better-supabase/blocks/number-sequences";
+import { createNumbering } from "better-supabase/blocks/numbering";
 ```
 
 | Table              | Holds                                           |
@@ -107,21 +107,21 @@ Sync reads the period each tenant has chosen now, so it needs `periodColumn` (se
 To show the number a document would get, such as on a send dialog, call `preview_number(tenant, entity, at)`. It returns the formatted next number in the tenant's format and period without assigning it, so a concurrent document can still take it first. It checks the block's `assign` permission in the tenant (`number_sequences.assign` by default; the owner role holds it through `*`), and refuses other callers with `NUMBER_FORBIDDEN`. Map `assign` to the key of the people who issue the documents:
 
 ```ts title="better-supabase.config.ts"
-"number-sequences": {
+"numbering": {
   permissions: { assign: "invoices.write" },
   options: { entities: { invoice: { /* ... */ } } },
 },
 ```
 
 ```ts
-const numbers = createNumberSequences({ transport });
+const numbers = createNumbering({ transport });
 const next = await numbers.preview(organizationId, "invoice", issuedOn);
 ```
 
 When different people issue different documents, give an entity its own key with `permission`. `preview_number` then checks that key for the entity and `permissions.assign` for every entity without one, so a config without `permission` keeps working as before:
 
 ```ts title="better-supabase.config.ts"
-"number-sequences": {
+"numbering": {
   permissions: { assign: "documents.write" },
   options: {
     entities: {
@@ -153,7 +153,7 @@ select better_supabase.sync_number_sequences('6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a
 It reads the entities that set `table` and `column`, matches each value against `format` (`INV-{yyyy}-{n:5}` reads `INV-2026-00042` as number 42 in period `2026`) and skips values that do not match. A `year` period comes from `{yyyy}` or `{yy}`, and a `month` or fiscal period also needs `{mm}`. When the format holds no period, set `periodColumn` to a `date`, `timestamp` or `timestamptz` column of the table, such as `issued_at`, and the period comes from its date in UTC, as it does when the trigger assigns a number:
 
 ```ts title="better-supabase.config.ts"
-"number-sequences": {
+"numbering": {
   options: {
     entities: {
       invoice: {
@@ -177,7 +177,7 @@ Run it after anything that writes numbered rows directly. After seeding, end `su
 
 ## Hooks
 
-`createNumberSequences` takes `hooks` around `next` and `preview`, to refuse or observe an
+`createNumbering` takes `hooks` around `next` and `preview`, to refuse or observe an
 allocation (see [extending blocks](/docs/extending/blocks)). The sequences
 table takes no app columns: its rows are counters the module owns.
 

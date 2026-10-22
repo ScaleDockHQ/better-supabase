@@ -72,7 +72,7 @@ event. Pass an array while rolling the endpoint secret. For the webhook
 inbox, `stripeInboxVerify(secret)` is the `verify` option:
 
 ```ts
-import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/queue";
 import { stripeInboxVerify } from "better-supabase/blocks/webhooks";
 
 const inbox = createWebhookInbox({

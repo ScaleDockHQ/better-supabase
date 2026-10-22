@@ -14,10 +14,8 @@ import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
   blocks: {
-    tenant: { names: { organization: "workspace" } },
-    "work-items": {
-      names: { work_item: { name: "task", url: "/tasks/{id}" } },
-    },
+    memberships: { names: { organization: "workspace" } },
+    tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
   },
 });
 ```
@@ -33,16 +31,16 @@ reads them works under any tenant name.
 `defineConfig` returns the config with its literal types, and the `blocks`
 key is typed from each block's names:
 
-| Key                               | Checked against                                                |
-| --------------------------------- | -------------------------------------------------------------- |
-| `blocks.<name>`                   | the installable blocks                                         |
-| `blocks.<name>.names.<entity>`    | the block's own entities, such as `work_item` for `work-items` |
-| `entities.<entity>.url`           | `{column}` placeholders from the entity's columns              |
-| `blocks.<name>.tables`, `columns` | the block's tables and the columns of each one                 |
-| `blocks.<name>.functions`         | the block's function names                                     |
-| `blocks.<name>.permissions`       | the block's actions                                            |
-| `blocks.<name>.hooks.functions`   | the `before_*` and `after_*` hooks the block calls             |
-| `blocks.<name>.options`           | the options schema in the block's manifest                     |
+| Key                               | Checked against                                           |
+| --------------------------------- | --------------------------------------------------------- |
+| `blocks.<name>`                   | the installable blocks                                    |
+| `blocks.<name>.names.<entity>`    | the block's own entities, such as `work_item` for `tasks` |
+| `entities.<entity>.url`           | `{column}` placeholders from the entity's columns         |
+| `blocks.<name>.tables`, `columns` | the block's tables and the columns of each one            |
+| `blocks.<name>.functions`         | the block's function names                                |
+| `blocks.<name>.permissions`       | the block's actions                                       |
+| `blocks.<name>.hooks.functions`   | the `before_*` and `after_*` hooks the block calls        |
+| `blocks.<name>.options`           | the options schema in the block's manifest                |
 
 The package ships the same keys as JSON Schema, in
 `better-supabase/schemas/config-v1.json`, for editors that read it.
@@ -50,7 +48,7 @@ The package ships the same keys as JSON Schema, in
 ## Subjects
 
 A block's entities register as subjects on their own: `deals` registers
-`deal`, `catalog` registers `product` and `product_variant`, `work-items`
+`deal`, `catalog` registers `product` and `product_variant`, `tasks`
 registers `work_item` under its final name. The collaboration blocks register
 `comment`, `engagement`, `document` and `calendar_event`. Comments,
 attachments, reactions and the other subject blocks then accept them with no
@@ -99,9 +97,9 @@ of a string:
 
 | Export          | What it holds                                                                          |
 | --------------- | -------------------------------------------------------------------------------------- |
-| `permissions`   | Permission keys by block and action: `permissions["work-items"].write`                 |
+| `permissions`   | Permission keys by block and action: `permissions["tasks"].write`                      |
 | `PermissionKey` | The union of every permission key, for `permission` options                            |
-| `RoleName`      | The roles `blocks.access.roles` defines                                                |
+| `RoleName`      | The roles `blocks.permissions.roles` defines                                           |
 | `BlockEvents`   | Every installed block's events, type to data                                           |
 | `blockEvents`   | The same events as a value, for `onBlockEvent`, `useBlockEvent` and the sinks          |
 | `urls`          | A function per entity with a `url`: `urls.task({ id })`                                |
@@ -122,7 +120,7 @@ export const renameTask = bsb.blockAction(
   "update",
   {
     input: v.object({ taskId: v.string(), title: v.string() }),
-    permission: permissions["work-items"].write,
+    permission: permissions["tasks"].write,
     args: ({ taskId, title }) => [[{ taskId, field: "title", value: title }]],
   },
 );
@@ -132,7 +130,7 @@ export const renameTask = bsb.blockAction(
 
 ## Input schemas
 
-The entity blocks (catalog, deals, employees, parties and work-items) and the
+The entity blocks (catalog, deals, employees, parties and tasks) and the
 collaboration blocks with an input object (comments, attachments, engagements
 and calendar) export a Standard Schema for each input, such as
 `workItemInputSchema` or `commentInputSchema`. It

@@ -45,7 +45,7 @@ Set the workflow in the config, or run `better-supabase init --workflow migratio
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   database: { sql: { workflow: "migrations" } },
-  blocks: ["tenant", "audit"],
+  blocks: ["memberships", "audit"],
 });
 ```
 
@@ -85,9 +85,9 @@ import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
   blocks: {
-    access: {},
+    permissions: {},
     "webhooks-out": {},
-    tenant: {
+    memberships: {
       ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: {
@@ -137,7 +137,7 @@ fails before it reaches the database.
 ## Choose an access model
 
 Policies and block functions ask one question, `better_supabase.can(scope, id,
-permission)`, and [`blocks.access.model`](/docs/blocks/access#models) decides
+permission)`, and [`blocks.permissions.model`](/docs/blocks/permissions#models) decides
 where the answer comes from.
 
 | Your app has                                                         | Model      |
@@ -153,7 +153,7 @@ helper such as `organization_ids_with_permission(key)` in your policies becomes
 `better_supabase.tenant_ids_with(key)`; both return the same set, so you can
 switch policy by policy.
 
-The active organization can stay where it is. Set `blocks.access.activeTenant`
+The active organization can stay where it is. Set `blocks.permissions.activeTenant`
 to `{ profileColumn: "public.profiles.active_organization_id", key: "user_id" }`
 when you store it on the profile, or `'resolver'` when the URL decides.
 
@@ -227,7 +227,7 @@ explains the order.
    `database.sql.workflow: "migrations"` to keep migrations only), add
    `better-supabase.config.ts` with `access` in the model your app uses, and
    run `better-supabase doctor` to see what it finds.
-2. Adopt `tenant` and swap one policy helper for `tenant_ids_with`.
+2. Adopt `memberships` and swap one policy helper for `tenant_ids_with`.
 3. Adopt the features you already have (organizations, invitations, audit,
    the events table), one per pull request, and run your tests after each.
 4. Add the modules you don't have yet in `managed` mode.

@@ -10,14 +10,14 @@ policies that every member acknowledges. Each control's status follows from
 its evidence and tasks, and `posture` rolls it up per framework.
 
 ```bash
-better-supabase add controls
+better-supabase add compliance
 ```
 
 ```ts
-import { createControls } from "better-supabase/blocks/controls";
+import { createCompliance } from "better-supabase/blocks/compliance";
 ```
 
-The module requires `tenant`, `access` and `versions`. With
+The module requires `tenant`, `permissions` and `versions`. With
 [attachments](/docs/blocks/attachments) a piece of evidence can be a file,
 with [notifications](/docs/blocks/notifications) a missed task notifies its
 assignee, with `outbox` it records the events, and with `audit` every change
@@ -39,7 +39,7 @@ Members with `controls.read` read every table.
 ## Frameworks and controls
 
 ```ts
-const controls = createControls({ transport });
+const controls = createCompliance({ transport });
 
 const soc2 = await controls
   .saveFramework(organizationId, {
@@ -101,7 +101,7 @@ evidence is valid until then unless `validUntil` says otherwise. A task's
 assignee may collect for it without `controls.collect`.
 
 Run `notifyOverdue` daily with the service role, for example from a
-[job](/docs/blocks/jobs). It records `evidence_task.missed` once for each
+[job](/docs/blocks/queue). It records `evidence_task.missed` once for each
 lapse and notifies the assignee, or the control's owner when the task has
 none.
 

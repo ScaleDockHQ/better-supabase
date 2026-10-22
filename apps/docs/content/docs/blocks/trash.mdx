@@ -63,7 +63,7 @@ The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subjec
 
 ## Purge
 
-`purge(id)` deletes a batch's rows for good, children first. `purge_expired_trash()` purges batches past their retention; schedule it with pg_cron or the [jobs](/docs/blocks/jobs) drain:
+`purge(id)` deletes a batch's rows for good, children first. `purge_expired_trash()` purges batches past their retention; schedule it with pg_cron or the [jobs](/docs/blocks/queue) drain:
 
 ```sql
 select cron.schedule('purge-trash', '15 3 * * *', 'select better_supabase.purge_expired_trash()');

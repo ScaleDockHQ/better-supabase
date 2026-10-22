@@ -162,7 +162,7 @@ export async function customerSections(supabase: Client, id: string) {
 ```
 
 `sectionCan(permissionSet, permissions)` takes the caller's
-[`PermissionSet`](/docs/blocks/access) and checks the key each section's module
+[`PermissionSet`](/docs/blocks/permissions) and checks the key each section's module
 names in the `permissions` constant of `blocks.generated.ts`, so a renamed
 permission still matches. With no set (`null`), every section that needs a
 key is hidden. Without `can`, every section loads and RLS decides

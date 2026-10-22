@@ -3,7 +3,7 @@ title: AI providers
 description: Each tenant's own provider keys as credential references, and a registry of provider batch jobs with a poll schedule.
 ---
 
-The `ai-providers` block holds what an app tracks about the model providers
+The `ai-keys` block holds what an app tracks about the model providers
 it calls on a tenant's behalf: the tenant's own API keys (bring your own
 key) and batch jobs that run at the provider for hours. Code sandboxes live
 in the [ai-chat](/docs/blocks/ai-chat#sandboxes) block. It stores
@@ -12,7 +12,7 @@ no secret and imports no SDK; the
 connect it to the AI SDK.
 
 ```bash
-better-supabase add ai-providers   # adds tenant and access as well
+better-supabase add ai-keys   # adds tenant and access as well
 ```
 
 | Table              | Holds                                                                               |
@@ -38,16 +38,13 @@ purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each 
 ```ts title="lib/ai-providers.ts"
 import "server-only";
 
-import {
-  createAiProviders,
-  rpcTransport,
-} from "better-supabase/blocks/ai-providers";
+import { createAiKeys, rpcTransport } from "better-supabase/blocks/ai-keys";
 import { vaultCredentials } from "better-supabase/credentials";
 
 const service = rpcTransport(bsb.admin().$client, { schema: "api" });
 
 export const providersFor = (supabase: SupabaseClient) =>
-  createAiProviders({
+  createAiKeys({
     transport: rpcTransport(supabase, { schema: "api" }),
     service,
     credentials: vaultCredentials({ transport: service, schema: "api" }),

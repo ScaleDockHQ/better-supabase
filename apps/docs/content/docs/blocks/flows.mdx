@@ -6,7 +6,7 @@ description: Turn an event in one block into a record in another, once per sourc
 A flow creates a record in one block when another block emits an event: an
 inbox conversation opens a work item, a hired application becomes an
 employee. `better-supabase/flows` runs each flow from the
-[outbox](/docs/blocks/outbox), optionally through [jobs](/docs/blocks/jobs),
+[outbox](/docs/blocks/outbox), optionally through [jobs](/docs/blocks/queue),
 and links the new record to its source with a `created_from`
 [relation](/docs/blocks/relations). That relation is also how a flow knows
 it already ran, so a redelivered event never creates a second record.
@@ -65,7 +65,7 @@ mapped value is validated before `create` runs, and a failure becomes a
 
 ```ts title="src/lib/flows.ts"
 import { defineFlow } from "better-supabase/flows";
-import { workItemInputSchema } from "better-supabase/blocks/work-items";
+import { workItemInputSchema } from "better-supabase/blocks/tasks";
 
 export const dealToWorkItem = defineFlow({
   name: "dealToWorkItem",
@@ -97,7 +97,7 @@ receives each run's outcome, for logs or metrics.
 ## Run flows as jobs
 
 The sink runs each flow inside the outbox consumer. Pass `enqueue` to queue
-each run as a [job](/docs/blocks/jobs) instead. The dedupe key is
+each run as a [job](/docs/blocks/queue) instead. The dedupe key is
 `flow:<name>:<event id>`, so a redelivered event queues once; register
 `flows.handler()` for the queue:
 

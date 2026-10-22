@@ -11,14 +11,14 @@ your JWKS and the database checks the pass in: once for a ticket, as often as
 the pass allows otherwise, and only while there is a free seat.
 
 ```bash
-better-supabase add passes
+better-supabase add admission-passes
 ```
 
 ```ts
-import { createPasses } from "better-supabase/blocks/passes";
+import { createAdmissionPasses } from "better-supabase/blocks/admission-passes";
 ```
 
-The module requires `tenant` and `access`. With `bookings` a pass can be a
+The module requires `memberships` and `access`. With `bookings` a pass can be a
 ticket for a booking or a pass for a resource, with `outbox` its events are
 recorded, and with `audit` issuing and revoking are audited. Scans are
 logged in the module's own table instead of the audit log. Signing needs the
@@ -38,7 +38,7 @@ passes with the nonce; members with `passes.read` list the organization's.
 ## Issue a pass
 
 ```ts
-const passes = createPasses({ transport, tenant: organizationId });
+const passes = createAdmissionPasses({ transport, tenant: organizationId });
 
 const ticket = await passes
   .issue({ bookingId, holderUserId: userId, holderName: "Jane" })
@@ -74,7 +74,7 @@ page, with `issue` and `revoke` writes.
 Signing runs on the server with the organization's key:
 
 ```ts
-const passes = createPasses({
+const passes = createAdmissionPasses({
   transport,
   tenant: organizationId,
   signer: signingKeys.signer(
@@ -101,7 +101,7 @@ record. The block doesn't ship one, so the app picks the library.
 ## Check in
 
 ```ts
-const door = createPasses({
+const door = createAdmissionPasses({
   transport,
   jwks: () => fetch(`${origin}/.well-known/jwks.json`).then((r) => r.json()),
 });
@@ -143,7 +143,7 @@ the last seat twice.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  passes: { options: { checkInOpens: "30 minutes", dropInLength: "90 minutes" } },
+  "admission-passes": { options: { checkInOpens: "30 minutes", dropInLength: "90 minutes" } },
 },
 ```
 
@@ -155,7 +155,7 @@ option is off by default and needs the `bookings` block.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  passes: { options: { credits: true, creditRefundBefore: "12 hours" } },
+  "admission-passes": { options: { credits: true, creditRefundBefore: "12 hours" } },
 },
 ```
 

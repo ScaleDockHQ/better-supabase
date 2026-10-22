@@ -29,9 +29,9 @@ const db = defineSupabase(schema)
 
 Server adapters fill `actor` from the verified JWT. Jobs run as the user who
 enqueued them with `bsb.forContext(job.context)` (see
-[jobs](/docs/blocks/jobs#actor-and-tenant)), webhooks and scripts with
+[jobs](/docs/blocks/queue#actor-and-tenant)), webhooks and scripts with
 `bsb.actingAs(userId)`, and work no user owns with `bsb.admin()`, whose actor
 is `service`. Pass `resolve(context)` to read the id from somewhere else.
 
-For a tamper-proof trail, add the `actor` and `audit` SQL module triggers, which
+For a tamper-proof trail, add the `created-by` and `audit` SQL module triggers, which
 read `auth.uid()` inside the database.

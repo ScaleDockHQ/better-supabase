@@ -3,7 +3,7 @@ title: Service levels
 description: First response, next response and resolution clocks on any record, from a policy per record type and priority, in business hours, paused while the record waits, with warnings and breaches a job records.
 ---
 
-`sla` puts service-level clocks on any record in [`config.records`](/docs/blocks/sql#subject-registry): inbox conversations, tickets, incidents, [work items](/docs/blocks/work-items). A policy per record type and priority says how many minutes a first response, a next response and the resolution may take, and whether only business hours count. A record's clocks start when it is created, pause while it waits on the customer, close when it is answered or resolved, and a job records the ones that warn or breach.
+`sla` puts service-level clocks on any record in [`config.records`](/docs/blocks/sql#subject-registry): inbox conversations, tickets, incidents, [work items](/docs/blocks/tasks). A policy per record type and priority says how many minutes a first response, a next response and the resolution may take, and whether only business hours count. A record's clocks start when it is created, pause while it waits on the customer, close when it is answered or resolved, and a job records the ones that warn or breach.
 
 Reading policies and clocks needs `sla.read`, and changing policies needs `sla.manage`. Admins get both, and members get `sla.read`.
 
@@ -11,7 +11,7 @@ Reading policies and clocks needs `sla.read`, and changing policies needs `sla.m
 better-supabase add sla
 ```
 
-The module needs `tenant`, `access` and `subjects`.
+The module needs `tenant`, `permissions` and `subjects`.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -75,7 +75,7 @@ A reply is an event only the app knows about: call `record(subject, "responded")
 
 ## Warnings and breaches
 
-Run `check()` every minute from a [job](/docs/blocks/jobs) with the service role. It records `sla.warned` once a running clock passes its warning share and `sla.breached` once it passes its due time, and, with the [notifications](/docs/blocks/notifications) module installed, notifies the record's watchers at high priority. Escalate from those events with a [workflow](/docs/blocks/workflows), such as reassigning a breached ticket. A clock met after its due time records `sla.completed` with `late: true`.
+Run `check()` every minute from a [job](/docs/blocks/queue) with the service role. It records `sla.warned` once a running clock passes its warning share and `sla.breached` once it passes its due time, and, with the [notifications](/docs/blocks/notifications) module installed, notifies the record's watchers at high priority. Escalate from those events with a [workflow](/docs/blocks/workflows), such as reassigning a breached ticket. A clock met after its due time records `sla.completed` with `late: true`.
 
 ## Events
 

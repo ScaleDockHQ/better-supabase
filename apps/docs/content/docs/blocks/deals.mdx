@@ -17,7 +17,7 @@ Installing deals and parties registers `deal`, `company` and `person` as subject
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: { parties: {}, deals: { names: { deal: { url: "/deals/{id}" } } } },
+  blocks: { contacts: {}, deals: { names: { deal: { url: "/deals/{id}" } } } },
 });
 ```
 
@@ -43,7 +43,7 @@ const deal = await deals
   .orThrow();
 ```
 
-A deal needs a name and a close date. It gets a number per organization and an identifier such as `DEAL-1`, or the format of a `deal` entity in [number-sequences](/docs/blocks/number-sequences). Its company and contacts are records in `config.records` (the parties types `company` and `person` by default, or set `options.company` and `options.contact`). Each must be in the organization and readable by the caller (`DEAL_COMPANY_FORBIDDEN`, `DEAL_CONTACT_FORBIDDEN`), so an app can point deals at its own customers table.
+A deal needs a name and a close date. It gets a number per organization and an identifier such as `DEAL-1`, or the format of a `deal` entity in [numbering](/docs/blocks/numbering). Its company and contacts are records in `config.records` (the parties types `company` and `person` by default, or set `options.company` and `options.contact`). Each must be in the organization and readable by the caller (`DEAL_COMPANY_FORBIDDEN`, `DEAL_CONTACT_FORBIDDEN`), so an app can point deals at its own customers table.
 
 Amounts are `Money` values from [commerce](/docs/concepts/commerce): a `bigint` of minor units with its ISO 4217 currency. The database functions send them as text, so they stay exact past 2^53. A deal created without a `currency` takes the currency of its amount. Every amount on a deal, its lines and its forecast target must be in the deal's currency: the client returns `CURRENCY_MISMATCH` before calling the database, an unknown code returns `CURRENCY_INVALID`, and an `amount` change in `update` in another currency is rejected with `DEAL_CURRENCY_MISMATCH`. Changing the `currency` field keeps the amounts and lines as they are, in the new currency.
 
@@ -118,7 +118,7 @@ const call = await deals
 // { won, commit, bestCase, pipeline, notCalled, omit, later, attainment, gap, owners }
 ```
 
-`forecast` sums one currency in a period: deals won in it, open deals closing in it by forecast category (`notCalled` when the rep has made no call), and `later` for open deals that close after it. `attainment` is won plus commit over the target, and `owners` splits the same sums per owner. `health(pipelineId)` lists the open deals with their days in stage, whether they are rotting, whether the close date slipped, whether there is no next step, and whether the next step is overdue. With the [engagements](/docs/blocks/engagements) module installed, a planned engagement on the deal counts as its next step.
+`forecast` sums one currency in a period: deals won in it, open deals closing in it by forecast category (`notCalled` when the rep has made no call), and `later` for open deals that close after it. `attainment` is won plus commit over the target, and `owners` splits the same sums per owner. `health(pipelineId)` lists the open deals with their days in stage, whether they are rotting, whether the close date slipped, whether there is no next step, and whether the next step is overdue. With the [engagements](/docs/blocks/activities) module installed, a planned engagement on the deal counts as its next step.
 
 ## Events
 

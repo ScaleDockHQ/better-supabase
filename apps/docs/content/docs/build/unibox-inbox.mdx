@@ -16,7 +16,7 @@ answer (password `password123`).
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  jobs: {},
+  queue: {},
   streams: { api: "api" },
   inbox: { api: "api" },
   "chat-sdk-state": {},
@@ -27,7 +27,7 @@ blocks: {
 | Module           | Gives the inbox                                                               | Page                                  |
 | ---------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
 | `inbox`          | inboxes, contacts, conversations, messages, notes, receipts and the bot mode  | [Inbox](/docs/blocks/inbox)           |
-| `jobs`           | the `inbox_bot` and `inbox_outbound` queues                                   | [Jobs](/docs/blocks/jobs)             |
+| `jobs`           | the `inbox_bot` and `inbox_outbound` queues                                   | [Jobs](/docs/blocks/queue)            |
 | `streams`        | resumable bot output                                                          | [Streams](/docs/blocks/streams)       |
 | `chat-sdk-state` | Chat SDK's subscriptions, locks and cache on Postgres                         | [State adapter](/docs/chat-sdk/state) |
 | `ai-chat`        | the assistant's chats; the Help conversation's chat has the conversation's id | [AI chat](/docs/blocks/ai-chat)       |

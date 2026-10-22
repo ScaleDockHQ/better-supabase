@@ -5,22 +5,22 @@ description: Calls, emails, meetings, notes and tasks logged on one or more reco
 
 `engagements` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One engagement can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.records`](/docs/blocks/sql#subject-registry) can carry engagements.
 
-This block is the logged work, not the system history. The [activity feed](/docs/blocks/activity) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
+This block is the logged work, not the system history. The [activity feed](/docs/blocks/timeline) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
 
 Reading needs `engagements.read`, and logging needs `engagements.write`. The author and the owner edit an engagement, and `engagements.manage` edits anyone's. Admins get every permission, and members get `engagements.read` and `engagements.write`.
 
 ```bash
-better-supabase add engagements
+better-supabase add activities
 ```
 
-The block's entity is `engagement` (the `engagements` table). Installing it registers `engagement` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.engagements.names`, for example `{ engagement: "touchpoint" }`. `engagementInputSchema` and `engagementChangeSchema` validate what `log` and `update` take.
+The block's entity is `engagement` (the `activities` table). Installing it registers `engagement` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.activities.names`, for example `{ engagement: "touchpoint" }`. `engagementInputSchema` and `engagementChangeSchema` validate what `log` and `update` take.
 
-The module needs `tenant`, `access` and `subjects`.
+The module needs `tenant`, `permissions` and `subjects`.
 
 ```ts
-import { createEngagements } from "better-supabase/blocks/engagements";
+import { createActivities } from "better-supabase/blocks/activities";
 
-const engagements = createEngagements({ transport });
+const engagements = createActivities({ transport });
 const deal = { type: "deal", id: dealId };
 
 await engagements
@@ -58,7 +58,7 @@ Installing the block registers engagements as the `engagement` subject, so the [
 
 ## Your own fields
 
-`blocks.engagements.options.extraColumns` adds columns to the `engagements` table,
+`blocks.activities.options.extraColumns` adds columns to the `activities` table,
 keyed by column name with their SQL type. `log` and `update` write them from `fields`, and every engagement comes back with them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
@@ -68,7 +68,7 @@ parse them on reads and validate them on writes; a bad value is a
 ```ts
 import { z } from "zod";
 
-const engagements = createEngagements({
+const engagements = createActivities({
   transport,
   fields: z.object({ region: z.enum(["emea", "amer", "apac"]) }),
 });
@@ -82,14 +82,14 @@ await engagements.log(
 
 ## Bookings
 
-With the [bookings](/docs/blocks/bookings) block installed, set `blocks.engagements.options.bookings: true` and every confirmed booking becomes a `meeting` engagement. A trigger on the bookings table keeps it in step, so bookings made through the public link or by a direct write are logged too.
+With the [bookings](/docs/blocks/bookings) block installed, set `blocks.activities.options.bookings: true` and every confirmed booking becomes a `meeting` engagement. A trigger on the bookings table keeps it in step, so bookings made through the public link or by a direct write are logged too.
 
 ```ts
 export default defineConfig({
   blocks: {
     bookings: {},
-    parties: {},
-    engagements: { options: { bookings: true } },
+    contacts: {},
+    activities: { options: { bookings: true } },
   },
 });
 ```
@@ -100,7 +100,7 @@ export default defineConfig({
 | Rescheduled while confirmed | The same meeting moves to the new time and opens again                                                                                        |
 | Cancelled after confirming  | The meeting is done at the cancel time, with the outcome `cancelled: <reason>`                                                                |
 
-The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/parties) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `engagement.logged`, `engagement.updated` and `engagement.completed`.
+The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/contacts) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `engagement.logged`, `engagement.updated` and `engagement.completed`.
 
 ## Read
 
@@ -114,12 +114,12 @@ Each engagement has `overdue`: open and past its due time. Reads run as the call
 
 ## Recordings and notes
 
-`blocks.engagements.options.recordings` (off by default) stores call and meeting recordings, their transcripts and notes about an engagement. It needs the [ai-files](/docs/blocks/ai-files) block, which holds the audio or video, and adds the `engagement_recordings`, `engagement_transcript_segments` and `engagement_notes` tables. The block imports no speech or AI SDK (ADR 0010): you pass a `Transcriber` and a `NoteTaker` that wrap the provider you use.
+`blocks.activities.options.recordings` (off by default) stores call and meeting recordings, their transcripts and notes about an engagement. It needs the [ai-files](/docs/blocks/ai-files) block, which holds the audio or video, and adds the `engagement_recordings`, `engagement_transcript_segments` and `engagement_notes` tables. The block imports no speech or AI SDK (ADR 0010): you pass a `Transcriber` and a `NoteTaker` that wrap the provider you use.
 
 ```ts
-import { createEngagements } from "better-supabase/blocks/engagements";
+import { createActivities } from "better-supabase/blocks/activities";
 
-const engagements = createEngagements({
+const engagements = createActivities({
   transport,
   service: serviceTransport,
   files: aiFiles,
@@ -152,7 +152,7 @@ const recording = await engagements
   .orThrow();
 ```
 
-`attachRecording(engagementId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `engagements.manage` may attach one, and the file must be the caller's unless they hold `engagements.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/jobs) block installed it queues a transcription on `engagements.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
+`attachRecording(engagementId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `engagements.manage` may attach one, and the file must be the caller's unless they hold `engagements.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/queue) block installed it queues a transcription on `engagements.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
 
 `transcribe` signs the file's URL and reads its bytes through `files`, calls the transcriber and saves its speaker turns. `saveTranscript(recordingId, transcript)` stores a transcript you already have, such as one a meeting tool exports; saving again replaces it. Each segment has a `speaker` label, an optional `speakerUserId`, `startMs` and `endMs` from the start of the recording, its `text` and an optional `confidence`.
 
@@ -197,5 +197,5 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 | `ENGAGEMENT_RECORDING_NOT_FOUND`                                               | no such recording                                          |
 | `ENGAGEMENT_TRANSCRIPT_INVALID`                                                | a segment lacks its text or ends before it starts          |
 | `ENGAGEMENT_NOTES_INVALID`                                                     | an empty summary or an action item without text            |
-| `ENGAGEMENT_NO_TRANSCRIBER`, `ENGAGEMENT_NO_FILES`, `ENGAGEMENT_NO_NOTE_TAKER` | `createEngagements` lacks the option the method needs      |
+| `ENGAGEMENT_NO_TRANSCRIBER`, `ENGAGEMENT_NO_FILES`, `ENGAGEMENT_NO_NOTE_TAKER` | `createActivities` lacks the option the method needs       |
 | `ENGAGEMENT_TRANSCRIBE_FAILED`, `ENGAGEMENT_SUMMARIZE_FAILED`                  | the transcriber or note taker threw                        |

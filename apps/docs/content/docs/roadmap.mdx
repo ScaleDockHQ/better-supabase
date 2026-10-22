@@ -82,7 +82,7 @@ better-supabase stands on each:
 | Tasks                                                | assignees, subtasks, dependencies                                                              | checklists, recurrence, watchers, attachments on create and update   |
 | Files                                                | scanning, the drive                                                                            | versions, previews through image variants, an upload controller      |
 | Follow, notify, unread state                         | notifications                                                                                  | per-thread read markers                                              |
-| Activity timeline                                    | engagements and the comments feed                                                              | its own `activity` block and `loadTimeline`                          |
+| Activity timeline                                    | engagements and the comments feed                                                              | its own `timeline` block and `loadTimeline`                          |
 | Presence                                             | documents only                                                                                 | a shared helper used by channels, comments and documents             |
 | Record mentions (smart chips)                        | users only                                                                                     | `@[Title](subject:type/id)` checked with the subject's permission    |
 | Email sync, sequences, tracking, enrichment, scoring | the `mail-sync`, `segments`, `assignment`, `enrichment`, `sequences` and `lead-scoring` blocks | nothing new                                                          |
@@ -129,7 +129,7 @@ verticals become thin blocks and presets on top of them.
    preset.
 9. **Comments on the core (breaking):** comments become subject
    conversations with resolve, edit history, pins, anchors and attachments,
-   and the activity feed moves to its own `activity` block.
+   and the activity feed moves to its own `timeline` block.
 10. **Tasks and files:** attachment versions and previews, checklists,
     recurrence and watchers on work items.
 11. **The inbox on the core (breaking):** inbox conversations and messages

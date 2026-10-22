@@ -3,7 +3,7 @@ title: Templates
 description: Versioned templates that create records, such as an invoice or a project with its tasks, system starters each organization forks, merge fields for text and email, and the workflows each new record starts.
 ---
 
-`templates` stores templates of a type you define, such as `invoice`, `project` or `onboarding-email`. A template has settings, a versioned body and a language, and applying it creates a record from the newest published version through your type's `apply`. The module records which version made which record, and starts the [workflow-builder](/docs/blocks/workflow-builder) workflows attached to the template on the new record.
+`templates` stores templates of a type you define, such as `invoice`, `project` or `onboarding-email`. A template has settings, a versioned body and a language, and applying it creates a record from the newest published version through your type's `apply`. The module records which version made which record, and starts the [workflow-editor](/docs/blocks/workflow-editor) workflows attached to the template on the new record.
 
 System templates (no organization) are starters your app ships and keeps by key with `sync`. An organization forks one to change it, and the fork tracks the version it copied, so you can tell when the starter moved on.
 
@@ -13,7 +13,7 @@ Reading templates needs `templates.read`, applying one needs `templates.apply`, 
 better-supabase add templates
 ```
 
-The module needs `tenant` and `access`. With `outbox` it records events, with `audit` it audits publishes and applications, with `workflow-builder` it attaches workflows, and with `jsonb-schemas` it checks a workflow's inputs against its whole input schema.
+The module needs `memberships` and `access`. With `outbox` it records events, with `audit` it audits publishes and applications, with `workflow-editor` it attaches workflows, and with `jsonb-schemas` it checks a workflow's inputs against its whole input schema.
 
 ## Template types
 
@@ -184,7 +184,7 @@ Errors carry these hints: `TEMPLATE_INVALID`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_FO
 | `templates`             | One row per template: organization (none for a system one), type, name, language, default, settings, the fork's source |
 | `template_versions`     | The versions of each template, with the body and its SHA-256; the draft has no `published_at`                          |
 | `template_applications` | Which version of which template created which record, by whom                                                          |
-| `template_workflows`    | The workflow definitions each template starts on a new record, with their inputs (with `workflow-builder`)             |
+| `template_workflows`    | The workflow definitions each template starts on a new record, with their inputs (with `workflow-editor`)              |
 
 ## Your own columns
 

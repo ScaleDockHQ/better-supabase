@@ -19,7 +19,7 @@ needs `courses.manage`. Admins get all three and members get `courses.read`.
 better-supabase add courses
 ```
 
-The module needs `tenant`, `access` and `enrollments`. With `forms` installed,
+The module needs `tenant`, `permissions` and `enrollments`. With `forms` installed,
 quiz lessons work; without it, saving a quiz lesson fails with
 `COURSE_QUIZ_UNAVAILABLE`. Course changes and learner events go to the outbox,
 and course, enrollment and certificate changes go to the audit log as well.

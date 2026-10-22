@@ -20,11 +20,11 @@ models it takes them from the config. Under the `provider` and `custom`
 models the roles live elsewhere, so list the roles SCIM and auto-join may
 assign in `blocks.sso.options.roleOrder`, highest first; `add` stops
 without it. A memberships table that stores role ids reads them through
-`blocks.tenant.options.roleThrough`, which an authorization provider's
+`blocks.memberships.options.roleThrough`, which an authorization provider's
 `roleSources` fill in.
 Setting a domain's `auto_join_role` also needs `can_assign(tenant, role)` for
 the caller, which is the provider's `canAssign` under the provider model
-(or `blocks.access.functions.canAssign`), so a manager can't make a domain
+(or `blocks.permissions.functions.canAssign`), so a manager can't make a domain
 hand out a role they couldn't grant themselves (`SSO_ROLE_FORBIDDEN`).
 
 | Table                        | Holds                                                                                    |

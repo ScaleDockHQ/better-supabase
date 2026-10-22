@@ -3,12 +3,12 @@ title: AI tasks
 description: Prompts a user schedules on a cron in their time zone, a scheduler that queues each run, and a run log with the chat each run wrote to.
 ---
 
-The `ai-tasks` block runs a prompt on a schedule, such as a summary of new
+The `ai-schedules` block runs a prompt on a schedule, such as a summary of new
 tickets every weekday at 9:00 in the user's time zone. Each run is logged
 with its status and the chat it wrote to.
 
 ```bash
-better-supabase add ai-tasks   # adds tenant and access as well
+better-supabase add ai-schedules   # adds tenant and access as well
 ```
 
 | Table                | Holds                                                              |
@@ -34,10 +34,13 @@ can name the agent it runs as.
 ## Server
 
 ```ts title="lib/ai-tasks.ts"
-import { createAiTasks, rpcTransport } from "better-supabase/blocks/ai-tasks";
+import {
+  createAiSchedules,
+  rpcTransport,
+} from "better-supabase/blocks/ai-schedules";
 
 export const tasksFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
-  createAiTasks({
+  createAiSchedules({
     transport: rpcTransport(supabase),
     service: rpcTransport(admin),
     run: async (task, run, signal) => {
@@ -75,10 +78,10 @@ time zone fails with `AI_TASK_INVALID`.
 
 AI tasks are the per-user layer of scheduling; app-level job schedules and
 workflow schedules are compared in
-[three scheduling layers](/docs/blocks/jobs#three-scheduling-layers).
+[three scheduling layers](/docs/blocks/queue#three-scheduling-layers).
 
 `tick()` claims the due tasks as the service role, queues a run for each
-and sets the next occurrence. With [jobs](/docs/blocks/jobs) installed, each
+and sets the next occurrence. With [jobs](/docs/blocks/queue) installed, each
 run is sent to the `ai_task_run` queue and `runJob()` is its handler;
 without jobs, call `drain()` from a cron route to tick and run in one go.
 `drain()` runs every claimed task even when one fails, then returns the
@@ -92,19 +95,19 @@ another worker already has the run. The optional `notify` callback gets
 every outcome, for a notification or an email. Without it, a `notification`
 type sends each outcome through the `notifier` port, the notifications block
 that [`createBlocks`](/docs/blocks/create-blocks#ports) passes:
-`aiTasksBlock.with({ notification: "ai_task.finished" })`.
+`aiSchedulesBlock.with({ notification: "ai_task.finished" })`.
 
 ## Your own fields
 
-`blocks.ai-tasks.options.extraColumns` adds columns to the `ai_scheduled_tasks` table,
-keyed by column name with their SQL type. Pass `createAiTasks` a Standard Schema
+`blocks["ai-schedules"].options.extraColumns` adds columns to the `ai_scheduled_tasks` table,
+keyed by column name with their SQL type. Pass `createAiSchedules` a Standard Schema
 for them as `fields`: `create`, `update` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `create`, `update`, `pause`, `resume`, `list` return them
 parsed. A column the module already uses is refused. See
 [your own fields](/docs/extending/blocks#your-own-fields).
 
 ```ts
-const client = createAiTasks({
+const client = createAiSchedules({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });

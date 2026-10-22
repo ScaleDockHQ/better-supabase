@@ -69,21 +69,21 @@ Side effects: Writes files.
 The convention flags set what [Create](https://app.bettersupabase.com/create)
 sets in its Conventions step, with the same names and defaults:
 
-| Flag            | Config key                         | Values                                                             |
-| --------------- | ---------------------------------- | ------------------------------------------------------------------ |
-| `--casing`      | `casing`                           | `snake` (default), `camel`                                         |
-| `--scope`       | `database.sql.owner`               | `tenant` (default), `user`, `none`                                 |
-| `--tenant-name` | `blocks.tenant.names.organization` | `organization` (default), `workspace`, `team`, or a lowercase name |
-| `--access`      | `blocks.access.model`              | `roles` (default), `catalog`, `provider`, `custom`                 |
-| `--id-type`     | `blocks.access.idType`             | `uuid` (default), `text`, `bigint`, `integer`                      |
-| `--api`         | `database.sql.api`                 | `none` (default), `api`                                            |
+| Flag            | Config key                              | Values                                                             |
+| --------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| `--casing`      | `casing`                                | `snake` (default), `camel`                                         |
+| `--scope`       | `database.sql.owner`                    | `tenant` (default), `user`, `none`                                 |
+| `--tenant-name` | `blocks.memberships.names.organization` | `organization` (default), `workspace`, `team`, or a lowercase name |
+| `--access`      | `blocks.permissions.model`              | `roles` (default), `catalog`, `provider`, `custom`                 |
+| `--id-type`     | `blocks.permissions.idType`             | `uuid` (default), `text`, `bigint`, `integer`                      |
+| `--api`         | `database.sql.api`                      | `none` (default), `api`                                            |
 
 Without `--preset`, `init` asks for each one in a terminal, in Create's
 order: Casing, Row ownership, Tenant name (for tenant scope only), Auth and
 permissions, ID type and API schema. Once you pass a convention flag, it
 asks for none of them and takes the defaults for the rest. It writes only
 the values that differ from the defaults: `sql` for the scope, tenant name
-and API schema, and `blocks.access` for the access model and id type, which
+and API schema, and `blocks.permissions` for the access model and id type, which
 installs the access block. With `--access provider` it also writes a comment
 that points you at the `authorization` key.
 
@@ -91,7 +91,7 @@ With `--preset`, each flag overrides that convention of the preset, and
 `init` writes the preset as an object with the fields that differ from the
 defaults. Its `tenantName` takes the names Create offers (`organization`,
 `workspace`, `team`), so for another name leave `--tenant-name` out and set
-`blocks.tenant.names.organization` in the config. `add --preset` takes
+`blocks.memberships.names.organization` in the config. `add --preset` takes
 the same flags.
 
 ```bash

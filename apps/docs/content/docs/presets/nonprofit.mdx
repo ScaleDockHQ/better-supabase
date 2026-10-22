@@ -25,14 +25,14 @@ and `npx better-supabase add --preset nonprofit` adds it to one you have
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                             | Role in the app                                 |
-| ------------------------------------------------- | ----------------------------------------------- |
-| [parties](/docs/blocks/parties)                   | Donors, households and organizations            |
-| [donations](/docs/blocks/donations)               | Funds, gifts, pledges and tax receipts          |
-| [ledger](/docs/blocks/ledger)                     | The income account each gift posts to, per fund |
-| [number-sequences](/docs/blocks/number-sequences) | Receipt numbers in your own format              |
-| [targets](/docs/blocks/targets)                   | Fundraising targets per team or period          |
-| [saved-views](/docs/blocks/saved-views)           | Donor segments, such as lapsed or major donors  |
+| Block                                   | Role in the app                                 |
+| --------------------------------------- | ----------------------------------------------- |
+| [parties](/docs/blocks/contacts)        | Donors, households and organizations            |
+| [donations](/docs/blocks/donations)     | Funds, gifts, pledges and tax receipts          |
+| [ledger](/docs/blocks/ledger)           | The income account each gift posts to, per fund |
+| [numbering](/docs/blocks/numbering)     | Receipt numbers in your own format              |
+| [targets](/docs/blocks/goals)           | Fundraising targets per team or period          |
+| [saved-views](/docs/blocks/saved-views) | Donor segments, such as lapsed or major donors  |
 
 ## How the blocks connect
 
@@ -43,7 +43,7 @@ week, month, quarter or year: run `chargeDuePledges` from a scheduled job and
 it charges each due installment once through the versioned `PaymentProvider`
 interface, and the provider's webhook settles the gift. `issueGiftReceipt`
 and `issueYearlyReceipt` number receipts with the `donation_receipt` format
-from number-sequences ([donations](/docs/blocks/donations)).
+from numbering ([donations](/docs/blocks/donations)).
 
 ## With ReUI
 

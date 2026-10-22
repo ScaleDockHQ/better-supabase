@@ -6,15 +6,15 @@ description: Run one action over many rows with a result per row, in one call up
 `bulk` runs one action over many rows: tag 40 tasks, move 300 deals to
 `won`, put 2,000 issues under an epic. Up to a limit (500 by default) the
 rows run in one call and the answer lists a result per row. Beyond it, the
-rows go into a background run on the [jobs](/docs/blocks/jobs) queue `bulk`,
+rows go into a background run on the [jobs](/docs/blocks/queue) queue `bulk`,
 which broadcasts its progress on a Realtime topic.
 
 ```bash
-better-supabase add bulk
+better-supabase add bulk-actions
 ```
 
 ```ts
-import { createBulk } from "better-supabase/blocks/bulk";
+import { createBulkActions } from "better-supabase/blocks/bulk-actions";
 ```
 
 ## Actions
@@ -59,7 +59,7 @@ hint when a row fails:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  bulk: {
+  "bulk-actions": {
     options: {
       limit: 500,
       actions: { "tasks.archive": "app.archive_task" },
@@ -76,7 +76,7 @@ also needs `bulk.run`, which the default member role has.
 ## Run rows now
 
 ```ts
-const bulk = createBulk({ transport });
+const bulk = createBulkActions({ transport });
 
 const result = await bulk
   .run({
@@ -114,7 +114,7 @@ await bulk.apply({
 `apply` runs the rows now when they fit the limit and starts a background
 run otherwise; it resolves to `{ mode: "now", ...result }` or
 `{ mode: "background", id, total, topic }`. Pass the module's `limit` to
-`createBulk` when you changed it.
+`createBulkActions` when you changed it.
 
 ## Background runs
 

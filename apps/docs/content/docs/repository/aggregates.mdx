@@ -25,7 +25,7 @@ code uses aggregates while the setting is off. Over
 compile to SQL and need no setting.
 
 Aggregates run under RLS like any other read: they see only the rows the
-caller may read, and plugins such as `tenant` and `softDelete` scope them
+caller may read, and plugins such as `memberships` and `softDelete` scope them
 the same way as `findMany`.
 
 ## Per-row aggregates of a relation

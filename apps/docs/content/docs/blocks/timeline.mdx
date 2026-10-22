@@ -3,14 +3,14 @@ title: Activity
 description: An activity feed per tenant and a timeline per record, filled from outbox events and joined with audit entries, notification deliveries and workflow runs.
 ---
 
-The `activity` block keeps a tenant's activity feed and each record's
+The `timeline` block keeps a tenant's activity feed and each record's
 timeline. An outbox sink, `activitySink`, writes outbox events into
-`activity_entries`, and `createActivity().list` reads the feed or one
+`activity_entries`, and `createTimeline().list` reads the feed or one
 record's timeline, joined with the record's audit entries, notification
 deliveries and workflow runs when those blocks are installed.
 
 ```bash
-better-supabase add activity   # adds tenant and access as well
+better-supabase add timeline   # adds tenant and access as well
 ```
 
 Until 0.14 the feed was part of the comments block. Add `activity: {}` to
@@ -25,7 +25,7 @@ The crm, projects, helpdesk and docs [presets](/docs/presets) include it.
 | --------------- | ------------------------------- | ----------------- |
 | `activity.read` | read the tenant's activity feed | `member`, `admin` |
 
-`blocks.activity.permissions.read` renames the key.
+`blocks.timeline.permissions.read` renames the key.
 
 ## Writing the feed
 
@@ -34,7 +34,7 @@ Run it as a consumer with a service-role transport, since
 `record_activity()` is granted to `service_role` only:
 
 ```ts title="app/api/cron/activity/route.ts"
-import { activitySink, sqlTransport } from "better-supabase/blocks/activity";
+import { activitySink, sqlTransport } from "better-supabase/blocks/timeline";
 
 await outbox.relay(
   "activity",
@@ -58,8 +58,8 @@ data, or return `null` to skip an event.
 
 ## Reading the feed
 
-`createActivity({ transport, tenant })` builds the client, or
-`createBlockClient(ctx.db, activityBlock, { config: blockConfig })` builds it
+`createTimeline({ transport, tenant })` builds the client, or
+`createBlockClient(ctx.db, timelineBlock, { config: blockConfig })` builds it
 for a request (see
 [createBlocks](/docs/blocks/create-blocks#one-block-per-request)).
 `list(subject?, { cursor, limit, sources })` reads the feed through
@@ -70,9 +70,9 @@ module schema. Each entry's `subject` is a `RecordRef`, or `undefined` for
 an entry without one.
 
 ```ts
-import { createActivity, rpcTransport } from "better-supabase/blocks/activity";
+import { createTimeline, rpcTransport } from "better-supabase/blocks/timeline";
 
-const activity = createActivity({
+const activity = createTimeline({
   transport: rpcTransport(supabase),
   tenant: organizationId,
 });
@@ -148,7 +148,7 @@ newest first (sorts `newest` and `oldest`, facets `type`, `actor`,
 schema to have the table in your models:
 
 ```ts
-import { activityListQuery } from "better-supabase/blocks/activity";
+import { activityListQuery } from "better-supabase/blocks/timeline";
 
 export const activity = activityListQuery(betterSupabase, "activityEntries", {
   pageSize: 30,

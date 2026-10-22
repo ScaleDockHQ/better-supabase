@@ -81,7 +81,7 @@ const key = await rank
 ## Rebalance
 
 Keys grow by about one character each time a row lands between the same two
-neighbours. When a new key is longer than 24 characters and the `jobs` module
+neighbours. When a new key is longer than 24 characters and the `queue` module
 is installed, `move` enqueues `rank.rebalance` with the subject type, tenant
 and group. The handler calls `rebalance_ranks`, which rewrites the group's
 keys to short, evenly spaced ones in the same order. It is service only.

@@ -8,10 +8,10 @@ description: Tenant-editable rules that test a subject against a filter tree whe
 Reading rules needs `rules.read`, changing a disabled rule needs `rules.edit`, enabling a rule or changing an enabled one needs `rules.publish`, and removing one needs `rules.admin`. Admins get every permission and members get `rules.read`.
 
 ```bash
-better-supabase add rules
+better-supabase add automations
 ```
 
-The module needs `tenant` and `access`.
+The module needs `memberships` and `access`.
 
 ## Fields
 
@@ -19,9 +19,9 @@ The module needs `tenant` and `access`.
 
 ```ts
 import {
-  createRulesAdmin,
+  createAutomationsAdmin,
   defineRuleFields,
-} from "better-supabase/blocks/rules";
+} from "better-supabase/blocks/automations";
 
 export const expenseFields = defineRuleFields("expense", {
   status: { type: "select", options: ["draft", "submitted", "paid"] },
@@ -31,7 +31,7 @@ export const expenseFields = defineRuleFields("expense", {
   "submitter.seniority": { type: "select", label: "Submitter seniority" },
 });
 
-await createRulesAdmin({ transport: serviceTransport })
+await createAutomationsAdmin({ transport: serviceTransport })
   .syncFields(expenseFields)
   .orThrow();
 ```
@@ -43,9 +43,9 @@ A field's `columnType` decides how dates compare: `timestamptz` (the default) co
 ## Rules
 
 ```ts
-import { createRules } from "better-supabase/blocks/rules";
+import { createAutomations } from "better-supabase/blocks/automations";
 
-const rules = createRules({ transport });
+const rules = createAutomations({ transport });
 
 const rule = await rules
   .save(organizationId, {
@@ -95,7 +95,7 @@ A rule matches when its tree is true for the subject. The answer is three-valued
 `matching(organizationId, { subjectType, trigger, subject, timeZone })` evaluates the enabled rules for the trigger in the database and returns each match with `results`, the truth of every condition and group by node id. A matched rule with `stopProcessing` ends the list. From a job or a webhook, the service-role `run` does the same and also logs each evaluation:
 
 ```ts
-const matches = await createRulesAdmin({ transport: serviceTransport })
+const matches = await createAutomationsAdmin({ transport: serviceTransport })
   .run(organizationId, {
     subjectType: "expense",
     trigger: "expense.submitted",
@@ -119,7 +119,7 @@ import { createApprovals } from "better-supabase/blocks/approvals";
 import {
   approvalsAction,
   createRuleDispatcher,
-} from "better-supabase/blocks/rules";
+} from "better-supabase/blocks/automations";
 
 const dispatcher = createRuleDispatcher({
   handlers: {
@@ -168,7 +168,7 @@ const dispatcher = createRuleDispatcher({
 `createRuleSink` turns the rules into an [outbox](/docs/blocks/outbox) consumer. For each event it calls your `load`, tests the rules whose trigger is the event's type and dispatches the actions of the ones that match. App tables with [`events`](/docs/blocks/app-tables#events) emit `task.created`, `task.updated` and `task.deleted`, so a rule with the trigger `task.updated` runs on every edit.
 
 ```ts title="app/api/outbox/rules/route.ts"
-import { createRuleSink } from "better-supabase/blocks/rules";
+import { createRuleSink } from "better-supabase/blocks/automations";
 
 const sink = createRuleSink({
   rules: rulesAdmin,
@@ -201,12 +201,12 @@ export const POST = async () =>
 
 ## Editor
 
-`useRuleBuilder` from `better-supabase/blocks/rules/react` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `save`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default).
+`useRuleBuilder` from `better-supabase/blocks/automations/react` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `save`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default).
 
 ```tsx title="components/rule-editor.tsx"
 "use client";
 
-import { useRuleBuilder } from "better-supabase/blocks/rules/react";
+import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 
 export function RuleEditor({ organizationId }: { organizationId: string }) {
   const builder = useRuleBuilder({
@@ -244,22 +244,25 @@ export function RuleEditor({ organizationId }: { organizationId: string }) {
 
 The [Rule builder recipe](/docs/registry/ui-recipes/rule-builder) renders this editor with shadcn components: field, operator and value rows, nested And and Or groups, drag handles and a locked first condition. The `use-rule-editor` [registry item](/docs/registry) installs a `useRuleEditor` hook that reads the organization from the session and the schema from `blocks.generated.ts`.
 
-The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `removeNode`, `setRuleField`, `setRuleOperator` and the rest) are exported from `better-supabase/blocks/rules` for your own editor. `createRuleBuilderController` is the same state without React. In Server Components, call `rules.get(id)` instead.
+The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `removeNode`, `setRuleField`, `setRuleOperator` and the rest) are exported from `better-supabase/blocks/automations` for your own editor. `createRuleBuilderController` is the same state without React. In Server Components, call `rules.get(id)` instead.
 
 ## Vue
 
-`better-supabase/blocks/rules/vue` exports `useRuleBuilder`. It takes the options of `createRuleBuilderController` with a `client` from `createRules`; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
+`better-supabase/blocks/automations/vue` exports `useRuleBuilder`. It takes the options of `createRuleBuilderController` with a `client` from `createAutomations`; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
 import { useSupabase } from "better-supabase/vue";
-import { useRuleBuilder } from "better-supabase/blocks/rules/vue";
-import { createRules, rpcTransport } from "better-supabase/blocks/rules";
+import { useRuleBuilder } from "better-supabase/blocks/automations/vue";
+import {
+  createAutomations,
+  rpcTransport,
+} from "better-supabase/blocks/automations";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
 const { state, actions } = useRuleBuilder({
-  client: createRules({ transport: rpcTransport(supabase) }),
+  client: createAutomations({ transport: rpcTransport(supabase) }),
   organizationId,
   rule: null,
   subjectType: "expense",
@@ -276,18 +279,18 @@ const { state, actions } = useRuleBuilder({
 
 ## Svelte
 
-`better-supabase/blocks/rules/svelte` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them. The hook returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
+`better-supabase/blocks/automations/svelte` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them. The hook returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
   import { getBetterSupabase } from "better-supabase/svelte";
-  import { useRuleBuilder } from "better-supabase/blocks/rules/svelte";
-  import { createRules, rpcTransport } from "better-supabase/blocks/rules";
+  import { useRuleBuilder } from "better-supabase/blocks/automations/svelte";
+  import { createAutomations, rpcTransport } from "better-supabase/blocks/automations";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
   const builder = useRuleBuilder({
-    client: createRules({ transport: rpcTransport(supabase) }),
+    client: createAutomations({ transport: rpcTransport(supabase) }),
     organizationId,
     rule: null,
     subjectType: "expense",
@@ -302,17 +305,20 @@ const { state, actions } = useRuleBuilder({
 
 ## Solid
 
-`better-supabase/blocks/rules/solid` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
+`better-supabase/blocks/automations/solid` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
 
 ```tsx title="Component.tsx"
 import { useSupabase } from "better-supabase/solid";
-import { useRuleBuilder } from "better-supabase/blocks/rules/solid";
-import { createRules, rpcTransport } from "better-supabase/blocks/rules";
+import { useRuleBuilder } from "better-supabase/blocks/automations/solid";
+import {
+  createAutomations,
+  rpcTransport,
+} from "better-supabase/blocks/automations";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
   const { state, actions } = useRuleBuilder({
-    client: createRules({ transport: rpcTransport(supabase) }),
+    client: createAutomations({ transport: rpcTransport(supabase) }),
     organizationId: props.organizationId,
     rule: null,
     subjectType: "expense",
@@ -335,7 +341,7 @@ export function Component(props: { organizationId: string }) {
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  rules: {
+  automations: {
     options: { maxConditions: 30, maxDepth: 3, maxActions: 5 },
   },
 },

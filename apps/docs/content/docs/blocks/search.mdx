@@ -19,7 +19,7 @@ import { createSearch, searchSink } from "better-supabase/blocks/search";
 import { useCommandSearch } from "better-supabase/blocks/search/react";
 ```
 
-The module needs `tenant`, `access` and `subjects`. It reads recents and
+The module needs `tenant`, `permissions` and `subjects`. It reads recents and
 favorites from the per-user state of [Share links](/docs/blocks/share-links)
 when that module is installed, and keeps embeddings when
 [vector search](/docs/blocks/vector-search) is installed and `dimensions` is

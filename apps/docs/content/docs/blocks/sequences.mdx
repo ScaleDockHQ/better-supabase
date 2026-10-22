@@ -67,11 +67,11 @@ every run where it is, and `archived` ends the runs as `archived`. Changing
 the steps raises `version`, and recipients past the old end run the new
 steps on their next turn. `sequenceInputSchema` validates what `save` takes.
 
-| Step    | What it does                                                                                                              |
-| ------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `email` | sends `subject` with `text` or `html` from the run's mailbox; `track: false` turns off open and click tracking for it     |
-| `wait`  | waits `minutes` (1 to 525600) before the next step                                                                        |
-| `task`  | creates a [work item](/docs/blocks/work-items) for whoever enrolled the contact, due `dueInMinutes` later, when installed |
+| Step    | What it does                                                                                                          |
+| ------- | --------------------------------------------------------------------------------------------------------------------- |
+| `email` | sends `subject` with `text` or `html` from the run's mailbox; `track: false` turns off open and click tracking for it |
+| `wait`  | waits `minutes` (1 to 525600) before the next step                                                                    |
+| `task`  | creates a [work item](/docs/blocks/tasks) for whoever enrolled the contact, due `dueInMinutes` later, when installed  |
 
 Email subjects and bodies take `{{key}}` placeholders, filled from the run's
 `variables`. An unknown key becomes empty and HTML bodies escape the values.
@@ -90,7 +90,7 @@ const run = await sequences
   .orThrow();
 ```
 
-`enroll` takes any registered record. A [person](/docs/blocks/parties) sends
+`enroll` takes any registered record. A [person](/docs/blocks/contacts) sends
 to its email unless you pass `address`, and the mailbox is the run's
 `accountId`, then the sequence's, then the caller's own. Enrolling a record
 that is already running returns its run; a finished or ended run starts

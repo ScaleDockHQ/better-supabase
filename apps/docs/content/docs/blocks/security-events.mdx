@@ -3,7 +3,7 @@ title: Shared signals
 description: An OpenID Shared Signals transmitter and receiver, with CAEP and RISC events as signed Security Event Tokens, pushed through outgoing webhooks or polled.
 ---
 
-`shared-signals` sends and receives security events between your app and
+`security-events` sends and receives security events between your app and
 the identity providers, SaaS apps and security tools around it, per
 [OpenID Shared Signals Framework 1.0](https://openid.net/specs/openid-sharedsignals-framework-1_0.html).
 An event (a revoked session, a disabled account, a changed credential) is a
@@ -13,7 +13,7 @@ a management API, and get SETs pushed to their endpoint (RFC 8935) or poll
 for them (RFC 8936).
 
 ```bash
-better-supabase add signing-keys webhooks-out shared-signals
+better-supabase add signing-keys webhooks-out security-events
 ```
 
 ```ts
@@ -21,7 +21,7 @@ import {
   createSsfReceiver,
   createSsfTransmitter,
   sqlTransport,
-} from "better-supabase/blocks/shared-signals";
+} from "better-supabase/blocks/security-events";
 ```
 
 Every function is service-role only. Push delivery needs
@@ -39,7 +39,7 @@ import {
   CAEP_EVENTS,
   createSsfTransmitter,
   sqlTransport,
-} from "better-supabase/blocks/shared-signals";
+} from "better-supabase/blocks/security-events";
 import { vaultCredentials } from "better-supabase/credentials";
 
 import { signingKeys } from "@/lib/signing-keys";
@@ -63,7 +63,7 @@ export const transmitter = createSsfTransmitter({
 ```
 
 `authorize` returns `receiver`, a stable id such as the OAuth client id,
-and optionally `tenant` and `audience`. A stream with a tenant gets only
+and optionally `memberships` and `audience`. A stream with a tenant gets only
 that tenant's events; a stream without one gets every event. The `aud` of
 its SETs is `audience`, or `receiver` when there is none.
 
@@ -168,7 +168,7 @@ import {
   CAEP_EVENTS,
   createSsfReceiver,
   sqlTransport,
-} from "better-supabase/blocks/shared-signals";
+} from "better-supabase/blocks/security-events";
 
 export const receiver = createSsfReceiver({
   transport: sqlTransport(postgres.admin),

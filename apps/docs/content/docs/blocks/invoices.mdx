@@ -11,7 +11,7 @@ Reading needs `invoices.read`, creating, issuing, recording payments and credit 
 better-supabase add invoices
 ```
 
-The module needs `tenant`, `access` and `subjects`.
+The module needs `tenant`, `permissions` and `subjects`.
 
 ```ts
 import { createInvoices } from "better-supabase/blocks/invoices";
@@ -66,7 +66,7 @@ await invoices.create(organizationId, {
 
 ## Issue and number
 
-A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [number-sequences](/docs/blocks/number-sequences)), sets the issue date and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
+A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [numbering](/docs/blocks/numbering)), sets the issue date and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
 
 ## Payments, credits and balance
 

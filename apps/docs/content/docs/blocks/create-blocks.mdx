@@ -5,7 +5,7 @@ description: Build several blocks from one set of options and the generated bloc
 
 `defineBlocks` and `createBlocks` build the blocks you list with one
 transport and set of error mappers, and wire them on their ports: each block
-that consumes a port, such as ai-tasks and reminders consuming `notifier`,
+that consumes a port, such as ai-schedules and reminders consuming `notifier`,
 gets it from the block that provides it, here `notifications`. Every block
 exports its manifest from its subpath (`organizationsBlock` from
 `better-supabase/blocks/organizations`), so only the blocks you list end up
@@ -48,7 +48,7 @@ const { organizations, audit, notifications } = blocks(supabase);
 ```
 
 The result has one key per block with a client, typed from its creator,
-plus `sinks` and `close()`. A block with only SQL, such as `tenantBlock`, is
+plus `sinks` and `close()`. A block with only SQL, such as `membershipsBlock`, is
 skipped.
 
 ## The generated config
@@ -97,7 +97,7 @@ notifications topic is a template, which `fillTopic` fills in:
 | Option shared with TypeScript | Read by                                    |
 | ----------------------------- | ------------------------------------------ |
 | `attachments.requireScan`     | `createAttachments`                        |
-| `bulk.limit`                  | `createBulk`                               |
+| `bulk.limit`                  | `createBulkActions`                        |
 | `notifications.topic`         | the notifications feed controller and hook |
 | `announcements.topic`         | the announcements controller and hook      |
 | `inbox.topic`                 | the inbox controllers and hooks            |
@@ -116,7 +116,7 @@ notifications topic is a template, which `fillTopic` fills in:
 | `config`      | `blockConfig` from `blocks.generated.ts`; `defineBlocks` passes it, `createBlocks` takes it here     |
 | `mappers`     | Error mappers that run before each block's built-in ones                                             |
 | `temporal`    | The Temporal namespace for runtimes without a global one                                             |
-| `credentials` | A `CredentialProvider` for connectors, ai-providers and the workflow builder                         |
+| `credentials` | A `CredentialProvider` for connectors, ai-keys and the workflow builder                              |
 | `events`      | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)             |
 | `audit`       | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`            |
 | `hooks`       | Hooks around each block's methods, keyed like the blocks (see [Hooks](#hooks))                       |
@@ -127,7 +127,7 @@ notifications topic is a template, which `fillTopic` fills in:
 The blocks whose methods work on a subject (comments, attachments, tags,
 reactions, relations, versions, sla, share links, custom fields, reminders,
 time tracking and approvals) act in one organization, which they read from
-the `tenant` option instead of taking an `organizationId` argument. Pass an
+the `memberships` option instead of taking an `organizationId` argument. Pass an
 id, or a function that returns the current one, such as
 `() => ctx.tenant`; the function runs on every call. A call without a tenant
 fails with `invalid_request` and the hint `TENANT_REQUIRED` before it reaches
@@ -174,11 +174,11 @@ than the caller's.
 ## A block's own options
 
 `with` sets options one block gets on top of the shared ones, such as the
-notification type ai-tasks sends:
+notification type ai-schedules sends:
 
 ```ts
 defineBlocks(blockConfig, {
-  aiTasks: aiTasksBlock.with({ notification: "ai_task.finished", run }),
+  aiTasks: aiSchedulesBlock.with({ notification: "ai_task.finished", run }),
   notifications: notificationsBlock,
 }).create({ transport, service });
 ```
@@ -237,7 +237,7 @@ and Postgres executors have it.
 
 ### Renamed blocks
 
-When the config renames the tenant (`blocks.tenant.names.organization`),
+When the config renames the tenant (`blocks.memberships.names.organization`),
 a block's entities (`blocks.<name>.names`) or its functions
 (`blocks.<name>.functions`), the SQL writes the block functions under other
 names. `gen` writes those names into each block's `names` entry in
@@ -249,19 +249,16 @@ tenant columns (`workspace_id`) back under the names the clients read
 
 A renamed entity also renames the TypeScript side. For each block whose
 entities the config renames, `gen` writes the block and its types under the
-new names, so you import `tasksBlock` and `Task` instead of `workItemsBlock`
+new names, so you import `tasksBlock` and `Task` instead of `tasksBlock`
 and `WorkItem`:
 
 ```ts title="src/lib/supabase/blocks.generated.ts"
-export const tasksBlock = renameBlock(
-  workItemsBlock,
-  blockConfig["work-items"].names,
-);
+export const tasksBlock = renameBlock(tasksBlock, blockConfig["tasks"].names);
 export type Task<F extends object = Record<never, never>> = RenamedType<
   WorkItem<F>,
   WorkItemsRenames
 >;
-export type TasksEvents = RenamedEvents<WorkItemsEvents, WorkItemsRenames>;
+export type TasksEvents = RenamedEvents<TasksEvents, WorkItemsRenames>;
 ```
 
 `renameBlock` renames the client's methods (`createWorkItem` to `createTask`),
@@ -301,14 +298,14 @@ port or a missing `required` one.
 
 | Port          | Provided by     | Consumed by                                                              |
 | ------------- | --------------- | ------------------------------------------------------------------------ |
-| `notifier`    | `notifications` | ai-tasks (with `notification`), reminders (with `notification`)          |
+| `notifier`    | `notifications` | ai-schedules (with `notification`), reminders (with `notification`)      |
 | `files`       | `ai-files`      | knowledge                                                                |
 | `attachments` | `attachments`   | drive, which downloads files through it                                  |
-| `workflows`   | `workflows`     | workflow-builder, which writes schedule triggers' schedules through it   |
+| `workflows`   | `workflows`     | workflow-editor, which writes schedule triggers' schedules through it    |
 | `mailer`      | `mail-sync`     | sequences, which sends email steps through it                            |
 | `sink`        | search, metrics | none: each one lands in `sinks`, keyed like the block (see Outbox sinks) |
 
-With a `notification` type, ai-tasks sends it to the task's user in the
+With a `notification` type, ai-schedules sends it to the task's user in the
 task's organization, keyed by the run id, with the data
 `{ taskId, runId, ok, error?, chatId? }`. The type's schema in your
 notification types has to accept that data. Reminders send theirs for each
@@ -318,7 +315,7 @@ keyed by `reminder:<id>:<occurrenceAt>`, with the data
 
 ```ts
 const { aiTasks, reminders } = defineBlocks(blockConfig, {
-  aiTasks: aiTasksBlock.with({ notification: "ai_task.finished", run }),
+  aiTasks: aiSchedulesBlock.with({ notification: "ai_task.finished", run }),
   reminders: remindersBlock.with({ notification: "reminder.due" }),
   notifications: notificationsBlock.using((options) =>
     createNotifications({ ...options, types, render }),
@@ -368,7 +365,7 @@ export const GET = outbox.relayRoute({
 `hooks`, keyed like the blocks and then by method name, runs your code
 around a block's methods: a `before` hook can refuse a call or replace its
 arguments, and an `after` hook observes a copy of the result. Ports are built
-from the hooked block, so a `send` hook also runs when ai-tasks notifies. See
+from the hooked block, so a `send` hook also runs when ai-schedules notifies. See
 [Extending blocks](/docs/extending/blocks#hooks).
 
 ```ts

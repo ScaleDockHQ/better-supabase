@@ -15,7 +15,7 @@ pnpm better-supabase add webhooks-out
 
 Secrets live in [Supabase Vault](https://supabase.com/docs/guides/database/vault)
 by default and clients can never read them. With the
-[access contract](/docs/blocks/access) installed, members with
+[access contract](/docs/blocks/permissions) installed, members with
 `webhooks.read` read the endpoints and the delivery log of their
 organization through RLS, and `webhooks.manage` adds, changes, rotates and
 redelivers. Without it, only the service role has access.
@@ -107,7 +107,7 @@ update better_supabase.webhook_endpoints set format = 'cloudevents' where id = $
 
 Both `cloudevents` and `standard` put `transform`'s return value in `data`.
 
-The [shared-signals](/docs/blocks/shared-signals) block creates the `set`
+The [security-events](/docs/blocks/security-events) block creates the `set`
 endpoints; the SET carries its own signature, and a 400 with `invalid_key`
 retries while other RFC 8935 errors dead-letter.
 
@@ -200,12 +200,12 @@ await webhooks
 
 A service endpoint declares what it holds in its `permissions` column, for
 example `{invoices.*}`. With the
-[service-principals](/docs/blocks/service-principals) module installed, a
+[service-accounts](/docs/blocks/service-accounts) module installed, a
 service endpoint gets an event only when the tenant's default principal
 holds `readPermission` (else `webhooks.read`), and the declared
 `permissions` apply only while the tenant has no default principal. The user check asks the
 [authorization provider](/docs/extending/authorization-providers) when one is
-configured, otherwise the [access contract](/docs/blocks/access); without
+configured, otherwise the [access contract](/docs/blocks/permissions); without
 either, user endpoints receive nothing.
 
 The SQL check runs once, when the event is queued. For a check at send time,
@@ -213,7 +213,7 @@ such as row-level rules the provider doesn't know, pass `subscribers`, a
 `SubscriberPolicy`. `deliver` calls it once per event with the candidate
 endpoints (`{ principal, kind }`, where `principal` is the owner's user id;
 for a service endpoint, the organization's default
-[service principal](/docs/blocks/service-principals), or the endpoint id
+[service principal](/docs/blocks/service-accounts), or the endpoint id
 without one) and cancels the deliveries it leaves out. Each delivery is
 checked against its own stored `subject`. A throw retries every delivery of
 that event. Without the option the block uses

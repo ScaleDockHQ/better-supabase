@@ -56,7 +56,7 @@ blocks: {
 | `subjects`       | `config.records` | The [subject types](/docs/blocks/sql#subject-registry) documents attach to, with their read and write rules |
 | `topic`          | `documents`      | The Realtime topic prefix; each document's topic is `<topic>:<document id>`                                 |
 | `maxUpdateBytes` | `1048576`        | The largest update `push` accepts (`DOCUMENT_UPDATE_TOO_LARGE` otherwise)                                   |
-| `compactAfter`   | `200`            | The number of updates since the snapshot that enqueues a `documents.compact` job, with the `jobs` module    |
+| `compactAfter`   | `200`            | The number of updates since the snapshot that enqueues a `documents.compact` job, with the `queue` module   |
 
 A document is created on the first `open` by someone who may edit the subject; a reader who opens a document that doesn't exist yet gets `DOCUMENT_NOT_FOUND`. Deleting a subject deletes its documents.
 

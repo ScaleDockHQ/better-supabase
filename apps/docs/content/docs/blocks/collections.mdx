@@ -13,7 +13,7 @@ Reading needs `collections.read`, and starring, creating personal lists and chan
 better-supabase add collections
 ```
 
-The module needs `tenant`, `access` and `subjects`, and uses `teams` for team lists and `outbox` for its events.
+The module needs `tenant`, `permissions` and `subjects`, and uses `teams` for team lists and `outbox` for its events.
 
 ```ts
 import { createCollections } from "better-supabase/blocks/collections";
@@ -101,7 +101,7 @@ await collections.completeSaved(item.id).orThrow();
 | `remindDue({ limit })`                                | Service role: claims the open items whose reminder is due and notifies each member once                                    |
 
 `remindAt` must be in the future. Run `remindDue()` from a cron or a
-[jobs](/docs/blocks/jobs) schedule with the service role. It claims up to
+[jobs](/docs/blocks/queue) schedule with the service role. It claims up to
 `limit` due items (default 100, at most 500), records `saved_item.reminded`
 for each, and with the [notifications](/docs/blocks/notifications) block sends
 the `notification` type through the `notifier` port to the member who saved
@@ -140,7 +140,7 @@ const page = await companiesList.run(db, query, { where }).orThrow();
 
 `where` reads up to 500 ids (`max` raises it to 1000) and returns `{ id: { in: ids } }`; pass `column` when the list's rows point at the record through another column. `subjectIds(id)` returns the same ids.
 
-With the [bulk](/docs/blocks/bulk) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
+With the [bulk](/docs/blocks/bulk-actions) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
 
 ```ts
 await bulk

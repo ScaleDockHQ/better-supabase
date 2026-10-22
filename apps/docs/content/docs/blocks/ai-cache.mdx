@@ -73,7 +73,7 @@ lifecycle deletes a tenant's entries with its other rows.
 
 Expired entries are never returned, but they stay in the table until the
 purge job deletes them. Schedule it hourly through the
-[jobs block](/docs/blocks/jobs):
+[jobs block](/docs/blocks/queue):
 
 ```ts
 handlers: {

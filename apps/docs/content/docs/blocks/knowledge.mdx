@@ -46,7 +46,7 @@ and `.manage`.
 | `dimensions` | `1536`            | The embedding size; 384 for `gte-small` in Edge Functions                |
 | `type`       | `vector`          | `vector` or `halfvec`, as in [vector search](/docs/blocks/vector-search) |
 | `textSearch` | `simple`          | The text search configuration of the `tsv` column, such as `english`     |
-| `embedQueue` | `knowledge_embed` | The [jobs](/docs/blocks/jobs) queue a new document is enqueued on        |
+| `embedQueue` | `knowledge_embed` | The [jobs](/docs/blocks/queue) queue a new document is enqueued on       |
 
 ## Server
 
@@ -90,7 +90,7 @@ const doc = await knowledge.ingest
 sentence or word break, with a short overlap. The document starts
 `pending`. Embedding happens on the server:
 
-- With the [`jobs`](/docs/blocks/jobs) module installed, a new document is
+- With the [`jobs`](/docs/blocks/queue) module installed, a new document is
   enqueued on `knowledge_embed`; register `knowledge.embedJob()` as its
   handler. The last failed attempt marks the document `failed` with the
   error.

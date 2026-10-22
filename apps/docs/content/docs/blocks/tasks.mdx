@@ -3,12 +3,12 @@ title: Work items
 description: Issues and tasks on pipelines, with identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 ---
 
-`work-items` is the task and issue record of Linear, Jira, GitHub issues and monday items: a title, a body, a parent, assignees, a priority, an estimate, start, end and due dates, and a stage on a [pipeline](/docs/blocks/pipelines). Items can belong to a team, a project and an iteration (a cycle or a sprint). Their identifier is `TASK-12`, or the format of a `work_item` entity in [number-sequences](/docs/blocks/number-sequences).
+`tasks` is the task and issue record of Linear, Jira, GitHub issues and monday items: a title, a body, a parent, assignees, a priority, an estimate, start, end and due dates, and a stage on a [pipeline](/docs/blocks/pipelines). Items can belong to a team, a project and an iteration (a cycle or a sprint). Their identifier is `TASK-12`, or the format of a `work_item` entity in [numbering](/docs/blocks/numbering).
 
 Reading needs `work_items.read`, creating, editing and assigning needs `work_items.write`, and projects, iterations and deleting someone else's item need `work_items.manage`. Admins get every permission, and members get `work_items.read` and `work_items.write`.
 
 ```bash
-better-supabase add work-items
+better-supabase add tasks
 ```
 
 The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it binds the `work_item` type in the pipelines module with one pipeline per team (`scope: "team_id"`) and the categories of Linear's workflow states:
@@ -28,16 +28,16 @@ Installing the block registers work items as the `work_item` subject, ranked by 
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: { "work-items": { names: { work_item: { url: "/tasks/{id}" } } } },
+  blocks: { tasks: { names: { work_item: { url: "/tasks/{id}" } } } },
 });
 ```
 
 ## Create, edit and assign
 
 ```ts
-import { createWorkItems } from "better-supabase/blocks/work-items";
+import { createTasks } from "better-supabase/blocks/tasks";
 
-const items = createWorkItems({ transport });
+const items = createTasks({ transport });
 const epic = await items
   .create(organizationId, { title: "Checkout v2", teamId, priority: 2 })
   .orThrow();
@@ -89,13 +89,13 @@ With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id,
 
 ```ts
 import {
-  createWorkItems,
+  createTasks,
   workItemRecurrenceSink,
-} from "better-supabase/blocks/work-items";
+} from "better-supabase/blocks/tasks";
 
-const serviceItems = createWorkItems({ transport: serviceTransport });
+const serviceItems = createTasks({ transport: serviceTransport });
 
-outbox.relay("work-items", workItemRecurrenceSink(serviceItems));
+outbox.relay("tasks", workItemRecurrenceSink(serviceItems));
 ```
 
 The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `entities: { work_item: "task" }`, pass `{ type: "task.closed" }`.
@@ -144,17 +144,17 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("w
 
 ## Your own columns
 
-Add columns to the work item table with `blocks.work-items.options.extraColumns`
+Add columns to the work item table with `blocks.tasks.options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create`, and `update` with the column name as `field` validates and writes them, and every method that returns an item return them parsed under
 `fields`. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 
 ```ts
-import { createWorkItems } from "better-supabase/blocks/work-items";
+import { createTasks } from "better-supabase/blocks/tasks";
 import { z } from "zod";
 
-const client = createWorkItems({
+const client = createTasks({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });

@@ -22,7 +22,7 @@ import { money } from "better-supabase/commerce";
 The module requires `tenant`, `access`, `subjects` and `ledger`. With
 `outbox` it records the `donation.*`, `pledge.*` and `donation_receipt.*`
 events, with `audit` every change is audited, and with
-[number-sequences](/docs/blocks/number-sequences) receipt numbers follow its
+[numbering](/docs/blocks/numbering) receipt numbers follow its
 `donation_receipt` format. Amounts are bigint minor units
 ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
 Charges go through the versioned `PaymentProvider` interface
@@ -180,7 +180,7 @@ await donations
 A gift receipt covers one posted gift; issuing it again returns the same
 receipt. A yearly receipt covers a donor's
 posted gifts received in a year and currency; issuing it again returns the
-same receipt until it is voided. Numbers come from number-sequences when it
+same receipt until it is voided. Numbers come from numbering when it
 configures `donation_receipt`; without it each organization counts up from 1
 with the prefix `R-`. A voided receipt keeps its number, and a voided gift
 receipt frees the gift for a new one.

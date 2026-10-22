@@ -115,7 +115,7 @@ a route the owner can reach; with the Postgres store an owner can also call
 
 ## Cleaning up
 
-Run `streams.purge({ olderThan: "1 day" })` from a [job](/docs/blocks/jobs)
+Run `streams.purge({ olderThan: "1 day" })` from a [job](/docs/blocks/queue)
 schedule, or schedule `purge_streams` with pg_cron. It resolves with the
 number of streams deleted.
 

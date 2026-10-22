@@ -3,7 +3,7 @@ title: Identities
 description: Run bot jobs as the chat author's linked user, decide approval buttons through the authorization provider, and link approval prompts to the app.
 ---
 
-A chat message names a platform user, not an app user. These helpers resolve the author through `principalByIdentity`, usually the [identities block](/docs/blocks/identities), and act only for a linked user. An unlinked author stays anonymous.
+A chat message names a platform user, not an app user. These helpers resolve the author through `principalByIdentity`, usually the [identities block](/docs/blocks/linked-identities), and act only for a linked user. An unlinked author stays anonymous.
 
 Each helper takes `principalByIdentity` directly or reads it from `bsb.authorization.identities`, where `bsb` is the `createServer(betterSupabase, { authorization })` instance; pass it as `server: bsb`. The option passed to the helper wins.
 

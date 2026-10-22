@@ -111,7 +111,7 @@ the tenant and the `summary` feature:
 import { summarizeWith } from "better-supabase/ai-sdk";
 
 const summarizer = summarizeWith("anthropic/claude-sonnet-4.5", {
-  providers, // the tenant's own keys as BYOK, when the app installs ai-providers
+  providers, // the tenant's own keys as BYOK, when the app installs ai-keys
   maxOutputTokens: 400,
 });
 
@@ -120,14 +120,14 @@ const summary = await messaging
   .orThrow();
 ```
 
-With `providers`, the [AI providers block](/docs/blocks/ai-providers), each
+With `providers`, the [AI providers block](/docs/blocks/ai-keys), each
 summary goes through [`tenantGatewayOptions`](/docs/ai-sdk/providers), so a
 tenant with a saved key pays for its own summaries. `instructions` replaces
 the default prompt and `gateway` adds AI Gateway options such as `order`.
 
 ## Jobs
 
-Two [job](/docs/blocks/jobs) handlers keep the block current:
+Two [job](/docs/blocks/queue) handlers keep the block current:
 
 ```ts title="jobs.ts"
 import { gateway } from "ai";
