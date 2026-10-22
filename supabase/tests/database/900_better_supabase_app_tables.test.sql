@@ -1,6 +1,6 @@
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- Managed by `better-supabase sql sync`; re-running it overwrites this file.
+-- Managed by `better-supabase upgrade`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 begin;
