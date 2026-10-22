@@ -362,6 +362,7 @@ with o as (
 insert into "public"."patients" ("organization_id", "name") select o.id, repeat('x', 1) from o;
 update "public"."patients" set "ssn" = (repeat('x', 9))::text, "email" = ('test@example.com')::text, "born_on" = ('2026-01-01'::date)::text, "diagnosis" = (repeat('x', 1))::text;
 select set_config('bs.app_reveal_ids', (select array_agg(id)::text from "public"."patients"), true);
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
 select extensions.ok((select bool_and(left("ssn", 5) = 'bsf1:' and "ssn" <> (repeat('x', 9))::text) from "public"."patients"), 'public.patients.ssn is ciphertext at rest');
 select extensions.is((select r."ssn"::text from "public"."patients_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 9))::text, 'the service role reveals public.patients.ssn');
 select extensions.ok((select bool_and(left("email", 5) = 'bsf1:' and "email" <> ('test@example.com')::text) from "public"."patients"), 'public.patients.email is ciphertext at rest');
@@ -403,6 +404,7 @@ with u as (
 insert into "public"."notes" ("user_id", "body") select u.id, repeat('x', 1) from u;
 update "public"."notes" set "body" = (repeat('x', 1))::text;
 select set_config('bs.app_reveal_ids', (select array_agg(id)::text from "public"."notes"), true);
+select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
 select extensions.ok((select bool_and(left("body", 5) = 'bsf1:' and "body" <> (repeat('x', 1))::text) from "public"."notes"), 'public.notes.body is ciphertext at rest');
 select extensions.is((select r."body"::text from "public"."notes_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.notes.body');
 

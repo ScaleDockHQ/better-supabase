@@ -195,6 +195,17 @@ export default defineConfig({
       // /api/outbox runs the rules whose trigger is the event (ADR 0048).
       events: { include: ["status", "project_id"] },
     },
+    // A clinic's intake notes. The diagnosis and birth date are stored as
+    // ciphertext under the tenant's Vault key and read back through
+    // public.client_notes_reveal, which audits each read (ADR 00XX).
+    client_notes: {
+      columns: {
+        client_name: { type: "text", nullable: false },
+        diagnosis: { type: "text", encrypted: true },
+        birth_date: { type: "date", encrypted: true },
+      },
+      auditReads: true,
+    },
     saved_views: {
       scope: "user",
       columns: {
@@ -388,7 +399,8 @@ export default defineConfig({
     },
     "saved-views": { tables: { views: "shared_views" } },
     sla: {},
-    "custom-fields": {},
+    // Encrypted definitions and sensitive values are audited when read.
+    "custom-fields": { options: { auditReads: true } },
     bulk: {},
     trash: {},
     relations: {},
@@ -422,6 +434,8 @@ export default defineConfig({
     outbox: {},
     "service-principals": {},
     "signing-keys": {},
+    // Per-tenant data keys in Vault for encrypted columns and custom fields.
+    "field-encryption": {},
     // Exports leave out token, hash and secret columns (doctor BS341).
     "data-lifecycle": { options: { omitPattern: true } },
   },

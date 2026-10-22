@@ -1804,6 +1804,7 @@
               "enrollments",
               "ensure-rls",
               "entitlements",
+              "field-encryption",
               "flags",
               "forms",
               "grants",
@@ -2006,6 +2007,9 @@
             },
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
+            },
+            "field-encryption": {
+              "$ref": "#/$defs/blocks/field-encryption"
             },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
@@ -3991,6 +3995,17 @@
         }
       },
       "entitlements": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "field-encryption": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

@@ -368,6 +368,8 @@ export function sealChecks(
   const seededChecks = [
     `update ${qualified(table.name)} set ${columns.map((column) => `${sqlIdent(column)} = (${plain(column)})::text`).join(", ")};`,
     `select set_config(${sqlString(REVEAL_IDS)}, (select array_agg(id)::text from ${qualified(table.name)}), true);`,
+    // An earlier block may have left a signed-in user's claims behind.
+    `select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);`,
     ...columns.flatMap((column) => [
       `select extensions.ok((select bool_and(left(${sqlIdent(column)}, ${String(FIELD_CIPHER_PREFIX.length)}) = ${sqlString(FIELD_CIPHER_PREFIX)} and ${sqlIdent(column)} <> (${plain(column)})::text) from ${qualified(table.name)}), ${sqlString(`${label}.${column} is ciphertext at rest`)});`,
       `select extensions.is((select r.${sqlIdent(column)}::text from ${reveal} r limit 1), (${plain(column)})::text, ${sqlString(`the service role reveals ${label}.${column}`)});`,
