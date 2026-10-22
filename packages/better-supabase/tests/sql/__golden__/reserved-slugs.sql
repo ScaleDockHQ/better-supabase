@@ -78,6 +78,7 @@ revoke execute on function better_supabase.track_slug(regclass, text) from publi
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -191,6 +192,7 @@ revoke execute on function better_supabase.track_slug(regclass, text) from publi
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -304,6 +306,7 @@ revoke execute on function better_supabase.track_slug(regclass, text) from publi
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -430,6 +433,7 @@ grant execute on function "api"."slug_problem"(text) to authenticated, service_r
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

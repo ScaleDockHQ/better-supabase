@@ -732,6 +732,7 @@ grant execute on function "better_supabase"."list_bookings"(uuid, timestamptz, t
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1735,6 +1736,7 @@ grant execute on function "better_supabase"."public_change_booking"(uuid, text, 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2495,6 +2497,7 @@ grant execute on function "app_private"."list_bookings"(uuid, timestamptz, times
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -3410,6 +3413,7 @@ grant execute on function "api"."list_bookings"(uuid, timestamptz, timestamptz, 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -4048,6 +4052,7 @@ grant execute on function "better_supabase"."list_bookings"(uuid, timestamptz, t
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

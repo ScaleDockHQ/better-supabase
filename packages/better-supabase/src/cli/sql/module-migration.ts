@@ -52,7 +52,11 @@ export interface BlockSqlMigrationParts {
 export function renderModuleMigration(parts: BlockSqlMigrationParts): string {
   const schema = parts.files.filter((file) => file.kind === "schema");
   const data = parts.files.filter((file) => file.kind === "data");
-  const modules = [...new Set(schema.map((file) => file.module))];
+
+  const modules = [
+    ...new Set(schema.map((file) => file.instance ?? file.module)),
+  ];
+
   const extensions = moduleSchemaExtensions(parts.files);
   const upgrade = parts.upgrade ?? [];
 
@@ -124,7 +128,8 @@ export async function latestMigration(
   };
 }
 
-const MODULE_MARKERS = /^-- @(?:bsb-block|bs-module) ([a-z0-9-]+)@(\d+)\b/gm;
+const MODULE_MARKERS =
+  /^-- @(?:bsb-block|bs-module) ([a-zA-Z0-9-]+)@(\d+)(?: [a-z]+(?: ([a-z0-9-]+))?)?$/gm;
 
 /**
  * The modules and versions a module migration installs, from its `@bsb-block`
@@ -136,6 +141,18 @@ export function migrationModules(text: string): ReadonlyMap<string, number> {
       match[1]!,
       Number(match[2]),
     ]),
+  );
+}
+
+/**
+ * The instances a module migration installs under another name than their
+ * block, each to its block.
+ */
+export function migrationInstances(text: string): ReadonlyMap<string, string> {
+  return new Map(
+    [...text.matchAll(MODULE_MARKERS)].flatMap((match) =>
+      match[3] === undefined ? [] : [[match[1]!, match[3]] as const],
+    ),
   );
 }
 

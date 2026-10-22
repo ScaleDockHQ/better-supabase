@@ -41,6 +41,7 @@ create event trigger bsb_ensure_rls on ddl_command_end
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -111,6 +112,7 @@ create event trigger bsb_ensure_rls on ddl_command_end
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -181,6 +183,7 @@ create event trigger bsb_ensure_rls on ddl_command_end
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -251,6 +254,7 @@ create event trigger bsb_ensure_rls on ddl_command_end
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

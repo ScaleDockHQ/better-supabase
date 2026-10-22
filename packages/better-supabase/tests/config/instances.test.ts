@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   blocksByName,
   CORE_BLOCKS,
+  instancePrefix,
   resolveInstances,
 } from "../../src/config/instances.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
@@ -11,8 +12,8 @@ import { PRESET_CATALOG } from "../../src/preset/catalog.generated.ts";
 describe("resolveInstances", () => {
   it("installs each listed block once under its own name", () => {
     expect(resolveInstances(["tags", "comments"])).toStrictEqual({
-      tags: { name: "tags", block: "tags", uses: {} },
-      comments: { name: "comments", block: "comments", uses: {} },
+      tags: { name: "tags", block: "tags", uses: {}, config: {} },
+      comments: { name: "comments", block: "comments", uses: {}, config: {} },
     });
   });
 
@@ -33,7 +34,24 @@ describe("resolveInstances", () => {
       block: "tasks",
       on: ["lease"],
       uses: { pipelines: "maintenanceStages" },
+      config: { on: ["lease"], uses: { pipelines: "maintenanceStages" } },
     });
+    expect(instances["tasks"]?.uses).toStrictEqual({});
+  });
+
+  it("binds a dependency to its only instance when that has another name", () => {
+    const instances = resolveInstances({
+      stages: { block: "pipelines" },
+      deals: {},
+    });
+
+    expect(instances["deals"]?.uses).toStrictEqual({ pipelines: "stages" });
+  });
+
+  it("rejects an instance name that is not an identifier", () => {
+    expect(() => resolveInstances({ "Hiring pipelines": {} })).toThrow(
+      "an instance name starts with a lowercase letter",
+    );
   });
 
   it("rejects an unknown block", () => {
@@ -84,17 +102,23 @@ describe("resolveInstances", () => {
 });
 
 describe("blocksByName", () => {
-  it("keeps the instance named after its block, else the first one", () => {
+  it("keeps the instances named after their block", () => {
     const blocks = {
       labels: { block: "tags", options: { a: 1 } },
       tags: { options: { b: 2 } },
       files: { block: "attachments", options: { c: 3 } },
     };
 
-    expect(blocksByName(blocks, resolveInstances(blocks))).toStrictEqual({
+    expect(blocksByName(resolveInstances(blocks))).toStrictEqual({
       tags: { options: { b: 2 } },
-      attachments: { options: { c: 3 } },
     });
+  });
+});
+
+describe("instancePrefix", () => {
+  it("writes the instance name in snake case", () => {
+    expect(instancePrefix("hiring-pipelines")).toBe("hiring_pipelines");
+    expect(instancePrefix("maintenanceStages")).toBe("maintenance_stages");
   });
 });
 

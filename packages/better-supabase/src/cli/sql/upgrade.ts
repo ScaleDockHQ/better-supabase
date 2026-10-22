@@ -34,6 +34,7 @@ import {
 import { migrationStamp } from "./migrations.ts";
 import {
   latestMigration,
+  migrationInstances,
   migrationModules,
   MODULES_SUFFIX,
   renderModuleMigration,
@@ -323,7 +324,8 @@ async function installedFromFiles(
 
     texts.push(found);
     installed.push({
-      module: file.module,
+      module: file.instance ?? file.module,
+      ...(file.instance === undefined ? {} : { block: file.module }),
       version: moduleFileVersion(current)?.version ?? 1,
     });
 
@@ -353,12 +355,15 @@ async function installedFromMigration(
     return { installed: [], stale: [], diffs: [], text: "", former: [] };
   }
 
-  const versions = migrationModules(withCurrentBlockNames(latest.text));
+  const text = withCurrentBlockNames(latest.text);
+  const versions = migrationModules(text);
+  const blocks = migrationInstances(text);
 
-  const installed = [...versions].map(([module, version]) => ({
-    module,
-    version,
-  }));
+  const installed = [...versions].map(([module, version]) => {
+    const block = blocks.get(module);
+
+    return { module, ...(block === undefined ? {} : { block }), version };
+  });
 
   const topics = await topicPolicyFile(
     config,

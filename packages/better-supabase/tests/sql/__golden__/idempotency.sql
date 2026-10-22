@@ -238,6 +238,7 @@ grant execute on function better_supabase.release_lease(text, uuid, text) to ser
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -500,6 +501,7 @@ grant execute on function better_supabase.release_lease(text, uuid, text) to ser
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -762,6 +764,7 @@ grant execute on function better_supabase.release_lease(text, uuid, text) to ser
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1104,6 +1107,7 @@ grant execute on function "api"."release_lease"(text, uuid, text) to service_rol
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

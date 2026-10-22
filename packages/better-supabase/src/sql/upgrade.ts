@@ -34,14 +34,21 @@ export function deprecationWrappers(
     .join("");
 }
 
-/** An installed module, from its file's `@bsb-block` line or `modules`. */
+/**
+ * An installed module, from its file's `@bsb-block` line or the
+ * `better_supabase.blocks` table.
+ */
 export interface InstalledBlock {
+  /** The instance: the module's name, or the key of a renamed instance. */
   readonly module: string;
+  /** The module, when the instance installs it under another name. */
+  readonly block?: string;
   readonly version: number;
 }
 
-/** What `upgrade` runs for one module behind the current version. */
+/** What `upgrade` runs for one instance behind the current version. */
 export interface BlockSqlUpgradePlan {
+  /** The instance. */
   readonly module: string;
   readonly from: number;
   readonly to: number;
@@ -63,11 +70,16 @@ export function upgradePlan(
   modules: Readonly<Record<string, BlockSql>> = SQL_MODULES,
 ): BlockSqlUpgradePlan[] {
   checkModules(layout.modules, modules);
-  const names = installed.map((entry) => entry.module);
+
+  const names = [
+    ...new Set(installed.map((entry) => entry.block ?? entry.module)),
+  ];
+
   const defaults = withProviderDefaults(layout);
 
   return installed.flatMap((entry): BlockSqlUpgradePlan[] => {
-    const module = modules[entry.module];
+    const block = entry.block ?? entry.module;
+    const module = modules[block];
 
     if (!module) {
       return [];
@@ -79,17 +91,15 @@ export function upgradePlan(
       return [];
     }
 
-    const ctx = createModuleContext(
-      entry.module,
-      (name) => modules[name]?.names,
-      {
-        ...(defaults ? { modules: defaults } : {}),
-        ...(layout.claims ? { claims: layout.claims } : {}),
-        installed: names,
-        ...providerIdType(layout),
-        ...providerGuests(layout),
-      },
-    );
+    const ctx = createModuleContext(block, (name) => modules[name]?.names, {
+      ...(defaults ? { modules: defaults } : {}),
+      ...(layout.claims ? { claims: layout.claims } : {}),
+      ...(layout.instances ? { instances: layout.instances } : {}),
+      ...(entry.module === block ? {} : { instance: entry.module }),
+      installed: names,
+      ...providerIdType(layout),
+      ...providerGuests(layout),
+    });
 
     if (ctx.mode === "custom") {
       return [];
@@ -110,7 +120,7 @@ export function upgradePlan(
         sql: step.sql(ctx).trim(),
       }));
 
-    return [{ module: module.name, from: entry.version, to, steps }];
+    return [{ module: entry.module, from: entry.version, to, steps }];
   });
 }
 

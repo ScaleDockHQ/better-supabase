@@ -633,6 +633,7 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1439,6 +1440,7 @@ grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boo
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2098,6 +2100,7 @@ grant execute on function "app_private"."company_people_of"(uuid) to authenticat
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2876,6 +2879,7 @@ grant execute on function "api"."company_people_of"(uuid) to authenticated, serv
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

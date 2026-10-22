@@ -5,6 +5,7 @@ import type {
   BlockScope,
   ResolvedBlock,
 } from "../config/blocks.ts";
+import type { ResolvedInstance } from "../config/instances.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
@@ -14,6 +15,7 @@ import type { BlockSqlScope } from "./scope.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
+import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -322,6 +324,11 @@ export interface BlockSqlContractFunction {
 /** What a module's `build` reads: resolved names for one layout. */
 export interface BlockSqlContext {
   readonly module: string;
+  /**
+   * The instance being rendered: the module's name, or the `blocks` key of an
+   * instance that installs the module under another name.
+   */
+  readonly instance: string;
   readonly mode: BlockMode;
   readonly config: ResolvedBlock;
   /** The quoted schema of the module's functions and managed tables. */
@@ -354,6 +361,11 @@ export interface BlockSqlContext {
    * such as the permission keys in the default roles.
    */
   blockNaming(): EntityNames;
+  /**
+   * The entity renames of each block installed under another name, such as
+   * `tickets` from `tasks`, for the permission keys each instance adds.
+   */
+  instanceNamings(): readonly EntityNames[];
   /**
    * `schema.name` of a module function, quoted. The name is the default one;
    * `blocks.<name>.entities` and `blocks.<name>.functions` rename it.
@@ -560,6 +572,14 @@ export interface BlockSqlContextSource {
    * requires and what it lists in `integrates`. Without it nothing is checked.
    */
   readonly integrations?: (module: string) => ReadonlySet<string> | undefined;
+  /** `config.instances`: what `of` follows through each instance's `uses`. */
+  readonly instances?: Readonly<Record<string, ResolvedInstance>>;
+  /**
+   * The instance to render when it installs the module under another name. Its
+   * names get the instance's prefix where its entity renames leave them
+   * unchanged.
+   */
+  readonly instance?: string;
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -584,6 +604,43 @@ function checkIdent(where: string, value: string): string {
 }
 
 /**
+ * Throws when `instance` installs `module` next to another instance without
+ * renaming its primary entity and every entity that is a record type: their
+ * permission keys, event types and record types would be the other instance's.
+ */
+function checkInstanceEntities(
+  instance: string,
+  module: string,
+  names: BlockSqlNames,
+  resolved: ResolvedNames,
+  instances: Readonly<Record<string, ResolvedInstance>> = {},
+): void {
+  const siblings = Object.values(instances).filter(
+    (each) => each.block === module && each.name !== instance,
+  );
+
+  if (siblings.length === 0) {
+    return;
+  }
+
+  const unrenamed = Object.values(resolved.entities).filter((entity) => {
+    const spec = names.entities?.[entity.key];
+
+    return (
+      !entity.global &&
+      (spec?.primary === true || spec?.subject !== undefined) &&
+      entity.to.singular === entity.from.singular
+    );
+  });
+
+  if (unrenamed.length > 0) {
+    throw new TypeError(
+      `blocks.${instance}: "${module}" is installed more than once, so this instance renames ${unrenamed.map((entity) => `"${entity.key}"`).join(" and ")} in blocks.${instance}.entities.`,
+    );
+  }
+}
+
+/**
  * Builds the context for `module`. `namesOf` looks up a module's names, so a
  * module can name another module's tables through `of()`.
  */
@@ -592,9 +649,18 @@ export function createModuleContext(
   namesOf: (name: string) => BlockSqlNames | undefined,
   source: BlockSqlContextSource = {},
 ): BlockSqlContext {
-  const modules = source.modules ?? {};
+  const { instance: own, ...shared } = source;
+  const instance = own ?? module;
+  const entry = source.instances?.[instance];
+  const prefix = instance === module ? undefined : instancePrefix(instance);
+
+  const modules =
+    prefix === undefined
+      ? (source.modules ?? {})
+      : { ...source.modules, [module]: entry?.config ?? {} };
+
   const config = resolveBlock(modules[module]);
-  const where = `blocks.${module}`;
+  const where = `blocks.${instance}`;
   const names = namesOf(module) ?? { tables: {} };
   checkIdent(`${where}.schema`, config.schema);
 
@@ -719,6 +785,18 @@ export function createModuleContext(
 
   const resolved = resolveNames(module, names, modules);
   const { naming, entityNaming } = resolved;
+
+  if (prefix !== undefined) {
+    checkInstanceEntities(instance, module, names, resolved, source.instances);
+  }
+
+  // A name the instance's entity renames leave unchanged would clash with
+  // the module's other instances, so it takes the instance's prefix.
+  const scoped = (written: string, original: string): string =>
+    prefix === undefined || entityNaming.rename(original) !== original
+      ? written
+      : `${prefix}_${written}`;
+
   // blocks.permissions.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
   const renames = module === "permissions" ? {} : config.functions;
@@ -735,7 +813,7 @@ export function createModuleContext(
     const renamed = naming.rename(name);
     requested.add(name);
     requested.add(renamed);
-    const written = renames[name] ?? renames[renamed] ?? renamed;
+    const written = renames[name] ?? renames[renamed] ?? scoped(renamed, name);
 
     if (written !== name) {
       applied.set(name, written);
@@ -760,7 +838,7 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      mapped ?? naming.rename(table.name),
+      mapped ?? scoped(naming.rename(table.name), table.name),
       config.schema,
     );
 
@@ -835,7 +913,7 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      config.hooks.functions[name] ?? entityNaming.rename(name),
+      config.hooks.functions[name] ?? scoped(entityNaming.rename(name), name),
       config.hooks.schema,
     );
 
@@ -953,7 +1031,7 @@ export function createModuleContext(
       event.subject ?? "null",
       event.tenant === undefined ? "null" : `(${event.tenant})::text`,
       event.key ?? "null",
-      sqlString(template.replaceAll("{module}", module)),
+      sqlString(template.replaceAll("{module}", instance)),
     ].join(", ")});`;
   };
 
@@ -1016,7 +1094,7 @@ export function createModuleContext(
     access: installed.has("permissions"),
     guests: installed.has("guests") || source.providerGuests === true,
     members: () =>
-      createModuleContext("memberships", namesOf, source).fn(
+      createModuleContext("memberships", namesOf, shared).fn(
         "member_organization_ids",
       ),
   });
@@ -1035,7 +1113,7 @@ export function createModuleContext(
     declares("data-lifecycle");
 
     return installed.has("data-lifecycle")
-      ? `${createModuleContext("data-lifecycle", namesOf, source).fn(name)}(${args})`
+      ? `${createModuleContext("data-lifecycle", namesOf, shared).fn(name)}(${args})`
       : undefined;
   };
 
@@ -1057,6 +1135,7 @@ export function createModuleContext(
 
   return {
     module,
+    instance,
     mode: config.mode,
     config,
     schema,
@@ -1079,6 +1158,19 @@ export function createModuleContext(
             : [resolveNames(name, known, modules).entityNaming];
         }),
       ),
+    instanceNamings: () =>
+      Object.entries(source.instances ?? {}).flatMap(([name, other]) => {
+        const known = namesOf(other.block);
+
+        return name === other.block || known === undefined
+          ? []
+          : [
+              resolveNames(other.block, known, {
+                ...shared.modules,
+                [other.block]: other.config,
+              }).entityNaming,
+            ];
+      }),
     modules,
     manages: config.mode === "managed",
     names,
@@ -1129,7 +1221,7 @@ export function createModuleContext(
       config.permissions[action] ?? entityNaming.rename(fallback),
     permission: (action, fallback) =>
       sqlString(config.permissions[action] ?? entityNaming.rename(fallback)),
-    trigger: (name) => sqlIdent(`bsb_${naming.rename(name)}`),
+    trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),
     installed(name) {
       declares(name);
 
@@ -1137,8 +1229,13 @@ export function createModuleContext(
     },
     of(name) {
       declares(name);
+      const bound = entry?.uses[name];
 
-      return createModuleContext(name, namesOf, source);
+      return createModuleContext(
+        name,
+        namesOf,
+        bound === undefined ? shared : { ...shared, instance: bound },
+      );
     },
     text: (name, fallback) => optionOf(name, "string", fallback),
     number: (name, fallback) => optionOf(name, "number", fallback),

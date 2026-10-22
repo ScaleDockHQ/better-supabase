@@ -890,6 +890,7 @@ grant execute on function "better_supabase"."deal_health"(uuid) to authenticated
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1832,6 +1833,7 @@ grant execute on function "better_supabase"."deal_health"(uuid) to authenticated
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2748,6 +2750,7 @@ grant execute on function "app_private"."deal_health"(uuid) to authenticated, se
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -3783,6 +3786,7 @@ grant execute on function "api"."deal_health"(uuid) to authenticated, service_ro
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

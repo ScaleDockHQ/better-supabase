@@ -92,7 +92,7 @@ export async function moduleFiles(
           return fileState(context, file);
         }
 
-        const installed = versions.get(file.module);
+        const installed = versions.get(file.instance ?? file.module);
 
         return {
           file,

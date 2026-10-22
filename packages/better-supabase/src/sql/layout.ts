@@ -33,6 +33,7 @@ export function moduleLayout(
     entitlements: config.entitlements,
     claims: config.claims,
     modules: config.blocks,
+    instances: config.instances,
     ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
     subjects: config.subjects,
     appTables: config.appTables,

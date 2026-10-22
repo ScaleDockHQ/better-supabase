@@ -437,6 +437,7 @@ grant execute on function "better_supabase"."redeem_invite_code"(text) to authen
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -942,6 +943,7 @@ grant execute on function "better_supabase"."redeem_invite_code"(text) to authen
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1407,6 +1409,7 @@ grant execute on function "app_private"."redeem_invite_code"(text) to authentica
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1975,6 +1978,7 @@ grant execute on function "api"."redeem_invite_code"(text) to authenticated, ser
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

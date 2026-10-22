@@ -10,6 +10,7 @@ import type {
   DisabledRow,
   BlockMode,
 } from "../config/blocks.ts";
+import type { ResolvedInstance } from "../config/instances.ts";
 import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
@@ -195,6 +196,8 @@ export type BlockSqlDefinition = Omit<BlockSql, "sql">;
 
 export interface BlockSqlFile {
   readonly module: string;
+  /** The instance, when it installs `module` under another name. */
+  readonly instance?: string;
   /** `schema` and `test` files are diffed; `data` files go in a migration too. */
   readonly kind: "schema" | "data" | "test";
   readonly path: string;
@@ -202,6 +205,12 @@ export interface BlockSqlFile {
 }
 
 export interface BlockSqlLayout {
+  /**
+   * `config.instances`. An instance that installs a block under another name
+   * renders its own files; `modules` holds the instances named after their
+   * block.
+   */
+  readonly instances?: Readonly<Record<string, ResolvedInstance>>;
   /** Directory for schema modules. Defaults to `supabase/schemas`. */
   readonly dir?: string;
   /**

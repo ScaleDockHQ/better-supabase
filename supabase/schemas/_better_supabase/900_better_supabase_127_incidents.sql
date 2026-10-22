@@ -1055,6 +1055,7 @@ grant execute on function "api"."public_status_page"(text, integer) to anon, aut
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

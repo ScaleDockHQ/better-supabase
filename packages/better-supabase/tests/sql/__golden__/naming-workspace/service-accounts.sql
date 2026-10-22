@@ -197,6 +197,7 @@ grant execute on function "better_supabase"."service_principals_list"(uuid) to a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

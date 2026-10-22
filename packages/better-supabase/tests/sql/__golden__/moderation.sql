@@ -560,6 +560,7 @@ grant execute on function "better_supabase"."list_bans"(uuid, boolean, integer) 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1214,6 +1215,7 @@ grant execute on function "better_supabase"."moderation_hidden"(text, text) to a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1800,6 +1802,7 @@ grant execute on function "app_private"."list_bans"(uuid, boolean, integer) to a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2478,6 +2481,7 @@ grant execute on function "api"."list_bans"(uuid, boolean, integer) to authentic
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

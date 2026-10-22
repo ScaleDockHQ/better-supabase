@@ -518,6 +518,7 @@ grant execute on function "better_supabase"."review_summary"(uuid, text, text[])
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

@@ -307,3 +307,12 @@ the block's name; when a block depends on a block you installed twice, name
 the instance it uses in `uses`. See [Instances](/docs/blocks#instances).
 `resolveConfig` reports a core block, such as `memberships`, that is renamed
 or installed twice.
+
+## Every instance renders its own SQL
+
+`better_supabase.blocks` has a new `block` column. The schema file creates it
+for new installs, and the data file of a second instance adds it with
+`alter table ... add column if not exists`, so an existing database needs no
+manual step. Rows written before have `block` set to null, which means the
+row's `name` is the block. Block markers keep their format; a second instance
+adds its block after the mode (`-- @bsb-block tickets@1 managed tasks`).

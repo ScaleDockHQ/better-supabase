@@ -90,6 +90,7 @@ revoke execute on function better_supabase.track_updated_at(regclass, text, bool
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -204,6 +205,7 @@ revoke execute on function better_supabase.track_updated_at(regclass, text, bool
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -318,6 +320,7 @@ revoke execute on function better_supabase.track_updated_at(regclass, text, bool
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -432,6 +435,7 @@ revoke execute on function better_supabase.track_updated_at(regclass, text, bool
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

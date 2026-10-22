@@ -175,7 +175,7 @@ async function moduleVersionsBehind(
     }
 
     findings.push({
-      message: `${path} has ${file.module} version ${String(installed)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
+      message: `${path} has ${file.instance ?? file.module} version ${String(installed)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
       target: path,
       location: { file: path, line: 1 },
     });
@@ -788,7 +788,7 @@ const OWN_RULES: readonly Rule[] = [
         const edited =
           current === undefined || migrated
             ? ""
-            : ` If you edited it, move the change to \`blocks.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+            : ` If you edited it, move the change to \`blocks.${file.instance ?? file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
 
         const next =
           file.kind === "data" && !migrated
@@ -796,8 +796,8 @@ const OWN_RULES: readonly Rule[] = [
             : `Run \`better-supabase upgrade\`, then \`${migrationCommand(workflow)}\`.`;
 
         const subject = migrated
-          ? `${file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
-          : `${path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}`;
+          ? `${file.instance ?? file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
+          : `${path} (${file.instance ?? file.module}) is ${current === undefined ? "missing" : "out of date"}`;
 
         if (
           stale.some(

@@ -33,11 +33,15 @@ function registry(): BlockSqlRegistry {
   return bound;
 }
 
-/** The context a module renders with for `layout`. */
+/**
+ * The context a module renders with for `layout`; with `instance`, the context
+ * of that instance of the module.
+ */
 export function moduleContext(
   name: string,
   layout: BlockSqlLayout = {},
   installed?: readonly string[],
+  instance?: string,
 ): BlockSqlContext {
   const modules = withProviderDefaults(layout);
   const readable = new Map<string, ReadonlySet<string>>();
@@ -51,6 +55,8 @@ export function moduleContext(
       ...(layout.subjects ? { subjects: layout.subjects } : {}),
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(installed ? { installed } : {}),
+      ...(layout.instances ? { instances: layout.instances } : {}),
+      ...(instance === undefined || instance === name ? {} : { instance }),
       ...(layout.scope ? { scope: layout.scope } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),

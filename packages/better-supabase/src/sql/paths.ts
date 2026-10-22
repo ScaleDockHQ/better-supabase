@@ -1,10 +1,20 @@
 import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
+import { instancePrefix } from "../config/instances.ts";
+import { renamedInstances, rendersOwnInstance } from "./instance-names.ts";
 import { moduleContext } from "./module-context.ts";
 import { ORDER, checkModules, resolveBlocks } from "./registry.ts";
 
-export function modulePath(module: BlockSql, layout: BlockSqlLayout): string {
+/**
+ * The file a module renders to; with `instance`, the file of that instance,
+ * numbered with its module.
+ */
+export function modulePath(
+  module: BlockSql,
+  layout: BlockSqlLayout,
+  instance: string = module.name,
+): string {
   const dir = (layout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
   const prefix = layout.prefix ?? CONFIG_DEFAULTS.sql.prefix;
 
@@ -13,7 +23,7 @@ export function modulePath(module: BlockSql, layout: BlockSqlLayout): string {
     "",
   );
 
-  const slug = module.name.replaceAll("-", "_");
+  const slug = instancePrefix(instance);
 
   const position =
     module.before === undefined
@@ -38,12 +48,22 @@ export function moduleFilePaths(
   const installed = modules.map((module) => module.name);
 
   return new Map(
-    modules
-      .filter(
-        (module) =>
-          moduleContext(module.name, layout, installed).mode !== "custom",
-      )
-      .map((module) => [module.name, modulePath(module, layout)]),
+    modules.flatMap((module) => [
+      ...(rendersOwnInstance(module.name, layout) &&
+      moduleContext(module.name, layout, installed).mode !== "custom"
+        ? [[module.name, modulePath(module, layout)] as const]
+        : []),
+      ...renamedInstances(module.name, layout)
+        .filter(
+          (instance) =>
+            moduleContext(module.name, layout, installed, instance.name)
+              .mode !== "custom",
+        )
+        .map(
+          (instance) =>
+            [instance.name, modulePath(module, layout, instance.name)] as const,
+        ),
+    ]),
   );
 }
 
@@ -56,8 +76,9 @@ export function moduleFilePaths(
 export function moduleDataPath(
   module: BlockSql,
   layout: BlockSqlLayout,
+  instance: string = module.name,
 ): string {
-  const path = modulePath(module, layout);
+  const path = modulePath(module, layout, instance);
   const file = path.slice(path.lastIndexOf("/"));
   const dir = path.slice(0, path.lastIndexOf("/"));
   const bare = (value: string) => value.replace(/^\.\//, "").replace(/\/$/, "");

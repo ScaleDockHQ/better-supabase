@@ -855,6 +855,7 @@ grant execute on function "better_supabase"."get_ledger_transaction"(uuid) to au
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1763,6 +1764,7 @@ grant execute on function "better_supabase"."get_ledger_transaction"(uuid) to au
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2644,6 +2646,7 @@ grant execute on function "app_private"."get_ledger_transaction"(uuid) to authen
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -3647,6 +3650,7 @@ grant execute on function "api"."get_ledger_transaction"(uuid) to authenticated,
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

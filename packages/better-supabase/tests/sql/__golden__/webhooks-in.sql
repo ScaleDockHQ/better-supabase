@@ -491,6 +491,7 @@ grant execute on function "better_supabase"."record_incoming_webhook"(uuid, inte
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1054,6 +1055,7 @@ grant execute on function "better_supabase"."record_incoming_webhook"(uuid, inte
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1571,6 +1573,7 @@ grant execute on function "app_private"."record_incoming_webhook"(uuid, integer)
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2196,6 +2199,7 @@ grant execute on function "api"."record_incoming_webhook"(uuid, integer) to serv
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2659,6 +2663,7 @@ grant execute on function "better_supabase"."record_incoming_webhook"(uuid, inte
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

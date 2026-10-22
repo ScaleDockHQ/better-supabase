@@ -59,6 +59,16 @@ dependencies. Core blocks, such as `memberships`, `permissions`, `outbox` and
 unknown block, repeated core block, unknown `uses` key and missing `uses`
 together.
 
+A second instance renders its own SQL files, named after the instance
+(`900_better_supabase_31_hiring_pipelines.sql`). Its entity renames in
+`entities` name its tables and functions; any table, function, trigger or
+index name those renames leave unchanged gets the instance as a prefix, so
+`taggings` in a `labels` instance of `tags` becomes `labels_taggings`. A
+second instance has to rename its record entities, since two `pipelines`
+tables can't share a schema. The instance writes its own row in
+`better_supabase.blocks`, whose `block` column names the block it installs,
+and `doctor` and `upgrade` follow each instance's version on its own.
+
 ## Connections
 
 A block's TypeScript side runs its SQL functions through a connection you

@@ -271,6 +271,7 @@ drop function if exists "better_supabase"."record_platform_setting"();
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -638,6 +639,7 @@ create trigger "bsb_record_platform_setting" after insert or update or delete on
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -935,6 +937,7 @@ drop function if exists "app_private"."record_platform_setting"();
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1333,6 +1336,7 @@ grant execute on function "api"."reset_organization_setting"(uuid, text) to auth
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
