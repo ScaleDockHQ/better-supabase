@@ -285,7 +285,9 @@ create table if not exists ${updates} (
   ${u("body")} text not null check (length(${u("body")}) between 1 and 10000),
   ${u("public")} boolean not null default false,
   ${u("author")} uuid,
-  ${u("createdAt")} timestamptz not null default now(),
+  -- clock_timestamp keeps the timeline in order when one transaction posts
+  -- several updates.
+  ${u("createdAt")} timestamptz not null default clock_timestamp(),
   foreign key (${u("tenant")}, ${u("incident")}) references ${incidents} (${i("tenant")}, ${i("id")}) on delete cascade
 );
 create index if not exists ${name("updates", "parent_idx")} on ${updates} (${u("tenant")}, ${u("incident")}, ${u("createdAt")});

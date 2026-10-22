@@ -130,7 +130,9 @@ create table if not exists "better_supabase"."incident_updates" (
   "body" text not null check (length("body") between 1 and 10000),
   "public" boolean not null default false,
   "author_id" uuid,
-  "created_at" timestamptz not null default now(),
+  -- clock_timestamp keeps the timeline in order when one transaction posts
+  -- several updates.
+  "created_at" timestamptz not null default clock_timestamp(),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "incident_updates_parent_idx" on "better_supabase"."incident_updates" ("tenant_id", "incident_id", "created_at");
