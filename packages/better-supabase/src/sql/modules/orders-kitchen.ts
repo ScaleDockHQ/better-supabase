@@ -6,12 +6,7 @@ import { fail, lockTable, pageSize, userGrant } from "../shared.ts";
 import { columns, orderFields, orderPayload } from "./orders-shared.ts";
 
 /** A line's preparation states, in kitchen order. */
-export const PREPARATION_STATES = [
-  "queued",
-  "preparing",
-  "ready",
-  "served",
-] as const;
+const PREPARATION_STATES = ["queued", "preparing", "ready", "served"] as const;
 
 /** The Realtime topic prefix; members join `kitchen:{organizationId}`. */
 export const KITCHEN_TOPIC = "kitchen";

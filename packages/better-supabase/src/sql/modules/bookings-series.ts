@@ -12,10 +12,10 @@ import {
 } from "./bookings-public.ts";
 
 /** The most occurrences one series books. */
-export const SERIES_MAX_OCCURRENCES = 366;
+const SERIES_MAX_OCCURRENCES = 366;
 
 /** How far ahead a series may book, in days. */
-export const SERIES_HORIZON_DAYS = 730;
+const SERIES_HORIZON_DAYS = 730;
 
 /**
  * The cancel reason a booking carries for the moment `move_booking` frees its

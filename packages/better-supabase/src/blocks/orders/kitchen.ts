@@ -193,7 +193,7 @@ function optional<K extends string, V>(
   return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 }
 
-export function preparationLineOf(value: unknown): PreparationLine {
+function preparationLineOf(value: unknown): PreparationLine {
   const row = recordOf(value, "preparation line");
 
   return {

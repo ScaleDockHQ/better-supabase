@@ -9,7 +9,7 @@ import {
 } from "../shared.ts";
 
 /** The queue `attach_engagement_recording` enqueues a transcription job on. */
-export const TRANSCRIBE_QUEUE = "engagements.transcribe";
+const TRANSCRIBE_QUEUE = "engagements.transcribe";
 
 /** The most segments one transcript keeps. */
 const MAX_SEGMENTS = 20_000;
@@ -68,11 +68,6 @@ export const RECORDING_TABLES = {
 /** Whether `blocks.engagements.options.recordings` is on. */
 export const recordingsOn = (ctx: ModuleContext): boolean =>
   ctx.flag("recordings", false);
-
-export interface RecordingsSql {
-  /** The `engagement_recordings`, `_transcript_segments` and `_notes` SQL. */
-  readonly sql: string;
-}
 
 /**
  * Recordings and transcripts of calls and meetings, stored as ai-files files,
