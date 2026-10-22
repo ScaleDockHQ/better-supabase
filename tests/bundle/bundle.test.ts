@@ -40,7 +40,7 @@ import meta from "./generated.meta.js";
 const betterSupabase = defineSupabase(defineSchema(meta));
 export const next = createNext(betterSupabase);
 export const customers = () =>
-  createClient(betterSupabase).db.customers.findMany({ where: { name: "Acme" } });
+  createClient(betterSupabase).db.customers.list({ where: { name: "Acme" } });
 `,
   hono: `
 import { defineSchema, defineSupabase } from "better-supabase";
