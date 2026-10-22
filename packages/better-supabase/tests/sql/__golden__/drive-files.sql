@@ -86,7 +86,13 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"))
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"), 'labels', (select coalesce(jsonb_agg(jsonb_build_object('id', lt."id", 'name', lt."name", 'color', lt."color") order by lt."rank" collate "C", lt."name", lt."id"), '[]'::jsonb)
+      from "better_supabase"."taggings" lg join "better_supabase"."tags" lt on lt."id" = lg."tag_id"
+      where lg."subject_type" = 'drive_node' and lg."subject_id" = ($1)."id"::text), 'approval', (select jsonb_build_object('id', lr."id", 'status', lr."status", 'createdAt', lr."created_at", 'decidedAt', lr."decided_at")
+      from "better_supabase"."approval_requests" lr
+      where lr."subject_type" = 'drive_node' and lr."subject_id" = ($1)."id"::text and lr."action" = 'approve'
+        and lr."payload" ->> 'attachmentId' = ($1)."attachment_id"::text
+      order by lr."created_at" desc, lr."id" limit 1))
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
@@ -132,6 +138,7 @@ begin
   delete from "better_supabase"."drive_grants" pg where pg."node_id" = old."id";
   delete from "better_supabase"."versions" pv where pv."subject_type" = 'drive_node' and pv."subject_id" = old."id"::text;
   delete from "better_supabase"."subject_user_state" ps where ps."subject_type" = 'drive_node' and ps."subject_id" = old."id"::text;
+  delete from "better_supabase"."taggings" pt where pt."subject_type" = 'drive_node' and pt."subject_id" = old."id"::text;
   return null;
 end;
 $$;
@@ -543,6 +550,134 @@ end;
 $$;
 revoke all on function "better_supabase"."drive_link"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."drive_link"(text, uuid) to anon, authenticated, service_role;
+
+-- Puts a tenant tag on a node as a label, or takes it off (applied false),
+-- for an editor of the node; tags' own permission and kind checks apply.
+create or replace function "better_supabase"."drive_label"(node uuid, tag uuid, applied boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_label.node and x."deleted_at" is null;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to label this item' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if coalesce(drive_label.applied, true) then
+    perform "better_supabase"."tag"(v_node."tenant_id", 'drive_node', v_node."id"::text, drive_label.tag);
+  else
+    perform "better_supabase"."untag"(v_node."tenant_id", 'drive_node', v_node."id"::text, drive_label.tag);
+  end if;
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_label"(uuid, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."drive_label"(uuid, uuid, boolean) to authenticated, service_role;
+
+-- The nodes in a tenant that carry a label and the caller can read.
+create or replace function "better_supabase"."drive_labeled"(tenant uuid, tag uuid, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(t.node order by t.ord), '[]'::jsonb) from (
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"))) as node, row_number() over (order by (x."kind" = 'folder') desc, x."rank", lower(x."name"), x."id") as ord
+    from "better_supabase"."drive_nodes" x
+    where x."tenant_id" = drive_labeled.tenant and x."deleted_at" is null
+      and exists (select 1 from "better_supabase"."taggings" lg where lg."subject_type" = 'drive_node' and lg."subject_id" = x."id"::text and lg."tag_id" = drive_labeled.tag)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+    order by (x."kind" = 'folder') desc, x."rank", lower(x."name"), x."id"
+    limit least(greatest(coalesce(drive_labeled.page_size, 50), 1), 200)
+  ) t
+$$;
+revoke execute on function "better_supabase"."drive_labeled"(uuid, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."drive_labeled"(uuid, uuid, integer) to authenticated, service_role;
+
+-- Asks for approval of one stored version of a file: attachment, or the
+-- current one. The request follows those bytes, so a later upload doesn't
+-- inherit it and restoring the version brings it back.
+create or replace function "better_supabase"."drive_request_approval"(node uuid, attachment uuid default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_file "better_supabase"."attachments"%rowtype;
+  v_revision integer;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_request_approval.node and x."deleted_at" is null;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to ask for approval of this file' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be approved' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  select * into v_file from "better_supabase"."attachments" f
+  where f."id" = coalesce(drive_request_approval.attachment, v_node."attachment_id")
+    and f."subject_type" = 'drive_node' and f."subject_id" = v_node."id"::text
+    and f."uploaded_at" is not null;
+  if not found then
+    raise exception 'that version of the file was not found' using errcode = 'P0002', hint = 'DRIVE_ATTACHMENT_NOT_FOUND';
+  end if;
+  select r."number" into v_revision from "better_supabase"."versions" r
+  where r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text
+    and r."content" ->> 'attachmentId' = v_file."id"::text
+  order by r."number" limit 1;
+  return "better_supabase"."request_approval"(v_node."tenant_id", 'drive_node', v_node."id"::text, 'approve',
+    drive_request_approval.reason, jsonb_build_object('attachmentId', v_file."id", 'revision', v_revision, 'name', v_file."name"))
+    || jsonb_build_object('attachmentId', v_file."id", 'revision', v_revision, 'current', v_file."id" = v_node."attachment_id");
+end;
+$$;
+revoke execute on function "better_supabase"."drive_request_approval"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."drive_request_approval"(uuid, uuid, text) to authenticated, service_role;
+
+-- A file's approval requests, newest first, each with the version it is for
+-- and whether that version is the current one. Approvals' read rules apply.
+create or replace function "better_supabase"."drive_approvals"(node uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_approvals.node and x."deleted_at" is null;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  return (
+    select coalesce(jsonb_agg(r.value || jsonb_build_object(
+      'attachmentId', r.value -> 'payload' ->> 'attachmentId',
+      'revision', (r.value -> 'payload' ->> 'revision')::integer,
+      'current', r.value -> 'payload' ->> 'attachmentId' = v_node."attachment_id"::text
+    ) order by r.ordinality), '[]'::jsonb)
+    from jsonb_array_elements("better_supabase"."list_approvals"(v_node."tenant_id", null, false, 'drive_node', v_node."id"::text, 200, null)) with ordinality r
+    where r.value ->> 'action' = 'approve'
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_approvals"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_approvals"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

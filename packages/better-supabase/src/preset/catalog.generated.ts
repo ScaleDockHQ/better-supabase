@@ -919,7 +919,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "drive"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1395,6 +1396,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "notifications",
         "jobs",
+        "drive",
         "teams",
         "state-machine",
         "access-requests",
@@ -1664,7 +1666,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "versions",
         "trash",
         "teams",
-        "share-links"
+        "share-links",
+        "tags",
+        "approvals"
       ],
       "manifest": "drive",
       "scopes": [

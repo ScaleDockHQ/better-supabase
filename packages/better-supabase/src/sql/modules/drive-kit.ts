@@ -190,6 +190,65 @@ function driveRoles(ctx: ModuleContext): DriveRoles {
   };
 }
 
+/** Tags with a link table per tenant, which drive labels sit on. */
+export function labelTags(ctx: ModuleContext): ModuleContext | undefined {
+  if (!ctx.installed("tags")) {
+    return undefined;
+  }
+
+  const tags = ctx.of("tags");
+
+  return tags.mode !== "custom" &&
+    tags.scope.kind === "tenant" &&
+    tags.hasTable("taggings")
+    ? tags
+    : undefined;
+}
+
+/** The drive's access check for a module whose subjects can be drive nodes. */
+export interface DriveSubjectGuard {
+  /** The nodes' subject type, as a SQL literal. */
+  readonly type: string;
+  /**
+   * `otherwise` for other subject types; for a node, whether the caller holds
+   * the drive's read or write role on it.
+   */
+  readonly guard: (
+    type: string,
+    id: string,
+    access: "read" | "write",
+    otherwise: string,
+  ) => string;
+}
+
+/**
+ * The drive subject for `ctx`'s module, or undefined without a managed drive.
+ * Grants decide, not the tenant permission alone, so a member can't tag or file
+ * approvals on a node the drive hides from them.
+ */
+export function driveSubjectGuard(
+  ctx: ModuleContext,
+): DriveSubjectGuard | undefined {
+  if (!ctx.installed("drive")) {
+    return undefined;
+  }
+
+  const drive = ctx.of("drive");
+
+  if (drive.mode === "custom") {
+    return undefined;
+  }
+
+  const roles = driveRoles(drive);
+  const type = sqlString(driveSubjectType(drive));
+
+  return {
+    type,
+    guard: (subjectType, id, access, otherwise) =>
+      `(case when ${subjectType} = ${type} then coalesce(case when ${id} ~ ${UUID_TEXT} then ${drive.fn("drive_can")}((${id})::uuid, ${sqlString(access === "read" ? roles.read : roles.write)}) end, false) else ${otherwise} end)`,
+  };
+}
+
 /** `options.subjectType`: the subject type of a node, `drive_node` by default. */
 export function driveSubjectType(ctx: ModuleContext): string {
   const type = ctx.text("subjectType", "drive_node");
