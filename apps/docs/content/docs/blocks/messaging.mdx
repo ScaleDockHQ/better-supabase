@@ -130,6 +130,40 @@ nothing to a caller who can't read the record, and only the messages in
 conversations the caller reads. A mention of an unregistered type stays plain
 text. `message.sent` carries the mentioned records as `recordMentions`.
 
+## Thread summaries
+
+`summarize(target, summarizer)` writes a short summary of a conversation or
+a thread for someone who missed it, and `summary(target)` reads the saved
+one. The block never calls a model: the summarizer is a versioned
+`ThreadSummarizer` (`apiVersion: 1`) that receives the messages and returns
+the text, so any SDK can provide it. With the AI SDK, use
+[`summarizeWith`](/docs/ai-sdk#thread-summaries):
+
+```ts
+import { summarizeWith } from "better-supabase/ai-sdk";
+
+const summarizer = summarizeWith("anthropic/claude-sonnet-4.5");
+
+const summary = await messaging
+  .summarize({ threadId: rootId }, summarizer)
+  .orThrow();
+// { summary, model, messageCount, throughAt, stale, ... }
+```
+
+A target is `{ conversationId }` for the conversation's top-level messages
+or `{ threadId }` for a root message and its replies. `summarize` reads the
+messages as the caller, so a summary only covers what they can read, and
+leaves out internal notes, deleted messages and unsent scheduled ones. It
+sends at most `maxMessages` (default and maximum 200, the newest ones) and
+the previous summary, so the model updates it instead of starting over.
+
+A saved summary is `stale` once a message in its scope is sent after its
+`throughAt`, edited or deleted. `summarize` returns a current summary without
+calling the model again; `{ force: true }` writes a new one. Only the service
+role saves summaries, so pass the block the `service` transport
+(`createBlocks` does this): a member can't store a summary that misstates the
+thread. Every reader of the conversation reads it.
+
 ## Notifications
 
 With the [notifications](/docs/blocks/notifications) block, sending a message
