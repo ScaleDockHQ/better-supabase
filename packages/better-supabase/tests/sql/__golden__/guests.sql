@@ -48,7 +48,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") between 3 and 320 and position('@' in "email") > 1),
+  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
   "name" text check ("name" is null or length("name") between 1 and 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
@@ -66,7 +66,7 @@ create table if not exists "better_supabase"."guests" (
 );
 create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_caller_idx" on "better_supabase"."guests" ("user_id") where "status" = 'active';
+create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
@@ -541,7 +541,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") between 3 and 320 and position('@' in "email") > 1),
+  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
   "name" text check ("name" is null or length("name") between 1 and 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
@@ -559,7 +559,7 @@ create table if not exists "better_supabase"."guests" (
 );
 create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_caller_idx" on "better_supabase"."guests" ("user_id") where "status" = 'active';
+create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
@@ -1092,7 +1092,7 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 create table if not exists "app_private"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") between 3 and 320 and position('@' in "email") > 1),
+  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
   "name" text check ("name" is null or length("name") between 1 and 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
@@ -1110,7 +1110,7 @@ create table if not exists "app_private"."guests" (
 );
 create unique index if not exists "guests_email_idx" on "app_private"."guests" ("tenant_id", lower("email"));
 create unique index if not exists "guests_user_idx" on "app_private"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_caller_idx" on "app_private"."guests" ("user_id") where "status" = 'active';
+create index if not exists "guests_user_id_idx" on "app_private"."guests" ("user_id");
 alter table "app_private"."guests" enable row level security;
 revoke all on "app_private"."guests" from anon, authenticated;
 grant select on "app_private"."guests" to authenticated;
@@ -1585,7 +1585,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create table if not exists "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") between 3 and 320 and position('@' in "email") > 1),
+  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
   "name" text check ("name" is null or length("name") between 1 and 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
@@ -1603,7 +1603,7 @@ create table if not exists "better_supabase"."guests" (
 );
 create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
 create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_caller_idx" on "better_supabase"."guests" ("user_id") where "status" = 'active';
+create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;

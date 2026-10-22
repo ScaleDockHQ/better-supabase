@@ -146,7 +146,7 @@ function tables(ctx: ModuleContext): string {
 create table if not exists ${guests} (
   ${g("id")} uuid primary key default gen_random_uuid(),
   ${g("tenant")} ${ctx.idType} not null,
-  ${g("email")} text not null check (length(${g("email")}) between 3 and 320 and position('@' in ${g("email")}) > 1),
+  ${g("email")} text not null check (length(${g("email")}) >= 3 and length(${g("email")}) <= 320 and position('@' in ${g("email")}) > 1),
   ${g("name")} text check (${g("name")} is null or length(${g("name")}) between 1 and 200),
   ${g("user")} uuid references auth.users (id) on delete set null,
   ${g("partyType")} text,
@@ -164,7 +164,7 @@ create table if not exists ${guests} (
 );
 create unique index if not exists ${index("guests", "email_idx")} on ${guests} (${g("tenant")}, lower(${g("email")}));
 create unique index if not exists ${index("guests", "user_idx")} on ${guests} (${g("tenant")}, ${g("user")}) where ${g("user")} is not null;
-create index if not exists ${index("guests", "caller_idx")} on ${guests} (${g("user")}) where ${g("status")} = 'active';
+create index if not exists ${index("guests", "user_id_idx")} on ${guests} (${g("user")});
 ${lockTable(guests, { read: true })}
 drop policy if exists ${index("guests", "read")} on ${guests};
 create policy ${index("guests", "read")} on ${guests} for select to authenticated
