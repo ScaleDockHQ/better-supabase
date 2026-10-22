@@ -128,7 +128,8 @@ create table if not exists "better_supabase"."ledger_holds" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "ledger_holds_account_idx" on "better_supabase"."ledger_holds" ("account_id") where "status" = 'active';
+create index if not exists "ledger_holds_account_status_idx" on "better_supabase"."ledger_holds" ("account_id", "status");
+create index if not exists "ledger_holds_transaction_idx" on "better_supabase"."ledger_holds" ("transaction_id");
 create index if not exists "ledger_holds_expiry_idx" on "better_supabase"."ledger_holds" ("expires_at") where "status" = 'active' and "expires_at" is not null;
 
 alter table "better_supabase"."ledger_accounts" enable row level security;

@@ -127068,15 +127068,16 @@
         ],
         "indexes": [
           {
-            "name": "ledger_holds_account_idx",
+            "name": "ledger_holds_account_status_idx",
             "columns": [
-              "account_id"
+              "account_id",
+              "status"
             ],
             "unique": false,
             "primary": false,
-            "partial": true,
+            "partial": false,
             "method": "btree",
-            "predicate": "(status = 'active'::text)"
+            "predicate": null
           },
           {
             "name": "ledger_holds_expiry_idx",
@@ -127096,6 +127097,17 @@
             ],
             "unique": true,
             "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "ledger_holds_transaction_idx",
+            "columns": [
+              "transaction_id"
+            ],
+            "unique": false,
+            "primary": false,
             "partial": false,
             "method": "btree",
             "predicate": null
