@@ -41,6 +41,12 @@ import {
   writesMigrations,
 } from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
+import {
+  formerBlockPath,
+  renamedBlocksIn,
+  renamedBlocksSql,
+  withCurrentBlockNames,
+} from "./renamed-blocks.ts";
 import { nextStep, write } from "./write.ts";
 
 /**
@@ -66,14 +72,14 @@ export async function upgrade(
   const files = renderBlocks(config.blockNames, sqlLayout);
   const migrations = await writesMigrations(config);
 
-  const { installed, stale, diffs, text } = migrations
+  const { installed, stale, diffs, text, former } = migrations
     ? await installedFromMigration(config, sqlLayout, files, paint)
     : await installedFromFiles(config, files, paint);
 
   const renames = entityRenamePlan(
     config.blockNames,
     installed.map((entry) => entry.module),
-    text,
+    withCurrentBlockNames(text),
     sqlLayout,
   );
 
@@ -88,6 +94,7 @@ export async function upgrade(
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
   const legacy = legacyPrefixNames(text);
+  const blockRenames = renamedBlocksIn(text);
   const prefixed = legacy.length > 0;
   const modulesTable = text.includes("better_supabase.modules");
 
@@ -96,6 +103,7 @@ export async function upgrade(
     ...(renamed.length > 0 ? { renames: renamed } : {}),
     ...(prefixed ? { prefix: "bsb" } : {}),
     ...(modulesTable ? { table: "better_supabase.blocks" } : {}),
+    ...(blockRenames.length > 0 ? { blocks: blockRenames } : {}),
     stale,
   };
 
@@ -104,7 +112,8 @@ export async function upgrade(
     stale.length === 0 &&
     renamed.length === 0 &&
     !prefixed &&
-    !modulesTable;
+    !modulesTable &&
+    blockRenames.length === 0;
 
   const behind = plan.map(
     (entry) =>
@@ -138,6 +147,10 @@ export async function upgrade(
               "The installed versions are in better_supabase.modules, which 0.15 names better_supabase.blocks",
             ]
           : []),
+        ...blockRenames.map(
+          ({ from, to }) =>
+            `The ${from} block is installed; 0.15 names it ${to}`,
+        ),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
         "Run `better-supabase upgrade`.",
       ].join("\n"),
@@ -173,8 +186,16 @@ export async function upgrade(
       ]
     : [];
 
+  const blockSteps =
+    blockRenames.length === 0
+      ? []
+      : [
+          `-- Moves the installed blocks 0.15 renamed to their new names.\n${renamedBlocksSql(blockRenames)}`,
+        ];
+
   const steps = [
     ...tableSteps,
+    ...blockSteps,
     ...prefixSteps,
     ...renameSteps,
     ...plan.flatMap((entry) =>
@@ -212,6 +233,10 @@ export async function upgrade(
     lines.push(`Renamed ${String(legacy.length)} bs_ names to bsb_`);
   }
 
+  for (const { from, to } of blockRenames) {
+    lines.push(`Renamed the ${from} block to ${to}`);
+  }
+
   for (const module of renamed) {
     lines.push(`${module}: renamed after blocks.<name>.names`);
   }
@@ -232,6 +257,7 @@ export async function upgrade(
       now,
       undefined,
       migrations ? steps : [],
+      former,
     )),
   );
 
@@ -250,6 +276,8 @@ interface Installed {
   readonly diffs: string[];
   /** The installed files or migration, for their `@bsb-names` lines. */
   readonly text: string;
+  /** Files a block wrote under its 0.14 name, which `upgrade` removes. */
+  readonly former: readonly string[];
 }
 
 /** The installed versions from the module files in `sql.dir`. */
@@ -262,8 +290,21 @@ async function installedFromFiles(
   const stale: string[] = [];
   const diffs: string[] = [];
   const texts: string[] = [];
+  const former: string[] = [];
+
+  const read = (path: string): Promise<string | undefined> =>
+    readFile(resolve(config.root, path), "utf-8").catch(() => undefined);
 
   for (const file of files) {
+    const formerPath = formerBlockPath(file.path, file.module);
+
+    const formerText =
+      formerPath === undefined ? undefined : await read(formerPath);
+
+    if (formerPath !== undefined && formerText !== undefined) {
+      former.push(formerPath);
+    }
+
     if (file.kind === "data") {
       continue;
     }
@@ -272,16 +313,15 @@ async function installedFromFiles(
       continue;
     }
 
-    const current = await readFile(
-      resolve(config.root, file.path),
-      "utf-8",
-    ).catch(() => undefined);
+    const found = (await read(file.path)) ?? formerText;
 
-    if (current === undefined) {
+    if (found === undefined) {
       continue;
     }
 
-    texts.push(current);
+    const current = withCurrentBlockNames(found);
+
+    texts.push(found);
     installed.push({
       module: file.module,
       version: moduleFileVersion(current)?.version ?? 1,
@@ -294,7 +334,7 @@ async function installedFromFiles(
     }
   }
 
-  return { installed, stale, diffs, text: texts.join("\n") };
+  return { installed, stale, diffs, text: texts.join("\n"), former };
 }
 
 /**
@@ -310,10 +350,10 @@ async function installedFromMigration(
   const latest = await latestMigration(config, MODULES_SUFFIX);
 
   if (latest === undefined) {
-    return { installed: [], stale: [], diffs: [], text: "" };
+    return { installed: [], stale: [], diffs: [], text: "", former: [] };
   }
 
-  const versions = migrationModules(latest.text);
+  const versions = migrationModules(withCurrentBlockNames(latest.text));
 
   const installed = [...versions].map(([module, version]) => ({
     module,
@@ -331,11 +371,12 @@ async function installedFromMigration(
   });
 
   return sameModuleMigration(latest.text, expected)
-    ? { installed, stale: [], diffs: [], text: latest.text }
+    ? { installed, stale: [], diffs: [], text: latest.text, former: [] }
     : {
         installed,
         stale: [latest.path],
         diffs: [fileDiff(latest.path, latest.text, expected, paint)],
         text: latest.text,
+        former: [],
       };
 }
