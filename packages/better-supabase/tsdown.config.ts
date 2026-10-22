@@ -124,6 +124,8 @@ const entries = [
   "blocks/guests/index",
   "blocks/passes/index",
   "blocks/billable-time/index",
+  "blocks/dispatch/index",
+  "blocks/shipments/index",
   "blocks/shared-signals/index",
   "blocks/identities/index",
   "blocks/service-principals/index",

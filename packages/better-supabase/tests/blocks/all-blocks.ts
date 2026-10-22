@@ -27,6 +27,7 @@ import type { credentialsBlock } from "../../src/blocks/credentials/manifest.ts"
 import type { customFieldsBlock } from "../../src/blocks/custom-fields/manifest.ts";
 import type { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/manifest.ts";
 import type { dealsBlock } from "../../src/blocks/deals/manifest.ts";
+import type { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
 import type { documentsBlock } from "../../src/blocks/documents/manifest.ts";
 import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
@@ -94,6 +95,7 @@ import type { sessionsBlock } from "../../src/blocks/sessions/manifest.ts";
 import type { settingsBlock } from "../../src/blocks/settings/manifest.ts";
 import type { shareLinksBlock } from "../../src/blocks/share-links/manifest.ts";
 import type { sharedSignalsBlock } from "../../src/blocks/shared-signals/manifest.ts";
+import type { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
 import type { signingKeysBlock } from "../../src/blocks/signing-keys/manifest.ts";
 import type { slaBlock } from "../../src/blocks/sla/manifest.ts";
 import type { ssoBlock } from "../../src/blocks/sso/manifest.ts";
@@ -176,6 +178,8 @@ export type AllBlocks = {
   readonly guests: typeof guestsBlock;
   readonly passes: typeof passesBlock;
   readonly "billable-time": typeof billableTimeBlock;
+  readonly dispatch: typeof dispatchBlock;
+  readonly shipments: typeof shipmentsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

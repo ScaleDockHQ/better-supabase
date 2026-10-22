@@ -24,6 +24,7 @@ import type { CredentialsSqlOptions } from "./credentials/options.ts";
 import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
 import type { DataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
 import type { DealsSqlOptions } from "./deals/options.ts";
+import type { DispatchSqlOptions } from "./dispatch/options.ts";
 import type { DocumentsSqlOptions } from "./documents/options.ts";
 import type { DomainsSqlOptions } from "./domains/options.ts";
 import type { DriveSqlOptions } from "./drive/options.ts";
@@ -80,6 +81,7 @@ import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
 import type { ShareLinksSqlOptions } from "./share-links/options.ts";
 import type { SharedSignalsSqlOptions } from "./shared-signals/options.ts";
+import type { ShipmentsSqlOptions } from "./shipments/options.ts";
 import type { SigningKeysSqlOptions } from "./signing-keys/options.ts";
 import type { SlaSqlOptions } from "./sla/options.ts";
 import type { SsoSqlOptions } from "./sso/options.ts";
@@ -132,6 +134,7 @@ import { credentialsSqlOptions } from "./credentials/options.ts";
 import { customFieldsSqlOptions } from "./custom-fields/options.ts";
 import { dataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
 import { dealsSqlOptions } from "./deals/options.ts";
+import { dispatchSqlOptions } from "./dispatch/options.ts";
 import { documentsSqlOptions } from "./documents/options.ts";
 import { domainsSqlOptions } from "./domains/options.ts";
 import { driveSqlOptions } from "./drive/options.ts";
@@ -188,6 +191,7 @@ import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
 import { shareLinksSqlOptions } from "./share-links/options.ts";
 import { sharedSignalsSqlOptions } from "./shared-signals/options.ts";
+import { shipmentsSqlOptions } from "./shipments/options.ts";
 import { signingKeysSqlOptions } from "./signing-keys/options.ts";
 import { slaSqlOptions } from "./sla/options.ts";
 import { ssoSqlOptions } from "./sso/options.ts";
@@ -288,6 +292,8 @@ export interface BlockOptionsRegistry {
   readonly parties: PartiesSqlOptions;
   readonly passes: PassesSqlOptions;
   readonly "billable-time": None;
+  readonly dispatch: DispatchSqlOptions;
+  readonly shipments: ShipmentsSqlOptions;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -416,6 +422,8 @@ export const BLOCK_OPTION_SCHEMAS: {
   parties: partiesSqlOptions,
   passes: passesSqlOptions,
   "billable-time": NO_OPTIONS,
+  dispatch: dispatchSqlOptions,
+  shipments: shipmentsSqlOptions,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,

@@ -1789,6 +1789,7 @@
               "custom-fields",
               "data-lifecycle",
               "deals",
+              "dispatch",
               "documents",
               "domains",
               "drive",
@@ -1852,6 +1853,7 @@
               "settings",
               "share-links",
               "shared-signals",
+              "shipments",
               "signatures",
               "signing-keys",
               "sla",
@@ -1973,6 +1975,9 @@
             },
             "deals": {
               "$ref": "#/$defs/blocks/deals"
+            },
+            "dispatch": {
+              "$ref": "#/$defs/blocks/dispatch"
             },
             "documents": {
               "$ref": "#/$defs/blocks/documents"
@@ -2162,6 +2167,9 @@
             },
             "shared-signals": {
               "$ref": "#/$defs/blocks/shared-signals"
+            },
+            "shipments": {
+              "$ref": "#/$defs/blocks/shipments"
             },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
@@ -3829,6 +3837,27 @@
           }
         }
       },
+      "dispatch": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {},
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              },
+              "defaultDuration": {
+                "type": "string",
+                "default": "1 hour"
+              }
+            }
+          }
+        }
+      },
       "documents": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -5091,6 +5120,19 @@
                 "type": "string",
                 "default": "7 days"
               }
+            }
+          }
+        }
+      },
+      "shipments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }

@@ -38,6 +38,7 @@ import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
+import { DISPATCH } from "./modules/dispatch.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
@@ -100,6 +101,7 @@ import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SHARED_SIGNALS } from "./modules/shared-signals.ts";
+import { SHIPMENTS } from "./modules/shipments.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
 import { SIGNING_KEYS } from "./modules/signing-keys.ts";
 import { SLA } from "./modules/sla.ts";
@@ -323,6 +325,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(GUESTS),
       built(PASSES),
       built(BILLABLE_TIME),
+      built(DISPATCH),
+      built(SHIPMENTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

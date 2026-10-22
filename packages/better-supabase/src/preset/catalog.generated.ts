@@ -3146,6 +3146,223 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "dispatch",
+      "title": "Dispatch",
+      "category": "work",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "assets",
+        "bookings",
+        "catalog",
+        "inventory"
+      ],
+      "manifest": "dispatch",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "workOrders",
+      "entities": {
+        "specs": {
+          "work_order": {
+            "table": "workOrders",
+            "singular": "work_order",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "dispatch_route": {
+            "table": "routes",
+            "singular": "dispatch_route"
+          },
+          "work_order_part": {
+            "table": "parts",
+            "singular": "work_order_part"
+          }
+        },
+        "tables": {
+          "workOrders": {
+            "name": "work_orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "priority": "priority",
+              "status": "status",
+              "technician": "technician_id",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "location": "location_id",
+              "asset": "asset_id",
+              "booking": "booking_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "address": "address",
+              "enRouteAt": "en_route_at",
+              "arrivedAt": "arrived_at",
+              "completedAt": "completed_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "completionNote": "completion_note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "routes": {
+            "name": "dispatch_routes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "technician": "technician_id",
+              "routeDate": "route_date",
+              "plannedBy": "planned_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "parts": {
+            "name": "work_order_parts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "workOrder": "work_order_id",
+              "name": "name",
+              "quantity": "quantity",
+              "unit": "unit",
+              "asset": "asset_id",
+              "variant": "variant_id",
+              "location": "location_id",
+              "recordedBy": "recorded_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "dispatch.read",
+          "manage": "dispatch.manage",
+          "work": "dispatch.work"
+        }
+      }
+    },
+    {
+      "name": "shipments",
+      "title": "Shipments",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "assets"
+      ],
+      "manifest": "shipments",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "shipments",
+      "entities": {
+        "specs": {
+          "shipment": {
+            "table": "shipments",
+            "singular": "shipment",
+            "primary": true,
+            "subject": {
+              "title": "reference",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "shipment_package": {
+            "table": "packages",
+            "singular": "shipment_package"
+          },
+          "shipment_tracking_event": {
+            "table": "trackingEvents",
+            "singular": "shipment_tracking_event"
+          }
+        },
+        "tables": {
+          "shipments": {
+            "name": "shipments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "reference": "reference",
+              "status": "status",
+              "fromAddress": "from_address",
+              "toAddress": "to_address",
+              "fromLocation": "from_location_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "carrier": "carrier",
+              "service": "service",
+              "trackingNumber": "tracking_number",
+              "trackingUrl": "tracking_url",
+              "labelId": "label_id",
+              "labelUrl": "label_url",
+              "labelFormat": "label_format",
+              "labelCost": "label_cost",
+              "currency": "currency",
+              "labeledAt": "labeled_at",
+              "deliveredAt": "delivered_at",
+              "cancelledAt": "cancelled_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "packages": {
+            "name": "shipment_packages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "position": "position",
+              "weight": "weight_grams",
+              "length": "length_mm",
+              "width": "width_mm",
+              "height": "height_mm",
+              "reference": "reference"
+            }
+          },
+          "trackingEvents": {
+            "name": "shipment_tracking_events",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "externalId": "external_id",
+              "status": "status",
+              "occurredAt": "occurred_at",
+              "description": "description",
+              "location": "location",
+              "source": "source",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "shipments.read",
+          "manage": "shipments.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5702,6 +5919,406 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "BillableTimeEvents",
         "types": [
           "time.invoiced"
+        ]
+      }
+    },
+    {
+      "name": "dispatch",
+      "sql": [
+        "dispatch"
+      ],
+      "category": "work",
+      "client": {
+        "export": "dispatchBlock",
+        "subpath": "better-supabase/blocks/dispatch"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "work_order": {
+          "input": {
+            "title": "WorkOrderInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "priority": {
+                "kind": "enum",
+                "values": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "optional": true
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "bookingId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the job is for: `{ type, id }`."
+              },
+              "address": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "technicianId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "startsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "endsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkOrderInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "bookingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record the job is for: `{ type, id }`."
+                },
+                "address": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "technicianId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "work_order_part": {
+          "input": {
+            "title": "WorkOrderPartInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "quantity": {
+                "kind": "unknown",
+                "description": "A decimal above zero with at most three places."
+              },
+              "unit": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "variantId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkOrderPartInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "quantity": {
+                  "description": "A decimal above zero with at most three places."
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "dispatch": [
+          "create",
+          "cancel"
+        ]
+      }
+    },
+    {
+      "name": "shipments",
+      "sql": [
+        "shipments"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "shipmentsBlock",
+        "subpath": "better-supabase/blocks/shipments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "shipment": {
+          "input": {
+            "title": "ShipmentInput",
+            "fields": {
+              "from": {
+                "kind": "json",
+                "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+              },
+              "to": {
+                "kind": "json",
+                "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+              },
+              "packages": {
+                "kind": "json",
+                "array": true,
+                "description": "1 to 50 `{ weightGrams, lengthMm?, widthMm?, heightMm?, reference? }`, in whole grams and millimeters."
+              },
+              "reference": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "fromLocationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record it ships for: `{ type, id }`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ShipmentInput",
+              "type": "object",
+              "properties": {
+                "from": {
+                  "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+                },
+                "to": {
+                  "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+                },
+                "packages": {
+                  "type": "array",
+                  "items": {},
+                  "description": "1 to 50 `{ weightGrams, lengthMm?, widthMm?, heightMm?, reference? }`, in whole grams and millimeters."
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "fromLocationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record it ships for: `{ type, id }`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "packages"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "shipment_tracking_event": {
+          "input": {
+            "title": "TrackingEventInput",
+            "fields": {
+              "id": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "label_created",
+                  "in_transit",
+                  "out_for_delivery",
+                  "delivered",
+                  "exception",
+                  "returned"
+                ]
+              },
+              "occurredAt": {
+                "kind": "instant"
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 1000
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TrackingEventInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "label_created",
+                    "in_transit",
+                    "out_for_delivery",
+                    "delivered",
+                    "exception",
+                    "returned"
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "location": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "occurredAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "shipments": [
+          "create",
+          "cancel"
         ]
       }
     },

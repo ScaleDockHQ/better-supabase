@@ -28,6 +28,7 @@ import { credentialsBlock } from "./credentials/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
+import { dispatchBlock } from "./dispatch/manifest.ts";
 import { documentsBlock } from "./documents/manifest.ts";
 import { domainsBlock } from "./domains/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
@@ -92,6 +93,7 @@ import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
 import { sharedSignalsBlock } from "./shared-signals/manifest.ts";
+import { shipmentsBlock } from "./shipments/manifest.ts";
 import { signingKeysBlock } from "./signing-keys/manifest.ts";
 import { slaBlock } from "./sla/manifest.ts";
 import { ssoBlock } from "./sso/manifest.ts";
@@ -162,6 +164,8 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   guestsBlock,
   passesBlock,
   billableTimeBlock,
+  dispatchBlock,
+  shipmentsBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

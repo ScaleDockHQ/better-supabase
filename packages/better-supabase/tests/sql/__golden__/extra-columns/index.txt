@@ -52,3 +52,5 @@ employees
 collections
 reviews
 leave
+dispatch
+shipments

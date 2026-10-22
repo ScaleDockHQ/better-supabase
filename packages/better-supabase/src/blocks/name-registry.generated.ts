@@ -380,6 +380,23 @@ export interface BlockNameRegistry {
     };
     readonly primary: "deal";
   };
+  readonly "dispatch": {
+    readonly tables: {
+      readonly "workOrders": "id" | "tenant" | "title" | "description" | "priority" | "status" | "technician" | "startsAt" | "endsAt" | "location" | "asset" | "booking" | "subjectType" | "subjectId" | "address" | "enRouteAt" | "arrivedAt" | "completedAt" | "cancelledAt" | "cancelReason" | "completionNote" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "routes": "id" | "tenant" | "technician" | "routeDate" | "plannedBy" | "createdAt" | "updatedAt";
+      readonly "stops": "id" | "tenant" | "route" | "workOrder" | "position";
+      readonly "parts": "id" | "tenant" | "workOrder" | "name" | "quantity" | "unit" | "asset" | "variant" | "location" | "recordedBy" | "createdAt";
+    };
+    readonly functions: "create_work_order" | "dispatch_board" | "get_work_order" | "list_work_order_parts" | "list_work_orders" | "plan_dispatch_route" | "record_work_order_part" | "remove_work_order_part" | "schedule_work_order" | "set_work_order_status" | "technician_day" | "unschedule_work_order" | "update_work_order";
+    readonly actions: "read" | "manage" | "work";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "work_order": "id" | "tenant_id" | "title" | "description" | "priority" | "status" | "technician_id" | "starts_at" | "ends_at" | "location_id" | "asset_id" | "booking_id" | "subject_type" | "subject_id" | "address" | "en_route_at" | "arrived_at" | "completed_at" | "cancelled_at" | "cancel_reason" | "completion_note" | "created_by" | "created_at" | "updated_at";
+      readonly "dispatch_route": "id" | "tenant_id" | "technician_id" | "route_date" | "planned_by" | "created_at" | "updated_at";
+      readonly "work_order_part": "id" | "tenant_id" | "work_order_id" | "name" | "quantity" | "unit" | "asset_id" | "variant_id" | "location_id" | "recorded_by" | "created_at";
+    };
+    readonly primary: "work_order";
+  };
   readonly "documents": {
     readonly tables: {
       readonly "documents": "id" | "tenant" | "subjectType" | "subjectId" | "name" | "createdBy" | "createdAt" | "updatedAt";
@@ -1106,6 +1123,22 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "shipments": {
+    readonly tables: {
+      readonly "shipments": "id" | "tenant" | "reference" | "status" | "fromAddress" | "toAddress" | "fromLocation" | "subjectType" | "subjectId" | "carrier" | "service" | "trackingNumber" | "trackingUrl" | "labelId" | "labelUrl" | "labelFormat" | "labelCost" | "currency" | "labeledAt" | "deliveredAt" | "cancelledAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "packages": "id" | "tenant" | "shipment" | "position" | "weight" | "length" | "width" | "height" | "reference";
+      readonly "trackingEvents": "id" | "tenant" | "shipment" | "externalId" | "status" | "occurredAt" | "description" | "location" | "source" | "createdAt";
+    };
+    readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "record_tracking_events" | "set_shipment_label";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "shipment": "id" | "tenant_id" | "reference" | "status" | "from_address" | "to_address" | "from_location_id" | "subject_type" | "subject_id" | "carrier" | "service" | "tracking_number" | "tracking_url" | "label_id" | "label_url" | "label_format" | "label_cost" | "currency" | "labeled_at" | "delivered_at" | "cancelled_at" | "created_by" | "created_at" | "updated_at";
+      readonly "shipment_package": "id" | "tenant_id" | "shipment_id" | "position" | "weight_grams" | "length_mm" | "width_mm" | "height_mm" | "reference";
+      readonly "shipment_tracking_event": "id" | "tenant_id" | "shipment_id" | "external_id" | "status" | "occurred_at" | "description" | "location" | "source" | "created_at";
+    };
+    readonly primary: "shipment";
   };
   readonly "signatures": {
     readonly tables: {
