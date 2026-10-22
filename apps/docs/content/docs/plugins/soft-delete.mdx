@@ -19,7 +19,7 @@ await db.customers.delete(id, { hard: true }); // really deletes
 ## Which column
 
 `gen` picks one column per table. A table bound to a
-[`config.subjects`](/docs/blocks/sql#subject-registry) entry with a
+[`config.records`](/docs/blocks/sql#subject-registry) entry with a
 `deletedAt` column uses that column, so the repository, search, metrics and
 the [trash](/docs/blocks/trash) all read the same one. Every other table
 uses `plugins.softDelete.column` (default `deleted_at`) when it has that

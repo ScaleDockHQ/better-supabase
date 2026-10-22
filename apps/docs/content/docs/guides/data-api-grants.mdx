@@ -25,12 +25,14 @@ is added unless `serviceRole: false`).
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  expose: {
-    customers: ["select", "insert", "update", "delete"],
-    organizations: ["select"],
-    "public.pricing_plans": { anon: ["select"], authenticated: ["select"] },
-    "public.audit_exports": { serviceRole: ["select", "insert"] },
-    "search_notes(text, integer)": { execute: ["authenticated"] },
+  database: {
+    expose: {
+      customers: ["select", "insert", "update", "delete"],
+      organizations: ["select"],
+      "public.pricing_plans": { anon: ["select"], authenticated: ["select"] },
+      "public.audit_exports": { serviceRole: ["select", "insert"] },
+      "search_notes(text, integer)": { execute: ["authenticated"] },
+    },
   },
   blocks: ["grants"],
 });
@@ -115,7 +117,7 @@ table like that which still holds grants on the live database as
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  schemas: ["public"],
+  database: { schemas: ["public"] },
   blocks: { grants: { options: { fromPolicies: true } } },
 });
 ```
@@ -154,7 +156,9 @@ grant select, insert on table public.audit_logs to service_role;
 ```
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({ tables: { audit_logs: { serviceRole: true } } });
+export default defineConfig({
+  gen: { tables: { audit_logs: { serviceRole: true } } },
+});
 ```
 
 Doctor then reports BS106 if `anon` or `authenticated` can still reach the

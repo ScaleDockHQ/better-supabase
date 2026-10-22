@@ -47,7 +47,7 @@ await createRulesAdmin({ transport: serviceTransport })
   .orThrow();
 ```
 
-A subject with a `deletedAt` column in `config.subjects` leaves its deleted
+A subject with a `deletedAt` column in `config.records` leaves its deleted
 rows out. Parties and deals archive with `archived_at` instead, so add an
 `archivedAt` field and an "is empty" condition to keep archived records out
 of a segment.
@@ -148,6 +148,6 @@ and record timelines handle it like any other subject event. See
 | ------------------------- | --------------------------------------------------- |
 | `SEGMENT_FORBIDDEN`       | the caller lacks `segments.read` or `segments.edit` |
 | `SEGMENT_NAME_TAKEN`      | another segment in the organization has the name    |
-| `SEGMENT_SUBJECT_UNKNOWN` | the subject type is not in `config.subjects`        |
+| `SEGMENT_SUBJECT_UNKNOWN` | the subject type is not in `config.records`         |
 | `SEGMENT_FIELDS_MISSING`  | the subject type has no synced rule fields          |
 | `SEGMENT_TOO_LARGE`       | a refresh matched more than `maxMembers` records    |

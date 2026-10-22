@@ -69,9 +69,11 @@ With the config in the package, point the SQL modules and the seed at the root
 
 ```ts title="packages/runtime/better-supabase.config.ts"
 export default defineConfig({
-  output: "src/generated.ts",
-  sql: { dir: "../../supabase/schemas", testsDir: "../../supabase/tests" },
-  seed: { output: "../../supabase/seeds/000_better_supabase.sql" },
+  gen: { output: "src/generated.ts" },
+  database: {
+    sql: { dir: "../../supabase/schemas", testsDir: "../../supabase/tests" },
+    seed: { output: "../../supabase/seeds/000_better_supabase.sql" },
+  },
 });
 ```
 

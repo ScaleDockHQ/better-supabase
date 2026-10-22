@@ -18,7 +18,7 @@ better-supabase add comments   # adds tenant, access, subjects and messaging as 
 Comments need tenants: the module runs in the `tenant`
 [scope](/docs/blocks/sql#scope-and-naming) only, and `user` or `none` scope
 refuses it. The records come from the
-[subject registry](/docs/blocks/sql#subject-registry) (`config.subjects`).
+[subject registry](/docs/blocks/sql#subject-registry) (`config.records`).
 Whoever can read a record (`can_subject(type, id, 'read')`) and holds
 `messages.read` in the tenant reads its comments. A comment goes in the record's own
 tenant only: `create_comment` refuses a record whose tenant column names
@@ -33,7 +33,7 @@ another tenant, even for a member of both.
 
 The block has no entity of its own: a comment is a `message`, so reactions,
 search and share links accept it under the message entity
-(`blocks.messaging.entities` renames it). `commentInputSchema` and
+(`blocks.messaging.names` renames it). `commentInputSchema` and
 `commentChangeSchema` validate what `create` and `edit` take.
 
 ## Permissions
@@ -56,7 +56,7 @@ its body and files are cleared.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  subjects: { project: { table: "projects", permission: "projects.read" } },
+  records: { project: { table: "projects", permission: "projects.read" } },
   blocks: {
     messaging: { options: { maxBodyLength: 10_000 } },
     comments: { options: { follow: true } },
@@ -310,7 +310,7 @@ notifies two groups:
 | `comment.posted`    | the record's followers, less the author and the members the mention already reached |
 
 `comment.posted` names the record as its subject, with the record's
-`subject_title` from `config.subjects` as its `subject_label`, the first 140
+`subject_title` from `config.records` as its `subject_label`, the first 140
 characters of the body as its `summary` and the commenter as the actor, and
 its data holds `messageId` and `conversationId`. It is sent only when the
 record has a follower besides the author and the mentioned members, or when a

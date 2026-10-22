@@ -3,7 +3,7 @@ title: Collections
 description: Favorites (a member's starred records, ranked for a sidebar), saved items (a member's records to come back to, with a note and a reminder) and lists (named, static collections of one record type owned by a user, a team or the organization) on any registered record.
 ---
 
-`collections` keeps two kinds of hand-picked record sets. Favorites are a member's own stars: any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can be starred, and the stars keep a rank so a sidebar shows them in the order the member drags them into. Lists are named, static collections of one record type, such as "Key accounts" or "Conference leads": a member adds records by hand or in bulk, and the list keeps them until someone removes them.
+`collections` keeps two kinds of hand-picked record sets. Favorites are a member's own stars: any record registered in [`config.records`](/docs/blocks/sql#subject-registry) can be starred, and the stars keep a rank so a sidebar shows them in the order the member drags them into. Lists are named, static collections of one record type, such as "Key accounts" or "Conference leads": a member adds records by hand or in bulk, and the list keeps them until someone removes them.
 
 A list is the static counterpart of a [saved view](/docs/blocks/saved-views). A saved view stores a filter, so its rows change as the data changes; a list stores the records themselves. Like a saved view, a list belongs to one user, a team (with the [teams](/docs/blocks/teams) module) or the whole organization.
 
@@ -43,7 +43,7 @@ await collections.add(keyAccounts.id, [acmeId, globexId]).orThrow();
 | `starred(organizationId, { type })`        | The caller's stars in rank order, with each record's `title` and `url`       |
 | `reorderStar(subject, { previous, next })` | Moves a star between its neighbours' rank keys                               |
 
-Stars are private: each member reads and changes only their own. The record must belong to the organization and the caller must be able to read it (`FAVORITE_SUBJECT_FORBIDDEN`). `title` and `url` come from the record's `title` and `url` in `config.subjects`.
+Stars are private: each member reads and changes only their own. The record must belong to the organization and the caller must be able to read it (`FAVORITE_SUBJECT_FORBIDDEN`). `title` and `url` come from the record's `title` and `url` in `config.records`.
 
 These stars are separate from the [search](/docs/blocks/search) module's starred results, which only the command palette reads.
 
@@ -66,7 +66,7 @@ These stars are separate from the [search](/docs/blocks/search) module's starred
 
 Who sees a list follows its scope: the owner, the team's members, or every member with `collections.read`. Anyone who sees a list and holds `collections.write` changes its entries. An entry is visible only when the caller can also read its record through the record table's own policies, so a shared list never shows a record to someone who can't open it.
 
-When a record type sets `cascade: true` in `config.subjects`, deleting a record deletes its entries and its stars.
+When a record type sets `cascade: true` in `config.records`, deleting a record deletes its entries and its stars.
 
 ## Save for later
 

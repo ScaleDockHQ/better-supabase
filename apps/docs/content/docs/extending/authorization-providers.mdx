@@ -16,7 +16,7 @@ import { defineConfig } from "better-supabase/config";
 import { authorizationProvider } from "your-authorization-package";
 
 export default defineConfig({
-  authorization: authorizationProvider(),
+  auth: { authorization: authorizationProvider() },
   blocks: { access: {}, organizations: {} },
 });
 ```
@@ -46,7 +46,7 @@ instead of calling it with defaults. See the
 | Feature                                                                                    | What it takes from the provider                                                   |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
 | `blocks.access.model: "provider"`                                                          | `can()` and the modules' checks call `functions`, at `tenantScope`                |
-| `entitlements.memberships: "provider"`                                                     | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
+| `auth.entitlements.memberships: "provider"`                                                | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
 | Bucket and topic `access` policies with `sql`                                              | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
 | `options.subjects.<type>.scope` in attachments and comments                                | `idsWith` at that scope, for grants on a single record                            |
 | [API keys](/docs/blocks/api-keys) with `claim`                                             | nothing at runtime; the claim names follow the provider's functions               |
@@ -54,7 +54,7 @@ instead of calling it with defaults. See the
 | `better-supabase gen`                                                                      | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
 | [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
 
-`entitlements.memberships` and `blocks.access.model` both default to
+`auth.entitlements.memberships` and `blocks.access.model` both default to
 `"provider"` when `authorization` is set. Set another access model to keep
 the built-in roles; doctor BS414 then reports each policy and function that
 calls `can()` or `tenant_ids_with()`, because those answer from roles the
@@ -221,7 +221,7 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 | Field              | Used for                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------- |
 | `function`         | BS404 checks its grants, BS405 its shape                                                  |
-| `tenantClaim`      | BS409 compares it with `claims.tenant`                                                    |
+| `tenantClaim`      | BS409 compares it with `auth.organization.claim`                                          |
 | `ownedClaims`      | BS407 reports another hook that writes them; `sql add tenant` stops on `memberships`      |
 | `registeredClaims` | BS407 accepts these claims from the functions named, such as `features`                   |
 | `budget`           | BS405 measures the claims it lists against `bytes` for `doctor --as`                      |

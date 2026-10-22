@@ -11,9 +11,9 @@ pnpm better-supabase init  # once it is a dependency
 `init` reads your `package.json` and writes:
 
 - `better-supabase.config.ts` with `casing` written out (`--casing snake|camel`,
-  `snake` by default, as in a config without `casing`) and the
-  [conventions](#conventions) that differ from the defaults. It lists the integrations it set up under `integrations`, and
-  carries commented `gen`, `env` and `doctor` entries for the options you
+  `snake` by default, as in a config without `gen.casing`) and the
+  [conventions](#conventions) that differ from the defaults. It lists the integrations it set up under `adapters`, and
+  carries commented `gen` and `tooling` entries for the options you
   would otherwise pass on every run (see [Flags and the config](/docs/cli/config#flags-and-the-config))
 - `src/lib/supabase/index.ts`, which exports `betterSupabase` and the `Models` and `Functions` types
 - glue for every framework it finds, the same files `add` writes
@@ -33,7 +33,7 @@ pnpm better-supabase init --workflow migrations
 
 | `--workflow`         | What `init` does                                                                                |
 | -------------------- | ----------------------------------------------------------------------------------------------- |
-| `pg-delta` (default) | Turns pg-delta on in `supabase/config.toml` and writes no `sql.workflow`                        |
+| `pg-delta` (default) | Turns pg-delta on in `supabase/config.toml` and writes no `database.sql.workflow`               |
 | `migra`              | Writes `sql: { workflow: 'migra' }` and leaves `config.toml` alone, for declarative schemas 1.0 |
 | `migrations`         | Writes `sql: { workflow: 'migrations' }`: the `sql` commands write the modules into a migration |
 
@@ -69,14 +69,14 @@ Side effects: Writes files.
 The convention flags set what [Create](https://app.bettersupabase.com/create)
 sets in its Conventions step, with the same names and defaults:
 
-| Flag            | Config key                            | Values                                                             |
-| --------------- | ------------------------------------- | ------------------------------------------------------------------ |
-| `--casing`      | `casing`                              | `snake` (default), `camel`                                         |
-| `--scope`       | `sql.scope`                           | `tenant` (default), `user`, `none`                                 |
-| `--tenant-name` | `blocks.tenant.entities.organization` | `organization` (default), `workspace`, `team`, or a lowercase name |
-| `--access`      | `blocks.access.model`                 | `roles` (default), `catalog`, `provider`, `custom`                 |
-| `--id-type`     | `blocks.access.idType`                | `uuid` (default), `text`, `bigint`, `integer`                      |
-| `--api`         | `sql.api`                             | `none` (default), `api`                                            |
+| Flag            | Config key                         | Values                                                             |
+| --------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `--casing`      | `casing`                           | `snake` (default), `camel`                                         |
+| `--scope`       | `database.sql.owner`               | `tenant` (default), `user`, `none`                                 |
+| `--tenant-name` | `blocks.tenant.names.organization` | `organization` (default), `workspace`, `team`, or a lowercase name |
+| `--access`      | `blocks.access.model`              | `roles` (default), `catalog`, `provider`, `custom`                 |
+| `--id-type`     | `blocks.access.idType`             | `uuid` (default), `text`, `bigint`, `integer`                      |
+| `--api`         | `database.sql.api`                 | `none` (default), `api`                                            |
 
 Without `--preset`, `init` asks for each one in a terminal, in Create's
 order: Casing, Row ownership, Tenant name (for tenant scope only), Auth and
@@ -90,7 +90,7 @@ that points you at the `authorization` key.
 With `--preset`, each flag overrides that convention of the preset, and
 `init` writes the changed preset code. A code stores the tenant names Create
 offers (`organization`, `workspace`, `team`), so for another name leave
-`--tenant-name` out and set `blocks.tenant.entities.organization` in the config. `apply` takes
+`--tenant-name` out and set `blocks.tenant.names.organization` in the config. `apply` takes
 the same flags.
 
 ```bash
@@ -139,7 +139,7 @@ npx better-supabase init --preset "https://app.bettersupabase.com/create?preset=
 ```
 
 `init` decodes the design locally, with no network call, and writes its
-[app tables](/docs/blocks/app-tables) into `appTables` and its extra columns into
+[app tables](/docs/blocks/app-tables) into `tables` and its extra columns into
 each block's `options.extraColumns`, next to `preset`. The canvas positions
 stay in the URL. A design that doesn't decode, or that adds columns to a
 block the preset doesn't install, stops `init` with the reason.
@@ -220,9 +220,9 @@ that exist.
 
 `--integration` adds glue for integrations instead. `add` without an argument
 or `--integration` sets up every integration in the config's
-`integrations` list whose files are missing, which is how a fresh checkout
+`adapters` list whose files are missing, which is how a fresh checkout
 or a new package in a workspace gets its glue. When `--integration` names
-integrations the config doesn't list yet, `add` prints the `integrations`
+integrations the config doesn't list yet, `add` prints the `adapters`
 entry to paste.
 
 | Integration | Writes                                                                                                                                  |

@@ -9,7 +9,7 @@ description: Emoji reactions and up or down votes on any subject, messages (comm
 better-supabase add reactions
 ```
 
-The block's entity is `reaction` (the `reactions` table). It isn't registered as a subject. Rename it with `blocks.reactions.entities`.
+The block's entity is `reaction` (the `reactions` table). It isn't registered as a subject. Rename it with `blocks.reactions.names`.
 
 ```ts
 import { createReactions } from "better-supabase/blocks/reactions";
@@ -38,7 +38,7 @@ Every call acts in the block's `tenant`, an organization id or a function that r
 
 ## Subjects
 
-A reaction's subject is any [`config.subjects`](/docs/blocks/sql#subject-registry) type, or a message (with the [messaging](/docs/blocks/messaging) module, which includes [comments](/docs/blocks/comments) and the [inbox](/docs/blocks/inbox)). Messages are always included, under the message entity's name (`message`, or the name `blocks.messaging.entities.message` sets), even when `options.subjects` lists other types. `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply, and the caller also needs the subject's read permission (`messages.read` for a message). A subject with a `deletedAt` column, such as a message, must not be deleted. Without registry subjects every type is accepted for members of the organization.
+A reaction's subject is any [`config.records`](/docs/blocks/sql#subject-registry) type, or a message (with the [messaging](/docs/blocks/messaging) module, which includes [comments](/docs/blocks/comments) and the [inbox](/docs/blocks/inbox)). Messages are always included, under the message entity's name (`message`, or the name `blocks.messaging.names.message` sets), even when `options.subjects` lists other types. `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply, and the caller also needs the subject's read permission (`messages.read` for a message). A subject with a `deletedAt` column, such as a message, must not be deleted. Without registry subjects every type is accepted for members of the organization.
 
 The service role reacts for anyone and passes the actor's name:
 

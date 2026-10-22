@@ -173,7 +173,7 @@ The same failure in a row prints once, and the watch retries every interval.
 | ----------------------- | ------------------------------------------------------------------------------------------------ |
 | `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set                       |
 | `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                              |
-| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                                          |
+| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `database.source.projectRef`                                                 |
 | `SUPABASE_API_URL`      | Another Management API host                                                                      |
 | `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
 | `CI`                    | Turns prompts off, and applies the config's `ci` environment                                     |

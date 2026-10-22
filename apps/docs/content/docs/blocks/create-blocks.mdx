@@ -73,7 +73,7 @@ export const blockConfig = {
 ```
 
 `schema` and `api` resolve `blocks.<block>.schema` and `.api` over
-`sql.schema` and `sql.api`. `options` holds the options marked as shared in
+`database.sql.schema` and `database.sql.api`. `options` holds the options marked as shared in
 the block's manifest, with the module's default when the config leaves one
 out. Each block's creator gets the API schema when there is one (the
 wrappers there are what the caller may run), otherwise the module schema,
@@ -229,7 +229,7 @@ const { organizations } = blocksFor(ctx.db);
 ```
 
 Each block calls the schema from its generated entry: the API schema that
-`blocks.<block>.api` (or `sql.api`) writes wrappers into, or the module
+`blocks.<block>.api` (or `database.sql.api`) writes wrappers into, or the module
 schema without one. Over the Data API that schema has to be exposed; over
 Postgres the same wrappers work. A transport's own `schema` option sends
 every call there instead. The executor needs `rpc()`: the built-in PostgREST
@@ -237,8 +237,8 @@ and Postgres executors have it.
 
 ### Renamed blocks
 
-When the config renames the tenant (`blocks.tenant.entities.organization`),
-a block's entities (`blocks.<name>.entities`) or its functions
+When the config renames the tenant (`blocks.tenant.names.organization`),
+a block's entities (`blocks.<name>.names`) or its functions
 (`blocks.<name>.functions`), the SQL writes the block functions under other
 names. `gen` writes those names into each block's `names` entry in
 `blocks.generated.ts`, and `defineBlocks` wraps that block's transport with

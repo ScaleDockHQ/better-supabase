@@ -46,10 +46,12 @@ the same and prints the install command for your package manager. Or create
 import { defineConfig, valibot } from "better-supabase/config";
 
 export default defineConfig({
-  casing: "camel",
-  output: "src/lib/supabase/generated.ts",
+  gen: {
+    casing: "camel",
+    output: "src/lib/supabase/generated.ts",
+    generators: [valibot()],
+  },
   plugins: { timestamps: true, softDelete: true },
-  generators: [valibot()],
 });
 ```
 

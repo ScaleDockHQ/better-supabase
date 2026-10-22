@@ -8,7 +8,7 @@ database names as they are; `better-supabase init` writes `casing: "camel"`
 unless you pass `--casing snake`.
 
 ```ts
-export default defineConfig({ casing: "camel" });
+export default defineConfig({ gen: { casing: "camel" } });
 ```
 
 With `'camel'`, models, filters, includes and returned rows use camelCase.
@@ -26,8 +26,7 @@ nested includes keep their shape.
 
 ```ts
 export default defineConfig({
-  casing: "camel",
-  tables: { legacy_events: { casing: "snake" } },
+  gen: { casing: "camel", tables: { legacy_events: { casing: "snake" } } },
 });
 ```
 

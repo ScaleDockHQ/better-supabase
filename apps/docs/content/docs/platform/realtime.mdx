@@ -141,10 +141,12 @@ topic they export, and writes their `sql()` to `output`, and
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  realtime: {
-    policies: {
-      from: ["src/realtime/topics.ts"],
-      output: "supabase/schemas/905_topics.sql",
+  database: {
+    realtime: {
+      policies: {
+        from: ["src/realtime/topics.ts"],
+        output: "supabase/schemas/905_topics.sql",
+      },
     },
   },
 });
@@ -355,12 +357,12 @@ It reads each placeholder from the new row (the old one for a delete). A
 placeholder the table has no column for is an error. The key payload reads
 only the primary key and the placeholder columns, and the catalog lookup runs
 once per statement. It still sends one message per row, so a table that
-takes bulk writes should broadcast through `realtime.tables` (the
+takes bulk writes should broadcast through `database.realtime.tables` (the
 statement-level `track_realtime`) instead.
 
 ### From the config
 
-`realtime.triggers` makes `sql sync` write them to the `realtime.policies`
+`database.realtime.triggers` makes `sql sync` write them to the `realtime.policies`
 output after the policies. Each entry names a topic that `from` exports by its
 template, and `sql sync` passes the rest to that topic's `trigger()` without
 `betterSupabase`, so the config writes the same SQL as the call. An entry
@@ -369,18 +371,20 @@ with database names in values and lookups:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  realtime: {
-    policies: {
-      from: ["src/realtime/topics.ts"],
-      output: "supabase/schemas/905_topics.sql",
-    },
-    triggers: [
-      {
-        topic: "organization:{organizationId}:quotes",
-        table: "public.quotes",
-        event: "quote.changed",
+  database: {
+    realtime: {
+      policies: {
+        from: ["src/realtime/topics.ts"],
+        output: "supabase/schemas/905_topics.sql",
       },
-    ],
+      triggers: [
+        {
+          topic: "organization:{organizationId}:quotes",
+          table: "public.quotes",
+          event: "quote.changed",
+        },
+      ],
+    },
   },
   blocks: ["realtime-tables"],
 });
@@ -392,31 +396,33 @@ found through the parent thread, and to the thread's own topic:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  realtime: {
-    policies: {
-      from: ["src/realtime/topics.ts"],
-      output: "supabase/schemas/905_topics.sql",
-    },
-    triggers: [
-      {
-        topic: "organization:{organizationId}:inbox",
-        table: "public.messages",
-        values: {
-          organizationId: {
-            from: "public.threads",
-            via: "thread_id",
-            select: "organization_id",
-          },
-        },
-        event: { insert: "created", update: "updated", delete: "deleted" },
-        payload: {
-          operation: { sql: "lower(tg_op)" },
-          thread_id: "thread_id",
-          record_id: "id",
-        },
-        topics: [{ topic: "thread:{threadId}" }],
+  database: {
+    realtime: {
+      policies: {
+        from: ["src/realtime/topics.ts"],
+        output: "supabase/schemas/905_topics.sql",
       },
-    ],
+      triggers: [
+        {
+          topic: "organization:{organizationId}:inbox",
+          table: "public.messages",
+          values: {
+            organizationId: {
+              from: "public.threads",
+              via: "thread_id",
+              select: "organization_id",
+            },
+          },
+          event: { insert: "created", update: "updated", delete: "deleted" },
+          payload: {
+            operation: { sql: "lower(tg_op)" },
+            thread_id: "thread_id",
+            record_id: "id",
+          },
+          topics: [{ topic: "thread:{threadId}" }],
+        },
+      ],
+    },
   },
 });
 ```
@@ -424,7 +430,7 @@ export default defineConfig({
 `topics` names each extra topic by its template, which a module in `from`
 also exports, and takes its own `values`.
 
-`sql sync` refuses `realtime.triggers` without `realtime.policies`, or for a
+`sql sync` refuses `database.realtime.triggers` without `realtime.policies`, or for a
 template no module in `from` exports. A trigger that calls
 `better_supabase.broadcast_topic()` also needs `realtime-tables` in `blocks`;
 one with a function of its own does not.

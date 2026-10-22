@@ -1,9 +1,9 @@
 ---
 title: Hiring
-description: Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+description: Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 ---
 
-`hiring` is an applicant tracking system on the [pipelines](/docs/blocks/pipelines) foundation. A job is open or closed, each job has its own pipeline of stages, and an application moves a candidate through it, collecting interviews and scorecards on the way, until it ends hired, rejected or withdrawn. A candidate is any record in [`config.subjects`](/docs/blocks/sql#subject-registry), a [parties](/docs/blocks/parties) person by default, so a candidate who applies twice is one record with two applications.
+`hiring` is an applicant tracking system on the [pipelines](/docs/blocks/pipelines) foundation. A job is open or closed, each job has its own pipeline of stages, and an application moves a candidate through it, collecting interviews and scorecards on the way, until it ends hired, rejected or withdrawn. A candidate is any record in [`config.records`](/docs/blocks/sql#subject-registry), a [parties](/docs/blocks/parties) person by default, so a candidate who applies twice is one record with two applications.
 
 Reading needs `hiring.read`, moving applications, scheduling and scoring needs `hiring.write`, and jobs need `hiring.manage`. Admins get every permission and members none: give recruiters a role with `hiring.read` and `hiring.write`. An interviewer on an interview reads it and scores the application without those permissions.
 

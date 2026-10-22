@@ -20,9 +20,9 @@ Side effects: Writes files, reads the database, calls the Supabase Management AP
 | ---------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `types`    | always                                                 | Writes the files this page describes                                             |
 | `sql`      | `blocks` lists a module, or `realtime.policies` is set | [`sql sync`](/docs/blocks/sql): rewrites the SQL module files                    |
-| `spec`     | the `specs.entry` file exists                          | [`spec emit`](/docs/cli/spec), with `specs.failOn` and `specs.manifest`          |
-| `seed`     | the `seed.entry` file exists                           | [`seed`](/docs/cli/local#seed): renders the fixtures to SQL                      |
-| `scaffold` | `scaffold.api` is set                                  | Rewrites the generated file of [`scaffold api`](/docs/cli/scaffold), never yours |
+| `spec`     | the `api.specs.entry` file exists                      | [`spec emit`](/docs/cli/spec), with `api.specs.failOn` and `api.specs.manifest`  |
+| `seed`     | the `database.seed.entry` file exists                  | [`seed`](/docs/cli/local#seed): renders the fixtures to SQL                      |
+| `scaffold` | `tooling.scaffold.api` is set                          | Rewrites the generated file of [`scaffold api`](/docs/cli/scaffold), never yours |
 | `env`      | never; list it to run it                               | [`env`](/docs/cli/local#env): writes the local stack's keys to `env.output`      |
 
 The tasks run in that order, since later ones read what earlier ones write.
@@ -162,10 +162,10 @@ printf %s "$PROD_DB_URL" | better-supabase gen --check --db-url-stdin
 In order:
 
 1. `--snapshot`, `--db-url-stdin` or `--project-ref`;
-2. `source.snapshot` in the config, when none of those flags is passed;
-3. `source.dbUrl` or `source.projectRef` in the config;
+2. `database.source.snapshot` in the config, when none of those flags is passed;
+3. `database.source.dbUrl` or `database.source.projectRef` in the config;
 4. a [Supabase Lite](/docs/platform/lite) project's `[db] driver` in
-   `supabase/config.toml` (turn this off with `source.lite: false`);
+   `supabase/config.toml` (turn this off with `database.source.lite: false`);
 5. `$DATABASE_URL`;
 6. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase env`
    use;
@@ -184,7 +184,7 @@ driver takes native SQLite DDL, which `gen` can't read: switch to
 
 ### Hosted projects without a database password
 
-`source.projectRef` (or `--project-ref`) runs the introspection queries
+`database.source.projectRef` (or `--project-ref`) runs the introspection queries
 through the Management API's read-only SQL endpoint
 (`POST /v1/projects/{ref}/database/query/read-only`). You need a
 [personal access token](https://supabase.com/dashboard/account/tokens) in
@@ -200,7 +200,9 @@ token that lacks the permission answers "You do not have permission to
 perform this action".
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({ source: { projectRef: "abcdefghijklmnopqrst" } });
+export default defineConfig({
+  database: { source: { projectRef: "abcdefghijklmnopqrst" } },
+});
 ```
 
 ```bash
@@ -471,7 +473,7 @@ Components, a loader and a serializer for links. The file imports
 import { defineConfig, nuqs } from "better-supabase/config";
 
 export default defineConfig({
-  generators: [nuqs({ tables: ["tasks", "customers"], limit: 50 })],
+  gen: { generators: [nuqs({ tables: ["tasks", "customers"], limit: 50 })] },
 });
 ```
 
@@ -524,10 +526,14 @@ Standard Schema does: the [validation plugin](/docs/plugins/validation),
 import { defineConfig, standardSchema } from "better-supabase/config";
 
 export default defineConfig({
-  output: "src/lib/supabase/generated.ts",
-  generators: [
-    standardSchema({ json: { "customers.metadata": "./schemas.ts#metadata" } }),
-  ],
+  gen: {
+    output: "src/lib/supabase/generated.ts",
+    generators: [
+      standardSchema({
+        json: { "customers.metadata": "./schemas.ts#metadata" },
+      }),
+    ],
+  },
 });
 ```
 

@@ -27,19 +27,21 @@ Side effects: Writes files.
 | `--check`            |                                                        | Writes nothing; exits 1 when a file would change                        |
 | `--force`            |                                                        | Overwrites `lib/<name>.ts` and the routes, which are yours once written |
 
-Each option falls back to the same key under `scaffold.api` in the config
+Each option falls back to the same key under `tooling.scaffold.api` in the config
 (`framework`, `tables`, `name`, `basePath`) before its default. Without a
-`scaffold.api` entry, the command prints one for the flags you passed.
+`tooling.scaffold.api` entry, the command prints one for the flags you passed.
 
 ## From gen
 
-With `scaffold.api` set, [`gen`](/docs/cli/gen#tasks) runs scaffold as a
+With `tooling.scaffold.api` set, [`gen`](/docs/cli/gen#tasks) runs scaffold as a
 task after it writes the metadata, so a new table reaches the API without
 another command:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  scaffold: { api: { framework: "hono", tables: ["customers", "tags"] } },
+  tooling: {
+    scaffold: { api: { framework: "hono", tables: ["customers", "tags"] } },
+  },
 });
 ```
 
@@ -137,7 +139,7 @@ export const app = bsb.app().route("/", apiRoutes(bsb));
 The command prints what is left to do:
 
 - With Hono, mount the routes in `server.ts`.
-- When `specs.entry` is not the new `lib/api.ts`, set
+- When `api.specs.entry` is not the new `lib/api.ts`, set
   `specs: { entry: "src/lib/api.ts" }` in `better-supabase.config.ts`, so
   [`spec emit`](/docs/cli/spec) reads the model.
 - Describe the resources in `lib/api.ts`. A later `scaffold api` only
@@ -192,7 +194,7 @@ action converts each value to the type the [`codecs`](/docs/cli/config)
 generate and passes the tenant column itself.
 
 The command stops for a table it can't serve: one that isn't in
-`appTables`, one with `scope: "none"` (only the service role writes it),
+`tables`, one with `scope: "none"` (only the service role writes it),
 and one with a required column the form has no input for. It also needs
 Next.js; pass `--framework next` when `package.json` doesn't list it.
 

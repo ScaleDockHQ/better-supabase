@@ -72,7 +72,7 @@ await courses.enroll(course.id).orThrow();
 The block's entities are `course` (the `courses` table, its primary entity),
 `course_module`, `course_lesson` and `course_certificate`. Installing it
 registers `course` as a subject, searchable by title and summary when the
-search module is installed. Rename them with `blocks.courses.entities`, for
+search module is installed. Rename them with `blocks.courses.names`, for
 example `{ course: "training" }`; see [Typed blocks](/docs/blocks/typed-blocks).
 `courseInputSchema` and `courseLessonInputSchema` validate what `save` and
 `saveLesson` take.

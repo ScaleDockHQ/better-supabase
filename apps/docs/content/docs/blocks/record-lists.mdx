@@ -143,12 +143,12 @@ put it there, and its `title`, `url` and `at` when the record has them.
 ## Navigation and commands
 
 With record features on, `gen` writes two files next to the main module from
-`config.subjects`: `navigation.generated.ts` with one sidebar item per subject
+`config.records`: `navigation.generated.ts` with one sidebar item per subject
 that has a list route, and `commands.generated.ts` with one "Go to" command
 per item for a command palette. A subject's list route is its `url` without
 the trailing id placeholder (`/customers/{id}` lists at `/customers`); a
 subject whose list route still holds a placeholder gets no item. Each entry
-carries the permission key `subjects.<type>.permissions.read` names, so the
+carries the permission key `records.<type>.permissions.read` names, so the
 app can hide what the caller can't read:
 
 ```ts title="src/components/side-nav.tsx"

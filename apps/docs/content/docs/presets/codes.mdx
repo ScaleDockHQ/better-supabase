@@ -29,17 +29,17 @@ console.log(presetConfigSource(resolved));
 
 Every field has a default, so a preset sets only what differs.
 
-| Field          | Values                                                                                         | Default        | What it sets                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `framework`    | `next`, `vite`, `tanstack-start`, `expo`, `sveltekit`, `nuxt`, `hono`, `astro`, `react-router` | `next`         | the glue Create shows                                                                                                        |
-| `platforms`    | `web`, `native`, `both`                                                                        | `web`          | the glue Create shows; `native` needs `expo`                                                                                 |
-| `casing`       | `snake`, `camel`                                                                               | `snake`        | `casing`                                                                                                                     |
-| `idType`       | `uuid`, `text`, `bigint`, `integer`                                                            | `uuid`         | `blocks.access.idType`                                                                                                       |
-| `scope`        | `tenant`, `user`, `none`                                                                       | `tenant`       | `sql.scope`; under `user` or `none`, blocks that need tenants can't install, and the rest need neither `tenant` nor `access` |
-| `tenantName`   | `organization`, `workspace`, `team`                                                            | `organization` | `blocks.tenant.entities.organization`; a block whose tables or columns the name would take over can't install                |
-| `access`       | `roles`, `catalog`, `provider`, `custom`                                                       | `roles`        | `blocks.access.model`                                                                                                        |
-| `api`          | `none`, `api`                                                                                  | `none`         | `sql.api`                                                                                                                    |
-| `integrations` | `next`, `hono`, `orpc`, `edge`, `expo`, `mcp`, `client`, `react` (any number)                  | none           | `integrations`                                                                                                               |
+| Field          | Values                                                                                         | Default        | What it sets                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `framework`    | `next`, `vite`, `tanstack-start`, `expo`, `sveltekit`, `nuxt`, `hono`, `astro`, `react-router` | `next`         | the glue Create shows                                                                                                                 |
+| `platforms`    | `web`, `native`, `both`                                                                        | `web`          | the glue Create shows; `native` needs `expo`                                                                                          |
+| `casing`       | `snake`, `camel`                                                                               | `snake`        | `casing`                                                                                                                              |
+| `idType`       | `uuid`, `text`, `bigint`, `integer`                                                            | `uuid`         | `blocks.access.idType`                                                                                                                |
+| `scope`        | `tenant`, `user`, `none`                                                                       | `tenant`       | `database.sql.owner`; under `user` or `none`, blocks that need tenants can't install, and the rest need neither `tenant` nor `access` |
+| `tenantName`   | `organization`, `workspace`, `team`                                                            | `organization` | `blocks.tenant.names.organization`; a block whose tables or columns the name would take over can't install                            |
+| `access`       | `roles`, `catalog`, `provider`, `custom`                                                       | `roles`        | `blocks.access.model`                                                                                                                 |
+| `api`          | `none`, `api`                                                                                  | `none`         | `database.sql.api`                                                                                                                    |
+| `integrations` | `next`, `hono`, `orpc`, `edge`, `expo`, `mcp`, `client`, `react` (any number)                  | none           | `integrations`                                                                                                                        |
 
 ## Codes
 
@@ -104,7 +104,7 @@ the newest format this release reads; a code with a higher `version` fails
 with a message to update better-supabase instead of losing keys.
 
 `decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
-table that `appTables` wouldn't accept, a column type outside a plain SQL
+table that `tables` wouldn't accept, a column type outside a plain SQL
 type, a block with no table for extra columns, or a code that inflates past
 256 KB. `encodeDesign` throws a `DesignParseError` for an invalid design, and a
 `DesignTooLongError` (a `DesignParseError` with the code's `length`) when a valid
@@ -168,7 +168,7 @@ the key is missing. The codes are stable; the messages may change.
 | `invalid_name`        | a column or table name that isn't a lower snake identifier        |
 | `invalid_type`        | an extra column whose type isn't a SQL type                       |
 | `invalid_position`    | a canvas position that isn't two finite numbers                   |
-| `invalid_app_table`   | an app table that `appTables` rejects                             |
+| `invalid_app_table`   | an app table that `tables` rejects                                |
 | `invalid_code`        | a design code that is malformed, damaged or too long to read      |
 | `too_long`            | a valid design whose code is too long for a URL                   |
 | `invalid_file`        | a design file that isn't JSON or lacks its keys                   |

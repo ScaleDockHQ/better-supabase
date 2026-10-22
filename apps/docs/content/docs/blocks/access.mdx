@@ -262,7 +262,7 @@ creates the tables; in `adopt` mode you point it at yours:
 export default defineConfig({
   blocks: {
     tenant: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { memberships: "public.organization_members" },
       columns: {
         memberships: {
@@ -273,7 +273,7 @@ export default defineConfig({
       },
     },
     access: {
-      mode: "adopt",
+      ownership: "adopt",
       model: "catalog",
       tables: {
         roles: "public.roles",
@@ -310,7 +310,7 @@ never sees.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  authorization: authorizationProvider(),
+  auth: { authorization: authorizationProvider() },
   blocks: { organizations: {}, invitations: {}, access: {} },
 });
 ```
@@ -400,7 +400,7 @@ table, its key column and the column with the role name:
 ```ts title="better-supabase.config.ts"
 blocks: {
   tenant: {
-    mode: "adopt",
+    ownership: "adopt",
     tables: { memberships: "public.team_members" },
     columns: { memberships: { tenant: "team_id", role: "role_id" } },
     options: {
@@ -416,7 +416,7 @@ model looks up each name's permissions, and `can_assign` receives the name.
 The organizations and invitations modules accept a role name or id, store
 the id, and refuse a role the table doesn't have (`ORGANIZATION_ROLE_UNKNOWN`,
 `INVITATION_ROLE_UNKNOWN`). A managed memberships table stores names, so the
-option is for `mode: "adopt"` only.
+option is for `ownership: "adopt"` only.
 
 When the roles table also holds tenant custom roles, whose keys can repeat
 across tenants, add its tenant column as `tenant` (`roleThrough: { table,
@@ -698,7 +698,7 @@ opts in by mapping the column, so an existing table without it keeps working:
 ```ts
 blocks: {
   tenant: {
-    mode: "adopt",
+    ownership: "adopt",
     tables: { memberships: "public.organization_users" },
     columns: { memberships: { disabledAt: "disabled_at" } },
   },
@@ -718,7 +718,7 @@ from.
 
 | Source                   | Reads                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------- |
-| `'claim'`                | the `claims.tenant` claim, at the top level or in `app_metadata`                  |
+| `'claim'`                | the `auth.organization.claim` claim, at the top level or in `app_metadata`        |
 | `'resolver'` (default)   | the tenant the server resolved for the request, then the claim                    |
 | `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
 

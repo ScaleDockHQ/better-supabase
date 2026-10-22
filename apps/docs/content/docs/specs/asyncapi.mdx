@@ -115,9 +115,9 @@ server keeps its `name`, or is called `api`, `api2` and so on.
 ## Table change signals
 
 `events.tables` describes the change signals of the tables in
-`realtime.tables` (see [live queries](/docs/frontend/live-queries)): `true`,
+`database.realtime.tables` (see [live queries](/docs/frontend/live-queries)): `true`,
 the default, for all of them, or a list of app keys. A key that isn't in
-`realtime.tables` is an `asyncapi-table-unknown` error; `false` leaves the
+`database.realtime.tables` is an `asyncapi-table-unknown` error; `false` leaves the
 tables out.
 
 Each table gets the channel `table<Key>` with the address

@@ -30,7 +30,7 @@ With the [tenant plugin](/docs/plugins/tenant), tables broadcast on a
 per-tenant topic (`bsb:t:public.customers:<organization>`), and the policy only lets a
 user join the tenant in their `tenant_id` claim. A table without the tenant
 column fails to install, so a tenant table never broadcasts to everyone by
-mistake. List tables that are global on purpose in `realtime.global`; they
+mistake. List tables that are global on purpose in `database.realtime.global`; they
 use one topic that every signed-in user receives:
 
 ```ts title="better-supabase.config.ts"
@@ -38,7 +38,7 @@ realtime: { tables: ["customers", "plans"], global: ["plans"] },
 ```
 
 A table whose rows each belong to one user, such as notifications, can
-broadcast per user instead: map it to its user column in `realtime.users`.
+broadcast per user instead: map it to its user column in `database.realtime.users`.
 It uses the topic `bsb:t:public.notifications:u:<user id>`, which only that
 user receives, so a change to one user's rows doesn't make the rest of the
 tenant refetch. The React hooks pass the signed-in user; `liveQuery` and
@@ -64,7 +64,7 @@ function Customers() {
 ```
 
 `useLiveQuery` needs `<BetterSupabaseProvider queryClient={queryClient}>`.
-The tenant defaults to the `tenant_id` claim (`claims.tenant` in the config); pass `{ tenant }` to override it.
+The tenant defaults to the `tenant_id` claim (`auth.organization.claim` in the config); pass `{ tenant }` to override it.
 Changes are debounced (100 ms by default, `debounceMs`), so a bulk update
 causes one refetch. It returns the channel status.
 
@@ -155,13 +155,13 @@ tables had changed.
 
 ## Doctor
 
-- **BS305** flags a table in `realtime.tables` without the trigger.
+- **BS305** flags a table in `database.realtime.tables` without the trigger.
 - **BS306** flags tables in the `supabase_realtime` publication whose replica
   identity can't identify deleted rows.
 
 ## Limits
 
-A change to a table outside `realtime.tables` doesn't refresh the query;
+A change to a table outside `database.realtime.tables` doesn't refresh the query;
 `unwatched` lists those tables. A refetch costs one request per changed
 query, which suits dashboards and lists better than high-frequency streams.
 For cursors, presence or chat, use [Realtime topics](/docs/platform/realtime).

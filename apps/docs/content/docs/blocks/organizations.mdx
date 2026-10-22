@@ -269,11 +269,11 @@ SQL hooks run inside the functions for every caller:
 `switch_organization(organization)` checks the caller is a member and the organization
 is active, then follows `blocks.access.activeTenant`:
 
-| Source          | `switch_organization` writes                               | `refresh` |
-| --------------- | ---------------------------------------------------------- | --------- |
-| `claim`         | the claim (`claims.tenant`) into the user's `app_metadata` | `true`    |
-| `profileColumn` | the organization id into that column of the user's profile | `false`   |
-| `resolver`      | nothing: your resolver picks the tenant per request        | `false`   |
+| Source          | `switch_organization` writes                                         | `refresh` |
+| --------------- | -------------------------------------------------------------------- | --------- |
+| `claim`         | the claim (`auth.organization.claim`) into the user's `app_metadata` | `true`    |
+| `profileColumn` | the organization id into that column of the user's profile           | `false`   |
+| `resolver`      | nothing: your resolver picks the tenant per request                  | `false`   |
 
 When `refresh` is `true`, refresh the session so the next access token
 carries the new claim. If your access token hook builds the claim from
@@ -283,7 +283,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 `useOrganizations` from `better-supabase/blocks/organizations/react` lists
 the caller's organizations and the active one, read from the tenant claim
-(`claims.tenant`) of the provider's session. `switchTo(id)` calls
+(`auth.organization.claim`) of the provider's session. `switchTo(id)` calls
 `switch_organization`, refreshes the session when the result asks for it,
 and loads the list again; it returns a `Result` and keeps a failure in
 `error`. The same hook runs in React DOM and React Native.
@@ -459,7 +459,7 @@ key pass the permission check, and the role ceiling still applies, so the
 access model's `can_assign` must allow them the roles they change.
 
 `blocks.invitations.options` (`tokenStorage: "plain"` is migration-only: the
-config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
+config accepts it in `ownership: "adopt"` only, and doctor warns about it, BS314):
 
 | Option                  | Default    | What it does                                                 |
 | ----------------------- | ---------- | ------------------------------------------------------------ |
@@ -589,18 +589,18 @@ export default defineConfig({
   blocks: {
     access: { model: "catalog" },
     tenant: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },
     },
     organizations: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       options: { attributes: ["logo_url"] },
     },
     invitations: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { invitations: "public.organization_invitations" },
       columns: {
         invitations: {

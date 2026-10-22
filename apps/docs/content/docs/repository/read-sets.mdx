@@ -60,7 +60,7 @@ List the module in the config and add the `read-sets` SQL module:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  readSets: ["src/lib/read-sets.ts"],
+  gen: { readSets: ["src/lib/read-sets.ts"] },
   blocks: ["read-sets"],
 });
 ```

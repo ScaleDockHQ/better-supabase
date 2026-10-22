@@ -20,7 +20,7 @@ await machine
 
 `options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check, writes the history row and records `status.changed`, so a direct update or a board move into another status emits the event too, and an update that keeps the status emits nothing. The machine name is the `subjectType` of the history row and the events, so name a machine after its subject (`deal`, `task`) when watchers or comments use the same subject type.
 
-A machine without a `table` takes its table, id type and tenant column from [`config.subjects`](/docs/blocks/sql#subject-registry) under the same name, so a subject declared once needs only its status column and edges here. `idType` (without it, ids compare as text) makes the lookups compare the id in its own type, which keeps the primary key index in use.
+A machine without a `table` takes its table, id type and tenant column from [`config.records`](/docs/blocks/sql#subject-registry) under the same name, so a subject declared once needs only its status column and edges here. `idType` (without it, ids compare as text) makes the lookups compare the id in its own type, which keeps the primary key index in use.
 
 ```ts title="better-supabase.config.ts"
 subjects: {

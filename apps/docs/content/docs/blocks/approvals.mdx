@@ -31,7 +31,7 @@ await approvals.approve(request.id, "Looks right").orThrow();
 
 ## Configure policies
 
-`options.policies` maps a subject type, then an action, to its steps. The subject type comes from [`config.subjects`](/docs/blocks/sql#subject-registry), which decides who can read the subject.
+`options.policies` maps a subject type, then an action, to its steps. The subject type comes from [`config.records`](/docs/blocks/sql#subject-registry), which decides who can read the subject.
 
 ```ts title="better-supabase.config.ts"
 blocks: {

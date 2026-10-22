@@ -429,7 +429,7 @@ blocks: {
 
 The key is the `subject_type` your notifications store, and it may contain
 hyphens. `id` names the subject's id column when it isn't `id`. Without
-`options.subjects` the module reads `config.subjects`, so a registered type
+`options.subjects` the module reads `config.records`, so a registered type
 with `cascade: true` cleans up its notifications too. A list of registered
 type names (`subjects: ["expense"]`) limits it to those. The subject tables
 must exist before the module file, and the events table needs its
@@ -872,7 +872,7 @@ does (its `provider_event_id` must be unique):
 export default defineConfig({
   blocks: {
     notifications: {
-      mode: "adopt",
+      ownership: "adopt",
       schema: "public",
       idType: "uuid",
       tables: { subscriptions: null },

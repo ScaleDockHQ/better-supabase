@@ -253,7 +253,7 @@ that. Other columns you don't have map to `null`.
 export default defineConfig({
   blocks: {
     outbox: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { events: "public.domain_events" },
       idType: "uuid",
       columns: {
@@ -270,7 +270,7 @@ export default defineConfig({
 table, or map them to the same column when its ids are a `bigint` sequence.
 
 Options marked migration-only match an existing schema. The config accepts
-them in `mode: "adopt"` only, and doctor warns about them (BS314) until you
+them in `ownership: "adopt"` only, and doctor warns about them (BS314) until you
 remove them.
 
 | Option          | Default                    | Meaning                                                                    |

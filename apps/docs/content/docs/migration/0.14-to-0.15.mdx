@@ -1,0 +1,85 @@
+---
+title: From 0.14 to 0.15
+description: What to change when upgrading to better-supabase 0.15, where the config is grouped, the runtime instance is bsb and the SQL engine says block.
+---
+
+0.15 groups the config file, renames the runtime instance to `bsb` and moves
+the SQL engine's names from module to block. `better-supabase codemod 0.15`
+makes the changes below in your config and source files. Run it, review the
+diff, then run `better-supabase sql upgrade` and `better-supabase sql sync`
+and generate a migration.
+
+```sh
+npx better-supabase codemod 0.15
+```
+
+## The config is grouped
+
+`better-supabase.config.ts` groups its keys into `database`, `auth`, `gen`,
+`api` and `tooling`. `preset`, `blocks`, `plugins`, `records`, `tables` and
+`adapters` stay at the top level. A config that still uses a 0.14 key fails
+to load, and the message names the key's new place.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: { schemas: ["public"], sql: { owner: "tenant", api: "api" } },
+  auth: { organization: { claim: "tenant_id" } },
+  gen: { casing: "camel", output: "src/lib/supabase/generated.ts" },
+  tooling: { doctor: { strict: true } },
+  records: { customer: { table: "customers", title: "name" } },
+  tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
+  adapters: ["next"],
+  blocks: { tenant: { names: { organization: "workspace" } } },
+});
+```
+
+| Group      | Keys                                                                                                                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `database` | `source`, `schemas`, `sql`, `seed`, `expose`, `buckets`, `realtime`, `topics`, `vectorSearch`                                                                                                                               |
+| `auth`     | `organization`, `claims`, `authorization`, `entitlements`                                                                                                                                                                   |
+| `gen`      | `output`, `casing`, `postgrestVersion`, `generateFeatures`, `tables` (the generator overrides), `json`, `codecs`, `relations`, `sensitive`, `storagePaths`, `functions`, `generators`, `readSets`, `tasks`, `watchInterval` |
+| `api`      | `openapi`, `specs`                                                                                                                                                                                                          |
+| `tooling`  | `doctor`, `env`, `keys`, `skills`, `scaffold`                                                                                                                                                                               |
+
+Some keys take new names on the way:
+
+| 0.14                           | 0.15                       |
+| ------------------------------ | -------------------------- |
+| `subjects`                     | `records`                  |
+| `appTables`                    | `tables`                   |
+| `appTables.<name>.scope`       | `tables.<name>.owner`      |
+| `integrations`                 | `adapters`                 |
+| `tables` (generator overrides) | `gen.tables`               |
+| `sql.scope`                    | `database.sql.owner`       |
+| `claims.tenant`                | `auth.organization.claim`  |
+| `plugins.tenant.column`        | `auth.organization.column` |
+| `blocks.<name>.mode`           | `blocks.<name>.ownership`  |
+| `blocks.<name>.scope`          | `blocks.<name>.owner`      |
+| `blocks.<name>.entities`       | `blocks.<name>.names`      |
+| `blocks.<name>.hooks`          | `blocks.<name>.callbacks`  |
+
+Environment blocks (`$env`, `$ci` and the others) take the same groups. A
+`better-supabase.config.json` is regrouped the same way. Create designs keep
+`appTables` and `scope` in this release.
+
+`resolveConfig` returns the same resolved config as in 0.14, so code that
+reads `config.claims.tenant` or `config.appTables` from a resolved config
+keeps working. `flattenConfig` and `groupConfig` from `better-supabase/config`
+turn one shape into the other.
+
+## The runtime instance is bsb
+
+The instance `createBetterSupabase` returns is called `bsb` in the docs, the
+templates and the request contexts: `ctx.bsb`, `c.var.bsb`, `locals.bsb` and
+`context.bsb`. The codemod renames `bs` where a file creates, imports or
+destructures it. Database objects better-supabase installs use the `bsb_`
+prefix; `sql upgrade` renames the old `bs_` ones.
+
+## The SQL engine says block
+
+`SqlModule` is `BlockSql`, `ModuleDefinition` is `BlockSqlDefinition`, and
+the other `Module*` types from `better-supabase/sql` are `BlockSql*`.
+`SubjectRef` is `RecordRef`, `entityForm` is `recordForm`, `ShipmentCarrier`
+is `ShippingProvider` and `QueueBackend` is `QueueProvider`. Installed
+versions live in `better_supabase.blocks`; `sql upgrade` copies the rows of
+`better_supabase.modules` before the schema diff drops it.
