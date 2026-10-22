@@ -9,8 +9,8 @@ function booleanOf(where: string, value: unknown): boolean | undefined {
 }
 
 /**
- * `appTables.<t>.columns.<c>.encrypted` checked: the database stores
- * ciphertext, so it can't compare, index or reference the value.
+ * `tables.<t>.columns.<c>.encrypted` checked: the database stores ciphertext,
+ * so it can't compare, index or reference the value.
  */
 export function encryptedOf(
   where: string,
@@ -49,8 +49,8 @@ export function encryptedOf(
 }
 
 /**
- * `appTables.<t>.auditReads` checked: reads are audited where they are
- * decrypted, so the table needs an encrypted column.
+ * `tables.<t>.auditReads` checked: reads are audited where they are decrypted,
+ * so the table needs an encrypted column.
  */
 export function auditReadsOf(
   where: string,
@@ -64,7 +64,7 @@ export function auditReadsOf(
     !Object.values(columns).some((column) => column.encrypted === true)
   ) {
     throw new TypeError(
-      `${where}.auditReads: reads are audited through ${where.replace("appTables.", "")}_reveal, which needs an encrypted column; set encrypted on one`,
+      `${where}.auditReads: reads are audited through ${where.replace("tables.", "")}_reveal, which needs an encrypted column; set encrypted on one`,
     );
   }
 

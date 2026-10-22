@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import type { IntegrationName, SqlWorkflow } from "../config/index.ts";
 import type { Framework } from "./project/detect.ts";
 
-import { INTEGRATION_INFO } from "../config/index.ts";
+import { groupEntries, INTEGRATION_INFO } from "../config/index.ts";
 import { PROVIDER_COMMENT } from "../preset/index.ts";
 import { INTEGRATIONS } from "./names.ts";
 
@@ -207,6 +207,11 @@ export function baseFiles(
 ): TemplateFile[] {
   const sql = { ...(workflow === "pg-delta" ? {} : { workflow }), ...keys.sql };
 
+  const grouped = groupEntries({
+    ...(Object.keys(sql).length === 0 ? {} : { sql }),
+    ...(keys.blocks === undefined ? {} : { blocks: keys.blocks }),
+  });
+
   const config: TemplateFile = {
     path: "better-supabase.config.ts",
     contents: `import { defineConfig } from 'better-supabase/config';
@@ -216,22 +221,26 @@ export default defineConfig({${
         ? ""
         : `\n  // Expands into blocks and conventions; \`better-supabase preset info\` shows what it holds.\n  preset: '${preset}',`
     }
-  casing: '${casing}',
-  output: '${context.generated}',${
+  gen: { casing: '${casing}', output: '${context.generated}' },${
+    grouped["database"] === undefined
+      ? ""
+      : `\n  database: ${literal(grouped["database"])},`
+  }${
     integrations.length > 0
-      ? `\n  integrations: [${integrations.map((name) => `'${name}'`).join(", ")}],`
+      ? `\n  adapters: [${integrations.map((name) => `'${name}'`).join(", ")}],`
       : ""
-  }${Object.keys(sql).length === 0 ? "" : `\n  sql: ${literal(sql)},`}${
-    keys.provider === true ? `\n${PROVIDER_COMMENT.join("\n")}` : ""
-  }${keys.blocks === undefined ? "" : `\n  blocks: ${literal(keys.blocks)},`}
+  }${keys.provider === true ? `\n${PROVIDER_COMMENT.join("\n")}` : ""}${
+    grouped["blocks"] === undefined
+      ? ""
+      : `\n  blocks: ${literal(grouped["blocks"])},`
+  }
   // \`better-supabase gen\` runs every task this file sets up: types, then
-  // sql, spec, seed and scaffold when they are configured. Pin the list with:
-  // gen: { tasks: ['types', 'sql', 'spec'] },
-  // env: { output: '.env.local' },
+  // sql, spec, seed and scaffold when they are configured. Pin the list with
+  // \`tasks: ['types', 'sql', 'spec']\` in \`gen\`.
   ${
     keys.migrationSince === undefined
-      ? "// doctor: { format: 'sarif', output: 'doctor.sarif' },"
-      : `// Doctor checks the migrations after this one for statements that lock tables.\n  doctor: { migrationSafety: { since: ${quote(keys.migrationSince)} } },`
+      ? "// tooling: { env: { output: '.env.local' }, doctor: { format: 'sarif' } },"
+      : `// Doctor checks the migrations after this one for statements that lock tables.\n  tooling: { doctor: { migrationSafety: { since: ${quote(keys.migrationSince)} } } },`
   }
 });
 `,

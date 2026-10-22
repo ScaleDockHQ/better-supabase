@@ -1,5 +1,11 @@
 {
-  "source": { "snapshot": "../../supabase/snapshot.json" },
-  "casing": "camel",
-  "output": "src/runtime/generated.ts"
+  "database": {
+    "source": {
+      "snapshot": "../../supabase/snapshot.json"
+    }
+  },
+  "gen": {
+    "casing": "camel",
+    "output": "src/runtime/generated.ts"
+  }
 }

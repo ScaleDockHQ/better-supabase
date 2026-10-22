@@ -98,8 +98,8 @@ export interface SoftDeleteConfig {
 
 export interface TenantConfig {
   /**
-   * Defaults to `organization_id`, or
-   * `<blocks.tenant.entities.organization>_id` when the tenant is renamed.
+   * Defaults to `organization_id`, or `<blocks.tenant.names.organization>_id`
+   * when the tenant is renamed.
    */
   readonly column?: string;
 }
@@ -283,12 +283,12 @@ export interface GeneratorBlockEntity {
   readonly key: string;
   /** The block's own noun (`work_item`). */
   readonly from: GeneratorNoun;
-  /** The noun `blocks.<name>.entities` gives it (`task`). */
+  /** The noun `blocks.<name>.names` gives it (`task`). */
   readonly to: GeneratorNoun;
   readonly primary: boolean;
   /** The table that holds it, as the SQL names it; undefined when none. */
   readonly table: string | undefined;
-  /** `blocks.<name>.entities.<entity>.url`, with column placeholders. */
+  /** `blocks.<name>.names.<entity>.url`, with column placeholders. */
   readonly url: string | undefined;
   readonly schemas: GeneratorEntitySchemas;
 }

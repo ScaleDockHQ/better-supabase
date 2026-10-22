@@ -6,7 +6,7 @@ import { resolveConfig } from "../../../src/config/resolve.ts";
 function config(extra: Record<string, unknown> = {}) {
   return resolveConfig(
     {
-      subjects: {
+      records: {
         customer: { table: "customers" },
         project: {
           table: "projects",
@@ -110,7 +110,7 @@ describe("record features", () => {
 
     const bare = resolveConfig(
       {
-        subjects: { customer: { table: "customers" } },
+        records: { customer: { table: "customers" } },
         blocks: { tenant: {}, access: {} },
       },
       "/project",

@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     // Node 24 has no Temporal; Node 26 ignores the polyfill.
     setupFiles: ["./tests/setup/temporal.ts"],
+    // The contract runners in @chat-adapter/tests call describe at import time; loaded
+    // natively, they get a second vitest instance with no runner.
+    server: { deps: { inline: ["@chat-adapter/tests"] } },
     projects: [
       {
         extends: true,

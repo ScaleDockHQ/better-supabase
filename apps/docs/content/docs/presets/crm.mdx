@@ -35,10 +35,7 @@ import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
   preset: "crm",
-  blocks: {
-    deals: { entities: { deal: { url: "/deals/{id}" } } },
-    reminders: {},
-  },
+  blocks: { deals: { names: { deal: { url: "/deals/{id}" } } }, reminders: {} },
 });
 ```
 

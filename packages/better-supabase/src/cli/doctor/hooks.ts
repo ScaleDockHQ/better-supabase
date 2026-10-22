@@ -668,7 +668,7 @@ export const HOOK_RULES: readonly Rule[] = [
     code: "BS405",
     severity: "warning",
     title: "Custom access token hook shape",
-    description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back. It warns when the whole token's claims pass ${HOOK_CLAIMS_LIMIT} bytes (\`doctor.claimsLimit\` without a provider budget). When the authorization provider's hook has a \`budget\`, it also warns when the budget's claims pass its bytes (or \`doctor.claimsLimit\`), measured with \`octet_length\` of each claim.`,
+    description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back. It warns when the whole token's claims pass ${HOOK_CLAIMS_LIMIT} bytes (\`tooling.doctor.claimsLimit\` without a provider budget). When the authorization provider's hook has a \`budget\`, it also warns when the budget's claims pass its bytes (or \`tooling.doctor.claimsLimit\`), measured with \`octet_length\` of each claim.`,
     async check(context) {
       const findings: FindingInput[] = [];
       const limits = claimsLimits(context);
@@ -742,7 +742,7 @@ export const HOOK_RULES: readonly Rule[] = [
               size.budget > limits.budget.bytes
             ) {
               findings.push({
-                message: `${signatureOf(fn)} returns ${size.budget} bytes of ${limits.budget.claims.join(" and ")} for ${context.hookUser}, over the hook's budget of ${limits.budget.bytes}. Raise the provider's budget and \`doctor.claimsLimit\` together, or move claims out of the token.`,
+                message: `${signatureOf(fn)} returns ${size.budget} bytes of ${limits.budget.claims.join(" and ")} for ${context.hookUser}, over the hook's budget of ${limits.budget.bytes}. Raise the provider's budget and \`tooling.doctor.claimsLimit\` together, or move claims out of the token.`,
                 target: `${signatureOf(fn)}:budget`,
                 object,
               });

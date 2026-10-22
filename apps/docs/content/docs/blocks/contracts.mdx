@@ -33,7 +33,7 @@ and with `audit` every change is audited. Values are bigint minor units
 | `contract_obligations` | What a party owes under a contract: a title, a due date, an owner, and `open`, `done` or `waived`                                                       |
 
 Both tables are read through the functions; members with `contracts.read`
-read them. The counterparty is any type in `config.subjects` (ADR 0018), and
+read them. The counterparty is any type in `config.records` (ADR 0018), and
 it must belong to the contract's organization.
 
 ## Draft a contract

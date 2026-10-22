@@ -101,8 +101,8 @@ describe("providerBucketKeys", () => {
     const config = (model?: "provider") =>
       resolveConfig(
         {
-          authorization: stubProvider,
-          buckets,
+          auth: { authorization: stubProvider },
+          database: { buckets },
           ...(model ? { blocks: { access: { model } } } : {}),
         },
         "/project",
@@ -118,9 +118,9 @@ describe("providerBucketKeys", () => {
     expect(
       providerBucketKeys(config("provider")).map((entry) => entry.bucket),
     ).toEqual(["docs", "avatars"]);
-    expect(providerBucketKeys(resolveConfig({ buckets }, "/project"))).toEqual(
-      [],
-    );
+    expect(
+      providerBucketKeys(resolveConfig({ database: { buckets } }, "/project")),
+    ).toEqual([]);
   });
 });
 
@@ -130,11 +130,13 @@ describe("BS214", () => {
     scope?: string,
     provider: AuthorizationProvider = stubProvider,
   ) => ({
-    authorization: provider,
-    buckets: {
-      docs: {
-        path: "{organizationId}/{...rest}",
-        policy: { access, sql: SQL, ...(scope ? { scope } : {}) },
+    auth: { authorization: provider },
+    database: {
+      buckets: {
+        docs: {
+          path: "{organizationId}/{...rest}",
+          policy: { access, sql: SQL, ...(scope ? { scope } : {}) },
+        },
       },
     },
   });
@@ -153,11 +155,13 @@ describe("BS214", () => {
     const keys = { read: "documents.read", write: "documents.read" };
 
     const policy = (sql: NonNullable<AccessBucketPolicy["sql"]>) => ({
-      authorization: stubProvider,
-      buckets: {
-        docs: {
-          path: "{organizationId}/{...rest}",
-          policy: { access: keys, sql },
+      auth: { authorization: stubProvider },
+      database: {
+        buckets: {
+          docs: {
+            path: "{organizationId}/{...rest}",
+            policy: { access: keys, sql },
+          },
         },
       },
     });
@@ -263,7 +267,11 @@ describe("BS214", () => {
     ];
 
     expect(
-      await findings("BS214", { authorization: stubProvider }, { sqlFiles }),
+      await findings(
+        "BS214",
+        { auth: { authorization: stubProvider } },
+        { sqlFiles },
+      ),
     ).toEqual([
       {
         severity: "error",
@@ -291,13 +299,15 @@ describe("BS408", () => {
     expect(
       await findings("BS408", config(), { snapshot: withAuthz(ALL) }),
     ).toEqual([]);
-    expect(await findings("BS408", { authorization: stubProvider })).toEqual(
-      [],
-    );
+    expect(
+      await findings("BS408", { auth: { authorization: stubProvider } }),
+    ).toEqual([]);
     expect(
       await findings(
         "BS408",
-        config(stubProvider, { entitlements: { memberships: "tenant" } }),
+        config(stubProvider, {
+          auth: { entitlements: { memberships: "tenant" } },
+        }),
       ),
     ).toEqual([]);
   });
@@ -349,7 +359,9 @@ describe("BS408", () => {
         { snapshot },
       ),
     ).toMatchObject([
-      { message: expect.stringContaining('Set claims.features to "plan"') },
+      {
+        message: expect.stringContaining('Set auth.claims.features to "plan"'),
+      },
     ]);
     expect(
       await findings("BS408", config(hook([])), { snapshot }),
@@ -359,7 +371,7 @@ describe("BS408", () => {
     expect(
       await findings(
         "BS408",
-        config(hook([]), { entitlements: { claim: false } }),
+        config(hook([]), { auth: { entitlements: { claim: false } } }),
         { snapshot },
       ),
     ).toEqual([]);
@@ -468,8 +480,10 @@ describe("BS409", () => {
   it("passes when the claims match the provider", async () => {
     expect(
       await findings("BS409", {
-        authorization: stubProvider,
-        claims: { tenant: "tenant_id" },
+        auth: {
+          organization: { claim: "tenant_id" },
+          authorization: stubProvider,
+        },
       }),
     ).toEqual([]);
     expect(await findings("BS409", {})).toEqual([]);
@@ -478,11 +492,13 @@ describe("BS409", () => {
   it("reports the provider's problems, the tenant claim and claims.scope", async () => {
     expect(
       await findings("BS409", {
-        authorization: withProvider({
-          problems: ["the permission catalog is version 2"],
-          tokenHook: { ...stubProvider.tokenHook, tenantClaim: "org_id" },
-        }),
-        claims: { scope: "workspace" },
+        auth: {
+          authorization: withProvider({
+            problems: ["the permission catalog is version 2"],
+            tokenHook: { ...stubProvider.tokenHook, tenantClaim: "org_id" },
+          }),
+          claims: { scope: "workspace" },
+        },
       }),
     ).toEqual([
       {
@@ -495,7 +511,7 @@ describe("BS409", () => {
         severity: "warning",
         target: "claims.tenant",
         message: expect.stringContaining(
-          'writes the active tenant to "org_id", but claims.tenant is "tenant_id"',
+          'writes the active tenant to "org_id", but auth.organization.claim is "tenant_id"',
         ),
       },
       {
@@ -517,7 +533,7 @@ describe("BS409", () => {
 
     expect(
       await findings("BS409", {
-        authorization: provider,
+        auth: { authorization: provider },
         blocks: { access: { model: "roles" } },
       }),
     ).toEqual([
@@ -531,7 +547,7 @@ describe("BS409", () => {
     ]);
     expect(
       await findings("BS409", {
-        authorization: provider,
+        auth: { authorization: provider },
         blocks: { access: { model: "provider" } },
       }),
     ).toEqual([]);
@@ -553,7 +569,7 @@ describe("BS411", () => {
     expect(await findings("BS411", config(), { snapshot })).toEqual([]);
     expect(
       await findings("BS411", {
-        authorization: stubProvider,
+        auth: { authorization: stubProvider },
         blocks: { access: { model: "roles" } },
       }),
     ).toEqual([]);
@@ -726,7 +742,7 @@ describe("BS414", () => {
     const result = await findings(
       "BS414",
       {
-        authorization: stubProvider,
+        auth: { authorization: stubProvider },
         blocks: { tenant: {}, access: { model: "roles" } },
       },
       { snapshot: withContractPolicy() },
@@ -832,16 +848,19 @@ describe("BS415", () => {
       },
     };
 
-    const result = await findings("BS415", { authorization: provider });
+    const result = await findings("BS415", {
+      auth: { authorization: provider },
+    });
+
     expect(result).toEqual([
       expect.objectContaining({
         severity: "warning",
         target: "authorization.functions.canApprove",
       }),
     ]);
-    expect(await findings("BS415", { authorization: stubProvider })).toEqual(
-      [],
-    );
+    expect(
+      await findings("BS415", { auth: { authorization: stubProvider } }),
+    ).toEqual([]);
     expect(await findings("BS415", {})).toEqual([]);
   });
 });
@@ -864,11 +883,13 @@ describe("BS413", () => {
     ]);
     expect(
       await findings("BS413", {
-        authorization: {
-          ...stubProvider,
-          functions: {
-            ...stubProvider.functions,
-            actorMayWrite: "authz.actor_may_write()",
+        auth: {
+          authorization: {
+            ...stubProvider,
+            functions: {
+              ...stubProvider.functions,
+              actorMayWrite: "authz.actor_may_write()",
+            },
           },
         },
         blocks: config.blocks,
@@ -876,7 +897,7 @@ describe("BS413", () => {
     ).toEqual([]);
     expect(
       await findings("BS413", {
-        authorization: stubProvider,
+        auth: { authorization: stubProvider },
         blocks: { access: { model: "provider" } },
       }),
     ).toEqual([]);
@@ -899,7 +920,9 @@ describe("BS416", () => {
   };
 
   it("warns when isApprover never handles support-session", async () => {
-    expect(await findings("BS416", { authorization: aiOnly, blocks })).toEqual([
+    expect(
+      await findings("BS416", { auth: { authorization: aiOnly }, blocks }),
+    ).toEqual([
       expect.objectContaining({
         severity: "warning",
         target: "authorization.functions.isApprover",
@@ -917,9 +940,9 @@ describe("BS416", () => {
       },
     };
 
-    expect(await findings("BS416", { authorization: inline, blocks })).toEqual(
-      [],
-    );
+    expect(
+      await findings("BS416", { auth: { authorization: inline }, blocks }),
+    ).toEqual([]);
 
     const delegated: AuthorizationProvider = {
       ...stubProvider,
@@ -949,34 +972,37 @@ describe("BS416", () => {
     expect(
       await findings(
         "BS416",
-        { authorization: delegated, blocks },
+        { auth: { authorization: delegated }, blocks },
         { snapshot },
       ),
     ).toEqual([]);
     expect(
-      await findings("BS416", { authorization: delegated, blocks }),
+      await findings("BS416", { auth: { authorization: delegated }, blocks }),
     ).toHaveLength(1);
   });
 
   it("stays quiet without support sessions, isApprover, the provider model or approvals", async () => {
     expect(
       await findings("BS416", {
-        authorization: aiOnly,
+        auth: { authorization: aiOnly },
         blocks: { access: { model: "provider" } },
       }),
     ).toEqual([]);
     expect(
-      await findings("BS416", { authorization: stubProvider, blocks }),
+      await findings("BS416", {
+        auth: { authorization: stubProvider },
+        blocks,
+      }),
     ).toEqual([]);
     expect(
       await findings("BS416", {
-        authorization: aiOnly,
+        auth: { authorization: aiOnly },
         blocks: { access: { model: "roles" }, "support-sessions": {} },
       }),
     ).toEqual([]);
     expect(
       await findings("BS416", {
-        authorization: aiOnly,
+        auth: { authorization: aiOnly },
         blocks: {
           access: { model: "provider" },
           "support-sessions": { options: { approval: "none" } },
@@ -999,7 +1025,7 @@ describe("BS417", () => {
 
   it("warns when the provider declares teams without teamIdsOf", async () => {
     expect(
-      await findings("BS417", { authorization: withTeams, blocks }),
+      await findings("BS417", { auth: { authorization: withTeams }, blocks }),
     ).toEqual([
       expect.objectContaining({
         severity: "warning",
@@ -1012,28 +1038,33 @@ describe("BS417", () => {
   it("stays quiet with the template, without teams, team blocks or the provider model", async () => {
     expect(
       await findings("BS417", {
-        authorization: {
-          ...withTeams,
-          functions: {
-            ...withTeams.functions,
-            teamIdsOf: "authz.team_ids_of({user})",
+        auth: {
+          authorization: {
+            ...withTeams,
+            functions: {
+              ...withTeams.functions,
+              teamIdsOf: "authz.team_ids_of({user})",
+            },
           },
         },
         blocks,
       }),
     ).toEqual([]);
     expect(
-      await findings("BS417", { authorization: stubProvider, blocks }),
+      await findings("BS417", {
+        auth: { authorization: stubProvider },
+        blocks,
+      }),
     ).toEqual([]);
     expect(
       await findings("BS417", {
-        authorization: withTeams,
+        auth: { authorization: withTeams },
         blocks: { access: { model: "provider" } },
       }),
     ).toEqual([]);
     expect(
       await findings("BS417", {
-        authorization: withTeams,
+        auth: { authorization: withTeams },
         blocks: { access: { model: "roles" }, "saved-views": {} },
       }),
     ).toEqual([]);

@@ -172,7 +172,7 @@ function bindings(ctx: BlockSqlContext): readonly SlaBinding[] {
 
     if (subject?.tenant === undefined) {
       throw new TypeError(
-        `${where}: register "${type}" with a tenant column in config.subjects first`,
+        `${where}: register "${type}" with a tenant column in config.records first`,
       );
     }
 

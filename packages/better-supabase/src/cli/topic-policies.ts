@@ -28,7 +28,7 @@ function triggerStatement(
     if (error instanceof TypeError) {
       throw new CliError(
         "config_invalid",
-        `realtime.triggers[${String(index)}]: ${error.message}`,
+        `database.realtime.triggers[${String(index)}]: ${error.message}`,
       );
     }
 
@@ -48,7 +48,7 @@ export async function topicPolicyFile(
     if (triggers.length > 0) {
       throw new CliError(
         "config_invalid",
-        "realtime.triggers needs realtime.policies: the triggers go to its output, for topics its from files export",
+        "database.realtime.triggers needs database.realtime.policies: the triggers go to its output, for topics its from files export",
       );
     }
 
@@ -95,7 +95,7 @@ export async function topicPolicyFile(
 
   const triggerSql = triggers.map(
     ({ topic: template, table, topics: extra, ...options }, index) => {
-      const topic = topicFor(template, "realtime.triggers");
+      const topic = topicFor(template, "database.realtime.triggers");
 
       const resolved = {
         ...options,
@@ -105,7 +105,7 @@ export async function topicPolicyFile(
               topics: extra.map((each) => ({
                 topic: topicFor(
                   each.topic,
-                  `realtime.triggers[${String(index)}].topics`,
+                  `database.realtime.triggers[${String(index)}].topics`,
                 ),
                 ...(each.values === undefined ? {} : { values: each.values }),
               })),
@@ -120,7 +120,7 @@ export async function topicPolicyFile(
       ) {
         throw new CliError(
           "config_invalid",
-          `realtime.triggers: the trigger for ${template} on ${table} calls better_supabase.broadcast_topic(): add realtime-tables to blocks`,
+          `database.realtime.triggers: the trigger for ${template} on ${table} calls better_supabase.broadcast_topic(): add realtime-tables to blocks`,
         );
       }
 

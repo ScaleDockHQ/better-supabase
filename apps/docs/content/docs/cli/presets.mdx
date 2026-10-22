@@ -31,7 +31,7 @@ preset yet.
 | `conventions` | `preset`: a code with the preset's conventions and no blocks                                 |
 
 With a Create URL that holds a design (`&design=`), `apply` also merges the
-design into the config: each table in `appTables`, replacing a table of the
+design into the config: each table in `tables`, replacing a table of the
 same name and keeping the others, and each block's extra columns over the
 `options.extraColumns` it already has. Quote the URL. `--only conventions`
 leaves the design out. A design too large for a URL comes as a design file
@@ -61,7 +61,7 @@ Side effects: Writes files, reads the database with `--adopt`, calls the Supabas
 
 ### Breaking changes
 
-Before it writes a design, `apply` compares its tables with `appTables`.
+Before it writes a design, `apply` compares its tables with `tables`.
 Adding a table, an optional column, an index, a comment or a subject title
 is safe, and so is a looser rule or a new `onDelete`. These break rows
 already in the database or app code that reads them:
@@ -93,12 +93,12 @@ With `--allow-breaking`, `apply` prints the `alter table ... rename`
 statements to run in a migration before `sql sync`, so the rows move to the
 new name (`data.renames` under `--json`).
 
-A table in `appTables` that the design doesn't name is kept, and `apply`
-reports it (`data.kept`). Remove it from `appTables` yourself to drop it.
+A table in `tables` that the design doesn't name is kept, and `apply`
+reports it (`data.kept`). Remove it from `tables` yourself to drop it.
 `diffAppTables` and `diffDesigns` from `better-supabase/preset` return the
 same changes, and Create shows them on the Changes tab of Get code.
 [Doctor's BS228](/docs/cli/doctor#bs228) reports a column whose type or
-nullability in the database has drifted from `appTables`.
+nullability in the database has drifted from `tables`.
 
 ### Adopting existing tables
 

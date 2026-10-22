@@ -283,7 +283,7 @@ destination reports a repeated endpoint and message id as a duplicate.
 
 ## Adopting your own tables
 
-With `mode: "adopt"`, the module runs over an endpoint table your app
+With `ownership: "adopt"`, the module runs over an endpoint table your app
 already has. Map its table and columns, and map a column to `null` when the
 table lacks it:
 
@@ -291,7 +291,7 @@ table lacks it:
 export default defineConfig({
   blocks: {
     "webhooks-in": {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { endpoints: "public.integration_hooks" },
       columns: {
         endpoints: {
@@ -327,7 +327,7 @@ The webhook inbox adopts a table the same way, through
 
 ```ts title="better-supabase.config.ts"
 "webhook-inbox": {
-  mode: "adopt",
+  ownership: "adopt",
   tables: { messages: "public.inbound_events" },
   columns: {
     messages: { messageId: "external_id", tenant: "organization_id", checkpoint: null },

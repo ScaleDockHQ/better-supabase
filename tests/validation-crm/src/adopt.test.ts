@@ -37,8 +37,8 @@ describe("apply --adopt on the CRM schema", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        source: { snapshot: join(ROOT, "snapshot.json") },
-        casing: "camel",
+        database: { source: { snapshot: join(ROOT, "snapshot.json") } },
+        gen: { casing: "camel" },
         blocks: ["read-sets"],
       }),
     );
@@ -90,8 +90,8 @@ describe("apply --adopt on the CRM schema", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        source: { snapshot: join(ROOT, "snapshot.json") },
-        casing: "camel",
+        database: { source: { snapshot: join(ROOT, "snapshot.json") } },
+        gen: { casing: "camel" },
         blocks: ["read-sets"],
       }),
     );

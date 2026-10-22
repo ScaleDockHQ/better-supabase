@@ -16,7 +16,7 @@ better-supabase add messaging   # adds tenant, access and subjects as well
 
 The block's entities are `message` (the `messages` table) and `conversation`
 (the `conversations` table). Both register as subjects, so reactions, share
-links and search accept them. Rename them with `blocks.messaging.entities`;
+links and search accept them. Rename them with `blocks.messaging.names`;
 see [Typed blocks](/docs/blocks/typed-blocks). `messageInputSchema` and
 `messageChangeSchema` validate what `send` and `edit` take.
 
@@ -49,7 +49,7 @@ it:
 Members must hold `messages.read` in the tenant. Sending to a `tenant`
 channel joins the sender to it. A `subject` conversation opens only in the
 record's own tenant: when the record's type has a tenant column in
-`config.subjects` and the row belongs to another tenant, `open_conversation`
+`config.records` and the row belongs to another tenant, `open_conversation`
 fails with `MESSAGING_NOT_FOUND`, for the service role as well. A type with
 `tenant: false` has no tenant to compare.
 
@@ -132,7 +132,7 @@ Any other JSON anchor, such as a text range, is stored as it is.
 ## Record mentions
 
 `@[Name](subject:<type>/<id>)` mentions a record registered in
-[`config.subjects`](/docs/blocks/sql#subject-registry), such as a deal or a
+[`config.records`](/docs/blocks/sql#subject-registry), such as a deal or a
 customer, and renders as a chip. `recordMention(name, subject)` writes one,
 `mentionSegments(body)` splits a body into text, user, record and scope
 segments for rendering, and `parseMentions(body)` returns the mentioned

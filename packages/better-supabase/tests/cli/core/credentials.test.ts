@@ -16,10 +16,14 @@ describe("credentials", () => {
       from: "$SUPABASE_ACCESS_TOKEN",
     });
     expect(
-      accessToken(resolveConfig({ source: { accessToken: "sbp_cfg" } }, "/p"), {
-        SUPABASE_ACCESS_TOKEN: "sbp_env",
-      }),
-    ).toEqual({ value: "sbp_cfg", from: "source.accessToken" });
+      accessToken(
+        resolveConfig(
+          { database: { source: { accessToken: "sbp_cfg" } } },
+          "/p",
+        ),
+        { SUPABASE_ACCESS_TOKEN: "sbp_env" },
+      ),
+    ).toEqual({ value: "sbp_cfg", from: "database.source.accessToken" });
   });
 
   it("reads the connection string from stdin, the config, then each variable", () => {
@@ -35,10 +39,13 @@ describe("credentials", () => {
     expect(databaseUrlCredential(bare, env)?.from).toBe("$DATABASE_URL");
     expect(
       databaseUrlCredential(
-        resolveConfig({ source: { dbUrl: "postgres://config" } }, "/p"),
+        resolveConfig(
+          { database: { source: { dbUrl: "postgres://config" } } },
+          "/p",
+        ),
         env,
       )?.from,
-    ).toBe("source.dbUrl");
+    ).toBe("database.source.dbUrl");
     expect(databaseUrlCredential(bare, env, "postgres://stdin")).toEqual({
       value: "postgres://stdin",
       from: "--db-url-stdin",

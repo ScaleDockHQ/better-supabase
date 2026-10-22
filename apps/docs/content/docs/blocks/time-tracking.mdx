@@ -43,7 +43,7 @@ Every call acts in the block's `tenant`, an organization id or a function that r
 
 A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in minor units of its currency, so `money(12_000n, "EUR")` is 120 euros an hour. The client returns `CURRENCY_INVALID` before any database call for a code that isn't ISO 4217, and the table keeps `rate` and `rate_currency` set together (`TIME_RATE_INVALID`). The functions return `rate` as text, as every block amount is ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
 
-An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.subjects`](/docs/blocks/sql#subject-registry) or the module's `subjects` option. Entries stay when their record is deleted, so billed time keeps its history.
+An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.records`](/docs/blocks/sql#subject-registry) or the module's `subjects` option. Entries stay when their record is deleted, so billed time keeps its history.
 
 `list` returns the caller's entries, newest first. `from` and `to` select the entries that overlap that range, `subject` selects one record's time, and `userId` or `everyone: true` read other members' entries with `time_tracking.read`.
 
@@ -86,7 +86,7 @@ blocks: {
 | ---------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `timeZone` | `UTC`                                        | The IANA time zone weeks and days start in                                                                                        |
 | `policy`   | one step: holders of `time_tracking.approve` | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`, because the final approval is what locks the week |
-| `subjects` | `config.subjects`                            | The records time can be tracked on, and who can read them                                                                         |
+| `subjects` | `config.records`                             | The records time can be tracked on, and who can read them                                                                         |
 
 Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED` and `TIMESHEET_NOT_APPROVED`.
 

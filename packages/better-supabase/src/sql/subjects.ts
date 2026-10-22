@@ -123,7 +123,7 @@ function rawSubjects(
   if (Array.isArray(raw)) {
     if (raw.length === 0) {
       throw new TypeError(
-        `${where}: list at least one config.subjects type, or pass an object of subject type to { table, ... }`,
+        `${where}: list at least one config.records type, or pass an object of subject type to { table, ... }`,
       );
     }
 
@@ -131,7 +131,7 @@ function rawSubjects(
       raw.map((type: unknown) => {
         if (typeof type !== "string" || !Object.hasOwn(registry, type)) {
           throw new TypeError(
-            `${where}: "${String(type)}" is not a subject type in config.subjects. Types: ${Object.keys(registry).join(", ") || "none"}`,
+            `${where}: "${String(type)}" is not a subject type in config.records. Types: ${Object.keys(registry).join(", ") || "none"}`,
           );
         }
 
@@ -142,7 +142,7 @@ function rawSubjects(
 
   if (!isRecord(raw)) {
     throw new TypeError(
-      `${where}: pass a list of config.subjects types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
+      `${where}: pass a list of config.records types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
     );
   }
 
@@ -182,7 +182,7 @@ function withAlways(
 /**
  * `blocks.<module>.options.subjects`: subject type to `{ table, id?, tenant?,
  * permission?, cascade? }` plus the `extra` keys the module reads, falling back
- * to the app-wide `config.subjects` registry.
+ * to the app-wide `config.records` registry.
  */
 export function subjectsOption(
   ctx: BlockSqlContext,

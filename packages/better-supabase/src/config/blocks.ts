@@ -46,15 +46,15 @@ export interface EntityConfig<Columns extends string = string> {
    */
   // `string & {}` keeps a path without placeholders next to the templates.
   readonly url?: `${string}{${Columns}}${string}` | (string & {});
-  /** `false` keeps the entity out of `config.subjects`. */
+  /** `false` keeps the entity out of `config.records`. */
   readonly subject?: false;
 }
 
 /**
- * `blocks.<name>.entities`: entity to its new name, e.g. `{ work_item: "task"
- * }`, or the new name of the block's primary entity alone (`"task"`). The
- * module's tables, columns, functions, events, permission keys, hooks and
- * TypeScript names follow.
+ * `blocks.<name>.names`: entity to its new name, e.g. `{ work_item: "task" }`,
+ * or the new name of the block's primary entity alone (`"task"`). The module's
+ * tables, columns, functions, events, permission keys, hooks and TypeScript
+ * names follow.
  */
 export type EntitiesConfig<Names extends BlockSqlNameSet = AnyModuleNames> =
   | ([Names["primary"]] extends [never] ? never : string)
@@ -319,7 +319,7 @@ export function asBlocksConfig(blocks: AnyBlocksConfig): BlocksConfig {
 }
 
 /**
- * The tenant's new singular name (`blocks.tenant.entities.organization`), or
+ * The tenant's new singular name (`blocks.tenant.names.organization`), or
  * `undefined` while it is `organization`. `blocks` may be the config's list of
  * block names, which renames nothing.
  */

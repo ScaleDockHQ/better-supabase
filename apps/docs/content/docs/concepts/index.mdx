@@ -78,7 +78,9 @@ Generators turn the same metadata into validators and documents:
 ```ts
 import { defineConfig, jsonSchema, valibot, zod } from "better-supabase/config";
 
-export default defineConfig({ generators: [zod(), valibot(), jsonSchema()] });
+export default defineConfig({
+  gen: { generators: [zod(), valibot(), jsonSchema()] },
+});
 ```
 
 `zod()` writes `generated.zod.ts` with `customersRow`, `customersInsert`

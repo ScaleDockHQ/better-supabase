@@ -505,7 +505,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The entitlements module can't read the provider's memberships",
     description:
-      "With `entitlements.memberships: 'provider'` (the default with `authorization`), the `entitlements` SQL module reads memberships through the provider's `memberIds` template (in `has_entitlement`, as `authenticated`) and `memberIdsFor` (in `feature_claims`, which the provider's hook calls as `supabase_auth_admin`). Doctor warns when the provider can't back that mode (no tenant scope, an id type the module doesn't render, no `memberIds` or `memberIdsFor`), when its hook doesn't fill `claims.features` from `better_supabase.feature_claims` (unless `entitlements.claim` is `false`), when no membership table covers the tenant scope, and when a function those templates call is missing from `authorization.requires`, not executable by that role, or not in the database.",
+      "With `auth.entitlements.memberships: 'provider'` (the default with `authorization`), the `entitlements` SQL module reads memberships through the provider's `memberIds` template (in `has_entitlement`, as `authenticated`) and `memberIdsFor` (in `feature_claims`, which the provider's hook calls as `supabase_auth_admin`). Doctor warns when the provider can't back that mode (no tenant scope, an id type the module doesn't render, no `memberIds` or `memberIdsFor`), when its hook doesn't fill `auth.claims.features` from `better_supabase.feature_claims` (unless `auth.entitlements.claim` is `false`), when no membership table covers the tenant scope, and when a function those templates call is missing from `authorization.requires`, not executable by that role, or not in the database.",
     check: (context) => {
       if (!context.config.blockNames.includes("entitlements")) {
         return [];
@@ -538,10 +538,10 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
           findings.push({
             message: registered
-              ? `The hook of ${label} fills the "${registered.name}" claim from better_supabase.feature_claims, but claims.features is "${features}", so hasEntitlement() never finds the plan features. Set claims.features to "${registered.name}".`
+              ? `The hook of ${label} fills the "${registered.name}" claim from better_supabase.feature_claims, but auth.claims.features is "${features}", so hasEntitlement() never finds the plan features. Set auth.claims.features to "${registered.name}".`
               : featureClaim
                 ? `The hook of ${label} fills the "${features}" claim from ${featureClaim.function}, not better_supabase.feature_claims, so the claim doesn't carry the entitlements module's features. Point the provider's "${features}" claim at better_supabase.feature_claims.`
-                : `The hook of ${label} has no "${features}" claim, so it never writes the plan features hasEntitlement() reads. Have it fill "${features}" from better_supabase.feature_claims, or set \`entitlements.claim: false\` to keep the features out of the token and check them in SQL with has_entitlement.`,
+                : `The hook of ${label} has no "${features}" claim, so it never writes the plan features hasEntitlement() reads. Have it fill "${features}" from better_supabase.feature_claims, or set \`auth.entitlements.claim: false\` to keep the features out of the token and check them in SQL with has_entitlement.`,
             target: `claims.${features}`,
           });
         }
@@ -592,7 +592,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `claims.tenant` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.access.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.access.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -616,7 +616,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         tenantClaim !== context.config.claims.tenant
       ) {
         findings.push({
-          message: `The hook of ${label} writes the active tenant to "${tenantClaim}", but claims.tenant is "${context.config.claims.tenant}". Set claims.tenant to "${tenantClaim}", or change the provider's tenant claim.`,
+          message: `The hook of ${label} writes the active tenant to "${tenantClaim}", but auth.organization.claim is "${context.config.claims.tenant}". Set auth.organization.claim to "${tenantClaim}", or change the provider's tenant claim.`,
           target: "claims.tenant",
         });
       }
@@ -626,7 +626,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       if (scope !== "tenant" && scope !== provider.tenantScope) {
         findings.push({
           severity: "info",
-          message: `claims.scope is "${scope}", but the tenant scope of ${label} is "${provider.tenantScope}". The tenant module's membership claims then use another scope than the provider's. Set claims.scope to "${provider.tenantScope}" (or "tenant").`,
+          message: `auth.claims.scope is "${scope}", but the tenant scope of ${label} is "${provider.tenantScope}". The tenant module's membership claims then use another scope than the provider's. Set auth.claims.scope to "${provider.tenantScope}" (or "tenant").`,
           target: "claims.scope",
         });
       }

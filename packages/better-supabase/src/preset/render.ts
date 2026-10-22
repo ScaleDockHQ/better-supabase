@@ -2,6 +2,7 @@ import type { AppTablesConfig } from "../config/types/app-tables.ts";
 import type { PresetCatalog, PresetGlueItem } from "./catalog-types.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
+import { groupEntries } from "../config/groups.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { encodePreset } from "./code.ts";
 import { presetConfig } from "./config.ts";
@@ -11,7 +12,7 @@ const CREATE_URL = "https://app.bettersupabase.com/create";
 /** The comment a config with the provider access model gets above `blocks`. */
 export const PROVIDER_COMMENT: readonly string[] = [
   "  // The provider access model reads roles from your authorization",
-  "  // library: set `authorization` to its adapter.",
+  "  // library: set `auth.authorization` to its adapter.",
 ];
 
 const key = (name: string): string =>
@@ -39,7 +40,10 @@ function literal(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** The keys `configSource` writes: `presetConfig`, and `appTables` for a design. */
+/**
+ * The flat keys `configSource` writes, grouped: `presetConfig`, and `appTables`
+ * for a design.
+ */
 export type ConfigSourceKeys = ReturnType<typeof presetConfig> & {
   readonly appTables?: AppTablesConfig;
 };
@@ -67,16 +71,14 @@ export function configSource(
     "export default defineConfig({",
   ];
 
-  if (config.casing !== undefined) {
-    lines.push(`  casing: ${literal(config.casing)},`);
-  }
+  const grouped = groupEntries(config);
+  const blocks = grouped["blocks"];
+  const tables = grouped["tables"];
 
-  if (config.sql !== undefined) {
-    lines.push(`  sql: ${literal(config.sql)},`);
-  }
-
-  if (config.integrations !== undefined) {
-    lines.push(`  integrations: ${literal(config.integrations)},`);
+  for (const group of ["database", "gen", "adapters"]) {
+    if (grouped[group] !== undefined) {
+      lines.push(`  ${group}: ${literal(grouped[group])},`);
+    }
   }
 
   if (resolved.preset.access === "provider") {
@@ -84,7 +86,9 @@ export function configSource(
   }
 
   lines.push("  blocks: {");
-  const entries = Object.entries(config.blocks);
+
+  const entries: [string, unknown][] =
+    typeof blocks === "object" && blocks !== null ? Object.entries(blocks) : [];
 
   for (const block of resolved.blocks) {
     const entry = entries.find(([name]) => name === block.name)?.[1] ?? {};
@@ -94,10 +98,10 @@ export function configSource(
 
   lines.push("  },");
 
-  if (config.appTables !== undefined) {
-    lines.push("  appTables: {");
+  if (typeof tables === "object" && tables !== null) {
+    lines.push("  tables: {");
 
-    for (const [name, table] of Object.entries(config.appTables)) {
+    for (const [name, table] of Object.entries(tables)) {
       lines.push(`    ${key(name)}: ${literal(table)},`);
     }
 

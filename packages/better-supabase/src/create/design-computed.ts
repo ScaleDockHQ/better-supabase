@@ -5,7 +5,7 @@ export const ROLLUP_AGGREGATES = ["count", "sum", "min", "max", "avg"] as const;
 
 export type RollupAggregate = (typeof ROLLUP_AGGREGATES)[number];
 
-/** `appTables.<table>.rollups.<name>`; the shape of `AppRollupConfig`. */
+/** `tables.<table>.rollups.<name>`; the shape of `AppRollupConfig`. */
 export interface AppRollup {
   readonly table: string;
   readonly via: string;
@@ -14,7 +14,7 @@ export interface AppRollup {
   readonly where?: { readonly column: string; readonly equals: string };
 }
 
-/** `appTables.<table>.lookups.<name>`; the shape of `AppLookupConfig`. */
+/** `tables.<table>.lookups.<name>`; the shape of `AppLookupConfig`. */
 export interface AppLookup {
   readonly via: string;
   readonly column: string;

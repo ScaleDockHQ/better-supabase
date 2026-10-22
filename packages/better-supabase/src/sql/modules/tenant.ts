@@ -66,7 +66,7 @@ export function roleThrough(tenant: BlockSqlContext): RoleThrough | undefined {
 
   if (tenant.manages) {
     throw new TypeError(
-      `${where} describes an adopted memberships table; the managed one stores role names. Set blocks.tenant.mode to "adopt".`,
+      `${where} describes an adopted memberships table; the managed one stores role names. Set blocks.tenant.ownership to "adopt".`,
     );
   }
 
@@ -628,7 +628,7 @@ export const TENANT: BlockSqlDefinition = {
     {
       kind: "claim",
       symbol: "org_id",
-      use: "the claims.tenant claim (tenant_id)",
+      use: "the auth.organization.claim claim (tenant_id)",
       since: "0.2.0",
       removed: "0.2.0",
     },

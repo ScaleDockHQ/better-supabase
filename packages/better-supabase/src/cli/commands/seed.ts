@@ -36,19 +36,19 @@ const ARGS = {
   },
   entry: {
     type: "string",
-    description: "Defaults to seed.entry (supabase/seed.ts)",
+    description: "Defaults to database.seed.entry (supabase/seed.ts)",
     valueHint: "file",
   },
   out: {
     type: "string",
     description:
-      "Defaults to seed.output (supabase/seeds/000_better_supabase.sql)",
+      "Defaults to database.seed.output (supabase/seeds/000_better_supabase.sql)",
     valueHint: "file",
   },
   tenant: {
     type: "string",
     description:
-      "Insert seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization",
+      "Insert database.seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization",
     valueHint: "slug",
   },
 } as const;

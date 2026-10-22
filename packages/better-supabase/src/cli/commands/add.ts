@@ -71,7 +71,7 @@ const ADD_ARGS = {
   "tests-dir": {
     type: "string",
     description:
-      "With blocks: where the pgtap module goes. Defaults to sql.testsDir",
+      "With blocks: where the pgtap module goes. Defaults to database.sql.testsDir",
     valueHint: "dir",
   },
 } as const;
@@ -353,7 +353,7 @@ async function addIntegrations(
     lines.push(
       "",
       "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
-      `  integrations: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
+      `  adapters: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
     );
   }
 

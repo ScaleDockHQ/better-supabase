@@ -12,7 +12,7 @@ function defaultNames(module: BlockSql): readonly string[] {
 }
 
 /**
- * The names `module` already uses that `blocks.tenant.entities.organization:
+ * The names `module` already uses that `blocks.tenant.names.organization:
  * tenant` would also give a renamed table or column, such as `team_id` and
  * `teams` for `team`. Such a module can't run under that tenant name: its
  * tables would collide, and the clients couldn't tell the two apart in a

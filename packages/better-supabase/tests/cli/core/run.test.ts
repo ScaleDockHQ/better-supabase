@@ -488,11 +488,11 @@ describe("run", () => {
   it("watches: retries a failed regeneration without a schema change, reporting the error once", async () => {
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      `export default { generators: [{ name: "flaky", generate() {
+      `export default { gen: { generators: [{ name: "flaky", generate() {
   globalThis.flakyGeneratorRuns = (globalThis.flakyGeneratorRuns ?? 0) + 1;
   if (globalThis.flakyGeneratorRuns < 3) throw new Error("flaky failed");
   return [];
-} }] };\n`,
+} }] } };\n`,
     );
     const controller = new AbortController();
 
@@ -542,7 +542,7 @@ describe("run", () => {
     const configPath = join(dir, "better-supabase.config.mjs");
     await writeFile(
       configPath,
-      `export default { output: "a/generated.ts" };\n`,
+      `export default { gen: { output: "a/generated.ts" } };\n`,
     );
     const controller = new AbortController();
     vi.stubGlobal(
@@ -581,7 +581,7 @@ describe("run", () => {
 
             writeFileSync(
               configPath,
-              `export default { output: "b/generated.ts" };\n`,
+              `export default { gen: { output: "b/generated.ts" } };\n`,
             );
             const later = new Date(Date.now() + 5000);
             utimesSync(configPath, later, later);
@@ -690,14 +690,14 @@ describe("run", () => {
 
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ casing: "pascal" }),
+      JSON.stringify({ gen: { casing: "pascal" } }),
     );
     const config = await run(["sql", "list", "--cwd", dir, "--json"]);
     expect(config.code).toBe(2);
     expect(JSON.parse(config.stdout)).toMatchObject({
       error: {
         code: "config_invalid",
-        issues: [expect.stringMatching(/^casing: /)],
+        issues: [expect.stringMatching(/^gen\.casing: /)],
       },
     });
   });
@@ -706,11 +706,13 @@ describe("run", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        expose: {
-          profiles: {
-            authenticated: ["select", "update(username, first_name)"],
+        database: {
+          expose: {
+            profiles: {
+              authenticated: ["select", "update(username, first_name)"],
+            },
+            notes: ["select", "insert(body)"],
           },
-          notes: ["select", "insert(body)"],
         },
         blocks: ["grants"],
       }),

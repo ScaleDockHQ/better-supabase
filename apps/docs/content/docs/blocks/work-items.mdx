@@ -28,7 +28,7 @@ Installing the block registers work items as the `work_item` subject, ranked by 
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: { "work-items": { entities: { work_item: { url: "/tasks/{id}" } } } },
+  blocks: { "work-items": { names: { work_item: { url: "/tasks/{id}" } } } },
 });
 ```
 

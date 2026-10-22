@@ -33,7 +33,7 @@ The tenant comes from `context.tenant`, then the JWT claim, or from your own
 `resolve(context)`. `claim` takes one or more dotted paths and defaults to
 `['tenant_id', 'app_metadata.tenant_id']`: a top-level claim from a custom
 access token hook, or `app_metadata` set through the
-Auth admin API. Set `claims.tenant` in the config to rename the claim for the
+Auth admin API. Set `auth.organization.claim` in the config to rename the claim for the
 plugin, `current_tenant_id()`, and the storage and realtime policies together.
 `user_metadata` is never a source, because users can write it. Server adapters
 fill the context from the verified JWT.

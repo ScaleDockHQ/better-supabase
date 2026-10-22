@@ -168,7 +168,7 @@ export interface WebhooksOptions extends BlockTemporalOptions {
    * delivery of the event. Each delivery is checked against its own stored
    * `subject`. Defaults to `authorization.delivery.subscribers`; with
    * `authorization` but no such policy, to `subjectReaders(transport)`, so an
-   * event about a `config.subjects` record only reaches endpoints whose owner
+   * event about a `config.records` record only reaches endpoints whose owner
    * (or service principal) may read that record.
    */
   readonly subscribers?: SubscriberPolicy;

@@ -60,7 +60,7 @@ export interface SqlConfig {
    */
   readonly api?: string;
   /**
-   * Who a block's rows belong to, unless `blocks.<name>.scope` sets its own:
+   * Who a block's rows belong to, unless `blocks.<name>.owner` sets its own:
    * `tenant` (a tenant, checked through the access contract; the default),
    * `user` (the signed-in user, with no tenants) or `none` (one shared space
    * every signed-in user reads and writes).

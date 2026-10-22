@@ -43,7 +43,9 @@ describe("resolveConfig appTables", () => {
       },
     } as const;
 
-    expect(resolveConfig({ appTables }, "/app").appTables).toEqual(appTables);
+    expect(resolveConfig({ tables: appTables }, "/app").appTables).toEqual(
+      appTables,
+    );
   });
 });
 
@@ -60,7 +62,7 @@ describe("appTablesOf", () => {
   it("refuses a table name that isn't lower snake", () => {
     fails(
       { Projects: {} },
-      'appTables.Projects: "Projects" is not a table name. Use lower-case',
+      'tables.Projects: "Projects" is not a table name. Use lower-case',
     );
     fails({ pg_things: {} }, "reserved by Postgres");
     fails({ [`t${"a".repeat(58)}`]: {} }, "Use at most 58 characters");
@@ -86,7 +88,7 @@ describe("appTablesOf", () => {
           },
         },
       },
-      "appTables.a.columns.stage.default: The default must be one of the options",
+      "tables.a.columns.stage.default: The default must be one of the options",
     );
     fails(
       { a: { columns: { score: { type: "integer", max: 5, default: "9" } } } },
@@ -109,10 +111,10 @@ describe("appTablesOf", () => {
   });
 
   it("refuses unknown keys", () => {
-    fails({ a: { rls: true } }, 'appTables.a: unknown key "rls"');
+    fails({ a: { rls: true } }, 'tables.a: unknown key "rls"');
     fails(
       { a: { columns: { b: { type: "text", check: "x" } } } },
-      'appTables.a.columns.b: unknown key "check"',
+      'tables.a.columns.b: unknown key "check"',
     );
   });
 
@@ -120,7 +122,7 @@ describe("appTablesOf", () => {
     for (const name of ["id", "created_at", "updated_at", "user_id"]) {
       fails(
         { a: { columns: { [name]: { type: "text" } } } },
-        `appTables.a.columns.${name}: "${name}" is a column every app table gets`,
+        `tables.a.columns.${name}: "${name}" is a column every app table gets`,
       );
     }
 
@@ -144,7 +146,7 @@ describe("appTablesOf", () => {
   it("refuses a type outside the list and points money at minor units", () => {
     fails(
       { a: { columns: { b: { type: "varchar" } } } },
-      "appTables.a.columns.b.type must be one of text, uuid",
+      "tables.a.columns.b.type must be one of text, uuid",
     );
     fails(
       { a: { columns: { price: { type: "money" } } } },
@@ -157,7 +159,7 @@ describe("appTablesOf", () => {
       {
         a: { columns: { b: { type: "text", default: "now(); drop table x" } } },
       },
-      "appTables.a.columns.b.default",
+      "tables.a.columns.b.default",
     );
     fails(
       { a: { columns: { b: { type: "integer", default: "now()" } } } },
@@ -168,7 +170,7 @@ describe("appTablesOf", () => {
   it("refuses a scope outside the list", () => {
     fails(
       { a: { scope: "tenant" } },
-      "appTables.a.scope must be inherit, user or none",
+      "tables.a.owner must be inherit, user or none",
     );
   });
 
@@ -179,7 +181,7 @@ describe("appTablesOf", () => {
           columns: { b: { type: "uuid", references: { table: "missing" } } },
         },
       },
-      'appTables.a.columns.b.references.table: "missing" is neither an app table',
+      'tables.a.columns.b.references.table: "missing" is neither an app table',
     );
     fails(
       {
@@ -227,10 +229,10 @@ describe("appTablesOf", () => {
       column({ type: "uuid", references: value });
 
     fails([], "appTables must be an object keyed by table name");
-    fails({ a: "table" }, "appTables.a must be an object");
-    fails({ a: { columns: [] } }, "appTables.a.columns must be an object");
-    fails({ a: { columns: { B: { type: "text" } } } }, "appTables.a.columns.B");
-    fails(column("text"), "appTables.a.columns.b must be an object");
+    fails({ a: "table" }, "tables.a must be an object");
+    fails({ a: { columns: [] } }, "tables.a.columns must be an object");
+    fails({ a: { columns: { B: { type: "text" } } } }, "tables.a.columns.B");
+    fails(column("text"), "tables.a.columns.b must be an object");
     fails(column({ type: "text", unique: "yes" }), "must be true or false");
     fails(reference("auth.users"), "references must be an object");
     fails(reference({ table: 1 }), "references.table must be a string");
@@ -358,20 +360,17 @@ describe("appTablesOf formats and keys", () => {
   });
 
   it("refuses bad table keys", () => {
-    fails({ a: { id: "text" } }, "appTables.a.id must be uuid or bigint");
+    fails({ a: { id: "text" } }, "tables.a.id must be uuid or bigint");
     fails(
       { a: { unique: [[]] } },
-      "appTables.a.unique[0] must list 1 to 32 column names",
+      "tables.a.unique[0] must list 1 to 32 column names",
     );
     fails(
       { a: { indexes: [["a", "a"]] } },
-      "appTables.a.indexes[0] names a column twice",
+      "tables.a.indexes[0] names a column twice",
     );
     fails({ a: { indexes: [["A"]] } }, '"A" is not a column name');
-    fails(
-      { a: { comment: "" } },
-      "appTables.a.comment must be text of 1 to 1000",
-    );
+    fails({ a: { comment: "" } }, "tables.a.comment must be text of 1 to 1000");
   });
 });
 
@@ -447,7 +446,7 @@ describe("appTablesOf rollups and lookups", () => {
       tables({
         rollups: { n: { table: "nope", via: "x", aggregate: "count" } },
       }),
-      "appTables.projects.rollups.n.table must name an app table (projects, tasks)",
+      "tables.projects.rollups.n.table must name an app table (projects, tasks)",
     );
     fails(
       tables({
@@ -554,7 +553,7 @@ describe("appTablesOf rollups and lookups", () => {
           name: { table: "tasks", via: "project_id", aggregate: "count" },
         },
       }),
-      'appTables.projects.rollups.name: "name" is already a column of projects',
+      'tables.projects.rollups.name: "name" is already a column of projects',
     );
     fails(
       tables(
@@ -601,9 +600,9 @@ describe("isAppDefault", () => {
   it("merges a table's subject into subjects", () => {
     const config = resolveConfig(
       {
-        blocks: { tenant: { entities: { organization: "workspace" } } },
-        subjects: { customer: { table: "public.customers" } },
-        appTables: {
+        blocks: { tenant: { names: { organization: "workspace" } } },
+        records: { customer: { table: "public.customers" } },
+        tables: {
           projects: {
             id: "bigint",
             columns: {
@@ -620,7 +619,7 @@ describe("isAppDefault", () => {
               softDelete: true,
             },
           },
-          notes: { scope: "user", subject: { type: "note", rank: true } },
+          notes: { owner: "user", subject: { type: "note", rank: true } },
         },
       },
       "/app",
@@ -652,12 +651,12 @@ describe("isAppDefault", () => {
     expect(() =>
       resolveConfig(
         {
-          subjects: { project: { table: "public.other" } },
-          appTables: { projects: { subject: { type: "project" } } },
+          records: { project: { table: "public.other" } },
+          tables: { projects: { subject: { type: "project" } } },
         },
         "/app",
       ),
-    ).toThrow(/appTables.projects.subject.type: "project" is already/u);
+    ).toThrow(/tables.projects.subject.type: "project" is already/u);
     expect(() =>
       appTablesOf({
         projects: { subject: { type: "project", title: "name" } },
@@ -675,7 +674,7 @@ describe("isAppDefault", () => {
           subject: { type: "project", rank: true },
         },
       }),
-    ).toThrow(/"rank" is the column appTables.projects.subject adds/u);
+    ).toThrow(/"rank" is the column tables.projects.subject adds/u);
     expect(() =>
       appTablesOf({ projects: { subject: { type: "Project" } } }),
     ).toThrow(/subject.type must be lowercase/u);
@@ -699,14 +698,14 @@ describe("appTablesOf events", () => {
 
   it("names the key of a bad events setting", () => {
     expect(() => appTablesOf({ tasks: { events: false } })).toThrow(
-      "appTables.tasks.events must be true or { on, include }",
+      "tables.tasks.events must be true or { on, include }",
     );
     expect(() => appTablesOf({ tasks: { events: { on: ["moved"] } } })).toThrow(
-      "appTables.tasks.events.on must list one or more of created, updated, deleted",
+      "tables.tasks.events.on must list one or more of created, updated, deleted",
     );
     expect(() =>
       appTablesOf({ tasks: { events: { include: ["missing"] } } }),
-    ).toThrow(/appTables.tasks.events.include\[0\] must name a column/u);
+    ).toThrow(/tables.tasks.events.include\[0\] must name a column/u);
   });
 });
 
@@ -745,14 +744,14 @@ describe("appTablesOf subject versions", () => {
         },
       }),
     ).toThrow(
-      /appTables.projects.subject.versions.columns\[0\] must name a column/u,
+      /tables.projects.subject.versions.columns\[0\] must name a column/u,
     );
     expect(() =>
       appTablesOf({
         projects: { subject: { type: "project", versions: "all" } },
       }),
     ).toThrow(
-      "appTables.projects.subject.versions must be true or { columns, auto }",
+      "tables.projects.subject.versions must be true or { columns, auto }",
     );
   });
 });

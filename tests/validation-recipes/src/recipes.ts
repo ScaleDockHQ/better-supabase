@@ -38,7 +38,7 @@ export const crm: Recipe = {
   config: defineConfig({
     preset: "crm",
     blocks: {
-      deals: { entities: { deal: { url: "/deals/{id}" } } },
+      deals: { names: { deal: { url: "/deals/{id}" } } },
       reminders: {},
     },
   }),
@@ -60,7 +60,7 @@ create index on recipe_pm.tasks (organization_id, status, rank);
 ${readable("recipe_pm.tasks")}`,
   config: defineConfig({
     preset: "projects",
-    subjects: {
+    records: {
       task: {
         table: "recipe_pm.tasks",
         idType: "uuid",
@@ -107,7 +107,7 @@ create table recipe_drive.documents (
 ${readable("recipe_drive.documents")}`,
   config: defineConfig({
     preset: "saas",
-    subjects: {
+    records: {
       document: {
         table: "recipe_drive.documents",
         idType: "uuid",
@@ -141,7 +141,7 @@ create table recipe_scheduling.bookings (
 ${readable("recipe_scheduling.bookings")}`,
   config: defineConfig({
     preset: "scheduling",
-    subjects: {
+    records: {
       booking: {
         table: "recipe_scheduling.bookings",
         idType: "uuid",
@@ -250,7 +250,7 @@ $$;
 revoke execute on function public.before_promotion_activate(uuid) from public, anon, authenticated;`,
   config: defineConfig({
     preset: "commerce",
-    subjects: {
+    records: {
       order: {
         table: "better_supabase.orders",
         idType: "uuid",
@@ -265,7 +265,7 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
       },
     },
     blocks: {
-      catalog: { entities: { product: { url: "/admin/products/{id}" } } },
+      catalog: { names: { product: { url: "/admin/products/{id}" } } },
       imports: {},
       "number-sequences": {
         options: {

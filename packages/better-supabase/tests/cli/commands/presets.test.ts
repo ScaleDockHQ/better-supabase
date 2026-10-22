@@ -105,8 +105,8 @@ describe("preset info", () => {
     const config = resolveConfig(
       {
         preset: "minimal",
-        casing: "camel",
-        blocks: { tags: {}, profiles: { mode: "custom" } },
+        gen: { casing: "camel" },
+        blocks: { tags: {}, profiles: { ownership: "custom" } },
       },
       dir,
     );
@@ -236,7 +236,7 @@ describe("apply", () => {
   it("takes only the conventions with --only conventions", async () => {
     await files({
       "better-supabase.config.ts":
-        "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  casing: 'snake',\n});\n",
+        "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  gen: { casing: 'snake' },\n});\n",
     });
     const preset = { ...namedPreset("saas"), casing: "camel" as const };
 
@@ -246,7 +246,8 @@ describe("apply", () => {
       {
         configFile: join(dir, "better-supabase.config.ts"),
         now,
-        reload: () => Promise.resolve(resolveConfig({ casing: "camel" }, dir)),
+        reload: () =>
+          Promise.resolve(resolveConfig({ gen: { casing: "camel" } }, dir)),
       },
     );
 
@@ -254,7 +255,7 @@ describe("apply", () => {
     const code = encodePreset({ ...preset, blocks: [] });
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
-    ).toContain(`  casing: 'snake',\n  preset: '${code}',\n`);
+    ).toContain(`  gen: { casing: 'snake' },\n  preset: '${code}',\n`);
   });
 
   it("overrides the preset's conventions with the convention flags", async () => {
@@ -384,8 +385,8 @@ describe("apply with a design", () => {
     await files({
       "better-supabase.config.json": json({
         blocks: { profiles: { options: { extraColumns: { bio: "text" } } } },
-        appTables: {
-          links: { scope: "user", columns: { url: { type: "text" } } },
+        tables: {
+          links: { owner: "user", columns: { url: { type: "text" } } },
         },
       }),
     });
@@ -410,9 +411,9 @@ describe("apply with a design", () => {
           options: { extraColumns: { bio: "text", nickname: "text" } },
         },
       },
-      appTables: {
-        links: { scope: "user", columns: { url: { type: "text" } } },
-        notes: { scope: "user", columns: { body: { type: "text" } } },
+      tables: {
+        links: { owner: "user", columns: { url: { type: "text" } } },
+        notes: { owner: "user", columns: { body: { type: "text" } } },
       },
       preset: encodePreset(namedPreset("minimal")),
     });
@@ -424,7 +425,7 @@ describe("apply with a design", () => {
   it("writes the design into a TypeScript config", async () => {
     await files({
       "better-supabase.config.ts":
-        "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  casing: 'snake',\n});\n",
+        "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  gen: { casing: 'snake' },\n});\n",
     });
 
     const result = await runApply(
@@ -434,7 +435,7 @@ describe("apply with a design", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(result.output).toContain("+  appTables: {");
+    expect(result.output).toContain("+  tables: {");
     expect(result.output).toContain("+    notes: {");
     expect(result.output).toContain("+          nickname: 'text',");
   });
@@ -470,9 +471,9 @@ describe("apply with a design", () => {
 
   it("needs --allow-breaking to retype or drop a column of an app table", async () => {
     const before = json({
-      appTables: {
+      tables: {
         notes: {
-          scope: "user",
+          owner: "user",
           columns: { body: { type: "jsonb" }, pinned: { type: "boolean" } },
         },
       },
@@ -521,17 +522,15 @@ describe("apply with a design", () => {
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toMatchObject({
-      appTables: {
-        notes: { scope: "user", columns: { body: { type: "text" } } },
-      },
+      tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
     });
   });
 
   it("refuses a rename without --allow-breaking and prints its statements with it", async () => {
     const before = json({
-      appTables: {
-        memos: { scope: "user", columns: { body: { type: "text" } } },
-        links: { scope: "user", columns: { url: { type: "text" } } },
+      tables: {
+        memos: { owner: "user", columns: { body: { type: "text" } } },
+        links: { owner: "user", columns: { url: { type: "text" } } },
       },
     });
 
@@ -571,8 +570,8 @@ describe("apply with a design", () => {
   it("prints the statement for a renamed column", async () => {
     await files({
       "better-supabase.config.json": json({
-        appTables: {
-          notes: { scope: "user", columns: { text: { type: "text" } } },
+        tables: {
+          notes: { owner: "user", columns: { text: { type: "text" } } },
         },
       }),
     });
@@ -614,7 +613,7 @@ describe("apply with a design", () => {
     expect(result.code).toBe(0);
     expect(
       await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
-    ).not.toContain("appTables");
+    ).not.toContain("tables");
   });
 });
 
@@ -690,7 +689,9 @@ describe("init --preset", () => {
       "utf-8",
     );
 
-    expect(config).toContain("  preset: 'minimal',\n  casing: 'snake',");
+    expect(config).toContain(
+      "  preset: 'minimal',\n  gen: { casing: 'snake', output: 'lib/supabase/generated.ts' },",
+    );
     expect(await readFile(join(dir, "lib/blocks.ts"), "utf-8")).toContain(
       "profiles: profilesBlock,",
     );
@@ -729,8 +730,10 @@ describe("init --preset", () => {
       access: "provider",
     });
 
-    expect(config).toContain(`  preset: '${code}',\n  casing: 'camel',`);
-    expect(config).toContain("set `authorization` to its adapter");
+    expect(config).toContain(
+      `  preset: '${code}',\n  gen: { casing: 'camel', output: 'lib/supabase/generated.ts' },`,
+    );
+    expect(config).toContain("set `auth.authorization` to its adapter");
   });
 
   it("writes the convention flags as config keys without a preset", async () => {
@@ -759,11 +762,11 @@ describe("init --preset", () => {
       "utf-8",
     );
 
-    expect(config).toContain("  casing: 'snake',");
+    expect(config).toContain("  gen: { casing: 'snake', ");
     expect(config).not.toContain("preset:");
-    expect(config).toContain("  sql: { workflow: 'migra' },");
+    expect(config).toContain("  database: { sql: { workflow: 'migra' } },");
     expect(config).toContain(
-      "  blocks: { access: { model: 'catalog', idType: 'bigint' }, tenant: { entities: { organization: 'club' } } },",
+      "  blocks: { access: { model: 'catalog', idType: 'bigint' }, tenant: { names: { organization: 'club' } } },",
     );
     expect(
       (await run(["init", "--tenant-name", "Club", "--cwd", dir])).code,
@@ -967,9 +970,7 @@ describe("apply with a design file", () => {
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toMatchObject({
-      appTables: {
-        notes: { scope: "user", columns: { body: { type: "text" } } },
-      },
+      tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
       preset: encodePreset(namedPreset("minimal")),
     });
   });

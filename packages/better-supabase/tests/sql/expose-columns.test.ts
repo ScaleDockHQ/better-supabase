@@ -72,7 +72,10 @@ describe("resolveExposeColumns", () => {
 
   it("refuses to render an exclusion sql sync did not resolve", () => {
     const config = resolveConfig(
-      { expose: { notes: ["select(*, -body)"] }, blocks: ["grants"] },
+      {
+        database: { expose: { notes: ["select(*, -body)"] } },
+        blocks: ["grants"],
+      },
       "/project",
     );
 

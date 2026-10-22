@@ -255,7 +255,7 @@ Block entities also get a factory under their final singular noun, such as
 ```ts title="better-supabase.config.ts"
 import { defineConfig, factories } from "better-supabase/config";
 
-export default defineConfig({ generators: [factories()] });
+export default defineConfig({ gen: { generators: [factories()] } });
 ```
 
 ```ts title="tests/tasks.test.ts"

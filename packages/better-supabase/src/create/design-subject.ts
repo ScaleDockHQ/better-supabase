@@ -3,7 +3,7 @@ import type { Design } from "./design.ts";
 import type { SchemaColumn } from "./schema.ts";
 
 /**
- * Makes the rows a subject (`appTables.<table>.subject`); the shape of
+ * Makes the rows a subject (`tables.<table>.subject`); the shape of
  * `AppTableSubject`.
  */
 export interface AppSubject {

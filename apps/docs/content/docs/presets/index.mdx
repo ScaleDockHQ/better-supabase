@@ -14,14 +14,14 @@ import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
   preset: "saas",
-  sql: { api: "api" },
+  database: { sql: { api: "api" } },
   blocks: { messaging: { options: { maxBodyLength: 5000 } }, tags: {} },
 });
 ```
 
 The keys you set win. A block you name joins the preset, and its entry is
-merged over the preset's settings for that block. `casing`, `sql.api` and
-`integrations` from the preset apply only when the config leaves them unset.
+merged over the preset's settings for that block. `gen.casing`, `database.sql.api` and
+`adapters` from the preset apply only when the config leaves them unset.
 `npx better-supabase sql sync` then writes the files of every block the
 preset expands to, and `supabase db schema declarative sync` turns them into
 a migration ([SQL modules](/docs/blocks/sql)).
@@ -179,7 +179,7 @@ to write the design.
 
 Three pieces connect the blocks in every recipe.
 
-The subject is declared once in `config.subjects`. Comments, tags, custom
+The subject is declared once in `config.records`. Comments, tags, custom
 fields, share links and reminders all read it from the
 [subject registry](/docs/blocks/sql#subject-registry), and `rank` reads its `rank` entry.
 

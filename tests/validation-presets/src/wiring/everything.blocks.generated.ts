@@ -2262,8 +2262,8 @@ export const blockEventSchemas = {
 } as const;
 
 /**
- * The path of each subject type with a `url`: block entities, `subjects`
- * and app table subjects.
+ * The path of each subject type with a `url`: block entities, `records`
+ * and `tables` subjects.
  * @public
  */
 export const urls = {

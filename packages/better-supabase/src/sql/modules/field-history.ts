@@ -47,7 +47,7 @@ interface HistoryBinding {
   readonly fields: readonly string[];
 }
 
-/** `blocks.field-history.options.subjects`, checked against `config.subjects`. */
+/** `blocks.field-history.options.subjects`, checked against `config.records`. */
 function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
   const raw = ctx.option("subjects") ?? {};
 
@@ -65,7 +65,7 @@ function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
 
     if (subject?.tenant === undefined) {
       throw new TypeError(
-        `${where}: register "${type}" with a tenant column in config.subjects first`,
+        `${where}: register "${type}" with a tenant column in config.records first`,
       );
     }
 

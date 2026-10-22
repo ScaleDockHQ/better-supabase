@@ -235,7 +235,7 @@ const Claims = v.looseObject({
 ```
 
 `tenant_id` is the claim the [tenant plugin](/docs/plugins/tenant) and
-`current_tenant_id()` read (`claims.tenant` in the config renames it);
+`current_tenant_id()` read (`auth.organization.claim` in the config renames it);
 `memberships` lets the UI switch tenants without another query. Use
 `v.looseObject` so fields another hook adds, such as an authorization
 version or extra keys on a membership, survive validation. Keep the list

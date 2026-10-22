@@ -431,7 +431,7 @@ describe("testAuthResolver", () => {
 });
 
 describe("testGenerator", () => {
-  const config = resolveConfig({ casing: "camel" }, "/project");
+  const config = resolveConfig({ gen: { casing: "camel" } }, "/project");
 
   it("passes the first-party generators", async () => {
     for (const generator of [zod(), valibot(), jsonSchema()]) {

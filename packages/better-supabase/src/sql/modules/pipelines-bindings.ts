@@ -25,7 +25,7 @@ interface StageTemplate {
   readonly probability?: number;
 }
 
-/** One `options.subjects` entry, checked against `config.subjects`. */
+/** One `options.subjects` entry, checked against `config.records`. */
 export interface PipelineBinding {
   readonly type: string;
   readonly subject: RegisteredSubject;
@@ -392,7 +392,7 @@ export function pipelineBindings(
 
     if (subject === undefined) {
       throw new TypeError(
-        `${where}: register "${type}" in config.subjects first`,
+        `${where}: register "${type}" in config.records first`,
       );
     }
 

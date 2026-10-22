@@ -1,17 +1,11 @@
 {
   "$schema": "../../packages/better-supabase/schemas/config-v1.json",
-  "source": {
-    "snapshot": "snapshot.json"
-  },
-  "casing": "camel",
-  "output": "src/generated.ts",
-  "readSets": ["src/latency.ts", "src/customer-detail.ts"],
   "blocks": {
     "read-sets": {},
     "updated-at": {},
     "tenant": {},
     "access": {
-      "mode": "adopt",
+      "ownership": "adopt",
       "tables": {
         "roles": "public.roles",
         "permissions": "public.permissions",
@@ -26,7 +20,7 @@
       }
     },
     "organizations": {
-      "mode": "adopt",
+      "ownership": "adopt",
       "tables": {
         "organizations": "public.organizations"
       },
@@ -38,7 +32,7 @@
       }
     },
     "profiles": {
-      "mode": "adopt",
+      "ownership": "adopt",
       "tables": {
         "profiles": "public.profiles"
       },
@@ -52,7 +46,7 @@
       }
     },
     "teams": {
-      "mode": "adopt",
+      "ownership": "adopt",
       "tables": {
         "teams": "public.teams",
         "members": "public.team_members"
@@ -66,5 +60,15 @@
         }
       }
     }
+  },
+  "database": {
+    "source": {
+      "snapshot": "snapshot.json"
+    }
+  },
+  "gen": {
+    "casing": "camel",
+    "output": "src/generated.ts",
+    "readSets": ["src/latency.ts", "src/customer-detail.ts"]
   }
 }

@@ -182,7 +182,7 @@ function appTableEventLines(types: readonly string[]): string[] {
   return [
     "",
     "/**",
-    " * The events `appTables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks.",
+    " * The events `tables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks.",
     " * @public",
     " */",
     "export const appTableEvents = defineEvents({",

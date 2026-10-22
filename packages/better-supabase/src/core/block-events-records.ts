@@ -248,7 +248,7 @@ export interface ApplicationEventData extends SubjectEventData {
   readonly organizationId: string;
   readonly applicationId: string;
   readonly jobId: string;
-  /** The candidate's record in config.subjects, a person by default. */
+  /** The candidate's record in config.records, a person by default. */
   readonly candidateType: string;
   readonly candidateId: string;
   /** For `application.rejected`. */

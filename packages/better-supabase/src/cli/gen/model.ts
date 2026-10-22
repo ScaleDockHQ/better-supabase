@@ -1059,7 +1059,7 @@ function realtimeMeta(
     if (!table) {
       throw new CliError(
         "config_invalid",
-        `realtime.tables: unknown table "${name}". Check the name and \`schemas\`.`,
+        `database.realtime.tables: unknown table "${name}". Check the name and \`schemas\`.`,
       );
     }
 
@@ -1073,7 +1073,7 @@ function realtimeMeta(
       if (user === undefined) {
         throw new CliError(
           "config_invalid",
-          `realtime.users: "${name}" has no column "${owner}".`,
+          `database.realtime.users: "${name}" has no column "${owner}".`,
         );
       }
 

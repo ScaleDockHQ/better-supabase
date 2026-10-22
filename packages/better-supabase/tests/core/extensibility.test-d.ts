@@ -220,9 +220,9 @@ describe("extension interfaces", () => {
 describe("AuthorizationProvider", () => {
   it("is versioned plain data on the config", () => {
     expectTypeOf<AuthorizationProvider["apiVersion"]>().toEqualTypeOf<1>();
-    expectTypeOf<BetterSupabaseConfig["authorization"]>().toEqualTypeOf<
-      AuthorizationProvider | undefined
-    >();
+    expectTypeOf<
+      NonNullable<BetterSupabaseConfig["auth"]>["authorization"]
+    >().toEqualTypeOf<AuthorizationProvider | undefined>();
 
     const minimal = {
       apiVersion: 1,

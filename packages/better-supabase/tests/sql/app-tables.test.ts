@@ -438,7 +438,7 @@ alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key 
 describe("appTables SQL errors", () => {
   it("needs the tenant block in tenant scope", () => {
     expect(() => render([], { appTables: { projects: {} } })).toThrow(
-      'appTables.projects: tenant scope needs the tenant block, which checks membership; add it to blocks, or set the table\'s scope to "user" or "none"',
+      'tables.projects: tenant scope needs the tenant block, which checks membership; add it to blocks, or set the table\'s owner to "user" or "none"',
     );
   });
 
@@ -457,7 +457,7 @@ describe("appTables SQL errors", () => {
         },
       }),
     ).toThrow(
-      "appTables.deals.columns.contact_id.references: the crm block is not installed; add it to blocks",
+      "tables.deals.columns.contact_id.references: the crm block is not installed; add it to blocks",
     );
   });
 
@@ -476,7 +476,7 @@ describe("appTables SQL errors", () => {
         },
       }),
     ).toThrow(
-      'appTables.pins.columns.tag_id.references: the tags block has no table "labels" (tags, taggings)',
+      'tables.pins.columns.tag_id.references: the tags block has no table "labels" (tags, taggings)',
     );
   });
 
@@ -484,7 +484,7 @@ describe("appTables SQL errors", () => {
     expect(() =>
       render(["tenant", "organizations", "tags"], { appTables: { tags: {} } }),
     ).toThrow(
-      "appTables.tags: the tags block already keeps a table named tags; choose another name",
+      "tables.tags: the tags block already keeps a table named tags; choose another name",
     );
   });
 
@@ -495,7 +495,7 @@ describe("appTables SQL errors", () => {
         appTables: { items: { unique: [["organization_id"]] } },
       }),
     ).toThrow(
-      'appTables.items.unique: the table has no column "organization_id" (id, user_id, created_at, updated_at)',
+      'tables.items.unique: the table has no column "organization_id" (id, user_id, created_at, updated_at)',
     );
   });
 
@@ -579,16 +579,14 @@ describe("appTables SQL errors", () => {
         appTables: { tasks: { subject: { type: "task", versions: true } } },
       }),
     ).toThrow(
-      "appTables.tasks.subject.versions needs the versions block; add it to blocks",
+      "tables.tasks.subject.versions needs the versions block; add it to blocks",
     );
   });
 
   it("refuses events without the outbox block", () => {
     expect(() =>
       render(BLOCKS, { appTables: { tasks: { events: true } } }),
-    ).toThrow(
-      "appTables.tasks.events needs the outbox block; add it to blocks",
-    );
+    ).toThrow("tables.tasks.events needs the outbox block; add it to blocks");
   });
 });
 

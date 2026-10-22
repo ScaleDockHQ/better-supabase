@@ -32,18 +32,23 @@ describe("moduleLayout", () => {
   it("turns expose into grants per role and json schemas into column checks", () => {
     const config = resolveConfig(
       {
-        expose: {
-          "public.posts": {
-            anon: ["select"],
-            authenticated: ["select", "insert"],
+        database: {
+          expose: {
+            "public.posts": {
+              anon: ["select"],
+              authenticated: ["select", "insert"],
+            },
+            "public.notes": ["select"],
           },
-          "public.notes": ["select"],
         },
-        json: {
-          "public.posts.meta": { type: "Meta", schema: { type: "object" } },
-          "public.posts.raw": { type: "unknown" },
+        gen: {
+          json: {
+            "public.posts.meta": { type: "Meta", schema: { type: "object" } },
+            "public.posts.raw": { type: "unknown" },
+          },
         },
-        plugins: { tenant: { column: "org_id" } },
+        plugins: { tenant: true },
+        auth: { organization: { column: "org_id" } },
       },
       "/p",
     );
@@ -175,10 +180,12 @@ export const notATopic = { template: "x" };
     );
 
     const config: BetterSupabaseConfig = {
-      realtime: {
-        policies: {
-          from: ["topics.ts"],
-          output: "supabase/schemas/905_topics.sql",
+      database: {
+        realtime: {
+          policies: {
+            from: ["topics.ts"],
+            output: "supabase/schemas/905_topics.sql",
+          },
         },
       },
     };
@@ -207,7 +214,9 @@ export const notATopic = { template: "x" };
     await writeFile(join(root, "empty.ts"), "export const x = 1;\n");
     await expect(
       sql(["sync"], {
-        realtime: { policies: { from: ["empty.ts"], output: "out.sql" } },
+        database: {
+          realtime: { policies: { from: ["empty.ts"], output: "out.sql" } },
+        },
       }),
     ).rejects.toThrow(/exports no topic/);
   });
@@ -236,7 +245,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
     ];
 
     await sql(["sync"], {
-      realtime: { policies, triggers },
+      database: { realtime: { policies, triggers } },
       blocks: ["realtime-tables"],
     });
     const written = await readFile(join(root, output), "utf-8");
@@ -248,15 +257,17 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
     );
 
     await sql(["sync"], {
-      realtime: {
-        policies,
-        triggers: [
-          {
-            ...triggers[0]!,
-            events: ["update"],
-            when: { changed: ["status"] },
-          },
-        ],
+      database: {
+        realtime: {
+          policies,
+          triggers: [
+            {
+              ...triggers[0]!,
+              events: ["update"],
+              when: { changed: ["status"] },
+            },
+          ],
+        },
       },
       blocks: ["realtime-tables"],
     });
@@ -264,16 +275,23 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
       `for each row when (old."status" is distinct from new."status") execute function better_supabase.broadcast_topic(`,
     );
     await expect(
-      sql(["sync"], { realtime: { policies, triggers } }),
+      sql(["sync"], { database: { realtime: { policies, triggers } } }),
     ).rejects.toThrow("add realtime-tables to blocks");
     await expect(
-      sql(["sync"], { realtime: { triggers }, blocks: ["realtime-tables"] }),
-    ).rejects.toThrow("realtime.triggers needs realtime.policies");
+      sql(["sync"], {
+        database: { realtime: { triggers } },
+        blocks: ["realtime-tables"],
+      }),
+    ).rejects.toThrow(
+      "database.realtime.triggers needs database.realtime.policies",
+    );
     await expect(
       sql(["sync"], {
-        realtime: {
-          policies,
-          triggers: [{ topic: "board:{boardId}", table: "cards" }],
+        database: {
+          realtime: {
+            policies,
+            triggers: [{ topic: "board:{boardId}", table: "cards" }],
+          },
         },
         blocks: ["realtime-tables"],
       }),
@@ -317,16 +335,18 @@ export const thread = defineTopic("thread:{threadId}");
     } as const;
 
     await sql(["sync"], {
-      realtime: {
-        policies,
-        triggers: [
-          {
-            topic: "organization:{organizationId}:inbox",
-            table: "public.messages",
-            ...options,
-            topics: [{ topic: "thread:{threadId}" }],
-          },
-        ],
+      database: {
+        realtime: {
+          policies,
+          triggers: [
+            {
+              topic: "organization:{organizationId}:inbox",
+              table: "public.messages",
+              ...options,
+              topics: [{ topic: "thread:{threadId}" }],
+            },
+          ],
+        },
       },
     });
     const written = await readFile(join(root, output), "utf-8");
@@ -351,15 +371,17 @@ export const thread = defineTopic("thread:{threadId}");
     );
     await expect(
       sql(["sync"], {
-        realtime: {
-          policies,
-          triggers: [
-            {
-              topic: "thread:{threadId}",
-              table: "messages",
-              topics: [{ topic: "board:{boardId}" }],
-            },
-          ],
+        database: {
+          realtime: {
+            policies,
+            triggers: [
+              {
+                topic: "thread:{threadId}",
+                table: "messages",
+                topics: [{ topic: "board:{boardId}" }],
+              },
+            ],
+          },
         },
       }),
     ).rejects.toThrow(
@@ -367,16 +389,18 @@ export const thread = defineTopic("thread:{threadId}");
     );
     await expect(
       sql(["sync"], {
-        realtime: {
-          policies,
-          triggers: [
-            {
-              topic: "thread:{threadId}",
-              table: "messages",
-              values: { boardId: "board_id" },
-              payload: { id: "id" },
-            },
-          ],
+        database: {
+          realtime: {
+            policies,
+            triggers: [
+              {
+                topic: "thread:{threadId}",
+                table: "messages",
+                values: { boardId: "board_id" },
+                payload: { id: "id" },
+              },
+            ],
+          },
         },
       }),
     ).rejects.toThrow(
@@ -406,13 +430,13 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
     const output = "supabase/schemas/905_topics.sql";
     const policies = { from: ["topics.ts", "send.ts"], output };
-    await sql(["sync"], { realtime: { policies } });
+    await sql(["sync"], { database: { realtime: { policies } } });
     const alone = await readFile(join(root, output), "utf-8");
     expect(alone).toContain("-- better-supabase: topic notifications:{userId}");
     expect(alone).not.toContain("Skipped");
 
     const config: BetterSupabaseConfig = {
-      realtime: { policies },
+      database: { realtime: { policies } },
       blocks: ["notifications", "realtime-tables"],
     };
 
@@ -432,7 +456,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect((await sql(["sync", "--check"], config)).code).toBe(0);
 
     const off: BetterSupabaseConfig = {
-      realtime: { policies },
+      database: { realtime: { policies } },
       blocks: { notifications: { options: { realtime: "none" } } },
     };
 
@@ -451,7 +475,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
     const config: BetterSupabaseConfig = {
       blocks: ["vector-search"],
-      vectorSearch: { chunks: "embedding" },
+      database: { vectorSearch: { chunks: "embedding" } },
     };
 
     expect((await sql(["sync"], config)).output).not.toContain(
@@ -485,8 +509,8 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     const config: BetterSupabaseConfig = {
-      sql: { scope: "user" },
-      appTables: { notes: { columns: { body: { type: "text" } } } },
+      database: { sql: { owner: "user" } },
+      tables: { notes: { columns: { body: { type: "text" } } } },
     };
 
     expect((await sql(["sync"], config)).code).toBe(0);
@@ -624,7 +648,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
   it("derives grants from the schema files' policies with fromPolicies", async () => {
     const config: BetterSupabaseConfig = {
-      expose: { notes: ["select"] },
+      database: { expose: { notes: ["select"] } },
       blocks: { grants: { options: { fromPolicies: true } } },
     };
 
@@ -657,7 +681,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       'create table public.notes (id int);\ncreate table public.jobs (id int);\ncreate table public.tags (id int);\ncreate table public.open (id int);\ncreate table public.later (id int);\nalter table public.jobs enable row level security;\nalter table only "public"."later" enable row level security;\nalter table public.later disable row level security;\ncreate policy notes_read on public.notes for select to authenticated using (true);\n',
     );
     await sql(["sync"], {
-      expose: { tags: ["select"] },
+      database: { expose: { tags: ["select"] } },
       blocks: { grants: { options: { fromPolicies: true } } },
     });
 
@@ -726,10 +750,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
   it("grants column privileges from expose", async () => {
     await sql(["sync"], {
-      expose: {
-        "public.posts": {
-          anon: ["select(id, title)"],
-          authenticated: ["select", "update(title, body)"],
+      database: {
+        expose: {
+          "public.posts": {
+            anon: ["select(id, title)"],
+            authenticated: ["select", "update(title, body)"],
+          },
         },
       },
       blocks: ["grants"],
@@ -747,7 +773,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       'grant select, update ("title", "body") on table "public"."posts" to authenticated;',
     );
     expect(() =>
-      resolveConfig({ expose: { posts: ["delete(id)" as "delete"] } }, root),
+      resolveConfig(
+        { database: { expose: { posts: ["delete(id)" as "delete"] } } },
+        root,
+      ),
     ).toThrow(/is not a privilege/);
   });
 
@@ -759,9 +788,11 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       'create table public.api_keys (\n  id uuid primary key,\n  name text not null,\n  "token_hash" text,\n  secret text,\n  unique (name)\n);\n',
     );
     await sql(["sync"], {
-      expose: {
-        api_keys: {
-          authenticated: ["select(*, -token_hash, -secret)", "update(name)"],
+      database: {
+        expose: {
+          api_keys: {
+            authenticated: ["select(*, -token_hash, -secret)", "update(name)"],
+          },
         },
       },
       blocks: ["grants"],
@@ -778,14 +809,17 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
     await expect(
       sql(["sync"], {
-        expose: { notes: ["select(*, -body)"] },
+        database: { expose: { notes: ["select(*, -body)"] } },
         blocks: ["grants"],
       }),
     ).rejects.toThrow(
       "no `create table` in the schema files declares public.notes",
     );
     expect(() =>
-      resolveConfig({ expose: { notes: ["select(*, body)"] } }, root),
+      resolveConfig(
+        { database: { expose: { notes: ["select(*, body)"] } } },
+        root,
+      ),
     ).toThrow(/is not a privilege/);
   });
 
@@ -847,7 +881,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     const synced = await sql(["sync"], {
-      sql: { dir: "supabase/declarative/module" },
+      database: { sql: { dir: "supabase/declarative/module" } },
       blocks: ["tenant"],
     });
 
@@ -947,7 +981,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
   it("puts migrations next to the config.toml above sql.dir", async () => {
     await mkdir(join(root, "db/supabase/schemas"), { recursive: true });
     await writeFile(join(root, "db/supabase/config.toml"), "");
-    const config = resolveConfig({ sql: { dir: "db/supabase/schemas" } }, root);
+
+    const config = resolveConfig(
+      { database: { sql: { dir: "db/supabase/schemas" } } },
+      root,
+    );
+
     expect(migrationsDir(config)).toBe("db/supabase/migrations");
     expect(migrationsDir(resolveConfig({}, root))).toBe("supabase/migrations");
   });
@@ -959,7 +998,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await writeFile(join(root, "stack/supabase/config.toml"), "");
 
     const config = resolveConfig(
-      { sql: { dir: "../../stack/supabase/schemas" } },
+      { database: { sql: { dir: "../../stack/supabase/schemas" } } },
       app,
     );
 
@@ -973,7 +1012,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await writeFile(join(root, "stack/supabase/config.toml"), "");
 
     const config = resolveConfig(
-      { blocks: ["tenant"], sql: { dir: "../../stack/supabase/schemas" } },
+      {
+        blocks: ["tenant"],
+        database: { sql: { dir: "../../stack/supabase/schemas" } },
+      },
       app,
     );
 
@@ -1045,7 +1087,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await sql(["sync"], { blocks: ["work-items"] });
 
     const config: BetterSupabaseConfig = {
-      blocks: { "work-items": { entities: { work_item: "task" } } },
+      blocks: { "work-items": { names: { work_item: "task" } } },
     };
 
     const check = await sql(["upgrade", "--check"], config);
@@ -1057,7 +1099,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const done = await sql(["upgrade"], config);
     expect(done.code).toBe(0);
     expect(done.output).toContain(
-      "work-items: renamed after blocks.<name>.entities",
+      "work-items: renamed after blocks.<name>.names",
     );
 
     const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
@@ -1098,7 +1140,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const config: BetterSupabaseConfig = { blocks: ["mfa"] };
 
     const migra = await sql(["sync"], {
-      sql: { ...config.sql, workflow: "migra" },
+      database: { sql: { workflow: "migra" } },
     });
 
     expect(migra.output).not.toContain("pg-delta");
@@ -1113,7 +1155,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
   describe("the migrations workflow", () => {
     const migrations = (blocks: string[]): BetterSupabaseConfig => ({
-      sql: { workflow: "migrations" },
+      database: { sql: { workflow: "migrations" } },
       blocks,
     });
 
@@ -1282,7 +1324,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
   it("prints a rendered module with the configured claims", async () => {
     const printed = await sql(["print", "tenant"], {
-      claims: { scope: "workspace" },
+      auth: { claims: { scope: "workspace" } },
     });
 
     expect(printed.code).toBe(0);
@@ -1297,7 +1339,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
   it("prints the contract of a custom-mode module", async () => {
     const printed = await sql(["print", "tenant"], {
-      blocks: { tenant: { mode: "custom", schema: "app" } },
+      blocks: { tenant: { ownership: "custom", schema: "app" } },
     });
 
     expect(printed.code).toBe(0);
@@ -1307,7 +1349,10 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
   });
 
   it("stops on an entitlements scope the provider lacks", async () => {
-    const config = { authorization: withProvider({ tenantScope: "team" }) };
+    const config = {
+      auth: { authorization: withProvider({ tenantScope: "team" }) },
+    };
+
     await expect(sql(["print", "entitlements"], config)).rejects.toThrow(
       /tenantScope "team" is not a scope/,
     );
@@ -1317,7 +1362,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
   it("guards the tenant module when the provider's hook owns the memberships claim", async () => {
     expect(
-      await sql(["add", "tenant"], { authorization: stubProvider }),
+      await sql(["add", "tenant"], { auth: { authorization: stubProvider } }),
     ).toMatchObject({
       code: 1,
       error: expect.stringContaining(
@@ -1327,7 +1372,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
     expect(
       await sql(["add", "tenant", "--allow-hook-overlap", "--dry-run"], {
-        authorization: stubProvider,
+        auth: { authorization: stubProvider },
       }),
     ).toMatchObject({ code: 0 });
   });
@@ -1335,13 +1380,13 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
   describe("the provider access model", () => {
     const provider = (
       authorization:
-        | BetterSupabaseConfig["authorization"]
+        | NonNullable<BetterSupabaseConfig["auth"]>["authorization"]
         | null = stubProvider,
       extra: BetterSupabaseConfig = {},
     ): BetterSupabaseConfig => ({
       blocks: { access: { model: "provider" } },
-      ...(authorization ? { authorization } : {}),
       ...extra,
+      auth: { ...extra.auth, ...(authorization ? { authorization } : {}) },
     });
 
     const complete = withProvider({
@@ -1354,7 +1399,9 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     it("renders the provider's functions, whatever entitlements says", async () => {
       for (const config of [
         provider(complete),
-        provider(complete, { entitlements: { memberships: "tenant" } }),
+        provider(complete, {
+          auth: { entitlements: { memberships: "tenant" } },
+        }),
       ]) {
         const printed = await sql(["print", "access"], config);
         expect(printed.output).toContain("authz.ids_organization(");
@@ -1390,9 +1437,11 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
   it("refuses to render entitlements for a scope id type it doesn't support", async () => {
     await expect(
       sql(["print", "entitlements"], {
-        authorization: withProvider({
-          scopes: [{ name: "organization", idType: "numeric" }],
-        }),
+        auth: {
+          authorization: withProvider({
+            scopes: [{ name: "organization", idType: "numeric" }],
+          }),
+        },
       }),
     ).rejects.toThrow(/scope "organization" has idType "numeric"/);
   });

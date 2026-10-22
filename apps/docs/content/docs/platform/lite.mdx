@@ -99,7 +99,7 @@ on a SQLite driver (BS328) and Realtime or Edge Functions use on any driver
 The replay needs `@supabase/lite` installed and no running server. Doctor
 skips the Supabase advisors and the statistics checks on a replay, because
 an in-memory PGlite has no Supabase roles and no workload. Set
-`source.lite: false` to read the database the usual way instead. See
+`database.source.lite: false` to read the database the usual way instead. See
 [Where the schema comes from](/docs/cli/gen#where-the-schema-comes-from).
 
 ## Testing

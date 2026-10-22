@@ -3,7 +3,7 @@ title: Typed blocks
 description: Rename a block's entities once in the config, and get typed config keys, renamed clients, subjects, name constants and input schemas from better-supabase gen.
 ---
 
-You name a block's entities once, in `blocks.<name>.entities`, and the SQL,
+You name a block's entities once, in `blocks.<name>.names`, and the SQL,
 the clients, the events, the permissions and the generated types all use
 that name. The config keys are typed from the installed blocks, so a wrong
 entity, column or function name fails in your editor instead of in
@@ -14,9 +14,9 @@ import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
   blocks: {
-    tenant: { entities: { organization: "workspace" } },
+    tenant: { names: { organization: "workspace" } },
     "work-items": {
-      entities: { work_item: { name: "task", url: "/tasks/{id}" } },
+      names: { work_item: { name: "task", url: "/tasks/{id}" } },
     },
   },
 });
@@ -36,7 +36,7 @@ key is typed from each block's names:
 | Key                               | Checked against                                                |
 | --------------------------------- | -------------------------------------------------------------- |
 | `blocks.<name>`                   | the installable blocks                                         |
-| `blocks.<name>.entities.<entity>` | the block's own entities, such as `work_item` for `work-items` |
+| `blocks.<name>.names.<entity>`    | the block's own entities, such as `work_item` for `work-items` |
 | `entities.<entity>.url`           | `{column}` placeholders from the entity's columns              |
 | `blocks.<name>.tables`, `columns` | the block's tables and the columns of each one                 |
 | `blocks.<name>.functions`         | the block's function names                                     |

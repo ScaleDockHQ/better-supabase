@@ -36,9 +36,9 @@ export const ADOPTION_RULES: readonly Rule[] = [
   {
     code: "BS338",
     severity: "info",
-    title: "functions.notNull entry a comment tag could replace",
+    title: "gen.functions.notNull entry a comment tag could replace",
     description:
-      "`gen` reads `@notNull` and `@notNull(a, b)` from a function's comment. A `functions.<name>.notNull` entry for a function in the read schemas can move to the comment, next to the SQL it describes. A config entry wins over the tag.",
+      "`gen` reads `@notNull` and `@notNull(a, b)` from a function's comment. A `gen.functions.<name>.notNull` entry for a function in the read schemas can move to the comment, next to the SQL it describes. A config entry wins over the tag.",
     check: (context) => {
       const { config } = context;
 

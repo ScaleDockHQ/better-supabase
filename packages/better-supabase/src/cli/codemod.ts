@@ -18,6 +18,7 @@ import {
 } from "./codemod-calls.ts";
 import { migrateCliCall } from "./core/moved.ts";
 import { mask } from "./sql/config-edit.ts";
+import { groupConfigJson, groupConfigSource } from "./sql/config-group.ts";
 import {
   moveSqlModulesToBlocks,
   moveSqlModulesToBlocksJson,
@@ -483,7 +484,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\bcomments\s*:\s*\{/,
         message:
-          "With `config.subjects` set and no `subjects` option, comments accept only the registered subject types and require read on the subject row",
+          "With `config.records` set and no `subjects` option, comments accept only the registered subject types and require read on the subject row",
       },
     ],
   },
@@ -497,7 +498,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.15": {
     name: "0.15",
     description:
-      "Renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; cache tags, query keys and the debug header and route that start with bs are listed for review",
+      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; cache tags, query keys and the debug header and route that start with bs are listed for review",
     bindings: {
       bs: "bsb",
       SqlModule: "BlockSql",
@@ -528,6 +529,8 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       VercelQueueBackendOptions: "VercelQueueProviderOptions",
     },
     members: [{ from: "bs", to: "bsb" }],
+    configFile: (source, json) =>
+      json ? groupConfigJson(source) : groupConfigSource(source),
     review: [
       {
         pattern: /["'`]bs[:.]|\[\s*["']bs["']/,

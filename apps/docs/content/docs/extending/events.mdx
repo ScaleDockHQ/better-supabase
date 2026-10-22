@@ -397,13 +397,13 @@ SQL modules call optional app functions around their work, for example
 transaction when a function with that name and argument list exists in
 `public`, and is skipped otherwise. Raise an exception in a `before_*` hook
 to refuse the operation. Point a module at another schema or function with
-`blocks.<module>.hooks`:
+`blocks.<module>.callbacks`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
     organizations: {
-      hooks: {
+      callbacks: {
         schema: "app",
         functions: { after_organization_create: "private.seed_organization" },
       },

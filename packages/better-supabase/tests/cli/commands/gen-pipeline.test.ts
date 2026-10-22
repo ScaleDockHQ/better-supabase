@@ -54,7 +54,7 @@ describe("gen tasks", () => {
       configuredTasks(
         resolved({
           blocks: ["audit"],
-          scaffold: { api: { framework: "hono" } },
+          tooling: { scaffold: { api: { framework: "hono" } } },
         }),
       ),
     ).toEqual(["types", "sql", "spec", "seed", "scaffold"]);
@@ -64,10 +64,12 @@ describe("gen tasks", () => {
     expect(
       configuredTasks(
         resolved({
-          realtime: {
-            policies: {
-              from: ["src/lib/topics.ts"],
-              output: "supabase/schemas/905_topics.sql",
+          database: {
+            realtime: {
+              policies: {
+                from: ["src/lib/topics.ts"],
+                output: "supabase/schemas/905_topics.sql",
+              },
             },
           },
         }),
@@ -92,9 +94,11 @@ describe("gen tasks", () => {
 
   it("watches the spec entry, its overlays and the seed entry", () => {
     const config = resolved({
-      specs: {
-        entry: "src/api.ts",
-        outputs: [{ format: "openapi", overlays: ["overlay.yaml"] }],
+      api: {
+        specs: {
+          entry: "src/api.ts",
+          outputs: [{ format: "openapi", overlays: ["overlay.yaml"] }],
+        },
       },
     });
 
@@ -170,7 +174,9 @@ describe("gen sql and env steps", () => {
     await chmod(bin, 0o755);
 
     const results = await runSteps(["sql", "env"], {
-      config: resolved({ env: { output: ".env.test", prefix: "VITE_" } }),
+      config: resolved({
+        tooling: { env: { output: ".env.test", prefix: "VITE_" } },
+      }),
       env: { SUPABASE_BIN: bin },
       check: false,
       paint: plain,
@@ -189,7 +195,7 @@ describe("gen sql and env steps", () => {
 describe("gen spec step", () => {
   it("emits the spec from the configured entry and reports its errors", async () => {
     const [step] = await runSteps(["spec"], {
-      config: resolved({ specs: { entry: "src/missing.ts" } }),
+      config: resolved({ api: { specs: { entry: "src/missing.ts" } } }),
       env: {},
       check: false,
       paint: plain,

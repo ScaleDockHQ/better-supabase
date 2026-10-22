@@ -47,7 +47,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
   };
 
   const context = (extra: Partial<DoctorContext> = {}): DoctorContext => ({
-    config: resolveConfig({ schemas: [SCHEMA] }, "/project"),
+    config: resolveConfig({ database: { schemas: [SCHEMA] } }, "/project"),
     snapshot,
     configToml: undefined,
     envFiles: [],
@@ -190,10 +190,12 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     const config = (serviceRole: readonly string[]) =>
       resolveConfig(
         {
-          schemas: [SCHEMA],
-          tables: Object.fromEntries(
-            serviceRole.map((name) => [name, { serviceRole: true }]),
-          ),
+          database: { schemas: [SCHEMA] },
+          gen: {
+            tables: Object.fromEntries(
+              serviceRole.map((name) => [name, { serviceRole: true }]),
+            ),
+          },
         },
         "/project",
       );
@@ -302,8 +304,8 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
         {
           config: resolveConfig(
             {
-              schemas: ["public"],
-              ...(authorization ? { authorization } : {}),
+              database: { schemas: ["public"] },
+              ...(authorization ? { auth: { authorization } } : {}),
             },
             "/project",
           ),

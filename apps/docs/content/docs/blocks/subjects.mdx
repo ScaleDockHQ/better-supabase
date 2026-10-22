@@ -1,6 +1,6 @@
 ---
 title: Subjects
-description: Titles and links for any record in config.subjects, resolved in one batched call, with the SubjectLink and SubjectChip recipes.
+description: Titles and links for any record in config.records, resolved in one batched call, with the SubjectLink and SubjectChip recipes.
 ---
 
 Comments, relations, approvals and the other blocks point at records as a
@@ -13,11 +13,11 @@ row.
 better-supabase add subjects
 ```
 
-Give each type in `config.subjects` a `title` column and a `url` template:
+Give each type in `config.records` a `title` column and a `url` template:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  subjects: {
+  records: {
     customer: {
       table: "public.customers",
       title: "name",
@@ -58,7 +58,7 @@ badges ([Record sections](/docs/blocks/records#header-and-badges)).
 ## Paths in code
 
 `gen` writes a `urls` constant to `blocks.generated.ts` with a function for
-every subject type that has a `url`: block entities, `config.subjects` and app
+every subject type that has a `url`: block entities, `config.records` and app
 table subjects. Each placeholder becomes a camel-case argument:
 
 ```ts

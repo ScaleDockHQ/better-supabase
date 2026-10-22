@@ -51,7 +51,7 @@ const { token } = await quotes.send(quote.id).orThrow();
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
 | `withdrawn`            | a newer revision replaced it                                                |
 
-`create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [number-sequences](/docs/blocks/number-sequences)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
+`create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [number-sequences](/docs/blocks/number-sequences)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.records` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
 Unit amounts and totals are `Money` values from [commerce](/docs/concepts/commerce), sent to the database as text so they stay exact past 2^53. Every line must be in the quote's currency (`CURRENCY_MISMATCH`, checked before the database call), and a quote created without a `currency` takes the currency of its lines. An unknown code returns `CURRENCY_INVALID`.
 

@@ -29,7 +29,7 @@ config and codegen marks every table that has the columns:
 plugins: {
   timestamps: true,                      // created_at, updated_at
   softDelete: { column: 'archived_at' }, // default deleted_at
-  tenant: true,                          // organization_id, or workspace_id for blocks.tenant.entities.organization: 'workspace'
+  tenant: true,                          // organization_id, or workspace_id for blocks.tenant.names.organization: 'workspace'
   actor: true,                           // created_by, updated_by
 }
 ```

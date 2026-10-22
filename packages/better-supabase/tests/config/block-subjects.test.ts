@@ -101,7 +101,7 @@ describe("resolveConfig subjects", () => {
     const resolved = resolveConfig(
       {
         blocks: ["work-items"],
-        subjects: { invoice: { table: "public.invoices" } },
+        records: { invoice: { table: "public.invoices" } },
       },
       "/app",
     );

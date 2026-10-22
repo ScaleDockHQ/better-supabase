@@ -131,10 +131,6 @@
               "additionalProperties": false
             }
           },
-          "scope": {
-            "enum": ["inherit", "user", "none"],
-            "type": "string"
-          },
           "timestamps": {
             "type": "boolean"
           },
@@ -321,6 +317,10 @@
                 "additionalProperties": false
               }
             ]
+          },
+          "scope": {
+            "enum": ["inherit", "user", "none"],
+            "type": "string"
           }
         },
         "additionalProperties": false

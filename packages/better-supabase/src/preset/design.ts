@@ -502,12 +502,12 @@ function keyAt(
 
 /**
  * The JSON Pointer for an `appTablesOf` message, which starts with the dotted
- * path it rejects (`appTables.tasks.columns.title must be...`). It walks
- * `value` so a key with a dot or a space still resolves.
+ * path it rejects (`tables.tasks.columns.title must be...`). It walks `value`
+ * so a key with a dot or a space still resolves.
  */
 function appTablesPointer(message: string, value: unknown): string {
   const segments: (string | number)[] = ["appTables"];
-  let rest = message.startsWith("appTables") ? message.slice(9) : "";
+  let rest = message.startsWith("tables") ? message.slice(6) : "";
   let current = value;
 
   for (;;) {

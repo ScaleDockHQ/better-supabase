@@ -16,75 +16,92 @@ const WORK_STATES = [
 ];
 
 export default defineConfig({
-  source: { snapshot: "../../../supabase/snapshot.json" },
-  casing: "camel",
-  codecs: { int8: "bigint" },
-  seed: { perTenant: "src/features/onboarding/tenant-seed.ts" },
-  output: "src/lib/supabase/generated.ts",
-  expose: {
-    customers: crud,
-    contacts: crud,
-    locations: crud,
-    notes: crud,
-    tags: crud,
-    customer_tags: crud,
-    organizations: ["select"],
-    plans: ["select"],
-    plan_features: ["select"],
-    subscriptions: ["select"],
+  database: {
+    source: { snapshot: "../../../supabase/snapshot.json" },
+    seed: { perTenant: "src/features/onboarding/tenant-seed.ts" },
+    expose: {
+      customers: crud,
+      contacts: crud,
+      locations: crud,
+      notes: crud,
+      tags: crud,
+      customer_tags: crud,
+      organizations: ["select"],
+      plans: ["select"],
+      plan_features: ["select"],
+      subscriptions: ["select"],
+    },
+    buckets: {
+      customerLogos: {
+        path: "{organizationId}/{customerId}/logo/{version}.webp",
+        public: true,
+        policy: "tenant",
+        fileSizeLimit: "5MiB",
+        allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
+      },
+      // Profile pictures, with the settings of `avatarBucket()`.
+      avatars: {
+        path: "{userId}/avatar-{version}.{ext}",
+        public: true,
+        policy: "owner",
+        fileSizeLimit: "2MiB",
+        allowedMimeTypes: [
+          "image/png",
+          "image/jpeg",
+          "image/webp",
+          "image/gif",
+          "image/avif",
+        ],
+      },
+    },
+    // `search_notes(query, k)` for `db.$search('notes', …)`.
+    vectorSearch: { notes: "embedding" },
+    // The block files live in the repo's fixture, so the stack runs them.
+    sql: {
+      dir: "../../../supabase/schemas/_better_supabase",
+      testsDir: "../../../supabase/tests/database",
+      // Every module writes its Data API wrappers to `api`, except those
+      // that set `api: false` (helpers with no client entry points).
+      api: "api",
+    },
   },
-  // Plan features come from the fixture's plan catalog
-  // (supabase/schemas/public/tables/plans.sql), not from Stripe.
-  entitlements: {
-    source: {
-      plans: {
-        subscriptions: {
-          table: "public.subscriptions",
-          tenant: "organization_id",
-          plan: "plan_key",
-          status: "status",
-        },
-        features: {
-          table: "public.plan_features",
-          plan: "plan_key",
-          feature: "feature_key",
-          included: "included",
-          value: "value",
+  gen: {
+    casing: "camel",
+    codecs: { int8: "bigint" },
+    output: "src/lib/supabase/generated.ts",
+    // Rows store the object path; URLs are built when rendering.
+    storagePaths: { "customers.logo_path": "customerLogos" },
+    readSets: ["src/lib/read-sets.ts"],
+  },
+  auth: {
+    organization: { column: "organization_id" },
+    // Plan features come from the fixture's plan catalog
+    // (supabase/schemas/public/tables/plans.sql), not from Stripe.
+    entitlements: {
+      source: {
+        plans: {
+          subscriptions: {
+            table: "public.subscriptions",
+            tenant: "organization_id",
+            plan: "plan_key",
+            status: "status",
+          },
+          features: {
+            table: "public.plan_features",
+            plan: "plan_key",
+            feature: "feature_key",
+            included: "included",
+            value: "value",
+          },
         },
       },
     },
   },
-  plugins: { tenant: { column: "organization_id" } },
-  buckets: {
-    customerLogos: {
-      path: "{organizationId}/{customerId}/logo/{version}.webp",
-      public: true,
-      policy: "tenant",
-      fileSizeLimit: "5MiB",
-      allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
-    },
-    // Profile pictures, with the settings of `avatarBucket()`.
-    avatars: {
-      path: "{userId}/avatar-{version}.{ext}",
-      public: true,
-      policy: "owner",
-      fileSizeLimit: "2MiB",
-      allowedMimeTypes: [
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "image/gif",
-        "image/avif",
-      ],
-    },
-  },
-  // Rows store the object path; URLs are built when rendering.
-  storagePaths: { "customers.logo_path": "customerLogos" },
-  readSets: ["src/lib/read-sets.ts"],
+  plugins: { tenant: true },
   // Rows the search index, comments and other subject-aware modules point at.
   // Installed blocks register their own entities (deals, work items, ...);
   // `blocks.<name>.entities` sets their pages.
-  subjects: {
+  records: {
     customer: {
       table: "public.customers",
       idType: "uuid",
@@ -104,11 +121,9 @@ export default defineConfig({
       rank: { column: "rank", group: "stage_id" },
     },
   },
-  // `search_notes(query, k)` for `db.$search('notes', …)`.
-  vectorSearch: { notes: "embedding" },
   // Tables only this app has. `sql sync` writes them with the organization
   // column (or `user_id`), row level security and a pgTAP test.
-  appTables: {
+  tables: {
     projects: {
       columns: {
         name: { type: "text", nullable: false },
@@ -207,20 +222,12 @@ export default defineConfig({
       auditReads: true,
     },
     saved_views: {
-      scope: "user",
+      owner: "user",
       columns: {
         name: { type: "text", nullable: false },
         filters: { type: "jsonb", nullable: false, default: "'{}'" },
       },
     },
-  },
-  // The block files live in the repo's fixture, so the stack runs them.
-  sql: {
-    dir: "../../../supabase/schemas/_better_supabase",
-    testsDir: "../../../supabase/tests/database",
-    // Every module writes its Data API wrappers to `api`, except those
-    // that set `api: false` (helpers with no client entry points).
-    api: "api",
   },
   blocks: {
     "updated-at": { api: false },
@@ -232,7 +239,7 @@ export default defineConfig({
     // itself (supabase/schemas/better_supabase/functions), so tokens that
     // carry only a tenant claim keep working for the integration suite.
     tenant: {
-      mode: "custom",
+      ownership: "custom",
       api: false,
       tables: { memberships: "public.memberships" },
     },
@@ -244,7 +251,7 @@ export default defineConfig({
     // `<Can>` reads my_permissions through the hand-written
     // supabase/schemas/api/functions/my_permissions.sql.
     access: {
-      mode: "custom",
+      ownership: "custom",
       activeTenant: "claim",
       roles: { owner: [], admin: [], member: [] },
     },
@@ -298,7 +305,7 @@ export default defineConfig({
     // data that no example renders.
     tags: {},
     organizations: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: {
         organizations: { createdBy: null, deletedAt: null, disabledAt: null },
@@ -407,13 +414,13 @@ export default defineConfig({
     waitlist: {},
     teams: {},
     parties: {
-      entities: {
+      names: {
         company: { url: "/crm/contacts/{id}" },
         person: { url: "/crm/contacts/{id}" },
       },
     },
     pipelines: {},
-    deals: { entities: { deal: { url: "/crm/deals" } } },
+    deals: { names: { deal: { url: "/crm/deals" } } },
     // Call recordings on ai-files, with transcripts and notes. Confirmed
     // bookings show up as meetings on the booker's contact.
     engagements: { options: { recordings: true, bookings: true } },
@@ -442,7 +449,7 @@ export default defineConfig({
     // The app already has `projects` and `saved_views` tables (appTables).
     "work-items": {
       tables: { projects: "work_projects" },
-      entities: { work_item: { url: "/work" } },
+      names: { work_item: { url: "/work" } },
     },
     "saved-views": { tables: { views: "shared_views" } },
     sla: {},
@@ -451,11 +458,11 @@ export default defineConfig({
     bulk: {},
     trash: {},
     relations: {},
-    employees: { entities: { employee: { url: "/people" } } },
+    employees: { names: { employee: { url: "/people" } } },
     hiring: {},
     "time-tracking": {},
     invoices: {},
-    catalog: { entities: { product: { url: "/shop" } } },
+    catalog: { names: { product: { url: "/shop" } } },
     inventory: {},
     // The kitchen display and order board under /shop/kitchen.
     orders: { options: { kitchen: true } },

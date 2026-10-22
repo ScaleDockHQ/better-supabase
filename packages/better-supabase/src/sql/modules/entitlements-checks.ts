@@ -62,7 +62,7 @@ function featureClaimsBody(
 
   if (max !== undefined && (!Number.isInteger(max) || max < 1)) {
     throw new TypeError(
-      "entitlements.claim.maxTenants must be a positive integer",
+      "auth.entitlements.claim.maxTenants must be a positive integer",
     );
   }
 

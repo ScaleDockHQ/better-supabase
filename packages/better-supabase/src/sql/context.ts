@@ -89,7 +89,7 @@ export interface BlockSqlTableLifecycle {
 }
 
 /**
- * What makes an entity a `config.subjects` entry when the block is installed.
+ * What makes an entity a `config.records` entry when the block is installed.
  * Columns are the table's logical columns; permissions are module actions.
  */
 export interface BlockSqlEntitySubject {
@@ -327,7 +327,7 @@ export interface BlockSqlContext {
   readonly idType: BlockSqlIdType;
   readonly claims: ClaimsMeta;
   readonly modules: AnyBlocksConfig;
-  /** The app-wide subject registry (`config.subjects`). */
+  /** The app-wide subject registry (`config.records`). */
   readonly subjects: SubjectsConfig;
   /**
    * The names of `config.appTables`, created in `public` after every block
@@ -341,7 +341,7 @@ export interface BlockSqlContext {
   readonly scope: BlockSqlScope;
   /**
    * The module's final names: its entities as `blocks.<name>.entities` and
-   * `blocks.tenant.entities.organization` rename them.
+   * `blocks.tenant.names.organization` rename them.
    */
   readonly resolved: ResolvedNames;
   /** The renamer every default name goes through (`resolved.naming`). */
@@ -535,7 +535,7 @@ const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface BlockSqlContextSource {
   readonly modules?: AnyBlocksConfig;
-  /** `config.subjects`, which `subjectsOption` falls back to. */
+  /** `config.records`, which `subjectsOption` falls back to. */
   readonly subjects?: SubjectsConfig;
   /** The names of `config.appTables`. */
   readonly appTables?: readonly string[];

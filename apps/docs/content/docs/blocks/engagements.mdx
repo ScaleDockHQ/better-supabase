@@ -3,7 +3,7 @@ title: Engagements
 description: Calls, emails, meetings, notes and tasks logged on one or more records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 ---
 
-`engagements` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One engagement can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can carry engagements.
+`engagements` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One engagement can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.records`](/docs/blocks/sql#subject-registry) can carry engagements.
 
 This block is the logged work, not the system history. The [activity feed](/docs/blocks/activity) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
 
@@ -13,7 +13,7 @@ Reading needs `engagements.read`, and logging needs `engagements.write`. The aut
 better-supabase add engagements
 ```
 
-The block's entity is `engagement` (the `engagements` table). Installing it registers `engagement` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.engagements.entities`, for example `{ engagement: "touchpoint" }`. `engagementInputSchema` and `engagementChangeSchema` validate what `log` and `update` take.
+The block's entity is `engagement` (the `engagements` table). Installing it registers `engagement` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.engagements.names`, for example `{ engagement: "touchpoint" }`. `engagementInputSchema` and `engagementChangeSchema` validate what `log` and `update` take.
 
 The module needs `tenant`, `access` and `subjects`.
 

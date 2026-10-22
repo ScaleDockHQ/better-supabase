@@ -858,7 +858,7 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
--- supplier_type and supplier_id name a config.subjects record, or are both null.
+-- supplier_type and supplier_id name a config.records record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
 language plpgsql

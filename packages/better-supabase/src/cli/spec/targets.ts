@@ -169,7 +169,7 @@ export function resolveTargets(
     if (seen.has(target.output)) {
       throw new TargetError(
         "usage",
-        `Two outputs write ${target.output}. Give each one an \`output\` in specs.outputs.`,
+        `Two outputs write ${target.output}. Give each one an \`output\` in api.specs.outputs.`,
       );
     }
 

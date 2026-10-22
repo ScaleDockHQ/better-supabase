@@ -101,7 +101,7 @@ describe("block scope", () => {
 
   it("refuses a block that needs tenants outside tenant scope", () => {
     expect(() => resolveBlocks(["organizations"], { scope: "user" })).toThrow(
-      'blocks.organizations: the organizations module runs in tenant scope, not user (from sql.scope). Set blocks.organizations.scope to "tenant" or remove the block.',
+      'blocks.organizations: the organizations module runs in tenant scope, not user (from database.sql.owner). Set blocks.organizations.owner to "tenant" or remove the block.',
     );
     expect(() =>
       resolveBlocks(["organizations"], {
@@ -115,7 +115,7 @@ describe("block scope", () => {
         modules: { "drive-files": { scope: "tenant" } },
       }),
     ).toThrow(
-      /not none \(from sql.scope\)\..* It is required by drive-files\./,
+      /not none \(from database.sql.owner\)\..* It is required by drive-files\./,
     );
   });
 
@@ -187,7 +187,7 @@ function code(sql: string): string {
   return sql.replaceAll(/--[^\n]*/g, "").replaceAll(/'(?:[^']|'')*'/g, "''");
 }
 
-describe("blocks.tenant.entities.organization", () => {
+describe("blocks.tenant.names.organization", () => {
   const layout = {
     modules: { tenant: { entities: { organization: "workspace" } } },
   } as const;
@@ -231,7 +231,7 @@ describe("tenant name clashes", () => {
         modules: { tenant: { entities: { organization: "team" } } },
       }),
     ).toThrow(
-      'blocks.tenant.entities.organization: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
+      'blocks.tenant.names.organization: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
     );
     expect(() =>
       renderBlocks(["teams"], {

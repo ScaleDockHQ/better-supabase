@@ -10,7 +10,7 @@ import { libraryFixture } from "../fixtures/library.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
 const fixtures = fileURLToPath(libraryFixture(""));
-const config = resolveConfig({ casing: "camel" }, fixtures);
+const config = resolveConfig({ gen: { casing: "camel" } }, fixtures);
 
 async function withGenerator(
   change: (generator: Snapshot["generator"]) => void,
@@ -143,12 +143,12 @@ describe("generator model blocks", () => {
 
     const blockConfig = resolveConfig(
       {
-        casing: "camel",
+        gen: { casing: "camel" },
         blocks: {
           tenant: {},
           access: {},
           "work-items": {
-            entities: { work_item: { name: "task", url: "/tasks/{id}" } },
+            names: { work_item: { name: "task", url: "/tasks/{id}" } },
           },
         },
       },

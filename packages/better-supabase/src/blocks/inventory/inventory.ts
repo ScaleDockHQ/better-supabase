@@ -141,7 +141,7 @@ export interface PurchaseOrderInput {
   readonly id?: string;
   /** Where the goods arrive. */
   readonly locationId: string;
-  /** A `config.subjects` record for the supplier, such as a company. */
+  /** A `config.records` record for the supplier, such as a company. */
   readonly supplier?: { readonly type: string; readonly id: string };
   readonly currency: string;
   readonly expectedAt?: Temporal.Instant;

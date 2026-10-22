@@ -797,7 +797,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
+      "With the `tenant` module and `blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `auth.organization.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {
@@ -925,7 +925,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Subject registry names a missing table or column",
     description:
-      "An entry in `config.subjects` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
+      "An entry in `config.records` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
     check: missingSubjectColumns,
   },
   {
@@ -933,7 +933,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Subject table without RLS",
     description:
-      "A table in `config.subjects` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
+      "A table in `config.records` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
     check: subjectsWithoutRls,
   },
   {

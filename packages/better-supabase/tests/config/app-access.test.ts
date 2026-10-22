@@ -33,7 +33,7 @@ describe("appTablesOf column access", () => {
   it("refuses another value", () => {
     fails(
       { a: { columns: { b: { type: "text", access: "write" } } } },
-      "appTables.a.columns.b.access must be one of read, server",
+      "tables.a.columns.b.access must be one of read, server",
     );
   });
 
@@ -173,7 +173,7 @@ describe("appTablesOf encrypted columns", () => {
   it("refuses a non-boolean encrypted", () => {
     fails(
       { patients: { columns: { b: { type: "text", encrypted: "yes" } } } },
-      "appTables.patients.columns.b.encrypted",
+      "tables.patients.columns.b.encrypted",
     );
   });
 
@@ -187,7 +187,7 @@ describe("appTablesOf encrypted columns", () => {
   it.each(["unique", "indexes"])("refuses an encrypted column in %s", (key) => {
     fails(
       { patients: patients({ [key]: [["name", "ssn"]] }) },
-      `appTables.patients.${key}: ssn is encrypted`,
+      `tables.patients.${key}: ssn is encrypted`,
     );
   });
 

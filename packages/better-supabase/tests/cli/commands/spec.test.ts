@@ -154,7 +154,7 @@ describe("spec emit --watch", () => {
     const lines: string[] = [];
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      "export default { specs: { entry: 'api.mjs' } };\n",
+      "export default { api: { specs: { entry: 'api.mjs' } } };\n",
     );
 
     const watching = run(
@@ -194,7 +194,7 @@ describe("spec emit --watch", () => {
     await waitFor(/must export `api`/);
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      "export default { specs: { entry: 'api.mjs', outputs: [{ format: 'openapi', output: 'next.json' }] } };\n",
+      "export default { api: { specs: { entry: 'api.mjs', outputs: [{ format: 'openapi', output: 'next.json' }] } } };\n",
     );
     await writeFile(
       join(dir, "api.mjs"),
@@ -344,7 +344,7 @@ describe("spec arguments", () => {
     );
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      "export default { realtime: { policies: { from: ['topics.mjs'], output: 'topics.sql' } }, specs: { outputs: [{ format: 'asyncapi' }, { format: 'openapi' }] } };\n",
+      "export default { database: { realtime: { policies: { from: ['topics.mjs'], output: 'topics.sql' } } }, api: { specs: { outputs: [{ format: 'asyncapi' }, { format: 'openapi' }] } } };\n",
     );
 
     const result = await spec("emit", "--json");

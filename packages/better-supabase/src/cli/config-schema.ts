@@ -21,6 +21,7 @@ import {
   SKILLS_AGENTS,
 } from "../config/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
+import { movedKeyIssues } from "./config-moved.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 
 const strings = v.array(v.string());
@@ -83,17 +84,17 @@ const entityName = v.pipe(
 );
 
 const blockEntries = {
-  mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
+  ownership: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
   tables: v.optional(v.record(v.string(), v.nullable(v.string()))),
   columns: v.optional(
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
   idType: v.optional(v.string()),
-  scope: v.optional(v.picklist(["tenant", "user", "none"])),
+  owner: v.optional(v.picklist(["tenant", "user", "none"])),
   functions: v.optional(stringRecord),
   permissions: v.optional(stringRecord),
-  entities: v.optional(
+  names: v.optional(
     v.union([
       entityName,
       v.record(
@@ -111,7 +112,7 @@ const blockEntries = {
     ]),
   ),
   options: v.optional(v.record(v.string(), v.unknown())),
-  hooks: v.optional(
+  callbacks: v.optional(
     v.strictObject({
       schema: v.optional(v.string()),
       functions: v.optional(stringRecord),
@@ -411,108 +412,113 @@ const bucket = v.strictObject({
   ),
 });
 
-const appTables = v.record(
-  v.string(),
-  v.strictObject({
-    columns: v.optional(
-      v.record(
-        v.string(),
+const appTableEntries = {
+  columns: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        type: v.picklist(APP_COLUMN_TYPES),
+        nullable: v.optional(v.boolean()),
+        default: v.optional(v.string()),
+        unique: v.optional(v.boolean()),
+        references: v.optional(
+          v.union([
+            v.strictObject({ table: v.string(), onDelete }),
+            v.strictObject({ block: v.string(), table: v.string(), onDelete }),
+          ]),
+        ),
+        format: v.optional(v.picklist(APP_COLUMN_FORMATS)),
+        options: v.optional(v.array(v.string())),
+        min: v.optional(v.number()),
+        max: v.optional(v.number()),
+        comment: v.optional(v.string()),
+        identity: v.optional(v.boolean()),
+        access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
+        encrypted: v.optional(v.boolean()),
+      }),
+    ),
+  ),
+  timestamps: v.optional(v.boolean()),
+  id: v.optional(v.picklist(["uuid", "bigint"])),
+  unique: v.optional(v.array(v.array(v.string()))),
+  indexes: v.optional(v.array(v.array(v.string()))),
+  comment: v.optional(v.string()),
+  auditReads: v.optional(v.boolean()),
+  subject: v.optional(
+    v.strictObject({
+      type: v.string(),
+      title: v.optional(v.string()),
+      url: v.optional(v.string()),
+      search: v.optional(
         v.strictObject({
-          type: v.picklist(APP_COLUMN_TYPES),
-          nullable: v.optional(v.boolean()),
-          default: v.optional(v.string()),
-          unique: v.optional(v.boolean()),
-          references: v.optional(
-            v.union([
-              v.strictObject({ table: v.string(), onDelete }),
-              v.strictObject({
-                block: v.string(),
-                table: v.string(),
-                onDelete,
-              }),
-            ]),
-          ),
-          format: v.optional(v.picklist(APP_COLUMN_FORMATS)),
-          options: v.optional(v.array(v.string())),
-          min: v.optional(v.number()),
-          max: v.optional(v.number()),
-          comment: v.optional(v.string()),
-          identity: v.optional(v.boolean()),
-          access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
-          encrypted: v.optional(v.boolean()),
+          title: v.optional(v.string()),
+          body: v.optional(v.array(v.string())),
         }),
       ),
-    ),
-    scope: v.optional(v.picklist(["inherit", "user", "none"])),
-    timestamps: v.optional(v.boolean()),
-    id: v.optional(v.picklist(["uuid", "bigint"])),
-    unique: v.optional(v.array(v.array(v.string()))),
-    indexes: v.optional(v.array(v.array(v.string()))),
-    comment: v.optional(v.string()),
-    auditReads: v.optional(v.boolean()),
-    subject: v.optional(
-      v.strictObject({
-        type: v.string(),
-        title: v.optional(v.string()),
-        url: v.optional(v.string()),
-        search: v.optional(
+      permissions: v.optional(v.record(v.string(), v.string())),
+      rank: v.optional(
+        v.union([
+          v.literal(true),
+          v.strictObject({ group: v.optional(v.string()) }),
+        ]),
+      ),
+      softDelete: v.optional(v.boolean()),
+      versions: v.optional(
+        v.union([
+          v.literal(true),
           v.strictObject({
-            title: v.optional(v.string()),
-            body: v.optional(v.array(v.string())),
+            columns: v.optional(strings),
+            auto: v.optional(v.boolean()),
           }),
-        ),
-        permissions: v.optional(v.record(v.string(), v.string())),
-        rank: v.optional(
-          v.union([
-            v.literal(true),
-            v.strictObject({ group: v.optional(v.string()) }),
-          ]),
-        ),
-        softDelete: v.optional(v.boolean()),
-        versions: v.optional(
-          v.union([
-            v.literal(true),
-            v.strictObject({
-              columns: v.optional(strings),
-              auto: v.optional(v.boolean()),
-            }),
-          ]),
+        ]),
+      ),
+    }),
+  ),
+  rollups: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        table: v.string(),
+        via: v.string(),
+        aggregate: v.picklist(APP_ROLLUP_AGGREGATES),
+        column: v.optional(v.string()),
+        where: v.optional(
+          v.strictObject({ column: v.string(), equals: v.string() }),
         ),
       }),
     ),
-    rollups: v.optional(
-      v.record(
-        v.string(),
-        v.strictObject({
-          table: v.string(),
-          via: v.string(),
-          aggregate: v.picklist(APP_ROLLUP_AGGREGATES),
-          column: v.optional(v.string()),
-          where: v.optional(
-            v.strictObject({ column: v.string(), equals: v.string() }),
-          ),
-        }),
-      ),
+  ),
+  lookups: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({ via: v.string(), column: v.string() }),
     ),
-    lookups: v.optional(
-      v.record(
-        v.string(),
-        v.strictObject({ via: v.string(), column: v.string() }),
-      ),
-    ),
-    events: v.optional(
-      v.union([
-        v.literal(true),
-        v.strictObject({
-          on: v.optional(v.array(v.picklist(APP_TABLE_EVENT_KINDS))),
-          include: v.optional(strings),
-        }),
-      ]),
-    ),
-  }),
+  ),
+  events: v.optional(
+    v.union([
+      v.literal(true),
+      v.strictObject({
+        on: v.optional(v.array(v.picklist(APP_TABLE_EVENT_KINDS))),
+        include: v.optional(strings),
+      }),
+    ]),
+  ),
+};
+
+const appTableOwner = v.optional(v.picklist(["inherit", "user", "none"]));
+
+const appTables = v.record(
+  v.string(),
+  v.strictObject({ ...appTableEntries, owner: appTableOwner }),
 );
 
-const ENTRIES = {
+/** A `/create` design keeps `scope` until designs move to the config shape. */
+const designAppTables = v.record(
+  v.string(),
+  v.strictObject({ ...appTableEntries, scope: appTableOwner }),
+);
+
+const FLAT = {
   source: v.optional(
     v.strictObject({
       dbUrl: v.optional(v.string()),
@@ -597,13 +603,12 @@ const ENTRIES = {
     v.strictObject({
       timestamps: v.optional(pluginFlag),
       softDelete: v.optional(pluginFlag),
-      tenant: v.optional(pluginFlag),
+      tenant: v.optional(v.boolean()),
       actor: v.optional(pluginFlag),
     }),
   ),
   claims: v.optional(
     v.strictObject({
-      tenant: v.optional(v.string()),
       scope: v.optional(v.string()),
       features: v.optional(v.string()),
       memberships: v.optional(v.string()),
@@ -777,7 +782,7 @@ const ENTRIES = {
       testsDir: v.optional(v.string()),
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
-      scope: v.optional(v.picklist(["tenant", "user", "none"])),
+      owner: v.optional(v.picklist(["tenant", "user", "none"])),
     }),
   ),
   seed: v.optional(
@@ -787,7 +792,6 @@ const ENTRIES = {
       perTenant: v.optional(v.string()),
     }),
   ),
-  // oxlint-disable-next-line typescript/no-deprecated -- the schema still accepts the deprecated key (1 finding)
   openapi: v.optional(
     v.strictObject({
       entry: v.optional(v.string()),
@@ -830,14 +834,6 @@ const ENTRIES = {
       ),
     }),
   ),
-  gen: v.optional(
-    v.strictObject({
-      tasks: v.optional(v.array(v.picklist(GEN_TASKS))),
-      watchInterval: v.optional(
-        v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
-      ),
-    }),
-  ),
   env: v.optional(
     v.strictObject({
       output: v.optional(v.string()),
@@ -861,6 +857,78 @@ const ENTRIES = {
     v.strictObject({ agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))) }),
   ),
   keys: v.optional(v.strictObject({ output: v.optional(v.string()) })),
+};
+
+const pickEntries = <const K extends keyof typeof FLAT>(
+  keys: readonly K[],
+): Pick<typeof FLAT, K> =>
+  // SAFETY: every key comes from FLAT, so the picked object has exactly K.
+  Object.fromEntries(keys.map((key) => [key, FLAT[key]])) as Pick<
+    typeof FLAT,
+    K
+  >;
+
+const ENTRIES = {
+  database: v.optional(
+    v.strictObject(
+      pickEntries([
+        "source",
+        "schemas",
+        "sql",
+        "seed",
+        "expose",
+        "buckets",
+        "realtime",
+        "topics",
+        "vectorSearch",
+      ]),
+    ),
+  ),
+  auth: v.optional(
+    v.strictObject({
+      organization: v.optional(
+        v.strictObject({
+          claim: v.optional(v.string()),
+          column: v.optional(v.string()),
+        }),
+      ),
+      ...pickEntries(["claims", "authorization", "entitlements"]),
+    }),
+  ),
+  records: FLAT.subjects,
+  tables: FLAT.appTables,
+  blocks: FLAT.blocks,
+  adapters: FLAT.integrations,
+  plugins: FLAT.plugins,
+  gen: v.optional(
+    v.strictObject({
+      tasks: v.optional(v.array(v.picklist(GEN_TASKS))),
+      watchInterval: v.optional(
+        v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
+      ),
+      ...pickEntries([
+        "output",
+        "casing",
+        "postgrestVersion",
+        "generateFeatures",
+        "tables",
+        "json",
+        "codecs",
+        "relations",
+        "sensitive",
+        "storagePaths",
+        "functions",
+        "generators",
+        "readSets",
+      ]),
+    }),
+  ),
+  api: v.optional(v.strictObject(pickEntries(["openapi", "specs"]))),
+  tooling: v.optional(
+    v.strictObject(
+      pickEntries(["doctor", "env", "keys", "skills", "scaffold"]),
+    ),
+  ),
 } satisfies { [K in keyof Required<EnvironmentConfig>]: v.GenericSchema };
 
 const EnvironmentSchema = v.strictObject(ENTRIES);
@@ -871,7 +939,7 @@ const EnvironmentSchema = v.strictObject(ENTRIES);
  */
 const DesignSchema = v.strictObject({
   version: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
-  appTables: v.optional(appTables),
+  appTables: v.optional(designAppTables),
   extraColumns: v.optional(v.record(v.string(), stringRecord)),
   positions: v.optional(
     v.record(v.string(), v.pipe(v.array(v.number()), v.length(2))),
@@ -889,59 +957,6 @@ const ConfigSchema = v.strictObject({
   $ci: v.optional(EnvironmentSchema),
 } satisfies { [K in keyof Required<BetterSupabaseConfig>]: v.GenericSchema });
 
-const hasSqlKey = (value: unknown, key: string): boolean =>
-  typeof value === "object" &&
-  value !== null &&
-  "sql" in value &&
-  typeof value.sql === "object" &&
-  value.sql !== null &&
-  key in value.sql;
-
-/** `sql` keys that moved, with where they went. */
-const MOVED_SQL_KEYS: readonly (readonly [string, string])[] = [
-  [
-    "modules",
-    "moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
-  ],
-  [
-    "naming",
-    "`sql.naming.tenant` moved to `blocks.tenant.entities.organization`",
-  ],
-];
-
-/**
- * Moved `sql` keys in the config or one of its environment blocks, each as
- * `path: message`.
- */
-function movedKeyIssues(value: unknown): string[] {
-  if (typeof value !== "object" || value === null) {
-    return [];
-  }
-
-  const blocks: [string, unknown][] = [["", value]];
-  const entries: [string, unknown][] = Object.entries(value);
-
-  for (const [key, block] of entries) {
-    if (key === "$env" && typeof block === "object" && block !== null) {
-      const named: [string, unknown][] = Object.entries(block);
-      blocks.push(
-        ...named.map(([name, env]): [string, unknown] => [
-          `$env.${name}.`,
-          env,
-        ]),
-      );
-    } else if (key.startsWith("$")) {
-      blocks.push([`${key}.`, block]);
-    }
-  }
-
-  return blocks.flatMap(([prefix, block]) =>
-    MOVED_SQL_KEYS.filter(([key]) => hasSqlKey(block, key)).map(
-      ([key, message]) => `${prefix}sql.${key}: ${message}`,
-    ),
-  );
-}
-
 /** Each issue as `path: message`, the path in config keys. */
 export function configIssues(value: unknown): string[] {
   const moved = movedKeyIssues(value);
@@ -950,8 +965,19 @@ export function configIssues(value: unknown): string[] {
     return moved;
   }
 
-  if (typeof value === "object" && value !== null && "authorization" in value) {
-    const provider = value.authorization;
+  const auth =
+    typeof value === "object" && value !== null && "auth" in value
+      ? value.auth
+      : undefined;
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    typeof auth === "object" &&
+    auth !== null &&
+    "authorization" in auth
+  ) {
+    const provider = auth.authorization;
 
     const problem =
       typeof provider === "object" && provider !== null
@@ -959,9 +985,12 @@ export function configIssues(value: unknown): string[] {
         : undefined;
 
     if (problem !== undefined) {
-      const { authorization: _, ...rest } = value;
+      const { authorization: _, ...rest } = auth;
 
-      return [`authorization.apiVersion: ${problem}`, ...configIssues(rest)];
+      return [
+        `auth.authorization.apiVersion: ${problem}`,
+        ...configIssues({ ...value, auth: rest }),
+      ];
     }
   }
 

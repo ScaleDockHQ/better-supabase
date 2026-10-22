@@ -263,7 +263,7 @@ function tableChannels<Ref>(
       ctx.report({
         code: "asyncapi-table-unknown",
         severity: "error",
-        message: `events.tables names "${key}", which is not in realtime.tables`,
+        message: `events.tables names "${key}", which is not in database.realtime.tables`,
       });
       continue;
     }

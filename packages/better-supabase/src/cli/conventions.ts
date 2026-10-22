@@ -44,12 +44,12 @@ export const CONVENTION_ARGS: {
   ),
   scope: arg(
     "scope",
-    "Row ownership (sql.scope): tenant (the default), user or none for one shared space",
+    "Row ownership (database.sql.owner): tenant (the default), user or none for one shared space",
   ),
   "tenant-name": {
     type: "string",
     description:
-      "What a tenant is called (blocks.tenant.entities.organization): organization (the default), workspace, team or another lowercase name",
+      "What a tenant is called (blocks.tenant.names.organization): organization (the default), workspace, team or another lowercase name",
     valueHint: "name",
   },
   access: arg(
@@ -62,7 +62,7 @@ export const CONVENTION_ARGS: {
   ),
   api: arg(
     "api",
-    "API schema (sql.api): none (the default) or api for security invoker wrappers in an api schema",
+    "API schema (database.sql.api): none (the default) or api for security invoker wrappers in an api schema",
   ),
 };
 
@@ -151,7 +151,7 @@ export function withConventions(
     ) {
       throw new CliError(
         "usage",
-        `--tenant-name with a preset takes ${PRESET_TENANT_NAMES.join(", ")}. Leave it out and set blocks.tenant.entities.organization in the config for another name.`,
+        `--tenant-name with a preset takes ${PRESET_TENANT_NAMES.join(", ")}. Leave it out and set blocks.tenant.names.organization in the config for another name.`,
       );
     }
 

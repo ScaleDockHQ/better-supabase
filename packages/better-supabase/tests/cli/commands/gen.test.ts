@@ -44,7 +44,10 @@ describe("gen", () => {
 
   const configure = (config: BetterSupabaseConfig) =>
     resolveConfig(
-      { casing: "camel", output: "src/db/generated.ts", ...config },
+      {
+        ...config,
+        gen: { casing: "camel", output: "src/db/generated.ts", ...config.gen },
+      },
       root,
     );
 
@@ -68,7 +71,7 @@ describe("gen", () => {
       },
     };
 
-    const config = configure({ generators: [tables] });
+    const config = configure({ gen: { generators: [tables] } });
     const files = await renderFiles(config, snapshot);
     expect(files.map((file) => file.path)).toEqual([
       "src/db/database.types.ts",
@@ -88,7 +91,7 @@ describe("gen", () => {
     });
 
     const failing = async (...generators: Generator[]) =>
-      renderFiles(configure({ generators }), snapshot).then(
+      renderFiles(configure({ gen: { generators } }), snapshot).then(
         () => "rendered",
         (error: unknown) => (error instanceof Error ? error.message : ""),
       );
@@ -117,9 +120,11 @@ describe("gen", () => {
 
   it("imports JSON column types per file, in code point order", async () => {
     const config = configure({
-      json: {
-        "notes.attachments": { import: "src/types/notes.ts#Attachments" },
-        "customers.metadata": { import: "src/types/Customer.ts#Metadata" },
+      gen: {
+        json: {
+          "notes.attachments": { import: "src/types/notes.ts#Attachments" },
+          "customers.metadata": { import: "src/types/Customer.ts#Metadata" },
+        },
       },
     });
 
@@ -142,7 +147,7 @@ describe("gen", () => {
   it("writes the read-sets module after the generated one and checks it for drift", async () => {
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
-    const config = configure({ readSets: ["src/read-sets.ts"] });
+    const config = configure({ gen: { readSets: ["src/read-sets.ts"] } });
 
     const gen = (check: boolean) =>
       runGen({ config, env: {}, check, snapshot });
@@ -191,10 +196,12 @@ describe("gen", () => {
 
     const config = resolveConfig(
       {
-        casing: "camel",
-        output: "src/db/generated.ts",
-        readSets: ["src/read-sets.ts"],
-        sql: { dir: "../stack/schemas" },
+        gen: {
+          casing: "camel",
+          output: "src/db/generated.ts",
+          readSets: ["src/read-sets.ts"],
+        },
+        database: { sql: { dir: "../stack/schemas" } },
       },
       app,
     );
@@ -217,8 +224,8 @@ describe("gen", () => {
     await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
 
     const config = configure({
-      readSets: ["src/read-sets.ts"],
-      sql: { workflow: "migrations" },
+      gen: { readSets: ["src/read-sets.ts"] },
+      database: { sql: { workflow: "migrations" } },
     });
 
     const gen = (check: boolean) =>
@@ -254,9 +261,9 @@ describe("gen", () => {
     await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
 
     const config = configure({
-      readSets: ["src/read-sets.ts"],
+      gen: { readSets: ["src/read-sets.ts"] },
       blocks: { tenant: {} },
-      appTables: { projects: { columns: { name: { type: "text" } } } },
+      tables: { projects: { columns: { name: { type: "text" } } } },
     });
 
     const result = await runGen({ config, env: {}, check: false, snapshot });
@@ -271,18 +278,20 @@ describe("gen", () => {
     let model: GeneratorModel | undefined;
 
     const config = configure({
-      json: { "customers.metadata": { type: "{ tier: string }" } },
-      generators: [
-        {
-          apiVersion: 1,
-          name: "spy",
-          generate: (input) => {
-            model = input.model;
+      gen: {
+        json: { "customers.metadata": { type: "{ tier: string }" } },
+        generators: [
+          {
+            apiVersion: 1,
+            name: "spy",
+            generate: (input) => {
+              model = input.model;
 
-            return [];
+              return [];
+            },
           },
-        },
-      ],
+        ],
+      },
     });
 
     await renderFiles(config, snapshot);
@@ -309,7 +318,7 @@ describe("gen", () => {
       generate: () => [],
     } as unknown as Generator;
 
-    expect(() => configure({ generators: [future] })).toThrow(
+    expect(() => configure({ gen: { generators: [future] } })).toThrow(
       'generator "future" targets generator API 2',
     );
   });
@@ -317,11 +326,13 @@ describe("gen", () => {
   it("warns about tables and json entries that match nothing", async () => {
     const result = await runGen({
       config: configure({
-        tables: { ghosts: { exclude: true }, customers: { casing: "snake" } },
-        json: {
-          "customers.name": { type: "string" },
-          "ghosts.data": { type: "string" },
-          "customers.metadata": { type: "{ tier: string }" },
+        gen: {
+          tables: { ghosts: { exclude: true }, customers: { casing: "snake" } },
+          json: {
+            "customers.name": { type: "string" },
+            "ghosts.data": { type: "string" },
+            "customers.metadata": { type: "{ tier: string }" },
+          },
         },
       }),
       env: {},
@@ -346,7 +357,7 @@ describe("gen", () => {
     };
 
     await runGen({
-      config: configure({ generators: [extra] }),
+      config: configure({ gen: { generators: [extra] } }),
       env: {},
       check: false,
       snapshot,

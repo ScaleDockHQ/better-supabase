@@ -11,17 +11,20 @@ describe("configIssues", () => {
   it("accepts a full config, generators included", () => {
     expect(
       configIssues({
-        casing: "camel",
-        codecs: { timestamptz: "instant", int8: "bigint" },
-        plugins: { tenant: { column: "org_id" }, timestamps: true },
-        expose: { notes: ["select"], tags: { anon: ["select"] } },
-        tables: {
-          audit_logs: { serviceRole: true },
-          jobs: { exclude: true },
-          invoices: { insertOptional: ["number"] },
+        gen: {
+          casing: "camel",
+          codecs: { timestamptz: "instant", int8: "bigint" },
+          tables: {
+            audit_logs: { serviceRole: true },
+            jobs: { exclude: true },
+            invoices: { insertOptional: ["number"] },
+          },
+          generators: [{ name: "zod", generate: () => [] }],
         },
-        generators: [{ name: "zod", generate: () => [] }],
-        doctor: { ignore: ["BS303"], strict: true },
+        plugins: { tenant: true, timestamps: true },
+        database: { expose: { notes: ["select"], tags: { anon: ["select"] } } },
+        tooling: { doctor: { ignore: ["BS303"], strict: true } },
+        auth: { organization: { column: "org_id" } },
       }),
     ).toEqual([]);
   });
@@ -30,21 +33,21 @@ describe("configIssues", () => {
     expect(
       configIssues({
         gen: { tasks: ["types", "env"] },
-        integrations: ["next"],
-        $env: { staging: { doctor: { strict: true } } },
-        $production: { env: { output: ".env.production.local" } },
+        adapters: ["next"],
+        $env: { staging: { tooling: { doctor: { strict: true } } } },
+        $production: { tooling: { env: { output: ".env.production.local" } } },
       }),
     ).toEqual([]);
     expect(
       configIssues({
         gen: { tasks: ["lint"], watchInterval: 0 },
-        integrations: ["express"],
+        adapters: ["express"],
         $ci: { $env: {} },
       }),
     ).toEqual([
+      expect.stringMatching(/^adapters\.0: /),
       expect.stringMatching(/^gen\.tasks\.0: /),
       expect.stringMatching(/^gen\.watchInterval: /),
-      expect.stringMatching(/^integrations\.0: /),
       expect.stringMatching(/^\$ci/),
     ]);
   });
@@ -52,114 +55,138 @@ describe("configIssues", () => {
   it("accepts specs outputs and rejects unknown levels and UIs", () => {
     expect(
       configIssues({
-        specs: {
-          entry: "src/lib/api.ts",
-          outputs: [
-            {
-              format: "openapi",
-              version: "3.0",
-              output: "legacy.yaml",
-              serialize: "yaml",
-            },
-            { format: "openapi", ui: "redoc", overlays: ["docs.yaml"] },
-          ],
-          failOn: "never",
+        api: {
+          specs: {
+            entry: "src/lib/api.ts",
+            outputs: [
+              {
+                format: "openapi",
+                version: "3.0",
+                output: "legacy.yaml",
+                serialize: "yaml",
+              },
+              { format: "openapi", ui: "redoc", overlays: ["docs.yaml"] },
+            ],
+            failOn: "never",
+          },
         },
       }),
     ).toEqual([]);
     expect(
       configIssues({
-        specs: { outputs: [{ format: "", ui: "nope" }], failOn: "loud" },
+        api: {
+          specs: { outputs: [{ format: "", ui: "nope" }], failOn: "loud" },
+        },
       }),
     ).toEqual([
-      expect.stringMatching(/^specs\.outputs\.0\.format: /),
-      expect.stringMatching(/^specs\.outputs\.0\.ui: /),
-      expect.stringMatching(/^specs\.failOn: /),
+      expect.stringMatching(/^api\.specs\.outputs\.0\.format: /),
+      expect.stringMatching(/^api\.specs\.outputs\.0\.ui: /),
+      expect.stringMatching(/^api\.specs\.failOn: /),
     ]);
   });
 
   it("accepts the entitlements claim shape and vector search ordering", () => {
     expect(
       configIssues({
-        entitlements: { claim: { maxTenants: 20, keys: { exports: "x" } } },
-        vectorSearch: {
-          chunks: {
-            column: "embedding",
-            predicate: "t.expires_at > now()",
-            boostMode: "add",
-            order: "t.id desc",
+        auth: {
+          entitlements: { claim: { maxTenants: 20, keys: { exports: "x" } } },
+        },
+        database: {
+          vectorSearch: {
+            chunks: {
+              column: "embedding",
+              predicate: "t.expires_at > now()",
+              boostMode: "add",
+              order: "t.id desc",
+            },
           },
         },
       }),
     ).toEqual([]);
-    expect(configIssues({ entitlements: { claim: false } })).toEqual([]);
+    expect(configIssues({ auth: { entitlements: { claim: false } } })).toEqual(
+      [],
+    );
   });
 
   it("accepts column privileges in expose and rejects other strings", () => {
     expect(
       configIssues({
-        expose: {
-          profiles: ["select", "update(username, first_name)"],
-          notes: {
-            anon: ["select(id,title)"],
-            authenticated: ["insert(body)"],
-          },
-        },
-      }),
-    ).toEqual([]);
-    expect(
-      configIssues({
-        expose: { profiles: ["update(username", "delete(id)", "truncate"] },
-      }),
-    ).toEqual([
-      expect.stringMatching(/^expose\.profiles\.0: /),
-      expect.stringMatching(/^expose\.profiles\.1: /),
-      expect.stringMatching(/^expose\.profiles\.2: /),
-    ]);
-  });
-
-  it("checks sql.workflow, buckets and json the way their types do", () => {
-    expect(
-      configIssues({
-        sql: { workflow: "migrations" },
-        buckets: {
-          logos: {
-            path: ["{organizationId}/logo.webp"],
-            policy: { access: { read: "files.read", write: "files.write" } },
-            lifecycle: {
-              rules: [{ noncurrentVersionExpiration: { noncurrentDays: 30 } }],
+        database: {
+          expose: {
+            profiles: ["select", "update(username, first_name)"],
+            notes: {
+              anon: ["select(id,title)"],
+              authenticated: ["insert(body)"],
             },
           },
         },
-        json: { "notes.meta": { import: "./meta.ts#Meta" } },
       }),
     ).toEqual([]);
     expect(
       configIssues({
-        sql: { workflow: "flyway" },
-        buckets: { logos: { path: [], policy: "everyone" } },
-        json: { "notes.meta": { import: "./meta.ts#Meta", type: "Meta" } },
+        database: {
+          expose: { profiles: ["update(username", "delete(id)", "truncate"] },
+        },
       }),
     ).toEqual([
-      expect.stringMatching(/^json\.notes\.meta: Use \{ import \} or/),
-      expect.stringMatching(/^buckets\.logos\.path: /),
-      expect.stringMatching(/^buckets\.logos\.policy: /),
-      expect.stringMatching(/^sql\.workflow: /),
+      expect.stringMatching(/^database\.expose\.profiles\.0: /),
+      expect.stringMatching(/^database\.expose\.profiles\.1: /),
+      expect.stringMatching(/^database\.expose\.profiles\.2: /),
+    ]);
+  });
+
+  it("checks database.sql.workflow, buckets and gen.json the way their types do", () => {
+    expect(
+      configIssues({
+        database: {
+          sql: { workflow: "migrations" },
+          buckets: {
+            logos: {
+              path: ["{organizationId}/logo.webp"],
+              policy: { access: { read: "files.read", write: "files.write" } },
+              lifecycle: {
+                rules: [
+                  { noncurrentVersionExpiration: { noncurrentDays: 30 } },
+                ],
+              },
+            },
+          },
+        },
+        gen: { json: { "notes.meta": { import: "./meta.ts#Meta" } } },
+      }),
+    ).toEqual([]);
+    expect(
+      configIssues({
+        database: {
+          sql: { workflow: "flyway" },
+          buckets: { logos: { path: [], policy: "everyone" } },
+        },
+        gen: {
+          json: { "notes.meta": { import: "./meta.ts#Meta", type: "Meta" } },
+        },
+      }),
+    ).toEqual([
+      expect.stringMatching(/^database\.sql\.workflow: /),
+      expect.stringMatching(/^database\.buckets\.logos\.path: /),
+      expect.stringMatching(/^database\.buckets\.logos\.policy: /),
+      expect.stringMatching(/^gen\.json\.notes\.meta: Use \{ import \} or/),
     ]);
   });
 
   it("names the key path of every problem", () => {
     expect(
       configIssues({
-        casing: "pascal",
-        codecs: { timestamptz: "date" },
-        generators: [{ name: "zod" }],
+        gen: {
+          casing: "pascal",
+          codecs: { timestamptz: "date" },
+          generators: [{ name: "zod" }],
+        },
         typo: true,
       }),
     ).toEqual([
-      expect.stringMatching(/^casing: Invalid type/),
-      expect.stringMatching(/^codecs\.timestamptz: Invalid type/),
-      "generators.0: must be a generator: { name, generate(input) }",
+      expect.stringMatching(/^gen\.casing: Invalid type/),
+      expect.stringMatching(/^gen\.codecs\.timestamptz: Invalid type/),
+      "gen.generators.0: must be a generator: { name, generate(input) }",
       expect.stringMatching(/^typo: Invalid key/),
     ]);
   });
@@ -169,7 +196,10 @@ describe("configIssues", () => {
       configIssues({
         blocks: {
           access: { model: "catalog", activeTenant: "claim" },
-          organizations: { mode: "adopt", options: { ownerRole: "owner" } },
+          organizations: {
+            ownership: "adopt",
+            options: { ownerRole: "owner" },
+          },
         },
       }),
     ).toEqual([]);
@@ -202,7 +232,7 @@ describe("committed configs", () => {
 
 describe("configIssues for authorization", () => {
   const issues = (over: Record<string, unknown>) =>
-    configIssues({ authorization: { ...stubProvider, ...over } });
+    configIssues({ auth: { authorization: { ...stubProvider, ...over } } });
 
   it("accepts the stub provider with the optional hooks", () => {
     expect(
@@ -215,7 +245,9 @@ describe("configIssues for authorization", () => {
         approvals: { distinctApprover: true },
       }),
     ).toEqual([]);
-    expect(configIssues({ claims: { memberships: "orgs" } })).toEqual([]);
+    expect(configIssues({ auth: { claims: { memberships: "orgs" } } })).toEqual(
+      [],
+    );
   });
 
   it("accepts delegation scopes on the provider and the access module", () => {
@@ -269,7 +301,7 @@ describe("configIssues for authorization", () => {
   it("names a wrong apiVersion instead of listing every field", () => {
     expect(issues({ apiVersion: 2 })).toEqual([
       expect.stringMatching(
-        /^authorization\.apiVersion: .*targets authorization provider API 2/,
+        /^auth\.authorization\.apiVersion: .*targets authorization provider API 2/,
       ),
     ]);
   });
@@ -297,5 +329,21 @@ describe("configIssues for authorization", () => {
     expect(
       issues({ decidingColumns: ["memberships.role"] }).join("\n"),
     ).toMatch(/Use schema\.table\.column/);
+  });
+});
+
+describe("configIssues for a config written before 0.15", () => {
+  it("names the group each moved key belongs to and the codemod", () => {
+    expect(
+      configIssues({
+        casing: "camel",
+        subjects: {},
+        $production: { doctor: {} },
+      }),
+    ).toEqual([
+      "casing: moved to `gen.casing` in 0.15; run `better-supabase codemod 0.15`",
+      "subjects: moved to `records` in 0.15; run `better-supabase codemod 0.15`",
+      "$production.doctor: moved to `tooling.doctor` in 0.15; run `better-supabase codemod 0.15`",
+    ]);
   });
 });

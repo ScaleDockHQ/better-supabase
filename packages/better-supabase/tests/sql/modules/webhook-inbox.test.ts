@@ -36,7 +36,7 @@ describe("webhook-inbox module", () => {
           "webhook-inbox": { columns: { messages: { tenant: "org_id" } } },
         },
       }),
-    ).toThrow(/mode "adopt"/);
+    ).toThrow(/ownership "adopt"/);
   });
 
   it("adopts an app's table with renamed and missing columns", () => {

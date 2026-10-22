@@ -34,8 +34,7 @@ describe("config discovery", () => {
 
   it("loads the config at the repository root from a nested package", async () => {
     await write(repo, "better-supabase.config.json", {
-      output: "packages/runtime/src/generated.ts",
-      casing: "camel",
+      gen: { output: "packages/runtime/src/generated.ts", casing: "camel" },
     });
     const config = await loadConfig(join(pkg, "src"));
     expect(config.root).toBe(repo);
@@ -44,8 +43,12 @@ describe("config discovery", () => {
   });
 
   it("prefers the nearest config", async () => {
-    await write(repo, "better-supabase.config.json", { casing: "camel" });
-    await write(pkg, "better-supabase.config.json", { casing: "snake" });
+    await write(repo, "better-supabase.config.json", {
+      gen: { casing: "camel" },
+    });
+    await write(pkg, "better-supabase.config.json", {
+      gen: { casing: "snake" },
+    });
     const config = await loadConfig(pkg);
     expect(config.root).toBe(pkg);
     expect(config.casing).toBe("snake");
@@ -55,7 +58,9 @@ describe("config discovery", () => {
     const outer = await mkdtemp(join(tmpdir(), "better-supabase-outer-"));
 
     try {
-      await write(outer, "better-supabase.config.json", { casing: "camel" });
+      await write(outer, "better-supabase.config.json", {
+        gen: { casing: "camel" },
+      });
       const inner = join(outer, "checkout/app");
       await mkdir(join(outer, "checkout/.git"), { recursive: true });
       await mkdir(inner, { recursive: true });
@@ -67,8 +72,10 @@ describe("config discovery", () => {
   });
 
   it("keeps --config relative to the working directory", async () => {
-    await write(repo, "better-supabase.config.json", { casing: "camel" });
-    await write(pkg, "other.json", { casing: "snake" });
+    await write(repo, "better-supabase.config.json", {
+      gen: { casing: "camel" },
+    });
+    await write(pkg, "other.json", { gen: { casing: "snake" } });
     const config = await loadConfig(pkg, "other.json");
     expect(config.root).toBe(pkg);
     expect(config.casing).toBe("snake");
@@ -92,15 +99,16 @@ describe("config environments", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        casing: "camel",
-        doctor: { ignore: ["BS100"], strict: false },
-        gen: { tasks: ["types", "spec"] },
-        $env: { staging: { doctor: { strict: true } } },
+        gen: { casing: "camel", tasks: ["types", "spec"] },
+        tooling: { doctor: { ignore: ["BS100"], strict: false } },
+        $env: { staging: { tooling: { doctor: { strict: true } } } },
         $ci: {
-          doctor: {
-            format: "sarif",
-            output: "doctor.sarif",
-            ignore: ["BS304"],
+          tooling: {
+            doctor: {
+              format: "sarif",
+              output: "doctor.sarif",
+              ignore: ["BS304"],
+            },
           },
           gen: { tasks: ["types"] },
         },
@@ -155,7 +163,7 @@ describe("config environments", () => {
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
         sql: { modules: ["tenant"] },
-        $production: { sql: { modules: { tenant: true } } },
+        $production: { database: { sql: { modules: { tenant: true } } } },
       }),
     );
 
@@ -167,7 +175,9 @@ describe("config environments", () => {
       ),
     });
     expect(error).toMatchObject({
-      message: expect.stringContaining("$production.sql.modules: moved"),
+      message: expect.stringContaining(
+        "$production.database.sql.modules: moved",
+      ),
     });
     expect(() =>
       // @ts-expect-error -- `sql.modules` is the removed 0.8 key under test.
@@ -175,17 +185,19 @@ describe("config environments", () => {
     ).toThrow("sql.modules: moved to the top-level `blocks` key");
   });
 
-  it("points sql.naming at blocks.tenant.entities", async () => {
+  it("points sql.naming at blocks.tenant.names", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ sql: { naming: { tenant: "workspace" } } }),
+      JSON.stringify({
+        database: { sql: { naming: { tenant: "workspace" } } },
+      }),
     );
 
     const error = await loadConfig(dir).catch((error: unknown) => error);
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
-        "sql.naming: `sql.naming.tenant` moved to `blocks.tenant.entities.organization`",
+        "database.sql.naming: `sql.naming.tenant` moved to `blocks.tenant.names.organization`",
       ),
     });
   });
@@ -246,7 +258,7 @@ describe("databaseUrl", () => {
     const config = resolveConfig({}, root);
 
     const withUrl = resolveConfig(
-      { source: { dbUrl: "postgres://config" } },
+      { database: { source: { dbUrl: "postgres://config" } } },
       root,
     );
 

@@ -31,7 +31,11 @@ describe("providerLabel", () => {
 
 describe("entitlementsMode", () => {
   it("defaults to the provider's member functions when authorization is set", () => {
-    const config = resolveConfig({ authorization: stubProvider }, "/project");
+    const config = resolveConfig(
+      { auth: { authorization: stubProvider } },
+      "/project",
+    );
+
     expect(config.entitlements.memberships).toBe("provider");
     expect(entitlementsMode(config)).toEqual({
       kind: "provider",
@@ -54,8 +58,10 @@ describe("entitlementsMode", () => {
       entitlementsMode(
         resolveConfig(
           {
-            authorization: stubProvider,
-            entitlements: { memberships: "tenant" },
+            auth: {
+              authorization: stubProvider,
+              entitlements: { memberships: "tenant" },
+            },
           },
           "/project",
         ),
@@ -77,7 +83,9 @@ describe("entitlementsMode", () => {
     });
 
     expect(
-      entitlementsMode(resolveConfig({ authorization: provider }, "/project")),
+      entitlementsMode(
+        resolveConfig({ auth: { authorization: provider } }, "/project"),
+      ),
     ).toMatchObject({ provider: { memberships: stubProvider.memberships } });
   });
 
@@ -85,7 +93,7 @@ describe("entitlementsMode", () => {
     expect(
       entitlementsMode(
         resolveConfig(
-          { entitlements: { memberships: "provider" } },
+          { auth: { entitlements: { memberships: "provider" } } },
           "/project",
         ),
       ),
@@ -94,7 +102,7 @@ describe("entitlementsMode", () => {
     expect(
       entitlementsMode(
         resolveConfig(
-          { authorization: withProvider({ functions }) },
+          { auth: { authorization: withProvider({ functions }) } },
           "/project",
         ),
       ),
@@ -102,7 +110,9 @@ describe("entitlementsMode", () => {
     expect(
       entitlementsMode(
         resolveConfig(
-          { authorization: withProvider({ tenantScope: "workspace" }) },
+          {
+            auth: { authorization: withProvider({ tenantScope: "workspace" }) },
+          },
           "/project",
         ),
       ),
@@ -111,9 +121,11 @@ describe("entitlementsMode", () => {
       entitlementsMode(
         resolveConfig(
           {
-            authorization: withProvider({
-              scopes: [{ name: "organization", idType: "numeric" }],
-            }),
+            auth: {
+              authorization: withProvider({
+                scopes: [{ name: "organization", idType: "numeric" }],
+              }),
+            },
           },
           "/project",
         ),
@@ -123,7 +135,11 @@ describe("entitlementsMode", () => {
       entitlementsMode(
         resolveConfig(
           {
-            authorization: withProvider({ scopes: [{ name: "organization" }] }),
+            auth: {
+              authorization: withProvider({
+                scopes: [{ name: "organization" }],
+              }),
+            },
           },
           "/project",
         ),
@@ -190,7 +206,7 @@ describe("accessProviderMode", () => {
       accessProviderMode(
         resolveConfig(
           {
-            authorization: stubProvider,
+            auth: { authorization: stubProvider },
             blocks: { access: { model: "roles" } },
           },
           "/project",
@@ -323,7 +339,7 @@ describe("requirements", () => {
     const mode = accessProviderMode(
       resolveConfig(
         {
-          authorization: stubProvider,
+          auth: { authorization: stubProvider },
           blocks: { access: { model: "provider" } },
         },
         "/project",
@@ -350,7 +366,7 @@ describe("requirements", () => {
 
   it("lists the entitlements module's callers and roles", () => {
     const mode = entitlementsMode(
-      resolveConfig({ authorization: stubProvider }, "/project"),
+      resolveConfig({ auth: { authorization: stubProvider } }, "/project"),
     );
 
     if (mode.kind !== "provider") {

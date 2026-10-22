@@ -41,7 +41,10 @@ const taskBlock: GeneratorBlock = {
   ],
 };
 
-const config = resolveConfig({ output: "src/generated.ts" }, "/project");
+const config = resolveConfig(
+  { gen: { output: "src/generated.ts" } },
+  "/project",
+);
 
 const input: GeneratorInput = {
   meta: {

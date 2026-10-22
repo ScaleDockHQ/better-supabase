@@ -44,7 +44,11 @@ import type {
   SpecsConfig,
 } from "./tooling.ts";
 
-export interface BetterSupabaseConfig {
+/**
+ * The config with every key at the top level, as `flattenConfig` returns it and
+ * `resolveConfig` reads it. Apps write the grouped `BetterSupabaseConfig`.
+ */
+export interface FlatConfig {
   readonly $schema?: string;
   readonly source?: SourceConfig;
   /** Postgres schemas to generate. Defaults to `['public']`. */
@@ -188,33 +192,7 @@ export interface BetterSupabaseConfig {
   readonly integrations?: readonly IntegrationName[];
   readonly skills?: SkillsConfig;
   readonly keys?: KeysConfig;
-  /**
-   * Overrides per environment, keyed by name. The CLI applies the block for
-   * `--env <name>`, else `$BETTER_SUPABASE_ENV`, else `ci` when `$CI` is set.
-   * Objects merge into the config; arrays and other values replace.
-   */
-  readonly $env?: Readonly<Record<string, EnvironmentConfig>>;
-  /** Shorthand for `$env.development`. */
-  readonly $development?: EnvironmentConfig;
-  /** Shorthand for `$env.production`. */
-  readonly $production?: EnvironmentConfig;
-  /** Shorthand for `$env.test`. */
-  readonly $test?: EnvironmentConfig;
-  /** Shorthand for `$env.ci`, which the CLI picks when `$CI` is set. */
-  readonly $ci?: EnvironmentConfig;
 }
-
-/** The keys an environment block may override. */
-export type EnvironmentConfig = Omit<
-  BetterSupabaseConfig,
-  | "$schema"
-  | "$env"
-  | "$development"
-  | "$production"
-  | "$test"
-  | "$ci"
-  | "preset"
->;
 
 /** The config with defaults applied. */
 export interface ResolvedConfig {
@@ -305,3 +283,20 @@ export interface ResolvedConfig {
   /** The environment block the CLI applied, when one was active. */
   readonly environment?: string;
 }
+
+export type {
+  AppTableInput,
+  AppTablesInput,
+  ApiConfig,
+  AuthConfig,
+  BetterSupabaseConfig,
+  BlockInput,
+  BlocksInput,
+  DatabaseConfig,
+  EnvironmentConfig,
+  GenGroupConfig,
+  OrganizationConfig,
+  PluginFlagsInput,
+  SqlInput,
+  ToolingConfig,
+} from "./groups.ts";

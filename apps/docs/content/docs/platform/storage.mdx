@@ -94,13 +94,17 @@ pin the project host, so build the URL when you render. List the column in
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  buckets: {
-    customerLogos: {
-      path: "{organizationId}/{customerId}/logo/{version}.webp",
-      policy: "tenant",
+  database: {
+    buckets: {
+      customerLogos: {
+        path: "{organizationId}/{customerId}/logo/{version}.webp",
+        policy: "tenant",
+      },
     },
   },
-  storagePaths: { "customers.logo_path": "customerLogos" }, // a buckets key or a bucket id
+  gen: {
+    storagePaths: { "customers.logo_path": "customerLogos" }, // a buckets key or a bucket id
+  },
 });
 ```
 

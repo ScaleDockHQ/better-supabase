@@ -194,9 +194,9 @@ function resolveEntity(
 /**
  * The final names of `module` under `blocks`: its entities renamed through
  * `blocks.<module>.entities`, and the tenant through
- * `blocks.tenant.entities.organization`. Throws on an unknown entity, a name
- * that isn't a lowercase identifier, a `url` placeholder that isn't a column,
- * or a name that contains another noun the blocks rename.
+ * `blocks.tenant.names.organization`. Throws on an unknown entity, a name that
+ * isn't a lowercase identifier, a `url` placeholder that isn't a column, or a
+ * name that contains another noun the blocks rename.
  */
 export function resolveNames(
   module: string,

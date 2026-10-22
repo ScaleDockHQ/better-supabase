@@ -21,11 +21,11 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 
 | Option                 | Description                                                                                                                                                                                                                                                        |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--format <f>`         | `text` (default), `sarif` or `github`; also `doctor.format`. The global `--json` prints the JSON report                                                                                                                                                            |
-| `--out <file>`         | Write the report to a file; also `doctor.output`, which applies with `doctor.format`                                                                                                                                                                               |
-| `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`; also `doctor.only`                                                                                                                                                                                               |
-| `--ignore <codes>`     | Skip checks. Adds to `doctor.ignore` in the config                                                                                                                                                                                                                 |
-| `--fail-on <level>`    | Exit 1 on findings at this level: `error` (the default), `warning` (the default with `doctor.strict`) or `never`                                                                                                                                                   |
+| `--format <f>`         | `text` (default), `sarif` or `github`; also `tooling.doctor.format`. The global `--json` prints the JSON report                                                                                                                                                    |
+| `--out <file>`         | Write the report to a file; also `tooling.doctor.output`, which applies with `tooling.doctor.format`                                                                                                                                                               |
+| `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`; also `tooling.doctor.only`                                                                                                                                                                                       |
+| `--ignore <codes>`     | Skip checks. Adds to `tooling.doctor.ignore` in the config                                                                                                                                                                                                         |
+| `--fail-on <level>`    | Exit 1 on findings at this level: `error` (the default), `warning` (the default with `tooling.doctor.strict`) or `never`                                                                                                                                           |
 | `--snapshot <file>`    | Check a saved snapshot instead of the database                                                                                                                                                                                                                     |
 | `--metadata <path\|->` | Check a `GeneratorMetadata` document (`-` for stdin). Checks that need policies, grants, indexes, triggers or other data it lacks are skipped with an info finding; it exits 65 for a document it rejects ([gen](/docs/cli/gen#from-a-generatormetadata-document)) |
 | `--db-url-stdin`       | Read the connection string of the database to check from stdin                                                                                                                                                                                                     |
@@ -70,7 +70,11 @@ applies when `$CI` is set:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  $ci: { doctor: { format: "sarif", output: "doctor.sarif", strict: true } },
+  $ci: {
+    tooling: {
+      doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+    },
+  },
 });
 ```
 
@@ -81,16 +85,18 @@ and a run with errors has the `findings` error code.
 ## Ignoring checks
 
 ```ts title="better-supabase.config.ts"
-export default defineConfig({ doctor: { ignore: ["BS204"], strict: true } });
+export default defineConfig({
+  tooling: { doctor: { ignore: ["BS204"], strict: true } },
+});
 ```
 
-`doctor.sources` lists the app files that checks such as BS210 scan, as globs
+`tooling.doctor.sources` lists the app files that checks such as BS210 scan, as globs
 relative to the project root. The default is `['src/**/*.{ts,tsx}']`.
-`doctor.claimsLimit` is a BS405 limit in bytes: the budget of the
+`tooling.doctor.claimsLimit` is a BS405 limit in bytes: the budget of the
 [authorization provider's](/docs/extending/authorization-providers) hook when
 it sets `tokenHook.budget`, otherwise the limit for the whole token (default
 2048).
-`doctor.policyHelperLimit` (default 5) is how many policies a security definer
+`tooling.doctor.policyHelperLimit` (default 5) is how many policies a security definer
 helper may appear in before [BS206](#bs206) reports it.
 
 The full `doctor` block, generated from the `DoctorConfig` type:
@@ -113,7 +119,7 @@ lint name, for example `[rls_disabled_in_public]`.
 
 Where the findings come from depends on what doctor reads:
 
-- **Hosted projects** (`--project-ref` or `source.projectRef`): the Management
+- **Hosted projects** (`--project-ref` or `database.source.projectRef`): the Management
   API's `GET /v1/projects/{ref}/advisors/security`, the same data the dashboard
   shows.
 - **Local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`:** [splinter](https://github.com/supabase/splinter),
@@ -320,7 +326,7 @@ create policy notes_member on public.notes for select to authenticated
 ### BS206
 
 **Warning: security definer policy helper that cannot be inlined.** A
-`security definer` function appears in more than `doctor.policyHelperLimit`
+`security definer` function appears in more than `tooling.doctor.policyHelperLimit`
 policies (default 5). Postgres never inlines a security definer function, even
 one written in `language sql stable`, so a call that takes a column of the row
 runs once per row. Call it as `(select helper(...))` when its arguments don't
@@ -367,7 +373,7 @@ Without the extension, doctor reports an info finding with the
 answers `aggregate()`, `_sum`, `_avg`, `_min` and `_max` includes and list
 [`facetCounts`](/docs/platform/list#facet-counts) with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the `authenticator`
 role. Doctor reads the role's settings from the database and scans the files
-in `doctor.sources` (default `src/**/*.{ts,tsx}`) for those calls. Turn
+in `tooling.doctor.sources` (default `src/**/*.{ts,tsx}`) for those calls. Turn
 aggregates on in a migration:
 
 ```sql
@@ -444,7 +450,7 @@ doesn't when every policy for the write pins it without an `or`, to
 or to `column in (select better_supabase.tenant_ids_with(...))` or
 `column in (select better_supabase.member_organization_ids())`, so a write can
 only name a tenant the caller is a member of or holds the permission in. A
-subject's `deletedAt` column in `config.subjects` doesn't: `can_subject`
+subject's `deletedAt` column in `config.records` doesn't: `can_subject`
 filters soft-deleted rows out of a check that the row's own policies already
 pass, so clearing the column only shows a row again to someone who could
 already write it. A block's soft-delete column that its triggers never let a
@@ -545,7 +551,7 @@ index.
 `.contains()`, `.containedBy()` and `.overlaps()` filters, can only use a GIN
 index; without one, every query reads the table. Doctor looks in the
 policies, the functions in the exposed schemas and the files in
-`doctor.sources`. Use `jsonb_path_ops` when you only filter with `@>`, which
+`tooling.doctor.sources`. Use `jsonb_path_ops` when you only filter with `@>`, which
 makes the index smaller; leave it out for `?`:
 
 ```sql
@@ -577,9 +583,9 @@ decode as `number` by default, which matches `supabase gen types`, but a
 `number` loses precision past 2^53 (about 15 to 17 significant digits). Doctor
 reports `int8` identity and sequence columns, which keep growing toward that
 limit, and `numeric` columns, which usually hold exact amounts. Set
-`codecs.int8` to `"bigint"` or `"string"`, or `codecs.numeric` to `"string"`,
+`gen.codecs.int8` to `"bigint"` or `"string"`, or `gen.codecs.numeric` to `"string"`,
 in `better-supabase.config.ts` ([codecs](/docs/cli/config#options)), or add BS222
-to `doctor.ignore` when the values stay small.
+to `tooling.doctor.ignore` when the values stay small.
 
 ### BS223
 
@@ -590,7 +596,7 @@ precision before any codec sees it. `db.$rpc` casts the codec columns of
 table and record results to text ([function
 results](/docs/concepts/casing#function-results)), but a scalar has no column
 to cast. Return it as text (`returns text`, `select total::text`) when it can
-grow that large, or add BS223 to `doctor.ignore` when it stays small. Doctor
+grow that large, or add BS223 to `tooling.doctor.ignore` when it stays small. Doctor
 can't see inside a `json` or `jsonb` result: cast large numbers to text when
 you build it.
 
@@ -633,7 +639,7 @@ create extension if not exists pg_stat_statements with schema extensions;
 transaction pooler on port 6543 gives each transaction any server connection,
 so a named prepared statement from one transaction doesn't exist in the next
 and the query fails with `prepared statement does not exist`. When an env
-file or a file in `doctor.sources` has a `:6543` URL, doctor reports each
+file or a file in `tooling.doctor.sources` has a `:6543` URL, doctor reports each
 source file that imports postgres.js without `prepare: false`, and, when the
 sources use Prisma, each `:6543` URL without `pgbouncer=true`:
 
@@ -651,19 +657,19 @@ which asks serverless apps to use the pooler.
 resource or list reads and skips every row before the page, so late pages get
 slower as the table grows, and rows written between requests shift the pages.
 `count: "exact"` counts every matching row on each request. Doctor reports
-each line in `doctor.sources` that sets either. Use `pagination: "cursor"`
+each line in `tooling.doctor.sources` that sets either. Use `pagination: "cursor"`
 unless the UI needs page numbers, keep `[api] max_rows` set so no request
 reads a whole table, and use `count: "planned"` or `"estimated"` on tables
 that can grow large.
 
 ### BS228
 
-**Warning: app table column drifted from `appTables`.** A column of an app
+**Warning: app table column drifted from `tables`.** A column of an app
 table has a different type or nullability in the database than
-[`appTables`](/docs/blocks/app-tables) gives it, usually after an edit by
+[`tables`](/docs/blocks/app-tables) gives it, usually after an edit by
 hand or a migration that wasn't regenerated. `gen` types the column from
-`appTables`, so the app reads values the database doesn't hold. Change
-`appTables` to match the database, or run `better-supabase sql sync` and
+`tables`, so the app reads values the database doesn't hold. Change
+`tables` to match the database, or run `better-supabase sql sync` and
 apply the migration it generates. When rows depend on the old shape, follow
 the expand-and-contract steps that `apply --preset` prints for a breaking
 change. A table or column the database doesn't have yet is left out, since
@@ -675,7 +681,7 @@ that is a migration not applied.
 migrations that haven't run yet, statement by statement, and flag the ones
 that lock a table that already holds rows. With `--db-url`, doctor checks the
 migrations missing from `supabase_migrations.schema_migrations`. Offline, it
-checks the migrations after `doctor.migrationSafety.since`, or only the newest
+checks the migrations after `tooling.doctor.migrationSafety.since`, or only the newest
 migration when `since` is unset; `init` and `adopt` set `since` to the latest
 migration so older files aren't reported. Tables a migration creates are
 skipped, since nothing reads them yet.
@@ -767,7 +773,7 @@ the version this release ships. Doctor renders the files with the same layout
 as `sql sync` (grants from policies, session policies, audited tables and the
 vector schema), so the two agree on what is out of date. Run `better-supabase sql sync`, then
 `supabase db schema declarative sync` (`supabase db diff` on migra) to create
-a migration. Under `sql.workflow: 'migrations'`, doctor compares against the
+a migration. Under `database.sql.workflow: 'migrations'`, doctor compares against the
 newest `*_better_supabase_modules.sql` migration instead, and `sql sync`
 writes the new one; apply it with `supabase migration up`.
 
@@ -778,7 +784,7 @@ doctor skips that file instead of reporting it.
 ### BS305
 
 **Warning: live query table without change broadcasts.** A table in
-`realtime.tables` has no `bsb_realtime` trigger, so
+`database.realtime.tables` has no `bsb_realtime` trigger, so
 [live queries](/docs/frontend/live-queries) never hear about its changes. Run
 `better-supabase add realtime-tables`, then
 `supabase db schema declarative sync`.
@@ -804,7 +810,7 @@ print <module>` lists the signatures.
 
 **Warning: tenant claim the hook does not write.** With the `tenant` module and
 `blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the
-`tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
+`tenant()` plugin read the active tenant from the `auth.organization.claim` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
 returns. Write the claim in the hook, or, for apps that pick the tenant from
@@ -873,7 +879,7 @@ for invitations, `secretStorage: "column"` for credentials,
 `secretStorage: "column"` or an `eventIdType` or `runIdType` other than
 `text` for webhooks-out, a `blockSource` or `defaultSource` for
 the outbox, or `values` for the audit log. The config only accepts them with
-`mode: "adopt"`. Move the data to the managed default (hash the tokens, move
+`ownership: "adopt"`. Move the data to the managed default (hash the tokens, move
 the secrets into Vault), then remove the option.
 
 ### BS315
@@ -926,7 +932,7 @@ create migrations with `supabase db schema declarative sync` instead of
 enabled = true
 ```
 
-BS316 fires when `sql.workflow` is unset and the CLI detects migra (see
+BS316 fires when `database.sql.workflow` is unset and the CLI detects migra (see
 [Workflows](/docs/blocks/sql#workflows)), or when the workflow is pg-delta and
 `config.toml` doesn't turn it on yet. To stay on migra, set
 `sql: { workflow: 'migra' }`; that and `workflow: 'migrations'` silence it.
@@ -1064,7 +1070,7 @@ check.
 
 **Warning: `rpc()` on a Supabase Lite SQLite driver.** `[db] driver` in
 `config.toml` is `sqlite-postgres` or `sqlite`, and a file in
-`doctor.sources` calls `$rpc`, `.rpc()` or `rpcTransport`. Lite has no
+`tooling.doctor.sources` calls `$rpc`, `.rpc()` or `rpcTransport`. Lite has no
 `rpc()` on SQLite, so the server returns an `unsupported` error without
 sending the request. Switch `[db] driver` to `pglite` or `postgres`, or
 replace the function with table queries. See
@@ -1074,7 +1080,7 @@ replace the function with table queries. See
 
 **Warning: feature Supabase Lite does not implement.** `config.toml` sets
 `[db] driver`, so the project runs on Supabase Lite, and a file in
-`doctor.sources` uses Realtime (`better-supabase/realtime` or `.channel()`)
+`tooling.doctor.sources` uses Realtime (`better-supabase/realtime` or `.channel()`)
 or Edge Functions (`functions.invoke()`). Lite implements neither on any
 driver. Run the full Supabase stack for that feature, or move the project
 with `supabase lite upgrade`.
@@ -1099,7 +1105,7 @@ database.
 ### BS331
 
 **Error: subject registry names a missing table or column.** An entry in
-`config.subjects` names a table that the snapshot lacks, or a column the
+`config.records` names a table that the snapshot lacks, or a column the
 table lacks: `id`, `tenant`, `title`, `deletedAt`, a `url` placeholder,
 `rank` or a `search` column. `subject_title`, `subject_url`, `can_subject`
 and every module that falls back to the registry fail when they run. Point
@@ -1108,7 +1114,7 @@ schemas the snapshot did not read.
 
 ### BS332
 
-**Warning: subject table without RLS.** A table in `config.subjects` has row
+**Warning: subject table without RLS.** A table in `config.records` has row
 level security disabled. `can_subject` treats a row the caller can read as
 visible, so every signed-in user passes the visibility half of the check for
 every row. Enable RLS and add the policies that scope the table.
@@ -1177,10 +1183,10 @@ whole rows on purpose. See
 
 ### BS338
 
-**Info: `functions.notNull` entry a comment tag could replace.** `gen` reads
+**Info: `gen.functions.notNull` entry a comment tag could replace.** `gen` reads
 `@notNull` and `@notNull(a, b)` from a function's comment, so the promise can
 live next to the SQL instead of in `better-supabase.config.ts`. Doctor lists
-each `functions.<name>.notNull` entry for a function in the read schemas: one
+each `gen.functions.<name>.notNull` entry for a function in the read schemas: one
 the function's tag already matches (remove the entry), one with no tag (add
 the tag the finding prints, then remove the entry), and one that differs from
 the tag, where the config entry wins. See
@@ -1332,7 +1338,7 @@ supabase db diff -f auth_hook
 better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook.sql
 ```
 
-Under `sql.workflow: 'migrations'` there is no schema file, so the finding
+Under `database.sql.workflow: 'migrations'` there is no schema file, so the finding
 says to put the block in a new migration and apply it:
 
 ```bash
@@ -1374,10 +1380,10 @@ the `Authorization` header. With `--as <uuid>`, doctor calls the hook for that
 user the way Auth does, as `supabase_auth_admin` with the user's standard
 claims, in a transaction that is rolled back. Two limits apply:
 
-| Limit                      | Measures                                            | Default                                                   |
-| -------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
-| Whole token                | `octet_length` of all the claims                    | 2048 bytes, or `doctor.claimsLimit` without a hook budget |
-| The provider's hook budget | `octet_length` of each of `tokenHook.budget.claims` | `tokenHook.budget.bytes`, or `doctor.claimsLimit`         |
+| Limit                      | Measures                                            | Default                                                           |
+| -------------------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| Whole token                | `octet_length` of all the claims                    | 2048 bytes, or `tooling.doctor.claimsLimit` without a hook budget |
+| The provider's hook budget | `octet_length` of each of `tokenHook.budget.claims` | `tokenHook.budget.bytes`, or `tooling.doctor.claimsLimit`         |
 
 Each one is a separate warning, so a token of 1.5 KB whose budget claims fit
 the budget passes. When the hook sets `tokenHook.budget.truncatedClaim`,
@@ -1415,7 +1421,7 @@ of those claims again is reported, with the function that already fills it.
 ### BS408
 
 **Warning: the entitlements module can't read the provider's memberships.**
-With `entitlements.memberships: "provider"` (the default when the config has
+With `auth.entitlements.memberships: "provider"` (the default when the config has
 `authorization`), the [`entitlements` block
 module](/docs/blocks/entitlements) reads memberships through the provider's
 `memberIds` template in `has_entitlement`, which runs as `authenticated`, and
@@ -1427,11 +1433,11 @@ when:
   the scope has no `idType` or one other than `uuid`, `text`, `bigint` or
   `integer`, or `memberIds` or `memberIdsFor` is missing. `sql add
 entitlements` refuses to render the module then; set
-  `entitlements.memberships: "tenant"` to use the tenant module's memberships;
-- the provider's hook doesn't fill `claims.features` from
+  `auth.entitlements.memberships: "tenant"` to use the tenant module's memberships;
+- the provider's hook doesn't fill `auth.claims.features` from
   `better_supabase.feature_claims` (`tokenHook.registeredClaims`), so
   `hasEntitlement()` would never see the plan features. With
-  `entitlements.claim: false` the token carries no features, so doctor skips
+  `auth.entitlements.claim: false` the token carries no features, so doctor skips
   this check;
 - no `authorization.memberships` table covers the tenant scope, so
   `entitlement_members()` finds no users to sign out after a plan change (an
@@ -1443,9 +1449,9 @@ entitlements` refuses to render the module then; set
 
 **Warning: the authorization provider and the better-supabase config
 disagree.** The provider's hook writes the active tenant to
-`tokenHook.tenantClaim`. Doctor warns when `claims.tenant` names another
+`tokenHook.tenantClaim`. Doctor warns when `auth.organization.claim` names another
 claim, because the tenant plugin, the guards and the module's RLS would then
-read a claim the hook never writes. It notes when `claims.scope` is neither
+read a claim the hook never writes. It notes when `auth.claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
 `suspension` or `roleSources` while `blocks.access.model` is not
 `provider` (only that model reads them), and reports every entry of the
@@ -1508,7 +1514,7 @@ warning.
 
 **Info: the session cookie encoding differs between server and browser.**
 `@supabase/ssr` needs the same `cookies.encode` on both sides. Doctor reads
-the files in `doctor.sources`: a file that imports `better-supabase/client` or
+the files in `tooling.doctor.sources`: a file that imports `better-supabase/client` or
 calls `createBrowserClient` is the browser side, and a file that imports
 `better-supabase/server`, `next`, `ssr`, `hono`, `orpc`, `edge` or `expo`, or
 calls `createServerClient`, is the server side. When a file on one side sets

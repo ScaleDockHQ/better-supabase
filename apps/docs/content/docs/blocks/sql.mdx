@@ -46,7 +46,7 @@ A schema diff only captures objects, so each module's rows and settings (its
 `better_supabase.blocks` row, the reserved slugs, the rate-limit role
 setting) go to a second file in `supabase/better-supabase-data/`, outside the schema folder:
 pg-delta loads every file under `supabase/schemas`, nested folders included,
-and refuses a table that has rows afterwards. When `sql.dir` is a folder
+and refuses a table that has rows afterwards. When `database.sql.dir` is a folder
 inside the schema folder (`supabase/schemas/block`), the data files still go
 next to the schema folder, and `declarative_schema_path` in
 `supabase/config.toml` moves both. `better-supabase sql data` writes those files into one
@@ -85,7 +85,7 @@ describes behavior both commands share, and the other `sql` subcommands
 
 ## Workflows
 
-`sql.workflow` says how the modules reach a migration. There are three:
+`database.sql.workflow` says how the modules reach a migration. There are three:
 
 | Workflow     | What the `sql` commands write                        | How the migration is made                                |
 | ------------ | ---------------------------------------------------- | -------------------------------------------------------- |
@@ -95,12 +95,12 @@ describes behavior both commands share, and the other `sql` subcommands
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { workflow: "migrations" },
+  database: { sql: { workflow: "migrations" } },
   blocks: ["audit", "jobs"],
 });
 ```
 
-When `sql.workflow` is unset, the CLI reads `supabase/config.toml`: pg-delta
+When `database.sql.workflow` is unset, the CLI reads `supabase/config.toml`: pg-delta
 when `[experimental.pgdelta] enabled = true`, migra when that key is `false`,
 when `[db.migrations] schema_paths` is set or when `supabase/schemas` already
 holds files without pg-delta, and pg-delta otherwise. `migrations` is never
@@ -131,7 +131,7 @@ lists the steps to move to pg-delta.
 ### Migrations only
 
 This workflow is for an app without declarative schemas. The `sql` commands
-write nothing to `sql.dir`. `sql add`, `sql sync` and `sql upgrade` write one migration that
+write nothing to `database.sql.dir`. `sql add`, `sql sync` and `sql upgrade` write one migration that
 holds, in order, the extensions, the upgrade steps, each module's schema with
 its `@bsb-block` line, the realtime topic policies and the data statements.
 Every statement can run again, so each new migration carries all the modules,
@@ -144,7 +144,7 @@ differ from the newest `*_better_supabase_modules.sql`.
   `@bsb-block` lines.
 - `sql data` writes nothing, because the rows are already in the migration.
 - `gen` writes the read-sets module into `<stamp>_better_supabase_read_sets.sql`.
-- The pgTAP files still go to `sql.testsDir`.
+- The pgTAP files still go to `database.sql.testsDir`.
 
 ## Modules
 
@@ -152,7 +152,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `updated-at`         | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `actor`              | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin; `token_scope_allows(scope)` checks a delegated token's OAuth scope in a policy                                                                                                                                                                                                                           |
-| `audit`              | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                                                                                                                                                                                                                                    |
+| `audit`              | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `auth.organization.column` and any impersonating admin                                                                                                                                                                                                                                                 |
 | `tenant`             | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                                                                                                                                                                                                                  |
 | `access`             | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, an authorization provider or your functions. See [Access contract](/docs/blocks/access)                                                                                                                                                                                                                                                                     |
 | `invitations`        | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/blocks/organizations)                                                                                                                                                                                                                                                              |
@@ -160,7 +160,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `jobs`               | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/jobs`](/docs/blocks/jobs)                                                                                                                                                                                                                                                                          |
 | `idempotency`        | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `webhook-inbox`      | Stores verified webhooks once and hands them to a worker; adopt mode runs over your table                                                                                                                                                                                                                                                                                                                                                                                          |
-| `realtime-tables`    | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`, and `broadcast_topic()` for [topic triggers](/docs/platform/realtime#row-changes)                                                                                                                                                                                                                                                                               |
+| `realtime-tables`    | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `database.realtime.tables`, and `broadcast_topic()` for [topic triggers](/docs/platform/realtime#row-changes)                                                                                                                                                                                                                                                                      |
 | `jsonb-schemas`      | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                                                                                                                                                                                                                                                                               |
 | `pgtap`              | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `grants`             | The complete Data API privileges of the tables and functions in `expose`, for `anon`, `authenticated` and `service_role`, or grants derived from your policies with `options.fromPolicies`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                                                                                                                                    |
@@ -217,12 +217,12 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `share-links`        | Hashed share links, views and per-user state. See [Share links](/docs/blocks/share-links).                                                                                                                                                                                                                                                                                                                                                                                         |
 | `reminders`          | RFC 5545 recurrence and reminder delivery. See [Reminders](/docs/blocks/reminders).                                                                                                                                                                                                                                                                                                                                                                                                |
 | `imports`            | CSV import runs. See [Imports](/docs/blocks/imports).                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `subjects`           | The app-wide subject registry from `config.subjects`: `subject_title`, `subject_url`, `subject_titles`, `can_subject` and `can_subject_for`. See [Subject registry](#subject-registry) and [Subjects](/docs/blocks/subjects).                                                                                                                                                                                                                                                      |
+| `subjects`           | The app-wide subject registry from `config.records`: `subject_title`, `subject_url`, `subject_titles`, `can_subject` and `can_subject_for`. See [Subject registry](#subject-registry) and [Subjects](/docs/blocks/subjects).                                                                                                                                                                                                                                                       |
 | `rank`               | Fractional rank keys for subjects with a `rank` column: `rank_between`, `move` and the `rank.rebalance` job. See [Rank](/docs/blocks/rank).                                                                                                                                                                                                                                                                                                                                        |
 | `saved-views`        | Named list views per user, team or organization, with a default per slot and rank order. See [Saved views](/docs/blocks/saved-views).                                                                                                                                                                                                                                                                                                                                              |
 | `relations`          | Typed links between subjects with inverse names, cycle checks, one-target kinds, ancestors, descendants and rollups. See [Relations](/docs/blocks/relations).                                                                                                                                                                                                                                                                                                                      |
 | `bulk`               | One action over many rows with a result per row, and background runs on the jobs queue as the user who started them. See [Bulk actions](/docs/blocks/bulk).                                                                                                                                                                                                                                                                                                                        |
-| `search`             | A `search_documents` index kept up by triggers from each `search` entry in `config.subjects`; `search(q)` as the caller with websearch, prefix and trigram matching and `can_subject`, hybrid ranking with embeddings, and recents and favorites from share-links. See [Search](/docs/blocks/search).                                                                                                                                                                              |
+| `search`             | A `search_documents` index kept up by triggers from each `search` entry in `config.records`; `search(q)` as the caller with websearch, prefix and trigram matching and `can_subject`, hybrid ranking with embeddings, and recents and favorites from share-links. See [Search](/docs/blocks/search).                                                                                                                                                                               |
 | `metrics`            | Metrics declared with `defineMetric`: `metric_points` rollups per grain and time zone, `metric_series` and `metric_value` checked against a permission in the tenant, and a `metrics.rollup` job. See [Metrics](/docs/blocks/metrics).                                                                                                                                                                                                                                             |
 | `calendar`           | Calendars, events with RFC 5545 recurrence, overrides and attendees, an iCalendar import and an iCal feed through a share link. See [Calendar](/docs/blocks/calendar).                                                                                                                                                                                                                                                                                                             |
 | `bookings`           | Bookable resources with weekly hours and exceptions, services with buffers, `available_slots` in SQL, holds that expire, an exclusion constraint against double bookings (needs `btree_gist`) and public booking through a share link. With `recurring`, a weekly or daily rule books a series one occurrence at a time. See [Bookings](/docs/blocks/bookings).                                                                                                                    |
@@ -288,7 +288,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `invoices`           | Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments recorded on the ledger, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes. See [Invoices](/docs/blocks/invoices).                                                                                                                                                                                                       |
 | `sla`                | Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records. See [Service levels](/docs/blocks/sla).                                                                                                                                                                                                                  |
 | `targets`            | Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps. See [Targets](/docs/blocks/targets).                                                                                                                                                                                                                                                               |
-| `hiring`             | Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on. See [Hiring](/docs/blocks/hiring).                                                                                                                                                                                                                                                                     |
+| `hiring`             | Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on. See [Hiring](/docs/blocks/hiring).                                                                                                                                                                                                                                                                      |
 | `employees`          | Employees with or without an account, a manager, team, job title, employment type and status, an org chart that refuses cycles, offboarding, employees from hired applications, and private details and a contract history behind employees.view_sensitive. See [Employees](/docs/blocks/employees).                                                                                                                                                                               |
 | `field-encryption`   | Per-owner data keys in Vault that app table columns and custom fields encrypt with, `drop_field_key` to shred an owner's values, and no searchable equality. See [Field encryption](/docs/blocks/field-encryption).                                                                                                                                                                                                                                                                |
 | `ensure-rls`         | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                                                                                                                                                                                                                                               |
@@ -296,7 +296,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
 `blocks.access.activeTenant`: by default the tenant the server resolved for the
-request, then the claim named by `claims.tenant` (`tenant_id` by default).
+request, then the claim named by `auth.organization.claim` (`tenant_id` by default).
 The roles come from `blocks.access.roles`. Change modules through `blocks` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `sql sync` rewrites them, and doctor reports a hand edit.
@@ -309,7 +309,7 @@ for example to keep the helpers while you migrate. Modules that need `tenant`,
 such as `invitations`, are written without `--allow-hook-overlap`, with `tenant` as a
 dependency and a note: its memberships table backs `has_organization_role()`, and no
 hook should call `membership_claims()`. `entitlements` needs `tenant` only
-with `entitlements.memberships: "tenant"`: with a provider, it reads the
+with `auth.entitlements.memberships: "tenant"`: with a provider, it reads the
 provider's `memberIds` functions instead. See
 [entitlements with an authorization provider](/docs/blocks/entitlements#with-an-authorization-provider).
 
@@ -345,7 +345,7 @@ typed `DbError`s through the repository.
 
 ## Scope and naming
 
-A block's rows belong to a tenant by default. `sql.scope` sets that for
+A block's rows belong to a tenant by default. `database.sql.owner` sets that for
 every block, and `blocks.<name>.scope` for one block.
 
 | Scope              | Rows belong to                                      | Checks                                                       |
@@ -356,7 +356,7 @@ every block, and `blocks.<name>.scope` for one block.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { scope: "user" },
+  database: { sql: { owner: "user" } },
   blocks: { tags: {}, comments: {}, notifications: {} },
 });
 ```
@@ -378,7 +378,7 @@ keep them per tenant while the rest of the app runs per user.
 | every scope   | `tags`, `comments`, and the blocks without tenant data (`notifications`, `profiles`, `jobs`, `outbox`, `audit`, ...) |
 | `tenant` only | every other block that requires `tenant` or `access`, and the blocks that require one of them                        |
 
-`blocks.tenant.entities.organization` renames the tenant concept in the SQL
+`blocks.tenant.names.organization` renames the tenant concept in the SQL
 the blocks write:
 `workspace` turns the `organizations` table into `workspaces`,
 `organization_id` into `workspace_id`, `create_organization` into
@@ -387,7 +387,7 @@ the blocks write:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    tenant: { entities: { organization: "workspace" } },
+    tenant: { names: { organization: "workspace" } },
     organizations: {},
   },
 });
@@ -403,7 +403,7 @@ blocks: {
 },
 ```
 
-`blocks.<name>.entities` renames a block's own entities. A string is the new
+`blocks.<name>.names` renames a block's own entities. A string is the new
 singular noun; an object takes it as `name`, plus `plural` when the English
 plural is wrong, `url` for the page of one row and `subject: false` to keep
 the entity out of the subject registry. A bare string for `entities` renames
@@ -424,7 +424,7 @@ result keys, event types and the generated types. See
 [Typed blocks](/docs/blocks/typed-blocks).
 
 You can rename the entities of a block you already installed. Change
-`blocks.<name>.entities`, then run `better-supabase sql upgrade`. It reads the
+`blocks.<name>.names`, then run `better-supabase sql upgrade`. It reads the
 names from each file's `@bsb-names` line, compares the old and new module
 SQL and writes guarded `alter ... rename` statements for the tables, columns,
 indexes, policies, triggers and functions, so the rows stay where they are.
@@ -459,7 +459,7 @@ other blocks with a `team_id` column.
 ## Existing tables: managed, adopt and custom
 
 Each module has a contract: the functions policies, other modules and the
-TypeScript side call. `blocks.<module>.mode` decides what stands behind it.
+TypeScript side call. `blocks.<module>.ownership` decides what stands behind it.
 
 | Mode                | The module writes                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------------- |
@@ -478,7 +478,7 @@ own names:
 export default defineConfig({
   blocks: {
     tenant: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: { memberships: { tenant: "organization_id", lastUsedAt: null } },
       options: { claimFormat: "map" },
@@ -488,19 +488,19 @@ export default defineConfig({
 });
 ```
 
-| Key           | What it sets                                                                                                                                                             |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mode`        | `managed`, `adopt` or `custom`                                                                                                                                           |
-| `schema`      | the schema of the module's functions and managed tables (`sql.schema`, then `better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase` |
-| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                  |
-| `columns`     | logical table to logical column to column name; `null` for an optional column                                                                                            |
-| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                      |
-| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access)                                                                               |
-| `options`     | module options, listed on each module's page                                                                                                                             |
-| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                                       |
-| `events`      | `false` stops the module writing its events to the outbox                                                                                                                |
-| `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                       |
-| `api`         | a schema for the Data API that gets entry points for the module's functions (`sql.api` by default; see below), or `false` for none                                       |
+| Key           | What it sets                                                                                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`        | `managed`, `adopt` or `custom`                                                                                                                                                    |
+| `schema`      | the schema of the module's functions and managed tables (`database.sql.schema`, then `better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase` |
+| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                           |
+| `columns`     | logical table to logical column to column name; `null` for an optional column                                                                                                     |
+| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                               |
+| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access)                                                                                        |
+| `options`     | module options, listed on each module's page                                                                                                                                      |
+| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                                                |
+| `events`      | `false` stops the module writing its events to the outbox                                                                                                                         |
+| `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                                                |
+| `api`         | a schema for the Data API that gets entry points for the module's functions (`database.sql.api` by default; see below), or `false` for none                                       |
 
 [`better-supabase adopt <block> --tables <schema.table>`](/docs/cli/presets#adopt)
 writes the `tables` and `columns` of an adopt-mode entry from the tables in
@@ -542,9 +542,9 @@ blocks: {
 },
 ```
 
-To give every module the same API schema, set `sql.api` once. A module that
+To give every module the same API schema, set `database.sql.api` once. A module that
 sets its own `api` keeps it, and `api: false` leaves a module without entry
-points. `sql.schema` works the same way for the module schema.
+points. `database.sql.schema` works the same way for the module schema.
 
 ```ts title="better-supabase.config.ts"
 sql: {
@@ -790,7 +790,7 @@ The module options (`blocks.audit.options`):
 | `correlationIdHeader` | `x-correlation-id`       | the Data API header `correlation_id` is read from when the `better_supabase.correlation_id` setting is empty                                                                                                                                                                                        |
 
 `sql add` and `sql sync` read the `audit(...)` calls and `bsb_audit` triggers in
-your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`
+your schema files and migrations, and write a pgTAP file per audited table to `database.sql.testsDir`
 (`supabase/tests/900_better_supabase_audit_public_customers.test.sql`). It
 checks that the table has the `bsb_audit` trigger and is registered with the
 same `ignore` and `redact` lists, then runs an insert, an update and a delete
@@ -828,7 +828,7 @@ option as migration-only ([BS314](/docs/cli/doctor#bs314)).
 export default defineConfig({
   blocks: {
     audit: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { log: "public.activity_log" },
       columns: {
         log: {
@@ -975,7 +975,7 @@ select cron.schedule('purge-rate-limits', '*/15 * * * *', $$select better_supaba
 
 Tenants can keep entries for different periods, a plan's retention for
 example. Write an `audit_retention(tenant)` function that returns an interval
-(or null for the default) in the schema `blocks.audit.hooks` points at, and
+(or null for the default) in the schema `blocks.audit.callbacks` points at, and
 `purge_audit_log` uses it for every entry. Like every SQL hook, it is
 optional: the module calls hooks through dynamic SQL, so `supabase db lint`
 passes without them. To decide in TypeScript instead,
@@ -1106,7 +1106,7 @@ the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional. In
 ```ts title="better-supabase.config.ts"
 blocks: {
   "support-sessions": {
-    mode: "adopt",
+    ownership: "adopt",
     tables: { sessions: "public.impersonation_sessions" },
     columns: { sessions: { admin: "impersonator_id", metadata: null } },
     permissions: { start: "system.users.impersonate" },
@@ -1253,10 +1253,12 @@ export const CustomerMetadata = toStandardJsonSchema(
 );
 
 export default defineConfig({
-  json: {
-    "customers.metadata": {
-      import: "./lib/metadata.ts#CustomerMetadata",
-      schema: CustomerMetadata,
+  gen: {
+    json: {
+      "customers.metadata": {
+        import: "./lib/metadata.ts#CustomerMetadata",
+        schema: CustomerMetadata,
+      },
     },
   },
   blocks: ["jsonb-schemas"],
@@ -1293,14 +1295,14 @@ restore with `session_replication_role = replica`; its failures also map to
 
 Tags, comments, attachments, reminders and the other modules that attach to
 your rows each take a `subjects` option. Declare the subject types once in
-`config.subjects`, and every module that you don't give its own `subjects`
+`config.records`, and every module that you don't give its own `subjects`
 uses the registry.
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  subjects: {
+  records: {
     task: {
       table: "public.tasks",
       idType: "uuid",
@@ -1454,7 +1456,7 @@ you add other modules. List the modules you use in the config:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { testsDir: "supabase/tests" },
+  database: { sql: { testsDir: "supabase/tests" } },
   blocks: ["audit", "jobs", "invitations"],
 });
 ```
@@ -1463,17 +1465,17 @@ export default defineConfig({
 `sql sync --check` fails in CI when a file is out of date. Use
 `sql print <module>` to copy a module into a hand-written migration instead.
 `sql add`, `sql sync` and `sql data` take `--dry-run` to show what they would write, and
-`--tests-dir <dir>` overrides `sql.testsDir` for the pgTAP module.
+`--tests-dir <dir>` overrides `database.sql.testsDir` for the pgTAP module.
 
-| Option         | Default                                                        |
-| -------------- | -------------------------------------------------------------- |
-| `sql.workflow` | detected from `supabase/config.toml` ([Workflows](#workflows)) |
-| `sql.dir`      | `supabase/schemas`                                             |
-| `sql.prefix`   | `900_better_supabase`                                          |
-| `sql.testsDir` | `supabase/tests`                                               |
-| `sql.schema`   | `better_supabase`, for every module that sets no `schema`      |
-| `sql.api`      | unset; the Data API schema for every module that sets no `api` |
-| `blocks`       | `[]`                                                           |
+| Option                  | Default                                                        |
+| ----------------------- | -------------------------------------------------------------- |
+| `database.sql.workflow` | detected from `supabase/config.toml` ([Workflows](#workflows)) |
+| `database.sql.dir`      | `supabase/schemas`                                             |
+| `database.sql.prefix`   | `900_better_supabase`                                          |
+| `database.sql.testsDir` | `supabase/tests`                                               |
+| `database.sql.schema`   | `better_supabase`, for every module that sets no `schema`      |
+| `database.sql.api`      | unset; the Data API schema for every module that sets no `api` |
+| `blocks`                | `[]`                                                           |
 
 ## Upgrading modules
 

@@ -95,7 +95,7 @@ native bundle and the server render use the same code path. See
 
 | API                                            | Temporal type                                                                                 |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `codecs.timestamptz: 'instant'`                | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
+| `gen.codecs.timestamptz: 'instant'`            | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
 | `defineSupabase({ now })`, plugin hooks        | `now: () => Temporal.Instant`, also the `time` of block events on `betterSupabase.events`     |
 | `defineSupabase({ temporal })`                 | the `Temporal` namespace every other API reads                                                |
 | `Job`, `EnqueueOptions`, `WebhookInboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |

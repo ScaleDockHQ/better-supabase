@@ -10,320 +10,332 @@ export interface Annotation {
 }
 
 export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
-  source: {
+  "database.source": {
     description:
       "Where codegen reads the database from. Without any of these, $DATABASE_URL and then the local stack are used.",
   },
-  "source.dbUrl": { description: "Postgres connection string." },
-  "source.projectRef": {
+  "database.source.dbUrl": { description: "Postgres connection string." },
+  "database.source.projectRef": {
     description:
       "Hosted project ref, read through the Management API read-only SQL endpoint.",
   },
-  "source.accessToken": {
+  "database.source.accessToken": {
     description:
       "Management API token for projectRef. Defaults to $SUPABASE_ACCESS_TOKEN.",
   },
-  "source.snapshot": {
+  "database.source.snapshot": {
     description: "Read a saved introspection snapshot instead of connecting.",
   },
-  "source.lite": {
+  "database.source.lite": {
     description:
       "Read a Supabase Lite project's schema from [db] driver in supabase/config.toml. On when that key is present; false reads the database like any other project.",
   },
-  schemas: {
+  "database.schemas": {
     description: "Postgres schemas to generate.",
     default: ["public"],
   },
-  casing: { default: "snake" },
-  "tables.*.serviceRole": {
+  "gen.casing": { default: "snake" },
+  "gen.tables.*.serviceRole": {
     description:
       "Only service_role reaches the table. Models are still generated; doctor (BS106) checks that anon and authenticated have no grants.",
   },
-  "tables.*.insertOptional": {
+  "gen.tables.*.insertOptional": {
     description:
       "Database names of not-null columns an insert may leave out because the database fills them, for example from a before insert trigger.",
   },
-  output: {
+  "gen.output": {
     description: "Main generated module.",
     default: "src/lib/supabase/generated.ts",
   },
-  postgrestVersion: {
+  "gen.postgrestVersion": {
     description: "PostgREST major version written to database.types.ts.",
     default: "13",
   },
-  codecs: {
+  "gen.codecs": {
     description: "Runtime types for timestamps, int8 and numeric columns.",
   },
-  "codecs.timestamptz": { default: "string" },
-  "codecs.int8": { default: "number" },
-  "codecs.numeric": { default: "number" },
-  relations: { description: "How generated relations are typed." },
-  "relations.nullableUnderRls": {
+  "gen.codecs.timestamptz": { default: "string" },
+  "gen.codecs.int8": { default: "number" },
+  "gen.codecs.numeric": { default: "number" },
+  "gen.relations": { description: "How generated relations are typed." },
+  "gen.relations.nullableUnderRls": {
     description:
       "Type to-one includes of tables with row level security as nullable, since a policy can hide the related row.",
     default: false,
   },
-  json: { description: "Types for jsonb columns, keyed by `table.column`." },
-  "json.*.import": { description: "`./path.ts#TypeName`" },
-  "json.*.schema": {
+  "gen.json": {
+    description: "Types for jsonb columns, keyed by `table.column`.",
+  },
+  "gen.json.*.import": { description: "`./path.ts#TypeName`" },
+  "gen.json.*.schema": {
     description:
       "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema).",
   },
-  "json.*.type": { description: "Inline TypeScript type." },
-  generators: {
+  "gen.json.*.type": { description: "Inline TypeScript type." },
+  "gen.generators": {
     description:
       "Generator plugins. Only available in better-supabase.config.ts.",
   },
-  claims: {
+  "auth.claims": {
     description:
       "Claim names shared by the SQL modules, codegen and runtime defaults.",
   },
-  "claims.tenant": {
+  "auth.organization": {
     description:
-      "Top-level claim holding the active tenant id. Defaults to `tenant_id`.",
+      "How the active organization is found: the claim that holds its id and the column the tenant plugin filters by.",
   },
-  "claims.scope": {
+  "auth.organization.claim": {
+    description:
+      "Top-level claim holding the active organization id. Defaults to `tenant_id`.",
+  },
+  "auth.organization.column": {
+    description:
+      "Column the tenant plugin filters and fills on tenant-scoped tables. Defaults to `tenant_id`.",
+  },
+  "auth.claims.scope": {
     description:
       "`scope` of the tenant entries in the `memberships` claim. Defaults to `tenant`.",
   },
-  "claims.features": {
+  "auth.claims.features": {
     description:
       "Claim holding plan features per tenant. Defaults to `features`.",
   },
-  "claims.memberships": {
+  "auth.claims.memberships": {
     description:
       "Claim the memberships hook writes. Defaults to `memberships`.",
   },
-  "buckets.*.path": {
+  "database.buckets.*.path": {
     description:
       "Path template, e.g. `{organizationId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments.",
   },
-  "buckets.*.policy": {
+  "database.buckets.*.policy": {
     description:
       "A generated storage policy (tenant, owner, public or none), or a policy through the access contract (tenant_ids_with, is_platform) or `sql` templates such as an authorization provider's.",
   },
-  "buckets.*.policy.scope": {
+  "database.buckets.*.policy.scope": {
     description:
       "`tenant` (default) or `platform`; with `sql`, any scope name the templates take.",
   },
-  "buckets.*.policy.sql": {
+  "database.buckets.*.policy.sql": {
     description:
       "SQL templates with `{permission}` and `{scope}` the policy calls instead of the access contract, or `provider` for `authorization.functions`.",
   },
-  "buckets.*.versioning": {
+  "database.buckets.*.versioning": {
     description: "Keep earlier object versions. bucket.apply() sets it.",
   },
-  "buckets.*.lifecycle": {
+  "database.buckets.*.lifecycle": {
     description: "When noncurrent versions expire. Needs versioning: true.",
   },
-  topics: { description: "Realtime topic templates." },
-  sensitive: {
+  "database.topics": { description: "Realtime topic templates." },
+  "gen.sensitive": {
     description:
       "Columns guarded by the noSensitiveSelect rule (`table.column` or `schema.table.column`).",
   },
-  storagePaths: {
+  "gen.storagePaths": {
     description:
       "Text columns holding a storage object path (`table.column` or `schema.table.column`), mapped to a `buckets` key or bucket id. Typed as `StoragePath<'bucket-id'>`.",
   },
-  functions: {
+  "gen.functions": {
     description:
       "Function results gen may type as not null, keyed by function name. Results are nullable by default.",
   },
-  "functions.*.notNull": {
+  "gen.functions.*.notNull": {
     description:
       "true for the whole result, or the returns table columns that are never null.",
   },
-  expose: {
+  "database.expose": {
     description:
       "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL module and checked by doctor (BS106).",
   },
-  readSets: {
+  "gen.readSets": {
     description:
       "Modules exporting `defineReadSet` results. `gen` compiles them into the `read-sets` SQL module.",
   },
-  entitlements: {
+  "auth.entitlements": {
     description:
       "Where the `entitlements` SQL module finds each tenant's entitlements: a Stripe customer, a plan catalog or your own function.",
   },
-  "entitlements.customer": {
+  "auth.entitlements.customer": {
     description:
       "`table.column` or `schema.table.column` holding the Stripe customer id.",
     default: "organizations.stripe_customer_id",
   },
-  "entitlements.key": {
+  "auth.entitlements.key": {
     description: "The tenant id column of that table.",
     default: "id",
   },
-  "entitlements.memberships": {
+  "auth.entitlements.memberships": {
     description:
       'Where has_entitlement and feature_claims read memberships: "provider" (the authorization provider\'s memberIds functions) or "tenant" (better_supabase.memberships). Defaults to "provider" when `authorization` is set.',
   },
-  "entitlements.source": {
+  "auth.entitlements.source": {
     description:
       'Where each tenant\'s entitlements come from: "stripe-sync" (the Stripe Sync Engine, the default), "custom" (your own better_supabase.tenant_entitlements), or a plan catalog in your tables.',
   },
-  "entitlements.claim": {
+  "auth.entitlements.claim": {
     description:
       "The shape of the features claim feature_claims writes: false for {}, or maxTenants (at most that many tenants) and keys (short codes for feature keys).",
   },
-  authorization: {
+  "auth.authorization": {
     description:
       "An authorization provider (apiVersion 1) the SQL modules, policies and doctor delegate to.",
   },
-  "authorization.scopes[].idType": {
+  "auth.authorization.scopes[].idType": {
     description: "Required on the tenant scope.",
   },
-  "authorization.functions": {
+  "auth.authorization.functions": {
     description:
       "SQL templates with {permission}, {scope}, {user}, {tenant}, {role} and {tool}.",
   },
-  "authorization.functions.permissionsFor": {
+  "auth.authorization.functions.permissionsFor": {
     description: "The permission keys {user} holds in {tenant}, as a text[].",
   },
-  "authorization.functions.teamIdsOf": {
+  "auth.authorization.functions.teamIdsOf": {
     description:
       "The team ids {user} belongs to, as a set. Under the provider model team_ids_of(), saved-views and collections call it.",
   },
-  "authorization.functions.canApprove": {
+  "auth.authorization.functions.canApprove": {
     description:
       "Whether the caller may decide the tool call {tool} waits on in {tenant}.",
   },
-  "authorization.decidingColumns[]": { description: "`schema.table.column`." },
-  "authorization.delegation.scopes": {
+  "auth.authorization.decidingColumns[]": {
+    description: "`schema.table.column`.",
+  },
+  "auth.authorization.delegation.scopes": {
     description:
       "OAuth scope to the permission keys it grants a delegated token.",
   },
-  "authorization.approvals.distinctApprover": {
+  "auth.authorization.approvals.distinctApprover": {
     description:
       "The user who asked for a tool call can't approve it. Default false.",
   },
-  vectorSearch: {
+  "database.vectorSearch": {
     description:
       "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL module writes `search_<table>(query, k)` for each.",
   },
-  "vectorSearch.*": {
+  "database.vectorSearch.*": {
     description: "The embedding column, or the column and its search options.",
   },
-  "vectorSearch.*.distance": { default: "cosine" },
-  "vectorSearch.*.type": { default: "vector" },
-  "vectorSearch.*.key": {
+  "database.vectorSearch.*.distance": { default: "cosine" },
+  "database.vectorSearch.*.type": { default: "vector" },
+  "database.vectorSearch.*.key": {
     description:
       "The primary key column db.$search({ score: true }) merges by.",
     default: "id",
   },
-  "vectorSearch.*.hybrid": {
+  "database.vectorSearch.*.hybrid": {
     description:
       "Fuses a full-text ranking over a tsvector column with the vector ranking (reciprocal rank fusion).",
   },
-  "vectorSearch.*.hybrid.config": { default: "simple" },
-  "vectorSearch.*.hybrid.k": { default: 60 },
-  "vectorSearch.*.boost": {
+  "database.vectorSearch.*.hybrid.config": { default: "simple" },
+  "database.vectorSearch.*.hybrid.k": { default: 60 },
+  "database.vectorSearch.*.boost": {
     description: "A SQL expression over the row t the score is multiplied by.",
   },
-  "vectorSearch.*.prefilter": {
+  "database.vectorSearch.*.prefilter": {
     description: "Columns db.$search({ filter }) narrows before ranking.",
   },
-  "vectorSearch.*.predicate": {
+  "database.vectorSearch.*.predicate": {
     description:
       "A SQL condition over the row t every candidate must meet, applied before ranking.",
   },
-  "vectorSearch.*.boostMode": {
+  "database.vectorSearch.*.boostMode": {
     description: "How boost combines with the score. Defaults to multiply.",
   },
-  "vectorSearch.*.order": {
+  "database.vectorSearch.*.order": {
     description: "A SQL order by list over the row t that breaks score ties.",
   },
-  subjects: {
+  records: {
     description:
       "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it.",
   },
-  "subjects.*.table": {
-    description: "`schema.table`, or a table in `public`.",
-  },
-  "subjects.*.id": { default: "id" },
-  "subjects.*.idType": {
+  "records.*.table": { description: "`schema.table`, or a table in `public`." },
+  "records.*.id": { default: "id" },
+  "records.*.idType": {
     description: "The id column's type, such as `uuid` or `bigint`.",
   },
-  "subjects.*.tenant": {
+  "records.*.tenant": {
     description:
       "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.tenant.entities.organization>_id` when the tenant is renamed.",
   },
-  "subjects.*.title": { description: "The column `subject_title` returns." },
-  "subjects.*.url": {
+  "records.*.title": { description: "The column `subject_title` returns." },
+  "records.*.url": {
     description:
       "The path `subject_url` returns, with `{column}` placeholders.",
   },
-  "subjects.*.permissions": {
+  "records.*.permissions": {
     description:
       "A permission key per action that `can_subject` checks in the subject's tenant.",
   },
-  "subjects.*.scope": {
+  "records.*.scope": {
     description:
       "An authorization provider scope whose ids are this subject's ids.",
   },
-  "subjects.*.cascade": { default: false },
-  "subjects.*.deletedAt": { description: "The soft-delete column." },
-  "subjects.*.rank": {
+  "records.*.cascade": { default: false },
+  "records.*.deletedAt": { description: "The soft-delete column." },
+  "records.*.rank": {
     description:
       "The rank key column and the column it is grouped by, for `move()`.",
   },
-  realtime: { description: "Live query change broadcasts." },
-  "realtime.tables": {
+  "database.realtime": { description: "Live query change broadcasts." },
+  "database.realtime.tables": {
     description:
       "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase sql add realtime-tables`.",
   },
-  "realtime.global": {
+  "database.realtime.global": {
     description:
       "Tables in `tables` without a tenant column, which broadcast on one topic for every signed-in user.",
   },
-  "realtime.users": {
+  "database.realtime.users": {
     description:
       "Tables in `tables` whose rows belong to one user, mapped to the user column. They broadcast on a topic per user that only that user receives.",
   },
-  "realtime.policies": {
+  "database.realtime.policies": {
     description:
       "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale.",
   },
-  "realtime.triggers": {
+  "database.realtime.triggers": {
     description:
       "Broadcast triggers `sql sync` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function.",
   },
-  "realtime.triggers[].topic": {
+  "database.realtime.triggers[].topic": {
     description: "The template of a topic `policies.from` exports.",
   },
-  "realtime.triggers[].table": { description: "`table` or `schema.table`." },
-  "realtime.triggers[].values": {
+  "database.realtime.triggers[].table": {
+    description: "`table` or `schema.table`.",
+  },
+  "database.realtime.triggers[].values": {
     description:
       "The column or lookup per placeholder. Defaults to the placeholder in snake_case. A row whose topic comes out null is not sent to it.",
   },
-  "realtime.triggers[].event": {
+  "database.realtime.triggers[].event": {
     description:
       "The broadcast event name, or one per operation ({ insert, update, delete }). Defaults to the operation.",
   },
-  "realtime.triggers[].payload": {
+  "database.realtime.triggers[].payload": {
     description:
       "keys (default) sends the primary key and the placeholder values; row sends the whole row, which bypasses column grants. An object is the payload itself: each key is a column, a lookup, or { sql }, an expression on the row {row} (tg_op is the operation).",
   },
-  "realtime.triggers[].topics": {
+  "database.realtime.triggers[].topics": {
     description:
       "More topics the row change goes to, each with its own values.",
   },
-  "realtime.triggers[].topics[].topic": {
+  "database.realtime.triggers[].topics[].topic": {
     description: "The template of a topic `policies.from` exports.",
   },
-  "realtime.triggers[].topics[].values": {
+  "database.realtime.triggers[].topics[].values": {
     description:
       "The column or lookup per placeholder. Defaults to the placeholder in snake_case.",
   },
-  "realtime.triggers[].functionSchema": {
+  "database.realtime.triggers[].functionSchema": {
     description:
       "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose.",
   },
-  "realtime.triggers[].when": {
+  "database.realtime.triggers[].when": {
     description:
       "Filters updates: with { changed: [columns] } an UPDATE sends only when one of those columns changed. Inserts and deletes always send.",
   },
-  "realtime.triggers[].when.changed": {
+  "database.realtime.triggers[].when.changed": {
     description:
       "Columns (database names) whose change lets an UPDATE send. A trigger for updates alone compiles it into its WHEN clause.",
   },
@@ -335,168 +347,168 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
   },
-  appTables: {
+  tables: {
     description:
       "Tables the app owns, keyed by name, created in public by `better-supabase sql sync` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040.",
   },
-  "appTables.*.columns": {
+  "tables.*.columns": {
     description:
       "The table's own columns, keyed by lower snake name. id, created_at, updated_at, user_id and the tenant column are reserved.",
   },
-  "appTables.*.columns.*.nullable": { default: true },
-  "appTables.*.columns.*.default": {
+  "tables.*.columns.*.nullable": { default: true },
+  "tables.*.columns.*.default": {
     description:
       "now(), gen_random_uuid(), auth.uid(), true, false, a number, a 'quoted' literal, '{}' or '[]'.",
   },
-  "appTables.*.columns.*.references": {
+  "tables.*.columns.*.references": {
     description:
       "Another app table, auth.users, or a logical table of an installed block ({ block, table }).",
   },
-  "appTables.*.columns.*.format": {
+  "tables.*.columns.*.format": {
     description:
       "What the column holds. email, url, rating and percent add a check; phone, long_text, color and currency are hints for the UI and gen. ADR 0042.",
   },
-  "appTables.*.columns.*.options": {
+  "tables.*.columns.*.options": {
     description:
       "The values of a text column (single select) or of each element of a text[] column (multi-select), checked by the database.",
   },
-  "appTables.*.columns.*.min": {
+  "tables.*.columns.*.min": {
     description: "The smallest value of a number column, or the shortest text.",
   },
-  "appTables.*.columns.*.max": {
+  "tables.*.columns.*.max": {
     description: "The largest value of a number column, or the longest text.",
   },
-  "appTables.*.columns.*.identity": {
+  "tables.*.columns.*.identity": {
     description:
       "An integer or bigint the database numbers (generated by default as identity).",
   },
-  "appTables.*.scope": {
+  "tables.*.owner": {
     description:
       "inherit follows sql.scope; user keeps rows per user; none lets signed-in users read and only the service role write.",
     default: "inherit",
   },
-  "appTables.*.timestamps": { default: true },
-  "appTables.*.id": {
+  "tables.*.timestamps": { default: true },
+  "tables.*.id": {
     description:
       "The id's type. A reference to the table needs a column of the same type.",
     default: "uuid",
   },
-  "appTables.*.unique": {
+  "tables.*.unique": {
     description: "Sets of columns that are unique together.",
   },
-  "appTables.*.indexes": { description: "Sets of columns to index, in order." },
-  "appTables.*.subject": {
+  "tables.*.indexes": { description: "Sets of columns to index, in order." },
+  "tables.*.subject": {
     description:
       "Registers the table as a subject, so comments, attachments, tags, versions, search and other blocks reach its rows (ADR 0043).",
   },
-  "appTables.*.subject.rank": {
+  "tables.*.subject.rank": {
     description:
       "Adds a rank text column for move(), ordered within group when set.",
   },
-  "appTables.*.subject.softDelete": {
+  "tables.*.subject.softDelete": {
     description:
       "Adds a deleted_at column that blocks treat as the soft-delete time.",
   },
-  "appTables.*.rollups": {
+  "tables.*.rollups": {
     description:
       "Columns of public.<table>_view that aggregate a child table through its reference to this table (ADR 0044).",
   },
-  "appTables.*.rollups.*.table": { description: "The app table to aggregate." },
-  "appTables.*.rollups.*.via": {
+  "tables.*.rollups.*.table": { description: "The app table to aggregate." },
+  "tables.*.rollups.*.via": {
     description: "The column of that table that references this one.",
   },
-  "appTables.*.rollups.*.column": {
+  "tables.*.rollups.*.column": {
     description: "The column to aggregate; count takes none.",
   },
-  "appTables.*.rollups.*.where": {
+  "tables.*.rollups.*.where": {
     description: "Counts only the rows whose select column equals one option.",
   },
-  "appTables.*.lookups": {
+  "tables.*.lookups": {
     description:
       "Columns of public.<table>_view read from the row a reference points at (ADR 0044).",
   },
-  "appTables.*.lookups.*.via": {
+  "tables.*.lookups.*.via": {
     description: "The column of this table that references another app table.",
   },
-  "appTables.*.lookups.*.column": {
+  "tables.*.lookups.*.column": {
     description: "The column of the referenced row to read.",
   },
-  "sql.workflow": {
+  "database.sql.workflow": {
     description:
       "How the SQL modules reach the database: pg-delta (Declarative Schemas 2.0), migra (declarative schemas 1.0) or migrations (written straight into a migration). Unset, supabase/config.toml decides, and pg-delta is the default.",
   },
-  "sql.dir": { default: "supabase/schemas" },
-  "sql.prefix": { default: "900_better_supabase" },
-  "sql.testsDir": { default: "supabase/tests" },
-  "sql.schema": {
+  "database.sql.dir": { default: "supabase/schemas" },
+  "database.sql.prefix": { default: "900_better_supabase" },
+  "database.sql.testsDir": { default: "supabase/tests" },
+  "database.sql.schema": {
     description:
       "The schema of every block's functions and managed tables, unless the block sets its own.",
     default: "better_supabase",
   },
-  "sql.api": {
+  "database.sql.api": {
     description:
       "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false.",
   },
-  "sql.scope": {
+  "database.sql.owner": {
     description:
       "Who a block's rows belong to, unless the block sets its own scope: tenant (the default), user (the signed-in user, no tenants) or none (one shared space every signed-in user uses).",
     default: "tenant",
   },
-  "seed.entry": { default: "supabase/seed.ts" },
-  "seed.output": { default: "supabase/seeds/000_better_supabase.sql" },
-  "seed.perTenant": { default: "supabase/seed.tenant.ts" },
-  openapi: {
+  "database.seed.entry": { default: "supabase/seed.ts" },
+  "database.seed.output": { default: "supabase/seeds/000_better_supabase.sql" },
+  "database.seed.perTenant": { default: "supabase/seed.tenant.ts" },
+  "api.openapi": {
     description:
       "Deprecated: use specs. openapi.entry and openapi.output map onto it.",
   },
-  "openapi.entry": { default: "src/lib/openapi.ts" },
-  "openapi.output": { default: "openapi.json" },
-  specs: {
+  "api.openapi.entry": { default: "src/lib/openapi.ts" },
+  "api.openapi.output": { default: "openapi.json" },
+  "api.specs": {
     description:
       "The documents better-supabase spec emit writes (OpenAPI, AsyncAPI, Arazzo).",
   },
-  "specs.entry": {
+  "api.specs.entry": {
     description:
       "Module exporting a defineApi() result (or a function returning one) as api or default. Defaults to openapi.entry.",
     default: "src/lib/openapi.ts",
   },
-  "specs.outputs[].format": {
+  "api.specs.outputs[].format": {
     description: "A format id: openapi, asyncapi or arazzo.",
   },
-  "specs.outputs[].version": {
+  "api.specs.outputs[].version": {
     description: "Defaults to the format's default version.",
   },
-  "specs.outputs[].output": {
+  "api.specs.outputs[].output": {
     description:
       "File to write, relative to the root. Defaults to the format's file name.",
   },
-  "specs.outputs[].overlays": {
+  "api.specs.outputs[].overlays": {
     description: "Overlay files (JSON or YAML), applied in order.",
   },
-  "specs.outputs[].serialize": {
+  "api.specs.outputs[].serialize": {
     description:
       "Defaults to yaml when output ends in .yaml or .yml, otherwise json.",
   },
-  "specs.outputs[].ui": {
+  "api.specs.outputs[].ui": {
     description:
       "Also writes a reference page (openapi.html for openapi.json) next to OpenAPI outputs.",
   },
-  "specs.failOn": {
+  "api.specs.failOn": {
     description:
       "The lowest severity that fails spec emit, check and validate.",
     default: "error",
   },
-  "specs.manifest": {
+  "api.specs.manifest": {
     description:
       "Also write the diagnostics manifest (JSON) to this file, like spec --manifest.",
   },
-  "doctor.only": { description: "Run only these checks." },
-  "doctor.format": {
+  "tooling.doctor.only": { description: "Run only these checks." },
+  "tooling.doctor.format": {
     description:
       "Report format. The global --json flag still picks the JSON report.",
     default: "text",
   },
-  "doctor.output": { description: "Write the report to this file." },
+  "tooling.doctor.output": { description: "Write the report to this file." },
   gen: { description: "What better-supabase gen runs." },
   "gen.tasks": {
     description:
@@ -506,24 +518,24 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Milliseconds between checks in gen --watch and spec emit --watch.",
   },
-  env: { description: "The env file better-supabase env writes." },
-  "env.output": { default: ".env.local" },
-  "env.prefix": {
+  "tooling.env": { description: "The env file better-supabase env writes." },
+  "tooling.env.output": { default: ".env.local" },
+  "tooling.env.prefix": {
     description:
       "Prefix for browser variables, such as NEXT_PUBLIC_; none for no prefix. Detected from the framework by default.",
   },
-  "scaffold.api": {
+  "tooling.scaffold.api": {
     description:
       "What better-supabase scaffold api writes; the scaffold gen step keeps its generated file current.",
   },
-  "scaffold.api.name": { default: "api" },
-  "scaffold.api.basePath": { default: "/api" },
-  integrations: { description: "The integrations init and add wrote." },
-  "skills.agents": {
+  "tooling.scaffold.api.name": { default: "api" },
+  "tooling.scaffold.api.basePath": { default: "/api" },
+  adapters: { description: "The integrations init and add wrote." },
+  "tooling.skills.agents": {
     description:
       "Agent folders skills install writes to. Defaults to the ones the project has, else agents.",
   },
-  "keys.output": {
+  "tooling.keys.output": {
     description:
       "Signing key file better-supabase keys writes. Defaults to supabase/signing_keys.json.",
   },
@@ -531,21 +543,21 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Overrides per environment, keyed by name. Picked by --env, $BETTER_SUPABASE_ENV, or ci when $CI is set.",
   },
-  "$defs.moduleConfig.mode": { default: "managed" },
+  "$defs.moduleConfig.ownership": { default: "managed" },
   "$defs.moduleConfig.schema": { default: "better_supabase" },
-  "$defs.moduleConfig.scope": {
+  "$defs.moduleConfig.owner": {
     description:
-      "Who the block's rows belong to: tenant, user or none. Defaults to sql.scope, then tenant.",
+      "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant.",
   },
   "$defs.moduleConfig.functions": {
     description:
       "Function name to the name the block writes it under, such as create_organization to start_company.",
   },
-  "$defs.accessBlock.mode": { default: "managed" },
+  "$defs.accessBlock.ownership": { default: "managed" },
   "$defs.accessBlock.schema": { default: "better_supabase" },
-  "$defs.accessBlock.scope": {
+  "$defs.accessBlock.owner": {
     description:
-      "Who the block's rows belong to: tenant, user or none. Defaults to sql.scope, then tenant.",
+      "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant.",
   },
   "$defs.accessBlock.model": { default: "roles" },
   "$defs.accessBlock.platformClaim": { default: "platform_permissions" },

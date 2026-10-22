@@ -250,7 +250,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Containment filter on a column without a GIN index",
     description:
-      "`@>`, `<@`, `?` and `&&` on jsonb and array columns, and the `.contains()`, `.containedBy()` and `.overlaps()` filters, can only use a GIN index. Without one, every query reads the whole table. Doctor looks in policies, exposed functions and `doctor.sources`.",
+      "`@>`, `<@`, `?` and `&&` on jsonb and array columns, and the `.contains()`, `.containedBy()` and `.overlaps()` filters, can only use a GIN index. Without one, every query reads the whole table. Doctor looks in policies, exposed functions and `tooling.doctor.sources`.",
     check: (context) => {
       const tables = exposed(context).filter((table) => table.kind === "table");
 
@@ -381,7 +381,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Column that can exceed a JavaScript number",
     description:
-      "`int8` and `numeric` decode as `number` by default, which matches `supabase gen types` but loses precision past 2^53 (or 15 to 17 significant digits). An `int8` identity or sequence keeps growing toward that limit, and `numeric` usually holds exact amounts. Set `codecs.int8` to `bigint` or `string`, or `codecs.numeric` to `string`.",
+      "`int8` and `numeric` decode as `number` by default, which matches `supabase gen types` but loses precision past 2^53 (or 15 to 17 significant digits). An `int8` identity or sequence keeps growing toward that limit, and `numeric` usually holds exact amounts. Set `gen.codecs.int8` to `bigint` or `string`, or `gen.codecs.numeric` to `string`.",
     check: (context) => {
       const { int8, numeric } = context.config.codecs;
 
@@ -443,7 +443,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
             schemas.includes(fn.schema) && WIDE_RESULT.test(fn.return_type),
         )
         .map((fn) => ({
-          message: `${fn.schema}.${fn.name}(${fn.identity_argument_types}) returns ${fn.is_set_returning_function ? "setof " : ""}${fn.return_type}, which PostgREST sends as a JSON number and \`$rpc\` can't cast. Return it as text (\`returns ${fn.return_type.replace("bigint", "text").replace("numeric", "text")}\`, \`select total::text\`) when it can pass 2^53, or add BS223 to \`doctor.ignore\` when it stays small.`,
+          message: `${fn.schema}.${fn.name}(${fn.identity_argument_types}) returns ${fn.is_set_returning_function ? "setof " : ""}${fn.return_type}, which PostgREST sends as a JSON number and \`$rpc\` can't cast. Return it as text (\`returns ${fn.return_type.replace("bigint", "text").replace("numeric", "text")}\`, \`select total::text\`) when it can pass 2^53, or add BS223 to \`tooling.doctor.ignore\` when it stays small.`,
           target: `${fn.schema}.${fn.name}`,
           object: { kind: "function", schema: fn.schema, name: fn.name },
         }));
@@ -454,7 +454,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Prepared statements through the transaction pooler",
     description:
-      "The transaction pooler on port 6543 hands each transaction to any server connection, so a named prepared statement from one transaction is missing in the next and the query fails with `prepared statement does not exist`. postgres.js prepares statements unless `prepare: false`, and Prisma does unless the URL has `pgbouncer=true`. `pg` (and `better-supabase/postgres`) sends unnamed statements, which are safe. Doctor looks for a `:6543` URL in the env files and `doctor.sources`.",
+      "The transaction pooler on port 6543 hands each transaction to any server connection, so a named prepared statement from one transaction is missing in the next and the query fails with `prepared statement does not exist`. postgres.js prepares statements unless `prepare: false`, and Prisma does unless the URL has `pgbouncer=true`. `pg` (and `better-supabase/postgres`) sends unnamed statements, which are safe. Doctor looks for a `:6543` URL in the env files and `tooling.doctor.sources`.",
     check: (context) => {
       const urls = [...context.envFiles, ...context.sources].flatMap((file) =>
         lines(file)
@@ -513,7 +513,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     severity: "info",
     title: "Offset pagination or exact counts",
     description:
-      '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` counts every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `doctor.sources`.',
+      '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` counts every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `tooling.doctor.sources`.',
     check: (context) =>
       context.sources.flatMap((file): FindingInput[] =>
         lines(file).flatMap(({ line, text }): FindingInput[] => {

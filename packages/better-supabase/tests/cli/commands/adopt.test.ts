@@ -94,7 +94,7 @@ describe("adopt", () => {
       blocks: {
         tags: {},
         teams: {
-          mode: "adopt",
+          ownership: "adopt",
           tables: { teams: "public.teams", members: "public.team_members" },
           columns: {
             teams: { tenant: "organization_id" },
@@ -113,7 +113,7 @@ describe("adopt", () => {
     expect(again.output).toContain("already holds this mapping");
   });
 
-  it("sets doctor.migrationSafety.since to the newest migration", async () => {
+  it("sets tooling.doctor.migrationSafety.since to the newest migration", async () => {
     await writeFile(configPath(), json({}));
     await mkdir(join(dir, "supabase/migrations"), { recursive: true });
     await writeFile(join(dir, "supabase/migrations/20260101000000_a.sql"), "");
@@ -127,7 +127,7 @@ describe("adopt", () => {
 
     expect(written.code).toBe(0);
     expect(await readConfig()).toMatchObject({
-      doctor: { migrationSafety: { since: "20260301000000" } },
+      tooling: { doctor: { migrationSafety: { since: "20260301000000" } } },
     });
   });
 
@@ -210,14 +210,14 @@ describe("apply --adopt", () => {
     expect(result.output).toContain("Adopting teams:");
     expect(result.data).toMatchObject({
       written: true,
-      adopted: { teams: { mode: "adopt" } },
+      adopted: { teams: { ownership: "adopt" } },
     });
     expect(await readConfig()).toMatchObject({
       blocks: {
         "updated-at": {},
         tenant: {},
         access: {},
-        teams: { mode: "adopt", tables: { teams: "public.teams" } },
+        teams: { ownership: "adopt", tables: { teams: "public.teams" } },
       },
     });
     expect(

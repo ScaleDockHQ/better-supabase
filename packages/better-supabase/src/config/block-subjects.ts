@@ -46,9 +46,9 @@ function catalogNames(module: string): BlockSqlNames | undefined {
 }
 
 /**
- * The entities `blocks.<module>.entities` gives a new name, such as `work_item`
- * to `task`, for the block's TypeScript client (`blocks.generated.ts`). Empty
- * when the module renames none.
+ * The entities `blocks.<module>.names` gives a new name, such as `work_item` to
+ * `task`, for the block's TypeScript client (`blocks.generated.ts`). Empty when
+ * the module renames none.
  */
 export function blockEntityRenames(
   module: string,
@@ -82,7 +82,7 @@ export interface BlockEntity {
    * `blocks.<name>.tables` mapping), or undefined when it has none.
    */
   readonly table: string | undefined;
-  /** `blocks.<name>.entities.<entity>.url`, with column placeholders. */
+  /** `blocks.<name>.names.<entity>.url`, with column placeholders. */
   readonly url: string | undefined;
 }
 
@@ -245,7 +245,7 @@ export function withBlockSubjects(
     for (const [type, entry] of Object.entries(subjectsOf(module, blocks))) {
       if (Object.hasOwn(subjects, type)) {
         throw new TypeError(
-          `subjects.${type}: the ${module} block registers "${type}" itself; remove subjects.${type}, or set blocks.${module}.entities.<entity>.subject to false to keep your own`,
+          `records.${type}: the ${module} block registers "${type}" itself; remove records.${type}, or set blocks.${module}.names.<entity>.subject to false to keep your own`,
         );
       }
 

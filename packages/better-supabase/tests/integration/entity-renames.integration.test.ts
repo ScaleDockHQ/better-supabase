@@ -79,12 +79,12 @@ const config = resolveConfig(
   {
     blocks: {
       "updated-at": { schema: SCRATCH },
-      tenant: { schema: SCRATCH, entities: { organization: "workspace" } },
+      tenant: { schema: SCRATCH, names: { organization: "workspace" } },
       access: { schema: SCRATCH },
       subjects: { schema: SCRATCH },
       pipelines: { schema: SCRATCH },
       outbox: { schema: SCRATCH },
-      "work-items": { schema: SCRATCH, entities: { work_item: "task" } },
+      "work-items": { schema: SCRATCH, names: { work_item: "task" } },
       attachments: { schema: SCRATCH, options: { requireScan: false } },
     },
   },

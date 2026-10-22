@@ -97,7 +97,7 @@ A path option points outside the project root, for example
 
 `better-supabase.config.*` failed to load, or has a key or value the CLI
 doesn't accept. `issues` lists each problem as `path: message`, for example
-`codecs.timestamptz: Invalid type`. Exit code 2.
+`gen.codecs.timestamptz: Invalid type`. Exit code 2.
 
 ## `env_invalid`
 
@@ -153,7 +153,7 @@ response. Exit code 1.
 ## `auth_required`
 
 The command reads a hosted project and has no access token, or a request was
-refused with 401 or 403. Set `SUPABASE_ACCESS_TOKEN` (or `source.accessToken`
+refused with 401 or 403. Set `SUPABASE_ACCESS_TOKEN` (or `database.source.accessToken`
 in the config) to a token that can read the project. `flag` names the
 variable when the token is missing. Exit code 3.
 

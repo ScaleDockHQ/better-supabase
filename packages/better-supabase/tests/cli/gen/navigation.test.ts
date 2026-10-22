@@ -9,7 +9,10 @@ import {
 import { resolveConfig } from "../../../src/config/resolve.ts";
 
 function config(subjects: SubjectsConfig) {
-  return resolveConfig({ subjects, blocks: { tenant: {} } }, "/project");
+  return resolveConfig(
+    { records: subjects, blocks: { tenant: {} } },
+    "/project",
+  );
 }
 
 describe("navigation and commands", () => {

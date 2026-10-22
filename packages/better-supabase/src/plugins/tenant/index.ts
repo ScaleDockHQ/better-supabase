@@ -40,9 +40,9 @@ type StringPaths<T, Depth extends readonly unknown[]> = T extends object
 export interface TenantOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.
-   * Dots walk into objects. Defaults to `config.claims.tenant` (`tenant_id`),
-   * then the same key in `app_metadata`. `user_metadata` is never a source:
-   * users can write it.
+   * Dots walk into objects. Defaults to `config.auth.organization.claim`
+   * (`tenant_id`), then the same key in `app_metadata`. `user_metadata` is
+   * never a source: users can write it.
    */
   readonly claim?: ClaimPath<C> | readonly ClaimPath<C>[];
   /** Custom resolution, e.g. from a header validated against memberships. */

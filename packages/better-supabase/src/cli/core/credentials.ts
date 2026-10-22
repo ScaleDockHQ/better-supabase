@@ -32,7 +32,7 @@ export function accessToken(
   env: CliEnv,
 ): Credential | undefined {
   return first([
-    ["source.accessToken", config.source.accessToken],
+    ["database.source.accessToken", config.source.accessToken],
     ["$SUPABASE_ACCESS_TOKEN", env.SUPABASE_ACCESS_TOKEN],
   ]);
 }
@@ -48,7 +48,7 @@ export function databaseUrlCredential(
 ): Credential | undefined {
   return first([
     ["--db-url-stdin", fromStdin],
-    ["source.dbUrl", config.source.dbUrl],
+    ["database.source.dbUrl", config.source.dbUrl],
     ["$DATABASE_URL", env.DATABASE_URL],
     ["$SUPABASE_DB_URL", env.SUPABASE_DB_URL],
   ]);

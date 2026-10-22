@@ -144,7 +144,7 @@ function sentEffects(q: MessagingSql): string {
       { indent: "    " },
     );
 
-  // A record type with a read key in config.subjects asks can_subject_for;
+  // A record type with a read key in config.records asks can_subject_for;
   // other records only have their row policies, which answer for the caller.
   const keyed = registeredSubjects(ctx.subjects, ctx.naming)
     .filter((subject) => subject.config.permissions?.["read"] !== undefined)

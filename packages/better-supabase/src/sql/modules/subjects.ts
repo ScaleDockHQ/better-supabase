@@ -520,7 +520,7 @@ $$;
 ${userGrant(`${fn("subject_titles")}(jsonb)`)}
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.records.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope).
 create or replace function ${fn("can_subject")}(subject_type text, subject_id text, action text)
 returns boolean
@@ -589,7 +589,7 @@ ${userGrant(`${fn("record_summary")}(text, text, text[], timestamptz)`)}
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.records.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function ${fn("can_subject_for")}(member uuid, subject_type text, subject_id text, action text)
@@ -710,7 +710,7 @@ export const SUBJECTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.",
+    "The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.",
   requires: ["access"],
   integrates: [
     "comments",

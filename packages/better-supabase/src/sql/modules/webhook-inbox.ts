@@ -116,7 +116,7 @@ function webhookInboxSql(ctx: BlockSqlContext): string {
 
   if (managed && renamed.length > 0) {
     throw new TypeError(
-      `blocks.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
+      `blocks.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with ownership "adopt"`,
     );
   }
 

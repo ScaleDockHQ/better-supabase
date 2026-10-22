@@ -182,7 +182,7 @@ the columns you have, and set the others to `null`:
 ```ts title="better-supabase.config.ts"
 blocks: {
   profiles: {
-    mode: "adopt",
+    ownership: "adopt",
     tables: { profiles: "public.profiles" },
     columns: {
       profiles: {
@@ -194,7 +194,7 @@ blocks: {
         onboarding: null,
       },
     },
-    hooks: {
+    callbacks: {
       schema: "public",
       functions: { after_profile_sync: "create_contact_profile" },
     },

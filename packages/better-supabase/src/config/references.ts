@@ -2,8 +2,8 @@ import type { BlockNameRegistry, TablesOf } from "../blocks/name-registry.ts";
 import type { AppOnDeleteAction } from "./types/app-tables.ts";
 
 /**
- * A logical table of a block the registry knows, as `appTables` columns
- * reference it: `{ block: "work-items", table: "items" }`.
+ * A logical table of a block the registry knows, as `tables` columns reference
+ * it: `{ block: "work-items", table: "items" }`.
  */
 export type BlockTableReference = {
   readonly [M in keyof BlockNameRegistry]: {
@@ -12,7 +12,7 @@ export type BlockTableReference = {
   };
 }[keyof BlockNameRegistry];
 
-type AppTablesOf<C> = C extends { readonly appTables: infer T extends object }
+type AppTablesOf<C> = C extends { readonly tables: infer T extends object }
   ? T
   : Record<never, never>;
 
@@ -57,13 +57,15 @@ type RolesOf<C> = C extends {
  */
 export type RoleNames<C> = [RolesOf<C>] extends [never] ? string : RolesOf<C>;
 
-type BucketsOf<C> = C extends { readonly buckets: infer B extends object }
+type BucketsOf<C> = C extends {
+  readonly database: { readonly buckets: infer B extends object };
+}
   ? keyof B & string
   : never;
 
 /**
- * A bucket `storagePaths` names: a `buckets` key, suggested first, or the id of
- * a bucket the config doesn't declare.
+ * A bucket `gen.storagePaths` names: a `database.buckets` key, suggested first,
+ * or the id of a bucket the config doesn't declare.
  */
 export type BucketName<C> = BucketsOf<C> | (string & {});
 
@@ -84,11 +86,13 @@ type RoleReferences<C> = [RolesOf<C>] extends [never]
     };
 
 /**
- * What `defineConfig` checks a literal config against: block tables in
- * `appTables` references, app table names, bucket names in `storagePaths`, and
- * the role names other blocks take from `blocks.access.roles`.
+ * What `defineConfig` checks a literal config against: block tables in `tables`
+ * references, app table names, bucket names in `gen.storagePaths`, and the role
+ * names other blocks take from `blocks.access.roles`.
  */
 export type ConfigReferences<C> = {
-  readonly appTables?: AppTableReferences<C>;
-  readonly storagePaths?: Readonly<Record<string, BucketName<C>>>;
+  readonly tables?: AppTableReferences<C>;
+  readonly gen?: {
+    readonly storagePaths?: Readonly<Record<string, BucketName<C>>>;
+  };
 } & RoleReferences<C>;

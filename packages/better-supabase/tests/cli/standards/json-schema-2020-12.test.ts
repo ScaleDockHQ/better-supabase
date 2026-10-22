@@ -99,13 +99,13 @@ describe("JSON Schema 2020-12", () => {
     expect(
       check({
         $schema: CONFIG_SCHEMA_URL,
-        schemas: ["public"],
-        casing: "camel",
+        database: { schemas: ["public"] },
+        gen: { casing: "camel" },
       }),
     ).toEqual([]);
-    expect(check({ $schema: CONFIG_SCHEMA_URL, casing: "kebab" })).not.toEqual(
-      [],
-    );
+    expect(
+      check({ $schema: CONFIG_SCHEMA_URL, gen: { casing: "kebab" } }),
+    ).not.toEqual([]);
     expect(check(fixture as unknown as Record<string, unknown>)).toEqual([]);
 
     const context = {

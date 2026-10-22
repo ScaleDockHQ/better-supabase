@@ -86,7 +86,7 @@ Managed block defaults follow the repo standard (hashed tokens, Vault secrets,
 `text` ids, the module's CloudEvents sources). A shape that only an existing app
 needs belongs in its adopt config, never in a managed default. When an adopter
 needs a weaker value, add it to `src/sql/migration-options.ts`, so the config
-accepts it in `mode: "adopt"` only and doctor warns about it (BS314).
+accepts it in `ownership: "adopt"` only and doctor warns about it (BS314).
 
 Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend. Each fixture table

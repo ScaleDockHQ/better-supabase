@@ -245,7 +245,7 @@ export async function runDbDiff(
   if (workflow === "migrations") {
     throw new CliError(
       "usage",
-      "db diff turns declarative schema files into a migration, and this project writes migrations directly (sql.workflow = migrations).",
+      "db diff turns declarative schema files into a migration, and this project writes migrations directly (database.sql.workflow = migrations).",
     );
   }
 

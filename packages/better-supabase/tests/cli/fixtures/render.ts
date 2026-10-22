@@ -19,32 +19,37 @@ import {
 import { libraryFixture, snapshotPath } from "./library.ts";
 
 const fixtureConfig: BetterSupabaseConfig = {
-  output: "tests/fixtures/generated.ts",
-  json: {
-    "customers.metadata": {
-      type: "{ source?: string; tier?: 'free' | 'pro' }",
+  gen: {
+    output: "tests/fixtures/generated.ts",
+    json: {
+      "customers.metadata": {
+        type: "{ source?: string; tier?: 'free' | 'pro' }",
+      },
     },
+    storagePaths: { "customers.logo_path": "customerLogos" },
   },
   plugins: {
     timestamps: true,
     softDelete: { column: "archived_at" },
-    tenant: { column: "organization_id" },
+    tenant: true,
     actor: true,
   },
-  buckets: {
-    customerLogos: {
-      path: "{organizationId}/{customerId}/logo/{version}.webp",
-      public: true,
-      policy: "tenant",
-      fileSizeLimit: "5MiB",
-      allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
+  database: {
+    buckets: {
+      customerLogos: {
+        path: "{organizationId}/{customerId}/logo/{version}.webp",
+        public: true,
+        policy: "tenant",
+        fileSizeLimit: "5MiB",
+        allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
+      },
+    },
+    topics: {
+      notifications: "organization:{organizationId}:notifications:{userId}",
+      customers: "organization:{organizationId}:customers",
     },
   },
-  storagePaths: { "customers.logo_path": "customerLogos" },
-  topics: {
-    notifications: "organization:{organizationId}:notifications:{userId}",
-    customers: "organization:{organizationId}:customers",
-  },
+  auth: { organization: { column: "organization_id" } },
 };
 
 const here = (name: string): string =>
@@ -65,23 +70,26 @@ export async function renderFixtures(): Promise<
   const root = here("../..");
 
   const variants: BetterSupabaseConfig[] = [
-    { ...fixtureConfig, casing: "snake" },
+    { ...fixtureConfig, gen: { ...fixtureConfig.gen, casing: "snake" } },
     {
       ...fixtureConfig,
-      casing: "camel",
-      output: "tests/fixtures/generated-camel.ts",
-      generators: [
-        zod(),
-        zod({
-          flavor: "mini",
-          output: "tests/fixtures/generated-camel.zod-mini.ts",
-        }),
-        valibot(),
-        jsonSchema(),
-        nuqs(),
-        factories({ testingImport: "../../src/testing/index.ts" }),
-        standardSchema(),
-      ],
+      gen: {
+        ...fixtureConfig.gen,
+        casing: "camel",
+        output: "tests/fixtures/generated-camel.ts",
+        generators: [
+          zod(),
+          zod({
+            flavor: "mini",
+            output: "tests/fixtures/generated-camel.zod-mini.ts",
+          }),
+          valibot(),
+          jsonSchema(),
+          nuqs(),
+          factories({ testingImport: "../../src/testing/index.ts" }),
+          standardSchema(),
+        ],
+      },
     },
   ];
 

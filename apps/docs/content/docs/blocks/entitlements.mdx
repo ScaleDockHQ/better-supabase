@@ -26,9 +26,11 @@ Without either, point the module at your own column; `sql add` stops without one
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  entitlements: {
-    customer: "billing_customers.stripe_customer_id",
-    key: "organization_id", // the tenant id column, defaults to id
+  auth: {
+    entitlements: {
+      customer: "billing_customers.stripe_customer_id",
+      key: "organization_id", // the tenant id column, defaults to id
+    },
   },
 });
 ```
@@ -42,7 +44,7 @@ has no entitlements.
 ### Other sources
 
 Apps that keep their own billing mirror don't need the Sync Engine.
-`entitlements.source` picks where the features come from; the checks,
+`auth.entitlements.source` picks where the features come from; the checks,
 the claim and `hasEntitlement` stay the same.
 
 A plan catalog in your tables: the tenant's subscription names a plan, and a
@@ -52,20 +54,22 @@ with `included`, only rows where it is true.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  entitlements: {
-    source: {
-      plans: {
-        subscriptions: {
-          table: "public.subscriptions",
-          tenant: "organization_id",
-          plan: "plan_key",
-          status: "status",
-        },
-        features: {
-          table: "public.plan_features",
-          plan: "plan_key",
-          feature: "feature_key",
-          included: "included",
+  auth: {
+    entitlements: {
+      source: {
+        plans: {
+          subscriptions: {
+            table: "public.subscriptions",
+            tenant: "organization_id",
+            plan: "plan_key",
+            status: "status",
+          },
+          features: {
+            table: "public.plan_features",
+            plan: "plan_key",
+            feature: "feature_key",
+            included: "included",
+          },
         },
       },
     },
@@ -183,7 +187,7 @@ $$;
 grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
 ```
 
-The claim name comes from `claims.features` in the config (`features` by
+The claim name comes from `auth.claims.features` in the config (`features` by
 default). With an authorization provider's hook, see
 [below](#with-an-authorization-provider).
 
@@ -206,12 +210,14 @@ Every key travels in every request, so keep the list to lookup keys.
 claims pass 2 KB. A provider's hook budget (`tokenHook.budget`) covers only the
 claims it lists, so `features` is usually outside it.
 
-`entitlements.claim` controls the claim's size and shape:
+`auth.entitlements.claim` controls the claim's size and shape:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  entitlements: {
-    claim: { maxTenants: 20, keys: { exports: "e", sso: "s", audit: "a" } },
+  auth: {
+    entitlements: {
+      claim: { maxTenants: 20, keys: { exports: "e", sso: "s", audit: "a" } },
+    },
   },
 });
 ```
@@ -233,7 +239,7 @@ after changing it.
 
 `hasEntitlement(session, tenantId, key)` reads the `features` claim, from
 `better-supabase/blocks/entitlements`. Pass
-the claim name as a fourth argument when `claims.features` renames it. With a
+the claim name as a fourth argument when `auth.claims.features` renames it. With a
 typed claims schema, `key` only accepts its lookup keys:
 
 ```tsx
@@ -263,8 +269,8 @@ export function FeatureGate({ feature, children }) {
 }
 ```
 
-It takes `claim` and `tenantClaim` when `claims.features` or
-`claims.tenant` rename them. `createFeatureGateController` from
+It takes `claim` and `tenantClaim` when `auth.claims.features` or
+`auth.organization.claim` rename them. `createFeatureGateController` from
 `better-supabase/blocks/entitlements` is the same logic without React, and
 `better-supabase/blocks/entitlements/vue`, `/svelte` and `/solid` export
 `useFeatureGate` over it, taking the controller's options with `auth` from
@@ -345,7 +351,7 @@ that scope's `idType`. When the provider lacks `memberIds` or
 doctor reports [BS408](/docs/cli/doctor#bs408). BS408 also reports a tenant
 scope without a `memberships` entry, which `entitlement_members` needs.
 
-`entitlements.memberships: "tenant"` keeps the `tenant` module's
+`auth.entitlements.memberships: "tenant"` keeps the `tenant` module's
 `better_supabase.memberships` even with a provider.
 
 `features` is not a claim a provider usually owns, so `sql add entitlements`

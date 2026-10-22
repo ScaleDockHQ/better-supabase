@@ -225,7 +225,7 @@ export function buildFunctions(
     const names = [...new Set(unpromised)];
 
     ctx.notices.push(
-      `Notice: Postgres can't declare a \`returns table\` column not null, so ${names.length === 1 ? "this function's columns are" : `the columns of these ${names.length} functions are`} typed \`| null\`: ${names.join(", ")}. Name the columns that are never null with an \`@notNull(a, b)\` tag in the function's comment or with \`functions.<name>.notNull\`; \`notNull: []\` keeps them all nullable and silences this notice.`,
+      `Notice: Postgres can't declare a \`returns table\` column not null, so ${names.length === 1 ? "this function's columns are" : `the columns of these ${names.length} functions are`} typed \`| null\`: ${names.join(", ")}. Name the columns that are never null with an \`@notNull(a, b)\` tag in the function's comment or with \`gen.functions.<name>.notNull\`; \`notNull: []\` keeps them all nullable and silences this notice.`,
     );
   }
 

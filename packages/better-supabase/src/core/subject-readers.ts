@@ -10,7 +10,7 @@ import { DEFAULT_BLOCK_SCHEMA } from "./block-helpers.ts";
 export interface SubjectReadersOptions {
   /** The schema of the `subjects` module. Default `better_supabase`. */
   readonly schema?: string;
-  /** The `config.subjects` action to check. Default `read`. */
+  /** The `config.records` action to check. Default `read`. */
   readonly action?: string;
 }
 
@@ -41,8 +41,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The default subscriber policy under an authorization provider: a subscriber
- * gets an event about a subject in `config.subjects` only when
- * `can_subject_for` says it may `read` the subject (the key in
+ * gets an event about a subject in `config.records` only when `can_subject_for`
+ * says it may `read` the subject (the key in
  * `config.subjects.<type>.permissions`, never a share-link grant). Events
  * without a subject, or about a type the registry doesn't list, keep every
  * subscriber, so the block's own tenant check decides them. `transport` must

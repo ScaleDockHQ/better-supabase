@@ -30,7 +30,7 @@ format's default file name.
 
 ## The entry module
 
-`spec` imports `specs.entry` (default `src/lib/openapi.ts`). The module
+`spec` imports `api.specs.entry` (default `src/lib/openapi.ts`). The module
 exports one of:
 
 - `api`, or a default export: a `defineApi()` result. Every format and
@@ -70,32 +70,34 @@ write:
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  specs: {
-    entry: "src/lib/api.ts",
-    outputs: [
-      {
-        format: "openapi",
-        version: "3.1",
-        output: "openapi.json",
-        ui: "scalar",
-      },
-      {
-        format: "openapi",
-        version: "3.2",
-        output: "public/openapi.yaml",
-        overlays: ["specs/public.overlay.yaml"],
-      },
-      { format: "asyncapi", output: "asyncapi.json" },
-      { format: "arazzo" },
-    ],
-    failOn: "warning",
+  api: {
+    specs: {
+      entry: "src/lib/api.ts",
+      outputs: [
+        {
+          format: "openapi",
+          version: "3.1",
+          output: "openapi.json",
+          ui: "scalar",
+        },
+        {
+          format: "openapi",
+          version: "3.2",
+          output: "public/openapi.yaml",
+          overlays: ["specs/public.overlay.yaml"],
+        },
+        { format: "asyncapi", output: "asyncapi.json" },
+        { format: "arazzo" },
+      ],
+      failOn: "warning",
+    },
   },
 });
 ```
 
 | Key       | Default                                           | What it sets                                                                                        |
 | --------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `entry`   | `openapi.entry`, else `src/lib/openapi.ts`        | The entry module                                                                                    |
+| `entry`   | `api.openapi.entry`, else `src/lib/openapi.ts`    | The entry module                                                                                    |
 | `outputs` | `[{ format: "openapi", output: "openapi.json" }]` | The documents to write                                                                              |
 | `failOn`  | `"error"`                                         | The lowest severity that fails `emit`, `emit --check` and `validate`: `error`, `warning` or `never` |
 
@@ -121,7 +123,7 @@ always gives the same bytes.
 ### The `openapi` key
 
 `openapi: { entry, output }` is a deprecated alias of `specs`. When `specs`
-is unset, `openapi.entry` becomes `specs.entry` and `openapi.output` becomes
+is unset, `api.openapi.entry` becomes `api.specs.entry` and `api.openapi.output` becomes
 the output of the one OpenAPI document. A module that exports a
 `createOpenApi` document instead of a `defineApi` definition works too, so
 `spec emit openapi` replaces the old `openapi emit` command.
@@ -132,11 +134,11 @@ the output of the one OpenAPI document. A module that exports a
 | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `--spec-version <version>` | Render this version instead of the configured one (see below)                                                  |
 | `--out <file>`             | Write the one selected output to this file. More than one match is a usage error                               |
-| `--entry <file>`           | Use this entry module instead of `specs.entry`                                                                 |
+| `--entry <file>`           | Use this entry module instead of `api.specs.entry`                                                             |
 | `--yaml`                   | Write YAML instead of JSON                                                                                     |
 | `--ui <name>`              | Also write a reference page next to each OpenAPI output: `scalar`, `swagger`, `redoc`, `elements` or `rapidoc` |
-| `--fail-on <level>`        | Exit 1 on findings at this level: `error`, `warning` or `never`. Defaults to `specs.failOn`                    |
-| `--manifest <file>`        | Also write the diagnostics manifest to this file. Defaults to `specs.manifest`                                 |
+| `--fail-on <level>`        | Exit 1 on findings at this level: `error`, `warning` or `never`. Defaults to `api.specs.failOn`                |
+| `--manifest <file>`        | Also write the diagnostics manifest to this file. Defaults to `api.specs.manifest`                             |
 | `--cache`, `--no-cache`    | Reuse renders whose inputs did not change (the default), or render every output again                          |
 | `--check`                  | With `emit`, compare each output with the file on disk and write nothing; exit 1 when one is stale or missing  |
 | `--dry-run`                | With `emit`, print a diff of each output that would change and write nothing                                   |
@@ -275,7 +277,7 @@ and has no timestamps, so the same inputs give the same bytes:
 ## Reference pages
 
 `ui` on an output, or `--ui <name>`, also writes an HTML reference page next
-to each OpenAPI document: `openapi.html` for `openapi.json`. The page loads
+to each OpenAPI document: `api.openapi.html` for `openapi.json`. The page loads
 the document from `./openapi.json` and takes its title from `info.title`.
 `emit --check` compares the page too. The UIs, their pinned versions and the
 self-hosted mode are on [Reference UIs](/docs/specs/reference-ui).

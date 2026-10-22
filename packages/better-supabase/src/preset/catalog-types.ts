@@ -25,8 +25,8 @@ export interface PresetCatalogBlock {
    */
   readonly extraColumns?: string;
   /**
-   * The nouns `blocks.<name>.entities` renames, with what config resolution
-   * needs to name them and register their subjects.
+   * The nouns `blocks.<name>.names` renames, with what config resolution needs
+   * to name them and register their subjects.
    */
   readonly entities?: PresetCatalogEntities;
   /** Modules it works with when installed; `*` is every module. */

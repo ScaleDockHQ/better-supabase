@@ -330,7 +330,7 @@ describe("design codes", () => {
 
   it("checks app tables like the config does", async () => {
     await expect(encodeDesign({ appTables: { Projects: {} } })).rejects.toThrow(
-      "appTables",
+      "tables.Projects",
     );
   });
 
@@ -479,7 +479,7 @@ describe("design config", () => {
     expect(source).toContain(
       `    tags: { options: { extraColumns: { color: "text not null default 'gray'" } } },`,
     );
-    expect(source).toContain("  appTables: {\n    projects: { columns: {");
+    expect(source).toContain("  tables: {\n    projects: { columns: {");
     expect(source).not.toContain("positions");
   });
 

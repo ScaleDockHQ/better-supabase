@@ -2,7 +2,14 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
+import type { BetterSupabaseConfig } from "../../src/config/index.ts";
+
+import {
+  flattenConfig,
+  groupConfig,
+  resolveConfig,
+  resolveJsonSchema,
+} from "../../src/config/index.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
 
 describe("resolveJsonSchema", () => {
@@ -42,7 +49,7 @@ describe("resolveConfig specs", () => {
     expect(
       resolveConfig(
         // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-        { openapi: { entry: "api.ts", output: "docs/openapi.json" } },
+        { api: { openapi: { entry: "api.ts", output: "docs/openapi.json" } } },
         "/app",
       ).specs,
     ).toEqual({
@@ -57,9 +64,11 @@ describe("resolveConfig specs", () => {
     expect(
       resolveConfig(
         {
-          // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-          openapi: { entry: "old.ts" },
-          specs: { entry: "new.ts", outputs, failOn: "warning" },
+          api: {
+            // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
+            openapi: { entry: "old.ts" },
+            specs: { entry: "new.ts", outputs, failOn: "warning" },
+          },
         },
         "/app",
       ).specs,
@@ -70,7 +79,7 @@ describe("resolveConfig specs", () => {
 describe("resolveConfig access model", () => {
   it("defaults the access model to provider when authorization is set", () => {
     const listed = resolveConfig(
-      { authorization: stubProvider, blocks: ["tenant", "access"] },
+      { auth: { authorization: stubProvider }, blocks: ["tenant", "access"] },
       "/app",
     );
 
@@ -78,7 +87,10 @@ describe("resolveConfig access model", () => {
     expect(listed.blockNames).toEqual(["tenant", "access"]);
 
     const keyed = resolveConfig(
-      { authorization: stubProvider, blocks: { access: { idType: "uuid" } } },
+      {
+        auth: { authorization: stubProvider },
+        blocks: { access: { idType: "uuid" } },
+      },
       "/app",
     ).blocks.access;
 
@@ -88,7 +100,10 @@ describe("resolveConfig access model", () => {
   it("keeps an explicit model, and roles without a provider", () => {
     expect(
       resolveConfig(
-        { authorization: stubProvider, blocks: { access: { model: "roles" } } },
+        {
+          auth: { authorization: stubProvider },
+          blocks: { access: { model: "roles" } },
+        },
         "/app",
       ).blocks.access?.model,
     ).toBe("roles");
@@ -96,8 +111,10 @@ describe("resolveConfig access model", () => {
       resolveConfig({ blocks: ["access"] }, "/app").blocks.access,
     ).toBeUndefined();
     expect(
-      resolveConfig({ authorization: stubProvider, blocks: ["tenant"] }, "/app")
-        .blocks,
+      resolveConfig(
+        { auth: { authorization: stubProvider }, blocks: ["tenant"] },
+        "/app",
+      ).blocks,
     ).toEqual({});
   });
 });
@@ -106,7 +123,7 @@ describe("resolveConfig sql defaults", () => {
   it("gives every block sql.schema and sql.api unless it sets its own", () => {
     const { blocks } = resolveConfig(
       {
-        sql: { schema: "app", api: "api" },
+        database: { sql: { schema: "app", api: "api" } },
         blocks: {
           comments: {},
           settings: { schema: "settings", api: "public_api" },
@@ -125,11 +142,58 @@ describe("resolveConfig sql defaults", () => {
 
   it("applies the defaults to a block list", () => {
     const { blocks, blockNames } = resolveConfig(
-      { sql: { api: "api" }, blocks: ["tags"] },
+      { database: { sql: { api: "api" } }, blocks: ["tags"] },
       "/app",
     );
 
     expect(blocks).toEqual({ tags: { api: "api" } });
     expect(blockNames).toEqual(["tags"]);
+  });
+});
+
+describe("flattenConfig and groupConfig", () => {
+  const grouped = {
+    database: { schemas: ["public"], sql: { owner: "user" } },
+    auth: { organization: { claim: "app_metadata.org_id", column: "org_id" } },
+    gen: {
+      casing: "camel",
+      tables: { audit: { serviceRole: true } },
+      tasks: ["types"],
+    },
+    tooling: { doctor: { strict: true } },
+    records: { customer: { table: "customers" } },
+    adapters: ["next"],
+    tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
+    blocks: {
+      teams: { ownership: "adopt", owner: "user" },
+      tenant: { names: { organization: "workspace" } },
+    },
+    plugins: { tenant: true },
+  } satisfies BetterSupabaseConfig;
+
+  it("flattens the groups and renames the keys to the resolved names", () => {
+    expect(flattenConfig(grouped)).toEqual({
+      schemas: ["public"],
+      sql: { scope: "user" },
+      claims: { tenant: "app_metadata.org_id" },
+      plugins: { tenant: { column: "org_id" } },
+      casing: "camel",
+      tables: { audit: { serviceRole: true } },
+      gen: { tasks: ["types"] },
+      doctor: { strict: true },
+      subjects: { customer: { table: "customers" } },
+      integrations: ["next"],
+      appTables: {
+        notes: { scope: "user", columns: { body: { type: "text" } } },
+      },
+      blocks: {
+        teams: { mode: "adopt", scope: "user" },
+        tenant: { entities: { organization: "workspace" } },
+      },
+    });
+  });
+
+  it("groups a flat config back", () => {
+    expect(groupConfig(flattenConfig(grouped))).toEqual(grouped);
   });
 });

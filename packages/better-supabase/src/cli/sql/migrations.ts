@@ -154,7 +154,7 @@ export async function dataMigration(
     return {
       code: 0,
       output:
-        "sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
+        "database.sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
       data: { wrote: false },
     };
   }

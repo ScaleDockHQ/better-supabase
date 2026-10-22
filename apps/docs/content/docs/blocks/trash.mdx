@@ -20,7 +20,7 @@ await trash.restore(batch.id).orThrow();
 
 ## Configure subjects
 
-Every [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
+Every [`config.records`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
 
 ```ts title="better-supabase.config.ts"
 subjects: {

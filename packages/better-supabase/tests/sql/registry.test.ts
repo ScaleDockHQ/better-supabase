@@ -479,15 +479,17 @@ describe("sameBlockFile", () => {
   it("writes the complete Data API grants from the expose config", () => {
     const config = resolveConfig(
       {
-        expose: {
-          customers: ["select", "insert", "update", "delete"],
-          "billing.invoices": {
-            anon: ["select"],
-            authenticated: ["select"],
-            serviceRole: ["select", "insert"],
+        database: {
+          expose: {
+            customers: ["select", "insert", "update", "delete"],
+            "billing.invoices": {
+              anon: ["select"],
+              authenticated: ["select"],
+              serviceRole: ["select", "insert"],
+            },
+            "search_notes(text, integer)": { execute: ["authenticated"] },
+            "billing.reprice(uuid)": { execute: [], serviceRole: false },
           },
-          "search_notes(text, integer)": { execute: ["authenticated"] },
-          "billing.reprice(uuid)": { execute: [], serviceRole: false },
         },
       },
       "/project",
@@ -609,7 +611,7 @@ describe("sameBlockFile", () => {
   it("derives table grants from policies for tables expose doesn't list", () => {
     const config = resolveConfig(
       {
-        expose: { customers: ["select"] },
+        database: { expose: { customers: ["select"] } },
         blocks: { grants: { options: { fromPolicies: true } } },
       },
       "/project",
@@ -652,7 +654,7 @@ describe("sameBlockFile", () => {
   it("makes declared tables without a policy or expose entry service-only under fromPolicies", () => {
     const config = resolveConfig(
       {
-        expose: { customers: ["select"] },
+        database: { expose: { customers: ["select"] } },
         blocks: { grants: { options: { fromPolicies: true } } },
       },
       "/project",
@@ -713,19 +715,19 @@ describe("sameBlockFile", () => {
   it("rejects a function entry without a signature and table privileges on a function", () => {
     expect(() =>
       resolveConfig(
-        { expose: { "search_notes(text)": ["select"] } },
+        { database: { expose: { "search_notes(text)": ["select"] } } },
         "/project",
       ),
     ).toThrow(/a function takes \{ execute/);
     expect(() =>
       resolveConfig(
-        { expose: { notes: { execute: ["authenticated"] } } },
+        { database: { expose: { notes: { execute: ["authenticated"] } } } },
         "/project",
       ),
     ).toThrow(/key it by its signature/);
 
     const config = resolveConfig(
-      { expose: { "bad name()x)": { execute: ["anon"] } } },
+      { database: { expose: { "bad name()x)": { execute: ["anon"] } } } },
       "/project",
     );
 
@@ -737,9 +739,11 @@ describe("sameBlockFile", () => {
   it("writes a search function per vectorSearch table", () => {
     const config = resolveConfig(
       {
-        vectorSearch: {
-          chunks: "embedding",
-          "docs.pages": { column: "vec", distance: "inner_product" },
+        database: {
+          vectorSearch: {
+            chunks: "embedding",
+            "docs.pages": { column: "vec", distance: "inner_product" },
+          },
         },
       },
       "/project",
@@ -817,7 +821,11 @@ describe("vector search options", () => {
       ["vector-search"],
       moduleLayout(
         resolveConfig(
-          { vectorSearch: { chunks: { column: "embedding", ...entry } } },
+          {
+            database: {
+              vectorSearch: { chunks: { column: "embedding", ...entry } },
+            },
+          },
           "/project",
         ),
       ),
@@ -1021,13 +1029,13 @@ describe("entitlements with provider memberships", () => {
 
   it("needs a customer column unless the managed organizations module adds one", () => {
     expect(() => renderBlocks(["entitlements"])).toThrow(
-      "The entitlements module needs entitlements.customer",
+      "The entitlements module needs auth.entitlements.customer",
     );
     expect(() =>
       renderBlocks(["entitlements", "organizations"], {
         modules: { organizations: { mode: "adopt" } },
       }),
-    ).toThrow("The entitlements module needs entitlements.customer");
+    ).toThrow("The entitlements module needs auth.entitlements.customer");
     const files = renderBlocks(["entitlements", "organizations"]);
 
     const sql = (name: string) =>

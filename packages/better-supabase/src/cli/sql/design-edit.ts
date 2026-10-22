@@ -26,8 +26,8 @@ function currentExtraColumns(
 /**
  * `source` with a `/create` design written into it: each block's
  * `options.extraColumns` (merged over the columns `config` already gives it)
- * and each table in `appTables`, replacing a table of the same name and keeping
- * the others. Positions only matter to the canvas and stay out.
+ * and each design table under `tables`, replacing a table of the same name and
+ * keeping the others. Positions only matter to the canvas and stay out.
  */
 export function writeDesign(
   file: string,
@@ -65,7 +65,12 @@ export function writeDesign(
   }
 
   for (const [name, table] of Object.entries(design.appTables ?? {})) {
-    const problem = apply(["appTables", name], table);
+    const { scope, ...rest } = table;
+
+    const problem = apply(
+      ["tables", name],
+      scope === undefined ? rest : { ...rest, owner: scope },
+    );
 
     if (problem !== undefined) {
       return { ok: false, reason: problem };

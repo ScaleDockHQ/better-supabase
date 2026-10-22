@@ -118,7 +118,7 @@ Point `[auth] signing_keys_path` at it, and local tokens are then signed the way
 your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
 existing tokens still verify. `keys` refuses to overwrite an existing file
-unless you pass `--force`, and `--out <file>` (or `keys.output` in the
+unless you pass `--force`, and `--out <file>` (or `tooling.keys.output` in the
 config) writes somewhere else. `--dry-run` writes nothing.
 
 Side effects: Writes files.
@@ -151,8 +151,8 @@ pnpm better-supabase seed --check  # fails in CI when the SQL is stale
 pnpm better-supabase seed --apply  # also inserts into the local database
 ```
 
-`--entry <file>` and `--out <file>` override `seed.entry` and
-`seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
+`--entry <file>` and `--out <file>` override `database.seed.entry` and
+`database.seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
 `--check` runs `--apply`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.
@@ -173,7 +173,7 @@ so use `.ts` extensions in its relative imports.
 ### Seeds per tenant
 
 A tenant seed builds rows from a tenant, so every organization can start
-with the same demo data. Put it in `seed.perTenant`
+with the same demo data. Put it in `database.seed.perTenant`
 (`supabase/seed.tenant.ts` by default):
 
 ```ts title="supabase/seed.tenant.ts"
@@ -193,7 +193,7 @@ pnpm better-supabase seed --tenant '*'   # every organization
 `--tenant` looks organizations up in the
 [organizations block](/docs/blocks/organizations) and inserts the rows for
 all of them in one transaction, so a failure leaves none behind. `--entry`
-overrides `seed.perTenant`. The database and consent rules are the ones
+overrides `database.seed.perTenant`. The database and consent rules are the ones
 `--apply` follows: the local stack needs no consent, any other database
 does, and `--dry-run` connects to nothing. `tenant.slug` and `tenant.name`
 are set when the organization has them. Every insert is
@@ -257,8 +257,8 @@ Side effects: Writes files, writes to the database with `--apply`, writes to the
 module that exports a [`createOpenApi`](/docs/standards/openapi) document as
 `openapi` or default (or a function that returns it), as well as a
 `defineApi` module. The `openapi` config key is a deprecated alias of
-`specs`: when `specs` is unset, `spec` reads `openapi.entry` and
-`openapi.output`.
+`specs`: when `specs` is unset, `spec` reads `api.openapi.entry` and
+`api.openapi.output`.
 
 ```bash
 pnpm better-supabase spec emit openapi --check

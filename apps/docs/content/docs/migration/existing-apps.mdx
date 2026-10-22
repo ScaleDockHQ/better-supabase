@@ -44,7 +44,7 @@ Set the workflow in the config, or run `better-supabase init --workflow migratio
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { workflow: "migrations" },
+  database: { sql: { workflow: "migrations" } },
   blocks: ["tenant", "audit"],
 });
 ```
@@ -58,7 +58,7 @@ with `supabase migration up`. An app still on declarative schemas 1.0 sets
 ## Pick a mode per module
 
 Every SQL module has a contract: the functions your policies, other
-modules and the TypeScript APIs call. `blocks.<module>.mode` decides what stands
+modules and the TypeScript APIs call. `blocks.<module>.ownership` decides what stands
 behind it.
 
 | Mode                | Use it when                                                                     |
@@ -88,7 +88,7 @@ export default defineConfig({
     access: {},
     "webhooks-out": {},
     tenant: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: {
         memberships: {
@@ -99,18 +99,18 @@ export default defineConfig({
       },
     },
     organizations: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { organizations: "public.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       permissions: { update: "organization.settings.manage" },
-      hooks: {
+      callbacks: {
         schema: "public",
         functions: { after_organization_create: "seed_organization" },
       },
       options: { attributes: ["website", "logo_path", "default_currency"] },
     },
     outbox: {
-      mode: "adopt",
+      ownership: "adopt",
       tables: { events: "public.workflow_events" },
       columns: {
         events: {
@@ -224,7 +224,7 @@ explains the order.
 ## A suggested order
 
 1. Move the schema into `supabase/schemas` on pg-delta (or set
-   `sql.workflow: "migrations"` to keep migrations only), add
+   `database.sql.workflow: "migrations"` to keep migrations only), add
    `better-supabase.config.ts` with `access` in the model your app uses, and
    run `better-supabase doctor` to see what it finds.
 2. Adopt `tenant` and swap one policy helper for `tenant_ids_with`.

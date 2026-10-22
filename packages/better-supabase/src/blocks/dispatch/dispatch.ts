@@ -90,7 +90,7 @@ export interface WorkOrderInput<F extends object = Record<never, never>> {
   readonly assetId?: string;
   /** Takes the slot from the booking when `startsAt` is unset. */
   readonly bookingId?: string;
-  /** The record the job is for, registered in `config.subjects`. */
+  /** The record the job is for, registered in `config.records`. */
   readonly subject?: RecordRef;
   readonly address?: string;
   /** With `startsAt` (or a booking), the work order is scheduled at once. */

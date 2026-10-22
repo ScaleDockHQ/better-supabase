@@ -718,7 +718,7 @@ export const blockConfig = {
 } as const satisfies GeneratedBlocks;
 
 /**
- * The events `appTables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks.
+ * The events `tables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks.
  * @public
  */
 export const appTableEvents = defineEvents({
@@ -2210,8 +2210,8 @@ export const blockEventSchemas = {
 } as const;
 
 /**
- * The path of each subject type with a `url`: block entities, `subjects`
- * and app table subjects.
+ * The path of each subject type with a `url`: block entities, `records`
+ * and `tables` subjects.
  * @public
  */
 export const urls = {

@@ -95,7 +95,7 @@ function webhooksInSql(ctx: BlockSqlContext): string {
 
   if (ctx.manages && renamed.length > 0) {
     throw new TypeError(
-      `blocks.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
+      `blocks.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with ownership "adopt"`,
     );
   }
 

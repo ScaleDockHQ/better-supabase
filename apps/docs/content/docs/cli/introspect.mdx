@@ -9,7 +9,7 @@ better-supabase introspect [--out <file>] [--kind <snapshot|generator-metadata>]
 
 `introspect` reads your database the way [`gen`](/docs/cli/gen) does and
 writes what it found to `supabase/snapshot.json`. Commit the file, set
-`source.snapshot` in the config, and CI and contributors can run `gen` and
+`database.source.snapshot` in the config, and CI and contributors can run `gen` and
 `doctor` without a database.
 
 Side effects: Writes files, reads the database, calls the Supabase Management API with `--project-ref`.

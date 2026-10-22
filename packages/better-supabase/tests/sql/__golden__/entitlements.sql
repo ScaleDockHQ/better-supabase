@@ -1,5 +1,5 @@
 -- ==== alone: throws
--- The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.
+-- The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_16_entitlements.sql
 -- better-supabase module: entitlements
@@ -199,7 +199,7 @@ on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: throws
--- The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.
+-- The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.
 
 -- ==== api schema: throws
--- The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.
+-- The entitlements module needs auth.entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.

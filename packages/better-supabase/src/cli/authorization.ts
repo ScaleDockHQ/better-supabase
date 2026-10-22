@@ -118,7 +118,7 @@ export function entitlementsMode(
     return {
       kind: "invalid",
       problem:
-        'entitlements.memberships is "provider", but the config has no authorization. Set authorization, or set entitlements.memberships to "tenant".',
+        'auth.entitlements.memberships is "provider", but the config has no authorization. Set authorization, or set auth.entitlements.memberships to "tenant".',
     };
   }
 
@@ -133,7 +133,7 @@ export function entitlementsMode(
   if (memberIds === undefined || memberIdsFor === undefined) {
     return {
       kind: "invalid",
-      problem: `${providerLabel(provider)} has no authorization.functions.${memberIds === undefined ? "memberIds" : "memberIdsFor"}, which the entitlements module calls. Use a provider that sets both, or set entitlements.memberships to "tenant" to keep the tenant module's memberships.`,
+      problem: `${providerLabel(provider)} has no authorization.functions.${memberIds === undefined ? "memberIds" : "memberIdsFor"}, which the entitlements module calls. Use a provider that sets both, or set auth.entitlements.memberships to "tenant" to keep the tenant module's memberships.`,
     };
   }
 

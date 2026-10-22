@@ -11,6 +11,7 @@ import type { ConfigEdit } from "../sql/config-edit.ts";
 import type { Now } from "../sql/migrations.ts";
 import type { Paint } from "../style.ts";
 
+import { blockEntrySource } from "../../config/index.ts";
 import {
   designConfig,
   diffAppTables,
@@ -265,7 +266,7 @@ function describeRenames(
         ...(renamedTables.length === 0
           ? []
           : [
-              `Then remove ${renamedTables.join(", ")} from appTables in ${file}: apply keeps the tables a design leaves out.`,
+              `Then remove ${renamedTables.join(", ")} from tables in ${file}: apply keeps the tables a design leaves out.`,
             ]),
         "",
       ];
@@ -465,7 +466,7 @@ export async function runApply(
   if (!withDesign.ok) {
     return {
       code: 1,
-      error: `${shown} wasn't changed: ${withDesign.reason}. Download the config from /create and copy its appTables and extraColumns yourself.`,
+      error: `${shown} wasn't changed: ${withDesign.reason}. Download the config from /create and copy its tables and extraColumns yourself.`,
     };
   }
 
@@ -478,7 +479,7 @@ export async function runApply(
     ...(kept.length === 0
       ? []
       : [
-          `Kept ${kept.join(", ")}: the design doesn't name ${kept.length === 1 ? "it" : "them"}, and apply keeps the tables a design leaves out. Remove ${kept.length === 1 ? "it" : "them"} from appTables in ${shown} to drop ${kept.length === 1 ? "it" : "them"}.`,
+          `Kept ${kept.join(", ")}: the design doesn't name ${kept.length === 1 ? "it" : "them"}, and apply keeps the tables a design leaves out. Remove ${kept.length === 1 ? "it" : "them"} from tables in ${shown} to drop ${kept.length === 1 ? "it" : "them"}.`,
           "",
         ]),
   ];
@@ -527,7 +528,10 @@ export async function runApply(
 
     text = adoption.text;
     adopted = Object.fromEntries(
-      adoption.adopted.map((proposal) => [proposal.block, proposal.entry]),
+      adoption.adopted.map((proposal) => [
+        proposal.block,
+        blockEntrySource(proposal.entry),
+      ]),
     );
     lines.push(
       ...(adoption.lines.length === 0

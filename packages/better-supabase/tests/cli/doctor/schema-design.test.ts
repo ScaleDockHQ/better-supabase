@@ -365,7 +365,7 @@ describe("schema design rules", () => {
     ): DoctorContext =>
       context(snap, {
         config: resolveConfig(
-          { plugins: { tenant: true }, appTables: { notes: { columns } } },
+          { plugins: { tenant: true }, tables: { notes: { columns } } },
           "/project",
         ),
       });
@@ -421,7 +421,7 @@ describe("schema design rules", () => {
         config: resolveConfig(
           {
             plugins: { tenant: true },
-            appTables: {
+            tables: {
               notes: { columns: { born: { type: "date", encrypted } } },
             },
           },
@@ -443,7 +443,7 @@ describe("schema design rules", () => {
       config: resolveConfig(
         {
           plugins: { tenant: true },
-          appTables: {
+          tables: {
             notes: { columns: { plain: { type: "date", encrypted: true } } },
           },
         },
@@ -528,7 +528,7 @@ describe("schema design rules", () => {
       config: resolveConfig(
         {
           plugins: { tenant: true },
-          codecs: { int8: "bigint", numeric: "string" },
+          gen: { codecs: { int8: "bigint", numeric: "string" } },
         },
         "/project",
       ),

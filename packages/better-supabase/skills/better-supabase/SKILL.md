@@ -20,7 +20,7 @@ is no separate CLI package to add.
    new` for data and role settings. The sync needs
    `[experimental.pgdelta] enabled = true` in `supabase/config.toml`;
    doctor reports BS316 when a project is still on the legacy migra engine.
-   `sql.workflow` in the config picks how the SQL modules reach a migration:
+   `database.sql.workflow` in the config picks how the SQL modules reach a migration:
    `pg-delta` (the default), `migra` (declarative schemas 1.0, `supabase db
    diff`) or `migrations` (no `supabase/schemas`: the `sql` commands write
    `<stamp>_better_supabase_modules.sql`, applied with `supabase migration up`).
@@ -148,7 +148,7 @@ const customers = result.data;
 - Handlers may return a `Result` directly. Adapters turn errors into RFC 9457 Problem Details with the right status.
 - Jobs and webhooks run as a user so RLS applies: `bsb.forContext(job.context)` for a job enqueued with `{ context: db.$context }`, `bsb.actingAs(userId, { tenant_id })` for a webhook or script. `bsb.admin()` bypasses RLS: use it only for work no user owns, never for a user's request.
 - PostgREST has no multi-request transactions. Put multi-step writes in a database function (`db.$rpc()`) or use `postgres.transaction()` on the server.
-- `$rpc` types each `returns table` column and scalar result `| null`, because Postgres can't declare them not null. Don't cast them: add `@notNull(a, b)` to the function's comment (or `functions.<name>.notNull` in the config), type the column with a `not null` domain, or return `setof` a table. `gen` prints a notice for each function still nullable. Arguments accept `null` too; that only widens the input.
+- `$rpc` types each `returns table` column and scalar result `| null`, because Postgres can't declare them not null. Don't cast them: add `@notNull(a, b)` to the function's comment (or `gen.functions.<name>.notNull` in the config), type the column with a `not null` domain, or return `setof` a table. `gen` prints a notice for each function still nullable. Arguments accept `null` too; that only widens the input.
 
 ## Time values
 
@@ -159,7 +159,7 @@ const customers = result.data;
 
 ## CLI in scripts and CI
 
-- No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `source.dbUrl`, or pipe it in with `--db-url-stdin`.
+- No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `database.source.dbUrl`, or pipe it in with `--db-url-stdin`.
 - `--json` prints one envelope on stdout: `status`, the result under `data`, Problem Details with a `code` under `error`, and the commands to run under `next`. `--yes` and `CI` turn prompts off.
 - Exit codes: 0 success, 1 a failure or finding (`--check` drift, doctor errors), 2 a usage, config or environment problem, 3 when the user has to act. Each error code is listed at https://bettersupabase.com/docs/cli/errors.
 - When the CLI detects an agent it prints JSON and never prompts. Exit code 3 with `input_required` lists `missing` flags and their `choices`; run the `next` command with the value filled in. `consent_required` means the user must agree first (`--force` over their files, `seed --apply` on a remote database): ask them, then run the `next` command with its `--confirm` token. Never pass `--confirm` without asking. See https://bettersupabase.com/docs/cli/agent-mode.

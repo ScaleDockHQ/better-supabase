@@ -51,9 +51,9 @@ describe("expandPreset", () => {
 
     expect(expandPreset({ preset: code })).toEqual({
       preset: code,
-      casing: "camel",
-      sql: { api: "api" },
-      integrations: ["next"],
+      gen: { casing: "camel" },
+      database: { sql: { api: "api" } },
+      adapters: ["next"],
       blocks: {
         "updated-at": {},
         tenant: {},
@@ -75,18 +75,18 @@ describe("expandPreset", () => {
 
     const expanded = expandPreset({
       preset: code,
-      casing: "snake",
-      sql: { schema: "app" },
-      blocks: { access: { idType: "text" }, tags: { mode: "managed" } },
+      gen: { casing: "snake" },
+      database: { sql: { schema: "app" } },
+      blocks: { access: { idType: "text" }, tags: { ownership: "managed" } },
     });
 
-    expect(expanded.casing).toBe("snake");
-    expect(expanded.sql).toEqual({ api: "api", schema: "app" });
+    expect(expanded.gen?.casing).toBe("snake");
+    expect(expanded.database?.sql).toEqual({ api: "api", schema: "app" });
     expect(expanded.blocks).toEqual({
       "updated-at": {},
       tenant: {},
       access: { model: "catalog", idType: "text" },
-      tags: { mode: "managed" },
+      tags: { ownership: "managed" },
     });
     // Expanding again gives the same config.
     expect(expandPreset(expanded)).toEqual(expanded);
@@ -111,12 +111,12 @@ describe("expandPreset", () => {
 });
 
 describe("conventions", () => {
-  it("write sql.scope and the tenant name when they differ from the defaults", () => {
+  it("write database.sql.owner and the tenant name when they differ from the defaults", () => {
     const user = expandPreset({
       preset: encodePreset({ blocks: ["tags"], scope: "user" }),
     });
 
-    expect(user.sql).toEqual({ scope: "user" });
+    expect(user.database?.sql).toEqual({ owner: "user" });
     expect(user.blocks).toEqual({ tags: {} });
 
     const workspace = expandPreset({
@@ -127,11 +127,11 @@ describe("conventions", () => {
       }),
     });
 
-    expect(workspace.sql).toEqual({ api: "api" });
+    expect(workspace.database?.sql).toEqual({ api: "api" });
     expect(workspace.blocks).toMatchObject({
-      tenant: { entities: { organization: "workspace" } },
+      tenant: { names: { organization: "workspace" } },
     });
-    expect(expandPreset({ preset: "minimal" }).sql).toBeUndefined();
+    expect(expandPreset({ preset: "minimal" }).database).toBeUndefined();
   });
 });
 
