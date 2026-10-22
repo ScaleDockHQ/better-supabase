@@ -225,7 +225,7 @@ works with are optional: when one of them is installed too, the module calls
 it (it queues a job, sends a notification, checks a plan), and without it the
 module installs and runs without that step. Every module also writes its
 events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
-`better-supabase sql list` prints both lists for each module.
+`better-supabase blocks list --installed` prints both lists for each module.
 
 | Module               | Requires                                                                           | Works with                                                                                                                                                            |
 | -------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -19,11 +19,11 @@ Side effects: Writes files, reads the database, calls the Supabase Management AP
 | Task       | Runs by default when                                   | Does what                                                                        |
 | ---------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `types`    | always                                                 | Writes the files this page describes                                             |
-| `sql`      | `blocks` lists a module, or `realtime.policies` is set | [`sql sync`](/docs/blocks/sql): rewrites the SQL module files                    |
+| `sql`      | `blocks` lists a module, or `realtime.policies` is set | [`upgrade`](/docs/blocks/sql): rewrites the SQL module files                     |
 | `spec`     | the `api.specs.entry` file exists                      | [`spec emit`](/docs/cli/spec), with `api.specs.failOn` and `api.specs.manifest`  |
-| `seed`     | the `database.seed.entry` file exists                  | [`seed`](/docs/cli/local#seed): renders the fixtures to SQL                      |
+| `seed`     | the `database.seed.entry` file exists                  | [`seed`](/docs/cli/db#seed): renders the fixtures to SQL                         |
 | `scaffold` | `tooling.scaffold.api` is set                          | Rewrites the generated file of [`scaffold api`](/docs/cli/scaffold), never yours |
-| `env`      | never; list it to run it                               | [`env`](/docs/cli/local#env): writes the local stack's keys to `env.output`      |
+| `env`      | never; list it to run it                               | [`env`](/docs/cli/dev#env): writes the local stack's keys to `env.output`        |
 
 The tasks run in that order, since later ones read what earlier ones write.
 Pin the list in the config with `gen.tasks`, or pass `--only` for one run:
@@ -167,7 +167,7 @@ In order:
 4. a [Supabase Lite](/docs/platform/lite) project's `[db] driver` in
    `supabase/config.toml` (turn this off with `database.source.lite: false`);
 5. `$DATABASE_URL`;
-6. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase env`
+6. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase dev env`
    use;
 7. the local stack, on the `[db] port` from `supabase/config.toml`. When
    `config.toml` sets no port, as on the CLI's stack engine
@@ -580,15 +580,39 @@ const schema = customersInsert["~standard"].jsonSchema.input({
 });
 ```
 
-## Snapshots
+## Saving a snapshot
 
 ```bash
-better-supabase introspect --out supabase/snapshot.json
+better-supabase gen --save-snapshot
+better-supabase gen --save-snapshot --check
 better-supabase gen --snapshot supabase/snapshot.json
 ```
 
-A committed snapshot lets CI and contributors generate without a database.
-[`introspect`](/docs/cli/introspect) writes and checks it.
+`gen --save-snapshot` reads your database the way `gen` does and writes what
+it found to `supabase/snapshot.json` instead of generating code. Commit the
+file, set `database.source.snapshot` in the config, and CI and contributors
+can run `gen` and `doctor` without a database.
+
+| Option          | Effect                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `--out <file>`  | Where to write. Defaults to `supabase/snapshot.json`, or `supabase/generator-metadata.json`. |
+| `--kind <kind>` | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
+| `--check`       | Writes nothing; exits 1 when the file no longer matches the database.                        |
+| `--dry-run`     | Prints a diff of the file and writes nothing.                                                |
+
+`--snapshot <file>` reads a saved snapshot instead of the database, to
+convert it with `--kind`, and `--db-url-stdin` and `--project-ref` work as
+they do for `gen`. With `--json`, the envelope's `data` is
+`{ "tables", "files" }`, plus `upToDate` for `--check`. It always reads the
+full schema, without the [introspection cache](#introspection-cache).
+
+The snapshot stores postgrest-typegen's own metadata plus the extras
+better-supabase reads (policies, indexes, triggers, buckets, realtime), and
+follows
+[`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
+Row counts are left out so the file stays stable; tables Postgres estimates
+at 10,000 rows or more only get `large: true`, which the
+[`unbounded-read`](/docs/plugins/lint#unbounded-read) lint rule reads.
 
 The output is the same after `supabase db reset` and on every machine:
 object ids come from names, and the arguments of each function keep their

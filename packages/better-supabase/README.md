@@ -76,7 +76,7 @@ Generate the typed schema from your local stack:
 ```bash
 supabase start
 pnpm better-supabase init   # config, src/lib/supabase/index.ts and framework glue
-pnpm better-supabase env    # URL and keys into .env.local
+pnpm better-supabase dev env    # URL and keys into .env.local
 pnpm better-supabase gen    # database.types.ts and generated.ts
 ```
 
@@ -147,7 +147,7 @@ The `better-supabase` command ships in this package:
 
 ```bash
 pnpm better-supabase init                   # config, client and framework glue
-pnpm better-supabase env                    # local URL and keys into .env.local
+pnpm better-supabase dev env                    # local URL and keys into .env.local
 pnpm better-supabase gen                    # database.types.ts and generated.ts
 pnpm better-supabase gen --check            # exit 1 in CI when the schema drifted
 pnpm better-supabase doctor                 # RLS, grants, indexes and Supabase advisors
@@ -166,7 +166,7 @@ Blocks are the features most SaaS apps build by hand. Each one installs [SQL mod
 pnpm better-supabase add organizations invitations
 ```
 
-`add` lists them under `blocks` in `better-supabase.config.ts`, so `better-supabase sql sync` keeps the files up to date. Each key is a block, and its value holds that block's settings, such as its roles, permission keys or the existing tables it adopts:
+`add` lists them under `blocks` in `better-supabase.config.ts`, so `better-supabase upgrade` keeps the files up to date. Each key is a block, and its value holds that block's settings, such as its roles, permission keys or the existing tables it adopts:
 
 ```ts
 export default defineConfig({

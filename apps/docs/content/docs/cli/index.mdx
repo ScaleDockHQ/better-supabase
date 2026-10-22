@@ -7,28 +7,24 @@ description: Codegen, SQL and diagnostics for better-supabase projects.
 pnpm better-supabase <command> [options]
 ```
 
-| Command                                                | What it does                                                                                     |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                  |
-| [`add`](/docs/cli/init#add)                            | Installs blocks with the modules they require, or glue for an integration with `--integration`   |
-| [`apply`](/docs/cli/presets#apply)                     | Applies a preset to an existing project: edits the config, shows the diff and writes the modules |
-| [`adopt`](/docs/cli/presets#adopt)                     | Maps a block onto tables the app already has, and reports what can't map                         |
-| [`preset`](/docs/cli/presets#preset)                   | Decodes a preset code, or shows how the config differs from its preset                           |
-| [`blocks`](/docs/cli/presets#blocks)                   | Lists, shows and searches the blocks you can add                                                 |
-| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, then every other generated file the config sets up     |
-| [`introspect`](/docs/cli/introspect)                   | Saves a schema snapshot, for codegen without a database                                          |
-| [`env`](/docs/cli/local#env)                           | Writes the local stack's URL and keys to `.env.local`                                            |
-| [`keys`](/docs/cli/local#keys)                         | Creates or rotates an ES256 signing key for the local stack                                      |
-| [`run`](/docs/cli/local#run)                           | Runs a command with the running stack's URL and keys set                                         |
-| [`seed`](/docs/cli/local#seed)                         | Renders typed fixtures to seed SQL                                                               |
-| [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module  |
-| [`scaffold api`](/docs/cli/scaffold)                   | Writes an API module, resource routes and an OpenAPI route for Hono or Next.js                   |
-| [`sql`](/docs/blocks/sql)                              | Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files              |
-| [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in                                         |
-| [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls and config keys for renamed better-supabase APIs                         |
-| [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations   |
-| [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                             |
-| [`completion`](/docs/cli/completion)                   | Prints the shell completion script for bash, zsh or fish                                         |
+| Command                                                | What it does                                                                                                          |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                                       |
+| [`add`](/docs/cli/init#add)                            | Installs blocks, applies a preset (`--preset`), maps blocks onto existing tables (`--adopt`) or adds integration glue |
+| [`remove`](/docs/cli/init#remove)                      | Takes blocks out of the config and `lib/blocks.ts` and deletes their module files                                     |
+| [`upgrade`](/docs/cli/init#upgrade)                    | Writes the upgrade steps and the module files again after a library or config change                                  |
+| [`blocks`](/docs/cli/presets#blocks)                   | Lists, shows and searches the blocks you can add, the installed ones, and a preset's                                  |
+| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, or saves a schema snapshot with `--save-snapshot`                           |
+| [`dev`](/docs/cli/dev)                                 | Writes env files, runs a command with the stack's keys, creates signing keys, and lists or prunes stacks              |
+| [`db`](/docs/cli/db)                                   | Runs SQL files, renders typed seeds and diffs the schema into a migration                                             |
+| [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module                       |
+| [`scaffold api`](/docs/cli/scaffold)                   | Writes an API module, resource routes and an OpenAPI route for Hono or Next.js                                        |
+| [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in, or how it differs from its preset                           |
+| [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls, config keys and CLI calls for renamed better-supabase APIs                                   |
+| [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations                        |
+| [`mcp`](/docs/cli/mcp)                                 | Serves the CLI to an agent over MCP on stdio                                                                          |
+| [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                                                  |
+| [`completion`](/docs/cli/completion)                   | Prints the shell completion script for bash, zsh or fish                                                              |
 
 The package also installs the short bin `bsb`, so `pnpm bsb gen` runs the same
 CLI as `pnpm better-supabase gen`.
@@ -126,12 +122,12 @@ described by
 }
 ```
 
-| Field    | Holds                                                                                                                  |
-| -------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `status` | `success` for exit code 0, `action_required` for exit code 3, and `error` otherwise                                    |
-| `data`   | The command's result: `gen` gives `{ "tables", "written" }`, `doctor` its report, `sql list` the modules               |
-| `error`  | A [Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document with a stable `code` ([errors](/docs/cli/errors)) |
-| `next`   | The commands to run next, each as `{ "command", "when" }`                                                              |
+| Field    | Holds                                                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `status` | `success` for exit code 0, `action_required` for exit code 3, and `error` otherwise                                     |
+| `data`   | The command's result: `gen` gives `{ "tables", "written" }`, `doctor` its report, `blocks list --installed` the modules |
+| `error`  | A [Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document with a stable `code` ([errors](/docs/cli/errors))  |
+| `next`   | The commands to run next, each as `{ "command", "when" }`                                                               |
 
 A failed check keeps its `data`, so a script can read what is stale and the
 error together. Progress and the text output go to stderr, so
@@ -169,22 +165,22 @@ The same failure in a row prints once, and the watch retries every interval.
 
 ## Environment
 
-| Variable                | Used by                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set                       |
-| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                              |
-| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `database.source.projectRef`                                                 |
-| `SUPABASE_API_URL`      | Another Management API host                                                                      |
-| `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
-| `CI`                    | Turns prompts off, and applies the config's `ci` environment                                     |
-| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                                       |
-| `BETTER_SUPABASE_AGENT` | Agent mode when `--agent` is not passed: `auto`, `yes` or `no`                                   |
+| Variable                | Used by                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | `gen`, `doctor` and `db seed --apply`, when nothing else is set                                      |
+| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                                  |
+| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `database.source.projectRef`                                                     |
+| `SUPABASE_API_URL`      | Another Management API host                                                                          |
+| `SUPABASE_BIN`          | The Supabase CLI `dev env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
+| `CI`                    | Turns prompts off, and applies the config's `ci` environment                                         |
+| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                                           |
+| `BETTER_SUPABASE_AGENT` | Agent mode when `--agent` is not passed: `auto`, `yes` or `no`                                       |
 
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the
 database password, so no command takes one as an argument. Set
 `$DATABASE_URL`, or `$SUPABASE_DB_URL` (the name the Supabase CLI and
-`better-supabase env` use), or pipe one in with `--db-url-stdin`. When both
+`better-supabase dev env` use), or pipe one in with `--db-url-stdin`. When both
 are set, `$DATABASE_URL` wins.
 
 ## Programmatic use

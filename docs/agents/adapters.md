@@ -46,9 +46,9 @@ the clients (`client`, `client/native`) and the local-first entries
 ## Fixture modules for a block
 
 - Install a block's SQL module from `apps/examples/nextjs` with
-  `pnpm exec better-supabase sql sync`, then
+  `pnpm exec better-supabase upgrade`, then
   `pnpm supabase:diff <name>`.
-- Run `pnpm exec better-supabase sql data` after that migration exists. A
+- Run `pnpm exec better-supabase add --adopt` after that migration exists. A
   data migration stamped before the schema migration fails on reset; delete
   it and run the command again.
 - On a VM where lefthook's `prepare` fails, install with `CI=1 pnpm install`.

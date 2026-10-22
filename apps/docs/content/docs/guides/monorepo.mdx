@@ -55,7 +55,7 @@ Run the CLI from any package, or pass `--cwd packages/runtime`. The
 it the way the Supabase CLI does: it reads `supabase/config.toml` from `--cwd`
 or the nearest parent directory that has one, and stops at the directory that
 holds `.git`. Ports, Auth hooks, `schema_paths` and the migrations then come
-from that directory, and `keys` writes `signing_keys.json` next to it.
+from that directory, and `dev keys` writes `signing_keys.json` next to it.
 
 `better-supabase.config.*` is found the same way: the CLI loads the first one
 it meets walking up from `--cwd`, so a single config at the repository root

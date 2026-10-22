@@ -503,7 +503,7 @@ carry no `subject`.
 
 An adopted endpoints table without a mapped `format` column needs an explicit
 `defaultFormat`, since that one value then decides the body of every request.
-`sql sync` refuses the config without it, and doctor reports it as
+`upgrade` refuses the config without it, and doctor reports it as
 [BS344](/docs/cli/doctor#bs344). Use `standard` to keep the 0.8 body, or
 `cloudevents` once your receivers read CloudEvents:
 

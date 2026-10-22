@@ -192,7 +192,7 @@ The codes `spec` adds:
 When the config sets `realtime.policies` (see
 [writing the policies to a file](/docs/platform/realtime#writing-the-policies-to-a-file)),
 `spec` loads its `from` modules with the same
-loader `sql sync` uses, for every AsyncAPI output. Each `defineTopic` export
+loader `upgrade` uses, for every AsyncAPI output. Each `defineTopic` export
 whose template no channel address matches gets an
 `asyncapi-topic-undocumented` warning naming the export, so a topic you add
 for its policies can't go missing from the document. Pass the module to

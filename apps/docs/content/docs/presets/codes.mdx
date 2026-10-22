@@ -215,7 +215,7 @@ columns may not name. `isAppDefault(type, value)` says whether a column of
 `diffDesigns(before, after)` lists what changes between two designs, and
 `diffAppTables(before, after, { keepMissing })` does the same for two
 `appTables` objects; with `keepMissing: true`, a table missing from `after`
-is kept instead of dropped, as `apply` merges a design. Each `DesignChange`
+is kept instead of dropped, as `add --preset` merges a design. Each `DesignChange`
 has a `kind`, the `table` and `column`, a one-sentence `summary`, and
 `breaking`. A dropped or renamed table or column, a type change and a column
 made required without a default are breaking, and their `steps` give the
@@ -290,7 +290,7 @@ disables a block.
 | `presetConfigSource`   | `better-supabase.config.ts` with every block, each added block marked with its reason         |
 | `presetBlocksSource`   | `lib/blocks.ts`: the blocks with a TypeScript client, wired with `defineBlocks`               |
 | `presetInstallCommand` | `npx better-supabase init --preset <code>`, which starts a project from the preset            |
-| `presetApplyCommand`   | `npx better-supabase apply --preset <code>`, which applies it to an existing project          |
+| `presetApplyCommand`   | `npx better-supabase add --preset <code>`, which applies it to an existing project            |
 | `presetGlue`           | the registry glue items for the preset's framework and platforms; `glueCommand` installs them |
 
 `scripts/build-catalog.ts` writes the catalog (`src/preset/catalog.generated.ts`)

@@ -58,3 +58,21 @@ The schema enum and the `errors.mdx` table are public API for other CLIs
 as well as for agents. The Create page's setup commands are checked
 against a checked-in copy of the other CLI's `cli-commands-v1`, so a
 renamed flag there fails a test here instead of a copied command.
+
+## Contract versions
+
+The contract has a major version, separate from the schema files. A change
+that breaks a command line an agent or another CLI already runs, such as a
+removed command or flag, starts a new major even when the envelope and the
+help document keep their shape.
+
+- Contract 1 (0.13 and 0.14): the command tree of 0045.
+- Contract 2 (0.15): one command per job. `apply`, `adopt` and
+  `sql add` fold into `add`; `sql sync` and `sql upgrade` into `upgrade`;
+  `sql list`, `sql print` and `preset decode` into `blocks`;
+  `preset info` into `config --preset`; `introspect` into
+  `gen --save-snapshot`; `seed` into `db seed`; `env`, `run`, `keys` and
+  `stack` into `dev`; and `remove` is new. A removed command or flag exits
+  `2` with a `usage` problem that names the new spelling, and
+  `better-supabase codemod 0.15` rewrites the calls in `package.json` scripts
+  and workflows. `cli-result-v1` and `cli-commands-v1` keep their shape.

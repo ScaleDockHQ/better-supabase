@@ -32,7 +32,7 @@ export default defineConfig({
 ```
 
 ```bash
-better-supabase sql sync
+better-supabase upgrade
 supabase db schema declarative sync -f vector_search
 ```
 
@@ -64,7 +64,7 @@ pgvector setting needs the pgvector library loaded in the session that runs
 fails with `permission denied to set parameter "hnsw.iterative_scan"` for
 any role that isn't a superuser, which includes `postgres` on Supabase.
 
-The functions use the schema pgvector is installed in. `sql sync` reads it
+The functions use the schema pgvector is installed in. `upgrade` reads it
 from the `create extension ... vector ... schema` statement in your schema
 files or migrations, and falls back to `extensions`, the Supabase default.
 Set `blocks.vector-search.options.schema` when pgvector is installed

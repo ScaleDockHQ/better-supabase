@@ -22,14 +22,14 @@ export default defineConfig({
 The keys you set win. A block you name joins the preset, and its entry is
 merged over the preset's settings for that block. `gen.casing`, `database.sql.api` and
 `adapters` from the preset apply only when the config leaves them unset.
-`npx better-supabase sql sync` then writes the files of every block the
+`npx better-supabase upgrade` then writes the files of every block the
 preset expands to, and `supabase db schema declarative sync` turns them into
 a migration ([SQL modules](/docs/blocks/sql)).
 
 A new project starts from a preset with
 `npx better-supabase init --preset saas`, which writes the config, the module
-files and `lib/blocks.ts` in one step. `better-supabase apply --preset crm`
-applies one to a project you have, and `better-supabase preset info` shows
+files and `lib/blocks.ts` in one step. `better-supabase add --preset crm`
+applies one to a project you have, and `better-supabase config --preset` shows
 how your config differs from its preset ([CLI](/docs/cli/presets)).
 
 ## Named presets
@@ -172,7 +172,7 @@ The Changes tab in Get code lists what you changed in the app tables since
 the page loaded the design in its link. Each change is marked safe or
 breaking, and a breaking one (a dropped, renamed or retyped column, or a
 column made required without a default) lists the expand-and-contract steps
-that [`apply`](/docs/cli/presets#breaking-changes) prints before it refuses
+that [`add --preset`](/docs/cli/presets#breaking-changes) prints before it refuses
 to write the design.
 
 ## The shared wiring

@@ -467,7 +467,7 @@ All of this depends on verifying tokens locally. With asymmetric JWT signing
 keys (ES256 or RS256) the JWKS is public and cached, so the proxy, every
 `bsb.session()` and every `bsb.context()` verify without a network call.
 Hosted projects use them by default. Locally, `better-supabase doctor` warns
-when `[auth] signing_keys_path` is missing; `better-supabase keys` creates
+when `[auth] signing_keys_path` is missing; `better-supabase dev keys` creates
 one.
 
 ## Render stages

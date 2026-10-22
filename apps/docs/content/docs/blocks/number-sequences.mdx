@@ -94,9 +94,9 @@ set invoice_number_format = 'INV-{yyyy}{mm}-{n}', invoice_number_reset = 'year'
 where id = '6f1c0b1e-3c55-4a8e-9a43-1f2d3c4b5a69';
 ```
 
-The counters are kept per period, so a tenant who changes its period starts a counter for the new one. `sql sync` keeps that counter in step: for an entity with `table`, `column` and `periodColumn` that sets `periodFrom`, or `formatFrom` with `period: "format"`, it adds an `after update` trigger to each tenant table those columns name, `bsb_sync_number_period_<entity>`. When an update changes the period a tenant numbers in, the trigger runs `sync_number_sequences(tenant, entity)` in the same transaction, so the new counter starts past the numbers the tenant already has in that period. Other updates, and a format change that keeps the period, leave the counters alone. The trigger compares the old and new rows, not a column list, so `periodFrom` and `formatFrom` can name generated columns.
+The counters are kept per period, so a tenant who changes its period starts a counter for the new one. `upgrade` keeps that counter in step: for an entity with `table`, `column` and `periodColumn` that sets `periodFrom`, or `formatFrom` with `period: "format"`, it adds an `after update` trigger to each tenant table those columns name, `bsb_sync_number_period_<entity>`. When an update changes the period a tenant numbers in, the trigger runs `sync_number_sequences(tenant, entity)` in the same transaction, so the new counter starts past the numbers the tenant already has in that period. Other updates, and a format change that keeps the period, leave the counters alone. The trigger compares the old and new rows, not a column list, so `periodFrom` and `formatFrom` can name generated columns.
 
-Sync reads the period each tenant has chosen now, so it needs `periodColumn` (see [existing numbers](#existing-numbers)). Without `periodColumn`, `sql sync` adds no trigger, `sync_number_sequences` fails with `NUMBER_SYNC_UNSUPPORTED`, and a tenant who changes its period can repeat a number. Set `periodColumn` on such an entity.
+Sync reads the period each tenant has chosen now, so it needs `periodColumn` (see [existing numbers](#existing-numbers)). Without `periodColumn`, `upgrade` adds no trigger, `sync_number_sequences` fails with `NUMBER_SYNC_UNSUPPORTED`, and a tenant who changes its period can repeat a number. Set `periodColumn` on such an entity.
 
 `number_format(tenant, entity)` returns the format a tenant uses. Every number is still assigned in the document's transaction and never changes, and a format change only affects the numbers assigned after it.
 
@@ -136,7 +136,7 @@ When different people issue different documents, give an entity its own key with
 | -------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------- |
 | `assign` | `number_sequences.assign` | `permissions.assign`, `entities.<name>.permission` | `preview_number`; the service role always holds it |
 
-`sql sync` and doctor check an entity's key against the authorization provider like the block's own keys.
+`upgrade` and doctor check an entity's key against the authorization provider like the block's own keys.
 
 ## Existing numbers
 

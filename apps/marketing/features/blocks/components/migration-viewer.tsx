@@ -37,7 +37,7 @@ const linesLabel = (lines: number): string =>
   lines === 1 ? "1 line" : `${String(lines)} lines`;
 
 /**
- * The files `sql add` writes: a list on the left and the selected file on the
+ * The files `add` writes: a list on the left and the selected file on the
  * right. Every file arrives highlighted, so switching renders without a fetch.
  */
 export function MigrationViewer({

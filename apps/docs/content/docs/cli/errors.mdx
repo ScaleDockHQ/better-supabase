@@ -197,7 +197,7 @@ holds the command to run with the answer filled in. Exit code 3. See
 
 The command would make a destructive change, and needs the user's explicit
 consent. Agent mode asks for it before `--force` overwrites files the CLI
-didn't write and before `seed --apply` writes to a database that isn't on
+didn't write and before `db seed --apply` writes to a database that isn't on
 this machine. Rerun it with the `--confirm <token>` that `next` shows (the
 token is also in `token`, and covers only that command line); `--yes`
 doesn't replace it. Exit code 3. See [agent mode](/docs/cli/agent-mode#consent).

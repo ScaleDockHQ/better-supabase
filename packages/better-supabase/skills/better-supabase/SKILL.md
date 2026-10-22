@@ -22,7 +22,7 @@ is no separate CLI package to add.
    doctor reports BS316 when a project is still on the legacy migra engine.
    `database.sql.workflow` in the config picks how the SQL modules reach a migration:
    `pg-delta` (the default), `migra` (declarative schemas 1.0, `supabase db
-   diff`) or `migrations` (no `supabase/schemas`: the `sql` commands write
+   diff`) or `migrations` (no `supabase/schemas`: `add` and `upgrade` write
    `<stamp>_better_supabase_modules.sql`, applied with `supabase migration up`).
 2. For a new table in an exposed schema, in the same file: `enable row level
    security`, a policy per role and command the app uses, and an index on
@@ -34,7 +34,7 @@ is no separate CLI package to add.
    new tables get no Data API grants on their own.
 3. Apply it with `supabase db reset` (or `supabase migration up`).
 4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces. It
-   also runs every other generator the config sets up (`sql sync`, `spec
+   also runs every other generator the config sets up (`upgrade`, `spec
    emit`, the seed client, `scaffold api`); set `gen.tasks` to change the
    list. Put flags you would repeat in `better-supabase.config.ts` (with a
    `$ci` block for CI) instead of on the command line.
@@ -64,7 +64,7 @@ stay hidden.
 1. Run `pnpm better-supabase codemod <version> --dry-run` for each minor
    version you crossed (`codemod` without a name lists them), then without
    `--dry-run`, and fix the lines it lists for review.
-2. Run `pnpm better-supabase sql upgrade`, so the SQL modules get the
+2. Run `pnpm better-supabase upgrade`, so the SQL modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files (under the `migrations` workflow it
    writes that migration itself).
@@ -162,7 +162,7 @@ const customers = result.data;
 - No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `database.source.dbUrl`, or pipe it in with `--db-url-stdin`.
 - `--json` prints one envelope on stdout: `status`, the result under `data`, Problem Details with a `code` under `error`, and the commands to run under `next`. `--yes` and `CI` turn prompts off.
 - Exit codes: 0 success, 1 a failure or finding (`--check` drift, doctor errors), 2 a usage, config or environment problem, 3 when the user has to act. Each error code is listed at https://bettersupabase.com/docs/cli/errors.
-- When the CLI detects an agent it prints JSON and never prompts. Exit code 3 with `input_required` lists `missing` flags and their `choices`; run the `next` command with the value filled in. `consent_required` means the user must agree first (`--force` over their files, `seed --apply` on a remote database): ask them, then run the `next` command with its `--confirm` token. Never pass `--confirm` without asking. See https://bettersupabase.com/docs/cli/agent-mode.
+- When the CLI detects an agent it prints JSON and never prompts. Exit code 3 with `input_required` lists `missing` flags and their `choices`; run the `next` command with the value filled in. `consent_required` means the user must agree first (`--force` over their files, `db seed --apply` on a remote database): ask them, then run the `next` command with its `--confirm` token. Never pass `--confirm` without asking. See https://bettersupabase.com/docs/cli/agent-mode.
 - `better-supabase mcp` serves the same commands as MCP tools on stdio, read-only unless started with `--allow-writes`. A write tool first returns `consent_required` with a `token`; ask the user, then call it again with the same arguments and `confirm` set to the token. See https://bettersupabase.com/docs/cli/mcp.
 
 ## Don't

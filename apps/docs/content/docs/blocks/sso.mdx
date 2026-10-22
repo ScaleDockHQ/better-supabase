@@ -18,7 +18,7 @@ better-supabase add sso   # adds tenant and access as well
 The module assigns roles by name. Under the `roles` and `catalog` access
 models it takes them from the config. Under the `provider` and `custom`
 models the roles live elsewhere, so list the roles SCIM and auto-join may
-assign in `blocks.sso.options.roleOrder`, highest first; `sql add` stops
+assign in `blocks.sso.options.roleOrder`, highest first; `add` stops
 without it. A memberships table that stores role ids reads them through
 `blocks.tenant.options.roleThrough`, which an authorization provider's
 `roleSources` fill in.

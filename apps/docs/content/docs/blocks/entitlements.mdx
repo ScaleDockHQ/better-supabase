@@ -22,7 +22,7 @@ Each tenant needs its Stripe customer id somewhere. With the
 `better_supabase.billing_customers`, which checkout fills. Otherwise, with the
 managed [`organizations` module](/docs/blocks/organizations), it adds
 `better_supabase.organizations.stripe_customer_id` (unique) and reads it.
-Without either, point the module at your own column; `sql add` stops without one:
+Without either, point the module at your own column; `add` stops without one:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -35,7 +35,7 @@ export default defineConfig({
 });
 ```
 
-`sql add` writes `tenant_stripe_customer(tenant)` for that column, so the
+`add` writes `tenant_stripe_customer(tenant)` for that column, so the
 file fails to apply if the column doesn't exist, rather than failing on every
 request later. The module reads the tables of Stripe Sync Engine 0.48.5
 (`SPEC_PINS.stripeSyncEngine`). Before the engine is installed, every tenant
@@ -232,7 +232,7 @@ export default defineConfig({
 `hasEntitlement` reads the short codes when you pass the same map:
 `hasEntitlement(session, tenantId, "exports", { claim: "features", keys })`.
 A tenant left out by `maxTenants` reads as not granted, so pair it with
-`has_entitlement` in RLS and server checks. Run `better-supabase sql sync`
+`has_entitlement` in RLS and server checks. Run `better-supabase upgrade`
 after changing it.
 
 ## In components
@@ -336,7 +336,7 @@ const seats = await entitlements.value(organizationId, "seats").orThrow();
 With an [authorization provider](/docs/extending/authorization-providers) in
 the config, the module reads memberships through the provider's `memberIds`
 and `memberIdsFor` functions instead of the `tenant` module, and
-`sql add entitlements` no longer adds `tenant`:
+`add entitlements` no longer adds `tenant`:
 
 | Function                        | Membership check                                                                  |
 | ------------------------------- | --------------------------------------------------------------------------------- |
@@ -347,14 +347,14 @@ and `memberIdsFor` functions instead of the `tenant` module, and
 The scope is the provider's `tenantScope`, and the tenant argument of
 `has_entitlement`, `tenant_entitlements` and `tenant_stripe_customer` takes
 that scope's `idType`. When the provider lacks `memberIds` or
-`memberIdsFor`, or the scope has no `idType`, `sql add entitlements` stops and
+`memberIdsFor`, or the scope has no `idType`, `add entitlements` stops and
 doctor reports [BS408](/docs/cli/doctor#bs408). BS408 also reports a tenant
 scope without a `memberships` entry, which `entitlement_members` needs.
 
 `auth.entitlements.memberships: "tenant"` keeps the `tenant` module's
 `better_supabase.memberships` even with a provider.
 
-`features` is not a claim a provider usually owns, so `sql add entitlements`
+`features` is not a claim a provider usually owns, so `add entitlements`
 works without `--force`. For `hasEntitlement(session, ...)`, the provider's
 hook must write the `features` claim from `better_supabase.feature_claims`.
 List it in `tokenHook.registeredClaims` and doctor's BS407 accepts the second
