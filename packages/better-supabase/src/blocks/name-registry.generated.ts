@@ -330,6 +330,25 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "courses": {
+    readonly tables: {
+      readonly "courses": "id" | "tenant" | "key" | "title" | "summary" | "status" | "certificate" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "modules": "id" | "tenant" | "course" | "title" | "rank" | "createdAt" | "updatedAt";
+      readonly "lessons": "id" | "tenant" | "course" | "module" | "title" | "kind" | "body" | "mediaUrl" | "form" | "required" | "minutes" | "rank" | "createdAt" | "updatedAt";
+      readonly "progress": "enrollment" | "lesson" | "tenant" | "course" | "user" | "startedAt" | "completedAt" | "attempts" | "submission" | "score" | "maxScore" | "passed" | "updatedAt";
+      readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "revokedAt";
+    };
+    readonly functions: "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
+    readonly actions: "read" | "enroll" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "course": "id" | "tenant_id" | "key" | "title" | "summary" | "status" | "issues_certificate" | "created_by" | "created_at" | "updated_at";
+      readonly "course_module": "id" | "tenant_id" | "course_id" | "title" | "rank" | "created_at" | "updated_at";
+      readonly "course_lesson": "id" | "tenant_id" | "course_id" | "module_id" | "title" | "kind" | "body" | "media_url" | "form_id" | "required" | "duration_minutes" | "rank" | "created_at" | "updated_at";
+      readonly "course_certificate": "id" | "tenant_id" | "course_id" | "enrollment_id" | "user_id" | "code" | "issued_at" | "revoked_at";
+    };
+    readonly primary: "course";
+  };
   readonly "credentials": {
     readonly tables: {
       readonly "secrets": "provider" | "name" | "tenant" | "scope" | "vaultId" | "secret" | "updatedAt";

@@ -80,6 +80,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "guests.*",
     "passes.*",
     "billable_time.*",
+    "courses.*",
   ],
   member: [
     "organization.read",
@@ -162,6 +163,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "scores.read",
     "moderation.report",
     "enrollments.read",
+    "courses.read",
   ],
   viewer: ["organization.read"],
 };
@@ -407,6 +409,9 @@ export const OPERATIONS = {
   "billable-time.read": "billable_time.read",
   "billable-time.manage": "billable_time.manage",
   "billable-time.invoice": "billable_time.invoice",
+  "courses.read": "courses.read",
+  "courses.enroll": "courses.enroll",
+  "courses.manage": "courses.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -627,6 +632,7 @@ export const MODULE_PERMISSION_SCOPES: {
   guests: { read: "tenant", manage: "tenant" },
   passes: { read: "tenant", manage: "tenant", checkIn: "tenant" },
   "billable-time": { read: "tenant", manage: "tenant", invoice: "tenant" },
+  courses: { read: "tenant", enroll: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

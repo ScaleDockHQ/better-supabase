@@ -177,6 +177,7 @@ begin
   if invite_guest.party_type is not null
     and (case invite_guest.party_type
       when 'comment' then (select s."organization_id"::text from "better_supabase"."comments" s where s."id" = (invite_guest.party_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (invite_guest.party_id)::uuid)
       when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (invite_guest.party_id)::uuid)
       when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (invite_guest.party_id)::uuid)
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (invite_guest.party_id)::uuid)
@@ -398,6 +399,7 @@ begin
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id"::text = grant_guest_access.subject_id)
       else (case grant_guest_access.subject_type
       when 'comment' then (select s."organization_id"::text from "better_supabase"."comments" s where s."id" = (grant_guest_access.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (grant_guest_access.subject_id)::uuid)
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (grant_guest_access.subject_id)::uuid)
@@ -526,6 +528,7 @@ declare
       when 'booking' then (select s."tenant_id"::text from "better_supabase"."bookings" s where s."id"::text = list_guest_grants.subject_id)
       else (case list_guest_grants.subject_type
       when 'comment' then (select s."organization_id"::text from "better_supabase"."comments" s where s."id" = (list_guest_grants.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (list_guest_grants.subject_id)::uuid)
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (list_guest_grants.subject_id)::uuid)
@@ -597,7 +600,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.comments' then array['comment'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.comments' then array['comment'] when 'better_supabase.courses' then array['course'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."guest_grants" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."guest_grants" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."guest_id" is not distinct from x."guest_id");
     update "better_supabase"."guest_grants" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;

@@ -15644,6 +15644,484 @@ export function FormBuilderSkeleton() {
 }
 ```
 
+## Course outline
+
+A course's modules and lessons in rank order, with the caller's progress, certificate and an Enroll button. It loads its data on the server through the block's client; the [courses block](https://bettersupabase.com/blocks/courses) must be installed (`npx better-supabase add courses`). Page: https://bettersupabase.com/recipes/course-outline.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty progress skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/courses/components/course-outline.tsx"
+import type {
+  CourseLessonKind,
+  CourseStatus,
+} from "better-supabase/blocks/courses";
+import type { LucideIcon } from "lucide-react";
+
+import {
+  AwardIcon,
+  CircleCheckIcon,
+  CircleIcon,
+  FileTextIcon,
+  ListChecksIcon,
+  PlayCircleIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { getExtracted } from "next-intl/server";
+import { refresh } from "next/cache";
+
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+
+import { getOutline } from "../courses-queries";
+import { EnrollButton } from "./course-controls";
+
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+const statusVariants = {
+  draft: "secondary",
+  published: "success-light",
+  archived: "outline",
+} as const satisfies Record<CourseStatus, string>;
+
+const kindIcons = {
+  content: FileTextIcon,
+  video: PlayCircleIcon,
+  quiz: ListChecksIcon,
+} as const satisfies Record<CourseLessonKind, LucideIcon>;
+
+/**
+ * Render inside `<Suspense>`: a course's modules, lessons and the caller's
+ * progress.
+ */
+export async function CourseOutline({
+  params,
+}: {
+  params: Promise<{ courseId: string }>;
+}) {
+  const { courseId } = await params;
+
+  const [view, t] = await Promise.all([
+    getOutline(courseId),
+    getExtracted("courses"),
+  ]);
+
+  if (view.kind === "no-organization") {
+    return null;
+  }
+
+  if (view.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="course-outline">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The course didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const course = view.data;
+  const learner = course.learner;
+
+  const statusLabels: Record<CourseStatus, string> = {
+    draft: t("Draft"),
+    published: t("Published"),
+    archived: t("Archived"),
+  };
+
+  const kindLabels: Record<CourseLessonKind, string> = {
+    content: t("Reading"),
+    video: t("Video"),
+    quiz: t("Quiz"),
+  };
+
+  const next = course.modules
+    .flatMap((module) => module.lessons)
+    .find((lesson) => !lesson.done);
+
+  return (
+    <div data-recipe="course-outline" className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">{course.title}</h2>
+            <Badge variant={statusVariants[course.status]}>
+              {statusLabels[course.status]}
+            </Badge>
+          </div>
+          {course.summary ? (
+            <p className="text-sm text-muted-foreground">{course.summary}</p>
+          ) : null}
+        </div>
+        {learner === null ? (
+          course.status === "published" ? (
+            <EnrollButton courseId={course.id} />
+          ) : null
+        ) : next === undefined ? null : (
+          <Link
+            href={`/courses/${course.id}/lessons/${next.id}`}
+            className={buttonVariants()}
+          >
+            <PlayCircleIcon />
+            {t("Continue")}
+          </Link>
+        )}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          {course.modules.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ListChecksIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("No lessons yet")}</EmptyTitle>
+                <EmptyDescription>
+                  {t("Lessons show up here once a manager adds them.")}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Link
+                  href="/courses"
+                  className={buttonVariants({ variant: "outline" })}
+                >
+                  {t("All courses")}
+                </Link>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            course.modules.map((module) => (
+              <Card key={module.id}>
+                <CardHeader>
+                  <CardTitle>{module.title}</CardTitle>
+                  <CardDescription>
+                    {t("{count, plural, one {# lesson} other {# lessons}}", {
+                      count: module.lessons.length,
+                    })}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="divide-y">
+                    {module.lessons.map((lesson) => {
+                      const KindIcon = kindIcons[lesson.kind];
+
+                      return (
+                        <li
+                          key={lesson.id}
+                          className="flex items-center gap-3 py-2"
+                        >
+                          {lesson.done ? (
+                            <CircleCheckIcon
+                              className="size-4 text-success"
+                              aria-label={t("Done")}
+                            />
+                          ) : (
+                            <CircleIcon
+                              className="size-4 text-muted-foreground"
+                              aria-label={t("Not done")}
+                            />
+                          )}
+                          {learner === null ? (
+                            <span className="flex-1 text-sm">
+                              {lesson.title}
+                            </span>
+                          ) : (
+                            <Link
+                              href={`/courses/${course.id}/lessons/${lesson.id}`}
+                              className="flex-1 text-sm transition-colors hover:text-primary"
+                            >
+                              {lesson.title}
+                            </Link>
+                          )}
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <KindIcon className="size-3.5" />
+                            {kindLabels[lesson.kind]}
+                          </span>
+                          {lesson.minutes === null ? null : (
+                            <span className="text-xs text-muted-foreground">
+                              {t("{minutes, number} min", {
+                                minutes: lesson.minutes,
+                              })}
+                            </span>
+                          )}
+                          {lesson.required ? null : (
+                            <Badge variant="outline">{t("Optional")}</Badge>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("Your progress")}</CardTitle>
+            <CardDescription>
+              {learner === null
+                ? t("Enroll to track your progress.")
+                : t("{done, number} of {total, number} lessons done", {
+                    done: learner.completed,
+                    total: learner.total,
+                  })}
+            </CardDescription>
+          </CardHeader>
+          {learner === null ? null : (
+            <CardContent className="flex flex-col gap-4">
+              <Progress
+                value={
+                  learner.total === 0
+                    ? 0
+                    : (learner.completed / learner.total) * 100
+                }
+                aria-label={t("Your progress")}
+              />
+              {learner.certificateCode === null ? null : (
+                <div className="flex items-center gap-2 text-sm">
+                  <AwardIcon className="size-4 text-success" />
+                  <span>{t("Certificate")}</span>
+                  <code className="text-xs text-muted-foreground">
+                    {learner.certificateCode}
+                  </code>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export function CourseOutlineSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-busy="true">
+      <Skeleton className="h-8 w-64" />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Skeleton className="h-64 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-40 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+```
+
+## Lesson player
+
+One lesson's content with a Mark as done button, or its quiz, which the database grades on submit. It loads its data on the server through the block's client; the [courses block](https://bettersupabase.com/blocks/courses) must be installed (`npx better-supabase add courses`). Page: https://bettersupabase.com/recipes/lesson-player.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card checkbox field input select skeleton textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/courses/components/lesson-player.tsx"
+import type { CourseLessonKind } from "better-supabase/blocks/courses";
+
+import { ArrowLeftIcon, TriangleAlertIcon } from "lucide-react";
+import { getExtracted } from "next-intl/server";
+import { refresh } from "next/cache";
+
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+
+import { getLesson } from "../courses-queries";
+import { CompleteLessonButton } from "./course-controls";
+import { QuizForm } from "./quiz-form";
+
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+/** Render inside `<Suspense>`: one lesson's content, or its quiz. */
+export async function LessonPlayer({
+  params,
+}: {
+  params: Promise<{ courseId: string; lessonId: string }>;
+}) {
+  const { courseId, lessonId } = await params;
+
+  const [view, t] = await Promise.all([
+    getLesson(lessonId),
+    getExtracted("courses"),
+  ]);
+
+  const back = (
+    <Link
+      href={`/courses/${courseId}`}
+      className={buttonVariants({
+        variant: "ghost",
+        size: "sm",
+        className: "w-fit",
+      })}
+    >
+      <ArrowLeftIcon />
+      {t("Course outline")}
+    </Link>
+  );
+
+  if (view.kind === "no-organization") {
+    return null;
+  }
+
+  if (view.kind === "error") {
+    return (
+      <div data-recipe="lesson-player" className="flex flex-col gap-4">
+        {back}
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle>{t("The lesson didn't load")}</AlertTitle>
+          <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+          <AlertAction>
+            <form action={retry}>
+              <Button size="sm" variant="outline" type="submit">
+                {t("Retry")}
+              </Button>
+            </form>
+          </AlertAction>
+        </Alert>
+      </div>
+    );
+  }
+
+  const lesson = view.data;
+
+  const kindLabels: Record<CourseLessonKind, string> = {
+    content: t("Reading"),
+    video: t("Video"),
+    quiz: t("Quiz"),
+  };
+
+  return (
+    <div data-recipe="lesson-player" className="flex flex-col gap-4">
+      {back}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>{lesson.title}</CardTitle>
+            <Badge variant="outline">{kindLabels[lesson.kind]}</Badge>
+            {lesson.done ? (
+              <Badge variant="success-light">{t("Done")}</Badge>
+            ) : null}
+          </div>
+          {lesson.lastScore === null ? null : (
+            <CardDescription>
+              {t("Last score: {score, number} of {max, number}", {
+                score: lesson.lastScore.score,
+                max: lesson.lastScore.max,
+              })}
+            </CardDescription>
+          )}
+        </CardHeader>
+        {lesson.kind === "quiz" ? (
+          lesson.quiz === null || lesson.quiz.length === 0 ? (
+            <CardContent>
+              <Alert variant="warning">
+                <TriangleAlertIcon />
+                <AlertTitle>{t("This quiz has no questions")}</AlertTitle>
+                <AlertDescription>
+                  {t("A manager publishes the quiz form first.")}
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          ) : (
+            <QuizForm lessonId={lesson.id} fields={lesson.quiz} />
+          )
+        ) : (
+          <>
+            <CardContent className="flex flex-col gap-4">
+              {lesson.text === null ? null : (
+                <p className="text-sm whitespace-pre-line">{lesson.text}</p>
+              )}
+              {lesson.mediaUrl === null ? null : (
+                <a
+                  href={lesson.mediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-primary transition-colors hover:text-primary/80"
+                >
+                  {t("Open the video")}
+                </a>
+              )}
+            </CardContent>
+            {lesson.done ? null : (
+              <CardFooter className="flex justify-end">
+                <CompleteLessonButton lessonId={lesson.id} />
+              </CardFooter>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+export function LessonPlayerSkeleton() {
+  return <Skeleton className="h-64 rounded-xl" aria-busy="true" />;
+}
+```
+
 ## CSV import wizard
 
 A stepper that uploads a CSV, maps its columns, validates the rows and imports them. It loads its data on the server through the block's client; the [imports block](https://bettersupabase.com/blocks/imports) must be installed (`npx better-supabase add imports`). Page: https://bettersupabase.com/recipes/csv-import-wizard.

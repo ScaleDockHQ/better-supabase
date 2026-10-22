@@ -1597,6 +1597,11 @@
       "types": "./dist/blocks/billable-time/index.d.ts",
       "default": "./dist/blocks/billable-time/index.js"
     },
+    "./blocks/courses": {
+      "@better-supabase/source": "./src/blocks/courses/index.ts",
+      "types": "./dist/blocks/courses/index.d.ts",
+      "default": "./dist/blocks/courses/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -2850,6 +2855,10 @@
       "./blocks/billable-time": {
         "types": "./dist/blocks/billable-time/index.d.ts",
         "default": "./dist/blocks/billable-time/index.js"
+      },
+      "./blocks/courses": {
+        "types": "./dist/blocks/courses/index.d.ts",
+        "default": "./dist/blocks/courses/index.js"
       },
       "./package.json": "./package.json"
     },

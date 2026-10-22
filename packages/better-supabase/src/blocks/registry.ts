@@ -24,6 +24,7 @@ import { catalogBlock } from "./catalog/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
 import { commentsBlock } from "./comments/manifest.ts";
 import { connectorsBlock } from "./connectors/manifest.ts";
+import { coursesBlock } from "./courses/manifest.ts";
 import { credentialsBlock } from "./credentials/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
@@ -162,6 +163,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   guestsBlock,
   passesBlock,
   billableTimeBlock,
+  coursesBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

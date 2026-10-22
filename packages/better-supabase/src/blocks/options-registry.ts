@@ -20,6 +20,7 @@ import type { CatalogSqlOptions } from "./catalog/options.ts";
 import type { CollectionsSqlOptions } from "./collections/options.ts";
 import type { CommentsSqlOptions } from "./comments/options.ts";
 import type { ConnectorsSqlOptions } from "./connectors/options.ts";
+import type { CoursesSqlOptions } from "./courses/options.ts";
 import type { CredentialsSqlOptions } from "./credentials/options.ts";
 import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
 import type { DataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
@@ -128,6 +129,7 @@ import { catalogSqlOptions } from "./catalog/options.ts";
 import { collectionsSqlOptions } from "./collections/options.ts";
 import { commentsSqlOptions } from "./comments/options.ts";
 import { connectorsSqlOptions } from "./connectors/options.ts";
+import { coursesSqlOptions } from "./courses/options.ts";
 import { credentialsSqlOptions } from "./credentials/options.ts";
 import { customFieldsSqlOptions } from "./custom-fields/options.ts";
 import { dataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
@@ -288,6 +290,7 @@ export interface BlockOptionsRegistry {
   readonly parties: PartiesSqlOptions;
   readonly passes: PassesSqlOptions;
   readonly "billable-time": None;
+  readonly courses: CoursesSqlOptions;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -416,6 +419,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   parties: partiesSqlOptions,
   passes: passesSqlOptions,
   "billable-time": NO_OPTIONS,
+  courses: coursesSqlOptions,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,

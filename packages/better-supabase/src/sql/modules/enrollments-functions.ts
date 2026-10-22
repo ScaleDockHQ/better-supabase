@@ -518,6 +518,10 @@ begin
   if not (${allowed(`v_row.${e("tenant")}`, enroll)} or ${self("v_row")}) then
     ${forbidden("not allowed to change this enrollment")}
   end if;
+  -- A course's quiz lesson completes only through a passing submission.
+  if v_row.${e("program")} like 'course:%' then
+    ${invalid("this enrollment belongs to a course; complete its lessons through courses")}
+  end if;
   perform ${fn("enrollment_mark")}(v_row.${e("id")}, enrollment_step.step, enrollment_step.done, auth.uid());
   return ${fn("enrollment_json")}(v_row.${e("id")});
 end;

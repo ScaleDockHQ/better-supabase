@@ -22,6 +22,7 @@ import type { catalogBlock } from "../../src/blocks/catalog/manifest.ts";
 import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts";
 import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { connectorsBlock } from "../../src/blocks/connectors/manifest.ts";
+import type { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import type { BlocksEventMap } from "../../src/blocks/create-blocks.ts";
 import type { credentialsBlock } from "../../src/blocks/credentials/manifest.ts";
 import type { customFieldsBlock } from "../../src/blocks/custom-fields/manifest.ts";
@@ -176,6 +177,7 @@ export type AllBlocks = {
   readonly guests: typeof guestsBlock;
   readonly passes: typeof passesBlock;
   readonly "billable-time": typeof billableTimeBlock;
+  readonly courses: typeof coursesBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

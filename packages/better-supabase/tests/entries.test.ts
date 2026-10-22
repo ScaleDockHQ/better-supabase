@@ -56,6 +56,7 @@ const PURE_BARRELS = [
   "blocks/guests",
   "blocks/passes",
   "blocks/billable-time",
+  "blocks/courses",
   "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",

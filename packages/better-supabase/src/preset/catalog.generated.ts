@@ -3146,6 +3146,126 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "courses",
+      "title": "Courses",
+      "category": "content",
+      "requires": [
+        "tenant",
+        "access",
+        "enrollments"
+      ],
+      "integrates": [
+        "forms",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "courses",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "courses",
+      "entities": {
+        "specs": {
+          "course": {
+            "table": "courses",
+            "singular": "course",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "summary"
+                ]
+              }
+            }
+          },
+          "course_module": {
+            "table": "modules",
+            "singular": "course_module"
+          },
+          "course_lesson": {
+            "table": "lessons",
+            "singular": "course_lesson"
+          },
+          "course_certificate": {
+            "table": "certificates",
+            "singular": "course_certificate"
+          }
+        },
+        "tables": {
+          "courses": {
+            "name": "courses",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "summary": "summary",
+              "status": "status",
+              "certificate": "issues_certificate",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "modules": {
+            "name": "course_modules",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "course": "course_id",
+              "title": "title",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "lessons": {
+            "name": "course_lessons",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "course": "course_id",
+              "module": "module_id",
+              "title": "title",
+              "kind": "kind",
+              "body": "body",
+              "mediaUrl": "media_url",
+              "form": "form_id",
+              "required": "required",
+              "minutes": "duration_minutes",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "certificates": {
+            "name": "course_certificates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "course": "course_id",
+              "enrollment": "enrollment_id",
+              "user": "user_id",
+              "code": "code",
+              "issuedAt": "issued_at",
+              "revokedAt": "revoked_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "courses.read",
+          "enroll": "courses.enroll",
+          "manage": "courses.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5702,6 +5822,340 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "BillableTimeEvents",
         "types": [
           "time.invoiced"
+        ]
+      }
+    },
+    {
+      "name": "courses",
+      "sql": [
+        "courses"
+      ],
+      "category": "content",
+      "client": {
+        "export": "coursesBlock",
+        "subpath": "better-supabase/blocks/courses"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Course",
+          "fields": true
+        },
+        {
+          "name": "CourseCertificate"
+        },
+        {
+          "name": "CourseCertificateCheck"
+        },
+        {
+          "name": "CourseCertificateEventData"
+        },
+        {
+          "name": "CourseEventData"
+        },
+        {
+          "name": "CourseInput",
+          "fields": true
+        },
+        {
+          "name": "CourseLearner"
+        },
+        {
+          "name": "CourseLearnerEventData"
+        },
+        {
+          "name": "CourseLearnerSectionInput"
+        },
+        {
+          "name": "CourseLearnersFilter"
+        },
+        {
+          "name": "CourseLearnerStatus"
+        },
+        {
+          "name": "CourseLearnersWrites"
+        },
+        {
+          "name": "CourseLesson"
+        },
+        {
+          "name": "CourseLessonCompletedEventData"
+        },
+        {
+          "name": "CourseLessonInput"
+        },
+        {
+          "name": "CourseLessonKind"
+        },
+        {
+          "name": "CourseLessonView"
+        },
+        {
+          "name": "CourseModule"
+        },
+        {
+          "name": "CourseModuleInput"
+        },
+        {
+          "name": "CourseOutline",
+          "fields": true
+        },
+        {
+          "name": "CourseOutlineLesson"
+        },
+        {
+          "name": "CourseOutlineModule"
+        },
+        {
+          "name": "CourseQuiz"
+        },
+        {
+          "name": "CourseQuizResult"
+        },
+        {
+          "name": "Courses",
+          "fields": true
+        },
+        {
+          "name": "CoursesEvents"
+        },
+        {
+          "name": "CoursesOptions"
+        },
+        {
+          "name": "CoursesSqlOptions"
+        },
+        {
+          "name": "CourseStatus"
+        }
+      ],
+      "entitySchemas": {
+        "course": {
+          "input": {
+            "title": "CourseInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "key": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "summary": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "draft",
+                  "published",
+                  "archived"
+                ],
+                "optional": true
+              },
+              "certificate": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CourseInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "published",
+                    "archived"
+                  ]
+                },
+                "certificate": {
+                  "type": "boolean"
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "course_lesson": {
+          "input": {
+            "title": "CourseLessonInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "moduleId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "content",
+                  "video",
+                  "quiz"
+                ],
+                "optional": true
+              },
+              "body": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "The lesson's content, such as a rich-text document."
+              },
+              "mediaUrl": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "formId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "required": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "minutes": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "rank": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CourseLessonInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "moduleId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "content",
+                    "video",
+                    "quiz"
+                  ]
+                },
+                "body": {
+                  "description": "The lesson's content, such as a rich-text document."
+                },
+                "mediaUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "formId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "rank": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "CoursesEvents",
+        "types": [
+          "course.saved",
+          "course.deleted",
+          "course.enrolled",
+          "course.unenrolled",
+          "course.completed",
+          "course_lesson.completed",
+          "course_certificate.issued",
+          "course_certificate.revoked"
         ]
       }
     },

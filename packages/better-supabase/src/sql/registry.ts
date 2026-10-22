@@ -34,6 +34,7 @@ import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
+import { COURSES } from "./modules/courses.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
@@ -323,6 +324,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(GUESTS),
       built(PASSES),
       built(BILLABLE_TIME),
+      built(COURSES),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );
