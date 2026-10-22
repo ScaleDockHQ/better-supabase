@@ -8,6 +8,7 @@ export {
   type MailSync,
   type MailSyncOptions,
   type MailSyncReport,
+  type MailTemplateStats,
   type MailThread,
   type MailThreadDetail,
 } from "./mail-sync.ts";

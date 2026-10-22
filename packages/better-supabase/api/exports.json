@@ -2758,6 +2758,7 @@
       "LegalHoldEventData",
       "MailAccountEventData",
       "MailMessageEventData",
+      "MailTrackingEventData",
       "MergedEventMap",
       "NotificationDeliveryEventData",
       "NotificationEventData",
@@ -4881,6 +4882,7 @@
       "MailSyncOptions",
       "MailSyncReport",
       "MailSyncSqlOptions",
+      "MailTemplateStats",
       "MailThread",
       "MailThreadDetail",
       "RpcClient"

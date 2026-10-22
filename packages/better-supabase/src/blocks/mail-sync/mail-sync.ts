@@ -38,6 +38,12 @@ import {
   textOf,
 } from "../shared.ts";
 import { mailProviderOf } from "./providers.ts";
+import {
+  pixelResponse,
+  trackHtml,
+  trackingHash,
+  trackingHitOf,
+} from "./tracking.ts";
 
 /** A record a thread is linked to. */
 export interface MailSubject {
@@ -102,6 +108,25 @@ export interface MailMessage {
   readonly text?: string;
   readonly html?: string;
   readonly sentAt: Temporal.Instant;
+  /** The template version a sent message was written from. */
+  readonly templateVersionId?: string;
+  /** Whether opens and clicks of a sent message are tracked. */
+  readonly tracked: boolean;
+  readonly openCount: number;
+  readonly clickCount: number;
+  /** The first open; a click counts as one. */
+  readonly openedAt?: Temporal.Instant;
+  readonly clickedAt?: Temporal.Instant;
+}
+
+/** How the messages sent from one template version did. */
+export interface MailTemplateStats {
+  readonly templateVersionId: string;
+  readonly sent: number;
+  readonly opened: number;
+  readonly clicked: number;
+  /** Messages whose thread got an inbound message after them. */
+  readonly replied: number;
 }
 
 /** A thread with its messages, oldest first. */
@@ -123,6 +148,16 @@ export interface MailSyncReport {
 export interface MailSendDraft extends MailDraft {
   /** Replies on this thread, to its latest message. */
   readonly threadId?: string;
+  /**
+   * The template version the draft was written from, such as a `templates`
+   * version, for `templateStats`.
+   */
+  readonly templateVersionId?: string;
+  /**
+   * Tracks opens and clicks of the HTML body. Default: on when `createMailSync`
+   * has `tracking`; `true` without it is an error.
+   */
+  readonly track?: boolean;
 }
 
 export interface MailSync {
@@ -189,6 +224,17 @@ export interface MailSync {
     account: MailAccount,
     options?: { readonly pages?: number; readonly limit?: number },
   ): AsyncResult<number>;
+  /**
+   * Answers a request to the tracking route: records the open or click and
+   * returns the pixel, or a redirect to the link the message had. Service
+   * role.
+   */
+  track(request: Request): AsyncResult<Response>;
+  /** Opens, clicks and replies per template version, since a time. */
+  templateStats(
+    organizationId: string,
+    options?: { readonly since?: Temporal.Instant },
+  ): AsyncResult<MailTemplateStats[]>;
   /** Syncs the mailboxes not synced within `staleAfter`. Service role. */
   syncDue(options?: {
     /** At most this many mailboxes. Default: 25. */
@@ -211,6 +257,11 @@ export interface MailSyncOptions extends BlockTemporalOptions {
   readonly credentials?: CredentialProvider;
   /** The mail providers, such as `gmailMail()` and `outlookMail()`. */
   readonly providers?: readonly MailProvider[];
+  /**
+   * Tracks opens and clicks: `url` is the public route that calls `track`, such
+   * as `https://app.example.com/api/mail/t`.
+   */
+  readonly tracking?: { readonly url: string };
   readonly hooks?: NoInfer<BlockHooks<MailSync>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -304,6 +355,9 @@ function messageOf(value: unknown): MailMessage {
     snippet: optionalText(row["snippet"]),
     text: optionalText(row["body_text"]),
     html: optionalText(row["body_html"]),
+    templateVersionId: optionalText(row["template_version_id"]),
+    openedAt: optionalInstant(row["opened_at"]),
+    clickedAt: optionalInstant(row["clicked_at"]),
   };
 
   return {
@@ -315,6 +369,9 @@ function messageOf(value: unknown): MailMessage {
     to: texts(row["to_addresses"]),
     cc: texts(row["cc_addresses"]),
     sentAt: requiredInstant(row["sent_at"], "sentAt"),
+    tracked: typeof row["tracking_hash"] === "string",
+    openCount: Number(row["open_count"] ?? 0),
+    clickCount: Number(row["click_count"] ?? 0),
     ...Object.fromEntries(
       Object.entries(optional).filter(([, entry]) => entry !== undefined),
     ),
@@ -497,6 +554,93 @@ export function createMailSync(options: MailSyncOptions): MailSync {
       return ok(stored);
     });
 
+  const sendMail = (
+    accountId: string,
+    draft: MailSendDraft,
+  ): AsyncResult<MailMessage> =>
+    call("get_mail_account", { account: accountId }, (value) =>
+      value === null ? undefined : accountOf(value),
+    ).andThen(async (account) => {
+      if (account === undefined || account.status === "disconnected") {
+        return err(
+          dbError("not_found", "no such connected mailbox", {
+            hint: "MAIL_ACCOUNT_NOT_FOUND",
+          }),
+        );
+      }
+
+      const provider = providerOf(account);
+
+      if (!provider.ok) {
+        return provider;
+      }
+
+      const reply = await replyTarget(draft.threadId);
+
+      if (!reply.ok) {
+        return reply;
+      }
+
+      const token = await tokenOf(account, provider.data);
+
+      if (!token.ok) {
+        return token;
+      }
+
+      const from = { address: account.address };
+      const { threadId: _thread, templateVersionId, track, ...message } = draft;
+
+      const tracked =
+        options.tracking === undefined ||
+        track === false ||
+        draft.html === undefined
+          ? undefined
+          : await trackHtml(draft.html, options.tracking.url);
+
+      const sent = await provider.data.send({
+        token: token.data,
+        from,
+        draft:
+          tracked === undefined ? message : { ...message, html: tracked.html },
+        ...(reply.data === undefined ? {} : { reply: reply.data }),
+      });
+
+      if (!sent.ok) {
+        return sent;
+      }
+
+      return call(
+        "record_sent_mail",
+        {
+          account: account.id,
+          message: {
+            ...(templateVersionId === undefined ? {} : { templateVersionId }),
+            ...(tracked === undefined
+              ? {}
+              : { trackingHash: tracked.hash, trackedLinks: tracked.links }),
+            ...messageArg({
+              externalId: sent.data.externalId,
+              threadId: sent.data.threadId,
+              ...(sent.data.messageId === undefined
+                ? {}
+                : { messageId: sent.data.messageId }),
+              direction: "outbound",
+              from,
+              to: draft.to,
+              cc: draft.cc ?? [],
+              subject: draft.subject,
+              ...(draft.text === undefined
+                ? {}
+                : { text: draft.text, snippet: draft.text.slice(0, 200) }),
+              ...(draft.html === undefined ? {} : { html: draft.html }),
+              sentAt: temporal().Now.instant(),
+            }),
+          },
+        },
+        messageOf,
+      );
+    });
+
   const client: MailSync = {
     connect: (organizationId, input) =>
       call(
@@ -576,75 +720,65 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         (value) => value === true,
       ),
     send: (accountId, draft) =>
-      call("get_mail_account", { account: accountId }, (value) =>
-        value === null ? undefined : accountOf(value),
-      ).andThen(async (account) => {
-        if (account === undefined || account.status === "disconnected") {
-          return err(
-            dbError("not_found", "no such connected mailbox", {
-              hint: "MAIL_ACCOUNT_NOT_FOUND",
-            }),
-          );
+      draft.track === true && options.tracking === undefined
+        ? AsyncResult.err(
+            missing(
+              "createMailSync needs tracking to track a message",
+              "MAIL_TRACKING_MISSING",
+            ),
+          )
+        : sendMail(accountId, draft),
+    sync,
+    track: (request) =>
+      AsyncResult.from(async () => {
+        const hit = trackingHitOf(request.url);
+
+        if (hit === undefined) {
+          return ok(new Response(null, { status: 404 }));
         }
 
-        const provider = providerOf(account);
-
-        if (!provider.ok) {
-          return provider;
-        }
-
-        const reply = await replyTarget(draft.threadId);
-
-        if (!reply.ok) {
-          return reply;
-        }
-
-        const token = await tokenOf(account, provider.data);
-
-        if (!token.ok) {
-          return token;
-        }
-
-        const from = { address: account.address };
-        const { threadId: _thread, ...message } = draft;
-
-        const sent = await provider.data.send({
-          token: token.data,
-          from,
-          draft: message,
-          ...(reply.data === undefined ? {} : { reply: reply.data }),
-        });
-
-        if (!sent.ok) {
-          return sent;
-        }
-
-        return call(
-          "record_sent_mail",
+        const tracked = await call(
+          "track_mail",
           {
-            account: account.id,
-            message: messageArg({
-              externalId: sent.data.externalId,
-              threadId: sent.data.threadId,
-              ...(sent.data.messageId === undefined
-                ? {}
-                : { messageId: sent.data.messageId }),
-              direction: "outbound",
-              from,
-              to: draft.to,
-              cc: draft.cc ?? [],
-              subject: draft.subject,
-              ...(draft.text === undefined
-                ? {}
-                : { text: draft.text, snippet: draft.text.slice(0, 200) }),
-              ...(draft.html === undefined ? {} : { html: draft.html }),
-              sentAt: temporal().Now.instant(),
-            }),
+            hash: await trackingHash(hit.token),
+            kind: hit.kind,
+            link: hit.kind === "click" ? hit.position : null,
+            user_agent:
+              request.headers.get("user-agent")?.slice(0, 300) ?? null,
           },
-          messageOf,
+          (value) =>
+            value === null
+              ? undefined
+              : optionalText(recordOf(value, "track_mail")["url"]),
+        );
+
+        if (!tracked.ok) {
+          return tracked;
+        }
+
+        if (hit.kind === "open") {
+          return ok(pixelResponse());
+        }
+
+        return ok(
+          tracked.data === undefined
+            ? new Response(null, { status: 404 })
+            : Response.redirect(tracked.data, 302),
         );
       }),
-    sync,
+    templateStats: (organizationId, stats = {}) =>
+      call(
+        "mail_template_stats",
+        { tenant: organizationId, since: instantArg(stats.since) ?? null },
+        (value) =>
+          recordsOf(value, "mail_template_stats").map((row) => ({
+            templateVersionId: String(row["templateVersionId"]),
+            sent: Number(row["sent"]),
+            opened: Number(row["opened"]),
+            clicked: Number(row["clicked"]),
+            replied: Number(row["replied"]),
+          })),
+      ),
     syncDue: (run = {}) =>
       call(
         "due_mail_accounts",

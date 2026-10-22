@@ -42,5 +42,7 @@ export const mailDraftSchema: EntitySchema<MailSendDraft> =
       text: { kind: "string", optional: true },
       html: { kind: "string", optional: true },
       threadId: { kind: "uuid", optional: true },
+      templateVersionId: { kind: "uuid", optional: true },
+      track: { kind: "boolean", optional: true },
     },
   });
