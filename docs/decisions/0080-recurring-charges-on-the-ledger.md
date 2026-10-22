@@ -1,4 +1,4 @@
-# 00XX: Post recurring charges on the ledger, once per period
+# 0080: Post recurring charges on the ledger, once per period
 
 - Status: accepted
 - Date: 2026-10-22
