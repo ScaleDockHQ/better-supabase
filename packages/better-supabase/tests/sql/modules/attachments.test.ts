@@ -132,6 +132,25 @@ describe("attachments module", () => {
     expect(scoped).toContain(
       `or a."subject_id" in (select t.id::text from authz.ids_project('attachments.manage') as t(id))`,
     );
+
+    const withScope = (scope: unknown, provider: boolean) => () =>
+      renderModules(["attachments"], {
+        modules: {
+          ...(provider ? { access: { model: "provider" } } : {}),
+          attachments: {
+            options: { subjects: { project: { table: "projects", scope } } },
+          },
+        },
+        ...(provider ? { accessProvider: moduleProvider } : {}),
+      });
+
+    expect(withScope(1, true)).toThrow(/must be the name of a provider scope/);
+    expect(withScope("project", false)).toThrow(
+      /needs blocks.access.model "provider"/,
+    );
+    expect(withScope("organization", true)).toThrow(
+      /"organization" is not a scope stub declares below its tenant scope "organization". Scopes: project/,
+    );
   });
 
   it("takes upload and manage keys from the subject registry, and lets the block override them", () => {

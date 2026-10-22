@@ -248,6 +248,16 @@ describe("activitySink", () => {
     });
   });
 
+  it("keeps a subject type that isn't a plural", async () => {
+    const fake = fakeTransport({ record_activity: 1 });
+    await activitySink({ transport: fake.transport }).send([
+      event({ type: "dev.better-supabase.staff.joined", subject: "staff/s1" }),
+    ]);
+    expect(fake.calls[0]![2]).toMatchObject({
+      batch: { entries: [{ subject_type: "staff", subject_id: "s1" }] },
+    });
+  });
+
   it("filters by type and lets describe() summarize or skip", async () => {
     const fake = fakeTransport({ record_activity: 1 });
 
@@ -368,6 +378,12 @@ describe("activityListQuery", () => {
         size: 25,
       });
     }
+
+    const defaults = activityListQuery(table("snake"), "activity");
+    const query = defaults.parse({});
+    expect(defaults.args(query.value!)).toMatchObject({
+      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+    });
 
     expect(() => activityListQuery(table("camel"), "missing")).toThrow(
       /unknown table "missing"/,

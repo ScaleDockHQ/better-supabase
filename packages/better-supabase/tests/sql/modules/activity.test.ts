@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
 describe("activity module", () => {
   const registry = {
@@ -104,5 +104,11 @@ describe("activity module", () => {
       `(list_activity.sources is null or 'delivery' = any (list_activity.sources))`,
     );
     expect(sql).toContain(`'source', 'delivery'`);
+  });
+
+  it("renders nothing for a custom implementation", () => {
+    expect(
+      moduleBody("activity", { modules: { activity: { mode: "custom" } } }),
+    ).toBeFalsy();
   });
 });

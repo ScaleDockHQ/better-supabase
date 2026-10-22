@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
@@ -167,5 +167,11 @@ describe("comments module", () => {
     expect(sql).toContain(
       `drop function if exists "better_supabase"."delete_comment"(uuid);`,
     );
+  });
+
+  it("renders nothing for a custom implementation", () => {
+    expect(
+      moduleBody("comments", { modules: { comments: { mode: "custom" } } }),
+    ).toBeFalsy();
   });
 });

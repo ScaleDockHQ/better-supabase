@@ -95,4 +95,10 @@ describe("messaging module", () => {
         .join("\n"),
     ).not.toContain("can_subject_for");
   });
+
+  it("renders nothing for a custom implementation", () => {
+    expect(
+      moduleBody("messaging", { modules: { messaging: { mode: "custom" } } }),
+    ).toBeFalsy();
+  });
 });
