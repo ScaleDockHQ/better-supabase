@@ -6596,6 +6596,8 @@
     "types": [
       "BlockTransport",
       "Drive",
+      "DriveApproval",
+      "DriveApprovalState",
       "DriveBatch",
       "DriveBinEntry",
       "DriveConflict",
@@ -6604,6 +6606,7 @@
       "DriveFile",
       "DriveFileType",
       "DriveGrant",
+      "DriveLabel",
       "DriveLinkView",
       "DriveNode",
       "DriveNodeKind",
