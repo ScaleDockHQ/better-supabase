@@ -20,6 +20,7 @@ const MODULES = [
   "pipelines",
   "work-items",
   "access",
+  "messaging",
   "comments",
 ];
 
@@ -32,7 +33,7 @@ const layout = (entities?: Record<string, string>): ModuleLayout => {
   };
 };
 
-// The subjects and comments modules read block tables that install after
+// The subjects, messaging and comments modules read block tables that install after
 // them, and the tenant module resets check_function_bodies, so each file
 // turns it off again.
 async function install(s: BlockSession, at: ModuleLayout): Promise<void> {
@@ -98,7 +99,7 @@ describe.skipIf(!live)(
           `select t.title, c.subject_type as subject,
            to_regprocedure('better_supabase.create_work_item(uuid, jsonb)')::text as old
          from better_supabase.tasks t
-         join better_supabase.comments c on c.subject_id = t.id::text`,
+         join better_supabase.conversations c on c.subject_id = t.id::text`,
         );
 
         expect(rows).toEqual([

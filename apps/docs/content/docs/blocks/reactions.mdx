@@ -1,6 +1,6 @@
 ---
 title: Reactions
-description: Emoji reactions on any subject, comments and inbox messages, with custom emoji per organization, counts under each subject's read rules and a realtime topic per organization.
+description: Emoji reactions on any subject, messages (comments included) and inbox messages, with custom emoji per organization, counts under each subject's read rules and a realtime topic per organization.
 ---
 
 `reactions` stores one row per actor and emoji on a subject. A member reacts to a subject they can read; counts, whether the user reacted and the first actors come back in one call. Reading needs `reactions.read`, reacting needs `reactions.create`, and custom emoji need `reactions.manage`.
@@ -38,13 +38,13 @@ Every call acts in the block's `tenant`, an organization id or a function that r
 
 ## Subjects
 
-A reaction's subject is any [`config.subjects`](/docs/blocks/sql#subject-registry) type, a comment (with the [comments](/docs/blocks/comments) module) or an inbox message (`inbox_message`, with the [inbox](/docs/blocks/inbox) module). Comments are always included, under the comment entity's name (`comment`, or the name `blocks.comments.entities.comment` sets), even when `options.subjects` lists other types. `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply, and the caller also needs the subject's read permission (`comments.read` for a comment). A subject with a `deletedAt` column, such as a comment, must not be deleted. Without registry subjects every type is accepted for members of the organization.
+A reaction's subject is any [`config.subjects`](/docs/blocks/sql#subject-registry) type, a message (with the [messaging](/docs/blocks/messaging) module, which includes [comments](/docs/blocks/comments)) or an inbox message (`inbox_message`, with the [inbox](/docs/blocks/inbox) module). Messages are always included, under the message entity's name (`message`, or the name `blocks.messaging.entities.message` sets), even when `options.subjects` lists other types. `react` and the read policy check that the caller sees the subject: the functions run as the caller, so the subject table's own policies apply, and the caller also needs the subject's read permission (`messages.read` for a message). A subject with a `deletedAt` column, such as a message, must not be deleted. Without registry subjects every type is accepted for members of the organization.
 
 The service role reacts for anyone and passes the actor's name:
 
 ```ts
 await reactions
-  .react({ type: "comment", id: commentId }, "✅", { actor: "deploy-bot" })
+  .react({ type: "message", id: commentId }, "✅", { actor: "deploy-bot" })
   .orThrow();
 ```
 
@@ -74,10 +74,10 @@ Every change broadcasts `changed` with the `subjectType` and `subjectId` to `rea
 import { useReactions } from "better-supabase/blocks/reactions/react";
 
 const { reactions, toggle } = useReactions({
-  subjects: comments.map((comment) => ({ type: "comment", id: comment.id })),
+  subjects: comments.map((comment) => ({ type: "message", id: comment.id })),
 });
 
-await toggle({ type: "comment", id: commentId }, "🎉");
+await toggle({ type: "message", id: commentId }, "🎉");
 ```
 
 `reactions` is keyed `type:id`, like `summary`. When the subjects on screen change, the hook loads the new ones without building a new controller.
@@ -111,7 +111,7 @@ const { state, actions } = useReactions({
     tenant: organizationId,
   }),
   tenant: organizationId,
-  subjects: commentIds.map((id) => ({ type: "comment", id })),
+  subjects: commentIds.map((id) => ({ type: "message", id })),
 });
 </script>
 
@@ -143,7 +143,7 @@ work starts on mount, and the controller is disposed with the component.
       tenant: organizationId,
     }),
     tenant: organizationId,
-    subjects: commentIds.map((id) => ({ type: "comment", id })),
+    subjects: commentIds.map((id) => ({ type: "message", id })),
   });
 </script>
 
@@ -178,7 +178,7 @@ export function Component(props: {
       tenant: props.organizationId,
     }),
     tenant: props.organizationId,
-    subjects: props.commentIds.map((id) => ({ type: "comment", id })),
+    subjects: props.commentIds.map((id) => ({ type: "message", id })),
   });
   return (
     <>

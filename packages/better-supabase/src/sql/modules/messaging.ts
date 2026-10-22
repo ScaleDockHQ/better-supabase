@@ -1,17 +1,17 @@
 import type { ModuleContext, ModuleContractFunction } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { schemaPreamble } from "../shared.ts";
 import { messagingFunctions } from "./messaging-functions.ts";
 import { MESSAGING_NAMES, messagingSql } from "./messaging-names.ts";
 import { messagingRealtime, messagingTables } from "./messaging-tables.ts";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
 
-  const q = messagingSql(ctx);
+  const q = messagingSql(ctx, layout.accessProvider);
 
   return `${schemaPreamble(ctx)}
 -- Messaging: conversations (channels, direct and group messages, one per

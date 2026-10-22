@@ -579,7 +579,7 @@ begin
   if not found then
     return;
   end if;
-  foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x is not null) loop
+  foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x = v_msg."author_id" or coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'messages.read'), false)) loop
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_conv."tenant_id", v_user, v_conv."subject_type", v_conv."subject_id", 'participating')
     on conflict do nothing;

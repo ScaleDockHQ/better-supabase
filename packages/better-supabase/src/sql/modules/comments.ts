@@ -17,6 +17,7 @@ import {
   userGrant,
   quotedTable,
 } from "../shared.ts";
+import { subjectCascades, subjectsOption } from "../subjects.ts";
 import { watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
@@ -116,6 +117,13 @@ function afterSend(ctx: ModuleContext): string {
   const cv = (column: string): string => m.col("conversations", column);
   const fn = (name: string): string => ctx.fn(name);
 
+  // Mentions keep group ids next to user ids; only tenant readers follow.
+  const readers = m.scope.canUser(
+    "x",
+    `v_msg.${ms("tenant")}`,
+    messagingSql(m).key("read"),
+  );
+
   const follow = ctx.flag("follow", true)
     ? watchSql(ctx, {
         tenant: `v_conv.${cv("tenant")}`,
@@ -172,7 +180,7 @@ begin
     follow === ""
       ? ""
       : `
-  foreach v_user in array array(select distinct x from unnest(array[v_msg.${ms("author")}] || v_msg.${ms("mentions")}) x where x is not null) loop
+  foreach v_user in array array(select distinct x from unnest(array[v_msg.${ms("author")}] || v_msg.${ms("mentions")}) x where x = v_msg.${ms("author")} or ${readers}) loop
     ${follow}
   end loop;`
   }
@@ -530,7 +538,12 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("copy_comments")}(${id}, text, text, text, text)`)}
-${assignSql(ctx)}`;
+${assignSql(ctx)}${subjectCascades(
+    ctx,
+    subjectsOption(ctx, [], { registryOnly: true }),
+    `delete from ${m.table("conversations")} c where c.${cv("kind")} = 'subject' and c.${cv("subjectType")} = v_type and c.${cv("subjectId")} = v_id and (v_tenant is null or c.${cv("tenant")}::text = v_tenant);`,
+    { tenant: true },
+  )}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {

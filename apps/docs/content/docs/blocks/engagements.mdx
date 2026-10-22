@@ -5,7 +5,7 @@ description: Calls, emails, meetings, notes and tasks logged on one or more reco
 
 `engagements` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One engagement can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can carry engagements.
 
-This block is the logged work, not the system history. The [activity feed](/docs/blocks/comments#activity-feed) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
+This block is the logged work, not the system history. The [activity feed](/docs/blocks/activity) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
 
 Reading needs `engagements.read`, and logging needs `engagements.write`. The author and the owner edit an engagement, and `engagements.manage` edits anyone's. Admins get every permission, and members get `engagements.read` and `engagements.write`.
 

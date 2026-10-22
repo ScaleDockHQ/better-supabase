@@ -75,13 +75,13 @@ export default defineConfig({
 
 Each call takes the record as a subject, `deal` being `{ type: "deal", id: dealId }`, and acts in the tenant of the block client (see [one block per request](/docs/blocks/create-blocks#one-block-per-request)).
 
-| The user                         | Call                                                   | Event             | Watchers get        |
-| -------------------------------- | ------------------------------------------------------ | ----------------- | ------------------- |
-| Comments on a deal               | `comments.create(deal, { body })`                      | `comment.created` | `subject.commented` |
-| Tags it                          | `tags.tag(deal, tagId)`                                | `subject.tagged`  | `subject.tagged`    |
-| Drags its card to another stage  | `rank.move("deal", dealId, { previous, next, group })` | `status.changed`  | `subject.moved`     |
-| Sets a custom field (deal value) | `customFields.setValue(...)`                           | `field_value.set` | map it if you want  |
-| Gets a follow-up reminder        | `reminders.deliver(payload)`                           | `reminder.sent`   | `reminder.due`      |
+| The user                         | Call                                                   | Event             | Watchers get                    |
+| -------------------------------- | ------------------------------------------------------ | ----------------- | ------------------------------- |
+| Comments on a deal               | `comments.create(deal, { body })`                      | `message.sent`    | `comment.posted`, from comments |
+| Tags it                          | `tags.tag(deal, tagId)`                                | `subject.tagged`  | `subject.tagged`                |
+| Drags its card to another stage  | `rank.move("deal", dealId, { previous, next, group })` | `status.changed`  | `subject.moved`                 |
+| Sets a custom field (deal value) | `customFields.setValue(...)`                           | `field_value.set` | map it if you want              |
+| Gets a follow-up reminder        | `reminders.deliver(payload)`                           | `reminder.sent`   | `reminder.due`                  |
 
 A drag from `lead` onto `won` fails with `STATE_TRANSITION_INVALID`: the
 rank and the stage change in one update, and the state-machine trigger

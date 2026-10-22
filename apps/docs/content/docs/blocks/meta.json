@@ -29,6 +29,7 @@
     "billing",
     "flags",
     "comments",
+    "activity",
     "messaging",
     "channels",
     "attachments",

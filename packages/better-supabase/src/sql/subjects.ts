@@ -95,10 +95,16 @@ function rawSubjects(
   ctx: ModuleContext,
   where: string,
   extraKeys: readonly string[],
-  allow: { readonly tenantless?: boolean; readonly fallback?: boolean },
+  allow: {
+    readonly tenantless?: boolean;
+    readonly fallback?: boolean;
+    readonly registryOnly?: boolean;
+  },
 ): Record<string, unknown> {
   const registry = ctx.subjects;
-  const raw = ctx.option("subjects");
+
+  const raw = allow.registryOnly === true ? undefined : ctx.option("subjects");
+
   const tenantless = allow.tenantless === true;
 
   if (raw === undefined) {
@@ -184,6 +190,8 @@ export function subjectsOption(
     readonly tenantless?: boolean;
     /** `false`: read the registry only for the types `options.subjects` names. */
     readonly fallback?: boolean;
+    /** Every registered type, for a module that takes no `options.subjects`. */
+    readonly registryOnly?: boolean;
     /**
      * Subject types may contain `-` (`purchase-order`), for a module whose
      * subject type column has no format check.

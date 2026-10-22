@@ -6,11 +6,13 @@ import { addExtraColumns, lockTable, triggerGrant } from "../shared.ts";
 export const MESSAGE_RESERVED = ["fields"] as const;
 
 /**
- * Whether the caller may read conversation row `alias`: the tenant's read key,
- * then membership, the tenant, or the linked record by `access`. It runs as the
- * caller (policies and `security invoker` functions), so `can_subject` reads
- * the record under its own policies. A policy checks the tenant against the set
- * of tenants where the caller holds the key, once per query.
+ * Whether the caller may read conversation row `alias`: the tenant's read key
+ * (or, for a record's conversation, the key on the record through its subject's
+ * scope), then membership, the tenant, or the linked record by `access`. It
+ * runs as the caller (policies and `security invoker` functions), so
+ * `can_subject` reads the record under its own policies. A policy checks the
+ * tenant against the set of tenants where the caller holds the key, once per
+ * query.
  */
 export function conversationReadable(
   q: MessagingSql,
@@ -20,7 +22,24 @@ export function conversationReadable(
   const cv = q.cols("conversations");
   const tenant = `${alias}.${cv("tenant")}`;
 
-  return `(${options.policy === true ? q.ctx.scope.check(tenant, q.key("read")) : q.can(tenant, "read")}
+  const inTenant =
+    options.policy === true
+      ? q.ctx.scope.check(tenant, q.key("read"))
+      : q.can(tenant, "read");
+
+  const onRecord = q.onRecord(
+    `${alias}.${cv("subjectType")}`,
+    `${alias}.${cv("subjectId")}`,
+    "read",
+  );
+
+  const held =
+    onRecord === undefined
+      ? inTenant
+      : `(${inTenant}
+    or (${alias}.${cv("access")} = 'subject' and ${onRecord}))`;
+
+  return `(${held}
     and case ${alias}.${cv("access")}
       when 'tenant' then true
       when 'members' then ${q.fn("is_conversation_member")}(${alias}.${cv("id")})

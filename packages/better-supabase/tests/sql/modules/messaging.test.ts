@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("messaging", { modules })!;
@@ -43,5 +44,55 @@ describe("messaging module", () => {
     expect(sql).toContain("'chat:'");
     expect(sql).toContain("500");
     expect(sql).toContain("600");
+  });
+
+  it("opens a record's conversation to a grant on the record's scope", () => {
+    const render = (provider: boolean) =>
+      renderModules(["messaging"], {
+        modules: provider ? { access: { model: "provider" } } : {},
+        subjects: {
+          project: { table: "projects", scope: "project" },
+          note: { table: "notes" },
+        },
+        ...(provider ? { accessProvider: moduleProvider } : {}),
+      })
+        .filter((file) => file.module === "messaging")
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(render(true)).toContain(
+      `when 'project' then "better_supabase"."conversations"."subject_id" in (select t.id::text from authz.ids_project('messages.read') as t(id))`,
+    );
+    expect(render(false)).toContain(
+      `when 'project' then coalesce(better_supabase.can('project', "better_supabase"."conversations"."subject_id", 'messages.read'), false)`,
+    );
+    expect(body()).not.toContain(`"access" = 'subject' and`);
+  });
+
+  it("mentions on a record notify only members who read it", () => {
+    const sql = renderModules(["notifications", "messaging"], {
+      modules: {},
+      subjects: {
+        deal: { table: "deals", permissions: { read: "deals.read" } },
+        note: { table: "notes" },
+      },
+    })
+      .filter((file) => file.module === "messaging")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `when 'deal' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false)`,
+    );
+    expect(sql).not.toContain("when 'note' then coalesce");
+    expect(
+      renderModules(["notifications", "messaging"], {
+        modules: {},
+        subjects: { note: { table: "notes" } },
+      })
+        .filter((file) => file.module === "messaging")
+        .map((file) => file.contents)
+        .join("\n"),
+    ).not.toContain("can_subject_for");
   });
 });

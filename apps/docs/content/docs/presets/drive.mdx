@@ -57,13 +57,13 @@ export default defineConfig({
 
 Each call takes the record as a subject, `document` being `{ type: "document", id }`, and acts in the tenant of the block client (see [one block per request](/docs/blocks/create-blocks#one-block-per-request)).
 
-| The user             | Call                                              | Event                | Watchers get        |
-| -------------------- | ------------------------------------------------- | -------------------- | ------------------- |
-| Shares a document    | `shareLinks.create(document, "viewer")`           | `share_link.created` | `subject.shared`    |
-| Labels it            | `tags.tag(document, tagId)`                       | `subject.tagged`     | `subject.tagged`    |
-| Comments             | `comments.create(document, { body })`             | `comment.created`    | `subject.commented` |
-| Moves it to a folder | `rank.move("document", id, { group: "archive" })` | none                 |                     |
-| Opens a share link   | the share-links view route                        | `subject.viewed`     | map it if you want  |
+| The user             | Call                                              | Event                | Watchers get                    |
+| -------------------- | ------------------------------------------------- | -------------------- | ------------------------------- |
+| Shares a document    | `shareLinks.create(document, "viewer")`           | `share_link.created` | `subject.shared`                |
+| Labels it            | `tags.tag(document, tagId)`                       | `subject.tagged`     | `subject.tagged`                |
+| Comments             | `comments.create(document, { body })`             | `message.sent`       | `comment.posted`, from comments |
+| Moves it to a folder | `rank.move("document", id, { group: "archive" })` | none                 |                                 |
+| Opens a share link   | the share-links view route                        | `subject.viewed`     | map it if you want              |
 
 There is no state machine on `folder`, so a move changes the folder and the
 rank without an event. Add one when a folder change should notify.

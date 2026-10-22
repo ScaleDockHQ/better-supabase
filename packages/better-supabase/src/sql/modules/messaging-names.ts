@@ -1,9 +1,12 @@
 import type { MessagingEvents } from "../../blocks/messaging/events.ts";
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
+import type { ModuleAccessProvider } from "../module-types.ts";
 import type { ModuleOperations } from "./access-model.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const CONVERSATION = [
@@ -199,6 +202,15 @@ export interface MessagingSql {
   readonly key: (action: Action) => string;
   /** `can()` for the caller on a tenant expression. */
   readonly can: (tenant: string, action: Action) => string;
+  /**
+   * Whether the caller holds the action's key on the record itself, through
+   * `config.subjects.<type>.scope`; `undefined` when no subject sets a scope.
+   */
+  readonly onRecord: (
+    type: string,
+    id: string,
+    action: Action,
+  ) => string | undefined;
   /** An entity name, event type or payload key after the entity renames. */
   readonly e: (name: string) => string;
   readonly service: string;
@@ -211,7 +223,10 @@ export interface MessagingSql {
   readonly scheduleQueue: string;
 }
 
-export function messagingSql(ctx: ModuleContext): MessagingSql {
+export function messagingSql(
+  ctx: ModuleContext,
+  provider?: ModuleAccessProvider,
+): MessagingSql {
   const permissions = moduleOperations("messaging");
 
   const key = (action: Action): string =>
@@ -257,6 +272,33 @@ export function messagingSql(ctx: ModuleContext): MessagingSql {
     );
   }
 
+  const scoped = registeredSubjects(ctx.subjects, ctx.naming).flatMap(
+    (subject) =>
+      subject.config.scope === undefined
+        ? []
+        : [{ type: subject.type, scope: subject.config.scope }],
+  );
+
+  // A provider answers scope grants through its idsWith set; the access
+  // module through can() on the scope.
+  const onRecord = (
+    type: string,
+    id: string,
+    action: Action,
+  ): string | undefined =>
+    scoped.length === 0
+      ? undefined
+      : `coalesce(case ${type} ${scoped
+          .map(
+            ({ type: name, scope }) =>
+              `when ${sqlString(name)} then ${
+                provider === undefined
+                  ? ctx.can(scope, id, key(action))
+                  : `${id} in (select t.id::text from ${fillTemplate(`subjects.${name}.scope`, provider.functions.idsWith, { permission: key(action), scope })} as t(id))`
+              }`,
+          )
+          .join(" ")} else false end, false)`;
+
   return {
     ctx,
     id: ctx.idType,
@@ -265,6 +307,7 @@ export function messagingSql(ctx: ModuleContext): MessagingSql {
     cols: (table) => (column) => ctx.col(table, column),
     key,
     can: (tenant, action) => ctx.scope.can(tenant, key(action)),
+    onRecord,
     e: (name) => ctx.resolved.entityNaming.rename(name),
     service: SERVICE_CALLER,
     topic,

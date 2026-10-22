@@ -59,8 +59,8 @@ never repeat it (see [the generated config](/docs/blocks/create-blocks#the-gener
 
 ### Subjects and buckets
 
-`subjects` maps each subject type to its table, as for
-[comments](/docs/blocks/comments#subjects): uploading and reading a file then
+`subjects` maps each subject type to its table, as in the
+[subject registry](/docs/blocks/sql#subject-registry): uploading and reading a file then
 also need the subject row to be readable through the subject table's own
 policies (and its `permission`), and an unlisted type is refused. A subject
 can keep its files in its own bucket with its own MIME types, so an app with a
@@ -92,8 +92,8 @@ remove the objects with `attachments.remove` or a storage cleanup job.
 `permissions` gives a subject type its own keys, in place of
 `attachments.read`, `attachments.upload` and `attachments.manage`, and
 `scope` names a provider scope whose ids are the subject ids, so a grant on
-the record itself counts next to one on the tenant. Both work as they do for
-[comments](/docs/blocks/comments#access-per-record), and apply to the table's
+the record itself counts next to one on the tenant. Both work as they do in
+the [subject registry](/docs/blocks/sql#subject-registry), and apply to the table's
 policies and to the storage checks in `attachment_object_allowed`:
 
 ```ts

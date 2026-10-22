@@ -17,7 +17,7 @@ const live = await reachable();
 const layout: ModuleLayout = {
   subjects: withBlockSubjects(
     { doc: { table: "reactions_it.docs", idType: "uuid" } },
-    ["comments"],
+    ["comments", "messaging"],
     {},
   ),
 };
@@ -131,20 +131,22 @@ describe.skipIf(!live)("reactions", () => {
         .orThrow();
 
       await reactions
-        .react({ type: "comment", id: comment.id }, "👀")
+        .react({ type: "message", id: comment.id }, "👀")
         .orThrow();
 
       const summary = await reactions
         .summary([
-          { type: "comment", id: comment.id },
-          { type: "comment", id: "nope" },
+          { type: "message", id: comment.id },
+          { type: "message", id: "00000000-0000-4000-8000-000000000000" },
         ])
         .orThrow();
 
-      expect(summary[`comment:${comment.id}`]).toEqual([
+      expect(summary[`message:${comment.id}`]).toEqual([
         { emoji: "👀", count: 1, reacted: true, actors: [member.id] },
       ]);
-      expect(summary["comment:nope"]).toEqual([]);
+      expect(summary["message:00000000-0000-4000-8000-000000000000"]).toEqual(
+        [],
+      );
 
       await s.asRole(stranger);
       expect(

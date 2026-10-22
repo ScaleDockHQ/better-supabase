@@ -1784,27 +1784,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
-  it("reads comments through a grant on the subject record's provider scope", async () => {
+  it("reads a record's comments through a grant on the record's provider scope", async () => {
     const pd = `authz_scope_${RUN}`;
     const me = "00000000-0000-4000-8000-0000000000b1";
     const granted = "00000000-0000-4000-8000-0000000000b2";
     const hidden = "00000000-0000-4000-8000-0000000000b3";
 
     const layout = {
-      modules: {
-        access: { model: "provider" as const },
-        comments: {
-          options: {
-            subjects: {
-              project: {
-                table: `${pd}.projects`,
-                idType: "uuid",
-                scope: "project",
-              },
-            },
-          },
-        },
+      subjects: {
+        project: { table: `${pd}.projects`, idType: "uuid", scope: "project" },
       },
+      modules: { access: { model: "provider" as const } },
       accessProvider: {
         name: "test",
         scope: "organization",
@@ -1832,17 +1822,24 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create function ${pd}.organization_ids_with(permission text) returns setof uuid
         language sql stable as $$ select null::uuid where false $$;
         create function ${pd}.project_ids_with(permission text) returns setof uuid
-        language sql stable as $$ select '${granted}'::uuid where permission = 'comments.read' $$;
+        language sql stable as $$ select '${granted}'::uuid where permission = 'messages.read' $$;
         create function ${pd}.is_platform(permission text) returns boolean
         language sql stable as $$ select false $$;
         grant execute on all functions in schema ${pd} to authenticated;
         insert into auth.users (id, instance_id, aud, role, email)
         values ('${me}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'scope-${RUN}@example.com');`);
       await client.query(moduleBody("access", layout)!);
-      await client.query(moduleBody("comments", layout)!);
+      await client.query(moduleBody("subjects", layout)!);
+      await client.query(moduleBody("messaging", layout)!);
       await client.query(
-        `insert into better_supabase.comments (organization_id, subject_type, subject_id, body, author_id)
-         values ($1, 'project', $2, 'seen', $4), ($1, 'project', $3, 'unseen', $4)`,
+        `with conversation as (
+           insert into better_supabase.conversations (tenant_id, kind, access, subject_type, subject_id)
+           values ($1, 'subject', 'subject', 'project', $2), ($1, 'subject', 'subject', 'project', $3)
+           returning id, subject_id
+         )
+         insert into better_supabase.messages (tenant_id, conversation_id, body, author_id, sent_at)
+         select $1, c.id, case c.subject_id when $2 then 'seen' else 'unseen' end, $4, now()
+         from conversation c`,
         [ACME, granted, hidden, me],
       );
       await client.query("select set_config('request.jwt.claims', $1, true)", [
@@ -1851,7 +1848,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("set local role authenticated");
 
       const { rows } = await client.query<{ body: string }>(
-        "select body from better_supabase.comments where subject_id = any($1)",
+        `select m.body from better_supabase.messages m
+         join better_supabase.conversations c on c.id = m.conversation_id
+         where c.subject_id = any($1)`,
         [[granted, hidden]],
       );
 

@@ -3,9 +3,10 @@ title: From 0.13 to 0.14
 description: What to change when upgrading to better-supabase 0.14, where block methods take a subject ref and read the tenant from the block.
 ---
 
-0.14 changes the signature of every block method that works on a record.
-Update the calls below, then run `better-supabase sql sync` and generate a
-migration for the new comments and attachments author functions.
+0.14 changes the signature of every block method that works on a record, and
+moves comments onto the messaging core with the activity feed in its own
+block. Update the calls below, then run `better-supabase sql upgrade` and
+`better-supabase sql sync` and generate a migration.
 
 ## Block methods take a subject and read the tenant from the block
 
@@ -23,48 +24,48 @@ take a list of subjects and return a record keyed `type:id`, which
 `subjectKey(subject)` from `better-supabase/blocks` builds. Event payloads,
 the SQL functions and their columns keep `subjectType` and `subjectId`.
 
-| Before                                                                                                | After                                                                                                                           |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `comments.create({ organizationId, subjectType, subjectId, body })`                                   | `comments.create(subject, { body })`                                                                                            |
-| `comments.list(organizationId, subjectType, subjectId, options?)`                                     | `comments.list(subject, options?)`                                                                                              |
-| `comments.counts(organizationId, subjectType, subjectIds)`, keyed by id                               | `comments.counts(subjects)`, keyed `type:id`                                                                                    |
-| `comments.copy(organizationId, from, to)`                                                             | `comments.copy(from, to)`                                                                                                       |
-| `comments.history(organizationId, subject?, options?)`                                                | `comments.history(subject?, options?)`                                                                                          |
-| `attachments.upload({ organizationId, subjectType, subjectId, ... })`                                 | `attachments.upload(subject \| null, attachment)`                                                                               |
-| `attachments.put({ organizationId, subjectType, subjectId, ... }, file)`                              | `attachments.put(subject \| null, attachment, file)`                                                                            |
-| `attachments.list(organizationId, subjectType?, subjectId?)`                                          | `attachments.list(subject?)`                                                                                                    |
-| `versions.snapshot({ organizationId, subjectType, subjectId, ... })`                                  | `versions.snapshot(subject, input?)`                                                                                            |
-| `versions.list(organizationId, subjectType, subjectId, options?)`                                     | `versions.list(subject, options?)`                                                                                              |
-| `shareLinks.create(organizationId, subjectType, subjectId, options?)`                                 | `shareLinks.create(subject, options?)`                                                                                          |
-| `shareLinks.recordView(organizationId, subjectType, subjectId, viewerKind, viewer?)`                  | `shareLinks.recordView(subject, viewerKind, viewer?)`                                                                           |
-| `shareLinks.list(subjectType, subjectId)`, `setState(subjectType, subjectId, starred)`                | `shareLinks.list(subject)`, `setState(subject, starred)`                                                                        |
-| `tags.create(organizationId, kind, name, ...)`, `tags.list(organizationId, kind?)`                    | `tags.create(kind, name, ...)`, `tags.list(kind?)`                                                                              |
-| `tags.tag(organizationId, subjectType, subjectId, tagId)`, and `untag`                                | `tags.tag(subject, tagId)`, and `untag`                                                                                         |
-| `tags.forSubject(organizationId, subjectType, subjectId)`                                             | `tags.forSubject(subject)`                                                                                                      |
-| `reactions.react(organizationId, subjectType, subjectId, emoji, options?)`                            | `reactions.react(subject, emoji, options?)`                                                                                     |
-| `reactions.summary(organizationId, subjectType, subjectIds)`, keyed by id                             | `reactions.summary(subjects)`, keyed `type:id`                                                                                  |
-| `reactions.customEmoji(organizationId)`, `saveCustomEmoji(organizationId, input)`                     | `reactions.customEmoji()`, `saveCustomEmoji(input)`                                                                             |
-| `customFields.listDefinitions(organizationId, entity)`, `saveDefinition(organizationId, entity, ...)` | `customFields.listDefinitions(entity)`, `saveDefinition(entity, ...)`                                                           |
-| `customFields.readValues(organizationId, subjectType, subjectId)`                                     | `customFields.readValues(subject)`                                                                                              |
-| `customFields.setValue(organizationId, subjectType, subjectId, definitionId, value)`                  | `customFields.setValue(subject, definitionId, value)`                                                                           |
-| `relations.link({ organizationId, source, target, kind, ... })`, and `unlink`                         | `relations.link(source, target, { kind, data?, fields? })`, and `unlink(source, target, { kind })`                              |
-| `relations.of(organizationId, subject, kind?)`, `edges(organizationId, kind)`                         | `relations.of(subject, kind?)`, `edges(kind)`                                                                                   |
-| `relations.ancestors(organizationId, kind, subject)`, and `descendants`                               | `relations.ancestors(subject, kind)`, and `descendants`                                                                         |
-| `relations.rollup({ organizationId, subject, ... })`                                                  | `relations.rollup(subject, { kind, of, agg, column? })`                                                                         |
-| `relations.convertedInto(organizationId, origin, intoType)`, `lineage(organizationId, subject)`       | `relations.convertedInto(origin, intoType)`, `lineage(subject)`                                                                 |
-| `sla.savePolicy(organizationId, policy)`                                                              | `sla.savePolicy(policy)`                                                                                                        |
-| `approvals.request({ organizationId, subjectType, subjectId, action, ... })`                          | `approvals.request(subject, { action, reason?, payload? })`                                                                     |
-| `approvals.list(organizationId, options?)`                                                            | `approvals.list(options?)`, with an optional `subject` filter                                                                   |
-| `approvals.isApproved(subjectType, subjectId, action)`                                                | `approvals.isApproved(subject, action)`                                                                                         |
-| `stateMachine.transition(subjectType, subjectId, to, reason?)`                                        | `stateMachine.transition(subject, to, reason?)`, and the same for `pause`, `resume`, `setFlag`, `state`, `history` and `stages` |
-| `reminders.save(organizationId, subjectType, subjectId, offsetMinutes?, fields?)`                     | `reminders.save(subject, offsetMinutes?, fields?)`                                                                              |
-| `reminders.list(organizationId, subjectType, subjectId)`                                              | `reminders.list(subject)`                                                                                                       |
-| `timeTracking.start(organizationId, fields?)`, `stop(organizationId)`, `running(organizationId)`      | `timeTracking.start(fields?)`, `stop()`, `running()`                                                                            |
-| `timeTracking.log`, `list`, `timesheet`, `submit` and `timesheets` with `organizationId` first        | the same calls without it; entries take `subject` instead of `subjectType` and `subjectId`                                      |
-| `row.subjectType`, `row.subjectId`                                                                    | `row.subject.type`, `row.subject.id`                                                                                            |
-| `useComments({ organizationId, subjectType, subjectId, schema?, topic?, limit? })`                    | `useComments({ subject, topic?, limit? })`                                                                                      |
-| `useReactions({ organizationId, subjectType, subjectIds, schema?, topic? })`                          | `useReactions({ subjects, topic? })`                                                                                            |
-| `useTagInput({ organizationId, subjectType, subjectId, kind, schema? })`                              | `useTagInput({ subject, kind })`                                                                                                |
+| Before                                                                                                | After                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `comments.create({ organizationId, subjectType, subjectId, body })`                                   | `comments.create(subject, { body })`                                                                                                     |
+| `comments.list(organizationId, subjectType, subjectId, options?)`                                     | `comments.list(subject, options?)`                                                                                                       |
+| `comments.counts(organizationId, subjectType, subjectIds)`, keyed by id                               | `comments.counts(subjects)`, keyed `type:id`                                                                                             |
+| `comments.copy(organizationId, from, to)`                                                             | `comments.copy(from, to)`                                                                                                                |
+| `comments.history(organizationId, subject?, options?)`                                                | `createActivity({ transport, tenant }).list(subject?, options?)` (see [comments on the messaging core](#comments-on-the-messaging-core)) |
+| `attachments.upload({ organizationId, subjectType, subjectId, ... })`                                 | `attachments.upload(subject \| null, attachment)`                                                                                        |
+| `attachments.put({ organizationId, subjectType, subjectId, ... }, file)`                              | `attachments.put(subject \| null, attachment, file)`                                                                                     |
+| `attachments.list(organizationId, subjectType?, subjectId?)`                                          | `attachments.list(subject?)`                                                                                                             |
+| `versions.snapshot({ organizationId, subjectType, subjectId, ... })`                                  | `versions.snapshot(subject, input?)`                                                                                                     |
+| `versions.list(organizationId, subjectType, subjectId, options?)`                                     | `versions.list(subject, options?)`                                                                                                       |
+| `shareLinks.create(organizationId, subjectType, subjectId, options?)`                                 | `shareLinks.create(subject, options?)`                                                                                                   |
+| `shareLinks.recordView(organizationId, subjectType, subjectId, viewerKind, viewer?)`                  | `shareLinks.recordView(subject, viewerKind, viewer?)`                                                                                    |
+| `shareLinks.list(subjectType, subjectId)`, `setState(subjectType, subjectId, starred)`                | `shareLinks.list(subject)`, `setState(subject, starred)`                                                                                 |
+| `tags.create(organizationId, kind, name, ...)`, `tags.list(organizationId, kind?)`                    | `tags.create(kind, name, ...)`, `tags.list(kind?)`                                                                                       |
+| `tags.tag(organizationId, subjectType, subjectId, tagId)`, and `untag`                                | `tags.tag(subject, tagId)`, and `untag`                                                                                                  |
+| `tags.forSubject(organizationId, subjectType, subjectId)`                                             | `tags.forSubject(subject)`                                                                                                               |
+| `reactions.react(organizationId, subjectType, subjectId, emoji, options?)`                            | `reactions.react(subject, emoji, options?)`                                                                                              |
+| `reactions.summary(organizationId, subjectType, subjectIds)`, keyed by id                             | `reactions.summary(subjects)`, keyed `type:id`                                                                                           |
+| `reactions.customEmoji(organizationId)`, `saveCustomEmoji(organizationId, input)`                     | `reactions.customEmoji()`, `saveCustomEmoji(input)`                                                                                      |
+| `customFields.listDefinitions(organizationId, entity)`, `saveDefinition(organizationId, entity, ...)` | `customFields.listDefinitions(entity)`, `saveDefinition(entity, ...)`                                                                    |
+| `customFields.readValues(organizationId, subjectType, subjectId)`                                     | `customFields.readValues(subject)`                                                                                                       |
+| `customFields.setValue(organizationId, subjectType, subjectId, definitionId, value)`                  | `customFields.setValue(subject, definitionId, value)`                                                                                    |
+| `relations.link({ organizationId, source, target, kind, ... })`, and `unlink`                         | `relations.link(source, target, { kind, data?, fields? })`, and `unlink(source, target, { kind })`                                       |
+| `relations.of(organizationId, subject, kind?)`, `edges(organizationId, kind)`                         | `relations.of(subject, kind?)`, `edges(kind)`                                                                                            |
+| `relations.ancestors(organizationId, kind, subject)`, and `descendants`                               | `relations.ancestors(subject, kind)`, and `descendants`                                                                                  |
+| `relations.rollup({ organizationId, subject, ... })`                                                  | `relations.rollup(subject, { kind, of, agg, column? })`                                                                                  |
+| `relations.convertedInto(organizationId, origin, intoType)`, `lineage(organizationId, subject)`       | `relations.convertedInto(origin, intoType)`, `lineage(subject)`                                                                          |
+| `sla.savePolicy(organizationId, policy)`                                                              | `sla.savePolicy(policy)`                                                                                                                 |
+| `approvals.request({ organizationId, subjectType, subjectId, action, ... })`                          | `approvals.request(subject, { action, reason?, payload? })`                                                                              |
+| `approvals.list(organizationId, options?)`                                                            | `approvals.list(options?)`, with an optional `subject` filter                                                                            |
+| `approvals.isApproved(subjectType, subjectId, action)`                                                | `approvals.isApproved(subject, action)`                                                                                                  |
+| `stateMachine.transition(subjectType, subjectId, to, reason?)`                                        | `stateMachine.transition(subject, to, reason?)`, and the same for `pause`, `resume`, `setFlag`, `state`, `history` and `stages`          |
+| `reminders.save(organizationId, subjectType, subjectId, offsetMinutes?, fields?)`                     | `reminders.save(subject, offsetMinutes?, fields?)`                                                                                       |
+| `reminders.list(organizationId, subjectType, subjectId)`                                              | `reminders.list(subject)`                                                                                                                |
+| `timeTracking.start(organizationId, fields?)`, `stop(organizationId)`, `running(organizationId)`      | `timeTracking.start(fields?)`, `stop()`, `running()`                                                                                     |
+| `timeTracking.log`, `list`, `timesheet`, `submit` and `timesheets` with `organizationId` first        | the same calls without it; entries take `subject` instead of `subjectType` and `subjectId`                                               |
+| `row.subjectType`, `row.subjectId`                                                                    | `row.subject.type`, `row.subject.id`                                                                                                     |
+| `useComments({ organizationId, subjectType, subjectId, schema?, topic?, limit? })`                    | `useComments({ subject, topic?, limit? })`                                                                                               |
+| `useReactions({ organizationId, subjectType, subjectIds, schema?, topic? })`                          | `useReactions({ subjects, topic? })`                                                                                                     |
+| `useTagInput({ organizationId, subjectType, subjectId, kind, schema? })`                              | `useTagInput({ subject, kind })`                                                                                                         |
 
 To upgrade:
 
@@ -92,7 +93,106 @@ call through `ctx.db` and act in `ctx.db.$context.tenant`.
 ## Comments and attachments return their author
 
 `comments.list` and `attachments.list` return `author` on each row, with the
-name and avatar URL from the profiles module, through the new security
-definer functions `comment_authors(uuid[])` and `attachment_authors(uuid[])`.
-They return only authors of rows the caller may read. Without the profiles
-module, `author.name` and `author.avatarUrl` are `undefined`.
+name and avatar URL from the profiles module. Attachments read it through the
+new security definer function `attachment_authors(uuid[])`, and comments
+through the messaging functions, since a comment is now a message. Both
+return only authors of rows the caller may read. Without the profiles
+module, `author` is `undefined`.
+
+## Comments on the messaging core
+
+A record's comments are now its conversation on the
+[messaging](/docs/blocks/messaging) core (conversation kind `subject`), and
+each comment is a message. Resolve, pins, edit history (`edits`), anchors,
+attachments and read markers come from messaging, and `assign` turns a
+comment into a work item. The activity feed moved out of comments into its
+own [activity](/docs/blocks/activity) block. See
+[Comments](/docs/blocks/comments) for the new API.
+
+The comments block now requires `tenant`, `access`, `subjects` and
+`messaging`, and runs in the `tenant` scope only: a config with
+`scope: "user"` or `scope: "none"` refuses it. Register each record type you
+comment on in `config.subjects`; its read rules decide who reads the
+comments.
+
+| Before                                                                                            | After                                                                                                                          |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `comments.read`, `comments.create`, `comments.moderate` in a role                                 | `messages.read`, `messages.send`, `messages.moderate`; the default `admin` and `member` roles no longer list `comments.*` keys |
+| `ActivityHistoryOptions`                                                                          | `ActivityListOptions`                                                                                                          |
+| `activitySink`, `activityListQuery` and the activity types from `better-supabase/blocks/comments` | the same names from `better-supabase/blocks/activity`, with `activity: {}` in `blocks`                                         |
+| `blocks.comments.permissions.activity`                                                            | `blocks.activity.permissions.read`                                                                                             |
+| `comment.created`                                                                                 | `message.sent`, with `conversationKind: "subject"`, `recordType` and `recordId` in its data                                    |
+| `comment.deleted`                                                                                 | `message.deleted`                                                                                                              |
+| `comment.mentioned` (event and notification)                                                      | the `message.mentioned` notification from messaging, and `mentionIds` on `message.sent`                                        |
+| watcher notifications mapped from `comment.created`                                               | `comment.posted`, which the comments module sends to the record's followers                                                    |
+| `commentsEvents`, `CommentsEvents` from `better-supabase/blocks/comments`                         | `messagingEvents`, `MessagingEvents` from `better-supabase/blocks/messaging`                                                   |
+| `blocks.comments.options.subjects`                                                                | `config.subjects`                                                                                                              |
+| `blocks.comments.options.maxBodyLength`                                                           | `blocks.messaging.options.maxBodyLength` (default 40000)                                                                       |
+| `blocks.comments.options.extraColumns`                                                            | `blocks.messaging.options.extraColumns`                                                                                        |
+| `blocks.comments.options.documentSchema`                                                          | removed; check the document before you call `create` or `edit`                                                                 |
+| `blocks.comments.options.notify`                                                                  | removed; mentions notify through messaging, followers get `comment.posted`                                                     |
+| `blocks.comments.options.follow`, `mentionGroups`                                                 | unchanged                                                                                                                      |
+| `blocks.comments.entities` (the `comment` entity)                                                 | the `message` entity, renamed with `blocks.messaging.entities`                                                                 |
+| `useComments` `topic`: a private topic of your own                                                | the messaging topic prefix, `blocks.messaging.options.topic` by default; `topic: null` turns Realtime off                      |
+| `comment.mentions`, `NewComment.mentions`, `CommentEdit.mentions`                                 | `mentionIds`                                                                                                                   |
+| `comment.createdAt`                                                                               | `comment.sentAt` (when the comment was posted)                                                                                 |
+| `commentsBlock.schemas`                                                                           | removed; `commentInputSchema` and `commentChangeSchema` are still exported                                                     |
+| reactions on `{ type: "comment", id }`                                                            | reactions on `{ type: "message", id }`                                                                                         |
+| `edit_comment`, `delete_comment`, `comment_subject_readable`, `comment_authors`                   | `edit_message`, `delete_message`, `can_subject(type, id, 'read')`                                                              |
+
+To upgrade:
+
+1. Add `messaging: {}` and, if you read the feed or run `activitySink`,
+   `activity: {}` to `blocks`. Move `maxBodyLength` and `extraColumns` from
+   `blocks.comments.options` to `blocks.messaging.options`, and the record
+   types from `blocks.comments.options.subjects` to `config.subjects`.
+2. Replace `comments.*` keys with `messages.*` keys in the custom roles your
+   app stores, and in any `can(session, "comments.create")` check.
+3. Import `activitySink`, `activityListQuery` and the activity types from
+   `better-supabase/blocks/activity`, and replace `comments.history(...)`
+   with `createActivity(...).list(...)` or
+   `createBlockClient(ctx.db, activityBlock, { config: blockConfig }).list(...)`.
+4. Listen to `message.*` in place of `comment.*`, and drop a
+   `comment.created` entry from `watcherHandler` types, since followers
+   already get `comment.posted`.
+5. Read `mentionIds` and `sentAt` in place of `mentions` and `createdAt`,
+   and react to comments as `message` subjects.
+6. Run `better-supabase sql upgrade`, then `better-supabase sql sync`, and
+   generate a migration.
+
+A few rules moved with the data. A record type's `scope` (a scope your
+authorization provider declares) now sits on `config.subjects.<type>.scope`,
+and a grant on the record still opens its comments. A record type's read key
+moved to `config.subjects.<type>.permissions.read`; with it, a mention
+notifies only members who hold that key, and without it a mention checks the
+tenant's `messages.read` key and the record's own row policies don't apply to
+the person mentioned. Comments no longer delete with their record unless
+`config.subjects.<type>.cascade` is set. `create_comment` runs as the caller,
+so a `mentionGroups` table needs `select` granted to `authenticated`.
+
+### The data migration
+
+The comments module goes from version 7 to 8. Its upgrade step, which
+`better-supabase sql upgrade` writes before the schema files, moves the data
+before the old table goes:
+
+- Each record's comments become one `subject` conversation, created by the
+  author of its first comment, with `last_message_at` set to its newest
+  comment.
+- Each comment becomes a message with the same id, author, body, document,
+  mentions, `sent_at` (the old `created_at`), `edited_at` and `deleted_at`.
+  Replies keep their parent, and every reply joins its root's thread, with
+  the root's reply count, last reply time and first three repliers filled in.
+  Earlier versions of an edited comment weren't stored before, so `edits`
+  starts empty.
+- Extra columns the comments and messages share by name are copied, so add
+  your `extraColumns` to `blocks.messaging.options` before you run it.
+- With the reactions and attachments modules, reactions and files on a
+  `comment` subject move to the `message` subject.
+- The `comments` table and the functions `create_comment` (old
+  signatures), `edit_comment`, `delete_comment`,
+  `comment_subject_readable`, `comment_authors` and the comment triggers are
+  dropped. `activity_entries` and its rows stay, owned by the activity module.
+
+Review the generated migration before you apply it: the step runs once, and
+the old table is gone afterwards.

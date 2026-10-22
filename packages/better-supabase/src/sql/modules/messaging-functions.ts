@@ -9,6 +9,7 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 import { watchSql } from "../watch-sql.ts";
 import { authorLookup } from "./authors.ts";
 import { conversationFunctions } from "./messaging-conversations.ts";
@@ -134,9 +135,26 @@ function sentEffects(q: MessagingSql): string {
       { indent: "    " },
     );
 
+  // A record type with a read key in config.subjects asks can_subject_for;
+  // other records only have their row policies, which answer for the caller.
+  const keyed = registeredSubjects(ctx.subjects, ctx.naming)
+    .filter((subject) => subject.config.permissions?.["read"] !== undefined)
+    .map((subject) => subject.type);
+
+  const readsRecord = (user: string): string =>
+    keyed.length === 0
+      ? ""
+      : `
+        and (v_conv.${cv("access")} <> 'subject' or case v_conv.${cv("subjectType")} ${keyed
+          .map(
+            (type) =>
+              `when ${sqlString(type)} then coalesce(${ctx.of("subjects").fn("can_subject_for")}(${user}, v_conv.${cv("subjectType")}, v_conv.${cv("subjectId")}, 'read'), false)`,
+          )
+          .join(" ")} else true end)`;
+
   const canRead = (user: string): string =>
     `${ctx.scope.canUser(user, `v_msg.${ms("tenant")}`, q.key("read"))}
-        and (v_conv.${cv("access")} <> 'members' or exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = ${user}))`;
+        and (v_conv.${cv("access")} <> 'members' or exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = ${user}))${readsRecord(user)}`;
 
   const follow = (user: string): string =>
     watchSql(ctx, {
