@@ -33,6 +33,7 @@ import {
   DoorOpenIcon,
   EyeIcon,
   FileKeyIcon,
+  FileLockIcon,
   FileSearchIcon,
   FileTextIcon,
   FileUpIcon,
@@ -264,6 +265,7 @@ export const BLOCK_ICONS = {
   "number-sequences": HashIcon,
   rank: ArrowUpDownIcon,
   "ensure-rls": ShieldIcon,
+  "field-encryption": FileLockIcon,
 } as const satisfies Record<string, LucideIcon>;
 
 const byName = new Map<string, LucideIcon>(Object.entries(BLOCK_ICONS));
