@@ -197,7 +197,7 @@ export default defineConfig({
     },
     // A clinic's intake notes. The diagnosis and birth date are stored as
     // ciphertext under the tenant's Vault key and read back through
-    // public.client_notes_reveal, which audits each read (ADR 00XX).
+    // public.client_notes_reveal, which audits each read (ADR 0087).
     client_notes: {
       columns: {
         client_name: { type: "text", nullable: false },

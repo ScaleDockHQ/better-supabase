@@ -10,7 +10,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 // Encrypted columns are ciphertext at rest and decrypt through
-// `<table>_reveal`, which audits each call per tenant (ADR 00XX).
+// `<table>_reveal`, which audits each call per tenant (ADR 0087).
 const TABLES: AppTablesConfig = {
   it_charts: {
     columns: {

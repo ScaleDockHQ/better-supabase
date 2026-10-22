@@ -1,4 +1,4 @@
--- Field encryption (ADR 00XX): encrypted custom fields and app table columns
+-- Field encryption (ADR 0087): encrypted custom fields and app table columns
 -- are ciphertext at rest under Acme's (…0001) Vault key, decrypt only through
 -- the definer paths that check scope, and write one read audit entry per call.
 -- The admin (…00a1) owns Acme; …00a3 belongs to another organization.

@@ -58,7 +58,7 @@ const DESIGN_VERSION = "0";
  * Format 3 adds table `rollups` and `lookups` (ADR 0044). Format 4 adds table
  * `events` (ADR 0048) and subject `versions`. Format 5 adds column `access`
  * (ADR 0051). Format 6 adds column `encrypted` and table `auditReads` (ADR
- * 00XX).
+ * 0087).
  */
 export const DESIGN_FORMAT = 6;
 

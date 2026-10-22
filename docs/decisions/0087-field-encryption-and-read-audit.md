@@ -1,4 +1,4 @@
-# 00XX: Encrypt fields with per-owner Vault keys and audit reads where they decrypt
+# 0087: Encrypt fields with per-owner Vault keys and audit reads where they decrypt
 
 - Status: accepted
 - Date: 2026-10-22
