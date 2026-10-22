@@ -27,7 +27,7 @@ import type {
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { reactionsOf } from "../messaging/messaging.ts";
+import { reactionsOf } from "../messaging/rows.ts";
 import {
   applyTemporal,
   blockCall,

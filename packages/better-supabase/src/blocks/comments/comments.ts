@@ -19,7 +19,7 @@ import { bySubjectType, subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { editOf, messageOf } from "../messaging/messaging.ts";
+import { editOf, messageOf } from "../messaging/rows.ts";
 import {
   applyTemporal,
   blockCall,

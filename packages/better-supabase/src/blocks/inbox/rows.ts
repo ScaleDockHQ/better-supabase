@@ -20,7 +20,7 @@ import type {
   StoredInboundEvent,
 } from "./types.ts";
 
-import { messageOf as coreMessageOf } from "../messaging/messaging.ts";
+import { messageOf as coreMessageOf } from "../messaging/rows.ts";
 import {
   isRecord,
   oneOf,

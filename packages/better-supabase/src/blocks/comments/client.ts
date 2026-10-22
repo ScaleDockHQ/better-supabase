@@ -9,7 +9,7 @@ import type { Comment, CommentEdit, Comments, NewComment } from "./comments.ts";
 import { dbError } from "../../core/errors.ts";
 import { err } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
-import { conversationTopic } from "../messaging/messaging.ts";
+import { conversationTopic } from "../messaging/rows.ts";
 import { isRecord } from "../shared.ts";
 
 const idOf = (payload: unknown, key: string): string | undefined => {

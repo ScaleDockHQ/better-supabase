@@ -16,7 +16,7 @@ import { dbError } from "../../core/errors.ts";
 import { err } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 import { isRecord } from "../shared.ts";
-import { conversationTopic } from "./messaging.ts";
+import { conversationTopic } from "./rows.ts";
 
 const TYPING_EVENT = "typing";
 
