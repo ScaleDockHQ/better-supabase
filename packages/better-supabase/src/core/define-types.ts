@@ -12,7 +12,7 @@ export interface SupabaseOptions {
   readonly buckets?: BucketRegistry;
   /**
    * Clock used by plugins (timestamps, soft delete) and for the `time` of block
-   * events on `betterSupabase.events`. Pass it to `createJobs` too.
+   * events on `betterSupabase.events`. Pass it to `createQueue` too.
    */
   readonly now?: () => Temporal.Instant;
   /**

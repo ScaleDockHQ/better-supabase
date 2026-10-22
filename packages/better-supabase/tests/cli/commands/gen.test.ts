@@ -262,7 +262,7 @@ describe("gen", () => {
 
     const config = configure({
       gen: { readSets: ["src/read-sets.ts"] },
-      blocks: { tenant: {} },
+      blocks: { memberships: {} },
       tables: { projects: { columns: { name: { type: "text" } } } },
     });
 

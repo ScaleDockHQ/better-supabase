@@ -7,11 +7,11 @@ import { pluralOf } from "../../src/core/entity-naming.ts";
 import { entityRenamePlan, renderBlocks } from "../../src/sql/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
-const BLOCKS = ["tenant", "access", "outbox", "work-items"];
+const BLOCKS = ["memberships", "permissions", "outbox", "tasks"];
 
 const TASKS: BlockSqlLayout = {
   modules: {
-    "work-items": { entities: { work_item: "task", project: "initiative" } },
+    tasks: { entities: { work_item: "task", project: "initiative" } },
   },
 };
 
@@ -23,7 +23,7 @@ const body = (module: string, layout: BlockSqlLayout): string =>
 
 describe("blocks.<name>.entities in the SQL", () => {
   it("renames tables, functions, events, permission keys and hooks", () => {
-    const sql = body("work-items", TASKS);
+    const sql = body("tasks", TASKS);
 
     expect(sql).toContain(
       'create table if not exists "better_supabase"."tasks"',
@@ -36,12 +36,12 @@ describe("blocks.<name>.entities in the SQL", () => {
     expect(sql).toContain("'tasks.read'");
     expect(sql).toContain('"public"."before_task_create"(');
     expect(sql).toContain(
-      "-- @bsb-names work-items work_item=task/tasks project=initiative/initiatives",
+      "-- @bsb-names tasks work_item=task/tasks project=initiative/initiatives",
     );
   });
 
   it("writes the default names and no marker without entities", () => {
-    const sql = body("work-items", {});
+    const sql = body("tasks", {});
 
     expect(sql).toContain('"better_supabase"."work_items"');
     expect(sql).toContain("'work_item.created'");
@@ -49,13 +49,13 @@ describe("blocks.<name>.entities in the SQL", () => {
   });
 
   it("renames the default roles' keys after every block's entities", () => {
-    expect(body("access", TASKS)).toContain("'tasks.*'");
-    expect(body("access", {})).toContain("'work_items.*'");
+    expect(body("permissions", TASKS)).toContain("'tasks.*'");
+    expect(body("permissions", {})).toContain("'work_items.*'");
   });
 
   it("keeps the tenant rename out of events, permission keys and hooks", () => {
-    const sql = body("work-items", {
-      modules: { tenant: { entities: { organization: "workspace" } } },
+    const sql = body("tasks", {
+      modules: { memberships: { entities: { organization: "workspace" } } },
     });
 
     expect(sql).toContain("'work_item.created'");
@@ -65,7 +65,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
   it("leaves the default nouns only in parameter names, hints and prose", () => {
     const modules = {
-      "work-items": {
+      tasks: {
         entities: {
           work_item: "task",
           project: "initiative",
@@ -104,7 +104,7 @@ describe("blocks.<name>.entities in the SQL", () => {
       ([, entity]) => !entity.global,
     );
 
-    return entities.length === 0 || name === "tenant"
+    return entities.length === 0 || name === "memberships"
       ? []
       : [[name, entities] as const];
   });
@@ -207,10 +207,10 @@ describe("blocks.<name>.entities in the SQL", () => {
   it("refuses a rename onto another block's table", () => {
     expect(() =>
       renderBlocks([...BLOCKS, "deals"], {
-        modules: { "work-items": { entities: { work_item: "deal" } } },
+        modules: { tasks: { entities: { work_item: "deal" } } },
       }),
     ).toThrow(
-      "blocks.work-items.entities: the work-items block's items table would be named deals, which the deals block already uses",
+      "blocks.tasks.entities: the tasks block's items table would be named deals, which the deals block already uses",
     );
   });
 });
@@ -231,7 +231,7 @@ describe("entityRenamePlan", () => {
     expect(plan.refused).toEqual([]);
     // The pipelines module's triggers on the renamed table move with it.
     expect(new Set(plan.steps.map((step) => step.module))).toEqual(
-      new Set(["work-items", "pipelines"]),
+      new Set(["tasks", "pipelines"]),
     );
     expect(sql(TASKS)).toEqual(
       expect.arrayContaining([
@@ -256,7 +256,7 @@ describe("entityRenamePlan", () => {
     const blocks = [...BLOCKS, "subjects", "messaging", "comments"];
 
     const before = renderBlocks(blocks, {
-      subjects: withBlockSubjects({}, ["work-items"], {}),
+      subjects: withBlockSubjects({}, ["tasks"], {}),
     });
 
     const after = TASKS.modules!;
@@ -265,10 +265,7 @@ describe("entityRenamePlan", () => {
       blocks,
       [...new Set(before.map((file) => file.module))],
       before.map((file) => file.contents).join("\n"),
-      {
-        modules: after,
-        subjects: withBlockSubjects({}, ["work-items"], after),
-      },
+      { modules: after, subjects: withBlockSubjects({}, ["tasks"], after) },
     ).steps.map((step) => step.sql);
 
     expect(steps).toContain(

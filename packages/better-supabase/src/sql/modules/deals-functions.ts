@@ -23,7 +23,7 @@ export interface DealNames {
   /** The `config.records` types a deal's company and contacts default to. */
   readonly company: string;
   readonly contact: string;
-  /** The identifier prefix without number-sequences, such as `DEAL-`. */
+  /** The identifier prefix without numbering, such as `DEAL-`. */
   readonly prefix: string;
   /** SQL that is true for the service role. */
   readonly service: string;
@@ -170,8 +170,8 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
     subjectId: "v_deal::text",
   });
 
-  const next = ctx.installed("engagements")
-    ? ctx.of("engagements").fn("next_engagement")
+  const next = ctx.installed("activities")
+    ? ctx.of("activities").fn("next_engagement")
     : undefined;
 
   const nextJoin =

@@ -22,8 +22,8 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
-import { moduleOperations } from "./access-model.ts";
 import { dealFunctions } from "./deals-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const DEAL = [
   "organizationId",
@@ -461,10 +461,10 @@ export const DEALS: BlockSqlDefinition = {
   title: "Deals",
   description:
     "Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.",
-  requires: ["tenant", "access", "subjects", "pipelines"],
+  requires: ["memberships", "permissions", "subjects", "pipelines"],
   // The pipelines module binds the deals table, so the table comes first.
   before: "pipelines",
-  integrates: ["outbox", "notifications", "number-sequences", "engagements"],
+  integrates: ["outbox", "notifications", "numbering", "activities"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

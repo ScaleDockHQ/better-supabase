@@ -62,7 +62,7 @@ describe("access-requests module", () => {
 
   it("leaves role changes to the provider's adapter", () => {
     const sql = sqlOf(["access-requests"], "access-requests", {
-      modules: { access: { model: "provider" } },
+      modules: { permissions: { model: "provider" } },
       accessProvider: moduleProvider,
     });
 

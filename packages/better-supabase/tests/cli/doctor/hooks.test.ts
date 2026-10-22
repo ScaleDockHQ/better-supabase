@@ -181,7 +181,7 @@ describe("BS308 tenant claim", () => {
   });
 
   const tenantConfig = resolveConfig(
-    { blocks: { tenant: {}, access: { activeTenant: "claim" } } },
+    { blocks: { memberships: {}, permissions: { activeTenant: "claim" } } },
     "/project",
   );
 
@@ -221,14 +221,16 @@ describe("BS308 tenant claim", () => {
 
   it("skips other active-tenant sources, missing users, failures and runs without --as", async () => {
     const resolver = resolveConfig(
-      { blocks: { tenant: {}, access: { activeTenant: "resolver" } } },
+      {
+        blocks: { memberships: {}, permissions: { activeTenant: "resolver" } },
+      },
       "/project",
     );
 
     const empty = hookDatabase({});
     expect(await run(empty, resolver)).toEqual([]);
     expect(
-      await run(empty, resolveConfig({ blocks: ["tenant"] }, "/project")),
+      await run(empty, resolveConfig({ blocks: ["memberships"] }, "/project")),
     ).toEqual([]);
     expect(await run(empty, resolveConfig({}, "/project"))).toEqual([]);
     expect(await run(empty, tenantConfig, null)).toEqual([]);

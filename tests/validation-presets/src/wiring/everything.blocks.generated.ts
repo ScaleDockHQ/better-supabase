@@ -7,7 +7,7 @@ import {
 import type { AccessRequestsEvents } from "better-supabase/blocks/access-requests";
 import type { AgentsEvents } from "better-supabase/blocks/agents";
 import type { AiChatEvents } from "better-supabase/blocks/ai-chat";
-import type { AiProvidersEvents } from "better-supabase/blocks/ai-providers";
+import type { AiKeysEvents } from "better-supabase/blocks/ai-keys";
 import type { AnnouncementsEvents } from "better-supabase/blocks/announcements";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
@@ -15,7 +15,7 @@ import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
-import type { BulkEvents } from "better-supabase/blocks/bulk";
+import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { CollectionsEvents } from "better-supabase/blocks/collections";
@@ -33,7 +33,7 @@ import type { ScoresEvents } from "better-supabase/blocks/scores";
 import type { ModerationEvents } from "better-supabase/blocks/moderation";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { GuestsEvents } from "better-supabase/blocks/guests";
-import type { PassesEvents } from "better-supabase/blocks/passes";
+import type { AdmissionPassesEvents } from "better-supabase/blocks/admission-passes";
 import type { BillableTimeEvents } from "better-supabase/blocks/billable-time";
 import type { LeasesEvents } from "better-supabase/blocks/leases";
 import type { ExpensesEvents } from "better-supabase/blocks/expenses";
@@ -41,15 +41,15 @@ import type { DonationsEvents } from "better-supabase/blocks/donations";
 import type { DispatchEvents } from "better-supabase/blocks/dispatch";
 import type { ShipmentsEvents } from "better-supabase/blocks/shipments";
 import type { ContractsEvents } from "better-supabase/blocks/contracts";
-import type { ControlsEvents } from "better-supabase/blocks/controls";
+import type { ComplianceEvents } from "better-supabase/blocks/compliance";
 import type { IncidentsEvents } from "better-supabase/blocks/incidents";
 import type { CoursesEvents } from "better-supabase/blocks/courses";
 import type { SequencesEvents } from "better-supabase/blocks/sequences";
 import type { PostsEvents } from "better-supabase/blocks/posts";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
-import type { EngagementsEvents } from "better-supabase/blocks/engagements";
-import type { FlagsEvents } from "better-supabase/blocks/flags";
+import type { ActivitiesEvents } from "better-supabase/blocks/activities";
+import type { FeatureFlagsEvents } from "better-supabase/blocks/feature-flags";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { HiringEvents } from "better-supabase/blocks/hiring";
@@ -63,10 +63,10 @@ import type { MailSyncEvents } from "better-supabase/blocks/mail-sync";
 import type { EnrichmentEvents } from "better-supabase/blocks/enrichment";
 import type { ForecastsEvents } from "better-supabase/blocks/forecasts";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
-import type { NumberSequencesEvents } from "better-supabase/blocks/number-sequences";
+import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { PromotionsEvents } from "better-supabase/blocks/promotions";
 import type { PushEvents } from "better-supabase/blocks/push";
@@ -74,13 +74,13 @@ import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { ReactionsEvents } from "better-supabase/blocks/reactions";
 import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { RemindersEvents } from "better-supabase/blocks/reminders";
-import type { RulesEvents } from "better-supabase/blocks/rules";
+import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { VercelMarketplaceEvents } from "better-supabase/blocks/vercel-marketplace";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
-import type { ServicePrincipalsEvents } from "better-supabase/blocks/service-principals";
+import type { ServiceAccountsEvents } from "better-supabase/blocks/service-accounts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { ShareLinksEvents } from "better-supabase/blocks/share-links";
-import type { SharedSignalsEvents } from "better-supabase/blocks/shared-signals";
+import type { SecurityEventsEvents } from "better-supabase/blocks/security-events";
 import type { SigningKeysEvents } from "better-supabase/blocks/signing-keys";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { SsoEvents } from "better-supabase/blocks/sso";
@@ -94,8 +94,8 @@ import type { VersionsEvents } from "better-supabase/blocks/versions";
 import type { WaitlistEvents } from "better-supabase/blocks/waitlist";
 import type { IncomingWebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
-import type { WorkItemsEvents } from "better-supabase/blocks/work-items";
-import type { WorkflowBuilderEvents } from "better-supabase/blocks/workflow-builder";
+import type { TasksEvents } from "better-supabase/blocks/tasks";
+import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 
 /**
@@ -104,7 +104,7 @@ import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -112,7 +112,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  actor: {
+  "created-by": {
     schema: "better_supabase",
     options: {},
   },
@@ -135,11 +135,11 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "ai-providers": {
+  "ai-keys": {
     schema: "better_supabase",
     options: {},
   },
-  "ai-tasks": {
+  "ai-schedules": {
     schema: "better_supabase",
     options: {},
   },
@@ -175,7 +175,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  bulk: {
+  "bulk-actions": {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -257,7 +257,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  passes: {
+  "admission-passes": {
     schema: "better_supabase",
     options: {},
   },
@@ -291,7 +291,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  controls: {
+  compliance: {
     schema: "better_supabase",
     options: {},
   },
@@ -323,11 +323,11 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  engagements: {
+  activities: {
     schema: "better_supabase",
     options: {},
   },
-  "ensure-rls": {
+  "rls-guard": {
     schema: "better_supabase",
     options: {},
   },
@@ -339,7 +339,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  flags: {
+  "feature-flags": {
     schema: "better_supabase",
     options: {},
   },
@@ -351,7 +351,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  grants: {
+  "data-api-grants": {
     schema: "better_supabase",
     options: {},
   },
@@ -359,7 +359,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  identities: {
+  "linked-identities": {
     schema: "better_supabase",
     options: {},
   },
@@ -385,7 +385,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  jobs: {
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -419,7 +419,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  activity: {
+  timeline: {
     schema: "better_supabase",
     options: {},
   },
@@ -461,7 +461,7 @@ export const blockConfig = {
       topic: "notifications:{userId}",
     },
   },
-  "number-sequences": {
+  numbering: {
     schema: "better_supabase",
     options: {},
   },
@@ -485,7 +485,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -543,7 +543,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  rules: {
+  automations: {
     schema: "better_supabase",
     options: {},
   },
@@ -559,11 +559,11 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "service-principals": {
+  "service-accounts": {
     schema: "better_supabase",
     options: {},
   },
-  sessions: {
+  "session-revocation": {
     schema: "better_supabase",
     options: {},
   },
@@ -575,7 +575,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "shared-signals": {
+  "security-events": {
     schema: "better_supabase",
     options: {},
   },
@@ -603,7 +603,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "support-sessions": {
+  impersonation: {
     schema: "better_supabase",
     options: {},
   },
@@ -611,7 +611,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  targets: {
+  goals: {
     schema: "better_supabase",
     options: {},
   },
@@ -623,7 +623,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -670,15 +670,15 @@ export const blockConfig = {
       defaultFormat: "cloudevents",
     },
   },
-  "work-items": {
+  tasks: {
     schema: "better_supabase",
     options: {},
   },
-  "workflow-builder": {
+  "workflow-editor": {
     schema: "better_supabase",
     options: {},
   },
-  "workflow-sdk-world": {
+  "workflow-sdk": {
     schema: "better_supabase",
     options: {},
   },
@@ -699,8 +699,15 @@ export const permissions = {
     create: "access_requests.create",
     manage: "access_requests.manage",
   },
-  activity: {
-    read: "activity.read",
+  activities: {
+    read: "engagements.read",
+    write: "engagements.write",
+    manage: "engagements.manage",
+  },
+  "admission-passes": {
+    read: "passes.read",
+    manage: "passes.manage",
+    checkIn: "passes.check_in",
   },
   agents: {
     read: "ai.read",
@@ -719,11 +726,11 @@ export const permissions = {
     upload: "ai.create",
     manage: "ai.admin",
   },
-  "ai-providers": {
+  "ai-keys": {
     use: "ai.create",
     manage: "ai.admin",
   },
-  "ai-tasks": {
+  "ai-schedules": {
     create: "ai.create",
     manage: "ai.admin",
   },
@@ -767,6 +774,12 @@ export const permissions = {
     viewAll: "audit.read",
     revert: "audit.revert",
   },
+  automations: {
+    read: "rules.read",
+    edit: "rules.edit",
+    publish: "rules.publish",
+    admin: "rules.admin",
+  },
   "billable-time": {
     read: "billable_time.read",
     manage: "billable_time.manage",
@@ -782,7 +795,7 @@ export const permissions = {
     create: "bookings.create",
     read: "bookings.read",
   },
-  bulk: {
+  "bulk-actions": {
     run: "bulk.run",
   },
   calendar: {
@@ -821,10 +834,21 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  compliance: {
+    read: "controls.read",
+    manage: "controls.manage",
+    collect: "controls.collect",
+    acknowledge: "controls.acknowledge",
+  },
   connectors: {
     read: "ai.read",
     use: "ai.create",
     manage: "ai.admin",
+  },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
   },
   contract: {
     read: "contracts.read",
@@ -838,12 +862,6 @@ export const permissions = {
   control: {
     read: "controls.read",
     write: "controls.manage",
-  },
-  controls: {
-    read: "controls.read",
-    manage: "controls.manage",
-    collect: "controls.collect",
-    acknowledge: "controls.acknowledge",
   },
   conversation: {
     read: "messages.read",
@@ -923,11 +941,6 @@ export const permissions = {
     read: "engagements.read",
     write: "engagements.write",
   },
-  engagements: {
-    read: "engagements.read",
-    write: "engagements.write",
-    manage: "engagements.manage",
-  },
   enrichment: {
     read: "enrichment.read",
     run: "enrichment.run",
@@ -952,11 +965,11 @@ export const permissions = {
     approve: "expenses.approve",
     manage: "expenses.manage",
   },
+  "feature-flags": {
+    manage: "flags.manage",
+  },
   "field-history": {
     read: "history.read",
-  },
-  flags: {
-    manage: "flags.manage",
   },
   forecasts: {
     read: "forecasts.read",
@@ -968,6 +981,10 @@ export const permissions = {
     submit: "forms.submit",
     review: "forms.review",
   },
+  goals: {
+    read: "targets.read",
+    manage: "targets.manage",
+  },
   guests: {
     read: "guests.read",
     manage: "guests.manage",
@@ -976,6 +993,11 @@ export const permissions = {
     read: "hiring.read",
     write: "hiring.write",
     manage: "hiring.manage",
+  },
+  impersonation: {
+    start: "support.start",
+    view: "support.read",
+    revoke: "support.revoke",
   },
   imports: {
     manage: "imports.manage",
@@ -1078,7 +1100,7 @@ export const permissions = {
     send: "notifications.send",
     read: "notifications.read",
   },
-  "number-sequences": {
+  numbering: {
     assign: "number_sequences.assign",
   },
   onboarding: {
@@ -1097,16 +1119,6 @@ export const permissions = {
     suspendMember: "members.remove",
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
-  },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
-  },
-  passes: {
-    read: "passes.read",
-    manage: "passes.manage",
-    checkIn: "passes.check_in",
   },
   person: {
     read: "parties.read",
@@ -1163,12 +1175,6 @@ export const permissions = {
   reviews: {
     manage: "reviews.manage",
   },
-  rules: {
-    read: "rules.read",
-    edit: "rules.edit",
-    publish: "rules.publish",
-    admin: "rules.admin",
-  },
   "saved-views": {
     read: "views.read",
     share: "views.share",
@@ -1190,7 +1196,7 @@ export const permissions = {
     enroll: "sequences.enroll",
     manage: "sequences.manage",
   },
-  "service-principals": {
+  "service-accounts": {
     read: "service_principals.read",
     manage: "service_principals.manage",
   },
@@ -1223,19 +1229,15 @@ export const permissions = {
   sso: {
     manage: "sso.manage",
   },
-  "support-sessions": {
-    start: "support.start",
-    view: "support.read",
-    revoke: "support.revoke",
-  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
     apply: "tags.apply",
   },
-  targets: {
-    read: "targets.read",
-    manage: "targets.manage",
+  tasks: {
+    read: "work_items.read",
+    write: "work_items.write",
+    manage: "work_items.manage",
   },
   teams: {
     manage: "teams.manage",
@@ -1251,6 +1253,9 @@ export const permissions = {
     track: "time_tracking.track",
     approve: "time_tracking.approve",
     manage: "time_tracking.manage",
+  },
+  timeline: {
+    read: "activity.read",
   },
   trash: {
     read: "trash.read",
@@ -1290,12 +1295,7 @@ export const permissions = {
     read: "dispatch.read",
     write: "dispatch.manage",
   },
-  "work-items": {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
-  },
-  "workflow-builder": {
+  "workflow-editor": {
     read: "workflow.read",
     run: "workflow.run",
     edit: "workflow.edit",
@@ -1316,11 +1316,11 @@ export const permissions = {
  */
 export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "collections.read" | "collections.share" | "collections.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "domains.manage" | "domains.read" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "history.read" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "reviews.manage" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "support.read" | "support.revoke" | "support.start" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ControlsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberSequencesEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & VercelMarketplaceEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SharedSignalsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & AdmissionPassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FeatureFlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

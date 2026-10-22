@@ -83,7 +83,7 @@ describe("preset decode", () => {
     expect(decoded.output).toContain("Preset: custom");
     expect(decoded.output).toContain("  casing        camel");
     expect(decoded.output).toContain(
-      "  tenant (required by access, comments and messaging)",
+      "  memberships (required by permissions, comments and messaging)",
     );
     expect(decoded.data).toMatchObject({
       spec: { casing: "camel", blocks: ["comments"] },
@@ -155,7 +155,7 @@ describe("blocks", () => {
     expect(view.output).toContain(
       "More: https://bettersupabase.com/blocks/outbox",
     );
-    expect(viewBlock("tenant").output).toContain("Requires:   updated-at");
+    expect(viewBlock("memberships").output).toContain("Requires:   updated-at");
     const missing = await inputRequired(() => viewBlock(undefined));
 
     expect(missing.problem.missing).toEqual(["<block>"]);
@@ -230,8 +230,8 @@ describe("apply", () => {
     ).toEqual({
       blocks: {
         "updated-at": {},
-        tenant: {},
-        access: {},
+        memberships: {},
+        permissions: {},
         comments: {},
         subjects: {},
         messaging: {},
@@ -633,17 +633,17 @@ describe("add <block>", () => {
     const result = await run(["add", "outbox", "comments", "--cwd", dir]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
-      "Wired access, comments, messaging, outbox, subjects in lib/blocks.ts.",
+      "Wired permissions, comments, messaging, outbox, subjects in lib/blocks.ts.",
     );
     expect(result.stdout).toContain(
       "Glue for next: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
     );
     const wiring = await readFile(join(dir, "lib/blocks.ts"), "utf-8");
     expect(wiring).toContain(
-      'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { accessBlock } from "better-supabase/blocks/access";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
+      'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { permissionsBlock } from "better-supabase/blocks/permissions";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
     );
     expect(wiring).toContain(
-      "      profiles: profilesBlock,\n      access: accessBlock,\n      comments: commentsBlock,\n      messaging: messagingBlock,\n      outbox: outboxBlock,\n      subjects: subjectsBlock,\n",
+      "      profiles: profilesBlock,\n      permissions: permissionsBlock,\n      comments: commentsBlock,\n      messaging: messagingBlock,\n      outbox: outboxBlock,\n      subjects: subjectsBlock,\n",
     );
     expect(
       JSON.parse(
@@ -753,7 +753,7 @@ describe("init --preset", () => {
     expect(config).not.toContain("preset:");
     expect(config).toContain("  database: { sql: { workflow: 'migra' } },");
     expect(config).toContain(
-      "  blocks: { access: { model: 'catalog', idType: 'bigint' }, tenant: { names: { organization: 'club' } } },",
+      "  blocks: { permissions: { model: 'catalog', idType: 'bigint' }, memberships: { names: { organization: 'club' } } },",
     );
     expect(
       (await run(["init", "--tenant-name", "Club", "--cwd", dir])).code,

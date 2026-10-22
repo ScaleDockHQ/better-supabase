@@ -562,7 +562,7 @@ function mapBuiltin(raw: RawDbError): DbError {
       // Problem Details never sends to the client.
       const advice =
         object[1] === "table" || object[1] === "view"
-          ? `The Data API role has no grant on this ${object[1]}, as on a project with default privileges turned off: add it to \`expose\` and run \`better-supabase add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
+          ? `The Data API role has no grant on this ${object[1]}, as on a project with default privileges turned off: add it to \`expose\` and run \`better-supabase add data-api-grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
           : `The Data API role has no ${object[1] === "function" ? "execute" : "usage"} grant on this ${object[1]}; grant it to the role that needs it.`;
 
       const details = [message, base.details, postgrestHint ? base.hint : ""]

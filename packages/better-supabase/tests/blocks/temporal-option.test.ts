@@ -7,8 +7,8 @@ import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import { createAudit } from "../../src/blocks/audit/index.ts";
-import { createJobs, createRateLimit } from "../../src/blocks/jobs/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
+import { createQueue, createRateLimit } from "../../src/blocks/queue/index.ts";
 import {
   createSettings,
   defineSettings,
@@ -36,7 +36,7 @@ describe("the temporal option of block creators", () => {
       () => createAudit({ transport, temporal: namespace }),
       () => createOutbox({ transport, source: "s", temporal: namespace }),
       () => createRateLimit({ sql, temporal: namespace }),
-      () => createJobs({ sql, queues: {}, temporal: namespace }),
+      () => createQueue({ sql, queues: {}, temporal: namespace }),
       () =>
         createSettings({
           settings: defineSettings({}),

@@ -3,7 +3,7 @@ import type { BlockSqlContext } from "../context.ts";
 import { NPS_MAX } from "../../core/contracts/form-definition.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** The periods `form_nps` groups answers by, in UTC. */
 const NPS_BUCKETS = ["day", "week", "month", "quarter", "year"] as const;

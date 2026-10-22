@@ -5,7 +5,7 @@ import type { TemplateApplyCall } from "../../src/blocks/templates/index.ts";
 import type {
   BuilderStartCall,
   WorkflowGraph,
-} from "../../src/blocks/workflow-builder/index.ts";
+} from "../../src/blocks/workflow-editor/index.ts";
 import type { Result } from "../../src/core/result.ts";
 
 import {
@@ -13,12 +13,12 @@ import {
   defineTemplateType,
   sqlTransport,
 } from "../../src/blocks/templates/index.ts";
-import { createWorkflowBuilder } from "../../src/blocks/workflow-builder/index.ts";
+import { createWorkflowEditor } from "../../src/blocks/workflow-editor/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const MODULES = ["organizations", "outbox", "workflow-builder", "templates"];
+const MODULES = ["organizations", "outbox", "workflow-editor", "templates"];
 
 const hint = (result: Result<unknown>): string =>
   result.ok ? "ok" : (result.error.hint ?? result.error.message);
@@ -58,7 +58,7 @@ describe.skipIf(!live)("templates module", () => {
 
       expect(await service.sync([starter]).orThrow()).toBe(1);
       expect(await service.sync([starter]).orThrow()).toBe(0);
-      await createWorkflowBuilder({
+      await createWorkflowEditor({
         transport: sqlTransport(s.sql),
         steps: [{ name: "email.send", title: "Send an email" }],
       })
@@ -69,7 +69,7 @@ describe.skipIf(!live)("templates module", () => {
       const created: TemplateApplyCall[] = [];
       const starts: BuilderStartCall[] = [];
 
-      const builder = createWorkflowBuilder({
+      const builder = createWorkflowEditor({
         transport: sqlTransport(s.sql),
         start: async (call) => {
           starts.push(call);
@@ -243,7 +243,7 @@ describe.skipIf(!live)("templates module", () => {
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       await s.service();
-      await createWorkflowBuilder({
+      await createWorkflowEditor({
         transport: sqlTransport(s.sql),
         steps: [{ name: "email.send", title: "Send an email" }],
       })
@@ -251,7 +251,7 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       await s.asRole(owner);
-      const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+      const builder = createWorkflowEditor({ transport: sqlTransport(s.sql) });
       const templates = createTemplates({ transport: sqlTransport(s.sql) });
 
       const template = await templates

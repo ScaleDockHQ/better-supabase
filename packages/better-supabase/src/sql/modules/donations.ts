@@ -16,8 +16,8 @@ import {
 } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
 import { donationsFunctions, GIFT_RESERVED } from "./donations-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const GIFT_PAYLOAD = [
   "organizationId",
@@ -474,8 +474,8 @@ export const DONATIONS: BlockSqlDefinition = {
   title: "Donations",
   description:
     "Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.",
-  requires: ["tenant", "access", "subjects", "ledger"],
-  integrates: ["outbox", "audit", "number-sequences"],
+  requires: ["memberships", "permissions", "subjects", "ledger"],
+  integrates: ["outbox", "audit", "numbering"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

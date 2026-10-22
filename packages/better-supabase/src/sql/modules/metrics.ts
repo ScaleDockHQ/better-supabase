@@ -24,7 +24,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   hooks: ["before_metric_rollup", "after_metric_rollup"],
@@ -574,8 +574,8 @@ export const METRICS: BlockSqlDefinition = {
   title: "Metrics",
   description:
     "Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.",
-  requires: ["tenant", "access"],
-  integrates: ["usage", "jobs"],
+  requires: ["memberships", "permissions"],
+  integrates: ["usage", "queue"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

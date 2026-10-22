@@ -20,7 +20,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import { callerTeamIdsSql } from "./team-ids.ts";
 
 /** The layouts a saved view can open in. */
@@ -620,7 +620,7 @@ export const SAVED_VIEWS: BlockSqlDefinition = {
   title: "Saved views",
   description:
     "Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "teams", "collections"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

@@ -9,7 +9,7 @@ import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { ControlsEvents } from "better-supabase/blocks/controls";
+import type { ComplianceEvents } from "better-supabase/blocks/compliance";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
@@ -22,7 +22,7 @@ import type { VersionsEvents } from "better-supabase/blocks/versions";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -48,7 +48,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  controls: {
+  compliance: {
     schema: "better_supabase",
     options: {},
   },
@@ -86,7 +86,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -125,15 +125,15 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
-  control: {
-    read: "controls.read",
-    write: "controls.manage",
-  },
-  controls: {
+  compliance: {
     read: "controls.read",
     manage: "controls.manage",
     collect: "controls.collect",
     acknowledge: "controls.acknowledge",
+  },
+  control: {
+    read: "controls.read",
+    write: "controls.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -189,11 +189,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ControlsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & ComplianceEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

@@ -14,7 +14,7 @@ import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
-import type { WorkflowBuilderEvents } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 
 /**
@@ -23,7 +23,7 @@ import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -55,7 +55,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  jobs: {
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -89,7 +89,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -104,7 +104,7 @@ export const blockConfig = {
       defaultFormat: "cloudevents",
     },
   },
-  "workflow-builder": {
+  "workflow-editor": {
     schema: "better_supabase",
     options: {},
   },
@@ -178,7 +178,7 @@ export const permissions = {
     manage: "webhooks.manage",
     view: "webhooks.read",
   },
-  "workflow-builder": {
+  "workflow-editor": {
     read: "workflow.read",
     run: "workflow.run",
     edit: "workflow.edit",
@@ -199,11 +199,11 @@ export const permissions = {
  */
 export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "webhooks.manage" | "webhooks.read" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WebhooksEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WebhooksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

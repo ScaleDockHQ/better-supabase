@@ -141,7 +141,7 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "approvals", "support-sessions"]);
+      await s.install(["organizations", "approvals", "impersonation"]);
       const requester = await s.user("requester");
       const approver = await s.user("approver");
       const target = await s.user("target");

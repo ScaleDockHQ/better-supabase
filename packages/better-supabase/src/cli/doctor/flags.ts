@@ -45,7 +45,7 @@ export const FLAG_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Flag past its expiry",
     description:
-      "The flags table has an `expires_at` column (`blocks.flags.options.extraColumns`), and a flag on the live database that isn't archived has an `expires_at` in the past. A release flag that outlives its rollout keeps a dead branch in the code. The finding names the `owner` column when the table has one.",
+      "The flags table has an `expires_at` column (`blocks['feature-flags'].options.extraColumns`), and a flag on the live database that isn't archived has an `expires_at` in the past. A release flag that outlives its rollout keeps a dead branch in the code. The finding names the `owner` column when the table has one.",
     check: expiredFlags,
   },
 ];

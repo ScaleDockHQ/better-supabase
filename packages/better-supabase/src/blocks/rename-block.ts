@@ -580,9 +580,8 @@ function renamed(
  * (`projectId` to `initiativeId`) and event types (`work_item.created` to
  * `task.created`), with the same `name`, SQL and ports. Hooks see the renamed
  * client. Pass the block's `names` from `blocks.generated.ts`, which `gen`
- * writes as `export const tasksBlock = renameBlock(workItemsBlock,
- * blockConfig["work-items"].names)`; with no renamed entity it returns
- * `block`.
+ * writes as `export const tasksBlock = renameBlock(tasksBlock,
+ * blockConfig["tasks"].names)`; with no renamed entity it returns `block`.
  */
 export function renameBlock<
   Name extends string,

@@ -6,12 +6,12 @@ import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { purgeAuditLog } from "../../src/blocks/audit/index.ts";
 import { entitlementMembers } from "../../src/blocks/entitlements/index.ts";
+import { createOutbox } from "../../src/blocks/outbox/index.ts";
 import {
   createIdempotency,
   createWebhookInbox,
-  createJobs,
-} from "../../src/blocks/jobs/index.ts";
-import { createOutbox } from "../../src/blocks/outbox/index.ts";
+  createQueue,
+} from "../../src/blocks/queue/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 
 declare const postgres: PostgresApi;
@@ -21,7 +21,7 @@ describe("blocks on @supabase/server's Postgres clients", () => {
   it("take ctx.postgres and ctx.postgresAdmin wherever they take a SqlClient", () => {
     expectTypeOf(postgres).toExtend<SqlClient>();
     sqlTransport(postgres);
-    createJobs({ sql: postgresAdmin, queues: {} });
+    createQueue({ sql: postgresAdmin, queues: {} });
     createIdempotency({ sql: postgresAdmin });
     createWebhookInbox({
       transport: sqlTransport(postgresAdmin),

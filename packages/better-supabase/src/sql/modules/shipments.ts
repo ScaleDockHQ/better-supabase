@@ -31,7 +31,7 @@ import {
 import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The most packages one shipment holds. */
 const MAX_PACKAGES = 50;
@@ -781,7 +781,7 @@ export const SHIPMENTS: BlockSqlDefinition = {
   title: "Shipments",
   description:
     "Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "assets"],
   target: "schema",
   modes: ["managed", "custom"],

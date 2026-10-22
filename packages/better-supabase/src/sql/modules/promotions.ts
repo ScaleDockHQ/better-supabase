@@ -14,8 +14,8 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { columns } from "./orders-shared.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import {
   codeFunctions,
   discountFunctions,
@@ -286,7 +286,7 @@ export const PROMOTIONS: BlockSqlDefinition = {
   title: "Promotions",
   description:
     "Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.",
-  requires: ["tenant", "access", "catalog", "orders"],
+  requires: ["memberships", "permissions", "catalog", "orders"],
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "custom"],

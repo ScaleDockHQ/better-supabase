@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  NoteTaker,
+  Transcriber,
+} from "../../src/blocks/activities/recordings.ts";
+import type {
   AiTask,
   AiTaskRun,
   AiTaskRunner,
-} from "../../src/blocks/ai-tasks/ai-tasks.ts";
-import type {
-  NoteTaker,
-  Transcriber,
-} from "../../src/blocks/engagements/recordings.ts";
+} from "../../src/blocks/ai-schedules/ai-schedules.ts";
 import type { Embedder } from "../../src/blocks/knowledge/knowledge.ts";
-import type { WorkflowGraph } from "../../src/blocks/workflow-builder/graph.ts";
+import type { WorkflowGraph } from "../../src/blocks/workflow-editor/graph.ts";
 import type {
   BuilderStartCall,
   BuilderStarter,
   GraphCompiler,
-} from "../../src/blocks/workflow-builder/workflow-builder.ts";
+} from "../../src/blocks/workflow-editor/workflow-editor.ts";
 
 import { injectableOf } from "../../src/core/block-helpers.ts";
 import {

@@ -1,7 +1,7 @@
 // #region recipe:ai-task-queue
 "use client";
 
-import type { AiTaskRunStatus } from "better-supabase/blocks/ai-tasks";
+import type { AiTaskRunStatus } from "better-supabase/blocks/ai-schedules";
 
 import { useAction } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
@@ -122,7 +122,7 @@ function TaskRows({ tasks }: { tasks: readonly AiTaskRow[] }) {
     format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
 
   return (
-    <Table data-testid="ai-tasks">
+    <Table data-testid="ai-schedules">
       <TableHeader>
         <TableRow>
           <TableHead>{t("Task")}</TableHead>

@@ -126,7 +126,7 @@ describe("usage module", () => {
 describe("usage module under the provider access model", () => {
   it("checks membership through the provider's memberIds", () => {
     const sql = moduleBody("usage", {
-      modules: { access: { model: "provider" } },
+      modules: { permissions: { model: "provider" } },
       accessProvider: {
         name: "stub",
         scope: "organization",

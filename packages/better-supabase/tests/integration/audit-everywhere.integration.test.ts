@@ -15,7 +15,7 @@ const ACTION_MODULES = [
   "credentials",
   "connectors",
   "agents",
-  "ai-providers",
+  "ai-keys",
   "ai-chat",
   "webhooks-in",
   "webhooks-out",

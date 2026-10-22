@@ -282,7 +282,7 @@ function isBlank(value: unknown): boolean {
  * runs the schema, so the form accepts what the block's `create` accepts.
  *
  * ```ts
- * const form = recordForm(workItemsBlock.schemas.work_item.input, {
+ * const form = recordForm(tasksBlock.schemas.work_item.input, {
  *   fields: ["title", "body", "priority", "dueAt"],
  *   customFields: await customFields
  *     .listDefinitions("work_item")

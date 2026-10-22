@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type {
   FlagDefinition,
-  FlagsProvider,
-} from "../../src/blocks/flags/index.ts";
+  FeatureFlagsProvider,
+} from "../../src/blocks/feature-flags/index.ts";
 
 import {
   betterSupabaseAdapter,
@@ -219,7 +219,7 @@ describe("betterSupabaseAdapter", () => {
   it("decides a batch from one load", async () => {
     const definitions = vi.fn(() => Promise.resolve(DEFINITIONS));
 
-    const provider: FlagsProvider<string> = {
+    const provider: FeatureFlagsProvider<string> = {
       ...betterSupabaseAdapter({ definitions: DEFINITIONS }).provider,
       definitions,
     };

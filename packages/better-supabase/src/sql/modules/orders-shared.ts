@@ -111,7 +111,7 @@ function machineGoverns(ctx: BlockSqlContext): boolean {
 }
 
 /**
- * The `number-sequences` format for `entity` in `tenant` as SQL, when the app
+ * The `numbering` format for `entity` in `tenant` as SQL, when the app
  * configured one.
  */
 function sequenceFormat(
@@ -119,11 +119,11 @@ function sequenceFormat(
   entity: "order" | "invoice",
   tenant: string,
 ): string | undefined {
-  if (!ctx.installed("number-sequences")) {
+  if (!ctx.installed("numbering")) {
     return undefined;
   }
 
-  const entities = ctx.of("number-sequences").option("entities");
+  const entities = ctx.of("numbering").option("entities");
 
   if (!isRecord(entities)) {
     return undefined;
@@ -136,15 +136,15 @@ function sequenceFormat(
   }
 
   return isRecord(entry["formatFrom"])
-    ? `${ctx.of("number-sequences").fn("number_format")}(${tenant}, ${sqlString(entity)})`
+    ? `${ctx.of("numbering").fn("number_format")}(${tenant}, ${sqlString(entity)})`
     : sqlString(entry["format"]);
 }
 
 /**
  * PL/pgSQL that assigns the next gapless number of `entity` in `tenant` to
- * `seq` and `number`: from `number-sequences` when it configures the entity,
- * otherwise one more than the tenant's highest under a transaction lock, as
- * plain digits.
+ * `seq` and `number`: from `numbering` when it configures the entity, otherwise
+ * one more than the tenant's highest under a transaction lock, as plain
+ * digits.
  */
 export function assignNumber(
   ctx: BlockSqlContext,
@@ -155,7 +155,7 @@ export function assignNumber(
   const format = sequenceFormat(ctx, entity, tenant);
 
   if (format !== undefined) {
-    const next = ctx.of("number-sequences").fn("next_number");
+    const next = ctx.of("numbering").fn("next_number");
 
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
   ${target.number} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`;

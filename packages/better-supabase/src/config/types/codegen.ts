@@ -101,8 +101,8 @@ export interface SoftDeleteConfig {
 
 export interface TenantConfig {
   /**
-   * Defaults to `organization_id`, or `<blocks.tenant.names.organization>_id`
-   * when the tenant is renamed.
+   * Defaults to `organization_id`, or
+   * `<blocks.memberships.names.organization>_id` when the tenant is renamed.
    */
   readonly column?: string;
 }

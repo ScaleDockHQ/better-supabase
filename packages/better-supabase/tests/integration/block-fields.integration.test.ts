@@ -8,7 +8,7 @@ import type { Result } from "../../src/core/result.ts";
 import { createAgents } from "../../src/blocks/agents/index.ts";
 import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
 import { createAiFiles } from "../../src/blocks/ai-files/index.ts";
-import { createAiTasks } from "../../src/blocks/ai-tasks/index.ts";
+import { createAiSchedules } from "../../src/blocks/ai-schedules/index.ts";
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import { createApiKeys } from "../../src/blocks/api-keys/index.ts";
 import { createApprovals } from "../../src/blocks/approvals/index.ts";
@@ -199,18 +199,18 @@ describe.skipIf(!live)("block fields", () => {
     }
   });
 
-  it("ai-tasks", async () => {
+  it("ai-schedules", async () => {
     const s = await BlockSession.open(pool);
 
     try {
       await s.install(
-        ["organizations", "agents", "ai-tasks"],
-        extraColumns("ai-tasks"),
+        ["organizations", "agents", "ai-schedules"],
+        extraColumns("ai-schedules"),
       );
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
 
-      const tasks = createAiTasks({
+      const tasks = createAiSchedules({
         transport: sqlTransport(s.sql),
         fields: Fields,
       });

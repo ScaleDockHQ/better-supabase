@@ -3,16 +3,13 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { createAiCache } from "../../src/blocks/ai-cache/index.ts";
 import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
-import {
-  createAiProviders,
-  sqlTransport,
-} from "../../src/blocks/ai-providers/index.ts";
+import { createAiKeys, sqlTransport } from "../../src/blocks/ai-keys/index.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
+describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -72,13 +69,13 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "credentials", "ai-providers"]);
+      await s.install(["organizations", "credentials", "ai-keys"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const tenant = await s.organization(owner, { member });
       const transport = sqlTransport(s.sql);
       const credentials = vaultCredentials({ transport, cacheMs: 0 });
-      const providers = createAiProviders({ transport, credentials });
+      const providers = createAiKeys({ transport, credentials });
 
       const ref = {
         provider: "vault",
@@ -168,12 +165,12 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "ai-providers"]);
+      await s.install(["organizations", "ai-keys"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const other = await s.user("other");
       const tenant = await s.organization(owner, { member, member2: other });
-      const providers = createAiProviders({ transport: sqlTransport(s.sql) });
+      const providers = createAiKeys({ transport: sqlTransport(s.sql) });
 
       await s.asRole(member);
 

@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -21,7 +21,7 @@ import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
-import { rulesBlock } from "better-supabase/blocks/rules";
+import { automationsBlock } from "better-supabase/blocks/automations";
 import { searchBlock } from "better-supabase/blocks/search";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -32,7 +32,7 @@ import { blockConfig } from "./community.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,
@@ -50,7 +50,7 @@ export const blockSet = defineBlocks(blockConfig, {
   outbox: outboxBlock,
   profiles: profilesBlock,
   reactions: reactionsBlock,
-  rules: rulesBlock,
+  automations: automationsBlock,
   search: searchBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,

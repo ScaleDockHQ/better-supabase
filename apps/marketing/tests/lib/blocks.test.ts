@@ -71,13 +71,13 @@ describe("blocks catalog", () => {
 
     const snippet = configSnippet(comments, [
       "updated-at",
-      "tenant",
-      "access",
+      "memberships",
+      "permissions",
       "comments",
     ]);
 
     expect(snippet).toContain('"updated-at": {},');
-    expect(snippet.indexOf("access: {}")).toBeLessThan(
+    expect(snippet.indexOf("permissions: {}")).toBeLessThan(
       snippet.indexOf('comments: { mode: "managed" }'),
     );
   });
@@ -106,7 +106,7 @@ describe("blockGraphLayout", () => {
   it("puts requirements left of the block and integrations right of it", () => {
     const block = bare({
       name: "comments",
-      requires: ["tenant", "access"],
+      requires: ["memberships", "permissions"],
       integrates: ["notifications"],
     });
 
@@ -115,25 +115,28 @@ describe("blockGraphLayout", () => {
     const center = at("comments");
 
     expect(center?.focus).toBe(true);
-    expect(at("tenant")?.x).toBeLessThan(center?.x ?? 0);
-    expect(at("access")?.x).toBe(at("tenant")?.x);
+    expect(at("memberships")?.x).toBeLessThan(center?.x ?? 0);
+    expect(at("permissions")?.x).toBe(at("memberships")?.x);
     expect(at("notifications")?.x).toBeGreaterThan(center?.x ?? 0);
     expect(layout.edges).toEqual([
-      { from: "comments", to: "tenant", kind: "requires" },
-      { from: "comments", to: "access", kind: "requires" },
+      { from: "comments", to: "memberships", kind: "requires" },
+      { from: "comments", to: "permissions", kind: "requires" },
       { from: "comments", to: "notifications", kind: "integrates" },
     ]);
   });
 
   it("centers the block on the taller column and keeps every box inside the canvas", () => {
     const layout = blockGraphLayout(
-      bare({ name: "comments", requires: ["tenant", "access", "updated-at"] }),
+      bare({
+        name: "comments",
+        requires: ["memberships", "permissions", "updated-at"],
+      }),
     );
 
     const center = layout.nodes.find((node) => node.focus);
-    const access = layout.nodes.find((node) => node.id === "access");
+    const permissions = layout.nodes.find((node) => node.id === "permissions");
 
-    expect(center?.y).toBe(access?.y);
+    expect(center?.y).toBe(permissions?.y);
 
     for (const node of layout.nodes) {
       expect(node.x).toBeGreaterThanOrEqual(0);
@@ -145,7 +148,7 @@ describe("blockGraphLayout", () => {
 
   it("sizes the boxes to the longest label", () => {
     const short = blockGraphLayout(
-      bare({ name: "comments", requires: ["tenant"] }),
+      bare({ name: "comments", requires: ["memberships"] }),
     );
 
     const long = blockGraphLayout(
@@ -167,8 +170,8 @@ describe("blockGraphLayout", () => {
     const layout = blockGraphLayout(
       bare({
         name: "comments",
-        requires: ["tenant"],
-        integrates: ["tenant", "*"],
+        requires: ["memberships"],
+        integrates: ["memberships", "*"],
       }),
     );
 
@@ -179,7 +182,9 @@ describe("blockGraphLayout", () => {
       category: null,
       href: null,
     });
-    expect(layout.nodes.filter((node) => node.id === "tenant")).toHaveLength(1);
+    expect(
+      layout.nodes.filter((node) => node.id === "memberships"),
+    ).toHaveLength(1);
     expect(layout.edges.map((edge) => edge.kind)).toEqual([
       "requires",
       "integrates",
@@ -238,11 +243,13 @@ describe("blockGraphSummary", () => {
       blockGraphSummary(
         bare({
           name: "comments",
-          requires: ["tenant", "access"],
+          requires: ["memberships", "permissions"],
           integrates: ["*"],
         }),
       ),
-    ).toBe("comments requires tenant and access, and works with every module.");
+    ).toBe(
+      "comments requires memberships and permissions, and works with every module.",
+    );
   });
 
   it("says so when there are none", () => {

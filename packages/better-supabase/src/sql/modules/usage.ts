@@ -22,7 +22,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
 } from "../shared.ts";
-import { accessModel, moduleOperations } from "./access-model.ts";
+import { accessModel, moduleOperations } from "./permissions-model.ts";
 import {
   usageKindsContract,
   usageKindsSql,
@@ -139,7 +139,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const member = (tenant: string): string =>
     memberIds === undefined
-      ? `(${SERVICE_CALLER} or coalesce(${ctx.of("tenant").fn("has_organization_role")}(${tenant}), false))`
+      ? `(${SERVICE_CALLER} or coalesce(${ctx.of("memberships").fn("has_organization_role")}(${tenant}), false))`
       : `(${SERVICE_CALLER} or ${tenant}::text in (select t.id::text from ${fillTemplate("authorization.functions.memberIds", memberIds, { scope: providerScope })} as t(id)))`;
 
   const canRecord = (tenant: string): string =>
@@ -981,7 +981,7 @@ export const USAGE: BlockSqlDefinition = {
   title: "Usage metering and quotas",
   description:
     "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["entitlements", "data-lifecycle"],
   providerFunctions: ["memberIds"],
   target: "schema",

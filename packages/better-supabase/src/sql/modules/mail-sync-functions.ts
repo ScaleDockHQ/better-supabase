@@ -24,7 +24,7 @@ const internal = (signature: string): string =>
  */
 function matchSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, m, l } = n;
-  const parties = ctx.of("parties");
+  const parties = ctx.of("contacts");
   const person = parties.naming.rename("person");
   const company = parties.naming.rename("company");
   const pe = (column: string): string => parties.col("people", column);
@@ -91,7 +91,7 @@ ${internal(`${fn("match_mail_thread")}(uuid)`)}
  */
 function engagementSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
-  const log = ctx.of("engagements").fn("log_engagement");
+  const log = ctx.of("activities").fn("log_engagement");
 
   return `
 -- Logs or updates the thread's engagement; private mailboxes log none.
@@ -436,11 +436,11 @@ function messageSql(ctx: BlockSqlContext, n: MailNames): string {
   const subjects = (thread: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by s.${l("createdAt")}, s.${l("subjectType")}, s.${l("subjectId")}) from ${t("links")} s where s.${l("thread")} = ${thread}), '[]'::jsonb)`;
 
-  const match = ctx.installed("parties")
+  const match = ctx.installed("contacts")
     ? `perform ${fn("match_mail_thread")}(v_thread);`
     : "";
 
-  const log = ctx.installed("engagements")
+  const log = ctx.installed("activities")
     ? `perform ${fn("log_mail_thread")}(v_thread);`
     : "";
 
@@ -801,8 +801,8 @@ ${userGrant(`${fn("mail_template_stats")}(${ctx.idType}, timestamptz)`)}
 export function mailSyncFunctions(ctx: BlockSqlContext, n: MailNames): string {
   return [
     storeSql(n),
-    ctx.installed("parties") ? matchSql(ctx, n) : "",
-    ctx.installed("engagements") ? engagementSql(ctx, n) : "",
+    ctx.installed("contacts") ? matchSql(ctx, n) : "",
+    ctx.installed("activities") ? engagementSql(ctx, n) : "",
     accountSql(ctx, n),
     messageSql(ctx, n),
     readSql(ctx, n),

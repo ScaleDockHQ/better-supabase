@@ -29,7 +29,7 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 const FIXTURES = new URL("../fixtures/module-0.4.0/", import.meta.url);
-const MODULES = ["tenant", "audit", "invitations"];
+const MODULES = ["memberships", "audit", "invitations"];
 
 describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });

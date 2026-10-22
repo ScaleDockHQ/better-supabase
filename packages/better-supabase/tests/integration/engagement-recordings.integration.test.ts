@@ -1,16 +1,16 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { AiFiles } from "../../src/blocks/ai-files/types.ts";
 import type {
   NoteTaker,
   Transcriber,
-} from "../../src/blocks/engagements/index.ts";
+} from "../../src/blocks/activities/index.ts";
+import type { AiFiles } from "../../src/blocks/ai-files/types.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { createEngagements } from "../../src/blocks/engagements/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
+import { createActivities } from "../../src/blocks/activities/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -20,16 +20,16 @@ const live = await reachable();
 
 const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["parties"], {}),
-  modules: { engagements: { options: { recordings: true } } },
+  modules: { activities: { options: { recordings: true } } },
 };
 
 const MODULES = [
   "organizations",
   "outbox",
   "subjects",
-  "parties",
+  "contacts",
   "ai-files",
-  "engagements",
+  "activities",
 ];
 
 const hint = (result: Result<unknown>): string =>
@@ -91,7 +91,7 @@ describe.skipIf(!live)("engagement recordings", () => {
       await s.organization(stranger);
       const transport = sqlTransport(s.sql);
 
-      const engagements = createEngagements({
+      const engagements = createActivities({
         transport,
         files,
         transcriber,
@@ -100,7 +100,7 @@ describe.skipIf(!live)("engagement recordings", () => {
 
       await s.asRole(rep);
 
-      const acme = await createParties({ transport })
+      const acme = await createContacts({ transport })
         .saveCompany(org, { name: "Acme" })
         .orThrow();
 

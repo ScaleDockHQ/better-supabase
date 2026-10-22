@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (blocks: Record<string, unknown> = {}): string =>
-  renderBlocks(["enrichment", "parties", "outbox"], {
+  renderBlocks(["enrichment", "contacts", "outbox"], {
     modules: { enrichment: {}, ...blocks },
     // SAFETY: a partial config; the renderer fills in the defaults.
   })
@@ -33,7 +33,7 @@ describe("enrichment module", () => {
 
   it("names records by the parties block's renamed subject types", () => {
     const sql = sqlOf({
-      parties: { entities: { company: { name: "account" } } },
+      contacts: { entities: { company: { name: "account" } } },
     });
 
     expect(sql).toContain("subject_type = 'account'");

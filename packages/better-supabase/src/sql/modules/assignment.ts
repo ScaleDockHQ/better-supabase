@@ -16,7 +16,7 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<AssignmentEvents> = {
   "subject.assigned": {
@@ -175,8 +175,8 @@ using (${ctx.scope.check(g("tenant"), n.read)});
 
 function functions(ctx: BlockSqlContext, n: AssignmentNames): string {
   const { fn, t, q, u, g } = n;
-  const rules = ctx.of("rules");
-  const tenant = ctx.of("tenant");
+  const rules = ctx.of("automations");
+  const tenant = ctx.of("memberships");
   const ms = (column: string): string => tenant.col("memberships", column);
 
   const isMember = (user: string, tenantId: string, alias: string): string =>
@@ -501,7 +501,7 @@ export const ASSIGNMENT: BlockSqlDefinition = {
   title: "Assignment",
   description:
     "Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.",
-  requires: ["tenant", "access", "rules"],
+  requires: ["memberships", "permissions", "automations"],
   integrates: ["outbox", "data-lifecycle"],
   target: "schema",
   modes: ["managed"],

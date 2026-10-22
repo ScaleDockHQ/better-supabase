@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -12,23 +12,23 @@ import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { donationsBlock } from "better-supabase/blocks/donations";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
-import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
+import { numberingBlock } from "better-supabase/blocks/numbering";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
-import { partiesBlock } from "better-supabase/blocks/parties";
+import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
-import { targetsBlock } from "better-supabase/blocks/targets";
+import { goalsBlock } from "better-supabase/blocks/goals";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./nonprofit.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,
@@ -37,16 +37,16 @@ export const blockSet = defineBlocks(blockConfig, {
   donations: donationsBlock,
   entitlements: entitlementsBlock,
   notifications: notificationsBlock,
-  numberSequences: numberSequencesBlock,
+  numbering: numberingBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
-  parties: partiesBlock,
+  contacts: contactsBlock,
   profiles: profilesBlock,
   savedViews: savedViewsBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,
-  targets: targetsBlock,
+  goals: goalsBlock,
   teams: teamsBlock,
 });
 

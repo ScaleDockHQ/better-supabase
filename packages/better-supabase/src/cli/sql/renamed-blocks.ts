@@ -1,9 +1,11 @@
-import { sqlString } from "../../core/template.ts";
 import {
   BLOCK_RENAMES,
   currentBlockName,
   formerBlockName,
 } from "../../sql/index.ts";
+
+/** Block names match `[a-z0-9-]+`, so quoting needs no escaping. */
+const literal = (name: string): string => `'${name}'`;
 
 /** A block installed under its 0.14 name, which `upgrade` moves to the new one. */
 export interface RenamedBlock {
@@ -70,9 +72,9 @@ begin
 ${renames
   .map(
     ({ from, to }) =>
-      `    update better_supabase.blocks set name = ${sqlString(to)}, updated_at = now()
-      where name = ${sqlString(from)}
-        and not exists (select 1 from better_supabase.blocks b where b.name = ${sqlString(to)});`,
+      `    update better_supabase.blocks set name = ${literal(to)}, updated_at = now()
+      where name = ${literal(from)}
+        and not exists (select 1 from better_supabase.blocks b where b.name = ${literal(to)});`,
   )
   .join("\n")}
   end if;

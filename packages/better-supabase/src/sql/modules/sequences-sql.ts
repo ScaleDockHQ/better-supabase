@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The SQL pieces the sequences function files share. */
 export interface SequenceSql {
@@ -85,8 +85,8 @@ export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
     enrollments: enrolled.table("enrollments"),
     done: enrolled.table("steps"),
     mail: managed(ctx, "mail-sync"),
-    tasks: managed(ctx, "work-items"),
-    parties: managed(ctx, "parties"),
+    tasks: managed(ctx, "tasks"),
+    parties: managed(ctx, "contacts"),
     read: ctx.permission("read", keys.read),
     enroll: ctx.permission("enroll", keys.enroll),
     manage: ctx.permission("manage", keys.manage),

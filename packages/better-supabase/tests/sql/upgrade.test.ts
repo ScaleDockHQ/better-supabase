@@ -141,9 +141,9 @@ describe("upgradePlan", () => {
   });
 
   it("plans the tenant module's upgrade from version 1", () => {
-    expect(upgradePlan([{ module: "tenant", version: 1 }])).toMatchObject([
+    expect(upgradePlan([{ module: "memberships", version: 1 }])).toMatchObject([
       {
-        module: "tenant",
+        module: "memberships",
         from: 1,
         to: 2,
         steps: [
@@ -240,7 +240,7 @@ describe("deprecations", () => {
     ]);
     expect(moduleDeprecations()).toContainEqual(
       expect.objectContaining({
-        module: "tenant",
+        module: "memberships",
         symbol: "better_supabase.current_org_id",
         removed: "0.2.0",
       }),

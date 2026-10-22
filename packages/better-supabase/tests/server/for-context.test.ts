@@ -7,7 +7,7 @@ import type {
   SqlClaims,
 } from "../../src/postgres/pool.ts";
 
-import { unwrap, withContext } from "../../src/blocks/jobs/envelope.ts";
+import { unwrap, withContext } from "../../src/blocks/queue/envelope.ts";
 import { defineAuthorizationHooks } from "../../src/core/contracts/authorization-hooks.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";

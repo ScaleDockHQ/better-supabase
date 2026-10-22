@@ -203,4 +203,4 @@ jobs:
           pnpm exec dotenv -e .env.development.local --
           pnpm --filter better-supabase exec vitest run --project integration
           tests/integration/realtime.integration.test.ts
-          tests/integration/access-policies.integration.test.ts
+          tests/integration/permissions-policies.integration.test.ts

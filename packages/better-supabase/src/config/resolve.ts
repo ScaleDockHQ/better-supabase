@@ -99,14 +99,17 @@ function blocksOf(
 
   if (
     !provider ||
-    !blockNames.includes("access") ||
-    resolved.access?.model !== undefined
+    !blockNames.includes("permissions") ||
+    resolved.permissions?.model !== undefined
   ) {
     return { blocks: resolved, blockNames };
   }
 
   return {
-    blocks: { ...resolved, access: { ...resolved.access, model: "provider" } },
+    blocks: {
+      ...resolved,
+      permissions: { ...resolved.permissions, model: "provider" },
+    },
     blockNames,
   };
 }
@@ -158,8 +161,8 @@ export const CONFIG_SCHEMA_URL =
  * `preset`, it expands the preset into `blocks` and its conventions first, and
  * the keys you set win. It checks the references between keys against the
  * config itself: block tables and app tables in `tables` references, the
- * `database.buckets` in `gen.storagePaths`, and the `blocks.access.roles` other
- * blocks name.
+ * `database.buckets` in `gen.storagePaths`, and the `blocks.permissions.roles`
+ * other blocks name.
  */
 export function defineConfig<const C extends BetterSupabaseConfig>(
   config: C & NoInfer<ConfigReferences<C>>,

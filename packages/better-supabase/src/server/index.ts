@@ -61,9 +61,9 @@ export type {
 
 export { supportSessions } from "./support.ts";
 
-export { supportSessionsEvents } from "../blocks/support-sessions/events.ts";
+export { impersonationEvents } from "../blocks/impersonation/events.ts";
 
-export type { SupportSessionsEvents } from "../blocks/support-sessions/events.ts";
+export type { ImpersonationEvents } from "../blocks/impersonation/events.ts";
 
 export { defineAuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
 

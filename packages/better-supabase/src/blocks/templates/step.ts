@@ -1,12 +1,12 @@
-import type { GraphStepCall } from "../workflow-builder/executor.ts";
-import type { WorkflowStepInfo } from "../workflow-builder/types.ts";
+import type { GraphStepCall } from "../workflow-editor/executor.ts";
+import type { WorkflowStepInfo } from "../workflow-editor/types.ts";
 import type { Templates } from "./templates.ts";
 
 import { DbException } from "../../core/db-exception.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../shared.ts";
 
-/** The `templates.apply` step for the workflow-builder step library. */
+/** The `templates.apply` step for the workflow-editor step library. */
 export const TEMPLATES_APPLY_STEP: WorkflowStepInfo = {
   name: "templates.apply",
   title: "Create from template",

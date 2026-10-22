@@ -132,11 +132,11 @@ describe("approvals module", () => {
           },
         },
       }),
-    ).toThrow(/needs the jobs module/);
+    ).toThrow(/needs the queue block/);
   });
 
-  it("enqueues the policy's job with the jobs module", () => {
-    const sql = sqlOf(["approvals", "jobs"], "approvals", {
+  it("enqueues the policy's job with the queue block", () => {
+    const sql = sqlOf(["approvals", "queue"], "approvals", {
       modules: {
         approvals: {
           options: {
@@ -189,7 +189,7 @@ describe("approvals approvers from the provider", () => {
   const eligible = (isApprover?: string): string =>
     sqlOf(["approvals"], "approvals", {
       modules: {
-        access: { model: "provider" },
+        permissions: { model: "provider" },
         approvals: {
           options: {
             policies: {

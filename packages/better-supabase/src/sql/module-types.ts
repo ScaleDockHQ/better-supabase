@@ -21,8 +21,8 @@ import type {
   BlockSqlNames,
 } from "./context.ts";
 import type { DeclaredForeignKey } from "./foreign-keys.ts";
+import type { FunctionGrant, TableGrant } from "./modules/data-api-grants.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
-import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
@@ -100,8 +100,8 @@ export interface BlockSql {
    */
   readonly integrates?: readonly string[];
   /**
-   * What it needs for this layout, e.g. per `blocks.access.model`; overrides
-   * both.
+   * What it needs for this layout, e.g. per `blocks.permissions.model`;
+   * overrides both.
    */
   readonly dependencies?: (layout: BlockSqlLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
@@ -244,11 +244,14 @@ export interface BlockSqlLayout {
   readonly functionGrants?: readonly FunctionGrant[];
   /**
    * Grants the permissive policies in the schema files imply, for
-   * `blocks.grants.options.fromPolicies`. Tables in `grants` keep their listed
-   * privileges.
+   * `blocks['data-api-grants'].options.fromPolicies`. Tables in `grants` keep
+   * their listed privileges.
    */
   readonly policyGrants?: readonly TableGrant[];
-  /** The tables the schema files create, for `blocks.sessions.options.policies`. */
+  /**
+   * The tables the schema files create, for
+   * `blocks['session-revocation'].options.policies`.
+   */
   readonly declaredTables?: readonly string[];
   /**
    * The declared tables with row level security on, for tables `fromPolicies`
@@ -257,7 +260,7 @@ export interface BlockSqlLayout {
   readonly rlsTables?: readonly string[];
   /**
    * The foreign keys the schema files declare, for
-   * `blocks.tenant.options.sameTenant.auto`.
+   * `blocks.memberships.options.sameTenant.auto`.
    */
   readonly foreignKeys?: readonly DeclaredForeignKey[];
   /**
@@ -305,7 +308,7 @@ export interface BlockSqlLayout {
   readonly permissionCatalog?: readonly string[];
   /**
    * `authorization.delegation.scopes`: the access module's `scope_permissions`
-   * (with `blocks.access.scopes` merged over it).
+   * (with `blocks.permissions.scopes` merged over it).
    */
   readonly delegationScopes?: Readonly<Record<string, readonly string[]>>;
 }

@@ -77,7 +77,7 @@ describe("drive module", () => {
     expect(number(modulePath(drive, {}))).toBe(
       number(modulePath(comments, {})) - 1,
     );
-    expect(ORDER.at(-1)).toBe("ensure-rls");
+    expect(ORDER.at(-1)).toBe("rls-guard");
   });
 
   it("creates the node and grant tables and links files to attachments", () => {

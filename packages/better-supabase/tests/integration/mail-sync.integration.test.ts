@@ -5,8 +5,8 @@ import type { MailProvider } from "../../src/blocks/mail-sync/index.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -23,8 +23,8 @@ const MODULES = [
   "outbox",
   "notifications",
   "subjects",
-  "parties",
-  "engagements",
+  "contacts",
+  "activities",
   "mail-sync",
 ];
 
@@ -100,7 +100,7 @@ describe.skipIf(!live)("mail-sync", () => {
       const org = await s.organization(owner, { member: rep });
       await s.organization(stranger);
       const transport = sqlTransport(s.sql);
-      const parties = createParties({ transport });
+      const parties = createContacts({ transport });
       const provider = gmail();
 
       const mail = createMailSync({

@@ -52,7 +52,7 @@ describe("deals module", () => {
     expect(pipelines).toContain("bsb_pipeline_status_deal");
   });
 
-  it("scopes reads to the team without readAll and uses number-sequences when configured", () => {
+  it("scopes reads to the team without readAll and uses numbering when configured", () => {
     const scoped = body(
       "deals",
       render({ modules: { deals: { options: { readAll: false } } } }),
@@ -68,14 +68,14 @@ describe("deals module", () => {
       render(
         {
           modules: {
-            "number-sequences": {
+            numbering: {
               options: {
                 entities: { deal: { period: "none", format: "D-{n}" } },
               },
             },
           },
         },
-        ["number-sequences"],
+        ["numbering"],
       ),
     );
 
@@ -84,7 +84,7 @@ describe("deals module", () => {
   });
 
   it("reads the next step from engagements when installed", () => {
-    expect(body("deals", render({}, ["engagements"]))).toContain(
+    expect(body("deals", render({}, ["activities"]))).toContain(
       "next_engagement\"('deal'",
     );
     expect(body("deals", render())).not.toContain("next_engagement");

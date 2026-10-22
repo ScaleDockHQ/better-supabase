@@ -212,7 +212,7 @@ begin
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
-    when 'collections' then (select count(*) from "better_supabase"."collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
+    when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
   end if;

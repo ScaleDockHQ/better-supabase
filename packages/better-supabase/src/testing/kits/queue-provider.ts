@@ -1,8 +1,8 @@
 import type {
   QueueProvider,
   QueueMessageRow,
-} from "../../blocks/jobs/backends.ts";
-import type { Job } from "../../blocks/jobs/types.ts";
+} from "../../blocks/queue/backends.ts";
+import type { Job } from "../../blocks/queue/types.ts";
 import type { ConformanceReport } from "../conformance.ts";
 
 import { temporal } from "../../core/temporal-required.ts";

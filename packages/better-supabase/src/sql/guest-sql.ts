@@ -20,7 +20,7 @@ export interface GuestSource {
 export function providerGuestSource(layout: BlockSqlLayout): GuestSource {
   const provider = layout.accessProvider;
 
-  if (layout.modules?.access?.model !== "provider" || !provider) {
+  if (layout.modules?.permissions?.model !== "provider" || !provider) {
     return {};
   }
 

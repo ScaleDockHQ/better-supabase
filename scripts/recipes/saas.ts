@@ -7,7 +7,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "sessions-list",
     title: "Sessions list",
-    blocks: ["sessions"],
+    blocks: ["session-revocation"],
     kind: "component",
     description:
       "The caller's signed-in devices with the last activity and a button to end each session.",
@@ -129,7 +129,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "contact-detail",
     title: "Contact detail",
-    blocks: ["parties"],
+    blocks: ["contacts"],
     kind: "screen",
     description:
       "A person or company with its details, related contacts and the latest activity.",
@@ -179,7 +179,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "activity-timeline",
     title: "Activity timeline",
-    blocks: ["engagements"],
+    blocks: ["activities"],
     kind: "component",
     description: "Calls, emails and meetings with a contact, newest first.",
     web: {
@@ -204,7 +204,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "targets-progress",
     title: "Targets progress",
-    blocks: ["targets"],
+    blocks: ["goals"],
     kind: "component",
     description:
       "Sales targets for the period with the progress toward each one.",
@@ -217,7 +217,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "work-item-board",
     title: "Work item board",
-    blocks: ["work-items", "state-machine", "rank"],
+    blocks: ["tasks", "state-machine", "rank"],
     kind: "screen",
     description:
       "Work items in state columns, ordered by rank and moved through allowed transitions.",
@@ -230,7 +230,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "entity-form",
     title: "Entity form",
-    blocks: ["work-items", "custom-fields"],
+    blocks: ["tasks", "custom-fields"],
     kind: "component",
     description:
       "A create dialog whose inputs come from `recordForm`: the entity's own fields and the organization's custom fields, validated together by `useRecordForm` before the Server Action runs.",
@@ -244,7 +244,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "work-item-grid",
     title: "Work item grid",
-    blocks: ["work-items", "saved-views"],
+    blocks: ["tasks", "saved-views"],
     kind: "screen",
     description:
       "A data grid of work items with filters, sorting and saved views.",
@@ -287,7 +287,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "my-work",
     title: "My work",
-    blocks: ["subjects", "work-items", "approvals", "reminders", "comments"],
+    blocks: ["subjects", "tasks", "approvals", "reminders", "comments"],
     kind: "screen",
     description:
       "What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record.",
@@ -347,7 +347,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "bulk-action-bar",
     title: "Bulk action bar",
-    blocks: ["bulk"],
+    blocks: ["bulk-actions"],
     kind: "component",
     description:
       "A bar over a selection of rows that runs an action on all of them and reports failures.",

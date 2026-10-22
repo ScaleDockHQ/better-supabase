@@ -9,7 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ImportsEvents> = {
   "import.completed": {
@@ -172,7 +172,7 @@ export const IMPORTS: BlockSqlDefinition = {
   title: "Imports",
   description:
     "Import runs. Parsing, mapping and the dry run live in TypeScript. runImport marks the run running, then records import.completed or import.failed.",
-  requires: ["tenant", "access", "jobs"],
+  requires: ["memberships", "permissions", "queue"],
   integrates: ["attachments", "outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

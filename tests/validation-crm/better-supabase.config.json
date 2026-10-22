@@ -3,8 +3,8 @@
   "blocks": {
     "read-sets": {},
     "updated-at": {},
-    "tenant": {},
-    "access": {
+    "memberships": {},
+    "permissions": {
       "ownership": "adopt",
       "tables": {
         "roles": "public.roles",

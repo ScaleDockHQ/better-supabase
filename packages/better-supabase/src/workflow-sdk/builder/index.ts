@@ -18,4 +18,4 @@ export {
   type GraphApprovalCall,
   type GraphRuntime,
   type GraphStepCall,
-} from "../../blocks/workflow-builder/executor.ts";
+} from "../../blocks/workflow-editor/executor.ts";

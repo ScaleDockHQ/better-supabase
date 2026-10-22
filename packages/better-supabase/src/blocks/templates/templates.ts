@@ -10,7 +10,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
-import type { WorkflowBuilder } from "../workflow-builder/types.ts";
+import type { WorkflowEditor } from "../workflow-editor/types.ts";
 import type { MergeFieldCatalog } from "./merge-fields.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -254,7 +254,7 @@ export interface Templates<F extends object = Record<never, never>> {
     /** Newest first, without bodies. */
     list(template: string): AsyncResult<readonly TemplateVersion[]>;
   };
-  /** Needs the workflow-builder module. */
+  /** Needs the workflow-editor module. */
   readonly workflows: {
     attach(input: TemplateWorkflowInput): AsyncResult<TemplateWorkflow>;
     detach(template: string, definition: string): AsyncResult<boolean>;
@@ -298,8 +298,8 @@ export interface TemplatesOptions<
   readonly fields?: S;
   /** The template types, by name. A type without `apply` can't be applied. */
   readonly types?: Readonly<Record<string, TemplateType>>;
-  /** Starts the attached workflows; `createWorkflowBuilder` as the caller. */
-  readonly workflows?: Pick<WorkflowBuilder, "run">;
+  /** Starts the attached workflows; `createWorkflowEditor` as the caller. */
+  readonly workflows?: Pick<WorkflowEditor, "run">;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Templates<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */

@@ -16,7 +16,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type {
   Address,

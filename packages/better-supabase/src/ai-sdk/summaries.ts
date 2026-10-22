@@ -2,7 +2,7 @@ import type { LanguageModel } from "ai";
 
 import { generateText } from "ai";
 
-import type { AiProviders } from "../blocks/ai-providers/ai-providers.ts";
+import type { AiKeys } from "../blocks/ai-keys/ai-keys.ts";
 import type {
   ThreadSummarizer,
   ThreadSummaryInput,
@@ -16,10 +16,10 @@ export interface SummarizeWithOptions {
   /** Replaces the default summary prompt. */
   readonly instructions?: string;
   /**
-   * The ai-providers block: the tenant's own keys go to the AI Gateway as
-   * `byok` for each summary, and the app's credentials apply without them.
+   * The ai-keys block: the tenant's own keys go to the AI Gateway as `byok` for
+   * each summary, and the app's credentials apply without them.
    */
-  readonly providers?: Pick<AiProviders, "keys">;
+  readonly providers?: Pick<AiKeys, "keys">;
   /** More AI Gateway options, such as `order` or `zeroDataRetention`. */
   readonly gateway?: GatewayOptions;
   readonly maxOutputTokens?: number;

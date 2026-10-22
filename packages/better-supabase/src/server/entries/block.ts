@@ -15,7 +15,7 @@ import { defineMiddleware } from "@supabase/middleware";
  *     withBetterSupabase(bsb),
  *     withPostgresAdminClient(),
  *     withBlock("jobs", (ctx) =>
- *       createJobs({ sql: ctx.postgresAdmin, queues }),
+ *       createQueue({ sql: ctx.postgresAdmin, queues }),
  *     ),
  *   ],
  *   (req, ctx) => ctx.jobs.drainRoute({ secret, handlers })(req),

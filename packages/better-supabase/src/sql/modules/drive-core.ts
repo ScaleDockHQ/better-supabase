@@ -13,8 +13,8 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { CONFLICTS, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** The tree, grants and sharing: the drive module. */
 export function driveCoreSql(kit: DriveKit): string {

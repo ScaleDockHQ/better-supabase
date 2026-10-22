@@ -113,9 +113,9 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "info",
     title: "Tenant foreign key without a same-tenant trigger",
     description:
-      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has no `bsb_same_tenant_<column>` trigger. List the reference in `blocks.tenant.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
+      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has no `bsb_same_tenant_<column>` trigger. List the reference in `blocks.memberships.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
     check: (context) => {
-      if (!context.config.blockNames.includes("tenant")) {
+      if (!context.config.blockNames.includes("memberships")) {
         return [];
       }
 
@@ -156,7 +156,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
 
             return [
               {
-                message: `${qualified(table)}.${column} references ${key.refSchema}.${key.refTable}, and both have ${tenant}, but no trigger checks that the referenced row has the same ${tenant}. Add it to blocks.tenant.options.sameTenant, or set sameTenant: { auto: true }.`,
+                message: `${qualified(table)}.${column} references ${key.refSchema}.${key.refTable}, and both have ${tenant}, but no trigger checks that the referenced row has the same ${tenant}. Add it to blocks.memberships.options.sameTenant, or set sameTenant: { auto: true }.`,
                 target: `${qualified(table)}.${column}`,
               },
             ];
@@ -169,7 +169,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "error",
     title: "Adopted enum column the module writes as text",
     description:
-      "A module in adopt mode writes a text parameter or computed text value into a column the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind` and the number-sequences `entity`, may be enums.",
+      "A module in adopt mode writes a text parameter or computed text value into a column the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind` and the numbering `entity`, may be enums.",
     check: (context) => {
       const { tables } = catalogOf(context);
 

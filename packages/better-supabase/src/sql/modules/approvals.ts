@@ -26,7 +26,6 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { approvalsContract } from "./approvals-contract.ts";
 import {
   approvalPolicies,
@@ -35,7 +34,8 @@ import {
 } from "./approvals-policies.ts";
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
-import { providerMembers } from "./tenant.ts";
+import { providerMembers } from "./memberships.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** Requests the access-requests module files; their subject is its row. */
 export const ACCESS_REQUEST_SUBJECT = "access_request";
@@ -56,8 +56,8 @@ export const EXPENSE_REPORT_SUBJECT = "expense_report";
 export const AI_TOOL_SUBJECT = "ai_tool_approval";
 
 /**
- * Requests the support-sessions module files; their subject is its request,
- * action `start`.
+ * Requests the impersonation module files; their subject is its request, action
+ * `start`.
  */
 export const SUPPORT_REQUEST_SUBJECT = "support_request";
 
@@ -206,10 +206,10 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       : undefined;
 
   const support =
-    ctx.installed("support-sessions") &&
-    ctx.of("support-sessions").mode !== "custom" &&
-    ctx.of("support-sessions").hasTable("requests")
-      ? ctx.of("support-sessions")
+    ctx.installed("impersonation") &&
+    ctx.of("impersonation").mode !== "custom" &&
+    ctx.of("impersonation").hasTable("requests")
+      ? ctx.of("impersonation")
       : undefined;
 
   // Requests their module decides: only the requester, an eligible approver
@@ -279,7 +279,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
         : false,
     });
 
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
   const mr = members.col("memberships", "role");
@@ -1052,12 +1052,12 @@ export const APPROVALS: BlockSqlDefinition = {
   title: "Approvals",
   description:
     "Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: [
     "outbox",
     "audit",
     "notifications",
-    "jobs",
+    "queue",
     "drive",
     "teams",
     "state-machine",
@@ -1066,7 +1066,7 @@ export const APPROVALS: BlockSqlDefinition = {
     "leave",
     "expenses",
     "ai-chat",
-    "support-sessions",
+    "impersonation",
   ],
   target: "schema",
   modes: ["managed", "custom"],

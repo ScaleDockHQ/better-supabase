@@ -17,9 +17,9 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const SERVERS = {
   id: "id",
@@ -634,7 +634,7 @@ export const CONNECTORS: BlockSqlDefinition = {
   title: "Connectors",
   description:
     "MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   version: 1,

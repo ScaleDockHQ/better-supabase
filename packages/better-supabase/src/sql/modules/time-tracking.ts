@@ -22,9 +22,9 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { OPERATIONS, moduleOperations } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { TIMESHEET_SUBJECT } from "./approvals.ts";
+import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 
 const WHERE = "blocks.time-tracking.options";
 
@@ -255,7 +255,7 @@ function build(ctx: BlockSqlContext): string {
   const subjects = subjectsOption(ctx);
   const zone = sqlString(weekTimeZone(ctx));
   const policy = timesheetPolicy(ctx);
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
 
   const isMember = (tenant: string, user: string): string =>
     `exists (select 1 from ${members.table("memberships")} m where m.${members.col("memberships", "tenant")} = ${tenant} and m.${members.col("memberships", "user")} = ${user})`;
@@ -1023,7 +1023,7 @@ export const TIME_TRACKING: BlockSqlDefinition = {
   title: "Time tracking",
   description:
     "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",
-  requires: ["tenant", "access", "approvals"],
+  requires: ["memberships", "permissions", "approvals"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

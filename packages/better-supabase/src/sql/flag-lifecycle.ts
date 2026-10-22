@@ -12,11 +12,11 @@ export function expiredFlagsQuery(
   layout: BlockSqlLayout,
   installed: readonly string[],
 ): string | undefined {
-  if (!installed.includes("flags")) {
+  if (!installed.includes("feature-flags")) {
     return undefined;
   }
 
-  const ctx = moduleContext("flags", layout, installed);
+  const ctx = moduleContext("feature-flags", layout, installed);
   const extras = ctx.extraColumns("flags");
   const expires = extras.find((column) => column.name === "expires_at");
 

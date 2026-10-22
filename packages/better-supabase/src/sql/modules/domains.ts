@@ -15,7 +15,7 @@ import {
   SERVICE_CALLER,
   schemaPreamble,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<DomainsEvents> = {
   "hostname.added": {
@@ -402,7 +402,7 @@ export const DOMAINS: BlockSqlDefinition = {
   title: "Custom domains",
   description:
     "Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["reserved-slugs"],
   target: "schema",
   modes: ["managed", "custom"],

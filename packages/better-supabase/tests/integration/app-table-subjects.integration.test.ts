@@ -26,7 +26,13 @@ const TABLES: AppTablesConfig = {
   },
 };
 
-const BLOCKS = ["tenant", "organizations", "updated-at", "subjects", "search"];
+const BLOCKS = [
+  "memberships",
+  "organizations",
+  "updated-at",
+  "subjects",
+  "search",
+];
 
 const LAYOUT: BlockSqlLayout = {
   appTables: TABLES,

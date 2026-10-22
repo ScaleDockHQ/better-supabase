@@ -10,7 +10,7 @@ import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { PassesEvents } from "better-supabase/blocks/passes";
+import type { AdmissionPassesEvents } from "better-supabase/blocks/admission-passes";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
@@ -26,7 +26,7 @@ import type { WaitlistEvents } from "better-supabase/blocks/waitlist";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -54,7 +54,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  passes: {
+  "admission-passes": {
     schema: "better_supabase",
     options: {},
   },
@@ -62,7 +62,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  jobs: {
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -108,7 +108,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -130,6 +130,11 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
+  "admission-passes": {
+    read: "passes.read",
+    manage: "passes.manage",
+    checkIn: "passes.check_in",
+  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -184,11 +189,6 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
-  passes: {
-    read: "passes.read",
-    manage: "passes.manage",
-    checkIn: "passes.check_in",
-  },
   product: {
     read: "catalog.read",
     write: "catalog.manage",
@@ -223,11 +223,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "passes.check_in" | "passes.manage" | "passes.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "waitlist.manage";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CatalogEvents & EnrollmentsEvents & PassesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & SigningKeysEvents & TeamsEvents & WaitlistEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CatalogEvents & EnrollmentsEvents & AdmissionPassesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & SigningKeysEvents & TeamsEvents & WaitlistEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

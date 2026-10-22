@@ -1,20 +1,20 @@
 import type {
-  AiTask,
-  AiTaskRun,
-  AiTaskRunner,
-} from "../blocks/ai-tasks/ai-tasks.ts";
-import type {
   NoteTaker,
   Transcriber,
   TranscriberInput,
-} from "../blocks/engagements/recordings.ts";
+} from "../blocks/activities/recordings.ts";
+import type {
+  AiTask,
+  AiTaskRun,
+  AiTaskRunner,
+} from "../blocks/ai-schedules/ai-schedules.ts";
 import type { Embedder } from "../blocks/knowledge/knowledge.ts";
-import type { WorkflowGraph } from "../blocks/workflow-builder/graph.ts";
+import type { WorkflowGraph } from "../blocks/workflow-editor/graph.ts";
 import type {
   BuilderStartCall,
   BuilderStarter,
   GraphCompiler,
-} from "../blocks/workflow-builder/workflow-builder.ts";
+} from "../blocks/workflow-editor/workflow-editor.ts";
 import type { EveDocumentBackend } from "../eve/eve.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 
@@ -96,7 +96,7 @@ export function testEmbedder(
 }
 
 export interface TestAiTaskRunnerOptions {
-  /** A task the runner can run, as the ai-tasks block passes it. */
+  /** A task the runner can run, as the ai-schedules block passes it. */
   readonly task: AiTask;
   /** The claimed run for `task`. */
   readonly run: AiTaskRun;

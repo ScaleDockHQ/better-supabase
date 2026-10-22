@@ -43,7 +43,7 @@ describe("quotes module", () => {
 });
 
 describe("invoices module", () => {
-  it("numbers invoices and credit notes apart, with number-sequences when configured", () => {
+  it("numbers invoices and credit notes apart, with numbering when configured", () => {
     const sql = body("invoices");
     expect(sql).toContain("'INV-' || v_seq::text");
     expect(sql).toContain("'CN-' || v_seq::text");
@@ -53,14 +53,14 @@ describe("invoices module", () => {
       "invoices",
       {
         modules: {
-          "number-sequences": {
+          numbering: {
             options: {
               entities: { invoice: { period: "year", format: "{yyyy}-{n}" } },
             },
           },
         },
       },
-      ["number-sequences"],
+      ["numbering"],
     );
 
     expect(numbered).toContain("format_assigned_number('{yyyy}-{n}'");

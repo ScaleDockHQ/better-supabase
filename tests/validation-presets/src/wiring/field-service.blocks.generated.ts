@@ -19,7 +19,7 @@ import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
@@ -31,7 +31,7 @@ import type { VersionsEvents } from "better-supabase/blocks/versions";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -117,7 +117,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -141,7 +141,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -201,6 +201,11 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
+  },
   dispatch: {
     read: "dispatch.read",
     manage: "dispatch.manage",
@@ -258,11 +263,6 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
-  },
   person: {
     read: "parties.read",
     write: "parties.write",
@@ -313,11 +313,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & FormsEvents & SignaturesEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & QuotesEvents & SettingsEvents & TeamsEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & DispatchEvents & FormsEvents & SignaturesEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & QuotesEvents & SettingsEvents & TeamsEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

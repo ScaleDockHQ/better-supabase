@@ -20,10 +20,10 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { OPERATIONS, moduleOperations } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { LEAVE_REQUEST_SUBJECT } from "./approvals.ts";
 import { leaveLedgerFunctions, leaveLedgerUpgrade } from "./leave-ledger.ts";
+import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 
 const WHERE = "blocks.leave.options";
 
@@ -196,7 +196,7 @@ function build(ctx: BlockSqlContext): string {
   const working = `array[${workingDaysOf(ctx).join(", ")}]`;
   const allowNegative = ctx.flag("allowNegative", false);
   const idType = ctx.idType;
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const extras = ctx.extraColumns("requests", RESERVED);
   const extra = extraFieldsArg(extras);
 
@@ -643,7 +643,7 @@ export const LEAVE: BlockSqlDefinition = {
   title: "Leave",
   description:
     "Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.",
-  requires: ["tenant", "access", "approvals", "ledger"],
+  requires: ["memberships", "permissions", "approvals", "ledger"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

@@ -396,7 +396,7 @@ describe("scaffold screens", () => {
     const result = await screens("entries", {
       tables: LEDGER,
       gen: { codecs },
-      blocks: { tenant: { names: { organization: "workspace" } } },
+      blocks: { memberships: { names: { organization: "workspace" } } },
     });
 
     expect(result.error).toBeUndefined();

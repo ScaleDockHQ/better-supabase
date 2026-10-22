@@ -8,8 +8,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, fail, raise } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { enrollmentTables } from "./enrollments.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = { options: ["checklists"], tables: {} };
 
@@ -477,7 +477,7 @@ export const ONBOARDING: BlockSqlDefinition = {
   title: "Onboarding",
   description:
     "Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.",
-  requires: ["tenant", "access", "enrollments"],
+  requires: ["memberships", "permissions", "enrollments"],
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "custom"],

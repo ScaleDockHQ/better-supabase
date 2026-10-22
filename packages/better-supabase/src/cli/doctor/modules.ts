@@ -428,13 +428,13 @@ async function missingContracts(
 async function missingTenantClaim(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
-  if (!context.config.blockNames.includes("tenant")) {
+  if (!context.config.blockNames.includes("memberships")) {
     return [];
   }
 
   if (
-    (context.config.blocks.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT) !==
-    "claim"
+    (context.config.blocks.permissions?.activeTenant ??
+      DEFAULT_ACTIVE_TENANT) !== "claim"
   ) {
     return [];
   }
@@ -478,7 +478,7 @@ async function missingTenantClaim(
       }
 
       findings.push({
-        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.access.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set blocks.access.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
+        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.permissions.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set blocks.permissions.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
         target,
         object: { kind: "function", schema: fn.schema, name: fn.name },
       });
@@ -674,12 +674,12 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
  * policy, when `sessions` is in `blocks`.
  */
 function sessionlessTables(context: DoctorContext): FindingInput[] {
-  if (!context.config.blockNames.includes("sessions")) {
+  if (!context.config.blockNames.includes("session-revocation")) {
     return [];
   }
 
   const exclude = globs(
-    context.config.blocks["sessions"]?.options?.["exclude"],
+    context.config.blocks["session-revocation"]?.options?.["exclude"],
   );
 
   const owned = moduleOwned(context);
@@ -702,7 +702,7 @@ function sessionlessTables(context: DoctorContext): FindingInput[] {
         ),
     )
     .map((table) => ({
-      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks.sessions.options.policies to true and run \`better-supabase upgrade\`, add the policy by hand, or list the table in blocks.sessions.options.exclude.`,
+      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks['session-revocation'].options.policies to true and run \`better-supabase upgrade\`, add the policy by hand, or list the table in blocks['session-revocation'].options.exclude.`,
       target: qualified(table),
       object: tableObject(table),
     }));
@@ -778,7 +778,7 @@ function sharedRoleTables(context: DoctorContext): FindingInput[] {
   }
 
   return problems.map(({ setting, message }) => ({
-    message: `${message} Without it, ${setting.startsWith("blocks.tenant.") ? "an organization invitation, accept or role change can resolve a platform role" : "a platform invitation can resolve a tenant role"}.`,
+    message: `${message} Without it, ${setting.startsWith("blocks.memberships.") ? "an organization invitation, accept or role change can resolve a platform role" : "a platform invitation can resolve a tenant role"}.`,
     target: setting,
   }));
 }
@@ -797,7 +797,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `auth.organization.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
+      "With the `tenant` module and `blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `auth.organization.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {
@@ -861,7 +861,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without the session policy",
     description:
-      "The `sessions` module is in `blocks`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `blocks.sessions.options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
+      "The `sessions` module is in `blocks`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `blocks['session-revocation'].options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
     check: sessionlessTables,
   },
   {
@@ -877,7 +877,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Module event trigger missing",
     description:
-      "A module in `blocks` creates an event trigger (`bsb_audit_forget_dropped` for `audit`, `bsb_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
+      "A module in `blocks` creates an event trigger (`bsb_audit_forget_dropped` for `audit`, `bsb_ensure_rls` for `rls-guard`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
     check: missingEventTriggers,
   },
   {

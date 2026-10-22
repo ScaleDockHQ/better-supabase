@@ -22,7 +22,6 @@ import {
   revokeTable,
   triggerGrant,
 } from "../shared.ts";
-import { OPERATIONS, modulePermission } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { appendOnly } from "./audit-append-only.ts";
 import {
@@ -50,6 +49,7 @@ import { revert } from "./audit-revert.ts";
 import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
+import { OPERATIONS, modulePermission } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<AuditEvents> = {
   "audit.revealed": {
@@ -955,10 +955,10 @@ export const AUDIT: BlockSqlDefinition = {
   description:
     "Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.",
   requires: [],
-  integrates: ["access", "organizations", "data-lifecycle"],
+  integrates: ["permissions", "organizations", "data-lifecycle"],
   dependencies: (layout) =>
     layout.modules?.["audit"]?.options?.["readPolicy"] === true
-      ? ["access"]
+      ? ["permissions"]
       : [],
   target: "schema",
   modes: ["managed", "adopt"],

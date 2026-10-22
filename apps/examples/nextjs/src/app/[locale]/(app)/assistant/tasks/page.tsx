@@ -15,7 +15,7 @@ export default function AiTasksPage() {
       <PageHeader
         title={t("AI tasks")}
         description={t(
-          "Prompts on the ai-tasks block that the assistant runs on a schedule.",
+          "Prompts on the ai-schedules block that the assistant runs on a schedule.",
         )}
       />
       <Suspense fallback={<AiTaskQueueSkeleton />}>

@@ -16,7 +16,7 @@ import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
@@ -28,7 +28,7 @@ import type { VersionsEvents } from "better-supabase/blocks/versions";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -94,7 +94,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -114,7 +114,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -168,6 +168,11 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
+  },
   document: {
     read: "documents.read",
     write: "documents.write",
@@ -218,11 +223,6 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
-  },
   person: {
     read: "parties.read",
     write: "parties.write",
@@ -262,11 +262,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & DocumentsEvents & LedgerEvents & EnrollmentsEvents & BillableTimeEvents & SignaturesEvents & InvoicesEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & DocumentsEvents & LedgerEvents & EnrollmentsEvents & BillableTimeEvents & SignaturesEvents & InvoicesEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

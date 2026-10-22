@@ -132,17 +132,17 @@ export async function moduleLayoutFor(
   }
 
   const fromPolicies =
-    resolved.has("grants") &&
-    config.blocks["grants"]?.options?.["fromPolicies"] === true;
+    resolved.has("data-api-grants") &&
+    config.blocks["data-api-grants"]?.options?.["fromPolicies"] === true;
 
   const sessionPolicies =
-    resolved.has("sessions") &&
-    config.blocks["sessions"]?.options?.["policies"] === true;
+    resolved.has("session-revocation") &&
+    config.blocks["session-revocation"]?.options?.["policies"] === true;
 
-  const sameTenant = config.blocks["tenant"]?.options?.["sameTenant"];
+  const sameTenant = config.blocks["memberships"]?.options?.["sameTenant"];
 
   const autoSameTenant =
-    resolved.has("tenant") &&
+    resolved.has("memberships") &&
     typeof sameTenant === "object" &&
     sameTenant !== null &&
     "auto" in sameTenant &&

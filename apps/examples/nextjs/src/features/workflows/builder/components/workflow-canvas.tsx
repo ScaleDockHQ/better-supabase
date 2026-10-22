@@ -2,7 +2,7 @@
 "use client";
 
 import type { Connection } from "@xyflow/react";
-import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-editor";
 
 import {
   addEdge,
@@ -13,7 +13,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-builder/react";
+import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-editor/react";
 import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
 import { useAction } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";

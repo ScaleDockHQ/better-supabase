@@ -25,9 +25,9 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { storefrontOption } from "./catalog-functions.ts";
 import { moderationTables } from "./moderation.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const WHERE = "blocks.reviews.options";
 
@@ -197,7 +197,7 @@ function readableCase(
     ([type]) => !(productsOn(ctx) && type === PRODUCT_SUBJECT),
   );
 
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
 
   const rest =
     subjects.length === 0
@@ -887,7 +887,7 @@ export const REVIEWS: BlockSqlDefinition = {
   title: "Reviews",
   description:
     "Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.",
-  requires: ["tenant", "access", "moderation"],
+  requires: ["memberships", "permissions", "moderation"],
   integrates: [
     "catalog",
     "orders",

@@ -5,7 +5,7 @@ import {
   type GeneratedBlocks,
 } from "better-supabase/blocks";
 import type { AiChatEvents } from "better-supabase/blocks/ai-chat";
-import type { AiProvidersEvents } from "better-supabase/blocks/ai-providers";
+import type { AiKeysEvents } from "better-supabase/blocks/ai-keys";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
@@ -21,7 +21,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -36,7 +36,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "ai-providers": {
+  "ai-keys": {
     schema: "better_supabase",
     options: {},
   },
@@ -102,7 +102,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -137,7 +137,7 @@ export const permissions = {
     upload: "ai.create",
     manage: "ai.admin",
   },
-  "ai-providers": {
+  "ai-keys": {
     use: "ai.create",
     manage: "ai.admin",
   },
@@ -212,11 +212,11 @@ export const permissions = {
  */
 export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "usage.read" | "usage.record";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AiChatEvents & AiProvidersEvents & ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = AiChatEvents & AiKeysEvents & ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

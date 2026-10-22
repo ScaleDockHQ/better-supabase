@@ -58,7 +58,7 @@ const demoSummarizer: ThreadSummarizer = {
 
 /**
  * The summarizer for threads: an AI Gateway model, billed to the tenant's own
- * key when the organization saved one in the ai-providers block.
+ * key when the organization saved one in the ai-keys block.
  */
 export function threadSummarizer(supabase: RpcClient): ThreadSummarizer {
   return process.env["AI_GATEWAY_API_KEY"]

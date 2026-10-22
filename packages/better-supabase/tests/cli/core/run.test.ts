@@ -93,7 +93,7 @@ describe("run", () => {
     const path = join(dir, "better-supabase.config.ts");
     await writeFile(
       path,
-      "export default {\n  sql: {\n    modules: { tenant: true },\n  },\n};\n",
+      "export default {\n  sql: {\n    modules: { memberships: true },\n  },\n};\n",
     );
 
     const before = await run(["blocks", "list", "--installed", "--cwd", dir]);
@@ -108,7 +108,7 @@ describe("run", () => {
       stdout: expect.stringContaining("better-supabase.config.ts"),
     });
     expect(await readFile(path, "utf-8")).toBe(
-      "export default {\n  blocks: { tenant: true },\n};\n",
+      "export default {\n  blocks: { memberships: true },\n};\n",
     );
   });
 
@@ -742,12 +742,12 @@ describe("run", () => {
             notes: ["select", "insert(body)"],
           },
         },
-        blocks: ["grants"],
+        blocks: ["data-api-grants"],
       }),
     );
     const synced = await run(["upgrade", "--cwd", dir]);
     expect(synced).toMatchObject({ code: 0, stderr: "" });
-    const path = /Created (\S+) \(grants\)/.exec(synced.stdout)?.[1];
+    const path = /Created (\S+) \(data-api-grants\)/.exec(synced.stdout)?.[1];
     const grants = await readFile(join(dir, path!), "utf-8");
     expect(grants).toContain(
       'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',

@@ -16,8 +16,8 @@ import {
   raise,
   triggerGrant,
 } from "../shared.ts";
-import { accessModel, OPERATIONS, moduleOperations } from "./access-model.ts";
 import { ORGANIZATION_CUSTOMER_COLUMN } from "./entitlements-source.ts";
+import { activeTenantSource, roleNameOf } from "./memberships.ts";
 import { deleteMode, organizationDeletion } from "./organizations-deletion.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import {
@@ -27,7 +27,11 @@ import {
 } from "./organizations-reads.ts";
 import { assignableRole, checkRole, roleValue } from "./organizations-roles.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
-import { activeTenantSource, roleNameOf } from "./tenant.ts";
+import {
+  accessModel,
+  OPERATIONS,
+  moduleOperations,
+} from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   events: ORGANIZATION_EVENTS,
@@ -96,7 +100,7 @@ interface OrganizationNames {
 }
 
 function namesOf(ctx: BlockSqlContext): OrganizationNames {
-  const t = ctx.of("tenant");
+  const t = ctx.of("memberships");
 
   return {
     organization: ctx.table("organizations"),
@@ -114,7 +118,7 @@ const isOwner = (
   n: OrganizationNames,
   alias: string,
 ): string =>
-  `${roleNameOf(ctx.of("tenant"), alias)} = ${sqlString(n.ownerRole)}`;
+  `${roleNameOf(ctx.of("memberships"), alias)} = ${sqlString(n.ownerRole)}`;
 
 /** True while the organization exists and is neither deleted nor disabled. */
 function activeOrganization(
@@ -190,7 +194,7 @@ grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
 drop policy if exists ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization};
 create policy ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization} for select to authenticated
-  using (${n.id} in (select ${ctx.of("tenant").fn("member_organization_ids")}()));
+  using (${n.id} in (select ${ctx.of("memberships").fn("member_organization_ids")}()));
 `;
 }
 
@@ -475,13 +479,13 @@ function tenantKeys(ctx: BlockSqlContext, n: OrganizationNames): string {
   };
 
   add(
-    "tenant",
+    "memberships",
     "memberships",
     ctx.naming.rename("memberships_organization_fkey"),
     true,
   );
   add(
-    "access",
+    "permissions",
     "overrides",
     ctx.naming.rename("permission_overrides_organization_fkey"),
     accessModel(ctx) === "catalog",
@@ -543,9 +547,9 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   }
 
   if (guard === "external") {
-    if (ctx.of("tenant").manages) {
+    if (ctx.of("memberships").manages) {
       throw new TypeError(
-        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.tenant.ownership "adopt").',
+        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.memberships.ownership "adopt").',
       );
     }
 
@@ -639,8 +643,8 @@ function members(ctx: BlockSqlContext, n: OrganizationNames): string {
 
   const subject = "'organizations/' || organization::text";
 
-  const lastUsed = ctx.of("tenant").has("memberships", "lastUsedAt")
-    ? `update ${n.m} set ${ctx.of("tenant").col("memberships", "lastUsedAt")} = now()
+  const lastUsed = ctx.of("memberships").has("memberships", "lastUsedAt")
+    ? `update ${n.m} set ${ctx.of("memberships").col("memberships", "lastUsedAt")} = now()
   where ${n.tenant} = organization and ${n.user} = auth.uid();
   return found;`
     : "return false;";
@@ -673,7 +677,7 @@ begin
   if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
     ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to change roles")}
   end if;${active}${checkRole(ctx, "role", "organization")}
-  select ${roleNameOf(ctx.of("tenant"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
+  select ${roleNameOf(ctx.of("memberships"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
   from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
     ${fail("ORGANIZATION_NOT_MEMBER", "Not a member", "P0002")}
@@ -806,7 +810,7 @@ $$;
 
 /**
  * `switch_organization(organization)`: makes organization the caller's active
- * tenant through `blocks.access.activeTenant`. A claim source writes
+ * tenant through `blocks.permissions.activeTenant`. A claim source writes
  * \`app_metadata\` and returns refresh = true, so the client refreshes its
  * session.
  */
@@ -824,14 +828,14 @@ function switcher(ctx: BlockSqlContext, n: OrganizationNames): string {
     write = "-- The server's tenant resolver picks the tenant per request.";
   } else {
     const profile = columnRef(
-      "blocks.access.activeTenant.profileColumn",
+      "blocks.permissions.activeTenant.profileColumn",
       source.profileColumn,
     );
 
     write = `update ${profile.table} set ${profile.column} = organization where ${sqlIdent(source.key ?? "id")} = me;`;
   }
 
-  const tenantModule = ctx.of("tenant");
+  const tenantModule = ctx.of("memberships");
 
   const lastUsed = tenantModule.has("memberships", "lastUsedAt")
     ? `
@@ -839,7 +843,7 @@ function switcher(ctx: BlockSqlContext, n: OrganizationNames): string {
     : "";
 
   return `
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function ${ctx.fn("switch_organization")}(organization ${ctx.idType})
 returns jsonb
 language plpgsql
@@ -933,7 +937,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
   title: "Organizations",
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",
-  requires: ["tenant", "access", "updated-at"],
+  requires: ["memberships", "permissions", "updated-at"],
   integrates: [
     "audit",
     "data-lifecycle",

@@ -274,7 +274,7 @@ const BUILT_IN_BINDINGS: readonly BuiltInBinding[] = [
     },
   },
   {
-    module: "work-items",
+    module: "tasks",
     table: "items",
     type: "work_item",
     entry: {

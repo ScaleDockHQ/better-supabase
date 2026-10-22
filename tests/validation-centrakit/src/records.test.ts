@@ -1,6 +1,6 @@
 import { createDeals } from "better-supabase/blocks/deals";
 import { sqlTransport } from "better-supabase/blocks/pipelines";
-import { createWorkItems } from "better-supabase/blocks/work-items";
+import { createTasks } from "better-supabase/blocks/tasks";
 import { money } from "better-supabase/commerce";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -15,7 +15,7 @@ const live = await reachable();
 // point at them through config.records, and work items carry a customer_id
 // extra column, so adopting the blocks needs no change to those tables.
 const EXTRA: Extra = {
-  modules: ["subjects", "rank", "pipelines", "deals", "work-items"],
+  modules: ["subjects", "rank", "pipelines", "deals", "tasks"],
   config: {
     deals: {
       options: {
@@ -24,7 +24,7 @@ const EXTRA: Extra = {
         prefix: "OPP-",
       },
     },
-    "work-items": { options: { extraColumns: { customer_id: "bigint" } } },
+    tasks: { options: { extraColumns: { customer_id: "bigint" } } },
   },
   subjects: {
     customer: {
@@ -37,7 +37,7 @@ const EXTRA: Extra = {
       idType: "bigint",
       title: "name",
     },
-    // What `blocks: ["deals", "work-items"]` registers in config.records.
+    // What `blocks: ["deals", "tasks"]` registers in config.records.
     deal: {
       table: "better_supabase.deals",
       idType: "uuid",
@@ -151,7 +151,7 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
           )
         )[0]!.id;
 
-        const items = createWorkItems({ transport: sqlTransport(s.sql) });
+        const items = createTasks({ transport: sqlTransport(s.sql) });
 
         const task = await items
           .create(org, { title: "Replace boiler" })

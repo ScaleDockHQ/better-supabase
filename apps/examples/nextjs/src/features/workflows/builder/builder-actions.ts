@@ -1,7 +1,7 @@
 "use server";
 
 import { dbError, err, ok } from "better-supabase";
-import { approvalToken } from "better-supabase/blocks/workflow-builder";
+import { approvalToken } from "better-supabase/blocks/workflow-editor";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 import { resumeHook } from "workflow/api";

@@ -14,8 +14,8 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { RecordRef } from "../../schema/types.ts";
-import type { JobHandler } from "../jobs/types.ts";
 import type { Notifier } from "../ports.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { DeliveryPayload } from "./schedule.ts";
 
 import {

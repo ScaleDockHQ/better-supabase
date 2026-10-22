@@ -256,7 +256,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "records.*.tenant": {
     description:
-      "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.tenant.entities.organization>_id` when the tenant is renamed.",
+      "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.memberships.entities.organization>_id` when the tenant is renamed.",
   },
   "records.*.title": { description: "The column `subject_title` returns." },
   "records.*.url": {
@@ -345,7 +345,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   blocks: {
     description:
-      "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
+      "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, rls-guard, ...) are configured here too.",
   },
   tables: {
     description:
@@ -555,15 +555,15 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Function name to the name the block writes it under, such as create_organization to start_company.",
   },
-  "$defs.accessBlock.ownership": { default: "managed" },
-  "$defs.accessBlock.schema": { default: "better_supabase" },
-  "$defs.accessBlock.owner": {
+  "$defs.permissionsBlock.ownership": { default: "managed" },
+  "$defs.permissionsBlock.schema": { default: "better_supabase" },
+  "$defs.permissionsBlock.owner": {
     description:
       "Who the block's rows belong to: tenant, user or none. Defaults to database.sql.owner, then tenant.",
   },
-  "$defs.accessBlock.model": { default: "roles" },
-  "$defs.accessBlock.platformClaim": { default: "platform_permissions" },
-  "$defs.accessBlock.scopes": {
+  "$defs.permissionsBlock.model": { default: "roles" },
+  "$defs.permissionsBlock.platformClaim": { default: "platform_permissions" },
+  "$defs.permissionsBlock.scopes": {
     description:
       "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes.",
   },

@@ -1,4 +1,7 @@
-import { createRulesAdmin, rpcTransport } from "better-supabase/blocks/rules";
+import {
+  createAutomationsAdmin,
+  rpcTransport,
+} from "better-supabase/blocks/automations";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -11,9 +14,9 @@ import { customerRuleFields } from "./rule-fields";
  * leaves the previous catalog in place.
  */
 export async function syncRuleFields(): Promise<void> {
-  const schema = blockConfig.rules.api;
+  const schema = blockConfig.automations.api;
 
-  const admin = createRulesAdmin({
+  const admin = createAutomationsAdmin({
     transport: rpcTransport(bsb.admin().$client, { schema }),
     schema,
   });

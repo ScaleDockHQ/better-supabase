@@ -607,13 +607,13 @@ function peers(ctx: BlockSqlContext): string {
     return "";
   }
 
-  if (!ctx.installed("tenant")) {
+  if (!ctx.installed("memberships")) {
     throw new TypeError(
       "blocks.profiles.options.readPolicy 'members' needs the tenant module",
     );
   }
 
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
@@ -1052,12 +1052,12 @@ export const PROFILES: BlockSqlDefinition = {
   description:
     "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
   requires: [],
-  integrates: ["tenant"],
+  integrates: ["memberships"],
   dependencies: (layout) => {
     const policy = layout.modules?.["profiles"]?.options?.["readPolicy"];
 
     return typeof policy === "object" && policy !== null && "platform" in policy
-      ? ["access"]
+      ? ["permissions"]
       : [];
   },
   target: "schema",

@@ -108,7 +108,7 @@ export interface OrganizationConfig {
   /**
    * The column holding the organization id on tenant tables, for the `tenant`
    * plugin flag. Defaults to `organization_id`, or `<name>_id` when
-   * `blocks.tenant.names.organization` renames it.
+   * `blocks.memberships.names.organization` renames it.
    */
   readonly column?: string;
 }

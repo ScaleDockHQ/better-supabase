@@ -27,7 +27,7 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-const MODULES = ["tenant", "audit", "invitations", "jobs", "mfa"];
+const MODULES = ["memberships", "audit", "invitations", "queue", "mfa"];
 
 describe.skipIf(!live)(
   "the module migration of sql.workflow 'migrations'",

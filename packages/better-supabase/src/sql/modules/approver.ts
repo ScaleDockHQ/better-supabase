@@ -3,7 +3,7 @@ import type { BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
-import { accessModel } from "./access-model.ts";
+import { accessModel } from "./permissions-model.ts";
 
 /** The `{kind}` of an AI tool call that waits for approval. */
 export const AI_TOOL_APPROVAL = "ai-tool";

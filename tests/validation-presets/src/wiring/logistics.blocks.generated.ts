@@ -14,7 +14,7 @@ import type { ShipmentsEvents } from "better-supabase/blocks/shipments";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 
@@ -24,7 +24,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -82,7 +82,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -98,7 +98,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -149,6 +149,11 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
+  },
   enrollments: {
     read: "enrollments.read",
     enroll: "enrollments.enroll",
@@ -179,11 +184,6 @@ export const permissions = {
     suspendMember: "members.remove",
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
-  },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
   },
   person: {
     read: "parties.read",
@@ -223,11 +223,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "settings.manage" | "settings.read" | "settings.update" | "shipments.manage" | "shipments.read" | "teams.manage" | "teams.read";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & AssetsEvents & EnrollmentsEvents & ShipmentsEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & AssetsEvents & EnrollmentsEvents & ShipmentsEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

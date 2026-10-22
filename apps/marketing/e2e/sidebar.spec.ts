@@ -5,7 +5,7 @@ test.use({ viewport: { width: 1440, height: 900 } });
 test("the blocks sidebar hides the native scrollbar and shows the current block", async ({
   page,
 }) => {
-  await page.goto("/blocks/ensure-rls");
+  await page.goto("/blocks/rls-guard");
 
   const sidebar = page.getByRole("navigation", { name: "Blocks" }).first();
 

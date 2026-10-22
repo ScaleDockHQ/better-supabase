@@ -377,8 +377,9 @@ function optionalBoolean(where: string, value: unknown): boolean | undefined {
 /**
  * The columns every app table gets, which `columns` may not name: `id`,
  * `created_at`, `updated_at`, `user_id` and the tenant column
- * (`organization_id`, or `<blocks.tenant.names.organization>_id`), whatever the
- * table's scope, so changing the scope never collides with a column.
+ * (`organization_id`, or `<blocks.memberships.names.organization>_id`),
+ * whatever the table's scope, so changing the scope never collides with a
+ * column.
  */
 export function appReservedColumns(tenant = "organization"): readonly string[] {
   return ["id", "created_at", "updated_at", "user_id", `${tenant}_id`];
@@ -1117,7 +1118,7 @@ export function appTablesOf(value: unknown, tenant?: string): AppTablesConfig {
  * `subjects` with the subject of every app table that sets one (ADR 0043): the
  * table in `public`, its id type, and its tenant column, or `false` for a table
  * kept per user or shared. `scope` is `sql.scope` and `tenant` is
- * `blocks.tenant.names.organization`. Throws when a type is taken twice.
+ * `blocks.memberships.names.organization`. Throws when a type is taken twice.
  */
 export function withAppTableSubjects(
   subjects: SubjectsConfig,

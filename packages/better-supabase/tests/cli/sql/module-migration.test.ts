@@ -19,7 +19,10 @@ const config = resolveConfig(
   "/p",
 );
 
-const files = renderBlocks(["tenant", "jsonb-schemas"], moduleLayout(config));
+const files = renderBlocks(
+  ["memberships", "jsonb-schemas"],
+  moduleLayout(config),
+);
 
 describe("renderModuleMigration", () => {
   it("orders the extensions, upgrade steps, schema bodies, topics and data", () => {
@@ -35,9 +38,9 @@ describe("renderModuleMigration", () => {
       "-- @bsb-upgrade-start",
       "-- step one",
       "-- @bsb-upgrade-end",
-      "-- @bsb-block tenant@",
+      "-- @bsb-block memberships@",
       "-- topics",
-      "-- @bsb-block-data tenant",
+      "-- @bsb-block-data memberships",
     ].map((line) => text.indexOf(line));
 
     expect(order.every((index) => index >= 0)).toBe(true);
@@ -83,8 +86,8 @@ describe("sameModuleMigration and migrationHolds", () => {
   it("reads the installed modules and versions", () => {
     expect(
       migrationModules(
-        plain.replace("@bsb-block tenant@2", "@bsb-block tenant@1"),
-      ).get("tenant"),
+        plain.replace("@bsb-block memberships@2", "@bsb-block memberships@1"),
+      ).get("memberships"),
     ).toBe(1);
     expect(migrationModules("").size).toBe(0);
   });

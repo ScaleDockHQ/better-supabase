@@ -67,7 +67,7 @@ export interface Deal<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly number: bigint;
-  /** `DEAL-4821`, or the number-sequences format. */
+  /** `DEAL-4821`, or the numbering format. */
   readonly identifier: string;
   readonly name: string;
   readonly company?: DealParty;

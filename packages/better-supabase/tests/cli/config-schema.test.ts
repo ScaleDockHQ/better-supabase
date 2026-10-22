@@ -191,11 +191,11 @@ describe("configIssues", () => {
     ]);
   });
 
-  it("takes the access keys only under blocks.access", () => {
+  it("takes the access keys only under blocks.permissions", () => {
     expect(
       configIssues({
         blocks: {
-          access: { model: "catalog", activeTenant: "claim" },
+          permissions: { model: "catalog", activeTenant: "claim" },
           organizations: {
             ownership: "adopt",
             options: { ownerRole: "owner" },
@@ -255,7 +255,9 @@ describe("configIssues for authorization", () => {
       issues({ delegation: { scopes: { "posts:write": ["posts.*"] } } }),
     ).toEqual([]);
     expect(
-      configIssues({ blocks: { access: { scopes: { "mcp:read": ["*"] } } } }),
+      configIssues({
+        blocks: { permissions: { scopes: { "mcp:read": ["*"] } } },
+      }),
     ).toEqual([]);
     expect(
       issues({ delegation: { scopes: { "posts:write": "posts.*" } } }).join(

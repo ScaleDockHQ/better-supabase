@@ -5,7 +5,7 @@ import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail } from "../shared.ts";
-import { accessModel } from "./access-model.ts";
+import { accessModel } from "./permissions-model.ts";
 
 /**
  * Users who hold `notification.permission` in the tenant, added before
@@ -39,7 +39,7 @@ export function permissionAudience(
     return customAudience(ctx, needsTenant, unavailable, named);
   }
 
-  if (!ctx.installed("tenant")) {
+  if (!ctx.installed("memberships")) {
     return unavailable;
   }
 
@@ -79,16 +79,17 @@ function customAudience(
   unavailable: string,
   named: string,
 ): string {
-  const template = ctx.modules.access?.functions?.holdersOf;
+  const template = ctx.modules.permissions?.functions?.holdersOf;
 
   if (template === undefined) {
     return unavailable;
   }
 
-  const call = fillTemplate("blocks.access.functions.holdersOf", template, {
-    permission: "(notification ->> 'permission')",
-    tenant: "v_tenant",
-  });
+  const call = fillTemplate(
+    "blocks.permissions.functions.holdersOf",
+    template,
+    { permission: "(notification ->> 'permission')", tenant: "v_tenant" },
+  );
 
   return audienceAppend(needsTenant, named, call);
 }
@@ -99,17 +100,17 @@ function membershipAudience(
   needsTenant: string,
   named: string,
 ): string {
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const user = members.col("memberships", "user");
   const tenant = members.col("memberships", "tenant");
   let platform = "";
 
   if (
     model === "catalog" &&
-    ctx.installed("access") &&
-    ctx.of("access").hasTable("platformAssignments")
+    ctx.installed("permissions") &&
+    ctx.of("permissions").hasTable("platformAssignments")
   ) {
-    const access = ctx.of("access");
+    const access = ctx.of("permissions");
     const holder = access.col("platformAssignments", "user");
     platform = `
       union

@@ -114,7 +114,7 @@ export interface ServerOptions {
   };
   /**
    * The active tenant of a request when it doesn't come from a claim, e.g. from
-   * a URL slug (`blocks.access.activeTenant: 'resolver'`). It becomes
+   * a URL slug (`blocks.permissions.activeTenant: 'resolver'`). It becomes
    * `context.tenant` for the `tenant()` plugin, the `better_supabase.tenant`
    * setting over Postgres and the `x-bsb-tenant` header over PostgREST, which
    * `current_tenant_id()` reads only while the caller is a member. Async

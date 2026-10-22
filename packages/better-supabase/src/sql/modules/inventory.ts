@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import {
   purchaseOrderFunctions,
   transferFunctions,
@@ -24,6 +23,7 @@ import {
   threshold,
 } from "./inventory-stock.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 type CommerceKey = keyof CommerceEventData;
 
@@ -619,7 +619,7 @@ export const INVENTORY: BlockSqlDefinition = {
   title: "Inventory",
   description:
     "Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.",
-  requires: ["tenant", "access", "catalog", "ledger"],
+  requires: ["memberships", "permissions", "catalog", "ledger"],
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

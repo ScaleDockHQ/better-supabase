@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { createWorkItems } from "../../src/blocks/work-items/index.ts";
+import { createTasks } from "../../src/blocks/tasks/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { entityRenamePlan } from "../../src/sql/entity-upgrade.ts";
@@ -18,17 +18,17 @@ const MODULES = [
   "subjects",
   "rank",
   "pipelines",
-  "work-items",
-  "access",
+  "tasks",
+  "permissions",
   "messaging",
   "comments",
 ];
 
 const layout = (entities?: Record<string, string>): BlockSqlLayout => {
-  const blocks = entities ? { "work-items": { entities } } : {};
+  const blocks = entities ? { tasks: { entities } } : {};
 
   return {
-    subjects: withBlockSubjects({}, ["work-items"], blocks),
+    subjects: withBlockSubjects({}, ["tasks"], blocks),
     modules: blocks,
   };
 };
@@ -64,7 +64,7 @@ describe.skipIf(!live)(
 
         await s.as(owner);
 
-        const item = await createWorkItems({ transport: sqlTransport(s.sql) })
+        const item = await createTasks({ transport: sqlTransport(s.sql) })
           .create(org, { title: "Renamed later" })
           .orThrow();
 

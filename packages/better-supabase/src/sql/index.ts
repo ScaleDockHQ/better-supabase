@@ -33,7 +33,7 @@ export { blockSqlVersion } from "./module-types.ts";
 
 export { resolveBlocks, SQL_MODULES } from "./registry.ts";
 
-export { DEFAULT_ROLES } from "./modules/access-model.ts";
+export { DEFAULT_ROLES } from "./modules/permissions-model.ts";
 
 export {
   APP_TABLES_MARKER,

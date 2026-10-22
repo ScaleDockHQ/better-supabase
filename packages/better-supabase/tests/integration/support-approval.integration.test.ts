@@ -57,7 +57,7 @@ async function providerLayout(
   `);
 
   return {
-    modules: { access: { model: "provider" } },
+    modules: { permissions: { model: "provider" } },
     accessProvider: {
       name: "test",
       scope: "organization",
@@ -77,7 +77,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
   afterAll(() => pool.end());
 
   async function setUp(s: BlockSession) {
-    await s.install(["support-sessions"]);
+    await s.install(["impersonation"]);
     const requester = await s.user("requester");
     const approver = await s.user("approver");
     const outsider = await s.user("outsider");
@@ -231,7 +231,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
     try {
       const { requester, outsider, target } = await setUp(s);
       const layout = await providerLayout(s, "support-session");
-      await reinstall(s, ["support-sessions"], "support-sessions", layout);
+      await reinstall(s, ["impersonation"], "impersonation", layout);
       await s.asRole(requester, staff);
       const request = await s.value<Request>(REQUEST, [target.id, "ticket"]);
       expect(await s.hint(APPROVE, [request.id])).toBe("SUPPORT_SELF_APPROVAL");

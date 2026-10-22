@@ -1,6 +1,6 @@
 "use client";
 
-import { useOAuthConsent } from "better-supabase/blocks/sessions/react";
+import { useOAuthConsent } from "better-supabase/blocks/session-revocation/react";
 import { useExtracted } from "next-intl";
 import { useSyncExternalStore } from "react";
 

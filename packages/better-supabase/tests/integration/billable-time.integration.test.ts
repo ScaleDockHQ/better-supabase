@@ -5,8 +5,8 @@ import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createBillableTime } from "../../src/blocks/billable-time/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createInvoices } from "../../src/blocks/invoices/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import {
   createTimeTracking,
   sqlTransport,
@@ -22,7 +22,7 @@ const MODULES = [
   "outbox",
   "subjects",
   "relations",
-  "parties",
+  "contacts",
   "approvals",
   "time-tracking",
   "invoices",
@@ -58,7 +58,7 @@ describe.skipIf(!live)("billable-time", () => {
 
       await s.as(owner);
 
-      const acme = await createParties({ transport })
+      const acme = await createContacts({ transport })
         .saveCompany(tenant, { name: "Acme" })
         .orThrow();
 

@@ -2008,8 +2008,8 @@ uri = "https://example.com/hook"
             {
               auth: { authorization: stubProvider },
               blocks: {
-                access: { model: "provider" },
-                tenant: {
+                permissions: { model: "provider" },
+                memberships: {
                   ownership: "adopt",
                   tables: { memberships: "public.team_members" },
                   columns: { memberships: { role: "role_id" } },
@@ -2043,7 +2043,7 @@ uri = "https://example.com/hook"
       expect(await run()).toMatchObject([
         {
           severity: "error",
-          target: "blocks.tenant.options.roleThrough.where",
+          target: "blocks.memberships.options.roleThrough.where",
           message: expect.stringContaining("can resolve a platform role"),
         },
         {
@@ -2053,7 +2053,7 @@ uri = "https://example.com/hook"
         },
       ]);
       expect(await run(undefined, "{row}.scope = 'system'")).toMatchObject([
-        { target: "blocks.tenant.options.roleThrough.where" },
+        { target: "blocks.memberships.options.roleThrough.where" },
       ]);
       expect(
         await run("{row}.scope = 'organization'", "{row}.scope = 'system'"),

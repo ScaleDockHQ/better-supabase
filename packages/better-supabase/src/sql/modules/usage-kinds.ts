@@ -3,7 +3,7 @@ import type { UsageMeter } from "./usage-meters.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { isMeterTable, metersOf } from "./usage-meters.ts";
 
 /** The meters that count distinct subjects or are computed by a query. */

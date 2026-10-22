@@ -2,8 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { moderatedMessageType } from "./messaging-moderation.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const WHERE = "blocks.moderation.options";
 

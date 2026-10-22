@@ -19,7 +19,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The keys a file read returns, which no extra column may shadow. */
 const FILE_KEYS: readonly string[] = [
@@ -974,7 +974,7 @@ export const AI_FILES: BlockSqlDefinition = {
   title: "AI files",
   description:
     "Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["ai-chat"],
   target: "schema",
   modes: ["managed", "custom"],

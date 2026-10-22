@@ -4,8 +4,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createLeases, sqlTransport } from "../../src/blocks/leases/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -18,7 +18,7 @@ const MODULES = [
   "audit",
   "subjects",
   "relations",
-  "parties",
+  "contacts",
   "assets",
   "ledger",
   "leases",
@@ -51,7 +51,7 @@ describe.skipIf(!live)("leases", () => {
 
       await s.as(owner);
 
-      const company = await createParties({ transport })
+      const company = await createContacts({ transport })
         .saveCompany(tenant, { name: "Acme" })
         .orThrow();
 

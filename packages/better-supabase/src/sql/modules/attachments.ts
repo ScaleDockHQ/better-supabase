@@ -26,11 +26,11 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { moduleOperations } from "./access-model.ts";
 import { BUCKET, bucketOptions } from "./attachments-bucket.ts";
 import { attachmentsContract } from "./attachments-contract.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<AttachmentsEvents> = {
   "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
@@ -1065,7 +1065,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   title: "Attachments",
   description:
     "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],

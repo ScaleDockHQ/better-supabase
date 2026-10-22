@@ -14,11 +14,11 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   EXPENSE_REPORT_RESERVED,
   expensesFunctions,
 } from "./expenses-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const REPORT_PAYLOAD = [
   "organizationId",
@@ -307,7 +307,7 @@ export const EXPENSES: BlockSqlDefinition = {
   title: "Expenses",
   description:
     "Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units.",
-  requires: ["tenant", "access", "approvals", "ledger"],
+  requires: ["memberships", "permissions", "approvals", "ledger"],
   integrates: ["outbox", "audit", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],

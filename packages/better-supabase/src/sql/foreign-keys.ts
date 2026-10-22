@@ -176,8 +176,8 @@ function declaredForeignKeys(
 }
 
 /**
- * The layout fields `blocks.tenant.options.sameTenant.auto` derives its entries
- * from.
+ * The layout fields `blocks.memberships.options.sameTenant.auto` derives its
+ * entries from.
  */
 export function sameTenantLayout(
   files: readonly { readonly text: string }[],

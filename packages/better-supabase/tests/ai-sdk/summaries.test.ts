@@ -2,7 +2,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ThreadSummaryInput } from "../../src/ai-sdk/index.ts";
-import type { AiProviders } from "../../src/blocks/ai-providers/index.ts";
+import type { AiKeys } from "../../src/blocks/ai-keys/index.ts";
 
 import { summarizeWith } from "../../src/ai-sdk/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -97,10 +97,7 @@ describe("summarizeWith", () => {
     );
 
     // SAFETY: summarizeWith reads keys.resolve only.
-    const providers = { keys: { resolve } } as unknown as Pick<
-      AiProviders,
-      "keys"
-    >;
+    const providers = { keys: { resolve } } as unknown as Pick<AiKeys, "keys">;
 
     const signal = new AbortController().signal;
 

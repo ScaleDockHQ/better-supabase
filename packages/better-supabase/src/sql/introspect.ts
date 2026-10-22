@@ -10,7 +10,7 @@ import {
   MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
-} from "./modules/access-model.ts";
+} from "./modules/permissions-model.ts";
 import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";
 
 /** A permission key a SQL module checks, from `modulePermissionKeys`. */

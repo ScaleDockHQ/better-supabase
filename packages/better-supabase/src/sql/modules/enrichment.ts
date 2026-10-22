@@ -17,7 +17,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<EnrichmentEvents> = {
   "party.enriched": {
@@ -79,7 +79,7 @@ interface EnrichmentNames {
 
 function names(ctx: BlockSqlContext): EnrichmentNames {
   const keys = moduleOperations("enrichment");
-  const parties = ctx.of("parties");
+  const parties = ctx.of("contacts");
 
   return {
     fn: (name) => ctx.fn(name),
@@ -407,7 +407,7 @@ export const ENRICHMENT: BlockSqlDefinition = {
   title: "Enrichment",
   description:
     "Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.",
-  requires: ["tenant", "access", "parties"],
+  requires: ["memberships", "permissions", "contacts"],
   integrates: ["outbox", "data-lifecycle"],
   target: "schema",
   modes: ["managed"],

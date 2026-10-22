@@ -22,7 +22,7 @@ import {
 } from "../shared.ts";
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const CLOCK = [
   "organizationId",
@@ -687,7 +687,7 @@ export const SLA: BlockSqlDefinition = {
   title: "Service levels",
   description:
     "Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["memberships", "permissions", "subjects"],
   integrates: ["outbox", "notifications"],
   target: "schema",
   modes: ["managed", "custom"],

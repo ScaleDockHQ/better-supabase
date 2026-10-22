@@ -9,8 +9,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { enrollmentsFunctions } from "./enrollments-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const PROGRAM_PAYLOAD = ["organizationId", "id", "key", "version"] as const;
 
@@ -249,7 +249,7 @@ export const ENROLLMENTS: BlockSqlDefinition = {
   title: "Enrollments",
   description:
     "Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

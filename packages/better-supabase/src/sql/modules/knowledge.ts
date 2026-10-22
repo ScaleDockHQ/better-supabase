@@ -11,7 +11,7 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const DOCUMENTS = {
   id: "id",
@@ -180,7 +180,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     : "";
 
   const enqueue = (document: string): string =>
-    ctx.installed("jobs")
+    ctx.installed("queue")
       ? `
   ${ctx.enqueue(queue, `jsonb_build_object('document_id', ${document})`, `'knowledge:' || ${document}::text`)}`
       : "";
@@ -609,8 +609,8 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   title: "Knowledge",
   description:
     "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed.",
-  requires: ["tenant", "access", "vector-search"],
-  integrates: ["ai-chat", "ai-files", "jobs"],
+  requires: ["memberships", "permissions", "vector-search"],
+  integrates: ["ai-chat", "ai-files", "queue"],
   target: "schema",
   version: 1,
   names: NAMES,

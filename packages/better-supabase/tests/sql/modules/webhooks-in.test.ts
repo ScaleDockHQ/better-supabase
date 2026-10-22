@@ -53,9 +53,9 @@ describe("webhooks-in module", () => {
   it("installs after access and the webhook inbox and lists its keys", () => {
     expect(resolveBlocks(["webhooks-in"]).map((m) => m.name)).toEqual([
       "updated-at",
-      "tenant",
+      "memberships",
       "webhook-inbox",
-      "access",
+      "permissions",
       "webhooks-in",
     ]);
     expect(

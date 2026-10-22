@@ -104,7 +104,7 @@ function blocksSchema(description: unknown): {
       return [
         module,
         {
-          $ref: `#/$defs/${module === "access" ? "accessBlock" : "moduleConfig"}`,
+          $ref: `#/$defs/${module === "access" ? "permissionsBlock" : "moduleConfig"}`,
           type: "object",
           properties: {
             options:
@@ -171,7 +171,7 @@ export function renderConfigSchema(): string {
     config,
     environment,
     moduleConfig,
-    accessBlock,
+    permissionsBlock,
     privilege,
     triggerValue,
     generator,
@@ -183,7 +183,7 @@ export function renderConfigSchema(): string {
       definitions: {
         environment,
         moduleConfig,
-        accessBlock,
+        permissionsBlock,
         privilege,
         triggerValue,
       },

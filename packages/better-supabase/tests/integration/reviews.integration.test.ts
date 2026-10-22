@@ -29,7 +29,7 @@ const MODULES = [
   "catalog",
   "inventory",
   "outbox",
-  "number-sequences",
+  "numbering",
   "orders",
   "reviews",
 ] as const;
@@ -37,7 +37,7 @@ const MODULES = [
 const layout = (reviews: object = {}): BlockSqlLayout => ({
   modules: {
     catalog: { options: { storefront: "public" } },
-    "number-sequences": {
+    numbering: {
       options: {
         entities: {
           order: { period: "none", format: "SO-{n:4}" },

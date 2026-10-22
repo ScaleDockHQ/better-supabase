@@ -105,7 +105,7 @@ describe("notifications module", () => {
     const plain = renderBlocks(["notifications"]).at(-1)!.contents;
     expect(plain).not.toContain("member_can");
     expect(plain).not.toContain("emit_event");
-    const files = renderBlocks(["access", "outbox", "notifications"]);
+    const files = renderBlocks(["permissions", "outbox", "notifications"]);
 
     const sql = files.find((file) =>
       file.path.includes("notifications"),
@@ -328,14 +328,14 @@ describe("notifications module", () => {
 
   it("skips the recipient read filter when the provider answers for the caller only", () => {
     const notify = (modules: AnyBlocksConfig) =>
-      renderBlocks(["access", "notifications"], {
+      renderBlocks(["permissions", "notifications"], {
         modules,
         accessProvider: callerOnlyProvider,
       }).find((file) => file.path.includes("notifications"))!.contents;
 
     expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");
 
-    const callerOnly = notify({ access: { model: "provider" } });
+    const callerOnly = notify({ permissions: { model: "provider" } });
 
     expect(callerOnly).not.toContain("better_supabase.member_can(x,");
     expect(callerOnly).toContain(
@@ -480,7 +480,7 @@ describe("notification actors", () => {
   });
 
   it("lets a sender add a level for another member only when none is set", () => {
-    const sql = renderBlocks(["access", "notifications"])
+    const sql = renderBlocks(["permissions", "notifications"])
       .filter((file) => file.module === "notifications")
       .map((file) => file.contents)
       .join("\n");

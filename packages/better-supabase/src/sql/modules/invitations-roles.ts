@@ -1,15 +1,15 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { roleThrough, roleThroughTable } from "./memberships.ts";
+import { roleValue, tenantRoleScope } from "./organizations-roles.ts";
 import {
   accessModel,
   OPERATIONS,
   providerPlatformRoles,
   roleNames,
   roleScopeIs,
-} from "./access-model.ts";
-import { roleValue, tenantRoleScope } from "./organizations-roles.ts";
-import { roleThrough, roleThroughTable } from "./tenant.ts";
+} from "./permissions-model.ts";
 
 /**
  * The catalog role id for a key or id, in `scope`, among `tenant`'s roles when
@@ -31,7 +31,7 @@ function roleIn(
     return roleValue(ctx, expr, tenant);
   }
 
-  const access = ctx.of("access");
+  const access = ctx.of("permissions");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
@@ -64,8 +64,8 @@ export interface PlatformAssignment {
 
 /**
  * Why `blocks.invitations.options.platformRoles.through` needs `where`: its
- * table also holds the tenant roles of `blocks.tenant.options.roleThrough`.
- * `undefined` when it doesn't.
+ * table also holds the tenant roles of
+ * `blocks.memberships.options.roleThrough`. `undefined` when it doesn't.
  */
 export function platformRolesProblem(ctx: BlockSqlContext): string | undefined {
   const through = providerPlatformRoles(ctx)?.through;
@@ -74,11 +74,11 @@ export function platformRolesProblem(ctx: BlockSqlContext): string | undefined {
     return undefined;
   }
 
-  if (roleThroughTable(ctx.of("tenant"))?.table !== through.table) {
+  if (roleThroughTable(ctx.of("memberships"))?.table !== through.table) {
     return undefined;
   }
 
-  return `blocks.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (blocks.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
+  return `blocks.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (blocks.memberships.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
 }
 
 export function platformAssignment(ctx: BlockSqlContext): PlatformAssignment {
@@ -129,7 +129,7 @@ export function platformAssignment(ctx: BlockSqlContext): PlatformAssignment {
     };
   }
 
-  const access = ctx.of("access");
+  const access = ctx.of("permissions");
 
   return {
     value: (expr) => roleIn(ctx, expr, "platform"),
@@ -209,7 +209,7 @@ export function tenantRole(ctx: BlockSqlContext): {
 } {
   const model = accessModel(ctx);
   const stored = roleIn(ctx, "invitee_role", "tenant", "tenant");
-  const through = roleThrough(ctx.of("tenant")) !== undefined;
+  const through = roleThrough(ctx.of("memberships")) !== undefined;
 
   const unknownRole =
     model === "catalog" || through

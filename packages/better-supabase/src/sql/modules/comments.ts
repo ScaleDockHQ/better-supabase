@@ -204,9 +204,9 @@ $$;
 ${userGrant(`${fn("comment_sent")}(uuid)`)}`;
 }
 
-/** `assign_comment`, with the work-items module. */
+/** `assign_comment`, with the tasks module. */
 function assignSql(ctx: BlockSqlContext): string {
-  if (!ctx.installed("work-items")) {
+  if (!ctx.installed("tasks")) {
     return "";
   }
 
@@ -214,7 +214,7 @@ function assignSql(ctx: BlockSqlContext): string {
   const ms = (column: string): string => m.col("messages", column);
   const k = (column: string): string => ctx.col("tasks", column);
   const fn = (name: string): string => ctx.fn(name);
-  const create = ctx.of("work-items").fn("create_work_item");
+  const create = ctx.of("tasks").fn("create_work_item");
 
   return `
 -- Turns a comment into a work item: the title (attrs.title, else the
@@ -619,7 +619,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text", "text", "text"],
       returns: "integer",
     },
-    ...(ctx.installed("work-items")
+    ...(ctx.installed("tasks")
       ? [
           {
             name: "assign_comment",
@@ -755,9 +755,9 @@ export const COMMENTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Comments",
   description:
-    "Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with work-items).",
-  requires: ["tenant", "access", "subjects", "messaging"],
-  integrates: ["notifications", "work-items", "reactions", "attachments"],
+    "Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).",
+  requires: ["memberships", "permissions", "subjects", "messaging"],
+  integrates: ["notifications", "tasks", "reactions", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 8,

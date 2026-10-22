@@ -74,13 +74,13 @@ describe("resolveExposeColumns", () => {
     const config = resolveConfig(
       {
         database: { expose: { notes: ["select(*, -body)"] } },
-        blocks: ["grants"],
+        blocks: ["data-api-grants"],
       },
       "/project",
     );
 
-    expect(() => renderBlocks(["grants"], moduleLayout(config))).toThrow(
-      "resolves against the declared columns",
-    );
+    expect(() =>
+      renderBlocks(["data-api-grants"], moduleLayout(config)),
+    ).toThrow("resolves against the declared columns");
   });
 });

@@ -16,7 +16,7 @@ const sqlOf = (names: readonly string[], layout: BlockSqlLayout = {}): string =>
 
 const SEQUENCES: BlockSqlLayout = {
   modules: {
-    "number-sequences": {
+    numbering: {
       options: {
         entities: {
           order: { period: "year", format: "SO-{yyyy}-{n:5}" },
@@ -59,10 +59,10 @@ describe("orders module", () => {
     expect(sql).toContain("commit_reservation");
   });
 
-  it("numbers orders and invoices from number-sequences when it numbers them", () => {
+  it("numbers orders and invoices from numbering when it numbers them", () => {
     const fallback = sqlOf(["catalog", "orders"]);
     expect(fallback).not.toContain("next_number");
-    const sql = sqlOf(["catalog", "number-sequences", "orders"], SEQUENCES);
+    const sql = sqlOf(["catalog", "numbering", "orders"], SEQUENCES);
     expect(sql).toContain("next_number");
     expect(sql).toContain("SO-{yyyy}-{n:5}");
   });

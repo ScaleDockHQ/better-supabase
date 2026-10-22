@@ -80,7 +80,7 @@ describe("parseSchema", () => {
     expect(byId.has("better_supabase.blocks")).toBe(false);
 
     const memberships = byId.get("better_supabase.memberships");
-    expect(memberships?.module).toBe("tenant");
+    expect(memberships?.module).toBe("memberships");
     expect(memberships?.tenantColumn).toBe("organization_id");
     expect(memberships?.foreignKeys.map((key) => key.target.table)).toContain(
       "organizations",

@@ -30,7 +30,7 @@ const NO_CREATOR: readonly string[] = [
   // Controllers over supabase.auth (MFA factors, OAuth consent and grants);
   // the SQL tables have no client of their own.
   "mfa",
-  "sessions",
+  "session-revocation",
 ];
 
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
@@ -41,14 +41,12 @@ const NO_BLOCK_CALL: readonly string[] = [];
 
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
-  // Role and catalog rows are the access model; the client reads permission keys.
-  "access",
-  // Entries are written from the outbox by the activity sink; they record app events.
-  "activity",
+  // A pass is an admission credential; what it admits to lives on its booking or record.
+  "admission-passes",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
-  "ai-providers",
+  "ai-keys",
   // Locations and assets carry app data in `metadata`.
   "assets",
   // Queues and picks route records to members; app data lives on the records.
@@ -56,12 +54,15 @@ const NO_FIELDS: readonly string[] = [
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",
+  // Rules hold a filter tree and action references the editor writes; the
+  // app's data lives on the subjects the rules test.
+  "automations",
   // A rate is a price on the rate card; it carries no app fields.
   "billable-time",
   // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
   // Run records of the block's own bulk jobs.
-  "bulk",
+  "bulk-actions",
   // A channel names a conversation; app data goes on its linked record or on messages.
   "channels",
   // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
@@ -86,8 +87,6 @@ const NO_FIELDS: readonly string[] = [
   "forecasts",
   // Guests and grants are access rows; who the guest is lives in their party.
   "guests",
-  // Linked accounts and verification codes are auth bookkeeping.
-  "identities",
   // Runs log an import; the imported rows land in the app's own tables.
   "imports",
   // chat-sdk-state is the Chat SDK's state store, which takes no app columns.
@@ -102,6 +101,8 @@ const NO_FIELDS: readonly string[] = [
   // Accounts and entries are double-entry bookkeeping other blocks post to;
   // per-account data goes in `metadata`.
   "ledger",
+  // Linked accounts and verification codes are auth bookkeeping.
+  "linked-identities",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
   // The model writes memories through memory commands, which carry no app columns.
@@ -112,23 +113,22 @@ const NO_FIELDS: readonly string[] = [
   // its own table.
   "moderation",
   // Gapless counters the module owns; an app reads numbers, not these rows.
-  "number-sequences",
+  "numbering",
   // Clients, grants and codes are protocol state; RFC 7591 metadata beyond the columns goes in metadata.
   "oauth-server",
   // An event log; the app's data goes in each event's payload.
   "outbox",
-  // A pass is an admission credential; what it admits to lives on its booking or record.
-  "passes",
+  // Role and catalog rows are the access model; the client reads permission keys.
+  "permissions",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   "reactions",
-  // Rules hold a filter tree and action references the editor writes; the
-  // app's data lives on the subjects the rules test.
-  "rules",
   // Models hold rule trees and metrics; the app's data lives on the scored
   // subjects, which pass their fields to compute_score.
   "scores",
   // A derived index the sink rebuilds from each subject's own row.
   "search",
+  // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.
+  "security-events",
   // A segment is a saved filter; app data lives on the records it matches.
   "segments",
   // Sequences carry their content in steps and each recipient's values in
@@ -136,14 +136,14 @@ const NO_FIELDS: readonly string[] = [
   "sequences",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
-  // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.
-  "shared-signals",
   // Key rows hold a public JWK and a Vault reference the module writes; nothing for an app to extend.
   "signing-keys",
   // Its rows mirror Supabase Auth SSO providers, DNS verification and the IdP's SCIM data, not records an app extends.
   "sso",
   // Triggers on the app's own record table write its history; the app's columns live on that table.
   "state-machine",
+  // Entries are written from the outbox by the activity sink; they record app events.
+  "timeline",
   // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.
   "usage",
   // Installations, resources and invoices mirror what Vercel sends; the app's

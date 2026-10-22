@@ -14,7 +14,7 @@ import {
   totalColumnsSql,
 } from "../line-items-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { quoteFunctions } from "./quotes-functions.ts";
 
 const QUOTE = [
@@ -213,14 +213,8 @@ export const QUOTES: BlockSqlDefinition = {
   title: "Quotes",
   description:
     "Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals.",
-  requires: ["tenant", "access", "subjects"],
-  integrates: [
-    "outbox",
-    "notifications",
-    "number-sequences",
-    "deals",
-    "relations",
-  ],
+  requires: ["memberships", "permissions", "subjects"],
+  integrates: ["outbox", "notifications", "numbering", "deals", "relations"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

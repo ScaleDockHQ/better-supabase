@@ -106,7 +106,7 @@ converges; write the comparisons out (`usernameCheck` in
 
 The access contract (`better_supabase/functions/can_user.sql` and the other
 `better_supabase/functions/` files it calls) must answer `can_user` for
-the configured `blocks.access.options.scope` (`organization` by
+the configured `blocks.permissions.options.scope` (`organization` by
 default) as well as `tenant`. The invitations module rechecks the inviter
 with that scope, and a contract that answers only `tenant` rejects every
 acceptance as `INVITATION_INVITER_REVOKED`.

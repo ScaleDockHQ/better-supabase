@@ -4,9 +4,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createInvoices } from "../../src/blocks/invoices/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { createQuotes } from "../../src/blocks/quotes/index.ts";
 import { createRelations } from "../../src/blocks/relations/index.ts";
 import { money } from "../../src/commerce/money.ts";
@@ -22,7 +22,7 @@ const MODULES = [
   "outbox",
   "subjects",
   "relations",
-  "parties",
+  "contacts",
   "pipelines",
   "deals",
   "quotes",
@@ -67,7 +67,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       await s.as(rep);
 
-      const acme = await createParties({ transport })
+      const acme = await createContacts({ transport })
         .saveCompany(org, { name: "Acme" })
         .orThrow();
 

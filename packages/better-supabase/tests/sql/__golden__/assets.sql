@@ -739,7 +739,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  raise exception 'install bookings or work-items to link assets' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
+  raise exception 'install bookings or tasks to link assets' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
 end;
 $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
@@ -2386,7 +2386,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  raise exception 'install bookings or work-items to link assets' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
+  raise exception 'install bookings or tasks to link assets' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
 end;
 $$;
 revoke execute on function "app_private"."set_asset_link"(text, uuid, uuid) from public, anon;
@@ -3158,7 +3158,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  raise exception 'install bookings or work-items to link assets' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
+  raise exception 'install bookings or tasks to link assets' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
 end;
 $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;

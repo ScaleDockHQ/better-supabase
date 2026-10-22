@@ -1,10 +1,10 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import type { QueueProvider } from "../../../src/blocks/jobs/index.ts";
+import type { QueueProvider } from "../../../src/blocks/queue/index.ts";
 import type { IncomingDestination } from "../../../src/blocks/webhooks/index.ts";
 
-import { createJobs } from "../../../src/blocks/jobs/index.ts";
+import { createQueue } from "../../../src/blocks/queue/index.ts";
 import {
   createIncomingWebhooks,
   inboxDestination,
@@ -62,7 +62,7 @@ describe("incoming destinations", () => {
   it("queues a delivery once per endpoint and message id with its tenant", async () => {
     const { backend, sent } = onceBackend();
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       backend,
       queues: { leads: v.object({ type: v.string() }) },
     });
@@ -126,7 +126,7 @@ describe("incoming destinations", () => {
   });
 
   it("refuses a queue backend without sendOnce", async () => {
-    const jobs = createJobs({
+    const jobs = createQueue({
       backend: onceBackend(false).backend,
       queues: { leads: v.object({}) },
     });

@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_69_catalog.sql
 -- better-supabase module: catalog
--- @bsb-block catalog@1 managed
+-- @bsb-block catalog@2 managed
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -222,7 +222,7 @@ drop policy if exists product_categories_read on "better_supabase"."product_cate
 create policy product_categories_read on "better_supabase"."product_categories" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
-create table if not exists "better_supabase"."collections" (
+create table if not exists "better_supabase"."product_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") between 1 and 200),
@@ -234,17 +234,17 @@ create table if not exists "better_supabase"."collections" (
   unique ("tenant_id", "slug"),
   check (("kind" = 'rule') = ("rule" is not null))
 );
-alter table "better_supabase"."collections" enable row level security;
-revoke all on "better_supabase"."collections" from anon, authenticated;
-grant select on "better_supabase"."collections" to authenticated;
-grant all on "better_supabase"."collections" to service_role;
-drop policy if exists collections_read on "better_supabase"."collections";
-create policy collections_read on "better_supabase"."collections" for select to authenticated
+alter table "better_supabase"."product_collections" enable row level security;
+revoke all on "better_supabase"."product_collections" from anon, authenticated;
+grant select on "better_supabase"."product_collections" to authenticated;
+grant all on "better_supabase"."product_collections" to service_role;
+drop policy if exists product_collections_read on "better_supabase"."product_collections";
+create policy product_collections_read on "better_supabase"."product_collections" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 create table if not exists "better_supabase"."collection_products" (
   "tenant_id" uuid not null,
-  "collection_id" uuid not null references "better_supabase"."collections" ("id") on delete cascade,
+  "collection_id" uuid not null references "better_supabase"."product_collections" ("id") on delete cascade,
   "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
   "rank" text collate "C" not null default 'V',
   primary key ("collection_id", "product_id")
@@ -1107,11 +1107,11 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."collections" ("tenant_id", "title", "slug", "kind", "rule")
+      insert into "better_supabase"."product_collections" ("tenant_id", "title", "slug", "kind", "rule")
       values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
       returning "id" into v_id;
     else
-      update "better_supabase"."collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
+      update "better_supabase"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
         "rule" = save_collection.rule, "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_collection.tenant;
       if not found then
@@ -1143,14 +1143,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_collections" x where x."id" = delete_collection.collection;
   if v_tenant is null then
     return false;
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  delete from "better_supabase"."collections" x where x."id" = delete_collection.collection;
+  delete from "better_supabase"."product_collections" x where x."id" = delete_collection.collection;
   return true;
 end;
 $$;
@@ -1174,7 +1174,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."kind" into v_tenant, v_kind from "better_supabase"."collections" x where x."id" = add_to_collection.collection for update;
+  select x."tenant_id", x."kind" into v_tenant, v_kind from "better_supabase"."product_collections" x where x."id" = add_to_collection.collection for update;
   if v_tenant is null then
     raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
   end if;
@@ -1220,7 +1220,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."collections" x where x."id" = remove_from_collection.collection;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_collections" x where x."id" = remove_from_collection.collection;
   if v_tenant is null then
     return false;
   end if;
@@ -1301,7 +1301,7 @@ drop policy if exists product_variant_values_storefront on "better_supabase"."pr
 drop policy if exists product_prices_storefront on "better_supabase"."product_prices";
 drop policy if exists categories_storefront on "better_supabase"."categories";
 drop policy if exists product_categories_storefront on "better_supabase"."product_categories";
-drop policy if exists collections_storefront on "better_supabase"."collections";
+drop policy if exists product_collections_storefront on "better_supabase"."product_collections";
 drop policy if exists collection_products_storefront on "better_supabase"."collection_products";
 
 create schema if not exists better_supabase;
@@ -1325,6 +1325,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('catalog', 1, 'managed')
+values ('catalog', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -19,7 +19,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const SEGMENT_PAYLOAD = [
   "organizationId",
@@ -198,7 +198,7 @@ ${guarded
 
 /** The ids of the live records of each subject type that match the segment. */
 function matchingIds(ctx: BlockSqlContext, n: SegmentNames): string {
-  const matches = ctx.of("rules").fn("rule_matches");
+  const matches = ctx.of("automations").fn("rule_matches");
 
   const branch = (subject: RegisteredSubject): string => {
     const deletedAt = subject.config.deletedAt;
@@ -233,8 +233,8 @@ function matchingIds(ctx: BlockSqlContext, n: SegmentNames): string {
 
 function functions(ctx: BlockSqlContext, n: SegmentNames): string {
   const { fn, t, s, m } = n;
-  const fieldMap = ctx.of("rules").fn("rule_field_map");
-  const check = ctx.of("rules").fn("rule_check");
+  const fieldMap = ctx.of("automations").fn("rule_field_map");
+  const check = ctx.of("automations").fn("rule_check");
   const known = n.subjects.map((subject) => sqlString(subject.type));
   const knownList = known.length === 0 ? "(null)" : `(${known.join(", ")})`;
 
@@ -600,7 +600,7 @@ export const SEGMENTS: BlockSqlDefinition = {
   title: "Segments",
   description:
     "Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.",
-  requires: ["tenant", "access", "subjects", "rules"],
+  requires: ["memberships", "permissions", "subjects", "automations"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
   modes: ["managed"],

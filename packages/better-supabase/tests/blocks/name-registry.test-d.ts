@@ -17,16 +17,16 @@ describe("BlockNameRegistry", () => {
   });
 
   it("lists a module's tables, functions and actions", () => {
-    expectTypeOf<"items">().toExtend<TablesOf<"work-items">>();
-    expectTypeOf<"list_work_items">().toExtend<FunctionsOf<"work-items">>();
-    expectTypeOf<"read">().toExtend<ActionsOf<"work-items">>();
+    expectTypeOf<"items">().toExtend<TablesOf<"tasks">>();
+    expectTypeOf<"list_work_items">().toExtend<FunctionsOf<"tasks">>();
+    expectTypeOf<"read">().toExtend<ActionsOf<"tasks">>();
   });
 });
 
 describe("BlocksConfig", () => {
   it("accepts the names a module declares", () => {
     const config = {
-      "work-items": {
+      tasks: {
         tables: { items: "public.tasks" },
         columns: { items: { title: "name" } },
         functions: { list_work_items: "list_tasks" },
@@ -40,14 +40,14 @@ describe("BlocksConfig", () => {
 
   it("rejects names a module doesn't declare", () => {
     const tables: BlocksConfig = {
-      "work-items": {
+      tasks: {
         // @ts-expect-error: no logical table `tasks`
         tables: { tasks: "x" },
       },
     };
 
     const columns: BlocksConfig = {
-      "work-items": {
+      tasks: {
         columns: {
           // @ts-expect-error: no column `name` on `items`
           items: { name: "x" },
@@ -56,14 +56,14 @@ describe("BlocksConfig", () => {
     };
 
     const functions: BlocksConfig = {
-      "work-items": {
+      tasks: {
         // @ts-expect-error: no function `list_tasks`
         functions: { list_tasks: "x" },
       },
     };
 
     const permissions: BlocksConfig = {
-      "work-items": {
+      tasks: {
         // @ts-expect-error: no action `delete`
         permissions: { delete: "x" },
       },

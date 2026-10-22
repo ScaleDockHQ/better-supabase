@@ -43,7 +43,7 @@ describe("assets module", () => {
     expect(alone).not.toContain('"booking_resources"');
     expect(alone).not.toContain('"work_items"');
 
-    const linked = sqlOf(["bookings", "work-items", "assets"]);
+    const linked = sqlOf(["bookings", "tasks", "assets"]);
     expect(linked).toContain(
       'alter table "better_supabase"."booking_resources" add column if not exists asset_id uuid',
     );

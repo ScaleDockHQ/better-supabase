@@ -5,9 +5,9 @@ import type { FilterQuery } from "../../src/list/index.ts";
 import type { TestUser } from "./block-session.ts";
 
 import {
-  createRulesAdmin,
+  createAutomationsAdmin,
   defineRuleFields,
-} from "../../src/blocks/rules/index.ts";
+} from "../../src/blocks/automations/index.ts";
 import { createScores } from "../../src/blocks/scores/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -82,7 +82,7 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     tenant = await session.organization(owner, { member });
     await session.organization(outsider);
     await session.service();
-    await createRulesAdmin({ transport: sqlTransport(session.sql) })
+    await createAutomationsAdmin({ transport: sqlTransport(session.sql) })
       .syncFields(leads)
       .orThrow();
   });

@@ -4,11 +4,11 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlOperations } from "./access-model.ts";
 import type { MessagingSql } from "./messaging-names.ts";
+import type { BlockSqlOperations } from "./permissions-model.ts";
 
-import { moduleOperations } from "./access-model.ts";
 import { messagingSql } from "./messaging-names.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const CHANNEL = [
   "organizationId",

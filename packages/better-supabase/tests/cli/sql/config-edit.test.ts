@@ -30,7 +30,7 @@ export default defineConfig({
   sql: { api: "api" },
   blocks: {
     // The fixture writes the memberships table itself.
-    tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
+    memberships: { mode: "custom", tables: { memberships: "public.memberships" } },
     "api-keys": {},
   },
 });
@@ -43,7 +43,7 @@ export default defineConfig({
   sql: { api: "api" },
   blocks: {
     // The fixture writes the memberships table itself.
-    tenant: { mode: "custom", tables: { memberships: "public.memberships" } },
+    memberships: { mode: "custom", tables: { memberships: "public.memberships" } },
     "api-keys": {},
     tags: {},
     "saved-views": {},
@@ -62,12 +62,12 @@ export default defineConfig({
 
   it("appends names to a list in its quote style", () => {
     const source = `export default defineConfig({
-  blocks: ['audit', 'jobs']
+  blocks: ['audit', 'queue']
 });`;
 
-    expect(edited(source, ["jobs", "invitations"]))
+    expect(edited(source, ["queue", "invitations"]))
       .toBe(`export default defineConfig({
-  blocks: ['audit', 'jobs', 'invitations']
+  blocks: ['audit', 'queue', 'invitations']
 });`);
   });
 
@@ -203,12 +203,12 @@ module.exports = {
     "audit",
   ],
 });`,
-        ["audit", "jobs"],
+        ["audit", "queue"],
       ),
     ).toBe(`export default defineConfig({
   blocks: [
     "audit",
-    "jobs",
+    "queue",
   ],
 });`);
     const listed = 'export default defineConfig({ blocks: ["tags"] });';
@@ -233,10 +233,10 @@ describe("addBlocksToJson", () => {
       text: `{\n    "blocks": {\n        "audit": {},\n        "tags": {}\n    }\n}\n`,
     });
     expect(
-      addBlocksToJson(`{ "blocks": ["audit"] }`, ["audit", "jobs"]),
+      addBlocksToJson(`{ "blocks": ["audit"] }`, ["audit", "queue"]),
     ).toEqual({
       ok: true,
-      text: `{\n  "blocks": [\n    "audit",\n    "jobs"\n  ]\n}\n`,
+      text: `{\n  "blocks": [\n    "audit",\n    "queue"\n  ]\n}\n`,
     });
     expect(addBlocksToJson("[]", ["tags"])).toEqual({
       ok: false,

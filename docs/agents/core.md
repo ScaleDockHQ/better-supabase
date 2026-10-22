@@ -83,7 +83,7 @@ without new evidence.
   variables are the standard convention.
 - **Chunked writes coerce a null count to 0.** Only inserts are chunked, and
   every insert plan returns a number.
-- **The sessions, mfa, grants, actor and ensure-rls modules are untested.**
+- **The sessions, mfa, grants, actor and rls-guard modules are untested.**
   `sql-modules.integration.test.ts` covers them; only `realtime-tables` has
   no behavioural test.
 - **`tracedFetch` is missing from `otel`, or `checkReceipts` keeps stale
@@ -92,7 +92,7 @@ without new evidence.
 - **29 `raise exception` sites stay inline.** `raise` can't reproduce them
   byte for byte (multi-line `using`, no errcode, computed hints); its doc
   comment in `src/sql/shared.ts` names the shapes. The inline grants in
-  `rate-limit.ts`, `grants.ts`, `access.ts`, `workflow-sdk-world.ts`,
+  `rate-limit.ts`, `data-api-grants.ts`, `permissions.ts`, `workflow-sdk.ts`,
   `webhooks-out-sql.ts` and `audit-api.ts` differ from `revokeTable` the
   same way.
 - **`functionRoute` takes the name, and `basePath` prefixes it.** The name

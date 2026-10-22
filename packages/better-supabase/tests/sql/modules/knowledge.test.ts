@@ -75,13 +75,13 @@ describe("knowledge module", () => {
 
   it("enqueues an embed job only with jobs installed", () => {
     expect(body()).not.toContain("enqueue_job");
-    const withJobs = rendered(["jobs"], { jobs: {} });
+    const withJobs = rendered(["queue"], { queue: {} });
     expect(withJobs).toContain(
       `"better_supabase"."enqueue_job"(queue => 'knowledge_embed'`,
     );
 
-    const renamed = rendered(["jobs"], {
-      jobs: {},
+    const renamed = rendered(["queue"], {
+      queue: {},
       knowledge: { options: { embedQueue: "embed" } },
     });
 

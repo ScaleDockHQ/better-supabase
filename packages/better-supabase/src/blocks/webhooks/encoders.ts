@@ -348,7 +348,7 @@ const SET_RETRYABLE = new Set(["invalid_key"]);
 
 /**
  * RFC 8935 push delivery of Security Event Tokens: the body is the compact SET
- * from the delivery's `data.set`, one per request. The shared-signals block
+ * from the delivery's `data.set`, one per request. The security-events block
  * creates these endpoints (`format: 'set'`) and dispatches to them.
  */
 export function securityEvents(): WebhookEncoder {

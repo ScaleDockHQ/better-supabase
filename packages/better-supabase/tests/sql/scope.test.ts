@@ -88,14 +88,16 @@ describe("block scope", () => {
         modules: { tags: { scope: "none" } },
       }),
     ).toBe("none");
-    expect(blockScope("tenant", { scope: "user" })).toBe("tenant");
+    expect(blockScope("memberships", { scope: "user" })).toBe("tenant");
   });
 
   it("drops tenant and access from what a user-scoped block needs", () => {
     const names = (scope?: "user") =>
       resolveBlocks(["tags"], scope ? { scope } : {}).map((m) => m.name);
 
-    expect(names()).toEqual(expect.arrayContaining(["tenant", "access"]));
+    expect(names()).toEqual(
+      expect.arrayContaining(["memberships", "permissions"]),
+    );
     expect(names("user")).toEqual(["tags"]);
   });
 
@@ -121,9 +123,14 @@ describe("block scope", () => {
 
   it("has every module that needs tenants declare its scopes", () => {
     const undeclared = Object.values(SQL_MODULES)
-      .filter((module) => module.name !== "tenant" && module.name !== "access")
+      .filter(
+        (module) =>
+          module.name !== "memberships" && module.name !== "permissions",
+      )
       .filter((module) =>
-        module.requires.some((name) => name === "tenant" || name === "access"),
+        module.requires.some(
+          (name) => name === "memberships" || name === "permissions",
+        ),
       )
       .filter((module) => module.scopes === undefined)
       .map((module) => module.name);
@@ -150,8 +157,8 @@ describe("module sources", () => {
     const files = (await readdir(MODULES_DIR)).filter(
       (file) =>
         file.endsWith(".ts") &&
-        file !== "access.ts" &&
-        file !== "access-permissions.ts",
+        file !== "permissions.ts" &&
+        file !== "permissions-keys.ts",
     );
 
     const sites: string[] = [];
@@ -187,9 +194,9 @@ function code(sql: string): string {
   return sql.replaceAll(/--[^\n]*/g, "").replaceAll(/'(?:[^']|'')*'/g, "''");
 }
 
-describe("blocks.tenant.names.organization", () => {
+describe("blocks.memberships.names.organization", () => {
   const layout = {
-    modules: { tenant: { entities: { organization: "workspace" } } },
+    modules: { memberships: { entities: { organization: "workspace" } } },
   } as const;
 
   it("leaves no organization identifier but parameter names", () => {
@@ -218,7 +225,7 @@ describe("blocks.tenant.names.organization", () => {
     );
     expect(sql).toContain('"better_supabase"."create_workspace"(');
     expect(sql).not.toMatch(/\bcreate_organization\./);
-    const tenant = moduleBody("tenant", layout) ?? "";
+    const tenant = moduleBody("memberships", layout) ?? "";
     expect(tenant).toContain("better_supabase.member_workspace_ids(");
     expect(tenant).toContain('"workspace_id"');
   });
@@ -228,14 +235,14 @@ describe("tenant name clashes", () => {
   it("refuses a tenant name that renames onto a name a module already uses", () => {
     expect(() =>
       renderBlocks(["teams"], {
-        modules: { tenant: { entities: { organization: "team" } } },
+        modules: { memberships: { entities: { organization: "team" } } },
       }),
     ).toThrow(
-      'blocks.tenant.names.organization: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
+      'blocks.memberships.names.organization: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
     );
     expect(() =>
       renderBlocks(["teams"], {
-        modules: { tenant: { entities: { organization: "workspace" } } },
+        modules: { memberships: { entities: { organization: "workspace" } } },
       }),
     ).not.toThrow();
   });
@@ -257,7 +264,7 @@ describe("blocks.<name>.functions", () => {
     const sql =
       moduleBody("organizations", {
         modules: {
-          tenant: { entities: { organization: "workspace" } },
+          memberships: { entities: { organization: "workspace" } },
           organizations: { functions: { create_workspace: "open_workspace" } },
         },
       }) ?? "";

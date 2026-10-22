@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -24,13 +24,13 @@ import { settingsBlock } from "better-supabase/blocks/settings";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
-import { workItemsBlock } from "better-supabase/blocks/work-items";
+import { tasksBlock } from "better-supabase/blocks/tasks";
 
 import { blockConfig } from "./itsm.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   audit: auditBlock,
@@ -51,7 +51,7 @@ export const blockSet = defineBlocks(blockConfig, {
   sla: slaBlock,
   subjects: subjectsBlock,
   teams: teamsBlock,
-  workItems: workItemsBlock,
+  tasks: tasksBlock,
 });
 
 /**

@@ -61,7 +61,10 @@ describe("sso module", () => {
   });
 
   it("assigns catalog role ids", () => {
-    const sql = sqlOf(["sso"], undefined, { access: { model: "catalog" } });
+    const sql = sqlOf(["sso"], undefined, {
+      permissions: { model: "catalog" },
+    });
+
     expect(sql).toMatch(/values \(v_tenant, v_user, \(select r\."id"/);
   });
 
@@ -86,7 +89,7 @@ describe("sso module", () => {
 
   it("needs roleOrder under the provider and custom models", () => {
     const custom = {
-      access: {
+      permissions: {
         model: "custom",
         functions: {
           can: "app.can",

@@ -117,8 +117,8 @@ describe("sla module", () => {
 
 describe("targets module", () => {
   it("computes the metrics of installed blocks only", () => {
-    expect(body("targets")).toContain("Built-in metrics: none installed");
-    const all = body("targets", {}, ["deals", "work-items", "invoices"]);
+    expect(body("goals")).toContain("Built-in metrics: none installed");
+    const all = body("goals", {}, ["deals", "tasks", "invoices"]);
 
     for (const metric of [
       "deals.won_amount",
@@ -132,7 +132,7 @@ describe("targets module", () => {
 
   it("renders nothing in custom mode", () => {
     expect(
-      body("targets", { modules: { targets: { mode: "custom" } } }),
+      body("goals", { modules: { goals: { mode: "custom" } } }),
     ).not.toContain("save_target");
   });
 });

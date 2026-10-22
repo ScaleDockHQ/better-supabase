@@ -18,7 +18,7 @@ const MODULES: readonly (readonly [
   ["signatures", "requests", "fields"],
   ["sla", "policies", "fields"],
   ["tags", "tags", "fields"],
-  ["targets", "targets", "fields"],
+  ["goals", "targets", "fields"],
   ["teams", "teams", "fields"],
   ["templates", "templates", "fields"],
   ["time-tracking", "entries", "fields"],
@@ -26,8 +26,8 @@ const MODULES: readonly (readonly [
   ["versions", "versions", "fields"],
   ["waitlist", "entries", "fields"],
   ["webhook-inbox", "messages", "fields"],
-  ["work-items", "items", "row"],
-  ["workflow-builder", "definitions", "fields"],
+  ["tasks", "items", "row"],
+  ["workflow-editor", "definitions", "fields"],
 ];
 
 const sqlOf = (module: string, extraColumns: unknown): string =>

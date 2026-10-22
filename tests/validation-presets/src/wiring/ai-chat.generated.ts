@@ -3,10 +3,10 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
 import { aiFilesBlock } from "better-supabase/blocks/ai-files";
-import { aiProvidersBlock } from "better-supabase/blocks/ai-providers";
+import { aiKeysBlock } from "better-supabase/blocks/ai-keys";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -27,10 +27,10 @@ import { blockConfig } from "./ai-chat.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   aiChat: aiChatBlock,
   aiFiles: aiFilesBlock,
-  aiProviders: aiProvidersBlock,
+  aiKeys: aiKeysBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,

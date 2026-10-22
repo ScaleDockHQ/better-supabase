@@ -1,7 +1,4 @@
-import type {
-  WorkItem,
-  WorkItemState,
-} from "better-supabase/blocks/work-items";
+import type { WorkItem, WorkItemState } from "better-supabase/blocks/tasks";
 
 import * as v from "valibot";
 

@@ -108,8 +108,8 @@ export interface SupportListFilter {
 }
 
 /**
- * Where support sessions live. `sqlSupportStore` uses the `support-sessions`
- * SQL module; implement this for another store and check it with
+ * Where support sessions live. `sqlSupportStore` uses the `impersonation` SQL
+ * module; implement this for another store and check it with
  * `testSupportSessionStore` from `better-supabase/testing`.
  */
 export interface SupportSessionStore {
@@ -191,7 +191,7 @@ interface SupportRequestRow {
   readonly session_id: string | null;
 }
 
-/** A request from the jsonb the `support-sessions` request functions return. */
+/** A request from the jsonb the `impersonation` request functions return. */
 function supportRequestFromRow(
   row: SupportRequestRow,
   namespace?: typeof Temporal,
@@ -231,7 +231,7 @@ interface SupportRow {
 }
 
 /**
- * A session from the jsonb the `support-sessions` functions return, with
+ * A session from the jsonb the `impersonation` functions return, with
  * `namespace` (else the provided or global Temporal) for its time values.
  */
 export function supportSessionFromRow(
@@ -257,7 +257,7 @@ export function supportSessionFromRow(
 }
 
 export interface SqlSupportStoreOptions {
-  /** `blocks.support-sessions.schema`. Defaults to `better_supabase`. */
+  /** `blocks.impersonation.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /**
    * The Temporal namespace for the sessions' time values, for runtimes without
@@ -268,7 +268,7 @@ export interface SqlSupportStoreOptions {
 }
 
 /**
- * Support sessions in the `support-sessions` SQL module. `start` runs as the
+ * Support sessions in the `impersonation` SQL module. `start` runs as the
  * admin, so the module's `is_platform()` gate applies; the reads run on the
  * admin connection.
  */

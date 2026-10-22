@@ -2,7 +2,7 @@ import type * as ReactModule from "react";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { workItemInputSchema } from "../../src/blocks/work-items/schemas.ts";
+import { workItemInputSchema } from "../../src/blocks/tasks/schemas.ts";
 import { useRecordForm } from "../../src/react/record-form.ts";
 import { recordForm } from "../../src/records/record-form.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";

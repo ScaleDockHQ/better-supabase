@@ -345,7 +345,7 @@ function messageFunctions(q: MessagingSql): string {
   delete from ${attachments.table("attachments")} a
   where a.${a("subjectType")} = ${message} and a.${a("subjectId")} = v_msg.${ms("id")}::text;`;
 
-  const schedule = ctx.installed("jobs")
+  const schedule = ctx.installed("queue")
     ? `
     ${ctx.enqueue(
       q.scheduleQueue,

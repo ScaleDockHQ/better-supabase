@@ -5,13 +5,13 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlAccessProvider } from "../module-types.ts";
-import type { BlockSqlOperations } from "./access-model.ts";
+import type { BlockSqlOperations } from "./permissions-model.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const CONVERSATION = [
   "organizationId",

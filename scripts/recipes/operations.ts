@@ -28,7 +28,7 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "service-principals-table",
     title: "Service principals table",
-    blocks: ["service-principals"],
+    blocks: ["service-accounts"],
     kind: "component",
     description:
       "Machine identities with their scopes, last use and a button to disable one.",
@@ -83,7 +83,7 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "job-runs-table",
     title: "Job runs table",
-    blocks: ["jobs"],
+    blocks: ["queue"],
     kind: "component",
     description:
       "The latest background job runs with their status, attempts and error, and a button to retry a failed run.",
@@ -138,7 +138,7 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "control-posture",
     title: "Control posture",
-    blocks: ["controls"],
+    blocks: ["compliance"],
     kind: "component",
     description:
       "One card per compliance framework with its passing, failing and not started controls, then the overdue evidence tasks.",

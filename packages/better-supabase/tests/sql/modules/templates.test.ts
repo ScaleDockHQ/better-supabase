@@ -31,11 +31,11 @@ describe("templates module", () => {
     expect(sql).toContain("'template.applied'");
   });
 
-  it("only attaches workflows when workflow-builder is installed", () => {
+  it("only attaches workflows when workflow-editor is installed", () => {
     const without = sqlOf(["templates"]);
     expect(without).not.toContain("template_workflows");
     expect(without).not.toContain("attach_template_workflow");
-    const sql = sqlOf(["workflow-builder", "templates"]);
+    const sql = sqlOf(["workflow-editor", "templates"]);
     expect(sql).toContain(`"better_supabase"."template_workflows"`);
     expect(sql).toContain("attach_template_workflow");
     expect(sql).toContain("TEMPLATE_WORKFLOW_INPUT_INVALID");
@@ -43,12 +43,12 @@ describe("templates module", () => {
   });
 
   it("checks workflow inputs with pg_jsonschema when jsonb-schemas is installed", () => {
-    const sql = sqlOf(["workflow-builder", "jsonb-schemas", "templates"]);
+    const sql = sqlOf(["workflow-editor", "jsonb-schemas", "templates"]);
     expect(sql).toContain("extensions.jsonschema_validation_errors(");
   });
 
   it("keeps sync_templates and the input check to the service role", () => {
-    const sql = sqlOf(["workflow-builder", "templates"]);
+    const sql = sqlOf(["workflow-editor", "templates"]);
     expect(sql).toMatch(
       /grant execute on function "better_supabase"\."sync_templates"\(jsonb\) to service_role;/,
     );

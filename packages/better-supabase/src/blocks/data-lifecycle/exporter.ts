@@ -1,7 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DataExport, LifecycleStorage } from "./data-lifecycle.ts";
 

@@ -9,7 +9,7 @@ import type {
 import { sqlString } from "../../core/template.ts";
 import { rankAfter } from "../rank-sql.ts";
 import { activeMembership, columnsObject, fail } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import { trashTypes } from "./trash.ts";
 
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
@@ -433,7 +433,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     state === undefined ? column : state.col("state", column);
 
   const teams = usable(ctx, "teams");
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
   const m = (column: string): string => tenant.col("memberships", column);
 
   const rolesArray = `array[${roles.all.map(sqlString).join(", ")}]::text[]`;

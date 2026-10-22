@@ -21,7 +21,9 @@ const RECURRING: BlockSqlLayout = {
 const CREDITS: BlockSqlLayout = {
   modules: {
     bookings: { options: { recurring: true } },
-    passes: { options: { credits: true, creditRefundBefore: "1 day" } },
+    "admission-passes": {
+      options: { credits: true, creditRefundBefore: "1 day" },
+    },
   },
 };
 
@@ -83,19 +85,21 @@ describe("bookings recurring option", () => {
 });
 
 describe("passes credits option", () => {
-  const modules = ["organizations", "outbox", "bookings", "passes"];
+  const modules = ["organizations", "outbox", "bookings", "admission-passes"];
 
   it("adds nothing while it is off or without bookings", () => {
-    expect(sqlOf("passes", modules)).not.toContain("pass_credit_entries");
+    expect(sqlOf("admission-passes", modules)).not.toContain(
+      "pass_credit_entries",
+    );
     expect(
-      sqlOf("passes", ["organizations", "passes"], {
-        modules: { passes: { options: { credits: true } } },
+      sqlOf("admission-passes", ["organizations", "admission-passes"], {
+        modules: { "admission-passes": { options: { credits: true } } },
       }),
     ).not.toContain("pass_credit_entries");
   });
 
   it("adds the ledger, its indexes, the refund trigger and the functions", () => {
-    const sql = sqlOf("passes", modules, CREDITS);
+    const sql = sqlOf("admission-passes", modules, CREDITS);
     expect(sql).toContain(
       `create table if not exists "better_supabase"."pass_credit_entries"`,
     );

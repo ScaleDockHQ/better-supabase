@@ -19,7 +19,7 @@ import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
-import type { WorkItemsEvents } from "better-supabase/blocks/work-items";
+import type { TasksEvents } from "better-supabase/blocks/tasks";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -27,7 +27,7 @@ import type { WorkItemsEvents } from "better-supabase/blocks/work-items";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -77,7 +77,7 @@ export const blockConfig = {
       topic: "messages",
     },
   },
-  activity: {
+  timeline: {
     schema: "better_supabase",
     options: {},
   },
@@ -135,7 +135,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -147,7 +147,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "work-items": {
+  tasks: {
     schema: "better_supabase",
     options: {},
   },
@@ -159,9 +159,6 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
-  activity: {
-    read: "activity.read",
-  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -263,18 +260,21 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
+  tasks: {
+    read: "work_items.read",
+    write: "work_items.write",
+    manage: "work_items.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
   },
+  timeline: {
+    read: "activity.read",
+  },
   work_item: {
     read: "work_items.read",
     write: "work_items.write",
-  },
-  "work-items": {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
   },
 } as const;
 
@@ -285,11 +285,11 @@ export const permissions = {
  */
 export type PermissionKey = "activity.read" | "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "views.read" | "views.share" | "work_items.manage" | "work_items.read" | "work_items.write";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SavedViewsEvents & SettingsEvents & SlaEvents & TagsEvents & TeamsEvents & WorkItemsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SavedViewsEvents & SettingsEvents & SlaEvents & TagsEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

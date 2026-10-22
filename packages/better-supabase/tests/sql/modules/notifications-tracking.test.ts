@@ -125,7 +125,7 @@ describe("notification delivery tracking", () => {
     expect(service).toMatch(
       /grant execute on function "better_supabase"\."list_subject_deliveries"\(text, text, uuid, integer\) to service_role;/,
     );
-    const members = rendered(["access", "notifications"]);
+    const members = rendered(["permissions", "notifications"]);
     expect(members).toMatch(
       /better_supabase\.member_can\(auth\.uid\(\), list_subject_deliveries\.tenant, 'notifications\.send'\)/,
     );

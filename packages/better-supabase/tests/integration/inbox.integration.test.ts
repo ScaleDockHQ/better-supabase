@@ -15,7 +15,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const MODULES = ["organizations", "jobs", "streams", "inbox"];
+const MODULES = ["organizations", "queue", "streams", "inbox"];
 
 describe.skipIf(!live)("inbox module", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });

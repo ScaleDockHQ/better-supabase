@@ -13,8 +13,8 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
-import { moduleOperations } from "./access-model.ts";
 import { CONTRACT_RESERVED } from "./contracts-shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /**
  * `options.reminderDays`: how many days before the notice deadline the owner
@@ -43,7 +43,7 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
   const permissions = moduleOperations("contracts");
   const write = ctx.permission("write", permissions.write);
   const manage = ctx.permission("manage", permissions.manage);
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const versions = ctx.of("versions");
   const signatures = ctx.of("signatures");
   const sr = signatures.table("requests");

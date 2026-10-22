@@ -3,24 +3,24 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
-import { createRateLimit } from "../../src/blocks/jobs/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createNotifications } from "../../src/blocks/notifications/index.ts";
-import { createNumberSequences } from "../../src/blocks/number-sequences/index.ts";
+import { createNumbering } from "../../src/blocks/numbering/index.ts";
 import {
   createOnboarding,
   defineChecklist,
 } from "../../src/blocks/onboarding/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createPromotions } from "../../src/blocks/promotions/index.ts";
 import { createPush } from "../../src/blocks/push/index.ts";
+import { createRateLimit } from "../../src/blocks/queue/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
 import { createRelations } from "../../src/blocks/relations/index.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
 import { createSavedViews } from "../../src/blocks/saved-views/index.ts";
-import { createServicePrincipals } from "../../src/blocks/service-principals/index.ts";
+import { createServiceAccounts } from "../../src/blocks/service-accounts/index.ts";
 import {
   createSettings,
   defineSettings,
@@ -72,10 +72,10 @@ describe("block hooks", () => {
         transport,
         hooks: { check: { before: refuse } },
       }).check("api", "k"),
-      createNumberSequences({
-        transport,
-        hooks: { next: { before: refuse } },
-      }).next("o", "invoice"),
+      createNumbering({ transport, hooks: { next: { before: refuse } } }).next(
+        "o",
+        "invoice",
+      ),
       createPush({
         transport,
         hooks: { register: { before: refuse } },
@@ -98,7 +98,7 @@ describe("block hooks", () => {
         transport,
         hooks: { delete: { before: refuse } },
       }).delete("v1"),
-      createServicePrincipals({
+      createServiceAccounts({
         transport,
         admin: { createUser: vi.fn(), deleteUser: vi.fn() },
         hooks: { list: { before: refuse } },
@@ -188,7 +188,7 @@ describe("block fields", () => {
 
     const createUser = vi.fn();
 
-    const principals = createServicePrincipals({
+    const principals = createServiceAccounts({
       transport,
       admin: { createUser, deleteUser: vi.fn() },
       fields: region,
@@ -348,7 +348,7 @@ describe("block fields", () => {
     const pipelines = createPipelines({ transport, fields: region });
     const [pipeline] = await pipelines.list("o", "deal").orThrow();
     expect(pipeline?.fields.region).toBe("us");
-    const parties = createParties({ transport, fields: region });
+    const parties = createContacts({ transport, fields: region });
     const page = await parties.listCompanies("o").orThrow();
     expect(page.items[0]?.fields.region).toBe("eu");
 

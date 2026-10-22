@@ -12,7 +12,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const step = (frequency: string): string =>
   `(case ${frequency} when 'weekly' then interval '1 week' when 'monthly' then interval '1 month' when 'quarterly' then interval '3 months' else interval '1 year' end)`;
@@ -620,7 +620,7 @@ $$;
 ${userGrant(`${fn("due_pledge_installments")}(${idType}, date, integer)`)}
 
 -- Issues a numbered tax receipt for one posted gift. Numbers come from
--- number-sequences when it configures donation_receipt, else one more than
+-- numbering when it configures donation_receipt, else one more than
 -- the organization's highest.
 create or replace function ${fn("issue_gift_receipt")}(gift_id uuid)
 returns jsonb

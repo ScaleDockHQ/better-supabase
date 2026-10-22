@@ -63,7 +63,7 @@ describe("collections module", () => {
   it("checks team membership through the provider's teamIdsOf", () => {
     const sql = renderBlocks(["collections"], {
       subjects: SUBJECTS,
-      modules: { access: { model: "provider" } },
+      modules: { permissions: { model: "provider" } },
       accessProvider: {
         name: "stub",
         scope: "organization",

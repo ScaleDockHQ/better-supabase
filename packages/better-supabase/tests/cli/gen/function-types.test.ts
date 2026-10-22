@@ -145,11 +145,9 @@ describe("generator model blocks", () => {
       {
         gen: { casing: "camel" },
         blocks: {
-          tenant: {},
-          access: {},
-          "work-items": {
-            names: { work_item: { name: "task", url: "/tasks/{id}" } },
-          },
+          memberships: {},
+          permissions: {},
+          tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
         },
       },
       fixtures,
@@ -160,11 +158,11 @@ describe("generator model blocks", () => {
       generatorBlocks(blockConfig),
     );
 
-    const block = model.blocks.find((entry) => entry.name === "work-items");
+    const block = model.blocks.find((entry) => entry.name === "tasks");
 
     expect(block?.client).toEqual({
       export: "tasksBlock",
-      subpath: "better-supabase/blocks/work-items",
+      subpath: "better-supabase/blocks/tasks",
     });
     expect(
       block?.entities.find((entity) => entity.key === "work_item"),

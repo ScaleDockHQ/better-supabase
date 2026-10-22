@@ -19,7 +19,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<RemindersEvents> = {
   "reminder.sent": {
@@ -356,7 +356,7 @@ export const REMINDERS: BlockSqlDefinition = {
   title: "Reminders",
   description:
     "Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.",
-  requires: ["tenant", "access", "jobs"],
+  requires: ["memberships", "permissions", "queue"],
   integrates: ["notifications", "outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

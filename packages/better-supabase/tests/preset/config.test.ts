@@ -72,8 +72,8 @@ describe("expandPreset", () => {
       adapters: ["next"],
       blocks: {
         "updated-at": {},
-        tenant: {},
-        access: { model: "catalog", idType: "bigint" },
+        memberships: {},
+        permissions: { model: "catalog", idType: "bigint" },
         comments: {},
         subjects: {},
         messaging: {},
@@ -83,7 +83,7 @@ describe("expandPreset", () => {
 
   it("lets explicit config win", () => {
     const code: PresetSpec = {
-      blocks: ["access"],
+      blocks: ["permissions"],
       casing: "camel",
       api: "api",
       access: "catalog",
@@ -93,15 +93,18 @@ describe("expandPreset", () => {
       preset: code,
       gen: { casing: "snake" },
       database: { sql: { schema: "app" } },
-      blocks: { access: { idType: "text" }, tags: { ownership: "managed" } },
+      blocks: {
+        permissions: { idType: "text" },
+        tags: { ownership: "managed" },
+      },
     });
 
     expect(expanded.gen?.casing).toBe("snake");
     expect(expanded.database?.sql).toEqual({ api: "api", schema: "app" });
     expect(expanded.blocks).toEqual({
       "updated-at": {},
-      tenant: {},
-      access: { model: "catalog", idType: "text" },
+      memberships: {},
+      permissions: { model: "catalog", idType: "text" },
       tags: { ownership: "managed" },
     });
     // Expanding again gives the same config.
@@ -143,7 +146,7 @@ describe("conventions", () => {
 
     expect(workspace.database?.sql).toEqual({ api: "api" });
     expect(workspace.blocks).toMatchObject({
-      tenant: { names: { organization: "workspace" } },
+      memberships: { names: { organization: "workspace" } },
     });
     expect(expandPreset({ preset: "minimal" }).database).toBeUndefined();
   });

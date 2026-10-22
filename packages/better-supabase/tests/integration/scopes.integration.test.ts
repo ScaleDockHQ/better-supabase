@@ -19,7 +19,7 @@ const userApp = (scope: "user" | "none"): BlockSqlLayout => ({
   scope,
   modules: {
     tags: { schema: "scope_it" },
-    activity: { schema: "scope_it" },
+    timeline: { schema: "scope_it" },
     notifications: { schema: "scope_it" },
   },
 });
@@ -226,8 +226,8 @@ describe.skipIf(!live)("a workspace-named app", () => {
   // until the rollback.
   const layout: BlockSqlLayout = {
     modules: {
-      tenant: { schema: "ws_it", entities: { organization: "workspace" } },
-      access: { schema: "ws_it" },
+      memberships: { schema: "ws_it", entities: { organization: "workspace" } },
+      permissions: { schema: "ws_it" },
       organizations: { schema: "ws_it" },
       tags: { schema: "ws_it" },
     },

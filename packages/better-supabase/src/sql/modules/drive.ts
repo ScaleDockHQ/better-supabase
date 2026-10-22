@@ -100,11 +100,11 @@ export const DRIVE: BlockSqlDefinition = {
   title: "Drive",
   description:
     "Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.",
-  requires: ["tenant", "access", "drive-files"],
+  requires: ["memberships", "permissions", "drive-files"],
   dependencies: (layout) =>
     layout.modules?.["drive"]?.mode === "custom"
-      ? ["tenant", "access"]
-      : ["tenant", "access", "drive-files"],
+      ? ["memberships", "permissions"]
+      : ["memberships", "permissions", "drive-files"],
   before: "comments",
   integrates: [...INTEGRATES],
   target: "schema",

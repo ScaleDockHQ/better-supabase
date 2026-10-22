@@ -6,8 +6,8 @@ import type { CredentialProvider } from "../../src/credentials/provider.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -25,11 +25,11 @@ const MODULES = [
   "outbox",
   "notifications",
   "subjects",
-  "parties",
-  "engagements",
+  "contacts",
+  "activities",
   "mail-sync",
   "pipelines",
-  "work-items",
+  "tasks",
   "enrollments",
   "sequences",
 ];
@@ -123,7 +123,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     await session.organization(outsider);
 
     await session.as(owner);
-    const parties = createParties({ transport: sqlTransport(session.sql) });
+    const parties = createContacts({ transport: sqlTransport(session.sql) });
 
     ann = (
       await parties
@@ -357,7 +357,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     const owned = sequencesFor(tenant, false);
     const [sequence] = await owned.list().orThrow();
 
-    const cat = await createParties({ transport: sqlTransport(session.sql) })
+    const cat = await createContacts({ transport: sqlTransport(session.sql) })
       .savePerson(tenant, { name: "Cat Lead", email: "cat@lead.test" })
       .orThrow();
 

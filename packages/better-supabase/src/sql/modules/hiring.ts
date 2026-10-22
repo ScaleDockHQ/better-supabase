@@ -19,7 +19,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const APPLICATION = [
   "organizationId",
@@ -66,7 +66,7 @@ const NAMES: BlockSqlNames = {
   options: ["candidate", "extraColumns"],
   tables: {
     jobs: {
-      name: "jobs",
+      name: "job_openings",
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -138,6 +138,15 @@ const NAMES: BlockSqlNames = {
       },
     },
   },
+  migrations: [
+    {
+      from: 1,
+      description:
+        "The jobs table is job_openings, so it doesn't read as the queue block's jobs.",
+      table: "jobs",
+      was: "jobs",
+    },
+  ],
 };
 
 function build(ctx: BlockSqlContext): string {
@@ -568,13 +577,13 @@ export const HIRING: BlockSqlDefinition = {
   title: "Hiring",
   description:
     "Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
-  requires: ["tenant", "access", "subjects", "pipelines"],
+  requires: ["memberships", "permissions", "subjects", "pipelines"],
   // The pipelines module binds the applications table, so the table comes first.
   before: "pipelines",
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

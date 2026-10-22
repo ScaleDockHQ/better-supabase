@@ -13,8 +13,8 @@ describe("blocks.generated.ts", () => {
       {
         database: { sql: { api: "api" } },
         blocks: {
-          tenant: {},
-          access: {},
+          memberships: {},
+          permissions: {},
           attachments: { options: { requireScan: false, bucket: "files" } },
           notifications: { schema: "app_blocks" },
           comments: { api: false },
@@ -39,7 +39,7 @@ describe("blocks.generated.ts", () => {
       options: {},
     });
     // Blocks with only SQL get an entry too, for `block.using(...)`.
-    expect(entries["tenant"]).toEqual({
+    expect(entries["memberships"]).toEqual({
       schema: "better_supabase",
       api: "api",
       options: {},
@@ -50,10 +50,10 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: {
-          tenant: { names: { organization: "workspace" } },
+          memberships: { names: { organization: "workspace" } },
           organizations: {},
           tags: { functions: { create_tag: "make_tag" } },
-          access: {
+          permissions: {
             model: "custom",
             functions: { can: "public.can({scope}, {id}, {permission})" },
           },
@@ -68,7 +68,7 @@ describe("blocks.generated.ts", () => {
       tenant: "workspace",
       functions: { create_tag: "make_tag" },
     });
-    expect(entries["access"]?.names).toEqual({ tenant: "workspace" });
+    expect(entries["permissions"]?.names).toEqual({ tenant: "workspace" });
 
     const plain = blockConfigEntries(
       resolveConfig({ blocks: ["tags"] }, "/project"),
@@ -81,15 +81,15 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: {
-          tenant: {},
-          access: {},
-          "work-items": { names: { work_item: "task", project: "initiative" } },
+          memberships: {},
+          permissions: {},
+          tasks: { names: { work_item: "task", project: "initiative" } },
         },
       },
       "/project",
     );
 
-    expect(blockConfigEntries(config)["work-items"]?.names).toEqual({
+    expect(blockConfigEntries(config)["tasks"]?.names).toEqual({
       entities: [
         {
           from: { singular: "work_item", plural: "work_items" },
@@ -107,9 +107,9 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: {
-          tenant: {},
-          access: {},
-          "work-items": { names: { work_item: "task" } },
+          memberships: {},
+          permissions: {},
+          tasks: { names: { work_item: "task" } },
         },
       },
       "/project",
@@ -127,20 +127,20 @@ describe("blocks.generated.ts", () => {
 } from "better-supabase/blocks";`,
     );
     expect(contents).toContain(
-      '  workItemsBlock,\n} from "better-supabase/blocks/work-items";',
+      '  tasksBlock as defaultTasksBlock,\n} from "better-supabase/blocks/tasks";',
     );
     expect(contents).toContain(
-      'export const tasksBlock = renameBlock(workItemsBlock, blockConfig["work-items"].names);',
+      'export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
     );
     expect(contents).toContain(
-      "export type Task<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, WorkItemsRenames>;",
+      "export type Task<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, TasksRenames>;",
     );
     expect(contents).toContain(
-      "export type TasksEvents = RenamedEvents<WorkItemsEvents, WorkItemsRenames>;",
+      "export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenames>;",
     );
     expect(contents).toContain("  type Project as DefaultProject,");
     expect(contents).toContain(
-      "export type Project = RenamedType<DefaultProject, WorkItemsRenames>;",
+      "export type Project = RenamedType<DefaultProject, TasksRenames>;",
     );
     expect(contents).not.toContain("TasksOptions");
   });
@@ -149,10 +149,10 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: {
-          tenant: {},
-          access: { roles: { owner: ["*"], editor: ["tasks.write"] } },
+          memberships: {},
+          permissions: { roles: { owner: ["*"], editor: ["tasks.write"] } },
           notifications: {},
-          "work-items": { names: { work_item: "task" } },
+          tasks: { names: { work_item: "task" } },
           settings: {
             options: { schemas: { user: { theme: { type: "string" } } } },
           },
@@ -205,7 +205,7 @@ describe("blocks.generated.ts", () => {
             },
           },
         },
-        blocks: { tenant: {}, access: {}, subjects: {} },
+        blocks: { memberships: {}, permissions: {}, subjects: {} },
       },
       "/project",
     );
@@ -222,11 +222,9 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: {
-          tenant: {},
+          memberships: {},
           subjects: {},
-          "work-items": {
-            names: { work_item: { name: "task", url: "/tasks/{id}" } },
-          },
+          tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
           deals: { names: { deal: { url: "/crm/deals" } } },
         },
       },
@@ -248,14 +246,14 @@ describe("blocks.generated.ts", () => {
     );
 
     expect(Object.keys(entries)).toContain("tags");
-    expect(Object.keys(entries)).not.toContain("tenant");
+    expect(Object.keys(entries)).not.toContain("memberships");
   });
 
   it("emits a typed module next to the main generated module", () => {
     const config = resolveConfig(
       {
         gen: { output: "app/lib/db/generated.ts" },
-        blocks: ["tenant", "attachments"],
+        blocks: ["memberships", "attachments"],
       },
       "/project",
     );
@@ -279,7 +277,7 @@ describe("blocks.generated.ts", () => {
   it("declares the events app tables emit", () => {
     const config = resolveConfig(
       {
-        blocks: { tenant: {}, outbox: {} },
+        blocks: { memberships: {}, outbox: {} },
         tables: {
           tasks: { subject: { type: "task" }, events: true },
           notes: { events: { on: ["deleted"] } },
@@ -306,7 +304,7 @@ describe("blocks.generated.ts", () => {
     const contents =
       emitBlockConfig(
         resolveConfig(
-          { blocks: { tenant: {}, organizations: {}, waitlist: {} } },
+          { blocks: { memberships: {}, organizations: {}, waitlist: {} } },
           "/project",
         ),
       )?.contents ?? "";

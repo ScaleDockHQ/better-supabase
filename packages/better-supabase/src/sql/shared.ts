@@ -423,11 +423,11 @@ export function organizationMissing(
 }
 
 export function membershipDisabledAt(ctx: BlockSqlContext): string | undefined {
-  if (ctx.module !== "tenant" && !ctx.installed("tenant")) {
+  if (ctx.module !== "memberships" && !ctx.installed("memberships")) {
     return undefined;
   }
 
-  const tenant = ctx.module === "tenant" ? ctx : ctx.of("tenant");
+  const tenant = ctx.module === "memberships" ? ctx : ctx.of("memberships");
 
   if (!tenant.has("memberships", "disabledAt")) {
     return undefined;
@@ -460,25 +460,25 @@ export function membershipSuspended(
     return undefined;
   }
 
-  const t = ctx.module === "tenant" ? ctx : ctx.of("tenant");
+  const t = ctx.module === "memberships" ? ctx : ctx.of("memberships");
 
   return `exists (select 1 from ${t.table("memberships")} sm where sm.${t.col("memberships", "tenant")} = ${tenant} and sm.${t.col("memberships", "user")} = ${user} and sm.${column} is not null)`;
 }
 
 /**
  * `tenant_disabled(id)` and `user_disabled(uuid)` from
- * `blocks.access.disabled`. Without a column they return false, so callers
+ * `blocks.permissions.disabled`. Without a column they return false, so callers
  * don't need to know whether it is configured.
  */
 export function disabledHelpers(ctx: BlockSqlContext): string {
-  const disabled = ctx.modules.access?.disabled ?? {};
+  const disabled = ctx.modules.permissions?.disabled ?? {};
   const id = ctx.idType;
   const organizations = managedOrganizations(ctx);
   let tenantCheck = "false";
 
   if (disabled.tenant !== undefined) {
     tenantCheck = disabledCheck(
-      "blocks.access.disabled.tenant",
+      "blocks.permissions.disabled.tenant",
       disabled.tenant,
       { key: '"id"', alias: "t", value: "tenant_disabled.tenant" },
     );
@@ -489,7 +489,7 @@ export function disabledHelpers(ctx: BlockSqlContext): string {
   const userCheck =
     disabled.user === undefined
       ? "false"
-      : disabledCheck("blocks.access.disabled.user", disabled.user, {
+      : disabledCheck("blocks.permissions.disabled.user", disabled.user, {
           key: sqlIdent(disabled.userKey ?? "id"),
           alias: "u",
           value: "user_disabled.user_id",
@@ -497,7 +497,7 @@ export function disabledHelpers(ctx: BlockSqlContext): string {
 
   return `
 -- Disabled tenants and users get no permissions and no membership claims
--- (blocks.access.disabled; with the managed organizations module, its
+-- (blocks.permissions.disabled; with the managed organizations module, its
 -- disabled_at and deleted_at columns).
 create or replace function better_supabase.tenant_disabled(tenant ${id})
 returns boolean
@@ -589,9 +589,9 @@ function disabledCheck(
  * function is defined in one file.
  */
 export function accessDefinesDisabledHelpers(ctx: BlockSqlContext): boolean {
-  const access = ctx.modules.access;
+  const access = ctx.modules.permissions;
 
-  if (!ctx.installed("access") && access === undefined) {
+  if (!ctx.installed("permissions") && access === undefined) {
     return false;
   }
 
@@ -600,7 +600,7 @@ export function accessDefinesDisabledHelpers(ctx: BlockSqlContext): boolean {
 
 export function disabledHelpersNeedLaterTables(ctx: BlockSqlContext): boolean {
   return (
-    !ctx.modules.access?.disabled?.tenant &&
+    !ctx.modules.permissions?.disabled?.tenant &&
     managedOrganizations(ctx) !== undefined
   );
 }

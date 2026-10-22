@@ -11,7 +11,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The length of one rent period of a frequency, as an interval. */
 const step = (frequency: string): string =>
@@ -24,7 +24,7 @@ export const LEASE_RESERVED = ["fields"] as const;
 export function leasesFunctions(ctx: BlockSqlContext): string {
   const assets = ctx.of("assets");
   const ledger = ctx.of("ledger");
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const leases = ctx.table("leases");
   const charges = ctx.table("charges");
   const maintenance = ctx.table("maintenance");

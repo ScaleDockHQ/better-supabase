@@ -1141,6 +1141,7 @@
       "handle",
       "hasRole",
       "IDENTITY_SCOPES",
+      "impersonationEvents",
       "impersonatorOf",
       "isPrefetch",
       "isProblem",
@@ -1178,7 +1179,6 @@
       "supportCookieValue",
       "supportOf",
       "supportSessions",
-      "supportSessionsEvents",
       "supportStorage",
       "suspendAccount",
       "tagCache",
@@ -1258,6 +1258,7 @@
       "HandleOptions",
       "IdentityRef",
       "IdentityTarget",
+      "ImpersonationEvents",
       "ImpersonationOptions",
       "Impersonator",
       "InvalidReason",
@@ -1320,7 +1321,6 @@
       "SupportRequestInput",
       "SupportSession",
       "SupportSessions",
-      "SupportSessionsEvents",
       "SupportSessionStore",
       "SupportStartInput",
       "SupportStartRequest",
@@ -2085,21 +2085,21 @@
       "ToolRegistrar"
     ]
   },
-  "./blocks/jobs": {
+  "./blocks/queue": {
     "values": [
       "assertCron",
       "createIdempotency",
-      "createJobs",
+      "createQueue",
       "createRateLimit",
       "createWebhookInbox",
       "dbTransport",
       "devDrain",
       "devDrainSecret",
       "idempotencyBlock",
-      "jobsBlock",
       "nextCronRun",
       "pgmqPublicBackend",
       "purgeWebhookInbox",
+      "queueBlock",
       "rateLimitBlock",
       "rateLimited",
       "rpcTransport",
@@ -2137,16 +2137,16 @@
       "Job",
       "JobContext",
       "JobHandler",
-      "Jobs",
-      "JobsOptions",
       "JobsSource",
       "Lease",
       "LeaseOptions",
       "LeaseOutcome",
       "ListDeadOptions",
       "PurgeJobsOptions",
+      "Queue",
       "QueueMessageBody",
       "QueueMessageRow",
+      "QueueOptions",
       "QueueProvider",
       "QueuePurgeArgs",
       "QueueRpcClient",
@@ -3122,34 +3122,34 @@
       "SolidController"
     ]
   },
-  "./blocks/access": {
+  "./blocks/permissions": {
     "values": [
-      "accessBlock",
       "batchPermissions",
       "can",
-      "createAccess",
+      "createPermissions",
       "createPermissionsController",
       "dbTransport",
       "permissionFlags",
       "permissionMatches",
+      "permissionsBlock",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
-      "Access",
       "AccessCallOptions",
-      "AccessOptions",
       "BlockTransport",
       "PermissionFlags",
+      "Permissions",
       "PermissionsActions",
       "PermissionsController",
       "PermissionsControllerOptions",
       "PermissionSet",
+      "PermissionsOptions",
       "PermissionSource",
       "PermissionsSnapshot"
     ]
   },
-  "./blocks/access/react": {
+  "./blocks/permissions/react": {
     "values": [
       "Can",
       "usePermission",
@@ -3162,7 +3162,7 @@
       "UsePermissionsOptions"
     ]
   },
-  "./blocks/access/vue": {
+  "./blocks/permissions/vue": {
     "values": [
       "usePermissions"
     ],
@@ -3174,7 +3174,7 @@
       "VueController"
     ]
   },
-  "./blocks/access/svelte": {
+  "./blocks/permissions/svelte": {
     "values": [
       "usePermissions"
     ],
@@ -3186,7 +3186,7 @@
       "SvelteController"
     ]
   },
-  "./blocks/access/solid": {
+  "./blocks/permissions/solid": {
     "values": [
       "usePermissions"
     ],
@@ -3339,11 +3339,11 @@
       "StepUpSnapshot"
     ]
   },
-  "./blocks/sessions": {
+  "./blocks/session-revocation": {
     "values": [
       "createOAuthConsentController",
       "createOAuthGrantsController",
-      "sessionsBlock"
+      "sessionRevocationBlock"
     ],
     "types": [
       "OAuthApi",
@@ -3621,23 +3621,28 @@
       "SolidController"
     ]
   },
-  "./blocks/flags": {
+  "./blocks/feature-flags": {
     "values": [
+      "createFeatureFlags",
+      "createFeatureFlagsProvider",
       "createFlagClient",
-      "createFlags",
-      "createFlagsProvider",
       "dbTransport",
       "evaluateFlag",
+      "featureFlagsBlock",
+      "featureFlagsEvents",
       "flagBucket",
       "flagContext",
       "flagDefinitionsOf",
-      "flagsBlock",
-      "flagsEvents",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
       "BlockTransport",
+      "FeatureFlags",
+      "FeatureFlagsEvents",
+      "FeatureFlagsOptions",
+      "FeatureFlagsProvider",
+      "FeatureFlagsProviderOptions",
       "FlagClient",
       "FlagContext",
       "FlagContextOptions",
@@ -3653,37 +3658,32 @@
       "FlagRecord",
       "FlagResolution",
       "FlagRule",
-      "Flags",
-      "FlagsEvents",
-      "FlagsOptions",
-      "FlagsProvider",
-      "FlagsProviderOptions",
       "FlagType",
       "FlagValue",
       "RequestFlagContext"
     ]
   },
-  "./blocks/activity": {
+  "./blocks/timeline": {
     "values": [
-      "activityBlock",
       "activityListQuery",
       "activitySink",
-      "createActivity",
+      "createTimeline",
       "dbTransport",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "timelineBlock"
     ],
     "types": [
-      "Activity",
       "ActivityDescription",
       "ActivityEntry",
       "ActivityFacet",
       "ActivityListOptions",
-      "ActivityOptions",
       "ActivitySinkOptions",
       "ActivitySort",
       "ActivitySource",
-      "BlockTransport"
+      "BlockTransport",
+      "Timeline",
+      "TimelineOptions"
     ]
   },
   "./blocks/comments": {
@@ -4126,13 +4126,13 @@
       "WorkflowRunsSnapshot"
     ]
   },
-  "./blocks/workflow-builder": {
+  "./blocks/workflow-editor": {
     "values": [
       "approvalToken",
       "approved",
-      "createWorkflowBuilder",
-      "createWorkflowBuilderController",
       "createWorkflowCanvasRunController",
+      "createWorkflowEditor",
+      "createWorkflowEditorController",
       "dbTransport",
       "diffGraphs",
       "durationMs",
@@ -4147,8 +4147,8 @@
       "topologicalOrder",
       "triggerMatches",
       "validateGraph",
-      "workflowBuilderBlock",
-      "workflowBuilderEvents"
+      "workflowEditorBlock",
+      "workflowEditorEvents"
     ],
     "types": [
       "AlertInput",
@@ -4175,13 +4175,7 @@
       "TriggerInput",
       "VersionSaveOptions",
       "WorkflowAlert",
-      "WorkflowBuilder",
-      "WorkflowBuilderActions",
-      "WorkflowBuilderController",
-      "WorkflowBuilderControllerOptions",
-      "WorkflowBuilderEvents",
       "WorkflowBuilderHooks",
-      "WorkflowBuilderSnapshot",
       "WorkflowCanvasRunActions",
       "WorkflowCanvasRunController",
       "WorkflowCanvasRunControllerOptions",
@@ -4192,6 +4186,12 @@
       "WorkflowDefinition",
       "WorkflowDefinitionGrant",
       "WorkflowDefinitionScope",
+      "WorkflowEditor",
+      "WorkflowEditorActions",
+      "WorkflowEditorController",
+      "WorkflowEditorControllerOptions",
+      "WorkflowEditorEvents",
+      "WorkflowEditorSnapshot",
       "WorkflowFilterCondition",
       "WorkflowFilterField",
       "WorkflowGrantAction",
@@ -4213,64 +4213,64 @@
       "WorkflowVersionStatus"
     ]
   },
-  "./blocks/workflow-builder/react": {
+  "./blocks/workflow-editor/react": {
     "values": [
-      "useWorkflowBuilder",
-      "useWorkflowCanvasRun"
+      "useWorkflowCanvasRun",
+      "useWorkflowEditor"
     ],
     "types": [
-      "UseWorkflowBuilderOptions",
       "UseWorkflowCanvasRunOptions",
-      "WorkflowBuilderState",
-      "WorkflowCanvasRunState"
+      "UseWorkflowEditorOptions",
+      "WorkflowCanvasRunState",
+      "WorkflowEditorState"
     ]
   },
-  "./blocks/workflow-builder/vue": {
+  "./blocks/workflow-editor/vue": {
     "values": [
-      "useWorkflowBuilder",
-      "useWorkflowCanvasRun"
+      "useWorkflowCanvasRun",
+      "useWorkflowEditor"
     ],
     "types": [
       "BlockOptions",
       "VueController",
-      "WorkflowBuilderActions",
-      "WorkflowBuilderControllerOptions",
-      "WorkflowBuilderSnapshot",
       "WorkflowCanvasRunActions",
       "WorkflowCanvasRunControllerOptions",
-      "WorkflowCanvasRunSnapshot"
+      "WorkflowCanvasRunSnapshot",
+      "WorkflowEditorActions",
+      "WorkflowEditorControllerOptions",
+      "WorkflowEditorSnapshot"
     ]
   },
-  "./blocks/workflow-builder/svelte": {
+  "./blocks/workflow-editor/svelte": {
     "values": [
-      "useWorkflowBuilder",
-      "useWorkflowCanvasRun"
+      "useWorkflowCanvasRun",
+      "useWorkflowEditor"
     ],
     "types": [
       "BlockOptions",
       "SvelteController",
-      "WorkflowBuilderActions",
-      "WorkflowBuilderControllerOptions",
-      "WorkflowBuilderSnapshot",
       "WorkflowCanvasRunActions",
       "WorkflowCanvasRunControllerOptions",
-      "WorkflowCanvasRunSnapshot"
+      "WorkflowCanvasRunSnapshot",
+      "WorkflowEditorActions",
+      "WorkflowEditorControllerOptions",
+      "WorkflowEditorSnapshot"
     ]
   },
-  "./blocks/workflow-builder/solid": {
+  "./blocks/workflow-editor/solid": {
     "values": [
-      "useWorkflowBuilder",
-      "useWorkflowCanvasRun"
+      "useWorkflowCanvasRun",
+      "useWorkflowEditor"
     ],
     "types": [
       "BlockOptions",
       "SolidController",
-      "WorkflowBuilderActions",
-      "WorkflowBuilderControllerOptions",
-      "WorkflowBuilderSnapshot",
       "WorkflowCanvasRunActions",
       "WorkflowCanvasRunControllerOptions",
-      "WorkflowCanvasRunSnapshot"
+      "WorkflowCanvasRunSnapshot",
+      "WorkflowEditorActions",
+      "WorkflowEditorControllerOptions",
+      "WorkflowEditorSnapshot"
     ]
   },
   "./workflow-sdk": {
@@ -5389,23 +5389,23 @@
       "FingerprintStatus"
     ]
   },
-  "./blocks/ai-tasks": {
+  "./blocks/ai-schedules": {
     "values": [
-      "aiTasksBlock",
-      "createAiTasks",
+      "aiSchedulesBlock",
+      "createAiSchedules",
       "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
+      "AiSchedules",
+      "AiSchedulesOptions",
       "AiTask",
       "AiTaskFields",
       "AiTaskOutcome",
       "AiTaskRun",
       "AiTaskRunner",
       "AiTaskRunStatus",
-      "AiTasks",
-      "AiTasksOptions",
       "BlockTransport",
       "NewAiTask"
     ]
@@ -5428,11 +5428,11 @@
       "BlockTransport"
     ]
   },
-  "./blocks/ai-providers": {
+  "./blocks/ai-keys": {
     "values": [
-      "aiProvidersBlock",
-      "aiProvidersEvents",
-      "createAiProviders",
+      "aiKeysBlock",
+      "aiKeysEvents",
+      "createAiKeys",
       "dbTransport",
       "rpcTransport",
       "sqlTransport"
@@ -5445,11 +5445,11 @@
       "AiBatchItemStatus",
       "AiBatchPatch",
       "AiBatchStatus",
+      "AiKeys",
+      "AiKeysEvents",
+      "AiKeysOptions",
       "AiProviderKey",
       "AiProviderKeyInput",
-      "AiProviders",
-      "AiProvidersEvents",
-      "AiProvidersOptions",
       "BlockTransport",
       "NewAiBatch",
       "ResolvedProviderKey"
@@ -5741,16 +5741,16 @@
       "ManagedAnnouncement"
     ]
   },
-  "./blocks/number-sequences": {
+  "./blocks/numbering": {
     "values": [
-      "createNumberSequences",
-      "numberSequencesBlock",
-      "numberSequencesEvents"
+      "createNumbering",
+      "numberingBlock",
+      "numberingEvents"
     ],
     "types": [
-      "NumberSequences",
-      "NumberSequencesEvents",
-      "NumberSequencesOptions"
+      "Numbering",
+      "NumberingEvents",
+      "NumberingOptions"
     ]
   },
   "./blocks/teams": {
@@ -6013,15 +6013,17 @@
       "TxtResolver"
     ]
   },
-  "./blocks/rules": {
+  "./blocks/automations": {
     "values": [
       "approvalsAction",
+      "automationsBlock",
+      "automationsEvents",
       "checkRuleConditions",
       "contains",
+      "createAutomations",
+      "createAutomationsAdmin",
       "createRuleBuilderController",
       "createRuleDispatcher",
-      "createRules",
-      "createRulesAdmin",
       "createRuleSink",
       "dbTransport",
       "defineRuleFields",
@@ -6041,8 +6043,6 @@
       "ruleOf",
       "ruleOperators",
       "ruleRecordFields",
-      "rulesBlock",
-      "rulesEvents",
       "setCombinator",
       "setFieldAction",
       "setRuleField",
@@ -6055,6 +6055,10 @@
       "wrapTransport"
     ],
     "types": [
+      "Automations",
+      "AutomationsAdmin",
+      "AutomationsEvents",
+      "AutomationsOptions",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -6083,14 +6087,10 @@
       "RuleMatch",
       "RuleMatchedEventData",
       "RuleNotifier",
-      "Rules",
-      "RulesAdmin",
       "RulesAdminOptions",
-      "RulesEvents",
       "RuleSinkEvent",
       "RuleSinkOptions",
       "RuleSinkTarget",
-      "RulesOptions",
       "RuleSubject",
       "RuleSubjectContext",
       "RuleVersion",
@@ -6098,7 +6098,7 @@
       "RuleWorkflows"
     ]
   },
-  "./blocks/rules/react": {
+  "./blocks/automations/react": {
     "values": [
       "useRuleBuilder"
     ],
@@ -6107,7 +6107,7 @@
       "UseRuleBuilderOptions"
     ]
   },
-  "./blocks/rules/vue": {
+  "./blocks/automations/vue": {
     "values": [
       "useRuleBuilder"
     ],
@@ -6119,7 +6119,7 @@
       "VueController"
     ]
   },
-  "./blocks/rules/svelte": {
+  "./blocks/automations/svelte": {
     "values": [
       "useRuleBuilder"
     ],
@@ -6131,7 +6131,7 @@
       "SvelteController"
     ]
   },
-  "./blocks/rules/solid": {
+  "./blocks/automations/solid": {
     "values": [
       "useRuleBuilder"
     ],
@@ -6435,18 +6435,18 @@
       "RpcClient"
     ]
   },
-  "./blocks/shared-signals": {
+  "./blocks/security-events": {
     "values": [
       "CAEP_EVENTS",
-      "createSharedSignals",
+      "createSecurityEvents",
       "createSsfReceiver",
       "createSsfTransmitter",
       "mintSet",
       "RISC_EVENTS",
+      "securityEventsBlock",
+      "securityEventsEvents",
       "SET_CONTENT_TYPE",
       "SET_TYP",
-      "sharedSignalsBlock",
-      "sharedSignalsEvents",
       "sqlTransport",
       "SSF_EVENTS",
       "SSF_POLL",
@@ -6461,12 +6461,12 @@
       "MintedSet",
       "MintSetInput",
       "SecurityEvent",
+      "SecurityEvents",
+      "SecurityEventsEvents",
+      "SecurityEventsOptions",
       "SetErrorCode",
       "SetSigner",
       "SetVerification",
-      "SharedSignals",
-      "SharedSignalsEvents",
-      "SharedSignalsOptions",
       "SsfDeliveryMethod",
       "SsfEventHandler",
       "SsfPollOptions",
@@ -6492,50 +6492,50 @@
       "VerifySetOptions"
     ]
   },
-  "./blocks/identities": {
+  "./blocks/linked-identities": {
     "values": [
       "beginLink",
-      "createIdentities",
+      "createLinkedIdentities",
       "dbTransport",
-      "identitiesBlock",
       "identityResolver",
+      "linkedIdentitiesBlock",
       "redeemLink",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
       "BlockTransport",
-      "Identities",
-      "IdentitiesOptions",
       "IdentityRef",
       "IdentitySource",
       "IdentityTarget",
       "LinkCode",
+      "LinkedIdentities",
+      "LinkedIdentitiesOptions",
       "LinkedIdentity",
       "PrincipalByIdentity",
       "RedeemedLink"
     ]
   },
-  "./blocks/service-principals": {
+  "./blocks/service-accounts": {
     "values": [
-      "createServicePrincipals",
+      "createServiceAccounts",
       "dbTransport",
       "rpcTransport",
       "SERVICE_PRINCIPAL_CLAIM",
-      "servicePrincipalsBlock",
-      "servicePrincipalsEvents",
+      "serviceAccountsBlock",
+      "serviceAccountsEvents",
       "sqlTransport"
     ],
     "types": [
       "BlockTransport",
       "CreatedServicePrincipal",
       "CreateServicePrincipalOptions",
+      "ServiceAccounts",
+      "ServiceAccountsEvents",
+      "ServiceAccountsOptions",
       "ServicePrincipal",
       "ServicePrincipalActor",
-      "ServicePrincipalAuthAdmin",
-      "ServicePrincipals",
-      "ServicePrincipalsEvents",
-      "ServicePrincipalsOptions"
+      "ServicePrincipalAuthAdmin"
     ]
   },
   "./blocks/reminders": {
@@ -6690,20 +6690,20 @@
       "UnlinkResult"
     ]
   },
-  "./blocks/bulk": {
+  "./blocks/bulk-actions": {
     "values": [
-      "bulkBlock",
-      "bulkEvents",
-      "createBulk"
+      "bulkActionsBlock",
+      "bulkActionsEvents",
+      "createBulkActions"
     ],
     "types": [
       "BuiltInBulkAction",
-      "Bulk",
       "BulkActionArgs",
+      "BulkActions",
+      "BulkActionsEvents",
+      "BulkActionsOptions",
       "BulkDrainOptions",
-      "BulkEvents",
       "BulkInput",
-      "BulkOptions",
       "BulkOutcome",
       "BulkProgress",
       "BulkResult",
@@ -7605,14 +7605,14 @@
       "RpcClient"
     ]
   },
-  "./blocks/parties": {
+  "./blocks/contacts": {
     "values": [
       "companyInputSchema",
-      "createParties",
+      "contactsBlock",
+      "contactsEvents",
+      "createContacts",
       "dbTransport",
       "extendBlock",
-      "partiesBlock",
-      "partiesEvents",
       "partyListFilterSchema",
       "personInputSchema",
       "rpcTransport",
@@ -7627,9 +7627,9 @@
       "Company",
       "CompanyInput",
       "CompanyPerson",
-      "Parties",
-      "PartiesEvents",
-      "PartiesOptions",
+      "Contacts",
+      "ContactsEvents",
+      "ContactsOptions",
       "PartyCursor",
       "PartyListOptions",
       "PartyPage",
@@ -7676,15 +7676,15 @@
       "Star"
     ]
   },
-  "./blocks/engagements": {
+  "./blocks/activities": {
     "values": [
-      "createEngagements",
+      "activitiesBlock",
+      "activitiesEvents",
+      "createActivities",
       "dbTransport",
       "ENGAGEMENT_TRANSCRIBE_QUEUE",
       "engagementChangeSchema",
       "engagementInputSchema",
-      "engagementsBlock",
-      "engagementsEvents",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -7692,6 +7692,9 @@
       "wrapTransport"
     ],
     "types": [
+      "Activities",
+      "ActivitiesEvents",
+      "ActivitiesOptions",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -7702,9 +7705,6 @@
       "EngagementNotesInput",
       "EngagementRecording",
       "EngagementRecordingStatus",
-      "Engagements",
-      "EngagementsEvents",
-      "EngagementsOptions",
       "EngagementSubject",
       "NoteTaker",
       "NoteTakerInput",
@@ -7753,14 +7753,16 @@
       "RpcClient"
     ]
   },
-  "./blocks/work-items": {
+  "./blocks/tasks": {
     "values": [
-      "createWorkItems",
+      "createTasks",
       "dbTransport",
       "extendBlock",
       "nextWorkItemOccurrence",
       "rpcTransport",
       "sqlTransport",
+      "tasksBlock",
+      "tasksEvents",
       "withBlockHooks",
       "workItemChangeSchema",
       "workItemChecklistOptimistic",
@@ -7768,8 +7770,6 @@
       "workItemInputSchema",
       "workItemListFilterSchema",
       "workItemRecurrenceSink",
-      "workItemsBlock",
-      "workItemsEvents",
       "wrapTransport"
     ],
     "types": [
@@ -7782,6 +7782,9 @@
       "Iteration",
       "Project",
       "RpcClient",
+      "Tasks",
+      "TasksEvents",
+      "TasksOptions",
       "WorkItem",
       "WorkItemChange",
       "WorkItemChangeResult",
@@ -7792,9 +7795,6 @@
       "WorkItemNode",
       "WorkItemRecurrence",
       "WorkItemRecurrenceSinkOptions",
-      "WorkItems",
-      "WorkItemsEvents",
-      "WorkItemsOptions",
       "WorkItemState",
       "WorkItemWatcher",
       "WorkItemWatchLevel"
@@ -7894,14 +7894,14 @@
       "SlaWrites"
     ]
   },
-  "./blocks/targets": {
+  "./blocks/goals": {
     "values": [
-      "createTargets",
+      "createGoals",
       "dbTransport",
       "extendBlock",
+      "goalsBlock",
       "rpcTransport",
       "sqlTransport",
-      "targetsBlock",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -7909,13 +7909,13 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "Goals",
+      "GoalsOptions",
       "RpcClient",
       "Target",
       "TargetInput",
       "TargetMetric",
-      "TargetProgress",
-      "Targets",
-      "TargetsOptions"
+      "TargetProgress"
     ]
   },
   "./blocks/hiring": {
@@ -8384,7 +8384,7 @@
       "StepUpSnapshot"
     ]
   },
-  "./blocks/sessions/react": {
+  "./blocks/session-revocation/react": {
     "values": [
       "useOAuthConsent",
       "useOAuthGrants"
@@ -8398,7 +8398,7 @@
       "UseOAuthConsentOptions"
     ]
   },
-  "./blocks/sessions/vue": {
+  "./blocks/session-revocation/vue": {
     "values": [
       "useOAuthConsent",
       "useOAuthGrants"
@@ -8414,7 +8414,7 @@
       "VueController"
     ]
   },
-  "./blocks/sessions/svelte": {
+  "./blocks/session-revocation/svelte": {
     "values": [
       "useOAuthConsent",
       "useOAuthGrants"
@@ -8430,7 +8430,7 @@
       "SvelteController"
     ]
   },
-  "./blocks/sessions/solid": {
+  "./blocks/session-revocation/solid": {
     "values": [
       "useOAuthConsent",
       "useOAuthGrants"
@@ -8955,13 +8955,13 @@
       "strict"
     ],
     "types": [
+      "AutomationsOptions",
       "RuleLevel",
       "RuleName",
       "RuleSet",
       "RuleSetting",
       "RulesExtension",
       "RulesFindArgs",
-      "RulesOptions",
       "RuleViolation"
     ]
   },
@@ -9016,10 +9016,12 @@
       "AUDIT_CATEGORIES",
       "auditRegistrations",
       "BLOCK_OPTION_SCHEMAS",
+      "BLOCK_RENAMES",
       "blockSqlVersion",
       "compileReadSet",
       "compileReadSets",
       "contractSignature",
+      "currentBlockName",
       "customContracts",
       "dataExportPlan",
       "declaredTables",
@@ -9028,6 +9030,7 @@
       "excludedColumns",
       "expiredFlagsQuery",
       "extensionSchema",
+      "formerBlockName",
       "isBlockSqlIdType",
       "migrationOptionUses",
       "MODULE_ID_TYPES",
@@ -9043,6 +9046,7 @@
       "moduleSchemaExtensions",
       "moduleTopics",
       "policyGrants",
+      "renamedBlock",
       "renderBlocks",
       "resolveBlock",
       "resolveBlocks",
@@ -9366,16 +9370,16 @@
       "RpcClient"
     ]
   },
-  "./blocks/passes": {
+  "./blocks/admission-passes": {
     "values": [
-      "createPasses",
+      "admissionPassesBlock",
+      "admissionPassesEvents",
+      "admissionPassesSection",
+      "admissionPassesSqlOptions",
+      "createAdmissionPasses",
       "dbTransport",
       "extendBlock",
       "PASS_TOKEN_TYPE",
-      "passesBlock",
-      "passesEvents",
-      "passesSection",
-      "passesSqlOptions",
       "passInputSchema",
       "passSectionInputSchema",
       "rpcTransport",
@@ -9384,6 +9388,11 @@
       "wrapTransport"
     ],
     "types": [
+      "AdmissionPasses",
+      "AdmissionPassesEvents",
+      "AdmissionPassesOptions",
+      "AdmissionPassesSqlOptions",
+      "AdmissionPassesWrites",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -9397,11 +9406,6 @@
       "PassCreditBookingInput",
       "PassCreditEntry",
       "PassCreditEventData",
-      "Passes",
-      "PassesEvents",
-      "PassesOptions",
-      "PassesSqlOptions",
-      "PassesWrites",
       "PassInput",
       "PassIssuedEventData",
       "PassListOptions",
@@ -9661,14 +9665,14 @@
       "RpcClient"
     ]
   },
-  "./blocks/controls": {
+  "./blocks/compliance": {
     "values": [
+      "complianceBlock",
+      "complianceEvents",
       "controlEvidenceInputSchema",
       "controlFrameworkInputSchema",
       "controlInputSchema",
-      "controlsBlock",
-      "controlsEvents",
-      "createControls",
+      "createCompliance",
       "dbTransport",
       "evidenceTaskInputSchema",
       "extendBlock",
@@ -9682,6 +9686,9 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "Compliance",
+      "ComplianceEvents",
+      "ComplianceOptions",
       "Control",
       "ControlDetail",
       "ControlEvidence",
@@ -9692,10 +9699,7 @@
       "ControlInput",
       "ControlListOptions",
       "ControlPosture",
-      "Controls",
       "ControlSavedEventData",
-      "ControlsEvents",
-      "ControlsOptions",
       "ControlStatus",
       "EvidenceTask",
       "EvidenceTaskInput",

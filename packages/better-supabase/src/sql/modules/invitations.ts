@@ -21,14 +21,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
-  accessModel,
-  OPERATIONS,
-  modulePermission,
-  roleNames,
-  tenantScope,
-} from "./access-model.ts";
-import { hasCanAssignAs, providerForUser } from "./access.ts";
-import {
   invitePlatform,
   platformAssignment,
   platformRoleScope,
@@ -51,8 +43,16 @@ import {
   tenantTable,
   tokenHash,
 } from "./invitations-tables.ts";
+import { roleThrough } from "./memberships.ts";
 import { assignableRole, roleValue } from "./organizations-roles.ts";
-import { roleThrough } from "./tenant.ts";
+import {
+  accessModel,
+  OPERATIONS,
+  modulePermission,
+  roleNames,
+  tenantScope,
+} from "./permissions-model.ts";
+import { hasCanAssignAs, providerForUser } from "./permissions.ts";
 
 const EVENTS: BlockSqlEvents<OrganizationsEvents> = {
   "invitation.created": {
@@ -155,7 +155,7 @@ function tenantTableSql(ctx: BlockSqlContext): string {
       : "";
 
   const roleCheck =
-    accessModel(ctx) === "roles" && !roleThrough(ctx.of("tenant"))
+    accessModel(ctx) === "roles" && !roleThrough(ctx.of("memberships"))
       ? `alter table ${t.table}
   add constraint invitations_role_check check (${c("role")} in (${roleNames(ctx).map(sqlString).join(", ")}));
 `
@@ -281,7 +281,7 @@ function platformInvite(
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
-      "Platform invitations need platform roles: blocks.access.model 'catalog' with platform assignments, or blocks.invitations.options.platformRoles under 'provider'",
+      "Platform invitations need platform roles: blocks.permissions.model 'catalog' with platform assignments, or blocks.invitations.options.platformRoles under 'provider'",
     );
   }
 
@@ -335,7 +335,7 @@ function invite(ctx: BlockSqlContext): string {
   const c = (logical: string) => t.col(logical);
   const id = ctx.idType;
   const fail = raise;
-  const tenantMembers = ctx.of("tenant");
+  const tenantMembers = ctx.of("memberships");
   const m = tenantMembers.table("memberships");
   const mt = tenantMembers.col("memberships", "tenant");
   const mu = tenantMembers.col("memberships", "user");
@@ -374,7 +374,7 @@ function invite(ctx: BlockSqlContext): string {
 
   return `
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under blocks.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.permissions.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 ${extraFieldsArg(t.extras).drop(ctx.fn("invite_member"), `${id}, text, text, interval, jsonb`)}
@@ -689,7 +689,7 @@ function accept(
   const c = (logical: string) => t.col(logical);
   const id = ctx.idType;
   const fail = raise;
-  const tenantCtx = ctx.of("tenant");
+  const tenantCtx = ctx.of("memberships");
   const m = tenantCtx.table("memberships");
   const mt = tenantCtx.col("memberships", "tenant");
   const mu = tenantCtx.col("memberships", "user");
@@ -904,7 +904,7 @@ export const INVITATIONS: BlockSqlDefinition = {
   title: "Invitations",
   description:
     "invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.",
-  requires: ["tenant", "access", "updated-at"],
+  requires: ["memberships", "permissions", "updated-at"],
   integrates: ["organizations", "profiles"],
   providerFunctions: ["idsWithFor", "isPlatformFor", "canAssignFor"],
   target: "schema",
@@ -942,7 +942,7 @@ export const INVITATIONS: BlockSqlDefinition = {
     {
       from: 1,
       description:
-        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from blocks.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
+        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from blocks.permissions, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
       sql: (ctx) =>
         ctx.manages
           ? renameSql({

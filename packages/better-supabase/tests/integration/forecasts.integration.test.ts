@@ -20,7 +20,7 @@ const MODULES = [
   "subjects",
   "state-machine",
   "rank",
-  "parties",
+  "contacts",
   "pipelines",
   "deals",
   "forecasts",

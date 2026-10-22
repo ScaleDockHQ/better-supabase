@@ -37,7 +37,7 @@ import {
 import { appTableSetSql, settableColumns } from "./app-table-set.ts";
 import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
-import { sessionPolicyTables } from "./sessions.ts";
+import { sessionPolicyTables } from "./session-revocation.ts";
 
 /**
  * The `module` of the files `renderBlocks` writes for `appTables`. App tables
@@ -73,7 +73,10 @@ interface AppTable {
   readonly scope: ScopeColumn | undefined;
   /** Whether `expose` sets the table's grants instead. */
   readonly exposed: boolean;
-  /** Whether `blocks.sessions.options.policies` adds `bsb_session_active`. */
+  /**
+   * Whether `blocks['session-revocation'].options.policies` adds
+   * `bsb_session_active`.
+   */
   readonly sessionPolicy: boolean;
   /** The columns whose reference checks the tenant too, by column name. */
   readonly tenantReferences: ReadonlyMap<string, TenantReference>;
@@ -120,7 +123,7 @@ function scopeColumn(
 ): ScopeColumn | undefined {
   switch (ctx.scope.kind) {
     case "tenant": {
-      if (!ctx.installed("tenant")) {
+      if (!ctx.installed("memberships")) {
         throw new TypeError(
           `tables.${name}: tenant scope needs the tenant block, which checks membership; add it to blocks, or set the table's owner to "user" or "none"`,
         );
@@ -731,7 +734,7 @@ function setRefusals(table: AppTable): readonly string[] {
   const subject = table.config.subject;
 
   if (
-    !table.ctx.installed("bulk") ||
+    !table.ctx.installed("bulk-actions") ||
     subject === undefined ||
     settableColumns(table.config).length === 0
   ) {
@@ -1096,8 +1099,8 @@ export function appTablesFiles(
         installed,
       );
 
-      const sessionTables = ctx.installed("sessions")
-        ? sessionPolicyTables(ctx.of("sessions"), layout)
+      const sessionTables = ctx.installed("session-revocation")
+        ? sessionPolicyTables(ctx.of("session-revocation"), layout)
         : [];
 
       return {
@@ -1163,7 +1166,7 @@ export function appTablesFiles(
     installed.includes("search")
       ? appTableSearchTriggers(moduleContext("search", layout, installed))
       : "",
-    installed.includes("bulk") && tables[0]
+    installed.includes("bulk-actions") && tables[0]
       ? appTableSetSql(
           tables.map((table) => ({
             name: table.name,

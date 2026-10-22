@@ -2,7 +2,7 @@ import type { BlockOptions } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { RANK_REBALANCE_QUEUE } from "../../core/rank-keys.ts";

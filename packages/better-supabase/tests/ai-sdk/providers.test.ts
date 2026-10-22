@@ -2,7 +2,7 @@ import type { Experimental_SandboxSession } from "ai";
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { ResolvedProviderKey } from "../../src/blocks/ai-providers/index.ts";
+import type { ResolvedProviderKey } from "../../src/blocks/ai-keys/index.ts";
 
 import {
   byokOptions,

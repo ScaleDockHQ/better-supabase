@@ -5,7 +5,7 @@ import type { AuthResolver } from "../../src/auth/resolve.ts";
 import type {
   QueueProvider,
   QueueMessageRow,
-} from "../../src/blocks/jobs/index.ts";
+} from "../../src/blocks/queue/index.ts";
 import type { Generator, GeneratorInput } from "../../src/config/index.ts";
 import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Executor } from "../../src/core/executor.ts";

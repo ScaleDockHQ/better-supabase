@@ -26,21 +26,21 @@ describe("mail-sync module", () => {
   });
 
   it("matches parties by email and by domain", () => {
-    const sql = sqlOf({}, ["parties"]);
+    const sql = sqlOf({}, ["contacts"]);
     expect(sql).toContain('function "better_supabase"."match_mail_thread"(');
     expect(sql).toContain("'person', p.\"id\"::text");
     expect(sql).toContain("split_part(x, '@', 2)");
-    expect(sqlOf({ matchDomains: false }, ["parties"])).not.toContain(
+    expect(sqlOf({ matchDomains: false }, ["contacts"])).not.toContain(
       "split_part(x, '@', 2)",
     );
   });
 
   it("logs threads as engagements of the configured type", () => {
-    const sql = sqlOf({}, ["engagements"]);
+    const sql = sqlOf({}, ["activities"]);
     expect(sql).toContain('function "better_supabase"."log_mail_thread"(');
     expect(sql).toContain("'type', 'email'");
     expect(sql).toMatch(/engagement_id" uuid references .*engagements/);
-    expect(sqlOf({ engagementType: "mail" }, ["engagements"])).toContain(
+    expect(sqlOf({ engagementType: "mail" }, ["activities"])).toContain(
       "'type', 'mail'",
     );
     expect(() => sqlOf({ engagementType: "Mail" })).toThrow(

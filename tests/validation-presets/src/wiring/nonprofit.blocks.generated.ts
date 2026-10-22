@@ -11,9 +11,9 @@ import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { DonationsEvents } from "better-supabase/blocks/donations";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
-import type { NumberSequencesEvents } from "better-supabase/blocks/number-sequences";
+import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
@@ -24,7 +24,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -62,7 +62,7 @@ export const blockConfig = {
       topic: "notifications:{userId}",
     },
   },
-  "number-sequences": {
+  numbering: {
     schema: "better_supabase",
     options: {},
   },
@@ -78,7 +78,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -98,7 +98,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  targets: {
+  goals: {
     schema: "better_supabase",
     options: {},
   },
@@ -106,7 +106,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -140,6 +140,11 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
+  },
   donation_fund: {
     read: "donations.read",
     write: "donations.manage",
@@ -152,6 +157,10 @@ export const permissions = {
     read: "enrollments.read",
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
+  },
+  goals: {
+    read: "targets.read",
+    manage: "targets.manage",
   },
   invitations: {
     invite: "members.invite",
@@ -171,7 +180,7 @@ export const permissions = {
     send: "notifications.send",
     read: "notifications.read",
   },
-  "number-sequences": {
+  numbering: {
     assign: "number_sequences.assign",
   },
   onboarding: {
@@ -186,11 +195,6 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
-  },
   person: {
     read: "parties.read",
     write: "parties.write",
@@ -203,10 +207,6 @@ export const permissions = {
     read: "settings.read",
     update: "settings.update",
     platform: "settings.manage",
-  },
-  targets: {
-    read: "targets.read",
-    manage: "targets.manage",
   },
   teams: {
     manage: "teams.manage",
@@ -221,11 +221,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "donations.manage" | "donations.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "settings.manage" | "settings.read" | "settings.update" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & LedgerEvents & EnrollmentsEvents & DonationsEvents & NotificationsEvents & NumberSequencesEvents & OrganizationsEvents & PartiesEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & LedgerEvents & EnrollmentsEvents & DonationsEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

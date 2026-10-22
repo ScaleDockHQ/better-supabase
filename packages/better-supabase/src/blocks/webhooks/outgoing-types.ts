@@ -14,7 +14,7 @@ import type {
   CredentialRef,
 } from "../../credentials/provider.ts";
 import type { EventSink } from "../../events/index.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { WebhookEncoder } from "./encoders.ts";
 import type { WebhookTransport } from "./http.ts";
@@ -43,7 +43,7 @@ export interface WebhookDelivery {
   readonly owner: string | null;
   /**
    * The tenant's default service principal, which an endpoint without an owner
-   * runs as, when the service-principals module is installed.
+   * runs as, when the service-accounts module is installed.
    */
   readonly principal: string | null;
   /** The permissions a service principal's endpoint declares. */

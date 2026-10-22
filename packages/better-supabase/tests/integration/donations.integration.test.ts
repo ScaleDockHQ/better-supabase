@@ -5,11 +5,11 @@ import type { PaymentProvider } from "../../src/commerce/payments.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import {
   createDonations,
   sqlTransport,
 } from "../../src/blocks/donations/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -24,7 +24,7 @@ const MODULES = [
   "audit",
   "subjects",
   "relations",
-  "parties",
+  "contacts",
   "ledger",
   "donations",
 ];
@@ -85,7 +85,7 @@ describe.skipIf(!live)("donations", () => {
 
       await s.as(owner);
 
-      const company = await createParties({ transport })
+      const company = await createContacts({ transport })
         .saveCompany(tenant, { name: "Acme" })
         .orThrow();
 

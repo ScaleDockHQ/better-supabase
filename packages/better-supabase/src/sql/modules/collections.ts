@@ -18,13 +18,13 @@ import {
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectCascades } from "../subjects.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   collectionExtras,
   collectionFunctions,
   savedItemFunctions,
   starFunctions,
 } from "./collections-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { callerTeamIdsSql } from "./team-ids.ts";
 
 /** Who sees a collection: its owner, a team, or the whole tenant. */
@@ -404,7 +404,7 @@ export const COLLECTIONS: BlockSqlDefinition = {
   title: "Collections",
   description:
     "Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["memberships", "permissions", "subjects"],
   integrates: ["outbox", "teams"],
   target: "schema",
   modes: ["managed", "custom"],

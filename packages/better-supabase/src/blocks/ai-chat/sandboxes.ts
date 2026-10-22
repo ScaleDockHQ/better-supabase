@@ -1,6 +1,6 @@
 import type { BlockCall } from "../../core/block-helpers.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 
 import { errorText } from "../../core/block-helpers.ts";
 import { AsyncResult as Result, ok } from "../../core/result.ts";

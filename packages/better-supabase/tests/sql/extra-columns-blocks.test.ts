@@ -15,7 +15,7 @@ const CASES = [
     read: "push_tokens_for",
   },
   {
-    module: "service-principals",
+    module: "service-accounts",
     needs: ["organizations"],
     table: "service_principals",
     write: "register_service_principal.fields",
@@ -30,7 +30,7 @@ const CASES = [
   },
   {
     module: "reminders",
-    needs: ["organizations", "jobs"],
+    needs: ["organizations", "queue"],
     table: "reminders",
     write: "save_reminder.fields",
     read: "save_reminder",
@@ -64,7 +64,7 @@ const CASES = [
     read: "order_json",
   },
   {
-    module: "parties",
+    module: "contacts",
     needs: ["organizations"],
     table: "companies",
     write: "save_company.attrs",

@@ -18,7 +18,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import { providerTeamIds } from "./team-ids.ts";
 
 const EVENTS: BlockSqlEvents<TeamsEvents> = {
@@ -372,7 +372,9 @@ ${userGrant(`${fn("list_teams")}(${ctx.idType})`)}
 }
 
 function service(ctx: BlockSqlContext): string {
-  return ctx.installed("access") ? "auth.role() = 'service_role'" : "false";
+  return ctx.installed("permissions")
+    ? "auth.role() = 'service_role'"
+    : "false";
 }
 
 function membershipFk(
@@ -381,11 +383,11 @@ function membershipFk(
   tenant: string,
   user: string,
 ): string {
-  if (!ctx.installed("tenant")) {
+  if (!ctx.installed("memberships")) {
     return "";
   }
 
-  const memberships = ctx.of("tenant");
+  const memberships = ctx.of("memberships");
 
   return `alter table ${members} drop constraint if exists team_members_membership_fkey;
 alter table ${members}
@@ -399,11 +401,11 @@ function membershipCheck(
   tenant: string,
   user: string,
 ): string {
-  if (!ctx.installed("tenant")) {
+  if (!ctx.installed("memberships")) {
     return "";
   }
 
-  const memberships = ctx.of("tenant");
+  const memberships = ctx.of("memberships");
 
   return `if not exists (
     select 1 from ${memberships.table("memberships")} m
@@ -534,7 +536,7 @@ export const TEAMS: BlockSqlDefinition = {
   title: "Teams",
   description:
     "Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["inbox", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

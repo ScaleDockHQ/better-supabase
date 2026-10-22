@@ -9,13 +9,13 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { ScoresEvents } from "better-supabase/blocks/scores";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { EngagementsEvents } from "better-supabase/blocks/engagements";
+import type { ActivitiesEvents } from "better-supabase/blocks/activities";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { RemindersEvents } from "better-supabase/blocks/reminders";
-import type { RulesEvents } from "better-supabase/blocks/rules";
+import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 
@@ -25,7 +25,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -49,7 +49,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  engagements: {
+  activities: {
     schema: "better_supabase",
     options: {},
   },
@@ -61,7 +61,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  jobs: {
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -91,7 +91,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -103,7 +103,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  rules: {
+  automations: {
     schema: "better_supabase",
     options: {},
   },
@@ -119,7 +119,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -135,6 +135,11 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
+  activities: {
+    read: "engagements.read",
+    write: "engagements.write",
+    manage: "engagements.manage",
+  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -143,6 +148,12 @@ export const permissions = {
     view: "audit.read",
     viewAll: "audit.read",
     revert: "audit.revert",
+  },
+  automations: {
+    read: "rules.read",
+    edit: "rules.edit",
+    publish: "rules.publish",
+    admin: "rules.admin",
   },
   billing: {
     read: "billing.read",
@@ -153,14 +164,14 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
+  },
   engagement: {
     read: "engagements.read",
     write: "engagements.write",
-  },
-  engagements: {
-    read: "engagements.read",
-    write: "engagements.write",
-    manage: "engagements.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -198,11 +209,6 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
-  },
   person: {
     read: "parties.read",
     write: "parties.write",
@@ -210,12 +216,6 @@ export const permissions = {
   reminders: {
     manage: "reminders.manage",
     read: "reminders.read",
-  },
-  rules: {
-    read: "rules.read",
-    edit: "rules.edit",
-    publish: "rules.publish",
-    admin: "rules.admin",
   },
   scores: {
     read: "scores.read",
@@ -240,11 +240,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ScoresEvents & EnrollmentsEvents & EngagementsEvents & FormsEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & RemindersEvents & RulesEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ScoresEvents & EnrollmentsEvents & ActivitiesEvents & FormsEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & RemindersEvents & AutomationsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

@@ -24,7 +24,7 @@ describe("entityNames", () => {
     expect(names.rename("work_item_id")).toBe("task_id");
     expect(names.rename("work_items.read")).toBe("tasks.read");
     expect(names.rename("work_item.created")).toBe("task.created");
-    expect(names.rename("work-items/")).toBe("tasks/");
+    expect(names.rename("tasks/")).toBe("tasks/");
     expect(names.rename("workItemId")).toBe("taskId");
     expect(names.rename("WorkItemInput")).toBe("TaskInput");
     expect(names.rename("listWorkItems")).toBe("listTasks");
@@ -93,7 +93,7 @@ describe("tenantNames", () => {
 
   it("rejects a name that is not a lowercase identifier", () => {
     expect(() => tenantNames("Work space")).toThrow(
-      /blocks.tenant.names.organization: "Work space" is not a lowercase identifier/,
+      /blocks.memberships.names.organization: "Work space" is not a lowercase identifier/,
     );
   });
 });

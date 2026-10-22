@@ -1,0 +1,328 @@
+import { describe, expect, it } from "vitest";
+
+import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
+
+import { sameTenantLayout } from "../../../src/sql/foreign-keys.ts";
+import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+
+const body = (
+  sameTenant: unknown,
+  tenant: NonNullable<AnyBlocksConfig["tenant"]> = {},
+) =>
+  moduleBody("memberships", {
+    modules: { memberships: { ...tenant, options: { sameTenant } } },
+  })!;
+
+describe("tenant module sameTenant", () => {
+  it("writes one same_tenant trigger per entry", () => {
+    const sql = body([
+      { table: "public.tasks", column: "project_id", references: "projects" },
+      {
+        table: "app.template_settings",
+        column: "template_id",
+        tenant: "workspace_id",
+        references: {
+          table: "app.templates",
+          column: "key",
+          tenant: "owner_workspace",
+          where: "{row}.kind = 'task'",
+        },
+      },
+    ]);
+
+    expect(sql).toContain(
+      "create or replace function better_supabase.same_tenant()",
+    );
+    expect(sql).toContain("hint = 'TENANT_MISMATCH'");
+    expect(sql).toContain(
+      `create trigger "bsb_same_tenant_project_id" before insert or update of "project_id", "organization_id" on "public"."tasks"
+  for each row execute function better_supabase.same_tenant('project_id', 'organization_id', '"public"."projects"', 'id', 'organization_id');`,
+    );
+    expect(sql).toContain(
+      `create trigger "bsb_same_tenant_template_id" before insert or update of "template_id", "workspace_id" on "app"."template_settings"
+  for each row execute function better_supabase.same_tenant('template_id', 'workspace_id', '"app"."templates"', 'key', 'owner_workspace', 'p.kind = ''task''');`,
+    );
+  });
+
+  it("defaults the tenant column to the memberships one", () => {
+    const sql = body(
+      [{ table: "notes", column: "deal_id", references: "deals" }],
+      {
+        mode: "adopt",
+        tables: { memberships: "public.team_members" },
+        columns: { memberships: { tenant: "team_id" } },
+      },
+    );
+
+    expect(sql).toContain(
+      `before insert or update of "deal_id", "team_id" on "public"."notes"`,
+    );
+    expect(sql).toContain(
+      `same_tenant('deal_id', 'team_id', '"public"."deals"', 'id', 'team_id')`,
+    );
+  });
+
+  it("passes match columns after the condition and watches them", () => {
+    const sql = body([
+      {
+        table: "jobs",
+        column: "asset_id",
+        references: "assets",
+        match: { customer_id: "customer_id", site_id: "location_id" },
+      },
+      {
+        table: "quote_materials",
+        column: "material_id",
+        references: { table: "materials", where: "{row}.active" },
+        match: { customer_id: "customer_id", organization_id: "owner_id" },
+      },
+    ]);
+
+    expect(sql).toContain(
+      `create trigger "bsb_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "customer_id", "site_id" on "public"."jobs"
+  for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', '', 'customer_id', 'customer_id', 'site_id', 'location_id');`,
+    );
+    expect(sql).toContain(
+      `create trigger "bsb_same_tenant_material_id" before insert or update of "material_id", "organization_id", "customer_id" on "public"."quote_materials"
+  for each row execute function better_supabase.same_tenant('material_id', 'organization_id', '"public"."materials"', 'id', 'organization_id', 'p.active', 'customer_id', 'customer_id', 'organization_id', 'owner_id');`,
+    );
+    expect(sql).toContain("while i + 1 < tg_nargs loop");
+  });
+
+  it("matches a column reached through another reference of the row", () => {
+    const sql = body([
+      {
+        table: "quote_assets",
+        column: "asset_id",
+        references: "assets",
+        match: { "quote_id.customer_id": "customer_id" },
+        through: { quote_id: "public.quotes" },
+      },
+      {
+        table: "task_materials",
+        column: "quote_id",
+        references: { table: "quotes", where: "{row}.status <> 'draft'" },
+        match: { site_id: "site_id", "task_id.customer_id": "customer_id" },
+        through: { task_id: { table: "work.tasks", column: "key" } },
+      },
+    ]);
+
+    expect(sql).toContain(
+      `create trigger "bsb_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "quote_id" on "public"."quote_assets"
+  for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', 'p."customer_id" is not distinct from (select h."customer_id" from "public"."quotes" h where h."id" = ($1)."quote_id")');`,
+    );
+    expect(sql).toContain(
+      `create trigger "bsb_same_tenant_quote_id" before insert or update of "quote_id", "organization_id", "site_id", "task_id" on "public"."task_materials"
+  for each row execute function better_supabase.same_tenant('quote_id', 'organization_id', '"public"."quotes"', 'id', 'organization_id', '(p.status <> ''draft'') and (p."customer_id" is not distinct from (select h."customer_id" from "work"."tasks" h where h."key" = ($1)."task_id"))', 'site_id', 'site_id');`,
+    );
+    expect(() =>
+      body([
+        {
+          table: "quote_assets",
+          column: "asset_id",
+          references: "assets",
+          match: { "quote_id.customer_id": "customer_id" },
+        },
+      ]),
+    ).toThrow(/through\.quote_id must name the table quote_id references/);
+    expect(() =>
+      body([
+        {
+          table: "quote_assets",
+          column: "asset_id",
+          references: "assets",
+          match: { "quote_id.customer_id": "customer_id" },
+          through: ["quotes"],
+        },
+      ]),
+    ).toThrow(/through must be \{ <column>/);
+    expect(() =>
+      body([
+        {
+          table: "quote_assets",
+          column: "asset_id",
+          references: "assets",
+          match: { "quote_id.Customer": "customer_id" },
+          through: { quote_id: "quotes" },
+        },
+      ]),
+    ).toThrow(/match must be a lowercase column name/);
+  });
+
+  it("writes nothing without entries and checks their shape", () => {
+    expect(moduleBody("memberships", { modules: {} })).not.toContain(
+      "same_tenant",
+    );
+    expect(() => body({ table: "tasks" })).toThrow(/must be a list/);
+    expect(() => body([{ table: "tasks", column: "project_id" }])).toThrow(
+      /references: "schema.table"/,
+    );
+    expect(() =>
+      body([{ table: "tasks", column: "Project", references: "projects" }]),
+    ).toThrow(/sameTenant\[0\]\.column must be a lowercase column name/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: { table: "projects", where: "kind = 'x'" },
+        },
+      ]),
+    ).toThrow(/where must be a condition on \{row\}/);
+    expect(() =>
+      body([{ table: "tasks", column: "project_id", references: {} }]),
+    ).toThrow(/references.table/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: "projects",
+          match: ["customer_id"],
+        },
+      ]),
+    ).toThrow(/sameTenant\[0\]\.match must be \{ <column>/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: "projects",
+          match: { Customer: "customer_id" },
+        },
+      ]),
+    ).toThrow(/sameTenant\[0\]\.match must be a lowercase column name/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: "projects",
+          match: { customer_id: 1 },
+        },
+      ]),
+    ).toThrow(/match\.customer_id must be a lowercase column name/);
+  });
+});
+
+describe("tenant module sameTenant auto", () => {
+  const schema = `
+create table public.customers (
+  id uuid primary key,
+  organization_id uuid not null
+);
+create table public.projects (
+  key text,
+  organization_id uuid not null,
+  constraint projects_pk primary key (key)
+);
+create table public.tasks (
+  id uuid primary key,
+  organization_id uuid not null,
+  customer_id uuid references public.customers,
+  project_key text,
+  owner_id uuid references auth.users (id),
+  foreign key (project_key) references public.projects
+);
+create table public.notes (
+  id uuid primary key,
+  organization_id uuid not null,
+  task_id uuid,
+  customer_id uuid,
+  foreign key (organization_id, customer_id) references public.customers (organization_id, id)
+);
+alter table public.notes add constraint notes_task_fk foreign key (task_id) references public.tasks (id);
+`;
+
+  const inputs = sameTenantLayout([{ text: schema }], ["public"]);
+
+  const autoBody = (sameTenant: unknown) =>
+    moduleBody("memberships", {
+      modules: { memberships: { options: { sameTenant } } },
+      ...inputs,
+    })!;
+
+  const derived = [
+    {
+      table: "public.tasks",
+      column: "customer_id",
+      references: { table: "public.customers", column: "id" },
+    },
+    {
+      table: "public.tasks",
+      column: "project_key",
+      references: { table: "public.projects", column: "key" },
+    },
+    {
+      table: "public.notes",
+      column: "task_id",
+      references: { table: "public.tasks", column: "id" },
+    },
+  ];
+
+  it("renders the derived entries exactly like the same entries listed", () => {
+    expect(autoBody({ auto: true })).toBe(body(derived));
+  });
+
+  it("skips keys to tables without the tenant column and keys that include it", () => {
+    const sql = autoBody({ auto: true });
+
+    expect(sql).not.toContain("bsb_same_tenant_owner_id");
+    expect(sql).not.toContain(
+      '"bsb_same_tenant_customer_id" on "public"."notes"',
+    );
+  });
+
+  it("lets a listed entry for the same column win", () => {
+    const listed = {
+      table: "public.tasks",
+      column: "customer_id",
+      references: { table: "public.customers", where: "{row}.active" },
+    };
+
+    expect(autoBody({ auto: true, entries: [listed] })).toBe(
+      body([listed, derived[1], derived[2]]),
+    );
+  });
+
+  it("renders only the entries with auto off, and needs the scan with it on", () => {
+    expect(autoBody({ auto: false, entries: [derived[0]] })).toBe(
+      body([derived[0]]),
+    );
+    expect(() => body({ auto: true })).toThrow(/sameTenant\.auto derives/);
+    expect(() => body({ entries: [] })).toThrow(/or \{ auto: true/);
+  });
+});
+
+describe("tenant role helpers under a provider", () => {
+  const fn = (sql: string, name: string): string => {
+    const start = sql.indexOf(`function better_supabase.${name}(`);
+
+    return sql.slice(start, sql.indexOf("$$;", start));
+  };
+
+  it("take membership from the provider's memberIds and memberIdsFor", () => {
+    const sql = moduleBody("memberships", {
+      modules: { permissions: { model: "provider" } },
+      accessProvider: moduleProvider,
+    })!;
+
+    const ids = fn(sql, "member_organization_ids");
+    expect(ids).toContain("from authz.member_organization_ids() as p(id)");
+    expect(ids).toContain(
+      `and m."organization_id" in (select p.id from authz.member_organization_ids() as p(id))`,
+    );
+    expect(fn(sql, "has_organization_role")).toContain(
+      "better_supabase.member_organization_ids(has_organization_role.roles)",
+    );
+    expect(fn(sql, "organization_member_role")).toContain(
+      "in (select p.id from authz.member_organization_ids_for(organization_member_role.member) as p(id))",
+    );
+  });
+
+  it("read the memberships table under the built-in roles", () => {
+    const sql = moduleBody("memberships", { accessProvider: moduleProvider })!;
+    expect(sql).not.toContain("authz.");
+  });
+});

@@ -46,7 +46,7 @@ const ENTITIES_MARKER = /^-- @(?:bsb-names|bs-entities) ([a-z0-9-]+) (.+)$/gm;
 
 /**
  * The `@bsb-names` line of a module file whose entities are renamed, such as
- * `-- @bsb-names work-items work_item=task/tasks`; undefined without a rename.
+ * `-- @bsb-names tasks work_item=task/tasks`; undefined without a rename.
  */
 export function entitiesMarker(
   module: string,

@@ -22,13 +22,13 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { roleValue } from "./organizations-roles.ts";
 import {
   accessModel,
   moduleOperations,
   modulePermission,
   roleNames,
-} from "./access-model.ts";
-import { roleValue } from "./organizations-roles.ts";
+} from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<WaitlistEvents> = {
   "waitlist.approved": {
@@ -170,7 +170,7 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
@@ -635,7 +635,7 @@ export const WAITLIST: BlockSqlDefinition = {
   title: "Waitlist and invite codes",
   description:
     "A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["invitations", "organizations"],
   target: "schema",
   modes: ["managed", "custom"],

@@ -109,7 +109,7 @@ const COMPUTED: AppTablesConfig = {
   },
 };
 
-const BLOCKS = ["tenant", "organizations", "updated-at"];
+const BLOCKS = ["memberships", "organizations", "updated-at"];
 
 function render(
   names: readonly string[],
@@ -206,7 +206,7 @@ describe("appTables SQL", () => {
     await expect(
       golden(
         render(BLOCKS, {
-          modules: { tenant: { entities: { organization: "workspace" } } },
+          modules: { memberships: { entities: { organization: "workspace" } } },
           appTables: TABLES,
         }),
       ),
@@ -234,7 +234,7 @@ describe("appTables SQL", () => {
   });
 
   it("references a block table through its renames", () => {
-    const [schema] = render(["tenant", "organizations", "tags"], {
+    const [schema] = render(["memberships", "organizations", "tags"], {
       modules: { tags: { tables: { tags: "labels" } } },
       appTables: {
         pins: {
@@ -278,12 +278,14 @@ describe("appTables SQL", () => {
   });
 
   it("expects the session policy on the tables the sessions block covers", () => {
-    const [, test] = render(["sessions"], {
+    const [, test] = render(["session-revocation"], {
       scope: "user",
       appTables: TABLES,
       declaredTables: ["public.projects", "public.tasks"],
       modules: {
-        sessions: { options: { policies: true, exclude: ["public.tasks"] } },
+        "session-revocation": {
+          options: { policies: true, exclude: ["public.tasks"] },
+        },
       },
     });
 
@@ -463,7 +465,7 @@ describe("appTables SQL errors", () => {
 
   it("refuses a table the block doesn't keep", () => {
     expect(() =>
-      render(["tenant", "organizations", "tags"], {
+      render(["memberships", "organizations", "tags"], {
         appTables: {
           pins: {
             columns: {
@@ -482,7 +484,9 @@ describe("appTables SQL errors", () => {
 
   it("refuses a name a block table already has", () => {
     expect(() =>
-      render(["tenant", "organizations", "tags"], { appTables: { tags: {} } }),
+      render(["memberships", "organizations", "tags"], {
+        appTables: { tags: {} },
+      }),
     ).toThrow(
       "tables.tags: the tags block already keeps a table named tags; choose another name",
     );
@@ -502,7 +506,7 @@ describe("appTables SQL errors", () => {
   it("refuses the renamed tenant table's name", () => {
     expect(() =>
       render(BLOCKS, {
-        modules: { tenant: { entities: { organization: "workspace" } } },
+        modules: { memberships: { entities: { organization: "workspace" } } },
         appTables: { workspaces: {} },
       }),
     ).toThrow("the organizations block already keeps a table named workspaces");
@@ -547,7 +551,7 @@ describe("appTables SQL errors", () => {
   });
 
   it("renders app_table_set for the bulk action over subject tables", () => {
-    const schema = render([...BLOCKS, "access", "bulk"], {
+    const schema = render([...BLOCKS, "permissions", "bulk-actions"], {
       appTables: {
         tasks: {
           columns: {

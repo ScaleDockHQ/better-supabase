@@ -12,7 +12,7 @@ vi.mock(import("../../../src/sql/index.ts"), async (original) => ({
   ...(await original()),
   upgradePlan: () => [
     {
-      module: "tenant",
+      module: "memberships",
       from: 1,
       to: 3,
       steps: [
@@ -41,7 +41,7 @@ describe("sql upgrade with forward steps", () => {
 
   const sql = (argv: string[]) =>
     runSql(
-      resolveConfig({ blocks: ["tenant"] }, root),
+      resolveConfig({ blocks: ["memberships"] }, root),
       parseArgs(argv, SQL_ARGS),
     );
 
@@ -60,11 +60,11 @@ describe("sql upgrade with forward steps", () => {
     const done = await sql(["upgrade"]);
     expect(done.code).toBe(0);
     expect(done.output).toContain(`Created ${path}`);
-    expect(done.output).toContain("tenant: version 1 to 3");
+    expect(done.output).toContain("memberships: version 1 to 3");
     expect(done.output).toContain("  Renames org_id to tenant_id.");
     const migration = await readFile(join(root, path), "utf-8");
     expect(migration).toContain(
-      "-- tenant: version 2 to 3. Renames org_id to tenant_id.\nalter table memberships rename column org_id to tenant_id;",
+      "-- memberships: version 2 to 3. Renames org_id to tenant_id.\nalter table memberships rename column org_id to tenant_id;",
     );
     expect(migration).not.toContain("Nothing to run.");
   });

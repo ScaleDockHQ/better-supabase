@@ -8,7 +8,7 @@ import type {
   Logger,
   Result,
 } from "better-supabase";
-import type { Job } from "better-supabase/blocks/jobs";
+import type { Job } from "better-supabase/blocks/queue";
 import type { LiveCountSeed } from "better-supabase/react";
 import type { Aal } from "better-supabase/server";
 import type { StoragePath } from "better-supabase/storage";
@@ -24,7 +24,7 @@ import {
   toBetterResult,
 } from "better-supabase";
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
-import { createJobs } from "better-supabase/blocks/jobs";
+import { createQueue } from "better-supabase/blocks/queue";
 import { rpcTransport } from "better-supabase/blocks/settings";
 import { verifyWebhook } from "better-supabase/blocks/webhooks";
 import { createClient } from "better-supabase/client";
@@ -78,7 +78,7 @@ rpcTransport(typedClient, { schema: "api" });
 
 rpcTransport(client);
 
-createJobs({ client: typedClient, queues: {} });
+createQueue({ client: typedClient, queues: {} });
 
 const logger: Logger = silentLogger;
 

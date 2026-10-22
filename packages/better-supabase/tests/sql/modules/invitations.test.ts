@@ -47,7 +47,7 @@ describe("invitations module", () => {
 
   it("adopts CentraKit's organization_invitations with plain tokens and system invites", () => {
     const sql = body({
-      access: {
+      permissions: {
         model: "catalog",
         tables: { platformAssignments: "public.user_roles" },
       },
@@ -95,7 +95,7 @@ describe("invitations module", () => {
 
   it("keeps platform invitations in their own table, under a role ceiling", () => {
     const sql = body({
-      access: { model: "catalog" },
+      permissions: { model: "catalog" },
       invitations: { options: { prefill: true, maxValidFor: "14 days" } },
     });
 
@@ -117,7 +117,10 @@ describe("invitations module", () => {
 
   it("rejects unknown roles from the access contract in custom mode", () => {
     const sql = body({
-      access: { model: "custom", roles: { owner: [], admin: [], member: [] } },
+      permissions: {
+        model: "custom",
+        roles: { owner: [], admin: [], member: [] },
+      },
     });
 
     expect(sql).toContain(
@@ -127,7 +130,7 @@ describe("invitations module", () => {
   });
 
   it("lets the provider model accept tenant custom roles", () => {
-    const sql = body({ access: { model: "provider" } });
+    const sql = body({ permissions: { model: "provider" } });
 
     expect(sql).toContain("if invitee_role is not null and false then");
     expect(sql).not.toContain(
@@ -159,7 +162,7 @@ describe("invitations module", () => {
 
   it("skips the inviter re-check when the provider answers for the caller only", () => {
     const accept = (modules: AnyBlocksConfig) =>
-      renderBlocks(["access", "invitations"], {
+      renderBlocks(["permissions", "invitations"], {
         modules,
         accessProvider: callerOnlyProvider,
       })
@@ -168,7 +171,7 @@ describe("invitations module", () => {
 
     expect(accept({})).toContain("better_supabase.can_user(invite.");
 
-    const callerOnly = accept({ access: { model: "provider" } });
+    const callerOnly = accept({ permissions: { model: "provider" } });
 
     expect(callerOnly).not.toContain("better_supabase.can_user(invite.");
     expect(callerOnly).toContain(
@@ -178,7 +181,7 @@ describe("invitations module", () => {
 });
 
 describe("platform invitations under the provider model", () => {
-  const PROVIDER: AnyBlocksConfig = { access: { model: "provider" } };
+  const PROVIDER: AnyBlocksConfig = { permissions: { model: "provider" } };
 
   const roles = {
     table: "public.user_roles",
@@ -214,7 +217,10 @@ describe("platform invitations under the provider model", () => {
   });
 
   it("checks the inviter at accept with canAssignFor when canAssign reads the caller", () => {
-    const forUser = { ...PROVIDER, access: { model: "provider" as const } };
+    const forUser = {
+      ...PROVIDER,
+      permissions: { model: "provider" as const },
+    };
 
     const sql = (platformRoles: Record<string, unknown>) =>
       body(
@@ -256,7 +262,7 @@ describe("platform invitations under the provider model", () => {
     const sql = (where?: string, tenantWhere?: string) =>
       body({
         ...PROVIDER,
-        tenant: {
+        memberships: {
           mode: "adopt" as const,
           tables: { memberships: "public.team_members" },
           columns: { memberships: { role: "role_id" } },
@@ -298,7 +304,7 @@ describe("platform invitations under the provider model", () => {
 
     const modules = (tenantWhere?: string): AnyBlocksConfig => ({
       ...PROVIDER,
-      tenant: {
+      memberships: {
         mode: "adopt" as const,
         tables: { memberships: "public.team_members" },
         columns: { memberships: { role: "role_id" } },
@@ -345,7 +351,7 @@ describe("platform invitations under the provider model", () => {
 
     const modules = (where: boolean): AnyBlocksConfig => ({
       ...PROVIDER,
-      tenant: {
+      memberships: {
         mode: "adopt" as const,
         tables: { memberships: "public.team_members" },
         columns: { memberships: { role: "role_id" } },
@@ -371,7 +377,7 @@ describe("platform invitations under the provider model", () => {
       },
     });
 
-    const tenant = moduleBody("tenant", { modules: modules(true) })!;
+    const tenant = moduleBody("memberships", { modules: modules(true) })!;
     expect(tenant).toContain(
       `where r."id"::text = new."role_id"::text and (r.scope = 'organization')`,
     );
@@ -387,7 +393,7 @@ describe("platform invitations under the provider model", () => {
     expect(platform).toContain(
       `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
     );
-    const unscoped = moduleBody("tenant", { modules: modules(false) })!;
+    const unscoped = moduleBody("memberships", { modules: modules(false) })!;
     expect(unscoped).toContain(
       `drop trigger if exists "bsb_role_scope" on "public"."team_members";`,
     );
@@ -397,7 +403,7 @@ describe("platform invitations under the provider model", () => {
       `drop trigger if exists "bsb_role_scope" on "public"."user_roles";`,
     );
     expect(unscopedPlatform).not.toContain("PLATFORM_ROLE_SCOPE");
-    expect(moduleBody("tenant", { modules: {} })).not.toContain(
+    expect(moduleBody("memberships", { modules: {} })).not.toContain(
       "bsb_role_scope",
     );
   });

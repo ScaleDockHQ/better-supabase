@@ -20,12 +20,12 @@ import {
 import {
   createIdempotency,
   createWebhookInbox,
-  createJobs,
+  createQueue,
   createRateLimit,
   sqlQueueProvider,
   transportQueueProvider,
   withLease,
-} from "../../src/blocks/jobs/index.ts";
+} from "../../src/blocks/queue/index.ts";
 import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
 import { rpcTransport, sqlTransport } from "../../src/core/block-transport.ts";
@@ -151,11 +151,11 @@ async function installSchemaModules(pool: Pool): Promise<void> {
   try {
     await client.query("begin");
 
-    // ensure-rls would enable RLS on every table later tests create, so it
+    // rls-guard would enable RLS on every table later tests create, so it
     // only runs in its own rolled-back transaction below.
     const names = Object.values(SQL_MODULES)
       .filter(
-        (module) => module.target === "schema" && module.name !== "ensure-rls",
+        (module) => module.target === "schema" && module.name !== "rls-guard",
       )
       .map((module) => module.name);
 
@@ -328,12 +328,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(rows.map((row) => row.constraint)).toEqual([]);
   });
 
-  it("ensure-rls enables RLS on new tables outside the managed schemas", async () => {
+  it("rls-guard enables RLS on new tables outside the managed schemas", async () => {
     const client = await pool.connect();
 
     try {
       await client.query("begin");
-      const [file] = renderBlocks(["ensure-rls"]);
+      const [file] = renderBlocks(["rls-guard"]);
       await client.query(file!.contents);
       await client.query(file!.contents);
       await client.query(`
@@ -495,7 +495,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create function public.${name}_count() returns integer language sql as $$ select 1 $$;`,
       );
 
-      const [file] = renderBlocks(["grants"], {
+      const [file] = renderBlocks(["data-api-grants"], {
         grants: [
           { table: name, role: "anon", privileges: ["select"] },
           {
@@ -1112,9 +1112,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          insert into public.${name} values (1);`,
       );
 
-      const [file] = renderBlocks(["sessions"], {
+      const [file] = renderBlocks(["session-revocation"], {
         modules: {
-          sessions: {
+          "session-revocation": {
             options: { policies: true, exclude: ["public.other_*"] },
           },
         },
@@ -1716,8 +1716,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const me = "00000000-0000-4000-8000-0000000000a1";
     const other = "00000000-0000-4000-8000-0000000000a2";
 
-    const sql = moduleBody("access", {
-      modules: { access: { model: "provider" } },
+    const sql = moduleBody("permissions", {
+      modules: { permissions: { model: "provider" } },
       accessProvider: {
         name: "test",
         scope: "organization",
@@ -1794,7 +1794,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       subjects: {
         project: { table: `${pd}.projects`, idType: "uuid", scope: "project" },
       },
-      modules: { access: { model: "provider" as const } },
+      modules: { permissions: { model: "provider" as const } },
       accessProvider: {
         name: "test",
         scope: "organization",
@@ -1828,7 +1828,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         grant execute on all functions in schema ${pd} to authenticated;
         insert into auth.users (id, instance_id, aud, role, email)
         values ('${me}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'scope-${RUN}@example.com');`);
-      await client.query(moduleBody("access", layout)!);
+      await client.query(moduleBody("permissions", layout)!);
       await client.query(moduleBody("subjects", layout)!);
       await client.query(moduleBody("messaging", layout)!);
       await client.query(
@@ -1864,7 +1864,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `block_${RUN}`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
@@ -1895,7 +1895,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       .enqueue(queue, { to: "later@example.com" }, { delay: 3600 })
       .orThrow();
 
-    const other = createJobs({
+    const other = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
@@ -1978,7 +1978,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("dead-letters a pgmq job whose worker died on the last attempt", async () => {
     const queue = `block_${RUN}_lost`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({}) },
     });
@@ -2003,7 +2003,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("carries the enqueuing actor and tenant through pgmq", async () => {
     const queue = `block_${RUN}_ctx`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({ to: v.pipe(v.string(), v.email()) }) },
     });
@@ -2037,7 +2037,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("schedules recurring jobs with pg_cron", async () => {
     const queue = `block_${RUN}_cron`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({ kind: v.string() }) },
     });
@@ -2060,7 +2060,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("works a queue until the signal aborts", async () => {
     const queue = `block_${RUN}_work`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({ n: v.number() }) },
     });
@@ -2092,7 +2092,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("coalesces only onto waiting jobs with dedupe waiting, on both backends", async () => {
     const check = async (queue: string) => {
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ id: v.string() }) },
       });
@@ -2124,9 +2124,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     await check(`block_${RUN}_debounce`);
     await pool.query(
-      moduleBody("jobs", {
+      moduleBody("queue", {
         modules: {
-          jobs: { options: { backend: "table", scheduler: "drain" } },
+          queue: { options: { backend: "table", scheduler: "drain" } },
         },
       })!,
     );
@@ -2138,7 +2138,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_messages where queue = $1",
         [`block_${RUN}_debounce_table`],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
@@ -2151,7 +2151,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("enqueues once per key, after the first job completed too", async () => {
     const queue = `block_${RUN}_once`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: postgres.admin,
       queues: { [queue]: v.object({ n: v.number() }) },
     });
@@ -2196,7 +2196,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       const queue = `block_${RUN}_rpc_jobs`;
 
-      const jobs = createJobs({
+      const jobs = createQueue({
         transport,
         queues: { [queue]: v.object({ n: v.number() }) },
       });
@@ -2265,9 +2265,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const queue = `block_${RUN}_table`;
     const name = `bsb-module-table-${RUN}`;
     await pool.query(
-      moduleBody("jobs", {
+      moduleBody("queue", {
         modules: {
-          jobs: { options: { backend: "table", scheduler: "drain" } },
+          queue: { options: { backend: "table", scheduler: "drain" } },
         },
       })!,
     );
@@ -2277,7 +2277,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         queue: `${queue}_conf`,
       });
 
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ to: v.string() }) },
       });
@@ -2291,7 +2291,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ).toBe(first);
       await jobs.enqueue(queue, { to: "b" }, { maxAttempts: 1 }).orThrow();
 
-      const other = createJobs({
+      const other = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ to: v.string() }) },
       });
@@ -2417,22 +2417,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_messages where queue like $1",
         [`${queue}%`],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
   it("runs named tenant schedules from an external scheduler without pg_cron", async () => {
     const queue = `block_${RUN}_ext`;
     await pool.query(
-      moduleBody("jobs", {
+      moduleBody("queue", {
         modules: {
-          jobs: { options: { backend: "table", scheduler: "drain" } },
+          queue: { options: { backend: "table", scheduler: "drain" } },
         },
       })!,
     );
 
     try {
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ report: v.string() }) },
       });
@@ -2531,7 +2531,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name like $1",
         [`ext-${RUN}:%`],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
@@ -2539,15 +2539,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const queue = `block_${RUN}_ensure`;
     const prefix = `ensure-${RUN}:`;
     await pool.query(
-      moduleBody("jobs", {
+      moduleBody("queue", {
         modules: {
-          jobs: { options: { backend: "table", scheduler: "drain" } },
+          queue: { options: { backend: "table", scheduler: "drain" } },
         },
       })!,
     );
 
     try {
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ report: v.string() }) },
       });
@@ -2608,7 +2608,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name like $1",
         [`${prefix}%`],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
@@ -2616,9 +2616,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const queue = `block_${RUN}_sqlsched`;
     const name = `sqlsched-${RUN}`;
     await pool.query(
-      moduleBody("jobs", {
+      moduleBody("queue", {
         modules: {
-          jobs: { options: { backend: "table", scheduler: "drain" } },
+          queue: { options: { backend: "table", scheduler: "drain" } },
         },
       })!,
     );
@@ -2641,7 +2641,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       expect(pending.rows[0]!.next_run).toBeNull();
 
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ n: v.number() }) },
       });
@@ -2674,7 +2674,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name = $1",
         [name],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
@@ -2683,9 +2683,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const table = `public.bs_${RUN}_reminders`;
     const fn = `public.bs_${RUN}_schedule_reminder`;
     await pool.query(
-      moduleBody("jobs", {
+      moduleBody("queue", {
         modules: {
-          jobs: { options: { backend: "table", scheduler: "drain" } },
+          queue: { options: { backend: "table", scheduler: "drain" } },
         },
       })!,
     );
@@ -2735,7 +2735,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [`reminder:${RUN}`],
       );
 
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ id: v.string() }) },
       });
@@ -2803,13 +2803,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name = $1",
         [`reminder:${RUN}`],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
   it("reports queue health and retries dead letters on both backends", async () => {
     const check = async (queue: string) => {
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql: postgres.admin,
         queues: { [queue]: v.object({ n: v.number() }) },
       });
@@ -2863,8 +2863,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     await check(`block_${RUN}_health`);
     await pool.query(
-      moduleBody("jobs", {
-        modules: { jobs: { options: { backend: "table" } } },
+      moduleBody("queue", {
+        modules: { queue: { options: { backend: "table" } } },
       })!,
     );
 
@@ -2875,7 +2875,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_messages where queue = $1",
         [`block_${RUN}_health_table`],
       );
-      await pool.query(SQL_MODULES["jobs"]!.sql);
+      await pool.query(SQL_MODULES["queue"]!.sql);
     }
   });
 
@@ -3066,7 +3066,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       [
         withPostgresAdminClient({ connectionString: dbUrl }),
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
-          createJobs({
+          createQueue({
             sql: ctx.postgresAdmin,
             queues: { [queue]: v.object({ n: v.number() }) },
           }),
@@ -4207,7 +4207,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         );
       }
 
-      for (const file of renderBlocks(["audit", "access"], {
+      for (const file of renderBlocks(["audit", "permissions"], {
         modules: { audit: { options: { restricted: true, readPolicy: true } } },
       })) {
         if (file.kind === "schema" && file.module === "audit") {

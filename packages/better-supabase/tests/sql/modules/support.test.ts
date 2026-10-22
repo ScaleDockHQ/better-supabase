@@ -7,9 +7,9 @@ import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const support = (config: BlockConfig = {}) =>
-  moduleBody("support-sessions", { modules: { "support-sessions": config } })!;
+  moduleBody("impersonation", { modules: { impersonation: config } })!;
 
-describe("support-sessions module", () => {
+describe("impersonation module", () => {
   it("owns its table and gates starts with is_platform", () => {
     const sql = support({
       permissions: { start: "system.users.manage", view: "system.audit.read" },
@@ -180,8 +180,8 @@ describe("support-sessions module", () => {
 
   it("writes nothing in custom mode and checks claimsHook", () => {
     expect(
-      moduleBody("support-sessions", {
-        modules: { "support-sessions": { mode: "custom" } },
+      moduleBody("impersonation", {
+        modules: { impersonation: { mode: "custom" } },
       }),
     ).toBeUndefined();
     expect(() =>
@@ -190,21 +190,19 @@ describe("support-sessions module", () => {
   });
 
   it("brings access and audit along", () => {
-    const names = resolveBlocks(["support-sessions"]).map(
-      (module) => module.name,
-    );
+    const names = resolveBlocks(["impersonation"]).map((module) => module.name);
 
     expect(names).toEqual(
-      expect.arrayContaining(["access", "audit", "support-sessions"]),
+      expect.arrayContaining(["permissions", "audit", "impersonation"]),
     );
-    expect(names.indexOf("support-sessions")).toBe(names.length - 1);
+    expect(names.indexOf("impersonation")).toBe(names.length - 1);
   });
 });
 
-describe("support-sessions approvers from the provider", () => {
+describe("impersonation approvers from the provider", () => {
   const withApprover = (isApprover?: string) =>
-    renderBlocks(["support-sessions"], {
-      modules: { access: { model: "provider" } },
+    renderBlocks(["impersonation"], {
+      modules: { permissions: { model: "provider" } },
       accessProvider: {
         ...moduleProvider,
         functions: {
@@ -215,7 +213,7 @@ describe("support-sessions approvers from the provider", () => {
         },
       },
     }).find(
-      (file) => file.module === "support-sessions" && file.kind === "schema",
+      (file) => file.module === "impersonation" && file.kind === "schema",
     )!.contents;
 
   it("asks isApprover with kind support-session and the request id", () => {
@@ -238,11 +236,11 @@ describe("support-sessions approvers from the provider", () => {
   });
 });
 
-describe("support-sessions next to provider platform roles", () => {
+describe("impersonation next to provider platform roles", () => {
   it("counts a row in the platform role table as a platform target", () => {
-    const files = renderBlocks(["support-sessions", "invitations"], {
+    const files = renderBlocks(["impersonation", "invitations"], {
       modules: {
-        access: { model: "provider" },
+        permissions: { model: "provider" },
         invitations: {
           options: {
             platformRoles: {
@@ -257,7 +255,7 @@ describe("support-sessions next to provider platform roles", () => {
     });
 
     const sql = files.find(
-      (file) => file.module === "support-sessions" && file.kind === "schema",
+      (file) => file.module === "impersonation" && file.kind === "schema",
     )!.contents;
 
     expect(sql).toContain(
@@ -266,9 +264,9 @@ describe("support-sessions next to provider platform roles", () => {
   });
 
   it("counts only the roles that match platformRoles.through.where", () => {
-    const files = renderBlocks(["support-sessions", "invitations"], {
+    const files = renderBlocks(["impersonation", "invitations"], {
       modules: {
-        access: { model: "provider" },
+        permissions: { model: "provider" },
         invitations: {
           options: {
             platformRoles: {
@@ -289,7 +287,7 @@ describe("support-sessions next to provider platform roles", () => {
     });
 
     const sql = files.find(
-      (file) => file.module === "support-sessions" && file.kind === "schema",
+      (file) => file.module === "impersonation" && file.kind === "schema",
     )!.contents;
 
     expect(sql).toContain(

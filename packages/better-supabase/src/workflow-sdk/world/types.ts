@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 
 import type { EventHub } from "../../core/events.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk-world.ts";
+import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
 
 /**
  * The `@workflow/world` protocol this World speaks: the package version its
@@ -49,7 +49,7 @@ export interface SupabaseWorldOptions {
   readonly encryptionKey?: string;
   /**
    * The jobs queue the messages wait in
-   * (`blocks.workflow-sdk-world.options.queue`).
+   * (`blocks["workflow-sdk"].options.queue`).
    */
   readonly queue?: string;
   /** The schema of the jobs functions, default `better_supabase`. */

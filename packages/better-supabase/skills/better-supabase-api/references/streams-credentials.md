@@ -79,7 +79,7 @@ await fetch(url, { headers: token.headers });
 ## The Workflow World on Supabase (Node only)
 
 ```bash
-pnpm better-supabase add workflow-sdk-world   # adds workflows and jobs
+pnpm better-supabase add workflow-sdk   # adds workflows and jobs
 pnpm add workflow @workflow/world @workflow/world-postgres pg
 ```
 

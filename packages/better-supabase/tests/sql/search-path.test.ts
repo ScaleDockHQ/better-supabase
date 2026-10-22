@@ -24,7 +24,7 @@ describe("function search paths", () => {
       {},
       {
         modules: {
-          tenant: {
+          memberships: {
             options: {
               sameTenant: [
                 {

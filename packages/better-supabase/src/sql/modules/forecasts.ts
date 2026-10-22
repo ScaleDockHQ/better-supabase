@@ -15,7 +15,7 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ForecastsEvents> = {
   "forecast.snapshotted": {
@@ -388,7 +388,7 @@ export const FORECASTS: BlockSqlDefinition = {
   title: "Forecasts",
   description:
     "Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).",
-  requires: ["tenant", "access", "deals"],
+  requires: ["memberships", "permissions", "deals"],
   integrates: ["outbox", "data-lifecycle"],
   target: "schema",
   modes: ["managed"],

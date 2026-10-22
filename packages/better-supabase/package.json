@@ -259,10 +259,10 @@
       "types": "./dist/mcp/sdk/index.d.ts",
       "default": "./dist/mcp/sdk/index.js"
     },
-    "./blocks/jobs": {
-      "@better-supabase/source": "./src/blocks/jobs/index.ts",
-      "types": "./dist/blocks/jobs/index.d.ts",
-      "default": "./dist/blocks/jobs/index.js"
+    "./blocks/queue": {
+      "@better-supabase/source": "./src/blocks/queue/index.ts",
+      "types": "./dist/blocks/queue/index.d.ts",
+      "default": "./dist/blocks/queue/index.js"
     },
     "./blocks": {
       "@better-supabase/source": "./src/blocks/index.ts",
@@ -371,31 +371,31 @@
       "types": "./dist/blocks/entitlements/solid/index.d.ts",
       "default": "./dist/blocks/entitlements/solid/index.js"
     },
-    "./blocks/access": {
-      "@better-supabase/source": "./src/blocks/access/index.ts",
-      "types": "./dist/blocks/access/index.d.ts",
-      "default": "./dist/blocks/access/index.js"
+    "./blocks/permissions": {
+      "@better-supabase/source": "./src/blocks/permissions/index.ts",
+      "types": "./dist/blocks/permissions/index.d.ts",
+      "default": "./dist/blocks/permissions/index.js"
     },
-    "./blocks/access/react": {
-      "@better-supabase/source": "./src/blocks/access/react/index.ts",
-      "types": "./dist/blocks/access/react/index.d.ts",
-      "react-server": "./dist/blocks/access/react/server.js",
-      "default": "./dist/blocks/access/react/index.js"
+    "./blocks/permissions/react": {
+      "@better-supabase/source": "./src/blocks/permissions/react/index.ts",
+      "types": "./dist/blocks/permissions/react/index.d.ts",
+      "react-server": "./dist/blocks/permissions/react/server.js",
+      "default": "./dist/blocks/permissions/react/index.js"
     },
-    "./blocks/access/vue": {
-      "@better-supabase/source": "./src/blocks/access/vue/index.ts",
-      "types": "./dist/blocks/access/vue/index.d.ts",
-      "default": "./dist/blocks/access/vue/index.js"
+    "./blocks/permissions/vue": {
+      "@better-supabase/source": "./src/blocks/permissions/vue/index.ts",
+      "types": "./dist/blocks/permissions/vue/index.d.ts",
+      "default": "./dist/blocks/permissions/vue/index.js"
     },
-    "./blocks/access/svelte": {
-      "@better-supabase/source": "./src/blocks/access/svelte/index.ts",
-      "types": "./dist/blocks/access/svelte/index.d.ts",
-      "default": "./dist/blocks/access/svelte/index.js"
+    "./blocks/permissions/svelte": {
+      "@better-supabase/source": "./src/blocks/permissions/svelte/index.ts",
+      "types": "./dist/blocks/permissions/svelte/index.d.ts",
+      "default": "./dist/blocks/permissions/svelte/index.js"
     },
-    "./blocks/access/solid": {
-      "@better-supabase/source": "./src/blocks/access/solid/index.ts",
-      "types": "./dist/blocks/access/solid/index.d.ts",
-      "default": "./dist/blocks/access/solid/index.js"
+    "./blocks/permissions/solid": {
+      "@better-supabase/source": "./src/blocks/permissions/solid/index.ts",
+      "types": "./dist/blocks/permissions/solid/index.d.ts",
+      "default": "./dist/blocks/permissions/solid/index.js"
     },
     "./blocks/subjects": {
       "@better-supabase/source": "./src/blocks/subjects/index.ts",
@@ -433,10 +433,10 @@
       "types": "./dist/blocks/mfa/index.d.ts",
       "default": "./dist/blocks/mfa/index.js"
     },
-    "./blocks/sessions": {
-      "@better-supabase/source": "./src/blocks/sessions/index.ts",
-      "types": "./dist/blocks/sessions/index.d.ts",
-      "default": "./dist/blocks/sessions/index.js"
+    "./blocks/session-revocation": {
+      "@better-supabase/source": "./src/blocks/session-revocation/index.ts",
+      "types": "./dist/blocks/session-revocation/index.d.ts",
+      "default": "./dist/blocks/session-revocation/index.js"
     },
     "./blocks/settings": {
       "@better-supabase/source": "./src/blocks/settings/index.ts",
@@ -516,15 +516,15 @@
       "types": "./dist/blocks/billing/solid/index.d.ts",
       "default": "./dist/blocks/billing/solid/index.js"
     },
-    "./blocks/flags": {
-      "@better-supabase/source": "./src/blocks/flags/index.ts",
-      "types": "./dist/blocks/flags/index.d.ts",
-      "default": "./dist/blocks/flags/index.js"
+    "./blocks/feature-flags": {
+      "@better-supabase/source": "./src/blocks/feature-flags/index.ts",
+      "types": "./dist/blocks/feature-flags/index.d.ts",
+      "default": "./dist/blocks/feature-flags/index.js"
     },
-    "./blocks/activity": {
-      "@better-supabase/source": "./src/blocks/activity/index.ts",
-      "types": "./dist/blocks/activity/index.d.ts",
-      "default": "./dist/blocks/activity/index.js"
+    "./blocks/timeline": {
+      "@better-supabase/source": "./src/blocks/timeline/index.ts",
+      "types": "./dist/blocks/timeline/index.d.ts",
+      "default": "./dist/blocks/timeline/index.js"
     },
     "./blocks/comments": {
       "@better-supabase/source": "./src/blocks/comments/index.ts",
@@ -624,31 +624,31 @@
       "types": "./dist/blocks/workflows/solid/index.d.ts",
       "default": "./dist/blocks/workflows/solid/index.js"
     },
-    "./blocks/workflow-builder": {
-      "@better-supabase/source": "./src/blocks/workflow-builder/index.ts",
-      "types": "./dist/blocks/workflow-builder/index.d.ts",
-      "default": "./dist/blocks/workflow-builder/index.js"
+    "./blocks/workflow-editor": {
+      "@better-supabase/source": "./src/blocks/workflow-editor/index.ts",
+      "types": "./dist/blocks/workflow-editor/index.d.ts",
+      "default": "./dist/blocks/workflow-editor/index.js"
     },
-    "./blocks/workflow-builder/react": {
-      "@better-supabase/source": "./src/blocks/workflow-builder/react/index.ts",
-      "types": "./dist/blocks/workflow-builder/react/index.d.ts",
-      "react-server": "./dist/blocks/workflow-builder/react/server.js",
-      "default": "./dist/blocks/workflow-builder/react/index.js"
+    "./blocks/workflow-editor/react": {
+      "@better-supabase/source": "./src/blocks/workflow-editor/react/index.ts",
+      "types": "./dist/blocks/workflow-editor/react/index.d.ts",
+      "react-server": "./dist/blocks/workflow-editor/react/server.js",
+      "default": "./dist/blocks/workflow-editor/react/index.js"
     },
-    "./blocks/workflow-builder/vue": {
-      "@better-supabase/source": "./src/blocks/workflow-builder/vue/index.ts",
-      "types": "./dist/blocks/workflow-builder/vue/index.d.ts",
-      "default": "./dist/blocks/workflow-builder/vue/index.js"
+    "./blocks/workflow-editor/vue": {
+      "@better-supabase/source": "./src/blocks/workflow-editor/vue/index.ts",
+      "types": "./dist/blocks/workflow-editor/vue/index.d.ts",
+      "default": "./dist/blocks/workflow-editor/vue/index.js"
     },
-    "./blocks/workflow-builder/svelte": {
-      "@better-supabase/source": "./src/blocks/workflow-builder/svelte/index.ts",
-      "types": "./dist/blocks/workflow-builder/svelte/index.d.ts",
-      "default": "./dist/blocks/workflow-builder/svelte/index.js"
+    "./blocks/workflow-editor/svelte": {
+      "@better-supabase/source": "./src/blocks/workflow-editor/svelte/index.ts",
+      "types": "./dist/blocks/workflow-editor/svelte/index.d.ts",
+      "default": "./dist/blocks/workflow-editor/svelte/index.js"
     },
-    "./blocks/workflow-builder/solid": {
-      "@better-supabase/source": "./src/blocks/workflow-builder/solid/index.ts",
-      "types": "./dist/blocks/workflow-builder/solid/index.d.ts",
-      "default": "./dist/blocks/workflow-builder/solid/index.js"
+    "./blocks/workflow-editor/solid": {
+      "@better-supabase/source": "./src/blocks/workflow-editor/solid/index.ts",
+      "types": "./dist/blocks/workflow-editor/solid/index.d.ts",
+      "default": "./dist/blocks/workflow-editor/solid/index.js"
     },
     "./workflow-sdk": {
       "@better-supabase/source": "./src/workflow-sdk/index.ts",
@@ -838,20 +838,20 @@
       "types": "./dist/blocks/connectors/index.d.ts",
       "default": "./dist/blocks/connectors/index.js"
     },
-    "./blocks/ai-tasks": {
-      "@better-supabase/source": "./src/blocks/ai-tasks/index.ts",
-      "types": "./dist/blocks/ai-tasks/index.d.ts",
-      "default": "./dist/blocks/ai-tasks/index.js"
+    "./blocks/ai-schedules": {
+      "@better-supabase/source": "./src/blocks/ai-schedules/index.ts",
+      "types": "./dist/blocks/ai-schedules/index.d.ts",
+      "default": "./dist/blocks/ai-schedules/index.js"
     },
     "./blocks/ai-cache": {
       "@better-supabase/source": "./src/blocks/ai-cache/index.ts",
       "types": "./dist/blocks/ai-cache/index.d.ts",
       "default": "./dist/blocks/ai-cache/index.js"
     },
-    "./blocks/ai-providers": {
-      "@better-supabase/source": "./src/blocks/ai-providers/index.ts",
-      "types": "./dist/blocks/ai-providers/index.d.ts",
-      "default": "./dist/blocks/ai-providers/index.js"
+    "./blocks/ai-keys": {
+      "@better-supabase/source": "./src/blocks/ai-keys/index.ts",
+      "types": "./dist/blocks/ai-keys/index.d.ts",
+      "default": "./dist/blocks/ai-keys/index.js"
     },
     "./ai-sdk": {
       "@better-supabase/source": "./src/ai-sdk/index.ts",
@@ -920,10 +920,10 @@
       "types": "./dist/blocks/announcements/index.d.ts",
       "default": "./dist/blocks/announcements/index.js"
     },
-    "./blocks/number-sequences": {
-      "@better-supabase/source": "./src/blocks/number-sequences/index.ts",
-      "types": "./dist/blocks/number-sequences/index.d.ts",
-      "default": "./dist/blocks/number-sequences/index.js"
+    "./blocks/numbering": {
+      "@better-supabase/source": "./src/blocks/numbering/index.ts",
+      "types": "./dist/blocks/numbering/index.d.ts",
+      "default": "./dist/blocks/numbering/index.js"
     },
     "./blocks/teams": {
       "@better-supabase/source": "./src/blocks/teams/index.ts",
@@ -991,31 +991,31 @@
       "types": "./dist/blocks/domains/index.d.ts",
       "default": "./dist/blocks/domains/index.js"
     },
-    "./blocks/rules": {
-      "@better-supabase/source": "./src/blocks/rules/index.ts",
-      "types": "./dist/blocks/rules/index.d.ts",
-      "default": "./dist/blocks/rules/index.js"
+    "./blocks/automations": {
+      "@better-supabase/source": "./src/blocks/automations/index.ts",
+      "types": "./dist/blocks/automations/index.d.ts",
+      "default": "./dist/blocks/automations/index.js"
     },
-    "./blocks/rules/react": {
-      "@better-supabase/source": "./src/blocks/rules/react/index.ts",
-      "types": "./dist/blocks/rules/react/index.d.ts",
-      "react-server": "./dist/blocks/rules/react/server.js",
-      "default": "./dist/blocks/rules/react/index.js"
+    "./blocks/automations/react": {
+      "@better-supabase/source": "./src/blocks/automations/react/index.ts",
+      "types": "./dist/blocks/automations/react/index.d.ts",
+      "react-server": "./dist/blocks/automations/react/server.js",
+      "default": "./dist/blocks/automations/react/index.js"
     },
-    "./blocks/rules/vue": {
-      "@better-supabase/source": "./src/blocks/rules/vue/index.ts",
-      "types": "./dist/blocks/rules/vue/index.d.ts",
-      "default": "./dist/blocks/rules/vue/index.js"
+    "./blocks/automations/vue": {
+      "@better-supabase/source": "./src/blocks/automations/vue/index.ts",
+      "types": "./dist/blocks/automations/vue/index.d.ts",
+      "default": "./dist/blocks/automations/vue/index.js"
     },
-    "./blocks/rules/svelte": {
-      "@better-supabase/source": "./src/blocks/rules/svelte/index.ts",
-      "types": "./dist/blocks/rules/svelte/index.d.ts",
-      "default": "./dist/blocks/rules/svelte/index.js"
+    "./blocks/automations/svelte": {
+      "@better-supabase/source": "./src/blocks/automations/svelte/index.ts",
+      "types": "./dist/blocks/automations/svelte/index.d.ts",
+      "default": "./dist/blocks/automations/svelte/index.js"
     },
-    "./blocks/rules/solid": {
-      "@better-supabase/source": "./src/blocks/rules/solid/index.ts",
-      "types": "./dist/blocks/rules/solid/index.d.ts",
-      "default": "./dist/blocks/rules/solid/index.js"
+    "./blocks/automations/solid": {
+      "@better-supabase/source": "./src/blocks/automations/solid/index.ts",
+      "types": "./dist/blocks/automations/solid/index.d.ts",
+      "default": "./dist/blocks/automations/solid/index.js"
     },
     "./blocks/vercel-marketplace": {
       "@better-supabase/source": "./src/blocks/vercel-marketplace/index.ts",
@@ -1057,20 +1057,20 @@
       "types": "./dist/blocks/enrollments/index.d.ts",
       "default": "./dist/blocks/enrollments/index.js"
     },
-    "./blocks/shared-signals": {
-      "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
-      "types": "./dist/blocks/shared-signals/index.d.ts",
-      "default": "./dist/blocks/shared-signals/index.js"
+    "./blocks/security-events": {
+      "@better-supabase/source": "./src/blocks/security-events/index.ts",
+      "types": "./dist/blocks/security-events/index.d.ts",
+      "default": "./dist/blocks/security-events/index.js"
     },
-    "./blocks/identities": {
-      "@better-supabase/source": "./src/blocks/identities/index.ts",
-      "types": "./dist/blocks/identities/index.d.ts",
-      "default": "./dist/blocks/identities/index.js"
+    "./blocks/linked-identities": {
+      "@better-supabase/source": "./src/blocks/linked-identities/index.ts",
+      "types": "./dist/blocks/linked-identities/index.d.ts",
+      "default": "./dist/blocks/linked-identities/index.js"
     },
-    "./blocks/service-principals": {
-      "@better-supabase/source": "./src/blocks/service-principals/index.ts",
-      "types": "./dist/blocks/service-principals/index.d.ts",
-      "default": "./dist/blocks/service-principals/index.js"
+    "./blocks/service-accounts": {
+      "@better-supabase/source": "./src/blocks/service-accounts/index.ts",
+      "types": "./dist/blocks/service-accounts/index.d.ts",
+      "default": "./dist/blocks/service-accounts/index.js"
     },
     "./blocks/reminders": {
       "@better-supabase/source": "./src/blocks/reminders/index.ts",
@@ -1097,10 +1097,10 @@
       "types": "./dist/blocks/relations/index.d.ts",
       "default": "./dist/blocks/relations/index.js"
     },
-    "./blocks/bulk": {
-      "@better-supabase/source": "./src/blocks/bulk/index.ts",
-      "types": "./dist/blocks/bulk/index.d.ts",
-      "default": "./dist/blocks/bulk/index.js"
+    "./blocks/bulk-actions": {
+      "@better-supabase/source": "./src/blocks/bulk-actions/index.ts",
+      "types": "./dist/blocks/bulk-actions/index.d.ts",
+      "default": "./dist/blocks/bulk-actions/index.js"
     },
     "./blocks/saved-views/react": {
       "@better-supabase/source": "./src/blocks/saved-views/react/index.ts",
@@ -1292,30 +1292,30 @@
       "types": "./dist/blocks/pipelines/index.d.ts",
       "default": "./dist/blocks/pipelines/index.js"
     },
-    "./blocks/parties": {
-      "@better-supabase/source": "./src/blocks/parties/index.ts",
-      "types": "./dist/blocks/parties/index.d.ts",
-      "default": "./dist/blocks/parties/index.js"
+    "./blocks/contacts": {
+      "@better-supabase/source": "./src/blocks/contacts/index.ts",
+      "types": "./dist/blocks/contacts/index.d.ts",
+      "default": "./dist/blocks/contacts/index.js"
     },
     "./blocks/collections": {
       "@better-supabase/source": "./src/blocks/collections/index.ts",
       "types": "./dist/blocks/collections/index.d.ts",
       "default": "./dist/blocks/collections/index.js"
     },
-    "./blocks/engagements": {
-      "@better-supabase/source": "./src/blocks/engagements/index.ts",
-      "types": "./dist/blocks/engagements/index.d.ts",
-      "default": "./dist/blocks/engagements/index.js"
+    "./blocks/activities": {
+      "@better-supabase/source": "./src/blocks/activities/index.ts",
+      "types": "./dist/blocks/activities/index.d.ts",
+      "default": "./dist/blocks/activities/index.js"
     },
     "./blocks/deals": {
       "@better-supabase/source": "./src/blocks/deals/index.ts",
       "types": "./dist/blocks/deals/index.d.ts",
       "default": "./dist/blocks/deals/index.js"
     },
-    "./blocks/work-items": {
-      "@better-supabase/source": "./src/blocks/work-items/index.ts",
-      "types": "./dist/blocks/work-items/index.d.ts",
-      "default": "./dist/blocks/work-items/index.js"
+    "./blocks/tasks": {
+      "@better-supabase/source": "./src/blocks/tasks/index.ts",
+      "types": "./dist/blocks/tasks/index.d.ts",
+      "default": "./dist/blocks/tasks/index.js"
     },
     "./blocks/quotes": {
       "@better-supabase/source": "./src/blocks/quotes/index.ts",
@@ -1332,10 +1332,10 @@
       "types": "./dist/blocks/sla/index.d.ts",
       "default": "./dist/blocks/sla/index.js"
     },
-    "./blocks/targets": {
-      "@better-supabase/source": "./src/blocks/targets/index.ts",
-      "types": "./dist/blocks/targets/index.d.ts",
-      "default": "./dist/blocks/targets/index.js"
+    "./blocks/goals": {
+      "@better-supabase/source": "./src/blocks/goals/index.ts",
+      "types": "./dist/blocks/goals/index.d.ts",
+      "default": "./dist/blocks/goals/index.js"
     },
     "./blocks/hiring": {
       "@better-supabase/source": "./src/blocks/hiring/index.ts",
@@ -1494,26 +1494,26 @@
       "types": "./dist/blocks/mfa/solid/index.d.ts",
       "default": "./dist/blocks/mfa/solid/index.js"
     },
-    "./blocks/sessions/react": {
-      "@better-supabase/source": "./src/blocks/sessions/react/index.ts",
-      "types": "./dist/blocks/sessions/react/index.d.ts",
-      "react-server": "./dist/blocks/sessions/react/server.js",
-      "default": "./dist/blocks/sessions/react/index.js"
+    "./blocks/session-revocation/react": {
+      "@better-supabase/source": "./src/blocks/session-revocation/react/index.ts",
+      "types": "./dist/blocks/session-revocation/react/index.d.ts",
+      "react-server": "./dist/blocks/session-revocation/react/server.js",
+      "default": "./dist/blocks/session-revocation/react/index.js"
     },
-    "./blocks/sessions/vue": {
-      "@better-supabase/source": "./src/blocks/sessions/vue/index.ts",
-      "types": "./dist/blocks/sessions/vue/index.d.ts",
-      "default": "./dist/blocks/sessions/vue/index.js"
+    "./blocks/session-revocation/vue": {
+      "@better-supabase/source": "./src/blocks/session-revocation/vue/index.ts",
+      "types": "./dist/blocks/session-revocation/vue/index.d.ts",
+      "default": "./dist/blocks/session-revocation/vue/index.js"
     },
-    "./blocks/sessions/svelte": {
-      "@better-supabase/source": "./src/blocks/sessions/svelte/index.ts",
-      "types": "./dist/blocks/sessions/svelte/index.d.ts",
-      "default": "./dist/blocks/sessions/svelte/index.js"
+    "./blocks/session-revocation/svelte": {
+      "@better-supabase/source": "./src/blocks/session-revocation/svelte/index.ts",
+      "types": "./dist/blocks/session-revocation/svelte/index.d.ts",
+      "default": "./dist/blocks/session-revocation/svelte/index.js"
     },
-    "./blocks/sessions/solid": {
-      "@better-supabase/source": "./src/blocks/sessions/solid/index.ts",
-      "types": "./dist/blocks/sessions/solid/index.d.ts",
-      "default": "./dist/blocks/sessions/solid/index.js"
+    "./blocks/session-revocation/solid": {
+      "@better-supabase/source": "./src/blocks/session-revocation/solid/index.ts",
+      "types": "./dist/blocks/session-revocation/solid/index.d.ts",
+      "default": "./dist/blocks/session-revocation/solid/index.js"
     },
     "./blocks/tags/react": {
       "@better-supabase/source": "./src/blocks/tags/react/index.ts",
@@ -1679,10 +1679,10 @@
       "types": "./dist/blocks/guests/index.d.ts",
       "default": "./dist/blocks/guests/index.js"
     },
-    "./blocks/passes": {
-      "@better-supabase/source": "./src/blocks/passes/index.ts",
-      "types": "./dist/blocks/passes/index.d.ts",
-      "default": "./dist/blocks/passes/index.js"
+    "./blocks/admission-passes": {
+      "@better-supabase/source": "./src/blocks/admission-passes/index.ts",
+      "types": "./dist/blocks/admission-passes/index.d.ts",
+      "default": "./dist/blocks/admission-passes/index.js"
     },
     "./blocks/billable-time": {
       "@better-supabase/source": "./src/blocks/billable-time/index.ts",
@@ -1714,10 +1714,10 @@
       "types": "./dist/blocks/contracts/index.d.ts",
       "default": "./dist/blocks/contracts/index.js"
     },
-    "./blocks/controls": {
-      "@better-supabase/source": "./src/blocks/controls/index.ts",
-      "types": "./dist/blocks/controls/index.d.ts",
-      "default": "./dist/blocks/controls/index.js"
+    "./blocks/compliance": {
+      "@better-supabase/source": "./src/blocks/compliance/index.ts",
+      "types": "./dist/blocks/compliance/index.d.ts",
+      "default": "./dist/blocks/compliance/index.js"
     },
     "./blocks/incidents": {
       "@better-supabase/source": "./src/blocks/incidents/index.ts",
@@ -1926,9 +1926,9 @@
         "types": "./dist/mcp/sdk/index.d.ts",
         "default": "./dist/mcp/sdk/index.js"
       },
-      "./blocks/jobs": {
-        "types": "./dist/blocks/jobs/index.d.ts",
-        "default": "./dist/blocks/jobs/index.js"
+      "./blocks/queue": {
+        "types": "./dist/blocks/queue/index.d.ts",
+        "default": "./dist/blocks/queue/index.js"
       },
       "./blocks": {
         "types": "./dist/blocks/index.d.ts",
@@ -2016,26 +2016,26 @@
         "types": "./dist/blocks/entitlements/solid/index.d.ts",
         "default": "./dist/blocks/entitlements/solid/index.js"
       },
-      "./blocks/access": {
-        "types": "./dist/blocks/access/index.d.ts",
-        "default": "./dist/blocks/access/index.js"
+      "./blocks/permissions": {
+        "types": "./dist/blocks/permissions/index.d.ts",
+        "default": "./dist/blocks/permissions/index.js"
       },
-      "./blocks/access/react": {
-        "types": "./dist/blocks/access/react/index.d.ts",
-        "react-server": "./dist/blocks/access/react/server.js",
-        "default": "./dist/blocks/access/react/index.js"
+      "./blocks/permissions/react": {
+        "types": "./dist/blocks/permissions/react/index.d.ts",
+        "react-server": "./dist/blocks/permissions/react/server.js",
+        "default": "./dist/blocks/permissions/react/index.js"
       },
-      "./blocks/access/vue": {
-        "types": "./dist/blocks/access/vue/index.d.ts",
-        "default": "./dist/blocks/access/vue/index.js"
+      "./blocks/permissions/vue": {
+        "types": "./dist/blocks/permissions/vue/index.d.ts",
+        "default": "./dist/blocks/permissions/vue/index.js"
       },
-      "./blocks/access/svelte": {
-        "types": "./dist/blocks/access/svelte/index.d.ts",
-        "default": "./dist/blocks/access/svelte/index.js"
+      "./blocks/permissions/svelte": {
+        "types": "./dist/blocks/permissions/svelte/index.d.ts",
+        "default": "./dist/blocks/permissions/svelte/index.js"
       },
-      "./blocks/access/solid": {
-        "types": "./dist/blocks/access/solid/index.d.ts",
-        "default": "./dist/blocks/access/solid/index.js"
+      "./blocks/permissions/solid": {
+        "types": "./dist/blocks/permissions/solid/index.d.ts",
+        "default": "./dist/blocks/permissions/solid/index.js"
       },
       "./blocks/subjects": {
         "types": "./dist/blocks/subjects/index.d.ts",
@@ -2066,9 +2066,9 @@
         "types": "./dist/blocks/mfa/index.d.ts",
         "default": "./dist/blocks/mfa/index.js"
       },
-      "./blocks/sessions": {
-        "types": "./dist/blocks/sessions/index.d.ts",
-        "default": "./dist/blocks/sessions/index.js"
+      "./blocks/session-revocation": {
+        "types": "./dist/blocks/session-revocation/index.d.ts",
+        "default": "./dist/blocks/session-revocation/index.js"
       },
       "./blocks/settings": {
         "types": "./dist/blocks/settings/index.d.ts",
@@ -2133,13 +2133,13 @@
         "types": "./dist/blocks/billing/solid/index.d.ts",
         "default": "./dist/blocks/billing/solid/index.js"
       },
-      "./blocks/flags": {
-        "types": "./dist/blocks/flags/index.d.ts",
-        "default": "./dist/blocks/flags/index.js"
+      "./blocks/feature-flags": {
+        "types": "./dist/blocks/feature-flags/index.d.ts",
+        "default": "./dist/blocks/feature-flags/index.js"
       },
-      "./blocks/activity": {
-        "types": "./dist/blocks/activity/index.d.ts",
-        "default": "./dist/blocks/activity/index.js"
+      "./blocks/timeline": {
+        "types": "./dist/blocks/timeline/index.d.ts",
+        "default": "./dist/blocks/timeline/index.js"
       },
       "./blocks/comments": {
         "types": "./dist/blocks/comments/index.d.ts",
@@ -2220,26 +2220,26 @@
         "types": "./dist/blocks/workflows/solid/index.d.ts",
         "default": "./dist/blocks/workflows/solid/index.js"
       },
-      "./blocks/workflow-builder": {
-        "types": "./dist/blocks/workflow-builder/index.d.ts",
-        "default": "./dist/blocks/workflow-builder/index.js"
+      "./blocks/workflow-editor": {
+        "types": "./dist/blocks/workflow-editor/index.d.ts",
+        "default": "./dist/blocks/workflow-editor/index.js"
       },
-      "./blocks/workflow-builder/react": {
-        "types": "./dist/blocks/workflow-builder/react/index.d.ts",
-        "react-server": "./dist/blocks/workflow-builder/react/server.js",
-        "default": "./dist/blocks/workflow-builder/react/index.js"
+      "./blocks/workflow-editor/react": {
+        "types": "./dist/blocks/workflow-editor/react/index.d.ts",
+        "react-server": "./dist/blocks/workflow-editor/react/server.js",
+        "default": "./dist/blocks/workflow-editor/react/index.js"
       },
-      "./blocks/workflow-builder/vue": {
-        "types": "./dist/blocks/workflow-builder/vue/index.d.ts",
-        "default": "./dist/blocks/workflow-builder/vue/index.js"
+      "./blocks/workflow-editor/vue": {
+        "types": "./dist/blocks/workflow-editor/vue/index.d.ts",
+        "default": "./dist/blocks/workflow-editor/vue/index.js"
       },
-      "./blocks/workflow-builder/svelte": {
-        "types": "./dist/blocks/workflow-builder/svelte/index.d.ts",
-        "default": "./dist/blocks/workflow-builder/svelte/index.js"
+      "./blocks/workflow-editor/svelte": {
+        "types": "./dist/blocks/workflow-editor/svelte/index.d.ts",
+        "default": "./dist/blocks/workflow-editor/svelte/index.js"
       },
-      "./blocks/workflow-builder/solid": {
-        "types": "./dist/blocks/workflow-builder/solid/index.d.ts",
-        "default": "./dist/blocks/workflow-builder/solid/index.js"
+      "./blocks/workflow-editor/solid": {
+        "types": "./dist/blocks/workflow-editor/solid/index.d.ts",
+        "default": "./dist/blocks/workflow-editor/solid/index.js"
       },
       "./workflow-sdk": {
         "types": "./dist/workflow-sdk/index.d.ts",
@@ -2392,17 +2392,17 @@
         "types": "./dist/blocks/connectors/index.d.ts",
         "default": "./dist/blocks/connectors/index.js"
       },
-      "./blocks/ai-tasks": {
-        "types": "./dist/blocks/ai-tasks/index.d.ts",
-        "default": "./dist/blocks/ai-tasks/index.js"
+      "./blocks/ai-schedules": {
+        "types": "./dist/blocks/ai-schedules/index.d.ts",
+        "default": "./dist/blocks/ai-schedules/index.js"
       },
       "./blocks/ai-cache": {
         "types": "./dist/blocks/ai-cache/index.d.ts",
         "default": "./dist/blocks/ai-cache/index.js"
       },
-      "./blocks/ai-providers": {
-        "types": "./dist/blocks/ai-providers/index.d.ts",
-        "default": "./dist/blocks/ai-providers/index.js"
+      "./blocks/ai-keys": {
+        "types": "./dist/blocks/ai-keys/index.d.ts",
+        "default": "./dist/blocks/ai-keys/index.js"
       },
       "./ai-sdk": {
         "types": "./dist/ai-sdk/index.d.ts",
@@ -2458,9 +2458,9 @@
         "types": "./dist/blocks/announcements/index.d.ts",
         "default": "./dist/blocks/announcements/index.js"
       },
-      "./blocks/number-sequences": {
-        "types": "./dist/blocks/number-sequences/index.d.ts",
-        "default": "./dist/blocks/number-sequences/index.js"
+      "./blocks/numbering": {
+        "types": "./dist/blocks/numbering/index.d.ts",
+        "default": "./dist/blocks/numbering/index.js"
       },
       "./blocks/teams": {
         "types": "./dist/blocks/teams/index.d.ts",
@@ -2515,26 +2515,26 @@
         "types": "./dist/blocks/domains/index.d.ts",
         "default": "./dist/blocks/domains/index.js"
       },
-      "./blocks/rules": {
-        "types": "./dist/blocks/rules/index.d.ts",
-        "default": "./dist/blocks/rules/index.js"
+      "./blocks/automations": {
+        "types": "./dist/blocks/automations/index.d.ts",
+        "default": "./dist/blocks/automations/index.js"
       },
-      "./blocks/rules/react": {
-        "types": "./dist/blocks/rules/react/index.d.ts",
-        "react-server": "./dist/blocks/rules/react/server.js",
-        "default": "./dist/blocks/rules/react/index.js"
+      "./blocks/automations/react": {
+        "types": "./dist/blocks/automations/react/index.d.ts",
+        "react-server": "./dist/blocks/automations/react/server.js",
+        "default": "./dist/blocks/automations/react/index.js"
       },
-      "./blocks/rules/vue": {
-        "types": "./dist/blocks/rules/vue/index.d.ts",
-        "default": "./dist/blocks/rules/vue/index.js"
+      "./blocks/automations/vue": {
+        "types": "./dist/blocks/automations/vue/index.d.ts",
+        "default": "./dist/blocks/automations/vue/index.js"
       },
-      "./blocks/rules/svelte": {
-        "types": "./dist/blocks/rules/svelte/index.d.ts",
-        "default": "./dist/blocks/rules/svelte/index.js"
+      "./blocks/automations/svelte": {
+        "types": "./dist/blocks/automations/svelte/index.d.ts",
+        "default": "./dist/blocks/automations/svelte/index.js"
       },
-      "./blocks/rules/solid": {
-        "types": "./dist/blocks/rules/solid/index.d.ts",
-        "default": "./dist/blocks/rules/solid/index.js"
+      "./blocks/automations/solid": {
+        "types": "./dist/blocks/automations/solid/index.d.ts",
+        "default": "./dist/blocks/automations/solid/index.js"
       },
       "./blocks/vercel-marketplace": {
         "types": "./dist/blocks/vercel-marketplace/index.d.ts",
@@ -2568,17 +2568,17 @@
         "types": "./dist/blocks/enrollments/index.d.ts",
         "default": "./dist/blocks/enrollments/index.js"
       },
-      "./blocks/shared-signals": {
-        "types": "./dist/blocks/shared-signals/index.d.ts",
-        "default": "./dist/blocks/shared-signals/index.js"
+      "./blocks/security-events": {
+        "types": "./dist/blocks/security-events/index.d.ts",
+        "default": "./dist/blocks/security-events/index.js"
       },
-      "./blocks/identities": {
-        "types": "./dist/blocks/identities/index.d.ts",
-        "default": "./dist/blocks/identities/index.js"
+      "./blocks/linked-identities": {
+        "types": "./dist/blocks/linked-identities/index.d.ts",
+        "default": "./dist/blocks/linked-identities/index.js"
       },
-      "./blocks/service-principals": {
-        "types": "./dist/blocks/service-principals/index.d.ts",
-        "default": "./dist/blocks/service-principals/index.js"
+      "./blocks/service-accounts": {
+        "types": "./dist/blocks/service-accounts/index.d.ts",
+        "default": "./dist/blocks/service-accounts/index.js"
       },
       "./blocks/reminders": {
         "types": "./dist/blocks/reminders/index.d.ts",
@@ -2600,9 +2600,9 @@
         "types": "./dist/blocks/relations/index.d.ts",
         "default": "./dist/blocks/relations/index.js"
       },
-      "./blocks/bulk": {
-        "types": "./dist/blocks/bulk/index.d.ts",
-        "default": "./dist/blocks/bulk/index.js"
+      "./blocks/bulk-actions": {
+        "types": "./dist/blocks/bulk-actions/index.d.ts",
+        "default": "./dist/blocks/bulk-actions/index.js"
       },
       "./blocks/saved-views/react": {
         "types": "./dist/blocks/saved-views/react/index.d.ts",
@@ -2757,25 +2757,25 @@
         "types": "./dist/blocks/pipelines/index.d.ts",
         "default": "./dist/blocks/pipelines/index.js"
       },
-      "./blocks/parties": {
-        "types": "./dist/blocks/parties/index.d.ts",
-        "default": "./dist/blocks/parties/index.js"
+      "./blocks/contacts": {
+        "types": "./dist/blocks/contacts/index.d.ts",
+        "default": "./dist/blocks/contacts/index.js"
       },
       "./blocks/collections": {
         "types": "./dist/blocks/collections/index.d.ts",
         "default": "./dist/blocks/collections/index.js"
       },
-      "./blocks/engagements": {
-        "types": "./dist/blocks/engagements/index.d.ts",
-        "default": "./dist/blocks/engagements/index.js"
+      "./blocks/activities": {
+        "types": "./dist/blocks/activities/index.d.ts",
+        "default": "./dist/blocks/activities/index.js"
       },
       "./blocks/deals": {
         "types": "./dist/blocks/deals/index.d.ts",
         "default": "./dist/blocks/deals/index.js"
       },
-      "./blocks/work-items": {
-        "types": "./dist/blocks/work-items/index.d.ts",
-        "default": "./dist/blocks/work-items/index.js"
+      "./blocks/tasks": {
+        "types": "./dist/blocks/tasks/index.d.ts",
+        "default": "./dist/blocks/tasks/index.js"
       },
       "./blocks/quotes": {
         "types": "./dist/blocks/quotes/index.d.ts",
@@ -2789,9 +2789,9 @@
         "types": "./dist/blocks/sla/index.d.ts",
         "default": "./dist/blocks/sla/index.js"
       },
-      "./blocks/targets": {
-        "types": "./dist/blocks/targets/index.d.ts",
-        "default": "./dist/blocks/targets/index.js"
+      "./blocks/goals": {
+        "types": "./dist/blocks/goals/index.d.ts",
+        "default": "./dist/blocks/goals/index.js"
       },
       "./blocks/hiring": {
         "types": "./dist/blocks/hiring/index.d.ts",
@@ -2920,22 +2920,22 @@
         "types": "./dist/blocks/mfa/solid/index.d.ts",
         "default": "./dist/blocks/mfa/solid/index.js"
       },
-      "./blocks/sessions/react": {
-        "types": "./dist/blocks/sessions/react/index.d.ts",
-        "react-server": "./dist/blocks/sessions/react/server.js",
-        "default": "./dist/blocks/sessions/react/index.js"
+      "./blocks/session-revocation/react": {
+        "types": "./dist/blocks/session-revocation/react/index.d.ts",
+        "react-server": "./dist/blocks/session-revocation/react/server.js",
+        "default": "./dist/blocks/session-revocation/react/index.js"
       },
-      "./blocks/sessions/vue": {
-        "types": "./dist/blocks/sessions/vue/index.d.ts",
-        "default": "./dist/blocks/sessions/vue/index.js"
+      "./blocks/session-revocation/vue": {
+        "types": "./dist/blocks/session-revocation/vue/index.d.ts",
+        "default": "./dist/blocks/session-revocation/vue/index.js"
       },
-      "./blocks/sessions/svelte": {
-        "types": "./dist/blocks/sessions/svelte/index.d.ts",
-        "default": "./dist/blocks/sessions/svelte/index.js"
+      "./blocks/session-revocation/svelte": {
+        "types": "./dist/blocks/session-revocation/svelte/index.d.ts",
+        "default": "./dist/blocks/session-revocation/svelte/index.js"
       },
-      "./blocks/sessions/solid": {
-        "types": "./dist/blocks/sessions/solid/index.d.ts",
-        "default": "./dist/blocks/sessions/solid/index.js"
+      "./blocks/session-revocation/solid": {
+        "types": "./dist/blocks/session-revocation/solid/index.d.ts",
+        "default": "./dist/blocks/session-revocation/solid/index.js"
       },
       "./blocks/tags/react": {
         "types": "./dist/blocks/tags/react/index.d.ts",
@@ -3069,9 +3069,9 @@
         "types": "./dist/blocks/guests/index.d.ts",
         "default": "./dist/blocks/guests/index.js"
       },
-      "./blocks/passes": {
-        "types": "./dist/blocks/passes/index.d.ts",
-        "default": "./dist/blocks/passes/index.js"
+      "./blocks/admission-passes": {
+        "types": "./dist/blocks/admission-passes/index.d.ts",
+        "default": "./dist/blocks/admission-passes/index.js"
       },
       "./blocks/billable-time": {
         "types": "./dist/blocks/billable-time/index.d.ts",
@@ -3097,9 +3097,9 @@
         "types": "./dist/blocks/contracts/index.d.ts",
         "default": "./dist/blocks/contracts/index.js"
       },
-      "./blocks/controls": {
-        "types": "./dist/blocks/controls/index.d.ts",
-        "default": "./dist/blocks/controls/index.js"
+      "./blocks/compliance": {
+        "types": "./dist/blocks/compliance/index.d.ts",
+        "default": "./dist/blocks/compliance/index.js"
       },
       "./blocks/incidents": {
         "types": "./dist/blocks/incidents/index.d.ts",

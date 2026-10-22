@@ -61,7 +61,7 @@ create table public.org_taggings (
 `;
 
 const BLOCKS: AnyBlocksConfig = {
-  "number-sequences": {
+  numbering: {
     mode: "adopt",
     tables: { sequences: "public.org_sequences" },
     columns: { sequences: { tenant: "organization_id" } },
@@ -94,7 +94,7 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 const BOOT = { timeout: 60_000 };
 
 async function run(check: string): Promise<void> {
-  const files = renderBlocks(["number-sequences", "tags"], { modules: BLOCKS });
+  const files = renderBlocks(["numbering", "tags"], { modules: BLOCKS });
 
   await using stack = await liteStack({
     driver: "pglite",

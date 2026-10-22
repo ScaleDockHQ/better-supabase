@@ -242,7 +242,7 @@ export function renderBlocks(
 }
 
 /**
- * Throws when `blocks.tenant.names.organization` gives a renamed table or
+ * Throws when `blocks.memberships.names.organization` gives a renamed table or
  * column a name a module already uses.
  */
 function checkTenantName(
@@ -263,7 +263,7 @@ function checkTenantName(
     }
 
     throw new TypeError(
-      `blocks.tenant.names.organization: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
+      `blocks.memberships.names.organization: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
     );
   }
 }

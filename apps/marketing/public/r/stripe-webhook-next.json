@@ -14,7 +14,7 @@
   "files": [
     {
       "path": "items/lib/stripe.ts",
-      "content": "import {\n  createBilling,\n  stripeInboxVerify,\n} from \"better-supabase/blocks/billing\";\nimport { createWebhookInbox, sqlTransport } from \"better-supabase/blocks/jobs\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * Stores each verified Stripe event once; the process route hands it to\n * billing.\n */\nexport const stripeInbox = createWebhookInbox({\n  transport: sqlTransport(postgres.admin),\n  source: \"stripe\",\n  verify: stripeInboxVerify(process.env.STRIPE_WEBHOOK_SECRET ?? \"\"),\n});\n\n/**\n * The billing block on the service connection, which links customers and syncs\n * seats.\n */\nexport const billing = createBilling({\n  stripe: { secretKey: process.env.STRIPE_SECRET_KEY ?? \"\" },\n  transport: sqlTransport(postgres.admin),\n});\n",
+      "content": "import {\n  createBilling,\n  stripeInboxVerify,\n} from \"better-supabase/blocks/billing\";\nimport { createWebhookInbox, sqlTransport } from \"better-supabase/blocks/queue\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * Stores each verified Stripe event once; the process route hands it to\n * billing.\n */\nexport const stripeInbox = createWebhookInbox({\n  transport: sqlTransport(postgres.admin),\n  source: \"stripe\",\n  verify: stripeInboxVerify(process.env.STRIPE_WEBHOOK_SECRET ?? \"\"),\n});\n\n/**\n * The billing block on the service connection, which links customers and syncs\n * seats.\n */\nexport const billing = createBilling({\n  stripe: { secretKey: process.env.STRIPE_SECRET_KEY ?? \"\" },\n  transport: sqlTransport(postgres.admin),\n});\n",
       "type": "registry:lib",
       "target": "@lib/stripe.ts"
     },

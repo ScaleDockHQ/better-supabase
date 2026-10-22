@@ -1,4 +1,4 @@
-import type { WorkflowStepInfo } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowStepInfo } from "better-supabase/blocks/workflow-editor";
 
 /** The steps the canvas offers; `steps.sync()` writes them to the library. */
 export const stepLibrary: readonly WorkflowStepInfo[] = [

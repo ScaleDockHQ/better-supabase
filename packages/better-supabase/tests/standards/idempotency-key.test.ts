@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createIdempotency } from "../../src/blocks/jobs/index.ts";
+import { createIdempotency } from "../../src/blocks/queue/index.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 
 /**

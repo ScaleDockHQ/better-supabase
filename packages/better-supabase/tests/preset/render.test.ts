@@ -36,9 +36,9 @@ describe("presetConfigSource", () => {
         "  // The provider access model reads roles from your authorization",
         "  // library: set `auth.authorization` to its adapter.",
         "  blocks: {",
-        '    "updated-at": {}, // required by tenant',
-        "    tenant: {}, // required by api-keys, comments and messaging",
-        '    access: { model: "provider" }, // required by api-keys, comments, subjects and messaging',
+        '    "updated-at": {}, // required by memberships',
+        "    memberships: {}, // required by api-keys, comments and messaging",
+        '    permissions: { model: "provider" }, // required by api-keys, comments, subjects and messaging',
         '    "api-keys": {},',
         "    comments: {},",
         "    subjects: {}, // required by comments and messaging",
@@ -86,7 +86,7 @@ describe("presetBlocksSource", () => {
     // The API schema comes from blocks.generated.ts, not the wiring.
     expect(source).not.toContain("API_SCHEMA");
     // Blocks with only SQL (tenant, access) get no client.
-    expect(source).not.toContain("tenantBlock");
+    expect(source).not.toContain("membershipsBlock");
   });
 
   it("imports the generated config from the path it is given", () => {

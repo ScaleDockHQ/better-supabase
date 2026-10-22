@@ -24,7 +24,7 @@ const MODULES = [
   "organizations",
   "outbox",
   "notifications",
-  "jobs",
+  "queue",
   "subjects",
   "versions",
   "signatures",

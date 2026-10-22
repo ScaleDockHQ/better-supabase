@@ -14,7 +14,7 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { pipelineBindings } from "./pipelines-bindings.ts";
 import {
   defaultPipeline,
@@ -349,14 +349,14 @@ export const PIPELINES: BlockSqlDefinition = {
   title: "Pipelines",
   description:
     "Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["memberships", "permissions", "subjects"],
   integrates: [
     "outbox",
     "audit",
     "state-machine",
     "notifications",
     "deals",
-    "work-items",
+    "tasks",
     "hiring",
   ],
   target: "schema",

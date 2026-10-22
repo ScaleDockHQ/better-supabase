@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -12,11 +12,11 @@ import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
-import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
+import { numberingBlock } from "better-supabase/blocks/numbering";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
-import { partiesBlock } from "better-supabase/blocks/parties";
+import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
 import { settingsBlock } from "better-supabase/blocks/settings";
@@ -27,7 +27,7 @@ import { blockConfig } from "./invoicing.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,
@@ -36,11 +36,11 @@ export const blockSet = defineBlocks(blockConfig, {
   entitlements: entitlementsBlock,
   invoices: invoicesBlock,
   notifications: notificationsBlock,
-  numberSequences: numberSequencesBlock,
+  numbering: numberingBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
-  parties: partiesBlock,
+  contacts: contactsBlock,
   profiles: profilesBlock,
   quotes: quotesBlock,
   settings: settingsBlock,

@@ -5,12 +5,12 @@ import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ExtractMemoriesPayload } from "../../../src/ai-sdk/memory/index.ts";
-import type { Job } from "../../../src/blocks/jobs/types.ts";
 import type {
   Memory,
   MemoryCommand,
   MemoryRecord,
 } from "../../../src/blocks/memory/index.ts";
+import type { Job } from "../../../src/blocks/queue/types.ts";
 
 import {
   anthropicMemory,

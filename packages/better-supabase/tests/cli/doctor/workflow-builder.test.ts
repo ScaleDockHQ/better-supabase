@@ -11,12 +11,12 @@ const check = (sources: { path: string; text: string }[]) =>
   rule!.check({ sources } as unknown as DoctorContext);
 
 describe("BS333", () => {
-  it("flags admin() in a file that runs workflow-builder steps", async () => {
+  it("flags admin() in a file that runs workflow-editor steps", async () => {
     const findings = await check([
       {
         path: "src/workflows/steps.ts",
         text: [
-          'import { executeGraph } from "better-supabase/blocks/workflow-builder";',
+          'import { executeGraph } from "better-supabase/blocks/workflow-editor";',
           'import { server } from "./server";',
           "",
           "export async function lookup() {",
@@ -57,7 +57,7 @@ describe("BS333", () => {
         { path: "src/admin.ts", text: "const db = server.admin();\n" },
         {
           path: "src/steps.ts",
-          text: 'import { executeGraph } from "better-supabase/blocks/workflow-builder";\nconst ok = isAdmin(user);\n',
+          text: 'import { executeGraph } from "better-supabase/blocks/workflow-editor";\nconst ok = isAdmin(user);\n',
         },
         {
           path: "src/flows.ts",
@@ -65,7 +65,7 @@ describe("BS333", () => {
         },
         {
           path: "src/builder-server.ts",
-          text: 'import { createWorkflowBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bsb.admin().$client);\n',
+          text: 'import { createWorkflowEditor, rpcTransport } from "better-supabase/blocks/workflow-editor";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bsb.admin().$client);\n',
         },
       ]),
     ).toEqual([]);

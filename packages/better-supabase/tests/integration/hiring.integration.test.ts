@@ -4,8 +4,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createHiring } from "../../src/blocks/hiring/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -17,7 +17,7 @@ const MODULES = [
   "organizations",
   "outbox",
   "subjects",
-  "parties",
+  "contacts",
   "pipelines",
   "hiring",
 ];
@@ -58,7 +58,7 @@ describe.skipIf(!live)("hiring", () => {
         .saveJob(org, { title: "Backend engineer", location: "Utrecht" })
         .orThrow();
 
-      const ada = await createParties({ transport })
+      const ada = await createContacts({ transport })
         .savePerson(org, { name: "Ada" })
         .orThrow();
 
@@ -168,7 +168,7 @@ describe.skipIf(!live)("hiring", () => {
         ]),
       );
 
-      const bob = await createParties({ transport })
+      const bob = await createContacts({ transport })
         .savePerson(org, { name: "Bob" })
         .orThrow();
 

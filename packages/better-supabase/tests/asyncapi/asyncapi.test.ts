@@ -7,7 +7,7 @@ import type {
   BlockEventSchemas,
 } from "../../src/asyncapi/index.ts";
 import type { AnyAsyncApiDocument } from "../../src/asyncapi/types.ts";
-import type { SupportSessionsEvents } from "../../src/blocks/support-sessions/events.ts";
+import type { ImpersonationEvents } from "../../src/blocks/impersonation/events.ts";
 import type { SupportEventData } from "../../src/core/block-events.ts";
 import type { SpecDiagnostic } from "../../src/spec/format.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
@@ -641,14 +641,14 @@ describe("BlockEventSchemas", () => {
   it("checks schemas against a block's event map", () => {
     const wrong = {} as BlockEventSchema<{ readonly adminId: number }>;
 
-    const schemas: BlockEventSchemas<SupportSessionsEvents> = {
+    const schemas: BlockEventSchemas<ImpersonationEvents> = {
       // @ts-expect-error: adminId is a string in SupportEventData
       "support.started": wrong,
     };
 
     expect(schemas).toBeDefined();
 
-    const unknown: BlockEventSchemas<SupportSessionsEvents> = {
+    const unknown: BlockEventSchemas<ImpersonationEvents> = {
       // @ts-expect-error: not a support event
       "nope.event": true,
     };

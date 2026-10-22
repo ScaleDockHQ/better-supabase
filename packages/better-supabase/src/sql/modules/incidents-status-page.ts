@@ -1,8 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { COMPONENT_STATUSES } from "./incidents-shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");

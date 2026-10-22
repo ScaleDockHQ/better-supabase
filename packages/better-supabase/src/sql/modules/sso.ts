@@ -17,14 +17,18 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { accessModel, moduleOperations, roleNames } from "./access-model.ts";
+import { roleNameOf } from "./memberships.ts";
 import { roleValue } from "./organizations-roles.ts";
+import {
+  accessModel,
+  moduleOperations,
+  roleNames,
+} from "./permissions-model.ts";
 import {
   SCIM_SYNC_LOG_CONTRACT,
   scimSql,
   scimSyncLogSql,
 } from "./sso-scim-sql.ts";
-import { roleNameOf } from "./tenant.ts";
 
 const EVENTS: BlockSqlEvents<SsoEvents> = {
   "organization.member_removed": {
@@ -171,7 +175,7 @@ function rolesFor(ctx: BlockSqlContext): Roles {
 
   if (!listed && ctx.option("roleOrder") === undefined) {
     throw new TypeError(
-      `blocks.sso assigns membership roles. Under blocks.access.model "${model}" the roles are not in the config, so list the roles SCIM and auto-join may assign in blocks.sso.options.roleOrder, highest first`,
+      `blocks.sso assigns membership roles. Under blocks.permissions.model "${model}" the roles are not in the config, so list the roles SCIM and auto-join may assign in blocks.sso.options.roleOrder, highest first`,
     );
   }
 
@@ -258,7 +262,7 @@ function build(ctx: BlockSqlContext): string {
   const actorCan = (tenant: string, actor: string): string =>
     `(${actor} is null or ${ctx.scope.canUser(actor, tenant, key)})`;
 
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
@@ -991,7 +995,7 @@ export const SSO: BlockSqlDefinition = {
   title: "SSO and SCIM",
   description:
     "Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["organizations", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",

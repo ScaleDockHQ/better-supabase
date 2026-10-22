@@ -2,21 +2,25 @@ import type { RpcClient } from "better-supabase/blocks";
 
 import { defineBlocks, rpcTransport } from "better-supabase/blocks";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
+import { activitiesBlock } from "better-supabase/blocks/activities";
+import { admissionPassesBlock } from "better-supabase/blocks/admission-passes";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { assignmentBlock } from "better-supabase/blocks/assignment";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
+import { automationsBlock } from "better-supabase/blocks/automations";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
-import { bulkBlock } from "better-supabase/blocks/bulk";
+import { bulkActionsBlock } from "better-supabase/blocks/bulk-actions";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { catalogBlock } from "better-supabase/blocks/catalog";
 import { channelsBlock } from "better-supabase/blocks/channels";
 import { commentsBlock } from "better-supabase/blocks/comments";
+import { complianceBlock } from "better-supabase/blocks/compliance";
+import { contactsBlock } from "better-supabase/blocks/contacts";
 import { contractsBlock } from "better-supabase/blocks/contracts";
-import { controlsBlock } from "better-supabase/blocks/controls";
 import { coursesBlock } from "better-supabase/blocks/courses";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
@@ -26,13 +30,13 @@ import { documentsBlock } from "better-supabase/blocks/documents";
 import { donationsBlock } from "better-supabase/blocks/donations";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
-import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { enrichmentBlock } from "better-supabase/blocks/enrichment";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { expensesBlock } from "better-supabase/blocks/expenses";
 import { fieldHistoryBlock } from "better-supabase/blocks/field-history";
 import { forecastsBlock } from "better-supabase/blocks/forecasts";
 import { formsBlock } from "better-supabase/blocks/forms";
+import { goalsBlock } from "better-supabase/blocks/goals";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { importsBlock } from "better-supabase/blocks/imports";
@@ -55,8 +59,6 @@ import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
-import { partiesBlock } from "better-supabase/blocks/parties";
-import { passesBlock } from "better-supabase/blocks/passes";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { postsBlock } from "better-supabase/blocks/posts";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
@@ -65,13 +67,12 @@ import { rankBlock } from "better-supabase/blocks/rank";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { remindersBlock } from "better-supabase/blocks/reminders";
-import { rulesBlock } from "better-supabase/blocks/rules";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { searchBlock } from "better-supabase/blocks/search";
 import { segmentsBlock } from "better-supabase/blocks/segments";
 import { sequencesBlock } from "better-supabase/blocks/sequences";
-import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
+import { serviceAccountsBlock } from "better-supabase/blocks/service-accounts";
 import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { shipmentsBlock } from "better-supabase/blocks/shipments";
@@ -80,7 +81,7 @@ import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
-import { targetsBlock } from "better-supabase/blocks/targets";
+import { tasksBlock } from "better-supabase/blocks/tasks";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { templatesBlock } from "better-supabase/blocks/templates";
 import { timeTrackingBlock } from "better-supabase/blocks/time-tracking";
@@ -89,7 +90,6 @@ import { usageBlock } from "better-supabase/blocks/usage";
 import { versionsBlock } from "better-supabase/blocks/versions";
 import { waitlistBlock } from "better-supabase/blocks/waitlist";
 import { webhooksBlock } from "better-supabase/blocks/webhooks";
-import { workItemsBlock } from "better-supabase/blocks/work-items";
 import { workflowsBlock } from "better-supabase/blocks/workflows";
 
 import {
@@ -143,10 +143,10 @@ const blockSet = defineBlocks(blockConfig, {
   shareLinks: shareLinksBlock,
   attachments: attachmentsBlock,
   waitlist: waitlistBlock,
-  parties: partiesBlock,
+  parties: contactsBlock,
   deals: dealsBlock,
   pipelines: pipelinesBlock,
-  engagements: engagementsBlock,
+  engagements: activitiesBlock,
   mailSync: mailSyncBlock,
   segments: segmentsBlock,
   sequences: sequencesBlock,
@@ -156,18 +156,18 @@ const blockSet = defineBlocks(blockConfig, {
   forecasts: forecastsBlock,
   fieldHistory: fieldHistoryBlock,
   quotes: quotesBlock,
-  targets: targetsBlock,
-  workItems: workItemsBlock,
+  targets: goalsBlock,
+  workItems: tasksBlock,
   stateMachine: stateMachineBlock,
   rank: rankBlock,
   savedViews: savedViewsBlock,
   approvals: approvalsBlock,
-  rules: rulesBlock,
+  rules: automationsBlock,
   scores: scoresBlock,
   moderation: moderationBlock,
   sla: slaBlock,
   customFields: customFieldsBlock,
-  bulk: bulkBlock,
+  bulk: bulkActionsBlock,
   trash: trashBlock,
   relations: relationsBlock,
   employees: employeesBlock,
@@ -178,7 +178,7 @@ const blockSet = defineBlocks(blockConfig, {
   inventory: inventoryBlock,
   ledger: ledgerBlock,
   guests: guestsBlock,
-  passes: passesBlock,
+  passes: admissionPassesBlock,
   "billable-time": billableTimeBlock,
   leases: leasesBlock,
   expenses: expensesBlock,
@@ -186,7 +186,7 @@ const blockSet = defineBlocks(blockConfig, {
   dispatch: dispatchBlock,
   shipments: shipmentsBlock,
   contracts: contractsBlock,
-  controls: controlsBlock,
+  controls: complianceBlock,
   incidents: incidentsBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
@@ -201,7 +201,7 @@ const blockSet = defineBlocks(blockConfig, {
   templates: templatesBlock,
   documents: documentsBlock,
   webhooks: webhooksBlock,
-  servicePrincipals: servicePrincipalsBlock,
+  servicePrincipals: serviceAccountsBlock,
   signingKeys: signingKeysBlock,
   dataLifecycle: dataLifecycleBlock,
   teams: teamsBlock,

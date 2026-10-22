@@ -19,9 +19,9 @@ import type {
   AiBatchCounts,
   AiBatchItem,
   AiBatchItemInput,
-  AiProviders,
-} from "../../blocks/ai-providers/ai-providers.ts";
-import type { JobHandler } from "../../blocks/jobs/types.ts";
+  AiKeys,
+} from "../../blocks/ai-keys/ai-keys.ts";
+import type { JobHandler } from "../../blocks/queue/types.ts";
 import type { CursorPageOptions } from "../../core/block-helpers.ts";
 
 import { errorText } from "../../core/block-helpers.ts";
@@ -61,7 +61,7 @@ export interface AiBatchesOptions {
    * The providers block: a user transport for `start`, a service one for
    * polling.
    */
-  readonly providers: Pick<AiProviders, "batches">;
+  readonly providers: Pick<AiKeys, "batches">;
   /**
    * The batch provider, or a function that picks one for a stored reference.
    * Defaults to the global provider, or the AI Gateway.

@@ -18,7 +18,7 @@ import {
   schemaPreamble,
   revokeTable,
 } from "../shared.ts";
-import { OPERATIONS, moduleOperations } from "./access-model.ts";
+import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<SettingsEvents> = {
   "organization_setting.reset": {
@@ -636,7 +636,7 @@ export const SETTINGS: BlockSqlDefinition = {
   title: "Settings",
   description:
     "Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["jsonb-schemas"],
   target: "schema",
   modes: ["managed", "custom"],

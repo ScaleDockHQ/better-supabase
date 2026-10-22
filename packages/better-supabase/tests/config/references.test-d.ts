@@ -11,12 +11,10 @@ import { defineConfig } from "../../src/config/resolve.ts";
 describe("defineConfig", () => {
   it("returns the literal config", () => {
     const config = defineConfig({
-      blocks: { "work-items": { names: { work_item: "task" } } },
+      blocks: { tasks: { names: { work_item: "task" } } },
     });
 
-    expectTypeOf(
-      config.blocks["work-items"].names.work_item,
-    ).toEqualTypeOf<"task">();
+    expectTypeOf(config.blocks.tasks.names.work_item).toEqualTypeOf<"task">();
   });
 
   it("types app table references to block tables and app tables", () => {
@@ -26,7 +24,7 @@ describe("defineConfig", () => {
           columns: {
             item: {
               type: "uuid",
-              references: { block: "work-items", table: "items" },
+              references: { block: "tasks", table: "items" },
             },
             parent: { type: "uuid", references: { table: "notes" } },
           },
@@ -40,8 +38,8 @@ describe("defineConfig", () => {
           columns: {
             item: {
               type: "uuid",
-              // @ts-expect-error -- work-items has no table "itemz".
-              references: { block: "work-items", table: "itemz" },
+              // @ts-expect-error -- tasks has no table "itemz".
+              references: { block: "tasks", table: "itemz" },
             },
           },
         },
@@ -60,10 +58,10 @@ describe("defineConfig", () => {
     });
   });
 
-  it("types the roles other blocks name from blocks.access.roles", () => {
+  it("types the roles other blocks name from blocks.permissions.roles", () => {
     defineConfig({
       blocks: {
-        access: { roles: { owner: ["*"], member: [] } },
+        permissions: { roles: { owner: ["*"], member: [] } },
         sso: {
           options: { defaultRole: "member", roleOrder: ["owner", "member"] },
         },
@@ -72,7 +70,7 @@ describe("defineConfig", () => {
 
     defineConfig({
       blocks: {
-        access: { roles: { owner: ["*"], member: [] } },
+        permissions: { roles: { owner: ["*"], member: [] } },
         // @ts-expect-error -- "viewer" is not a declared role.
         sso: { options: { defaultRole: "viewer" } },
       },
@@ -101,18 +99,20 @@ describe("reference types", () => {
 
   it("names the declared roles", () => {
     expectTypeOf<
-      RoleNames<{ blocks: { access: { roles: { owner: []; guest: [] } } } }>
+      RoleNames<{
+        blocks: { permissions: { roles: { owner: []; guest: [] } } };
+      }>
     >().toEqualTypeOf<"owner" | "guest">();
     expectTypeOf<RoleNames<object>>().toEqualTypeOf<string>();
   });
 
   it("pairs each block with its own tables", () => {
     expectTypeOf<{
-      block: "work-items";
+      block: "tasks";
       table: "items";
     }>().toExtend<BlockTableReference>();
     expectTypeOf<{
-      block: "work-items";
+      block: "tasks";
       table: "contacts";
     }>().not.toExtend<BlockTableReference>();
   });

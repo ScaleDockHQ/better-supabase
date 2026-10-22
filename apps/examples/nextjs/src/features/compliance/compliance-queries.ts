@@ -1,5 +1,5 @@
 import "server-only";
-import type { ControlPosture } from "better-supabase/blocks/controls";
+import type { ControlPosture } from "better-supabase/blocks/compliance";
 import type { MoneyJson } from "better-supabase/commerce";
 
 import { moneyToJson } from "better-supabase/commerce";

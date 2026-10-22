@@ -59,7 +59,10 @@ export function listNames(names: readonly string[]): string {
 // Outside tenant scope a block checks the caller itself, so it needs neither
 // the tenant module nor the access contract (as `requiresOf` in
 // src/sql/registry.ts).
-const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set([
+  "memberships",
+  "permissions",
+]);
 
 function requiresOf(
   block: PresetCatalogBlock,

@@ -6,7 +6,7 @@ import type {
   WorkflowGraphNode,
   WorkflowNodeKind,
   WorkflowNodeRunStatus,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 import type { LucideIcon } from "lucide-react";
 
 import { Handle, Position } from "@xyflow/react";

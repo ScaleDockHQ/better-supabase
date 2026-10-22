@@ -1,6 +1,6 @@
 import type { FilterQuery } from "better-supabase/list";
 
-import { defineRuleFields } from "better-supabase/blocks/rules";
+import { defineRuleFields } from "better-supabase/blocks/automations";
 
 /** The record type the example's rules test. */
 export const RULE_SUBJECT = "customer";

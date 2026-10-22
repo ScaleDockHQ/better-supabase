@@ -228,10 +228,11 @@ export interface AccessPolicySql {
 }
 
 /**
- * A policy through the SQL modules' [access contract](/docs/blocks/access):
- * `tenant_ids_with(permission)` for the tenant id in the path, or
- * `is_platform(permission)`. Works with every access model. With `sql`, it
- * calls those templates instead, for any scope they take.
+ * A policy through the SQL modules' [access
+ * contract](/docs/blocks/permissions): `tenant_ids_with(permission)` for the
+ * tenant id in the path, or `is_platform(permission)`. Works with every access
+ * model. With `sql`, it calls those templates instead, for any scope they
+ * take.
  */
 export interface AccessBucketPolicy {
   readonly access: {

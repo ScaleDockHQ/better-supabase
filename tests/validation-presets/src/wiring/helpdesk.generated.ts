@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -14,7 +14,7 @@ import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { inboxBlock } from "better-supabase/blocks/inbox";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { messagingBlock } from "better-supabase/blocks/messaging";
-import { activityBlock } from "better-supabase/blocks/activity";
+import { timelineBlock } from "better-supabase/blocks/timeline";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -28,13 +28,13 @@ import { slaBlock } from "better-supabase/blocks/sla";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { teamsBlock } from "better-supabase/blocks/teams";
-import { workItemsBlock } from "better-supabase/blocks/work-items";
+import { tasksBlock } from "better-supabase/blocks/tasks";
 
 import { blockConfig } from "./helpdesk.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   attachments: attachmentsBlock,
   audit: auditBlock,
@@ -45,7 +45,7 @@ export const blockSet = defineBlocks(blockConfig, {
   inbox: inboxBlock,
   knowledge: knowledgeBlock,
   messaging: messagingBlock,
-  activity: activityBlock,
+  timeline: timelineBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
@@ -59,7 +59,7 @@ export const blockSet = defineBlocks(blockConfig, {
   subjects: subjectsBlock,
   tags: tagsBlock,
   teams: teamsBlock,
-  workItems: workItemsBlock,
+  tasks: tasksBlock,
 });
 
 /**

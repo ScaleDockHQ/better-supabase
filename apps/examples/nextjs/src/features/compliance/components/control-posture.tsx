@@ -96,7 +96,7 @@ export async function ControlPosture() {
         <EmptyContent>
           <a
             className="text-sm underline underline-offset-4"
-            href="https://bettersupabase.com/docs/blocks/controls"
+            href="https://bettersupabase.com/docs/blocks/compliance"
           >
             {t("Read the controls guide")}
           </a>

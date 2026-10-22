@@ -700,7 +700,7 @@ describe("mapDbError", () => {
       [
         "a table without a hint",
         { code: "42501", message: "permission denied for table customers" },
-        "The Data API role has no grant on this table, as on a project with default privileges turned off: add it to `expose` and run `better-supabase add grants`. `better-supabase doctor` (BS106) lists every missing grant.",
+        "The Data API role has no grant on this table, as on a project with default privileges turned off: add it to `expose` and run `better-supabase add data-api-grants`. `better-supabase doctor` (BS106) lists every missing grant.",
       ],
       [
         "a view with the PostgREST hint",
@@ -709,7 +709,7 @@ describe("mapDbError", () => {
           message: "permission denied for view active_customers",
           hint: "Grant the required privileges to the current role.",
         },
-        "The Data API role has no grant on this view, as on a project with default privileges turned off: add it to `expose` and run `better-supabase add grants`. `better-supabase doctor` (BS106) lists every missing grant.",
+        "The Data API role has no grant on this view, as on a project with default privileges turned off: add it to `expose` and run `better-supabase add data-api-grants`. `better-supabase doctor` (BS106) lists every missing grant.",
       ],
       [
         "a function",

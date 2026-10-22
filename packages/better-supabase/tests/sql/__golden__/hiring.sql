@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bsb-block hiring@1 managed
+-- @bsb-block hiring@2 managed
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,7 +44,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.
 
-create table if not exists "better_supabase"."jobs" (
+create table if not exists "better_supabase"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") between 1 and 200),
@@ -59,19 +59,19 @@ create table if not exists "better_supabase"."jobs" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on "better_supabase"."jobs" ("tenant_id", "status");
-alter table "better_supabase"."jobs" enable row level security;
-revoke all on "better_supabase"."jobs" from anon, authenticated;
-grant select on "better_supabase"."jobs" to authenticated;
-grant all on "better_supabase"."jobs" to service_role;
-drop policy if exists jobs_read on "better_supabase"."jobs";
-create policy jobs_read on "better_supabase"."jobs" for select to authenticated
+create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
+alter table "better_supabase"."job_openings" enable row level security;
+revoke all on "better_supabase"."job_openings" from anon, authenticated;
+grant select on "better_supabase"."job_openings" to authenticated;
+grant all on "better_supabase"."job_openings" to service_role;
+drop policy if exists jobs_read on "better_supabase"."job_openings";
+create policy jobs_read on "better_supabase"."job_openings" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "better_supabase"."applications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "job_id" uuid not null references "better_supabase"."jobs" ("id") on delete cascade,
+  "job_id" uuid not null references "better_supabase"."job_openings" ("id") on delete cascade,
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
@@ -182,7 +182,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_was text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -192,7 +192,7 @@ begin
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
   if save_job.job is not null then
-    select * into v_job from "better_supabase"."jobs" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
     end if;
@@ -200,13 +200,13 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."jobs" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
-      update "better_supabase"."jobs" x set
+      update "better_supabase"."job_openings" x set
         "title" = coalesce(save_job.attrs ->> 'title', x."title"),
         "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
@@ -223,10 +223,10 @@ begin
   end;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
-      update "better_supabase"."jobs" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
+      update "better_supabase"."job_openings" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
       null;
     elsif v_job."status" = 'closed' then
-      update "better_supabase"."jobs" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
+      update "better_supabase"."job_openings" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
       null;
     end if;
   end if;
@@ -245,7 +245,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_row "better_supabase"."applications";
   v_type text := coalesce(apply_to_job.candidate ->> 'type', 'person');
   v_id text := apply_to_job.candidate ->> 'id';
@@ -253,7 +253,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_job from "better_supabase"."jobs" x where x."id" = apply_to_job.job;
+  select * into v_job from "better_supabase"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
     raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
   end if;
@@ -466,13 +466,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('hiring', 1, 'managed')
+values ('hiring', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bsb-block hiring@1 managed
+-- @bsb-block hiring@2 managed
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -516,7 +516,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.
 
-create table if not exists "better_supabase"."jobs" (
+create table if not exists "better_supabase"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") between 1 and 200),
@@ -531,19 +531,19 @@ create table if not exists "better_supabase"."jobs" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on "better_supabase"."jobs" ("tenant_id", "status");
-alter table "better_supabase"."jobs" enable row level security;
-revoke all on "better_supabase"."jobs" from anon, authenticated;
-grant select on "better_supabase"."jobs" to authenticated;
-grant all on "better_supabase"."jobs" to service_role;
-drop policy if exists jobs_read on "better_supabase"."jobs";
-create policy jobs_read on "better_supabase"."jobs" for select to authenticated
+create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
+alter table "better_supabase"."job_openings" enable row level security;
+revoke all on "better_supabase"."job_openings" from anon, authenticated;
+grant select on "better_supabase"."job_openings" to authenticated;
+grant all on "better_supabase"."job_openings" to service_role;
+drop policy if exists jobs_read on "better_supabase"."job_openings";
+create policy jobs_read on "better_supabase"."job_openings" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "better_supabase"."applications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "job_id" uuid not null references "better_supabase"."jobs" ("id") on delete cascade,
+  "job_id" uuid not null references "better_supabase"."job_openings" ("id") on delete cascade,
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
@@ -654,7 +654,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_was text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -664,7 +664,7 @@ begin
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
   if save_job.job is not null then
-    select * into v_job from "better_supabase"."jobs" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
     end if;
@@ -672,13 +672,13 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."jobs" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
-      update "better_supabase"."jobs" x set
+      update "better_supabase"."job_openings" x set
         "title" = coalesce(save_job.attrs ->> 'title', x."title"),
         "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
@@ -695,10 +695,10 @@ begin
   end;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
-      update "better_supabase"."jobs" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
+      update "better_supabase"."job_openings" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
       perform "better_supabase".emit_event('job.opened', jsonb_build_object('organizationId', v_job."tenant_id", 'jobId', v_job."id", 'title', v_job."title"), 'jobs/' || v_job."id"::text, (v_job."tenant_id"::text)::text, null, 'better-supabase/hiring');
     elsif v_job."status" = 'closed' then
-      update "better_supabase"."jobs" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
+      update "better_supabase"."job_openings" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
       perform "better_supabase".emit_event('job.closed', jsonb_build_object('organizationId', v_job."tenant_id", 'jobId', v_job."id", 'title', v_job."title"), 'jobs/' || v_job."id"::text, (v_job."tenant_id"::text)::text, null, 'better-supabase/hiring');
     end if;
   end if;
@@ -717,7 +717,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_row "better_supabase"."applications";
   v_type text := coalesce(apply_to_job.candidate ->> 'type', 'person');
   v_id text := apply_to_job.candidate ->> 'id';
@@ -725,7 +725,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_job from "better_supabase"."jobs" x where x."id" = apply_to_job.job;
+  select * into v_job from "better_supabase"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
     raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
   end if;
@@ -938,13 +938,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('hiring', 1, 'managed')
+values ('hiring', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bsb-block hiring@1 managed
+-- @bsb-block hiring@2 managed
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -990,7 +990,7 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.
 
-create table if not exists "app_private"."jobs" (
+create table if not exists "app_private"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") between 1 and 200),
@@ -1005,19 +1005,19 @@ create table if not exists "app_private"."jobs" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on "app_private"."jobs" ("tenant_id", "status");
-alter table "app_private"."jobs" enable row level security;
-revoke all on "app_private"."jobs" from anon, authenticated;
-grant select on "app_private"."jobs" to authenticated;
-grant all on "app_private"."jobs" to service_role;
-drop policy if exists jobs_read on "app_private"."jobs";
-create policy jobs_read on "app_private"."jobs" for select to authenticated
+create index if not exists jobs_tenant_status_idx on "app_private"."job_openings" ("tenant_id", "status");
+alter table "app_private"."job_openings" enable row level security;
+revoke all on "app_private"."job_openings" from anon, authenticated;
+grant select on "app_private"."job_openings" to authenticated;
+grant all on "app_private"."job_openings" to service_role;
+drop policy if exists jobs_read on "app_private"."job_openings";
+create policy jobs_read on "app_private"."job_openings" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "app_private"."applications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "job_id" uuid not null references "app_private"."jobs" ("id") on delete cascade,
+  "job_id" uuid not null references "app_private"."job_openings" ("id") on delete cascade,
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
@@ -1128,7 +1128,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "app_private"."jobs";
+  v_job "app_private"."job_openings";
   v_was text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1138,7 +1138,7 @@ begin
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
   if save_job.job is not null then
-    select * into v_job from "app_private"."jobs" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+    select * into v_job from "app_private"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
     end if;
@@ -1146,13 +1146,13 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "app_private"."jobs" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "app_private"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
-      update "app_private"."jobs" x set
+      update "app_private"."job_openings" x set
         "title" = coalesce(save_job.attrs ->> 'title', x."title"),
         "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
@@ -1169,10 +1169,10 @@ begin
   end;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
-      update "app_private"."jobs" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
+      update "app_private"."job_openings" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
       null;
     elsif v_job."status" = 'closed' then
-      update "app_private"."jobs" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
+      update "app_private"."job_openings" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
       null;
     end if;
   end if;
@@ -1191,7 +1191,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "app_private"."jobs";
+  v_job "app_private"."job_openings";
   v_row "app_private"."applications";
   v_type text := coalesce(apply_to_job.candidate ->> 'type', 'person');
   v_id text := apply_to_job.candidate ->> 'id';
@@ -1199,7 +1199,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_job from "app_private"."jobs" x where x."id" = apply_to_job.job;
+  select * into v_job from "app_private"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
     raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
   end if;
@@ -1412,13 +1412,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('hiring', 1, 'managed')
+values ('hiring', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bsb-block hiring@1 managed
+-- @bsb-block hiring@2 managed
 -- Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1462,7 +1462,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.
 
-create table if not exists "better_supabase"."jobs" (
+create table if not exists "better_supabase"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "title" text not null check (length("title") between 1 and 200),
@@ -1477,19 +1477,19 @@ create table if not exists "better_supabase"."jobs" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on "better_supabase"."jobs" ("tenant_id", "status");
-alter table "better_supabase"."jobs" enable row level security;
-revoke all on "better_supabase"."jobs" from anon, authenticated;
-grant select on "better_supabase"."jobs" to authenticated;
-grant all on "better_supabase"."jobs" to service_role;
-drop policy if exists jobs_read on "better_supabase"."jobs";
-create policy jobs_read on "better_supabase"."jobs" for select to authenticated
+create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
+alter table "better_supabase"."job_openings" enable row level security;
+revoke all on "better_supabase"."job_openings" from anon, authenticated;
+grant select on "better_supabase"."job_openings" to authenticated;
+grant all on "better_supabase"."job_openings" to service_role;
+drop policy if exists jobs_read on "better_supabase"."job_openings";
+create policy jobs_read on "better_supabase"."job_openings" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
 create table if not exists "better_supabase"."applications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "job_id" uuid not null references "better_supabase"."jobs" ("id") on delete cascade,
+  "job_id" uuid not null references "better_supabase"."job_openings" ("id") on delete cascade,
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
@@ -1600,7 +1600,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_was text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1610,7 +1610,7 @@ begin
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
   if save_job.job is not null then
-    select * into v_job from "better_supabase"."jobs" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
     end if;
@@ -1618,13 +1618,13 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."jobs" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
-      update "better_supabase"."jobs" x set
+      update "better_supabase"."job_openings" x set
         "title" = coalesce(save_job.attrs ->> 'title', x."title"),
         "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
@@ -1641,10 +1641,10 @@ begin
   end;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
-      update "better_supabase"."jobs" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
+      update "better_supabase"."job_openings" x set "opened_at" = coalesce(x."opened_at", now()), "closed_at" = null where x."id" = v_job."id" returning * into v_job;
       null;
     elsif v_job."status" = 'closed' then
-      update "better_supabase"."jobs" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
+      update "better_supabase"."job_openings" x set "closed_at" = now() where x."id" = v_job."id" returning * into v_job;
       null;
     end if;
   end if;
@@ -1663,7 +1663,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_row "better_supabase"."applications";
   v_type text := coalesce(apply_to_job.candidate ->> 'type', 'person');
   v_id text := apply_to_job.candidate ->> 'id';
@@ -1671,7 +1671,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_job from "better_supabase"."jobs" x where x."id" = apply_to_job.job;
+  select * into v_job from "better_supabase"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
     raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
   end if;
@@ -1960,6 +1960,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('hiring', 1, 'managed')
+values ('hiring', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -83,13 +83,13 @@ describe("remove", () => {
 
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ blocks: ["tenant", "invitations"] }),
+      JSON.stringify({ blocks: ["memberships", "invitations"] }),
     );
 
-    const required = await run(["remove", "tenant", "--cwd", dir]);
+    const required = await run(["remove", "memberships", "--cwd", dir]);
 
     expect(required.code).toBe(2);
-    expect(required.stderr).toContain("tenant is required by invitations");
+    expect(required.stderr).toContain("memberships is required by invitations");
   });
 
   it("names the wiring it can't edit and the config it can't change", async () => {

@@ -229,7 +229,7 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
     model: "provider" | "roles" = "provider",
   ) =>
     moduleBody("ai-chat", {
-      modules: { access: { model } },
+      modules: { permissions: { model } },
       accessProvider: {
         name: "stub",
         scope: "organization",

@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** Whether the module stores points and areas as PostGIS geography (ADR 0066). */
 export const assetsPostgis = (ctx: BlockSqlContext): boolean =>
@@ -45,8 +45,8 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
       : undefined;
 
   const workItems =
-    ctx.installed("work-items") && ctx.of("work-items").manages
-      ? ctx.of("work-items")
+    ctx.installed("tasks") && ctx.of("tasks").manages
+      ? ctx.of("tasks")
       : undefined;
 
   const allowed = (tenant: string, permission: string): string =>
@@ -716,7 +716,7 @@ begin
     linkTargets.length === 0
       ? invalid(
           "ASSETS_LINK_UNSUPPORTED",
-          "install bookings or work-items to link assets",
+          "install bookings or tasks to link assets",
         )
       : `case set_asset_link.target_type
   ${linkTargets.join("\n  ")}

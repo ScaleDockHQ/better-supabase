@@ -64,9 +64,9 @@ describe("documents module", () => {
     ).toThrow(/compactAfter/);
   });
 
-  it("enqueues compaction with the jobs module", () => {
+  it("enqueues compaction with the queue block", () => {
     expect(sqlOf(["documents"], "documents")).not.toContain("enqueue_job");
-    expect(sqlOf(["documents", "jobs"], "documents")).toContain(
+    expect(sqlOf(["documents", "queue"], "documents")).toContain(
       `queue => 'documents.compact'`,
     );
   });

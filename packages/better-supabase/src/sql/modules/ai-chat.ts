@@ -16,7 +16,6 @@ import {
   schemaPreamble,
   lockTable,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
 import {
@@ -24,6 +23,7 @@ import {
   sandboxTable,
   upgradeSandboxes,
 } from "./ai-chat-sandboxes.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const PROJECTS = {
   id: "id",
@@ -1010,7 +1010,7 @@ function contract(): readonly BlockSqlContractFunction[] {
 }
 
 // Version 1 ended runs done, error or stopped; version 2 uses the words
-// ai-tasks and workflow runs use.
+// ai-schedules and workflow runs use.
 function upgradeRunStates(ctx: BlockSqlContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
@@ -1038,8 +1038,8 @@ export const AI_CHAT: BlockSqlDefinition = {
   title: "AI chat",
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
-  requires: ["tenant", "access", "streams"],
-  integrates: ["entitlements", "ai-providers", "approvals", "data-lifecycle"],
+  requires: ["memberships", "permissions", "streams"],
+  integrates: ["entitlements", "ai-keys", "approvals", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

@@ -43,7 +43,7 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: { model: "provider" },
+          permissions: { model: "provider" },
           approvals: {
             options: {
               policies: {

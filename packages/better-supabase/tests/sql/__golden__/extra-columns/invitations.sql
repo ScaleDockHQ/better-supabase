@@ -124,7 +124,7 @@ $$;
 revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;
 
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under blocks.access.model 'catalog'. Returns the invitation
+-- role id or key under blocks.permissions.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb);
@@ -153,7 +153,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: blocks.access.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: blocks.permissions.model ''catalog'' with platform assignments, or blocks.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';

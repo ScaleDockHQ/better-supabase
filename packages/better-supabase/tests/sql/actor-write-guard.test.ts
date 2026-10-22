@@ -85,7 +85,7 @@ describe("actor write guard", () => {
     "teams",
     "tags",
     "share-links",
-    "number-sequences",
+    "numbering",
   ])
     .map((file) => file.contents)
     .join("\n");

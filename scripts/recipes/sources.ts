@@ -600,13 +600,13 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "workflow-canvas",
     title: "Workflow canvas",
-    blocks: ["workflow-builder", "workflows"],
+    blocks: ["workflow-editor", "workflows"],
     kind: "screen",
     description:
       "A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow.",
     hook: {
       name: "useWorkflowCanvasRun",
-      entry: "better-supabase/blocks/workflow-builder/react",
+      entry: "better-supabase/blocks/workflow-editor/react",
     },
     web: {
       file: `${WEB_APP}/src/features/workflows/builder/components/workflow-canvas.tsx`,
@@ -647,7 +647,7 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "support-session-banner",
     title: "Support session banner",
-    blocks: ["support-sessions"],
+    blocks: ["impersonation"],
     kind: "component",
     description:
       "A banner that tells the user a support agent is viewing the app as them, rendered on the server.",
@@ -660,7 +660,7 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "ai-task-queue",
     title: "AI task queue",
-    blocks: ["ai-tasks"],
+    blocks: ["ai-schedules"],
     kind: "component",
     description:
       "A table of scheduled AI prompts with each task's next run and latest run status, plus pause and resume.",
@@ -681,7 +681,7 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "ai-provider-settings",
     title: "AI provider settings",
-    blocks: ["ai-providers"],
+    blocks: ["ai-keys"],
     kind: "component",
     description:
       "A settings card that lists the organization's own AI provider keys and models, adds a key to Vault and removes one.",
@@ -733,7 +733,7 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "feature-flag-toggles",
     title: "Feature flags",
-    blocks: ["flags"],
+    blocks: ["feature-flags"],
     kind: "component",
     description:
       "Which feature flags are on for the active organization, read-only.",
@@ -746,13 +746,13 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "rule-builder",
     title: "Rule builder",
-    blocks: ["rules"],
+    blocks: ["automations"],
     kind: "component",
     description:
       "A condition tree with field, operator and value rows, nested And and Or groups, drag to reorder and a fixed first condition, saved as a versioned rule.",
     hook: {
       name: "useRuleBuilder",
-      entry: "better-supabase/blocks/rules/react",
+      entry: "better-supabase/blocks/automations/react",
     },
     web: {
       file: `${WEB_APP}/src/features/rules/components/rule-builder.tsx`,
@@ -774,7 +774,7 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "can",
     title: "Can",
-    blocks: ["access"],
+    blocks: ["permissions"],
     kind: "component",
     description:
       "Shows an action only to members who hold a permission key; the checks of one render share one round trip.",

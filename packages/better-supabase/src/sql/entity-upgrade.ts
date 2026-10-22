@@ -5,7 +5,10 @@ import type { Qualified } from "./rename-sql.ts";
 import { sqlString } from "../core/template.ts";
 import { entityMarkers } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
-import { isOperationModule, moduleOperations } from "./modules/access-model.ts";
+import {
+  isOperationModule,
+  moduleOperations,
+} from "./modules/permissions-model.ts";
 import {
   ADDED_COLUMN,
   FUNCTION,
@@ -367,7 +370,7 @@ export function entityRenamePlan(
     );
   }
 
-  const access = newContexts.get("access");
+  const access = newContexts.get("permissions");
 
   if (access?.mode !== "custom" && access?.hasTable("permissions")) {
     const table = access.table("permissions");

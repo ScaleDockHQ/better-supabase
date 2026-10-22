@@ -11,9 +11,9 @@ import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
-import type { NumberSequencesEvents } from "better-supabase/blocks/number-sequences";
+import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { PartiesEvents } from "better-supabase/blocks/parties";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
@@ -24,7 +24,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -62,7 +62,7 @@ export const blockConfig = {
       topic: "notifications:{userId}",
     },
   },
-  "number-sequences": {
+  numbering: {
     schema: "better_supabase",
     options: {},
   },
@@ -78,7 +78,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  parties: {
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -102,7 +102,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -136,6 +136,11 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  contacts: {
+    read: "parties.read",
+    write: "parties.write",
+    manage: "parties.manage",
+  },
   enrollments: {
     read: "enrollments.read",
     enroll: "enrollments.enroll",
@@ -164,7 +169,7 @@ export const permissions = {
     send: "notifications.send",
     read: "notifications.read",
   },
-  "number-sequences": {
+  numbering: {
     assign: "number_sequences.assign",
   },
   onboarding: {
@@ -178,11 +183,6 @@ export const permissions = {
     suspendMember: "members.remove",
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
-  },
-  parties: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
   },
   person: {
     read: "parties.read",
@@ -211,11 +211,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & LedgerEvents & EnrollmentsEvents & InvoicesEvents & NotificationsEvents & NumberSequencesEvents & OrganizationsEvents & PartiesEvents & QuotesEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & LedgerEvents & EnrollmentsEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & QuotesEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
