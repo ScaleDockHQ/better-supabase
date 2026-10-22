@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 
 import {
   AlarmClockIcon,
+  ActivityIcon,
   ArchiveIcon,
   ArrowRightFromLineIcon,
   ArrowRightToLineIcon,
@@ -143,6 +144,7 @@ export const BLOCK_ICONS = {
   teams: UsersIcon,
   // Collaboration
   comments: MessageSquareIcon,
+  activity: ActivityIcon,
   messaging: MessageCircleIcon,
   channels: MessageSquareTextIcon,
   attachments: PaperclipIcon,
