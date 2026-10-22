@@ -23,6 +23,7 @@ export type NavId =
   | "drive"
   | "documents"
   | "forms"
+  | "courses"
   | "templates"
   | "imports"
   | "trash"
@@ -152,6 +153,12 @@ export const navItems: readonly NavItem[] = [
     requires: "documents.read",
   },
   { id: "forms", href: "/forms", group: "workspace", requires: "forms.read" },
+  {
+    id: "courses",
+    href: "/courses",
+    group: "workspace",
+    requires: "courses.read",
+  },
   {
     id: "templates",
     href: "/templates",

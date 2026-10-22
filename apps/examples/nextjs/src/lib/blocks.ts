@@ -13,6 +13,7 @@ import { bulkBlock } from "better-supabase/blocks/bulk";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { catalogBlock } from "better-supabase/blocks/catalog";
 import { commentsBlock } from "better-supabase/blocks/comments";
+import { coursesBlock } from "better-supabase/blocks/courses";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock } from "better-supabase/blocks/deals";
@@ -109,6 +110,7 @@ const blockSet = defineBlocks(blockConfig, {
   usage: usageBlock,
   workflows: workflowsBlock,
   enrollments: enrollmentsBlock,
+  courses: coursesBlock,
   onboarding: onboardingBlock,
   settings: settingsBlock.using((options) =>
     createSettings({ ...options, settings }),

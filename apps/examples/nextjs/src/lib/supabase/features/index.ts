@@ -3,6 +3,7 @@
 export { applicationFeature } from "./application/application-feature.ts";
 export { calendarEventFeature } from "./calendar-event/calendar-event-feature.ts";
 export { companyFeature } from "./company/company-feature.ts";
+export { courseFeature } from "./course/course-feature.ts";
 export { customerFeature } from "./customer/customer-feature.ts";
 export { dealFeature } from "./deal/deal-feature.ts";
 export { documentFeature } from "./document/document-feature.ts";

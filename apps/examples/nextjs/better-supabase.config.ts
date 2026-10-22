@@ -273,6 +273,8 @@ export default defineConfig({
     announcements: {},
     // Onboarding checklists run on enrollments (ADR 0077).
     enrollments: {},
+    // Courses behind /courses: each learner's progress is an enrollment.
+    courses: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
     usage: {},

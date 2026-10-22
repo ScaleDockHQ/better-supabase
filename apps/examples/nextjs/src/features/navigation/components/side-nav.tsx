@@ -22,6 +22,7 @@ import {
   FolderKanbanIcon,
   NotebookTextIcon,
   ClipboardListIcon,
+  PresentationIcon,
   LayoutTemplateIcon,
   FileUpIcon,
   Trash2Icon,
@@ -85,6 +86,7 @@ const ICONS = {
   drive: FolderIcon,
   documents: NotebookTextIcon,
   forms: ClipboardListIcon,
+  courses: PresentationIcon,
   templates: LayoutTemplateIcon,
   imports: FileUpIcon,
   trash: Trash2Icon,
@@ -197,6 +199,10 @@ function useNavLabel() {
 
       case "forms": {
         return t("Forms");
+      }
+
+      case "courses": {
+        return t("Courses");
       }
 
       case "templates": {

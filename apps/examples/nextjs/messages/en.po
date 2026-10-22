@@ -82,6 +82,22 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "Your organization's events by month."
 
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.m0TXM9"
+msgid "All courses"
+msgstr "All courses"
+
+#: src/app/[locale]/(app)/courses/page.tsx
+msgctxt "courses.R85gsW"
+msgid "Courses"
+msgstr "Courses"
+
+#: src/app/[locale]/(app)/courses/page.tsx
+msgctxt "courses.VtDU2z"
+msgid "Take the courses your organization publishes."
+msgstr "Take the courses your organization publishes."
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -2454,6 +2470,257 @@ msgstr "No events coming up"
 msgctxt "calendar.SxCBpE"
 msgid "Add an event, then set a reminder for it here."
 msgstr "Add an event, then set a reminder for it here."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.1GGd_a"
+msgid "You're enrolled"
+msgstr "You're enrolled"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.nz3jzj"
+msgid "Enroll"
+msgstr "Enroll"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.oIBOCc"
+msgid "Course completed"
+msgstr "Course completed"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.IzT3_x"
+msgid "Lesson marked done"
+msgstr "Lesson marked done"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.knUjT2"
+msgid "Mark as done"
+msgstr "Mark as done"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.EKtClK"
+msgid "Getting started"
+msgstr "Getting started"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.PwaN2o"
+msgid "Welcome"
+msgstr "Welcome"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.cZLCLy"
+msgid "This lesson shows how a learner moves through a course."
+msgstr "This lesson shows how a learner moves through a course."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.uhBRmg"
+msgid "Next steps"
+msgstr "Next steps"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.p6DmIN"
+msgid "Mark this lesson done to complete the course."
+msgstr "Mark this lesson done to complete the course."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.3WD3Jo"
+msgid "Create a sample course"
+msgstr "Create a sample course"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.zV57h1"
+msgid "The courses didn't load"
+msgstr "The courses didn't load"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BDHWkf"
+msgid "No courses yet"
+msgstr "No courses yet"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.3FgZ2I"
+msgid "Create a sample course to try the learner flow."
+msgstr "Create a sample course to try the learner flow."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.M-Gw6A"
+msgid "An admin publishes courses for your team."
+msgstr "An admin publishes courses for your team."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Back to the dashboard"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.w7tf2z"
+msgid "Published"
+msgstr "Published"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.xisgo1"
+msgid "The course didn't load"
+msgstr "The course didn't load"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.MOK_yK"
+msgid "Reading"
+msgstr "Reading"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.kBJUtE"
+msgid "Video"
+msgstr "Video"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.OuR_Ij"
+msgid "Quiz"
+msgstr "Quiz"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.acrOoz"
+msgid "Continue"
+msgstr "Continue"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.q7sJ6u"
+msgid "No lessons yet"
+msgstr "No lessons yet"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.5WezOu"
+msgid "Lessons show up here once a manager adds them."
+msgstr "Lessons show up here once a manager adds them."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.n7xPkB"
+msgid "{count, plural, one {# lesson} other {# lessons}}"
+msgstr "{count, plural, one {# lesson} other {# lessons}}"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.zqV6aP"
+msgid "Not done"
+msgstr "Not done"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.8jbBlb"
+msgid "{minutes, number} min"
+msgstr "{minutes, number} min"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.InWqys"
+msgid "Optional"
+msgstr "Optional"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.dcRwV1"
+msgid "Your progress"
+msgstr "Your progress"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.TEKO3x"
+msgid "Enroll to track your progress."
+msgstr "Enroll to track your progress."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.EFVK4r"
+msgid "{done, number} of {total, number} lessons done"
+msgstr "{done, number} of {total, number} lessons done"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.FMhPQ6"
+msgid "Certificate"
+msgstr "Certificate"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.rEPdIs"
+msgid "Course outline"
+msgstr "Course outline"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses._nxvFr"
+msgid "The lesson didn't load"
+msgstr "The lesson didn't load"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.duWP55"
+msgid "Last score: {score, number} of {max, number}"
+msgstr "Last score: {score, number} of {max, number}"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.8KXPSX"
+msgid "This quiz has no questions"
+msgstr "This quiz has no questions"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.1A31Gt"
+msgid "A manager publishes the quiz form first."
+msgstr "A manager publishes the quiz form first."
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.UQOBcC"
+msgid "Open the video"
+msgstr "Open the video"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.0IyBwp"
+msgid "{score, number} of {max, number}"
+msgstr "{score, number} of {max, number}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.lC6PSg"
+msgid "Passed: {score}"
+msgstr "Passed: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.GVXFN1"
+msgid "Not passed yet: {score}"
+msgstr "Not passed yet: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.uC6AEf"
+msgid "Pick one"
+msgstr "Pick one"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.LotwiE"
+msgid "Submit answers"
+msgstr "Submit answers"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -5850,6 +6117,11 @@ msgstr "Documents"
 msgctxt "navigation.yGsZm0"
 msgid "Forms"
 msgstr "Forms"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.R85gsW"
+msgid "Courses"
+msgstr "Courses"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.A3ptul"
