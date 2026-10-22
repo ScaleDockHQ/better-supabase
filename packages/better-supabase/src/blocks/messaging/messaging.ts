@@ -31,7 +31,7 @@ import {
 } from "../shared.ts";
 import { editOf, messageOf, num } from "./rows.ts";
 
-export { conversationTopic, editOf, messageOf, reactionsOf } from "./rows.ts";
+export { conversationTopic } from "./rows.ts";
 
 /** What a conversation is for. */
 export type ConversationKind =

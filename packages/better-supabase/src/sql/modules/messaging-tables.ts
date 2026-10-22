@@ -57,7 +57,7 @@ export function conversationReadable(
 }
 
 /** With the inbox: a note shows to the inbox's staff only. */
-export function noteReadable(q: MessagingSql, conversation: string): string {
+function noteReadable(q: MessagingSql, conversation: string): string {
   return q.ctx.installed("inbox")
     ? `\n  and (${q.cols("messages")("kind")} = 'message' or ${q.ctx.of("inbox").fn("inbox_note_readable")}(${conversation}))`
     : "";
