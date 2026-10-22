@@ -1,4 +1,4 @@
-# 00XX: Ship through a versioned ShipmentCarrier and ingest tracking by webhook
+# 0082: Ship through a versioned ShipmentCarrier and ingest tracking by webhook
 
 - Status: accepted
 - Date: 2026-10-22

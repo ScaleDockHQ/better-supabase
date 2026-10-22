@@ -191,6 +191,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
 - 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
 - 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.
+- 0082: shipments go through a versioned `ShipmentCarrier`; tracking arrives by a signed, idempotent webhook ingest.
 
 ## Pre-release pins
 

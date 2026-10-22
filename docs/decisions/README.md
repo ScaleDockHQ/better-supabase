@@ -80,3 +80,4 @@ add one, and link it from the code or config it explains.
 | [0076](0076-moderation-items-for-any-subject.md)          | One moderation item per subject with reports, decisions and bans; reviews and comments moderate through it                                |
 | [0077](0077-enrollments-and-onboarding.md)                | Enrollments of any subject in programs of steps; onboarding checklists run on them (breaking)                                             |
 | [0080](0080-recurring-charges-on-the-ledger.md)           | Balances live only on the ledger; rent and pledge installments post once per period, keyed by owner and period start                      |
+| [0082](0082-shipment-carriers.md)                         | Shipments go through a versioned ShipmentCarrier; tracking arrives by a signed webhook and the latest event sets the status               |
