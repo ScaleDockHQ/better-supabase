@@ -69,3 +69,4 @@ add one, and link it from the code or config it explains.
 | [0061](0061-generated-block-helpers.md)                   | gen writes typed block helpers; zod, valibot, nuqs, TanStack Query and oRPC stay optional peers                                |
 | [0062](0062-messaging-core-and-breaking-moves.md)         | One messaging core; channels first, then comments and the inbox move onto it (breaking)                                        |
 | [0063](0063-activity-block.md)                            | The activity feed moves out of comments into its own `activity` block                                                          |
+| [0068](0068-calendar-availability-in-sql.md)              | Calendar free/busy runs in SQL; appointment schedules are bookings resources with a host                                       |

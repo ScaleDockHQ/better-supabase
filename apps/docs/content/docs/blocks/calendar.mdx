@@ -21,15 +21,17 @@ import { createCalendar } from "better-supabase/blocks/calendar";
 
 The module requires `tenant` and `access`. With `share-links` it serves an
 iCal feed, with `reminders` each event gets a recurrence rule that reminders
-can attach to, and with `outbox` its events are recorded.
+can attach to, with `leave` approved leave counts as out of office, and with
+`outbox` its events are recorded.
 
 ## Tables
 
-| Table                | Holds                                                                                                                        |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `calendars`          | A named calendar in an organization, with an IANA `tz` and an optional owner subject (`owner_type`, `owner_id`)              |
-| `calendar_events`    | `starts_at`, `ends_at` (exclusive), `all_day`, `tz`, `status`, `rrule`, `exdates`, an optional subject, and override columns |
-| `calendar_attendees` | An email per event, with an optional user id, a `role` and a `response`                                                      |
+| Table                    | Holds                                                                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `calendars`              | A named calendar in an organization, with an IANA `tz` and an optional owner subject (`owner_type`, `owner_id`)              |
+| `calendar_events`        | `starts_at`, `ends_at` (exclusive), `all_day`, `tz`, `status`, `rrule`, `exdates`, an optional subject, and override columns |
+| `calendar_attendees`     | An email per event, with an optional user id, a `role` and a `response`                                                      |
+| `calendar_working_hours` | A member's weekly hours in an organization: a `weekday` with a `starts_at` and `ends_at` time in their `tz`                  |
 
 An override has `recurrence_id` (the series row) and `original_start` (the
 occurrence it replaces) and shares the series' `uid`, as `RECURRENCE-ID` does
@@ -87,6 +89,90 @@ count and a new uid. EXDATEs and overrides after the split move to the new
 series. `splitRule(rrule, dtstart, at)` computes both rules if you need them
 yourself.
 
+## Availability
+
+Each member can set weekly working hours, mark time as out of office or focus
+time, and anyone in the organization with `calendar.read` can ask when a set of
+members is busy. Postgres computes the answer, so a series' recurrence, an
+override and an approved leave request all count without the client loading
+every event.
+
+```ts
+import { commonFreeTime } from "better-supabase/blocks/calendar";
+
+await calendar
+  .setWorkingHours(organizationId, {
+    tz: "Europe/Amsterdam",
+    hours: [
+      { weekday: 1, start: "09:00", end: "17:00" },
+      { weekday: 3, start: "13:00", end: "17:00" },
+    ],
+  })
+  .orThrow();
+
+await calendar
+  .save(calendarId, {
+    title: "Deep work",
+    kind: "focus_time",
+    autoDecline: true,
+    startsAt: Temporal.Instant.from("2030-03-06T08:00:00Z"),
+    endsAt: Temporal.Instant.from("2030-03-06T10:00:00Z"),
+  })
+  .orThrow();
+
+const day = {
+  from: Temporal.Instant.from("2030-03-06T00:00:00Z"),
+  until: Temporal.Instant.from("2030-03-07T00:00:00Z"),
+};
+const freeBusy = await calendar
+  .freeBusy(organizationId, [ada, bob], day)
+  .orThrow();
+const free = commonFreeTime(freeBusy, day, {
+  minimum: Temporal.Duration.from({ minutes: 30 }),
+});
+```
+
+An event's `kind` is `event`, `out_of_office` or `focus_time`, and its
+`transparency` is `opaque` or `transparent` (the iCalendar `TRANSP` property,
+which `importIcs` and `exportIcs` map). A member is busy during:
+
+- events on calendars they own (`owner_type` `user`), except transparent and
+  cancelled ones;
+- events they are invited to and haven't declined;
+- approved leave, when the [leave block](/docs/blocks/leave) is installed: a
+  full day, or the morning or afternoon half, in their working-hours zone.
+
+`freeBusy` returns, per member, the merged `busy` ranges, the
+`outOfOffice` and `focusTime` ranges on their own, and their `workingHours`
+for the range when they set some. Ranges are clipped to the range you ask
+for; one call covers at most 62 days and 100 members. `commonFreeTime` is a
+pure function over that answer: it removes everyone's busy time and keeps the
+time inside everyone's working hours (pass `workingHours: false` to skip that).
+
+Recurring events expand in SQL with `calendar_rule_starts`, a PL/pgSQL port of
+`expandRule`; an integration test runs both over the same rules, including
+daylight saving changes, and expects the same instants.
+
+### Auto-decline
+
+An out-of-office block always declines new invitations that it covers. A
+focus time block declines them when `autoDecline` is set. The decline happens
+when the invitation is written, and when a block is saved it declines the
+open invitations it already covers. Approved leave counts as out of office.
+A recurring block, and an invitation to a recurring event, is never declined
+automatically; the member answers those.
+
+| Method                                     | Does                                                                    |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| `setWorkingHours(organizationId, input)`   | Replaces a member's hours; managers pass `userId` to set someone else's |
+| `workingHours(organizationId, userIds?)`   | The hours of the members that set them                                  |
+| `freeBusy(organizationId, userIds, range)` | Busy, out-of-office, focus and working-hours ranges per member          |
+
+To offer an appointment schedule (a link where others book time with a
+member), use the [bookings block](/docs/blocks/bookings#appointment-schedules)
+with the member as a resource's host: its slots then skip the times this
+section reports as busy.
+
 ## iCalendar
 
 `importIcs` parses an RFC 5545 file and upserts its events by `UID`, and
@@ -105,7 +191,7 @@ const ics = await calendar
 
 The parser and writer are in the package (`parseIcs`, `toIcs`): they unfold
 and fold lines at 75 octets, escape `TEXT`, and read `TZID`, UTC, floating and
-all-day times, `DURATION`, `EXDATE`, `STATUS` and `ATTENDEE`. `VALARM` and
+all-day times, `DURATION`, `EXDATE`, `STATUS`, `TRANSP` and `ATTENDEE`. `VALARM` and
 `VTODO` are skipped.
 
 ## iCal feed
@@ -262,16 +348,18 @@ after it. See [block hooks](/docs/extending/blocks#hooks).
 
 ## Errors
 
-| Hint                          | When                                                                                           |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `CALENDAR_FORBIDDEN`          | The caller lacks `calendar.write` or `calendar.manage`                                         |
-| `CALENDAR_NOT_FOUND`          | The calendar does not exist                                                                    |
-| `CALENDAR_EVENT_NOT_FOUND`    | The event does not exist in that calendar                                                      |
-| `CALENDAR_EVENT_INVALID`      | A missing start or end, an end before the start, a bad status, or an override without a series |
-| `CALENDAR_TZ_INVALID`         | `tz` is not an IANA time zone                                                                  |
-| `CALENDAR_SPLIT_INVALID`      | The split is at or before the series' first occurrence                                         |
-| `CALENDAR_ATTENDEE_NOT_FOUND` | The caller is not invited to the event                                                         |
-| `CALENDAR_RESPONSE_INVALID`   | The response is not one of the four values                                                     |
+| Hint                          | When                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `CALENDAR_FORBIDDEN`          | The caller lacks `calendar.write` or `calendar.manage`                                           |
+| `CALENDAR_NOT_FOUND`          | The calendar does not exist                                                                      |
+| `CALENDAR_EVENT_NOT_FOUND`    | The event does not exist in that calendar                                                        |
+| `CALENDAR_EVENT_INVALID`      | A missing start or end, an end before the start, a bad status, or an override without a series   |
+| `CALENDAR_TZ_INVALID`         | `tz` is not an IANA time zone                                                                    |
+| `CALENDAR_HOURS_INVALID`      | Working hours that aren't `{ weekday 1-7, start HH:MM, end HH:MM }` with the end after the start |
+| `CALENDAR_RANGE_INVALID`      | A free/busy range longer than 62 days, or no members or more than 100                            |
+| `CALENDAR_SPLIT_INVALID`      | The split is at or before the series' first occurrence                                           |
+| `CALENDAR_ATTENDEE_NOT_FOUND` | The caller is not invited to the event                                                           |
+| `CALENDAR_RESPONSE_INVALID`   | The response is not one of the four values                                                       |
 
 ## With ReUI
 
