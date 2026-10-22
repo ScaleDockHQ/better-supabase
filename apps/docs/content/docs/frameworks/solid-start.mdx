@@ -43,7 +43,7 @@ import { bsb } from "./server";
 export const getNotes = query(async () => {
   "use server";
   const { db } = await bsb.require();
-  return db.notes.findMany({ select: ["id", "title"] }).orThrow();
+  return db.notes.list({ select: ["id", "title"] }).orThrow();
 }, "notes");
 ```
 

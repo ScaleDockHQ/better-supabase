@@ -67,13 +67,13 @@ const ref = tenantCredentialRef(organizationId, {
 });
 await credentials.set(ref, apiKey).orThrow();
 await providers.keys
-  .save(organizationId, { provider: "anthropic", credentialRef: ref })
+  .upsert(organizationId, { provider: "anthropic", credentialRef: ref })
   .orThrow();
 ```
 
 The ref must carry the key's tenant
 ([tenant refs](/docs/extending/credentials#tenant-refs)); any other ref fails
-with `CREDENTIAL_REF_FOREIGN`. `save` replaces the key with the same provider and name, and revokes the
+with `CREDENTIAL_REF_FOREIGN`. `upsert` replaces the key with the same provider and name, and revokes the
 credential the old row named. `remove(keyId)` revokes the credential and
 deletes the row. `resolve(organizationId)` reads the enabled keys with their
 tokens for one request, through the service role; pass the result to

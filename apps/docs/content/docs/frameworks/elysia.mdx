@@ -19,7 +19,7 @@ const bridge = toElysia([withBetterSupabase(bsb, { allow: ["user"] })]);
 
 const app = new Elysia()
   .derive(({ request }) => bridge.context(request))
-  .get("/notes", ({ db }) => db.notes.findMany().orThrow());
+  .get("/notes", ({ db }) => db.notes.list().orThrow());
 
 export default { fetch: bridge.wrap((request) => app.handle(request)) };
 ```
@@ -41,7 +41,7 @@ import { guard, problemOnError } from "better-supabase/elysia";
 const app = new Elysia()
   .onError(problemOnError())
   .derive(({ request }) => bridge.context(request))
-  .get("/reports", ({ db }) => db.reports.findMany().orThrow(), {
+  .get("/reports", ({ db }) => db.reports.list().orThrow(), {
     beforeHandle: guard(bridge, { permission: "reports:read", authorizer }),
   });
 ```

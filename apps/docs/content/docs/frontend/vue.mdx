@@ -43,7 +43,7 @@ import { useAuth, useQueries } from "../lib/composables";
 
 const auth = useAuth();
 const q = useQueries();
-const { data } = useQuery(q.customers.findMany({ select: ["id", "name"] }));
+const { data } = useQuery(q.customers.list({ select: ["id", "name"] }));
 </script>
 
 <template>
@@ -79,7 +79,7 @@ const props = defineProps<{ orgId: string | null }>();
 
 useLiveQuery(() =>
   props.orgId
-    ? betterSupabase.spec.customers.findMany({ where: { orgId: props.orgId } })
+    ? betterSupabase.spec.customers.list({ where: { orgId: props.orgId } })
     : null,
 );
 const unread = useLiveCount(() =>

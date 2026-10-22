@@ -60,7 +60,7 @@ Each call takes the record as a subject, `document` being `{ type: "document", i
 | The user             | Call                                              | Event                | Watchers get                    |
 | -------------------- | ------------------------------------------------- | -------------------- | ------------------------------- |
 | Shares a document    | `shareLinks.create(document, "viewer")`           | `share_link.created` | `subject.shared`                |
-| Labels it            | `tags.tag(document, tagId)`                       | `subject.tagged`     | `subject.tagged`                |
+| Labels it            | `tags.attach(document, tagId)`                    | `subject.tagged`     | `subject.tagged`                |
 | Comments             | `comments.create(document, { body })`             | `message.sent`       | `comment.posted`, from comments |
 | Moves it to a folder | `rank.move("document", id, { group: "archive" })` | none                 |                                 |
 | Opens a share link   | the share-links view route                        | `subject.viewed`     | map it if you want              |

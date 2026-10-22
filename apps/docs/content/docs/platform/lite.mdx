@@ -126,7 +126,7 @@ afterAll(() => stack.close());
 
 it("reads notes as a user", async () => {
   const bsb = await stack.asUser(betterSupabase, { sub: crypto.randomUUID() });
-  const notes = await bsb.notes.findMany();
+  const notes = await bsb.notes.list();
   expect(notes.ok).toBe(true);
 });
 

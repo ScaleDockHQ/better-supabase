@@ -38,7 +38,7 @@ const sequences = createSequences({
 });
 
 const welcome = await sequences
-  .save({
+  .upsert({
     key: "welcome",
     name: "Welcome series",
     status: "active",
@@ -61,11 +61,11 @@ const welcome = await sequences
   .orThrow();
 ```
 
-`save` creates a sequence, or with `id` changes the keys you pass. A sequence
+`upsert` creates a sequence, or with `id` changes the keys you pass. A sequence
 starts as `draft`; only an `active` one takes enrollments, `paused` holds
 every run where it is, and `archived` ends the runs as `archived`. Changing
 the steps raises `version`, and recipients past the old end run the new
-steps on their next turn. `sequenceInputSchema` validates what `save` takes.
+steps on their next turn. `sequenceInputSchema` validates what `upsert` takes.
 
 | Step    | What it does                                                                                                          |
 | ------- | --------------------------------------------------------------------------------------------------------------------- |

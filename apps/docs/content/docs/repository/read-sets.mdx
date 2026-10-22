@@ -17,10 +17,7 @@ per entry:
 ```ts
 const [customers, notes] = await db
   .$many([
-    betterSupabase.spec.customers.findMany({
-      select: ["id", "name"],
-      limit: 10,
-    }),
+    betterSupabase.spec.customers.list({ select: ["id", "name"], limit: 10 }),
     betterSupabase.spec.notes.count(),
   ])
   .orThrow();
@@ -48,9 +45,10 @@ export const workspaceSummary = defineReadSet(
   (s, _p, auth) => ({
     customers: s.customers.count(),
     mine: s.customers.count({ where: { createdBy: auth.uid } }),
-    latestNote: s.notes.findFirst({
+    latestNote: s.notes.list({
       select: ["body", "createdAt"],
       orderBy: { createdAt: "desc" },
+      limit: 1,
     }),
   }),
 );
@@ -88,7 +86,7 @@ Then run it:
 
 ```ts
 const summary = await db.$many(workspaceSummary, {}).orThrow();
-// { customers: number; mine: number; latestNote: { body: string; createdAt: string } | null }
+// { customers: number; mine: number; latestNote: { body: string; createdAt: string }[] }
 ```
 
 | Executor                   | What runs                                                                            |
@@ -153,8 +151,8 @@ query plugins and the set reads a table with a tenant or soft-delete flag.
 
 ### Limits
 
-- Each entry is one select: `findMany`, `findFirst`, `findUnique`,
-  `findById`, `count`, `exists`, `aggregate` or an offset `paginate`.
+- Each entry is one select: `list`, `get`, `count`, `aggregate` or an offset
+  `page`.
 - A set has between 1 and 50 entries.
 - Names are snake*case, at most 60 characters. The function is
   `public.rs*<name>`.

@@ -79,7 +79,7 @@ from two production apps on better-supabase:
 
 - **CRM customers service**: the customer list, which has status,
   tag, assignee and nested contact search filters plus four includes, becomes
-  one `paginate` call that sends a single request. It is generated from and
+  one `page` call that sends a single request. It is generated from and
   typechecked against a 263-table schema.
 - **CRM latency ports**, each asserting its request budget with
   `db.$stats()`:

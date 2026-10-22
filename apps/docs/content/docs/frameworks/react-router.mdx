@@ -43,7 +43,7 @@ Loaders and actions read the contributions from `context`:
 import { supabase } from "../lib/supabase/middleware.server";
 
 export async function loader({ context }: Route.LoaderArgs) {
-  return context.get(supabase).db.notes.findMany().orThrow();
+  return context.get(supabase).db.notes.list().orThrow();
 }
 ```
 

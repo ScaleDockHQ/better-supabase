@@ -60,7 +60,7 @@ import { createSegments, rpcTransport } from "better-supabase/blocks/segments";
 const segments = createSegments({ transport: rpcTransport(supabase) });
 
 const saas = await segments
-  .save(organizationId, {
+  .upsert(organizationId, {
     subjectType: "company",
     name: "SaaS customers",
     conditions: {
@@ -93,11 +93,11 @@ const { entered, left, memberCount } = await segments
   .orThrow();
 ```
 
-`save` checks the tree against the rule fields and refuses an unknown field
+`upsert` checks the tree against the rule fields and refuses an unknown field
 or operator with `RULE_FIELD_UNKNOWN` or `RULE_OPERATOR_INVALID`. Pass `id`
 to change a segment; a change to its conditions clears `refreshedAt`, so
 the next scheduled refresh picks it up. A segment's subject type can't
-change. `segmentInputSchema` validates what `save` takes.
+change. `segmentInputSchema` validates what `upsert` takes.
 
 `members(segmentId, { after, limit })` pages through the members, the
 newest first, `of({ type, id })` lists the segments a record is in, and

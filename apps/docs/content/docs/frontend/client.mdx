@@ -15,7 +15,7 @@ export const bsb = createClient(betterSupabase, {
 });
 
 const customers = await bsb.db.customers
-  .findMany({ select: ["id", "name"] })
+  .list({ select: ["id", "name"] })
   .orThrow();
 ```
 

@@ -69,9 +69,9 @@ The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subjec
 const db = defineSupabase(schema).connect(supabase);
 
 await db.customers.delete(id); // sets deleted_at
-await db.customers.findById(id); // not_found
-await db.customers.findMany({ withDeleted: true });
-await db.customers.findMany({ onlyDeleted: true });
+await db.customers.get(id); // not_found
+await db.customers.list({ withDeleted: true });
+await db.customers.list({ onlyDeleted: true });
 await db.customers.restore(id); // clears deleted_at
 await db.customers.delete(id, { hard: true }); // really deletes
 ```
@@ -86,7 +86,7 @@ The extension and the block share the column and not the bin: a repository `dele
 
 - Reads, counts, `exists` and pagination on the table.
 - Updates: an update never touches a trashed row, so `update` returns `not_found`.
-- Includes: `organizations.findMany({ include: { customers: true } })` leaves out trashed customers.
+- Includes: `organizations.list({ include: { customers: true } })` leaves out trashed customers.
 - Relation filters: `{ customers: { some: {...} } }` only considers live rows. `every` is rewritten so trashed rows neither satisfy nor fail it.
 
 `withDeleted` and `onlyDeleted` change the queried table only; nested includes stay filtered.

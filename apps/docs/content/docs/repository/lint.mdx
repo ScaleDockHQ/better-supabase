@@ -21,8 +21,8 @@ export default [betterSupabase.configs.recommended];
 {
   "jsPlugins": ["better-supabase/lint"],
   "rules": {
-    "better-supabase/no-delete-many-without-where": "error",
-    "better-supabase/no-unbounded-find-many": "warn",
+    "better-supabase/no-empty-where": "error",
+    "better-supabase/no-unbounded-list": "warn",
     "better-supabase/max-limit": ["warn", { "max": 500 }],
     "better-supabase/require-order-by": "warn",
     "better-supabase/unbounded-read": ["warn", { "tables": ["public.events"] }]
@@ -32,28 +32,30 @@ export default [betterSupabase.configs.recommended];
 
 ## Rules
 
-### no-unbounded-find-many
+### no-unbounded-list
 
-`findMany()` or `findMany({ ... })` without `limit`. Recommended: `warn`.
+`list()` or `list({ ... })` without `limit`. Recommended: `warn`.
 
-### no-delete-many-without-where
+### no-empty-where
 
-`deleteMany()` without `where`. The repository refuses this at runtime too;
-the rule catches it before it ships. Recommended: `error`.
+`update({ where: {} }, patch)` or `delete({ where: {} })`, a filter that
+matches every row. The repository refuses this at runtime too, unless the call
+passes `allowAll: true`; the rule catches it before it ships. Recommended:
+`error`.
 
 ### max-limit
 
-A literal `limit` above `max` (default 1000) in `findMany`, `findFirst` or
-`paginate`. Recommended: `warn`.
+A literal `limit` above `max` (default 1000) in `list` or `page`.
+Recommended: `warn`.
 
 ### require-order-by
 
-`findMany` with `offset` but no `orderBy`, which returns pages in no stable
+`list` with `offset` but no `orderBy`, which returns pages in no stable
 order. Recommended: `warn`.
 
 ### require-max-affected
 
-`updateMany` or `deleteMany` without
+`update({ where }, patch)` or `delete({ where })` without
 [`maxAffected`](/docs/repository/writing#limiting-bulk-writes), or with a
 literal `maxAffected` above `max` (default 1000). Not in `recommended`; turn
 it on where a bulk write that matches too many rows would hurt:
@@ -69,7 +71,7 @@ export default [
 
 ### unbounded-read
 
-`db.<table>.findMany` without `limit` on a large table. PostgREST cuts such a
+`db.<table>.list` without `limit` on a large table. PostgREST cuts such a
 read off at `db-max-rows` without an error (see
 [row caps](/docs/repository/pagination#row-caps)). Recommended: `warn`, but
 it only reports once it knows which tables are large:
@@ -78,7 +80,7 @@ it only reports once it knows which tables are large:
   `supabase/snapshot.json`, where `gen` marks every table Postgres estimates
   at 10,000 rows or more. Re-run `gen` against a database with realistic
   data (or production) to update the marks.
-- `strict: true`: report on every table, like `no-unbounded-find-many`.
+- `strict: true`: report on every table, like `no-unbounded-list`.
 
 ```js title="eslint.config.js"
 import betterSupabase, { largeTables } from "better-supabase/lint";

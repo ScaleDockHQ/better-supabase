@@ -37,7 +37,7 @@ route handlers and actions read the verified token:
 ```ts
 const { db } = await bsb.context();
 export const GET = bsb.route(
-  (request, { db }) => db.customers.findMany({ limit: 20 }),
+  (request, { db }) => db.customers.list({ limit: 20 }),
   { scopes: ["customers:read"] }, // only limits OAuth clients and agents
 );
 ```
@@ -77,7 +77,7 @@ const authed = os.$context<OrpcRequestContext>().use(bsb.middleware());
 
 export const router = {
   customers: authed.handler(({ context }) =>
-    bsb.unwrap(context.db.customers.findMany({ limit: 20 })),
+    bsb.unwrap(context.db.customers.list({ limit: 20 })),
   ),
 };
 ```
@@ -93,7 +93,7 @@ const os = implement(contract)
 const router = os.router({
   customers: {
     get: os.customers.get.handler(({ context, input }) =>
-      bsb.unwrap(context.db.customers.findById(input.id)),
+      bsb.unwrap(context.db.customers.get(input.id)),
     ),
   },
 });
@@ -193,7 +193,7 @@ app.use(
   ]),
 );
 app.get("/admin/members", guard({ roles: ["admin"] }), async (req, res) => {
-  res.json(await res.locals.db.members.findMany().orThrow());
+  res.json(await res.locals.db.members.list().orThrow());
 });
 app.use(problemErrorHandler());
 ```
@@ -228,7 +228,7 @@ export class NotesController {
   @Get()
   @UseGuards(guard({ roles: ["admin"] }))
   list(@Ctx("db") db: Db) {
-    return db.notes.findMany({ select: ["id", "title"] }).orThrow();
+    return db.notes.list({ select: ["id", "title"] }).orThrow();
   }
 }
 ```

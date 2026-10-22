@@ -18,7 +18,7 @@ export const bsb = createExpo(betterSupabase);
 
 ```tsx title="src/app/customers/index.tsx"
 export const loader = bsb.loader(
-  ({ db }) => db.customers.findMany({ select: ["id", "name"] }).orThrow(),
+  ({ db }) => db.customers.list({ select: ["id", "name"] }).orThrow(),
   { allow: ["user"] },
 );
 ```
@@ -32,7 +32,7 @@ export default bsb.middleware();
 - Only `+middleware.ts` refreshes the session; loaders never do.
 - `bsb.loader` returns an `expo-server` `LoaderFunction`. Inside an existing `createServerLoader(async (request, params) => ...)`, call `const { db } = await bsb.request(request, { allow })`. Static rendering has no request: use `createStaticLoader` from `expo-server` for public data there.
 - Loader data is JSON: select the columns the screen needs and turn Temporal values into strings.
-- API routes: `export const GET = bsb.handler((request, { db }) => db.customers.findMany())` in `+api.ts`.
+- API routes: `export const GET = bsb.handler((request, { db }) => db.customers.list())` in `+api.ts`.
 
 ## Device: `better-supabase/client/native`
 

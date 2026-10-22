@@ -18,7 +18,7 @@ import { createGoals } from "better-supabase/blocks/goals";
 
 const targets = createGoals({ transport });
 await targets
-  .save(organizationId, {
+  .upsert(organizationId, {
     name: "Q4 quota",
     metric: "deals.won_amount",
     ownerId: repId,
@@ -59,7 +59,7 @@ const running = await targets
 
 Add columns to the target table with `blocks.goals.options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
-`save` validates and writes them, and `save` and `progress` return them parsed under
+`upsert` validates and writes them, and `upsert` and `progress` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 

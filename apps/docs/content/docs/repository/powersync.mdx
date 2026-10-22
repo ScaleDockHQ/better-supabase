@@ -17,7 +17,7 @@ export const powersync = new PowerSyncDatabase({
 export const local = betterSupabase.connect(powersyncExecutor(powersync));
 
 const customers = await local.customers
-  .findMany({ where: { status: "active" }, orderBy: { name: "asc" } })
+  .list({ where: { status: "active" }, orderBy: { name: "asc" } })
   .orThrow();
 ```
 
@@ -59,7 +59,7 @@ expect(await checkSqlite(betterSupabase, customerList)).toEqual({
   data: undefined,
 });
 
-const detail = betterSupabase.spec.customers.findMany({
+const detail = betterSupabase.spec.customers.list({
   include: {
     notes: { orderBy: { createdAt: "desc" }, limit: 5 },
     _count: { notes: true },
@@ -201,7 +201,7 @@ until the first result for them; `enabled: false` pauses it.
 changes. `useConflicts` is described in
 [Offline-first](/docs/guides/offline-first#conflicts).
 
-A read with a count (`paginate` with `count: "exact"`, a list query's total)
+A read with a count (`page` with `count: "exact"`, a list query's total)
 runs the rows and the count in one `readTransaction`, so the two agree while
 PowerSync syncs.
 

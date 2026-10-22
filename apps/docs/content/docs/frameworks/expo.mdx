@@ -57,7 +57,7 @@ import { useLoaderData } from "expo-router";
 import { bsb } from "../../lib/supabase/server";
 
 export const loader = bsb.loader(
-  ({ db }) => db.customers.findMany({ select: ["id", "name"] }).orThrow(),
+  ({ db }) => db.customers.list({ select: ["id", "name"] }).orThrow(),
   { allow: ["user"] },
 );
 
@@ -93,7 +93,7 @@ import { bsb } from "../../lib/supabase/server";
 export const loader = createServerLoader(async (request, params) => {
   const { db } = await bsb.request(request, { allow: ["user"] });
   const customer = await db.customers
-    .findById(String(params.id), { select: ["id", "name"] })
+    .get(String(params.id), { select: ["id", "name"] })
     .orThrow();
   return { customer, country: request.headers.get("cf-ipcountry") };
 });
@@ -140,7 +140,7 @@ so it can't run as a caller; read only data that every visitor may see.
 import { bsb } from "../../lib/supabase/server";
 
 export const GET = bsb.handler((_request, { db }) =>
-  db.customers.findMany({ select: ["id", "name"] }),
+  db.customers.list({ select: ["id", "name"] }),
 );
 ```
 
@@ -154,7 +154,7 @@ import { withBetterSupabase } from "better-supabase/server";
 import { bsb } from "../../lib/supabase/server";
 
 export const GET = toExpo([withBetterSupabase(bsb)], async (_request, ctx) =>
-  Response.json(await ctx.db.notes.findMany().orThrow()),
+  Response.json(await ctx.db.notes.list().orThrow()),
 );
 ```
 

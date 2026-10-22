@@ -32,7 +32,7 @@ installed and how it relates to the `supabase` CLI.
   `supabase gen types` and adds what it leaves out: relationship cardinality,
   unique keys, CHECK-constraint unions, typed jsonb, column maps for
   `camelCase` apps and per-table flags.
-- **A typed repository.** `db.customers.findMany({ where, include, orderBy })`
+- **A typed repository.** `db.customers.list({ where, include, orderBy })`
   compiles to a single PostgREST request, or to SQL on the direct-Postgres
   path. Every call returns a `Result`; `.orThrow()` is opt-in.
 - **Auth glue that avoids network calls.** Valid access tokens never touch the

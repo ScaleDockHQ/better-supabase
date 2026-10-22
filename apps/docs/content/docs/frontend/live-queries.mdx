@@ -51,7 +51,7 @@ realtime: { tables: ["notifications"], users: { notifications: "user_id" } },
 ## React
 
 ```tsx
-const spec = betterSupabase.spec.customers.findMany({
+const spec = betterSupabase.spec.customers.list({
   include: { notes: true },
   limit: 50,
 });

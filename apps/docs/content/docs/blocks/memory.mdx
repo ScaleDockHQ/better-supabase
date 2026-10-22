@@ -58,7 +58,7 @@ export const memoryFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
 | Group       | Methods                                                             |
 | ----------- | ------------------------------------------------------------------- |
 | `core`      | `view`, `write`, `strReplace`, `insert`, `remove`, `rename`, `list` |
-| `archival`  | `save`, `search`, `list`, `forget`                                  |
+| `archival`  | `upsert`, `search`, `list`, `forget`                                |
 | `recall`    | `index`, `search`                                                   |
 | (top level) | `run`, `render`, `saveExtracted`, `embedPending`                    |
 
@@ -90,7 +90,7 @@ text for the system prompt, cut at `maxRender` characters (8,000).
 
 ```ts
 await memory.archival
-  .save(organizationId, "Works in the Lisbon office")
+  .upsert(organizationId, "Works in the Lisbon office")
   .orThrow();
 const hits = await memory.archival
   .search(organizationId, "where do they work")

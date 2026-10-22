@@ -18,7 +18,7 @@ const open = base.use(bsb.middleware({ allow: ["user", "anon"] }));
 export const router = {
   customers: {
     list: authed.handler(({ context }) =>
-      bsb.unwrap(context.db.customers.findMany({ select: ["id", "name"] })),
+      bsb.unwrap(context.db.customers.list({ select: ["id", "name"] })),
     ),
     rename: authed
       .input(
@@ -161,7 +161,7 @@ const router = os.router({
   customers: {
     get: os.customers.get.handler(({ context, input }) =>
       bsb.unwrap(
-        context.db.customers.findById(input.id, { select: ["id", "name"] }),
+        context.db.customers.get(input.id, { select: ["id", "name"] }),
       ),
     ),
   },
@@ -267,7 +267,7 @@ export const rename = bsb
       resource: async (input, { db }) => {
         const { id } = v.parse(v.object({ id: v.string() }), input);
         const row = await db.customers
-          .findById(id, { select: ["id", "ownerId"] })
+          .get(id, { select: ["id", "ownerId"] })
           .orThrow();
 
         return { type: "customer", id, properties: { ownerId: row.ownerId } };
@@ -301,7 +301,7 @@ const os = implement(contract)
 const router = os.router({
   customers: {
     get: os.customers.get.handler(({ context, input }) =>
-      bsb.unwrap(context.db.customers.findById(input.id)),
+      bsb.unwrap(context.db.customers.get(input.id)),
     ),
     remove: os.customers.remove
       .use(

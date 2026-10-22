@@ -177,7 +177,7 @@ suggestion stay in `details`, which Problem Details responses never send to
 the client. The `hint` points at `expose` without naming the table:
 
 ```ts
-const { error } = await db.pricingPlans.findMany();
+const { error } = await db.pricingPlans.list();
 // error.kind === 'forbidden'
 // error.message === 'permission denied'
 // error.details === 'permission denied for table pricing_plans\nGrant the required privileges ...'

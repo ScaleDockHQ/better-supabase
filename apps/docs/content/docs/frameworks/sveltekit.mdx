@@ -24,7 +24,7 @@ Loads, actions and endpoints read the caller's repositories from `locals`:
 
 ```ts title="src/routes/notes/+page.server.ts"
 export const load = async ({ locals }) => ({
-  notes: await locals.db.notes.findMany({ select: ["id", "title"] }).orThrow(),
+  notes: await locals.db.notes.list({ select: ["id", "title"] }).orThrow(),
 });
 ```
 

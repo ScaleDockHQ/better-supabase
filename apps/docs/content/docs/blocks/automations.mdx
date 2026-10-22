@@ -38,7 +38,7 @@ await createAutomationsAdmin({ transport: serviceTransport })
 
 A field's `columnType` decides how dates compare: `timestamptz` (the default) compares instants in the evaluation's time zone, and `date` compares days. `nullable: false` tells the evaluator a value is always there; on a nullable field, "is not" and the other negative operators also match a record without a value, except "is not empty". `operators` narrows the type's operators, and `options` lists the values a select offers.
 
-`ruleFilterFields(fields)` returns the `fields` prop of ReUI's Filters, and `checkRuleConditions(tree, fields)` returns the problems `save` would report, so an editor can show them before it saves.
+`ruleFilterFields(fields)` returns the `fields` prop of ReUI's Filters, and `checkRuleConditions(tree, fields)` returns the problems `upsert` would report, so an editor can show them before it saves.
 
 ## Rules
 
@@ -48,7 +48,7 @@ import { createAutomations } from "better-supabase/blocks/automations";
 const rules = createAutomations({ transport });
 
 const rule = await rules
-  .save(organizationId, {
+  .upsert(organizationId, {
     subjectType: "expense",
     trigger: "expense.submitted",
     name: "Large travel expenses",
@@ -82,7 +82,7 @@ const rule = await rules
 await rules.setEnabled(rule.id, true).orThrow();
 ```
 
-`save` creates a rule, or changes the one with `id`. Keys you leave out keep their value, and the subject type can't change. Pass the `version` the editor read and a newer stored version fails with `RULE_CONFLICT`, so two editors don't overwrite each other. Every change bumps `version` and keeps the previous tree in `versions(id)`. A new rule is disabled and goes last; `move(id, rank)` takes a key from `rankBetween` over its neighbours ([rank keys](/docs/blocks/rank)).
+`upsert` creates a rule, or changes the one with `id`. Keys you leave out keep their value, and the subject type can't change. Pass the `version` the editor read and a newer stored version fails with `RULE_CONFLICT`, so two editors don't overwrite each other. Every change bumps `version` and keeps the previous tree in `versions(id)`. A new rule is disabled and goes last; `move(id, rank)` takes a key from `rankBetween` over its neighbours ([rank keys](/docs/blocks/rank)).
 
 The database checks every tree: fields must be in the catalog, operators must suit the field's type, values must fit the operator (two for "between", a list for "is any of"), and the tree stays within `maxDepth` and `maxConditions`. Conditions without an operator take no part, so an editor can save a half-finished row.
 
@@ -201,7 +201,7 @@ export const POST = async () =>
 
 ## Editor
 
-`useRuleBuilder` from `better-supabase/blocks/automations/react` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `save`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default).
+`useRuleBuilder` from `better-supabase/blocks/automations/react` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `upsert`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default).
 
 ```tsx title="components/rule-editor.tsx"
 "use client";

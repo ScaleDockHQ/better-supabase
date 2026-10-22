@@ -98,7 +98,7 @@ export const betterSupabase = defineSupabase(schema);
 const db = betterSupabase.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
-  .findMany({
+  .list({
     select: ["id", "name"],
     where: { status: "active", notes: { some: { kind: "call" } } },
     include: { organization: { select: ["name"] } },

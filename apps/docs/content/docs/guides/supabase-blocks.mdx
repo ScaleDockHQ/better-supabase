@@ -141,7 +141,7 @@ export function registerCustomersTools(
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => {
-      const result = await db.customers.findMany({
+      const result = await db.customers.list({
         select: ["id", "name", "status"],
         limit: 50,
       });

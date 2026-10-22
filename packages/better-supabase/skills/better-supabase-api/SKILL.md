@@ -42,7 +42,7 @@ RFC 8693 `act` chain). The guard options of `bsb.route`, `bsb.action`,
 
 ```ts
 export const GET = bsb.route(
-  (request, { db }) => db.customers.findMany({ limit: 20 }),
+  (request, { db }) => db.customers.list({ limit: 20 }),
   { scopes: ["customers:read"] },
 );
 ```
@@ -61,7 +61,7 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Next.js                                         | `createNext(betterSupabase)` in `lib/supabase/server.ts`                                                | `bsb.route((req, { db }) => ...)`, `bsb.action({ input: schema }, (input, { db }) => ...)` |
 | Hono                                            | `createHono(betterSupabase)`, `.use('/api/*', bsb.middleware())`                                        | `c.var.db`; `bsb.resource('customers', {...})` for REST                                    |
-| oRPC                                            | `createOrpc(betterSupabase)`, `base.use(bsb.middleware())`                                              | `bsb.unwrap(context.db.customers.findMany(...))`                                           |
+| oRPC                                            | `createOrpc(betterSupabase)`, `base.use(bsb.middleware())`                                              | `bsb.unwrap(context.db.customers.list(...))`                                               |
 | Expo Router                                     | `createExpo(betterSupabase)`, `+middleware.ts` with `bsb.middleware()`                                  | `export const loader = bsb.loader(({ db }) => ...)`, `bsb.handler(...)` in `+api.ts`       |
 | Edge Functions                                  | `createEdge(betterSupabase, { cors: true })`                                                            | `Deno.serve(bsb.handler((req, { db }) => ...))`                                            |
 | MCP                                             | `createMcp(betterSupabase, { name, version, resources })`                                               | `.tool({ name, input, run: (args, { db }) => ... })`                                       |
@@ -104,7 +104,7 @@ for lists that clients read page by page: the list takes `after` instead of
 - On the client use `useAssistant({ id, messages })` from `better-supabase/ai-sdk/react`; load `messages` on the server with `toUIMessages(await aiChat.messages.path(id, { native: true }).orThrow())`.
 - Models are AI Gateway `provider/model` strings checked against `ai_model_catalog`; refresh it with the `modelCatalogRefresh` job and backfill costs with `costBackfill` from `better-supabase/ai-sdk`.
 - For answers that must outlive the request (long agents, approvals that wait hours), use `durableChat({ assistant, workflow, streams })` from `better-supabase/ai-sdk/workflow` with a `"use workflow"` function that calls `durableTurn(input, { runId: getWorkflowMetadata().workflowRunId, createHook, getWritable, step, agent })`. `step` is one `"use step"` function that calls `runDurableStep(serviceAiChat, name, input)`, and the agent's model is a gateway string. The route context is the assistant context; its `chats.runs` (from `createAiChat`) serves the runs. On the client use `useDurableAssistant({ id, messages, resume: chat.activeStreamId !== undefined })` from `better-supabase/ai-sdk/workflow/react`. Record a long run's progress with `chats.runs.steps.record(runId, { key, label, status })` and list undecided approvals with `chats.runs.pendingApprovals()`.
-- For tenant keys, add the `ai-keys` SQL module: store the key with the credential provider first, save its `credential_ref` with `createAiKeys({ transport, service, credentials }).keys.save(organizationId, key)` from `better-supabase/blocks/ai-keys`, and merge `byokOptions(await providers.keys.resolve(organizationId).orThrow())` into `providerOptions.gateway`. Call `keys.removeAll(organizationId)` when a tenant is deleted. The same module tracks batches (`aiBatches({ providers })` from `better-supabase/ai-sdk/batches`, with its `pollJob`) and sandboxes (`trackedSandbox`, `sandboxes.idleStopJob`).
+- For tenant keys, add the `ai-keys` SQL module: store the key with the credential provider first, save its `credential_ref` with `createAiKeys({ transport, service, credentials }).keys.upsert(organizationId, key)` from `better-supabase/blocks/ai-keys`, and merge `byokOptions(await providers.keys.resolve(organizationId).orThrow())` into `providerOptions.gateway`. Call `keys.removeAll(organizationId)` when a tenant is deleted. The same module tracks batches (`aiBatches({ providers })` from `better-supabase/ai-sdk/batches`, with its `pollJob`) and sandboxes (`trackedSandbox`, `sandboxes.idleStopJob`).
 - For repeated model calls, add the `ai-cache` SQL module and wrap the model with `wrapLanguageModel({ model, middleware: cacheMiddleware({ cache, ttl, organizationId }) })` from `better-supabase/ai-sdk/cache`; the cache is service-role only, so create it with a service transport. Meter spend with `meterTelemetry` through `registerTelemetry` and reconcile it nightly with the `spendReconciliation` job.
 - Blocks never import an AI SDK. Put SDK code in the app or an adapter subpath, and store third-party tokens as a `credential_ref`, never in a column.
 
@@ -159,7 +159,7 @@ schedule.
 ## Direct Postgres on the server
 
 - `createPostgres()` opens a pool; `createPostgres({ pool })` runs on an existing `pg.Pool`. `asUser` and `anon` transactions get Supabase's role timeouts (8 s and 3 s); `statementTimeout` takes a number or `{ admin, authenticated, anon }`.
-- `createMany` and `upsertMany` split inserts past 65,535 bind parameters into several statements in one transaction, so large batches don't need manual chunking.
+- `create` and `upsert` with an array split inserts past 65,535 bind parameters into several statements in one transaction, so large batches don't need manual chunking.
 - In serverless functions, connect through the transaction pooler (port 6543), not a direct connection.
 
 ## Testing

@@ -23,11 +23,11 @@ violation fails the call with `invalid_request`, and nothing is sent.
 
 ## Presets
 
-| Preset                | Contents                                                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `safeGuards()`        | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteManyWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
-| `recommendedGuards()` | `safeGuards()` plus the performance rules and `storagePathColumns` as warnings (the default)                                         |
-| `strictGuards()`      | Everything as an error, plus `requireMaxAffected`                                                                                    |
+| Preset                | Contents                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `safeGuards()`        | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
+| `recommendedGuards()` | `safeGuards()` plus the performance rules and `storagePathColumns` as warnings (the default)                                     |
+| `strictGuards()`      | Everything as an error, plus `requireMaxAffected`                                                                                |
 
 Spread a preset to change single rules:
 
@@ -36,28 +36,28 @@ guards({
   rules: {
     ...recommendedGuards(),
     maxLimit: ["error", 200],
-    noUnboundedFindMany: "off",
+    noUnboundedList: "off",
   },
 });
 ```
 
 ## Rules
 
-| Rule                       | Flags                                                                                                                                                                                                             | Option                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `noUnboundedFindMany`      | `findMany` without `limit`                                                                                                                                                                                        |                                                          |
-| `maxLimit`                 | `limit` above the maximum                                                                                                                                                                                         | maximum, default `1000`                                  |
-| `requireOrderByForCursor`  | `offset`, or `limit` above 1, without `orderBy`: pages overlap or skip rows. `findMany` orders by the primary key by default, so only views and keyless tables trigger it                                         |                                                          |
-| `maxIncludeDepth`          | Includes nested deeper than the maximum                                                                                                                                                                           | maximum depth, default `3`                               |
-| `requireTenantContext`     | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt                                                                                                               | claim, default `auth.organization.claim` (`'tenant_id'`) |
-| `noAdminInBrowser`         | A service-role connection where `window` and `document` exist                                                                                                                                                     |                                                          |
-| `noSensitiveSelect`        | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call                                                                                                                  |                                                          |
-| `noDeleteManyWithoutWhere` | A delete without `where`                                                                                                                                                                                          |                                                          |
-| `requireMaxAffected`       | `updateMany` or `deleteMany` without [`maxAffected`](/docs/repository/writing#limiting-bulk-writes), or with one above the maximum. Writes whose `where` pins the whole primary key are exempt                    | maximum, default `1000`                                  |
-| `storagePathColumns`       | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/platform/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead |                                                          |
+| Rule                      | Flags                                                                                                                                                                                                             | Option                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `noUnboundedList`         | `list` without `limit`                                                                                                                                                                                            |                                                          |
+| `maxLimit`                | `limit` above the maximum                                                                                                                                                                                         | maximum, default `1000`                                  |
+| `requireOrderByForCursor` | `offset`, or `limit` above 1, without `orderBy`: pages overlap or skip rows. `list` orders by the primary key by default, so only views and keyless tables trigger it                                             |                                                          |
+| `maxIncludeDepth`         | Includes nested deeper than the maximum                                                                                                                                                                           | maximum depth, default `3`                               |
+| `requireTenantContext`    | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt                                                                                                               | claim, default `auth.organization.claim` (`'tenant_id'`) |
+| `noAdminInBrowser`        | A service-role connection where `window` and `document` exist                                                                                                                                                     |                                                          |
+| `noSensitiveSelect`       | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call                                                                                                                  |                                                          |
+| `noDeleteWithoutWhere`    | A delete without `where`                                                                                                                                                                                          |                                                          |
+| `requireMaxAffected`      | `update` or `delete` by `{ where }` without [`maxAffected`](/docs/repository/writing#limiting-bulk-writes), or with one above the maximum. Writes whose `where` pins the whole primary key are exempt             | maximum, default `1000`                                  |
+| `storagePathColumns`      | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/platform/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead |                                                          |
 
-`noUnboundedFindMany` skips `aggregate()`, and `maxLimit` doesn't count the
-extra row `paginate()` reads to know whether there is a next page.
+`noUnboundedList` skips `aggregate()`, and `maxLimit` doesn't count the
+extra row `page()` reads to know whether there is a next page.
 `requireTenantContext` reads the same claim paths as the
 [memberships](/docs/blocks/memberships) extension, so an organization in
 `app_metadata` counts. `requireMaxAffected` is only in `strictGuards()`; add it to another preset with `requireMaxAffected: ["error", 500]`.
@@ -67,21 +67,17 @@ includes too. A `select` that leaves the column out passes; to read it on
 purpose:
 
 ```ts
-await db.contacts.findMany({
-  select: ["id", "email"],
-  limit: 50,
-  sensitive: true,
-});
+await db.contacts.list({ select: ["id", "email"], limit: 50, sensitive: true });
 ```
 
 Writes don't trip the rule: without a `select`, `create`, `update` and
 `upsert` return every column except the sensitive ones. Name the column in
 `select`, or pass `sensitive: true`, to get it back.
 
-The repository already refuses `deleteMany` without `where` on its own, so
-`noDeleteManyWithoutWhere` only catches deletes built by other plugins. The
-[lint rule](/docs/repository/lint) of the same name catches the call in your
-editor.
+The repository already refuses a `delete({ where })` that filters nothing on
+its own, so `noDeleteWithoutWhere` only catches deletes built by blocks and
+extensions. The `no-empty-where` [lint rule](/docs/repository/lint) catches
+the call in your editor.
 
 `storagePathColumns` only compares against bucket templates with a literal
 part besides `/` (`{organizationId}/{customerId}/logo/{version}.webp`, not

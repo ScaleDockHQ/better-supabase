@@ -17,7 +17,7 @@ const bsb = createServer(betterSupabase);
 
 const app = new H3()
   .use(toH3([withBetterSupabase(bsb, { allow: ["user"] })]))
-  .get("/notes", (event) => event.context.db.notes.findMany().orThrow());
+  .get("/notes", (event) => event.context.db.notes.list().orThrow());
 
 export default { fetch: app.fetch };
 ```
@@ -41,7 +41,7 @@ import { guard, problemOnError } from "better-supabase/h3";
 
 const app = new H3({ onError: problemOnError() }).get(
   "/reports",
-  (event) => event.context.db.reports.findMany().orThrow(),
+  (event) => event.context.db.reports.list().orThrow(),
   { middleware: [guard({ permission: "reports:read", authorizer })] },
 );
 ```

@@ -119,7 +119,7 @@ betterSupabase.on("error", ({ error }) => report(error));
 
 ## Counts
 
-The Postgres executor counts like PostgREST, so a `paginate` or `count` with
+The Postgres executor counts like PostgREST, so a `page` or `count` with
 a count mode returns the same total over either path:
 
 | `count`     | What it runs                                                                              |
@@ -165,7 +165,7 @@ await postgres.transaction(
   async (tx) => {
     const db = betterSupabase.connect(postgresExecutor(tx), { claims });
     const invoice = await db.invoices.create(data).orThrow();
-    await db.invoiceLines.createMany(lines(invoice.id)).orThrow();
+    await db.invoiceLines.create(lines(invoice.id)).orThrow();
   },
   { claims },
 );

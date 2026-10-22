@@ -15,8 +15,8 @@ const base = defineSupabase(schema);
 
 const customers = defineRepository(base, "customers", (repo) => ({
   active: () =>
-    repo.findMany({ where: { status: "active" }, orderBy: { name: "asc" } }),
-  byKvk: (kvk: string) => repo.findFirst({ where: { kvk } }),
+    repo.list({ where: { status: "active" }, orderBy: { name: "asc" } }),
+  byKvk: (kvk: string) => repo.get({ where: { kvk } }, { optional: true }),
 }));
 
 export const betterSupabase = base.use(customers);
@@ -31,7 +31,7 @@ extension (organization filters, soft delete, `restore()`) applies, and payload 
 methods are typed on `db.customers` and don't exist on other tables.
 
 Each table can have one `defineRepository`; the plugin is named
-`repository:<table>`, and redefining a built-in method such as `findMany`
+`repository:<table>`, and redefining a built-in method such as `list`
 throws when the repository is first used.
 
 ## extend
@@ -41,7 +41,7 @@ For methods that only one module needs, extend a repository in place:
 ```ts
 const customers = ctx.db.customers.extend((repo) => ({
   withOpenInvoices: () =>
-    repo.findMany({ where: { invoices: { some: { status: "open" } } } }),
+    repo.list({ where: { invoices: { some: { status: "open" } } } }),
 }));
 ```
 

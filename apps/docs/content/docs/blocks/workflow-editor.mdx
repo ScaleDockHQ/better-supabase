@@ -181,16 +181,16 @@ export const builderFor = (sql: Sql) =>
 const builder = builderFor(await bsb.sql());
 
 const definition = await builder.definitions
-  .save({ tenant: organizationId, slug: "onboarding", name: "Onboarding" })
+  .upsert({ tenant: organizationId, slug: "onboarding", name: "Onboarding" })
   .orThrow();
-const draft = await builder.versions.save(definition.id, graph).orThrow();
+const draft = await builder.versions.upsert(definition.id, graph).orThrow();
 const published = await builder.versions.publish(draft.id).orThrow();
 const runId = await builder
   .run({ definition: definition.id, input: { email } })
   .orThrow();
 ```
 
-`versions.save` updates the open draft, or opens the next version when the
+`versions.upsert` updates the open draft, or opens the next version when the
 last one is published. `versions.publish` runs `compile` on the graph
 (a throw fails the publish), publishes the version as the caller and
 archives the version that was published before. The compiled form is
@@ -201,7 +201,7 @@ the service role (`WORKFLOW_COMPILED_FORBIDDEN`), so a member with
 `start` with a fresh idempotency key unless you pass one, and returns the
 engine's run id. The run appears in `workflow_runs` like any other run.
 
-`versions.save(definition, graph, { inputSchema })` stores the JSON Schema
+`versions.upsert(definition, graph, { inputSchema })` stores the JSON Schema
 of the input a run takes on the version (`input_schema`). A later save
 without it keeps the schema, and a fork copies it. The builder doesn't
 check `run` inputs against it; a [template](/docs/blocks/templates) checks
@@ -216,7 +216,7 @@ and conditions can read `subject.type` and `subject.id`:
 
 ```ts
 await builder.definitions
-  .save({
+  .upsert({
     tenant: organizationId,
     slug: "deal-review",
     name: "Deal review",
@@ -303,7 +303,7 @@ by members with `workflow.admin` and by holders of a grant; every member
 with `workflow.read` still sees it. An `edit` grant includes `run`.
 
 ```ts
-await builder.definitions.save({ ...input, restricted: true }).orThrow();
+await builder.definitions.upsert({ ...input, restricted: true }).orThrow();
 await builder.definitions.grants
   .add({
     definition: id,
@@ -380,7 +380,7 @@ export async function crmLookup(call: GraphStepCall) {
   const db = bsb.actingAs(String(claims["sub"]), {
     tenant_id: claims["tenant_id"],
   });
-  return db.contacts.findMany({ where: { email: call.input.email } }).orThrow();
+  return db.contacts.list({ where: { email: call.input.email } }).orThrow();
 }
 ```
 
@@ -412,7 +412,7 @@ fails. A hook always overrides the default.
 ## Triggers
 
 ```ts
-await builder.triggers.save({ definition: id, kind: "webhook" }).orThrow();
+await builder.triggers.upsert({ definition: id, kind: "webhook" }).orThrow();
 const token = await builder.triggers.rotateToken(triggerId).orThrow(); // shown once
 ```
 
@@ -442,7 +442,7 @@ ids start at `type`, `memberships` or `payload`:
 
 ```ts
 await builder.triggers
-  .save({
+  .upsert({
     definition: id,
     kind: "event",
     config: {
@@ -470,7 +470,7 @@ await builder.triggers
 ```
 
 `onEvent` skips a trigger whose `when` doesn't match the event, and
-`triggers.save` refuses a `when` it can't use (`invalid_input`).
+`triggers.upsert` refuses a `when` it can't use (`invalid_input`).
 
 ### Start from outbox events
 
@@ -669,12 +669,12 @@ export function Component(props: { organizationId: string }) {
 ## Alerts
 
 ```ts
-await builder.alerts.save({
+await builder.alerts.upsert({
   definition: id,
   onEvent: "failed",
   channel: { type: "email", to },
 });
-await builder.alerts.save({
+await builder.alerts.upsert({
   definition: id,
   onEvent: "slow",
   threshold: 3600,
@@ -719,7 +719,7 @@ match a definition on their `bsb.definition` attribute, which
 
 Add columns to the workflow definition table with `blocks["workflow-editor"].options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
-`definitions.save` validates and writes them, and `definitions.save`, `list`, `get` and `fork` return them parsed under
+`definitions.upsert` validates and writes them, and `definitions.upsert`, `list`, `get` and `fork` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 

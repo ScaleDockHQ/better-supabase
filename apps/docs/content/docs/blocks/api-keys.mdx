@@ -292,7 +292,7 @@ export default {
       withBetterPostgres(betterSupabase)(),
     ],
     async (_request, ctx) =>
-      Response.json(await ctx.sql.deals.findMany().orThrow()),
+      Response.json(await ctx.sql.deals.list().orThrow()),
   ),
 };
 ```
