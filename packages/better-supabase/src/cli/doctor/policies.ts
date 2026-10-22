@@ -1,6 +1,7 @@
 import type { CatalogPolicy, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { encryptedColumns } from "../../config/app-access.ts";
 import { configFor } from "../gen/shared.ts";
 import {
   appliesTo,
@@ -404,13 +405,21 @@ export const POLICY_RULES: readonly Rule[] = [
     check: (context) => {
       const schemas = exposedSchemas(context);
 
-      const listed = new Set(
-        Object.keys(context.config.exposeFunctions).map((signature) => {
+      const listed = new Set([
+        ...Object.keys(context.config.exposeFunctions).map((signature) => {
           const name = signature.slice(0, signature.indexOf("(")).trim();
 
           return name.includes(".") ? name : `public.${name}`;
         }),
-      );
+        // `<table>_reveal` checks the caller's scope itself, so `sql sync`
+        // grants it to `authenticated` on purpose.
+        ...Object.entries(context.config.appTables).flatMap(
+          ([table, config]) =>
+            encryptedColumns(config).length > 0
+              ? [`public.${table}_reveal`]
+              : [],
+        ),
+      ]);
 
       const inPolicies = new Set(
         catalogOf(context).tables.flatMap((table) =>
