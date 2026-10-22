@@ -193,7 +193,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.
 - 0082: shipments go through a versioned `ShipmentCarrier`; tracking arrives by a signed, idempotent webhook ingest.
 - 0084: the public status page is one security definer function anon may call, returning only public fields.
-- 00XX: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
+- 0085: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
 
 ## Pre-release pins
 
