@@ -6064,6 +6064,56 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Lease"
+        },
+        {
+          "name": "LeaseCharge"
+        },
+        {
+          "name": "LeaseChargedEventData"
+        },
+        {
+          "name": "LeaseEventData"
+        },
+        {
+          "name": "LeaseInput"
+        },
+        {
+          "name": "LeaseListOptions"
+        },
+        {
+          "name": "LeasePaidEventData"
+        },
+        {
+          "name": "LeaseRenewal"
+        },
+        {
+          "name": "Leases"
+        },
+        {
+          "name": "LeasesEvents"
+        },
+        {
+          "name": "LeasesOptions"
+        },
+        {
+          "name": "LeaseStatus"
+        },
+        {
+          "name": "LeaseTermination"
+        },
+        {
+          "name": "MaintenanceRequest"
+        },
+        {
+          "name": "MaintenanceRequestEventData"
+        },
+        {
+          "name": "MaintenanceRequestInput"
+        }
+      ],
       "entitySchemas": {
         "lease": {
           "input": {
@@ -6276,6 +6326,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "sections": {
         "leases": []
+      },
+      "events": {
+        "type": "LeasesEvents",
+        "types": [
+          "lease.created",
+          "lease.activated",
+          "lease.renewed",
+          "lease.terminated",
+          "lease.charged",
+          "lease.paid",
+          "maintenance_request.filed",
+          "maintenance_request.updated"
+        ]
       }
     },
     {
@@ -6290,6 +6353,44 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ExpenseCategory"
+        },
+        {
+          "name": "ExpenseCategoryInput"
+        },
+        {
+          "name": "ExpenseLine"
+        },
+        {
+          "name": "ExpenseLineInput"
+        },
+        {
+          "name": "ExpenseLineUpdate"
+        },
+        {
+          "name": "ExpenseReport"
+        },
+        {
+          "name": "ExpenseReportEventData"
+        },
+        {
+          "name": "ExpenseReportInput"
+        },
+        {
+          "name": "ExpenseReportListOptions"
+        },
+        {
+          "name": "ExpenseReportPostedEventData"
+        },
+        {
+          "name": "ExpenseReportStatus"
+        },
+        {
+          "name": "ExpenseReportSubmittedEventData"
+        }
+      ],
       "entitySchemas": {
         "expense_report": {
           "input": {
@@ -6510,6 +6611,16 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "ExpensesEvents",
+        "types": [
+          "expense_report.created",
+          "expense_report.submitted",
+          "expense_report.approved",
+          "expense_report.reimbursed",
+          "expense_report.cancelled"
+        ]
       }
     },
     {
@@ -6524,6 +6635,62 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "DonationEventData"
+        },
+        {
+          "name": "DonationFund"
+        },
+        {
+          "name": "DonationFundInput"
+        },
+        {
+          "name": "DonationPaymentOutcome"
+        },
+        {
+          "name": "DonationReceipt"
+        },
+        {
+          "name": "DonationReceiptEventData"
+        },
+        {
+          "name": "Donations"
+        },
+        {
+          "name": "DonationsEvents"
+        },
+        {
+          "name": "DonationsOptions"
+        },
+        {
+          "name": "Pledge"
+        },
+        {
+          "name": "PledgeChargeOutcome"
+        },
+        {
+          "name": "PledgeEventData"
+        },
+        {
+          "name": "PledgeFrequency"
+        },
+        {
+          "name": "PledgeInput"
+        },
+        {
+          "name": "PledgeInstallment"
+        },
+        {
+          "name": "PledgeListOptions"
+        },
+        {
+          "name": "PledgeStatus"
+        },
+        {
+          "name": "PledgeUpdate"
+        }
+      ],
       "entitySchemas": {
         "donation": {
           "input": {
@@ -6845,6 +7012,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "sections": {
         "giving": []
+      },
+      "events": {
+        "type": "DonationsEvents",
+        "types": [
+          "donation.received",
+          "donation.failed",
+          "donation.refunded",
+          "pledge.created",
+          "pledge.updated",
+          "donation_receipt.issued",
+          "donation_receipt.voided"
+        ]
       }
     },
     {

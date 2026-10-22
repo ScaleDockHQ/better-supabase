@@ -9,6 +9,8 @@ export { documentFeature } from "./document/document-feature.ts";
 export { driveNodeFeature } from "./drive-node/drive-node-feature.ts";
 export { employeeFeature } from "./employee/employee-feature.ts";
 export { engagementFeature } from "./engagement/engagement-feature.ts";
+export { expenseLineFeature } from "./expense-line/expense-line-feature.ts";
+export { expenseReportFeature } from "./expense-report/expense-report-feature.ts";
 export { personFeature } from "./person/person-feature.ts";
 export { productFeature } from "./product/product-feature.ts";
 export { productVariantFeature } from "./product-variant/product-variant-feature.ts";

@@ -67,7 +67,7 @@ export function expensesFunctions(ctx: ModuleContext): string {
     fail(code, message, "22023");
 
   const status = (row: string, approval: string): string =>
-    `case when ${row}.${r("cancelledAt")} is not null then 'cancelled' when ${row}.${r("reimbursedAt")} is not null then 'reimbursed' when ${row}.${r("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' else 'draft' end`;
+    `(case when ${row}.${r("cancelledAt")} is not null then 'cancelled' when ${row}.${r("reimbursedAt")} is not null then 'reimbursed' when ${row}.${r("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} in ('rejected', 'expired') then 'rejected' else 'draft' end)`;
 
   const total = (row: string): string =>
     `coalesce((select sum(y.${x("amount")}) from ${lines} y where y.${x("report")} = ${row}.${r("id")}), 0)`;
