@@ -9,9 +9,11 @@ import {
   ClockIcon,
   CalendarIcon,
   CalendarCheckIcon,
+  CalendarRangeIcon,
   SquareKanbanIcon,
   TableIcon,
   ShieldCheckIcon,
+  ShieldHalfIcon,
   ContactRoundIcon,
   KanbanIcon,
   FileTextIcon,
@@ -22,6 +24,7 @@ import {
   FolderKanbanIcon,
   NotebookTextIcon,
   ClipboardListIcon,
+  PresentationIcon,
   LayoutTemplateIcon,
   FileUpIcon,
   Trash2Icon,
@@ -44,6 +47,8 @@ import {
   WaypointsIcon,
   ListFilterIcon,
   WorkflowIcon,
+  RouteIcon,
+  TruckIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -82,13 +87,18 @@ const ICONS = {
   shop: StoreIcon,
   inventory: BoxesIcon,
   orders: ReceiptIcon,
+  dispatch: CalendarRangeIcon,
+  myDay: RouteIcon,
+  shipments: TruckIcon,
   drive: FolderIcon,
   documents: NotebookTextIcon,
   forms: ClipboardListIcon,
+  courses: PresentationIcon,
   templates: LayoutTemplateIcon,
   imports: FileUpIcon,
   trash: Trash2Icon,
   metrics: ChartColumnIcon,
+  compliance: ShieldHalfIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
@@ -187,6 +197,18 @@ function useNavLabel() {
         return t("Orders");
       }
 
+      case "dispatch": {
+        return t("Dispatch");
+      }
+
+      case "myDay": {
+        return t("My day");
+      }
+
+      case "shipments": {
+        return t("Shipments");
+      }
+
       case "drive": {
         return t("Drive");
       }
@@ -197,6 +219,10 @@ function useNavLabel() {
 
       case "forms": {
         return t("Forms");
+      }
+
+      case "courses": {
+        return t("Courses");
       }
 
       case "templates": {
@@ -213,6 +239,10 @@ function useNavLabel() {
 
       case "metrics": {
         return t("Metrics");
+      }
+
+      case "compliance": {
+        return t("Compliance");
       }
 
       case "notifications": {

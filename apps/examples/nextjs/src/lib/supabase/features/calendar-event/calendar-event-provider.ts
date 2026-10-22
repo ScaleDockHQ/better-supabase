@@ -16,6 +16,10 @@ import {
   revokeCalendarEventPasses,
   setRateCalendarEventBillableTime,
   invoiceCalendarEventBillableTime,
+  createCalendarEventDispatch,
+  cancelCalendarEventDispatch,
+  createCalendarEventShipments,
+  cancelCalendarEventShipments,
   linkCalendarEventRelations,
   unlinkCalendarEventRelations,
   createCalendarEventShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateCalendarEventBillableTime,
     invoice: invoiceCalendarEventBillableTime,
+  },
+  dispatch: {
+    create: createCalendarEventDispatch,
+    cancel: cancelCalendarEventDispatch,
+  },
+  shipments: {
+    create: createCalendarEventShipments,
+    cancel: cancelCalendarEventShipments,
   },
   relations: {
     link: linkCalendarEventRelations,

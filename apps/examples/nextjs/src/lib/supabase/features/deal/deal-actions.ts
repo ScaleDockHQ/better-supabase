@@ -22,6 +22,14 @@ export const setRateDealBillableTime = dealRecord.actions.billableTime.setRate;
 
 export const invoiceDealBillableTime = dealRecord.actions.billableTime.invoice;
 
+export const createDealDispatch = dealRecord.actions.dispatch.create;
+
+export const cancelDealDispatch = dealRecord.actions.dispatch.cancel;
+
+export const createDealShipments = dealRecord.actions.shipments.create;
+
+export const cancelDealShipments = dealRecord.actions.shipments.cancel;
+
 export const linkDealRelations = dealRecord.actions.relations.link;
 
 export const unlinkDealRelations = dealRecord.actions.relations.unlink;

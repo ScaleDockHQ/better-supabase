@@ -497,7 +497,14 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 export const LEDGER: ModuleDefinition = {
-  internal: ["ledger_account_for", "ledger_post", "ledger_read_grants"],
+  internal: [
+    "ledger_account_for",
+    "ledger_post",
+    "ledger_hold",
+    "ledger_capture",
+    "ledger_release",
+    "ledger_read_grants",
+  ],
   name: "ledger",
   scopes: ["tenant"],
   title: "Ledger",

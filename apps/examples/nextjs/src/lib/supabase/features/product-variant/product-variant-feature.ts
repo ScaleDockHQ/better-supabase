@@ -5,15 +5,20 @@ import { assetsBlock } from "better-supabase/blocks/assets";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
+import { contractsBlock } from "better-supabase/blocks/contracts";
 import { defineRecordFeature } from "better-supabase/records";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
+import { donationsBlock } from "better-supabase/blocks/donations";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
+import { leasesBlock } from "better-supabase/blocks/leases";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { passesBlock } from "better-supabase/blocks/passes";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
 
@@ -36,6 +41,11 @@ export const productVariantFeature = defineRecordFeature({
     guests: guestsBlock,
     passes: passesBlock,
     billableTime: billableTimeBlock,
+    leases: leasesBlock,
+    donations: donationsBlock,
+    dispatch: dispatchBlock,
+    shipments: shipmentsBlock,
+    contracts: contractsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

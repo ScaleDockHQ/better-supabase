@@ -20,22 +20,29 @@ import type { CatalogSqlOptions } from "./catalog/options.ts";
 import type { CollectionsSqlOptions } from "./collections/options.ts";
 import type { CommentsSqlOptions } from "./comments/options.ts";
 import type { ConnectorsSqlOptions } from "./connectors/options.ts";
+import type { ContractsSqlOptions } from "./contracts/options.ts";
+import type { ControlsSqlOptions } from "./controls/options.ts";
+import type { CoursesSqlOptions } from "./courses/options.ts";
 import type { CredentialsSqlOptions } from "./credentials/options.ts";
 import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
 import type { DataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
 import type { DealsSqlOptions } from "./deals/options.ts";
+import type { DispatchSqlOptions } from "./dispatch/options.ts";
 import type { DocumentsSqlOptions } from "./documents/options.ts";
 import type { DomainsSqlOptions } from "./domains/options.ts";
+import type { DonationsSqlOptions } from "./donations/options.ts";
 import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EngagementsSqlOptions } from "./engagements/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
+import type { ExpensesSqlOptions } from "./expenses/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions, SignaturesSqlOptions } from "./forms/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
 import type { HiringSqlOptions } from "./hiring/options.ts";
 import type { IdentitiesSqlOptions } from "./identities/options.ts";
 import type { InboxSqlOptions } from "./inbox/options.ts";
+import type { IncidentsSqlOptions } from "./incidents/options.ts";
 import type { InventorySqlOptions } from "./inventory/options.ts";
 import type { InvoicesSqlOptions } from "./invoices/options.ts";
 import type {
@@ -44,6 +51,7 @@ import type {
   WebhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
+import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
@@ -80,6 +88,7 @@ import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
 import type { ShareLinksSqlOptions } from "./share-links/options.ts";
 import type { SharedSignalsSqlOptions } from "./shared-signals/options.ts";
+import type { ShipmentsSqlOptions } from "./shipments/options.ts";
 import type { SigningKeysSqlOptions } from "./signing-keys/options.ts";
 import type { SlaSqlOptions } from "./sla/options.ts";
 import type { SsoSqlOptions } from "./sso/options.ts";
@@ -128,22 +137,29 @@ import { catalogSqlOptions } from "./catalog/options.ts";
 import { collectionsSqlOptions } from "./collections/options.ts";
 import { commentsSqlOptions } from "./comments/options.ts";
 import { connectorsSqlOptions } from "./connectors/options.ts";
+import { contractsSqlOptions } from "./contracts/options.ts";
+import { controlsSqlOptions } from "./controls/options.ts";
+import { coursesSqlOptions } from "./courses/options.ts";
 import { credentialsSqlOptions } from "./credentials/options.ts";
 import { customFieldsSqlOptions } from "./custom-fields/options.ts";
 import { dataLifecycleSqlOptions } from "./data-lifecycle/options.ts";
 import { dealsSqlOptions } from "./deals/options.ts";
+import { dispatchSqlOptions } from "./dispatch/options.ts";
 import { documentsSqlOptions } from "./documents/options.ts";
 import { domainsSqlOptions } from "./domains/options.ts";
+import { donationsSqlOptions } from "./donations/options.ts";
 import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { engagementsSqlOptions } from "./engagements/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
+import { expensesSqlOptions } from "./expenses/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions, signaturesSqlOptions } from "./forms/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
 import { hiringSqlOptions } from "./hiring/options.ts";
 import { identitiesSqlOptions } from "./identities/options.ts";
 import { inboxSqlOptions } from "./inbox/options.ts";
+import { incidentsSqlOptions } from "./incidents/options.ts";
 import { inventorySqlOptions } from "./inventory/options.ts";
 import { invoicesSqlOptions } from "./invoices/options.ts";
 import {
@@ -152,6 +168,7 @@ import {
   webhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
+import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
@@ -188,6 +205,7 @@ import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
 import { shareLinksSqlOptions } from "./share-links/options.ts";
 import { sharedSignalsSqlOptions } from "./shared-signals/options.ts";
+import { shipmentsSqlOptions } from "./shipments/options.ts";
 import { signingKeysSqlOptions } from "./signing-keys/options.ts";
 import { slaSqlOptions } from "./sla/options.ts";
 import { ssoSqlOptions } from "./sso/options.ts";
@@ -288,6 +306,15 @@ export interface BlockOptionsRegistry {
   readonly parties: PartiesSqlOptions;
   readonly passes: PassesSqlOptions;
   readonly "billable-time": None;
+  readonly leases: LeasesSqlOptions;
+  readonly expenses: ExpensesSqlOptions;
+  readonly donations: DonationsSqlOptions;
+  readonly dispatch: DispatchSqlOptions;
+  readonly shipments: ShipmentsSqlOptions;
+  readonly contracts: ContractsSqlOptions;
+  readonly controls: ControlsSqlOptions;
+  readonly incidents: IncidentsSqlOptions;
+  readonly courses: CoursesSqlOptions;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -416,6 +443,15 @@ export const BLOCK_OPTION_SCHEMAS: {
   parties: partiesSqlOptions,
   passes: passesSqlOptions,
   "billable-time": NO_OPTIONS,
+  leases: leasesSqlOptions,
+  expenses: expensesSqlOptions,
+  donations: donationsSqlOptions,
+  dispatch: dispatchSqlOptions,
+  shipments: shipmentsSqlOptions,
+  contracts: contractsSqlOptions,
+  controls: controlsSqlOptions,
+  incidents: incidentsSqlOptions,
+  courses: coursesSqlOptions,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,

@@ -22,6 +22,7 @@ import type {
   InviteRequest,
 } from "../../src/blocks/organizations/index.ts";
 import type { Profiles } from "../../src/blocks/profiles/index.ts";
+import type { ShipmentCarrier } from "../../src/blocks/shipments/index.ts";
 import type {
   IncomingDestination,
   WebhookSecretStore,
@@ -98,6 +99,7 @@ import {
 } from "../../src/blocks/jobs/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createProfiles } from "../../src/blocks/profiles/index.ts";
+import { flatRateCarrier } from "../../src/blocks/shipments/index.ts";
 import {
   fetchTransport,
   hmacSigner,
@@ -166,6 +168,8 @@ describe("extension interfaces", () => {
     expectTypeOf(fixedRates).returns.toExtend<TaxProvider>();
     expectTypeOf(stripeTax).returns.toExtend<TaxProvider>();
     expectTypeOf<TaxProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(flatRateCarrier).returns.toExtend<ShipmentCarrier>();
+    expectTypeOf<ShipmentCarrier["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
     expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();

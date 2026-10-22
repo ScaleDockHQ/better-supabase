@@ -152,6 +152,9 @@ export const RECIPE_ROUTES: readonly RecipeRoute[] = [
   { slug: "employee-directory", path: "/en/people" },
   { slug: "hiring-board", path: "/en/people/hiring" },
   { slug: "timesheet", path: "/en/people/time" },
+  { slug: "dispatch-board", path: "/en/field/dispatch" },
+  { slug: "technician-day", path: "/en/field/day" },
+  { slug: "shipment-tracking", path: "/en/field/shipments" },
   { slug: "calendar-view", path: "/en/calendar" },
   { slug: "reminders-list", path: "/en/calendar" },
   {

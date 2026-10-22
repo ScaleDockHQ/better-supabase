@@ -273,6 +273,8 @@ export default defineConfig({
     announcements: {},
     // Onboarding checklists run on enrollments (ADR 0077).
     enrollments: {},
+    // Courses behind /courses: each learner's progress is an enrollment.
+    courses: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
     usage: {},
@@ -410,6 +412,17 @@ export default defineConfig({
     guests: {},
     passes: { options: { credits: true } },
     "billable-time": {},
+    leases: {},
+    expenses: {},
+    donations: {},
+    dispatch: {},
+    shipments: {},
+    // Contracts send for signature with signatures and remind owners of the
+    // notice deadline with reminders; controls publish policies as versions.
+    signatures: {},
+    contracts: {},
+    controls: {},
+    incidents: {},
     reminders: {},
     "drive-files": {},
     drive: {},

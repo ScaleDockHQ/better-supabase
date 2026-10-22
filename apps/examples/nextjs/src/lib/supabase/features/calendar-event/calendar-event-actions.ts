@@ -22,6 +22,14 @@ export const setRateCalendarEventBillableTime = calendarEventRecord.actions.bill
 
 export const invoiceCalendarEventBillableTime = calendarEventRecord.actions.billableTime.invoice;
 
+export const createCalendarEventDispatch = calendarEventRecord.actions.dispatch.create;
+
+export const cancelCalendarEventDispatch = calendarEventRecord.actions.dispatch.cancel;
+
+export const createCalendarEventShipments = calendarEventRecord.actions.shipments.create;
+
+export const cancelCalendarEventShipments = calendarEventRecord.actions.shipments.cancel;
+
 export const linkCalendarEventRelations = calendarEventRecord.actions.relations.link;
 
 export const unlinkCalendarEventRelations = calendarEventRecord.actions.relations.unlink;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_86_forms.sql
 -- better-supabase module: forms
--- @bs-module forms@1 managed
--- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
+-- @bs-module forms@2 managed
+-- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -110,6 +110,20 @@ grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists "form_submissions_read" on "better_supabase"."form_submissions";
 create policy "form_submissions_read" on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
+alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "passed" boolean;
+
+-- The correct answers of a scored version, which only definer functions read.
+create table if not exists "better_supabase"."form_answer_keys" (
+  "version_id" uuid primary key references "better_supabase"."form_versions" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "answers" jsonb not null check (jsonb_typeof("answers") = 'object'),
+  "created_at" timestamptz not null default now()
+);
+alter table "better_supabase"."form_answer_keys" enable row level security;
+revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
 -- core/contracts/form-definition.ts.
@@ -143,6 +157,7 @@ begin
     when 'option' then jsonb_build_object('type', 'string', 'enum', v_values)
     when 'multi' then jsonb_build_object('type', 'array', 'items', jsonb_build_object('type', 'string', 'enum', v_values), 'uniqueItems', true)
       || jsonb_strip_nulls(jsonb_build_object('minItems', coalesce(field -> 'min', v_floor), 'maxItems', field -> 'max'))
+    when 'nps' then '{"type": "integer", "minimum": 0, "maximum": 10}'::jsonb
     else '{}'::jsonb
   end;
   return v_out || jsonb_strip_nulls(jsonb_build_object('title', field -> 'label', 'description', field -> 'help'));
@@ -232,8 +247,9 @@ declare
   v_options jsonb;
   v_step_keys text[] := '{}';
   v_keys text[] := '{}';
+  v_scored boolean := false;
 begin
-  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"}}}}}}}}}'::json, definition::json);
+  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json","nps"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},"correct":{},"points":{"type":"number","minimum":0,"maximum":10000}}}}}}},"scoring":{"type":"object","additionalProperties":false,"properties":{"passMark":{"type":"number","minimum":0,"maximum":100}}}}}'::json, definition::json);
   if cardinality(v_errors) > 0 then
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
@@ -281,19 +297,186 @@ begin
         end;
         exit steps when v_problem is not null;
       end if;
+      if v_field ? 'correct' then
+        v_scored := true;
+        if v_field -> 'correct' = 'null'::jsonb then
+          v_problem := format('field %s: correct can''t be null', v_field ->> 'key');
+          exit steps;
+        end if;
+        if (v_field ->> 'type') in ('consent', 'json', 'nps') then
+          v_problem := format('field %s: a %s field can''t have a correct answer', v_field ->> 'key', v_field ->> 'type');
+          exit steps;
+        end if;
+        if not "better_supabase"."form_correct_fits"(v_field) then
+          v_problem := format('field %s: correct isn''t an answer the field takes', v_field ->> 'key');
+          exit steps;
+        end if;
+      elsif v_field ? 'points' then
+        v_problem := format('field %s: points need a correct answer', v_field ->> 'key');
+        exit steps;
+      end if;
       v_fields := v_fields || jsonb_build_array(v_field);
     end loop;
     v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));
   end loop;
+  if v_problem is null and definition ? 'scoring' and not v_scored then
+    v_problem := 'scoring needs a field with a correct answer';
+  end if;
   if v_problem is not null then
     v_errors := array[v_problem];
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
   end if;
-  return jsonb_build_object('steps', v_steps);
+  return jsonb_build_object('steps', v_steps)
+    || case when definition ? 'scoring' then jsonb_build_object('scoring', definition -> 'scoring') else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
+
+-- Whether a field's correct answer is one it takes. Mirrors correctFits in
+-- core/contracts/form-definition.ts.
+create or replace function "better_supabase"."form_correct_fits"(field jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case field ->> 'type'
+    when 'text' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'textarea' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'email' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'url' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'date' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'number' then jsonb_typeof(field -> 'correct') = 'number'
+    when 'integer' then case when jsonb_typeof(field -> 'correct') = 'number'
+      then (field ->> 'correct')::numeric = trunc((field ->> 'correct')::numeric) else false end
+    when 'bool' then jsonb_typeof(field -> 'correct') = 'boolean'
+    when 'option' then jsonb_typeof(field -> 'correct') = 'string'
+      and exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = field -> 'correct')
+    when 'multi' then jsonb_typeof(field -> 'correct') = 'array'
+      and jsonb_array_length(field -> 'correct') > 0
+      and not exists (
+        select 1 from jsonb_array_elements(field -> 'correct') v
+        where jsonb_typeof(v) <> 'string'
+          or not exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = v))
+    else false
+  end
+$$;
+revoke execute on function "better_supabase"."form_correct_fits"(jsonb) from public, anon, authenticated;
+
+-- Whether a showIf condition holds for the answers. Mirrors conditionHolds in
+-- blocks/forms/questionnaire.ts.
+create or replace function "better_supabase"."form_condition_holds"(condition jsonb, answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not answers ? (condition ->> 'field') then false
+    when condition ? 'equals' then answers -> (condition ->> 'field') = condition -> 'equals'
+    when condition ? 'in' then exists (select 1 from jsonb_array_elements(condition -> 'in') x where x = answers -> (condition ->> 'field'))
+    else not (answers -> (condition ->> 'field') in ('null'::jsonb, '""'::jsonb, '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_condition_holds"(jsonb, jsonb) from public, anon, authenticated;
+
+-- Whether an answer earns a field's points: text without case and surrounding
+-- spaces, a multi answer as a set, anything else as the same JSON value.
+create or replace function "better_supabase"."form_answer_matches"(type text, answer jsonb, correct jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when type in ('text', 'textarea', 'email', 'url') then jsonb_typeof(answer) = 'string' and jsonb_typeof(correct) = 'string'
+      and lower(btrim(answer #>> '{}', ' ')) = lower(btrim(correct #>> '{}', ' '))
+    when type = 'multi' then jsonb_typeof(answer) = 'array' and jsonb_typeof(correct) = 'array'
+      and answer @> correct and correct @> answer
+    else coalesce(answer = correct, false)
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_matches"(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- A submission's grade: { score, maxScore, passed } against the answer key
+-- (field key to correct answer), or null for a form without one. A field its
+-- showIf (or its step's) hides counts toward neither score; passed is null
+-- without scoring.passMark. Mirrors formScore in blocks/forms/scoring.ts.
+create or replace function "better_supabase"."form_score"(definition jsonb, answer_key jsonb, answers jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_field jsonb;
+  v_points numeric;
+  v_score numeric := 0;
+  v_max numeric := 0;
+  v_pass numeric := (definition -> 'scoring' ->> 'passMark')::numeric;
+begin
+  if answer_key is null or answer_key = '{}'::jsonb then
+    return null;
+  end if;
+  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop
+    continue when v_step ? 'showIf' and not "better_supabase"."form_condition_holds"(v_step -> 'showIf', answers);
+    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop
+      continue when not answer_key ? (v_field ->> 'key');
+      continue when v_field ? 'showIf' and not "better_supabase"."form_condition_holds"(v_field -> 'showIf', answers);
+      v_points := coalesce((v_field ->> 'points')::numeric, 1);
+      v_max := v_max + v_points;
+      if answers ? (v_field ->> 'key')
+        and "better_supabase"."form_answer_matches"(v_field ->> 'type', answers -> (v_field ->> 'key'), answer_key -> (v_field ->> 'key')) then
+        v_score := v_score + v_points;
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('score', v_score, 'maxScore', v_max,
+    'passed', case when v_pass is null then null else v_score * 100 >= v_pass * v_max end);
+end;
+$$;
+revoke execute on function "better_supabase"."form_score"(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The definition without its correct answers, and the answer key they make
+-- (field key to correct answer), as { definition, key }.
+create or replace function "better_supabase"."form_answer_split"(definition jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'definition', jsonb_set(definition, '{steps}', coalesce((
+      select jsonb_agg(jsonb_set(s.step, '{fields}', (
+        select jsonb_agg(f.field - 'correct' order by f.ord)
+        from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+      from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb)),
+    'key', coalesce((
+      select jsonb_object_agg(f.field ->> 'key', f.field -> 'correct')
+      from jsonb_array_elements(definition -> 'steps') s(step)
+      cross join lateral jsonb_array_elements(s.step -> 'fields') f(field)
+      where f.field ? 'correct'), '{}'::jsonb))
+$$;
+revoke execute on function "better_supabase"."form_answer_split"(jsonb) from public, anon, authenticated;
+
+-- A stored definition with its answer key put back, for the form's managers.
+create or replace function "better_supabase"."form_answer_merge"(definition jsonb, answer_key jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when answer_key is null or answer_key = '{}'::jsonb then definition
+  else jsonb_set(definition, '{steps}', coalesce((
+    select jsonb_agg(jsonb_set(s.step, '{fields}', (
+      select jsonb_agg(case when answer_key ? (f.field ->> 'key') then f.field || jsonb_build_object('correct', answer_key -> (f.field ->> 'key')) else f.field end order by f.ord)
+      from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+    from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_merge"(jsonb, jsonb) from public, anon, authenticated;
 
 -- Creates a draft form. fields sets the extra columns by name.
 drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
@@ -380,6 +563,7 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_resolved jsonb;
+  v_split jsonb;
   v_number integer;
   v_row "better_supabase"."form_versions"%rowtype;
 begin
@@ -402,10 +586,18 @@ begin
     end if;
   end;
   v_resolved := "better_supabase"."form_resolve"(v_form."tenant_id", publish_form_version.definition);
+  v_split := "better_supabase"."form_answer_split"(v_resolved);
+  if v_split -> 'key' <> '{}'::jsonb then
+    v_resolved := v_split -> 'definition';
+  end if;
   select coalesce(max(x."number"), 0) + 1 into v_number from "better_supabase"."form_versions" x where x."form_id" = v_form."id";
   insert into "better_supabase"."form_versions" ("tenant_id", "form_id", "number", "definition", "schema", "created_by")
   values (v_form."tenant_id", v_form."id", v_number, v_resolved, "better_supabase"."form_schema"(v_resolved), auth.uid())
   returning * into v_row;
+  if v_split -> 'key' <> '{}'::jsonb then
+    insert into "better_supabase"."form_answer_keys" ("version_id", "tenant_id", "answers")
+    values (v_row."id", v_row."tenant_id", v_split -> 'key');
+  end if;
   update "better_supabase"."forms" x set
     "current_version_id" = v_row."id",
     "status" = case when x."status" = 'draft' then 'open' else x."status" end,
@@ -420,7 +612,9 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_form_version"(uuid, jsonb) from public, anon;
@@ -445,7 +639,9 @@ begin
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select * into v_version from "better_supabase"."form_versions" x where x."id" = v_row."current_version_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', v_version."definition", 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_version."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_version."id"))
+        else v_version."definition" end, 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."get_form"(uuid) from public, anon;
@@ -468,7 +664,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_version"(uuid) from public, anon;
@@ -508,6 +706,8 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_schema jsonb;
+  v_definition jsonb;
+  v_grade jsonb;
   v_errors text[];
   v_row "better_supabase"."form_submissions"%rowtype;
   v_link jsonb;
@@ -531,12 +731,13 @@ begin
     end if;
   end;
   if not form_submission_save.draft then
-    select x."schema" into v_schema from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
+    select x."schema", x."definition" into v_schema, v_definition from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, form_submission_save.answers::json);
     if cardinality(v_errors) > 0 then
       raise exception '%.answers does not match its JSON Schema: %', 'form_submissions', array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';
     end if;
+    v_grade := "better_supabase"."form_score"(v_definition, (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_form."current_version_id"), form_submission_save.answers);
   end if;
   if form_submission_save.submission_id is not null then
     select * into v_row from "better_supabase"."form_submissions" x where x."id" = form_submission_save.submission_id for update;
@@ -553,14 +754,17 @@ begin
       "submitted_at" = case when form_submission_save.draft then null else now() end,
       "subject_type" = coalesce(form_submission_save.subject_type, x."subject_type"),
       "subject_id" = coalesce(form_submission_save.subject_id, x."subject_id"),
+      "score" = (v_grade ->> 'score')::numeric,
+      "max_score" = (v_grade ->> 'maxScore')::numeric,
+      "passed" = (v_grade ->> 'passed')::boolean,
       "updated_at" = now()
     where x."id" = form_submission_save.submission_id
     returning * into v_row;
   else
-    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at")
+    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at", "score", "max_score", "passed")
     values (v_form."tenant_id", v_form."id", v_form."current_version_id", form_submission_save.subject_type, form_submission_save.subject_id, form_submission_save.respondent, form_submission_save.answers,
       case when form_submission_save.draft then 'draft' else 'submitted' end, form_submission_save.source,
-      case when form_submission_save.draft then null else now() end)
+      case when form_submission_save.draft then null else now() end, (v_grade ->> 'score')::numeric, (v_grade ->> 'maxScore')::numeric, (v_grade ->> 'passed')::boolean)
     returning * into v_row;
   end if;
   if not form_submission_save.draft then
@@ -574,7 +778,7 @@ begin
     end if;
   end;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."form_submission_save"(uuid, jsonb, text, text, uuid, text, boolean, uuid) from public, anon, authenticated;
@@ -628,7 +832,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_submission"(uuid) from public, anon;
@@ -652,7 +856,7 @@ begin
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
   v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
-  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at") order by r."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
@@ -667,6 +871,74 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
+
+
+-- The Net Promoter Score of an nps field (the current version's first one by
+-- default) over the submitted and accepted answers between since and until,
+-- with a row per day, week, month, quarter or year (UTC) when bucket is set.
+create or replace function "better_supabase"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_form "better_supabase"."forms"%rowtype;
+  v_field text := form_nps.field;
+  v_total jsonb;
+  v_periods jsonb;
+begin
+  select * into v_form from "better_supabase"."forms" x where x."id" = form_nps.form_id;
+  if not found then
+    raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to read this form''s results' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if form_nps.bucket is not null and form_nps.bucket not in ('day', 'week', 'month', 'quarter', 'year') then
+    raise exception 'bucket is day, week, month, quarter, year' using errcode = '22023', hint = 'FORM_NPS_BUCKET_INVALID';
+  end if;
+  if v_field is null then
+    select q.field ->> 'key' into v_field
+    from "better_supabase"."form_versions" x
+    cross join lateral jsonb_array_elements(x."definition" -> 'steps') with ordinality as p(step, step_ord)
+    cross join lateral jsonb_array_elements(p.step -> 'fields') with ordinality as q(field, field_ord)
+    where x."id" = v_form."current_version_id" and q.field ->> 'type' = 'nps'
+    order by p.step_ord, q.field_ord
+    limit 1;
+    if v_field is null then
+      raise exception 'the form has no nps field' using errcode = '22023', hint = 'FORM_NPS_FIELD_MISSING';
+    end if;
+  end if;
+  with answered as (
+    select r.answer, r.answered_at from (
+      select case when jsonb_typeof(x."answers" -> v_field) = 'number' then (x."answers" ->> v_field)::numeric end as answer,
+        x."submitted_at" as answered_at
+      from "better_supabase"."form_submissions" x
+      where x."form_id" = form_nps.form_id
+        and x."status" in ('submitted', 'accepted')
+        and (form_nps.since is null or x."submitted_at" >= form_nps.since)
+        and (form_nps.until is null or x."submitted_at" < form_nps.until)
+    ) r
+    where r.answer between 0 and 10
+  )
+  select jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where a.answer >= 9), 'passives', count(*) filter (where a.answer >= 7 and a.answer < 9), 'detractors', count(*) filter (where a.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where a.answer >= 9) - count(*) filter (where a.answer < 7)) * 100.0 / count(*), 1) end),
+    case when form_nps.bucket is null then '[]'::jsonb else coalesce((
+      select jsonb_agg(jsonb_build_object('start', g.start) || g.counts order by g.start)
+      from (
+        select date_trunc(form_nps.bucket, b.answered_at, 'UTC') as start, jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where b.answer >= 9), 'passives', count(*) filter (where b.answer >= 7 and b.answer < 9), 'detractors', count(*) filter (where b.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where b.answer >= 9) - count(*) filter (where b.answer < 7)) * 100.0 / count(*), 1) end) as counts
+        from answered b
+        group by 1
+      ) g), '[]'::jsonb) end
+  into v_total, v_periods
+  from answered a;
+  return jsonb_build_object('field', v_field) || v_total || jsonb_build_object('periods', v_periods);
+end;
+$$;
+revoke execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."review_form_submission"(submission_id uuid, status text)
 returns jsonb
@@ -701,7 +973,7 @@ begin
   where x."id" = review_form_submission.submission_id
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."review_form_submission"(uuid, text) from public, anon;
@@ -757,14 +1029,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('forms', 1, 'managed')
+values ('forms', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_86_forms.sql
 -- better-supabase module: forms
--- @bs-module forms@1 managed
--- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
+-- @bs-module forms@2 managed
+-- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -873,6 +1145,20 @@ grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists "form_submissions_read" on "better_supabase"."form_submissions";
 create policy "form_submissions_read" on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
+alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "passed" boolean;
+
+-- The correct answers of a scored version, which only definer functions read.
+create table if not exists "better_supabase"."form_answer_keys" (
+  "version_id" uuid primary key references "better_supabase"."form_versions" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "answers" jsonb not null check (jsonb_typeof("answers") = 'object'),
+  "created_at" timestamptz not null default now()
+);
+alter table "better_supabase"."form_answer_keys" enable row level security;
+revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
 -- core/contracts/form-definition.ts.
@@ -906,6 +1192,7 @@ begin
     when 'option' then jsonb_build_object('type', 'string', 'enum', v_values)
     when 'multi' then jsonb_build_object('type', 'array', 'items', jsonb_build_object('type', 'string', 'enum', v_values), 'uniqueItems', true)
       || jsonb_strip_nulls(jsonb_build_object('minItems', coalesce(field -> 'min', v_floor), 'maxItems', field -> 'max'))
+    when 'nps' then '{"type": "integer", "minimum": 0, "maximum": 10}'::jsonb
     else '{}'::jsonb
   end;
   return v_out || jsonb_strip_nulls(jsonb_build_object('title', field -> 'label', 'description', field -> 'help'));
@@ -995,8 +1282,9 @@ declare
   v_options jsonb;
   v_step_keys text[] := '{}';
   v_keys text[] := '{}';
+  v_scored boolean := false;
 begin
-  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"}}}}}}}}}'::json, definition::json);
+  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json","nps"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},"correct":{},"points":{"type":"number","minimum":0,"maximum":10000}}}}}}},"scoring":{"type":"object","additionalProperties":false,"properties":{"passMark":{"type":"number","minimum":0,"maximum":100}}}}}'::json, definition::json);
   if cardinality(v_errors) > 0 then
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
@@ -1057,19 +1345,186 @@ begin
         end;
         exit steps when v_problem is not null;
       end if;
+      if v_field ? 'correct' then
+        v_scored := true;
+        if v_field -> 'correct' = 'null'::jsonb then
+          v_problem := format('field %s: correct can''t be null', v_field ->> 'key');
+          exit steps;
+        end if;
+        if (v_field ->> 'type') in ('consent', 'json', 'nps') then
+          v_problem := format('field %s: a %s field can''t have a correct answer', v_field ->> 'key', v_field ->> 'type');
+          exit steps;
+        end if;
+        if not "better_supabase"."form_correct_fits"(v_field) then
+          v_problem := format('field %s: correct isn''t an answer the field takes', v_field ->> 'key');
+          exit steps;
+        end if;
+      elsif v_field ? 'points' then
+        v_problem := format('field %s: points need a correct answer', v_field ->> 'key');
+        exit steps;
+      end if;
       v_fields := v_fields || jsonb_build_array(v_field);
     end loop;
     v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));
   end loop;
+  if v_problem is null and definition ? 'scoring' and not v_scored then
+    v_problem := 'scoring needs a field with a correct answer';
+  end if;
   if v_problem is not null then
     v_errors := array[v_problem];
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
   end if;
-  return jsonb_build_object('steps', v_steps);
+  return jsonb_build_object('steps', v_steps)
+    || case when definition ? 'scoring' then jsonb_build_object('scoring', definition -> 'scoring') else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
+
+-- Whether a field's correct answer is one it takes. Mirrors correctFits in
+-- core/contracts/form-definition.ts.
+create or replace function "better_supabase"."form_correct_fits"(field jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case field ->> 'type'
+    when 'text' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'textarea' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'email' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'url' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'date' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'number' then jsonb_typeof(field -> 'correct') = 'number'
+    when 'integer' then case when jsonb_typeof(field -> 'correct') = 'number'
+      then (field ->> 'correct')::numeric = trunc((field ->> 'correct')::numeric) else false end
+    when 'bool' then jsonb_typeof(field -> 'correct') = 'boolean'
+    when 'option' then jsonb_typeof(field -> 'correct') = 'string'
+      and exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = field -> 'correct')
+    when 'multi' then jsonb_typeof(field -> 'correct') = 'array'
+      and jsonb_array_length(field -> 'correct') > 0
+      and not exists (
+        select 1 from jsonb_array_elements(field -> 'correct') v
+        where jsonb_typeof(v) <> 'string'
+          or not exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = v))
+    else false
+  end
+$$;
+revoke execute on function "better_supabase"."form_correct_fits"(jsonb) from public, anon, authenticated;
+
+-- Whether a showIf condition holds for the answers. Mirrors conditionHolds in
+-- blocks/forms/questionnaire.ts.
+create or replace function "better_supabase"."form_condition_holds"(condition jsonb, answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not answers ? (condition ->> 'field') then false
+    when condition ? 'equals' then answers -> (condition ->> 'field') = condition -> 'equals'
+    when condition ? 'in' then exists (select 1 from jsonb_array_elements(condition -> 'in') x where x = answers -> (condition ->> 'field'))
+    else not (answers -> (condition ->> 'field') in ('null'::jsonb, '""'::jsonb, '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_condition_holds"(jsonb, jsonb) from public, anon, authenticated;
+
+-- Whether an answer earns a field's points: text without case and surrounding
+-- spaces, a multi answer as a set, anything else as the same JSON value.
+create or replace function "better_supabase"."form_answer_matches"(type text, answer jsonb, correct jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when type in ('text', 'textarea', 'email', 'url') then jsonb_typeof(answer) = 'string' and jsonb_typeof(correct) = 'string'
+      and lower(btrim(answer #>> '{}', ' ')) = lower(btrim(correct #>> '{}', ' '))
+    when type = 'multi' then jsonb_typeof(answer) = 'array' and jsonb_typeof(correct) = 'array'
+      and answer @> correct and correct @> answer
+    else coalesce(answer = correct, false)
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_matches"(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- A submission's grade: { score, maxScore, passed } against the answer key
+-- (field key to correct answer), or null for a form without one. A field its
+-- showIf (or its step's) hides counts toward neither score; passed is null
+-- without scoring.passMark. Mirrors formScore in blocks/forms/scoring.ts.
+create or replace function "better_supabase"."form_score"(definition jsonb, answer_key jsonb, answers jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_field jsonb;
+  v_points numeric;
+  v_score numeric := 0;
+  v_max numeric := 0;
+  v_pass numeric := (definition -> 'scoring' ->> 'passMark')::numeric;
+begin
+  if answer_key is null or answer_key = '{}'::jsonb then
+    return null;
+  end if;
+  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop
+    continue when v_step ? 'showIf' and not "better_supabase"."form_condition_holds"(v_step -> 'showIf', answers);
+    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop
+      continue when not answer_key ? (v_field ->> 'key');
+      continue when v_field ? 'showIf' and not "better_supabase"."form_condition_holds"(v_field -> 'showIf', answers);
+      v_points := coalesce((v_field ->> 'points')::numeric, 1);
+      v_max := v_max + v_points;
+      if answers ? (v_field ->> 'key')
+        and "better_supabase"."form_answer_matches"(v_field ->> 'type', answers -> (v_field ->> 'key'), answer_key -> (v_field ->> 'key')) then
+        v_score := v_score + v_points;
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('score', v_score, 'maxScore', v_max,
+    'passed', case when v_pass is null then null else v_score * 100 >= v_pass * v_max end);
+end;
+$$;
+revoke execute on function "better_supabase"."form_score"(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The definition without its correct answers, and the answer key they make
+-- (field key to correct answer), as { definition, key }.
+create or replace function "better_supabase"."form_answer_split"(definition jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'definition', jsonb_set(definition, '{steps}', coalesce((
+      select jsonb_agg(jsonb_set(s.step, '{fields}', (
+        select jsonb_agg(f.field - 'correct' order by f.ord)
+        from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+      from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb)),
+    'key', coalesce((
+      select jsonb_object_agg(f.field ->> 'key', f.field -> 'correct')
+      from jsonb_array_elements(definition -> 'steps') s(step)
+      cross join lateral jsonb_array_elements(s.step -> 'fields') f(field)
+      where f.field ? 'correct'), '{}'::jsonb))
+$$;
+revoke execute on function "better_supabase"."form_answer_split"(jsonb) from public, anon, authenticated;
+
+-- A stored definition with its answer key put back, for the form's managers.
+create or replace function "better_supabase"."form_answer_merge"(definition jsonb, answer_key jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when answer_key is null or answer_key = '{}'::jsonb then definition
+  else jsonb_set(definition, '{steps}', coalesce((
+    select jsonb_agg(jsonb_set(s.step, '{fields}', (
+      select jsonb_agg(case when answer_key ? (f.field ->> 'key') then f.field || jsonb_build_object('correct', answer_key -> (f.field ->> 'key')) else f.field end order by f.ord)
+      from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+    from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_merge"(jsonb, jsonb) from public, anon, authenticated;
 
 -- Creates a draft form. fields sets the extra columns by name.
 drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
@@ -1165,6 +1620,7 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_resolved jsonb;
+  v_split jsonb;
   v_number integer;
   v_row "better_supabase"."form_versions"%rowtype;
 begin
@@ -1187,10 +1643,18 @@ begin
     end if;
   end;
   v_resolved := "better_supabase"."form_resolve"(v_form."tenant_id", publish_form_version.definition);
+  v_split := "better_supabase"."form_answer_split"(v_resolved);
+  if v_split -> 'key' <> '{}'::jsonb then
+    v_resolved := v_split -> 'definition';
+  end if;
   select coalesce(max(x."number"), 0) + 1 into v_number from "better_supabase"."form_versions" x where x."form_id" = v_form."id";
   insert into "better_supabase"."form_versions" ("tenant_id", "form_id", "number", "definition", "schema", "created_by")
   values (v_form."tenant_id", v_form."id", v_number, v_resolved, "better_supabase"."form_schema"(v_resolved), auth.uid())
   returning * into v_row;
+  if v_split -> 'key' <> '{}'::jsonb then
+    insert into "better_supabase"."form_answer_keys" ("version_id", "tenant_id", "answers")
+    values (v_row."id", v_row."tenant_id", v_split -> 'key');
+  end if;
   update "better_supabase"."forms" x set
     "current_version_id" = v_row."id",
     "status" = case when x."status" = 'draft' then 'open' else x."status" end,
@@ -1215,7 +1679,9 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_form_version"(uuid, jsonb) from public, anon;
@@ -1240,7 +1706,9 @@ begin
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select * into v_version from "better_supabase"."form_versions" x where x."id" = v_row."current_version_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', v_version."definition", 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_version."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_version."id"))
+        else v_version."definition" end, 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."get_form"(uuid) from public, anon;
@@ -1263,7 +1731,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_version"(uuid) from public, anon;
@@ -1303,6 +1773,8 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_schema jsonb;
+  v_definition jsonb;
+  v_grade jsonb;
   v_errors text[];
   v_row "better_supabase"."form_submissions"%rowtype;
   v_link jsonb;
@@ -1326,12 +1798,13 @@ begin
     end if;
   end;
   if not form_submission_save.draft then
-    select x."schema" into v_schema from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
+    select x."schema", x."definition" into v_schema, v_definition from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, form_submission_save.answers::json);
     if cardinality(v_errors) > 0 then
       raise exception '%.answers does not match its JSON Schema: %', 'form_submissions', array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';
     end if;
+    v_grade := "better_supabase"."form_score"(v_definition, (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_form."current_version_id"), form_submission_save.answers);
   end if;
   if form_submission_save.submission_id is not null then
     select * into v_row from "better_supabase"."form_submissions" x where x."id" = form_submission_save.submission_id for update;
@@ -1348,18 +1821,21 @@ begin
       "submitted_at" = case when form_submission_save.draft then null else now() end,
       "subject_type" = coalesce(form_submission_save.subject_type, x."subject_type"),
       "subject_id" = coalesce(form_submission_save.subject_id, x."subject_id"),
+      "score" = (v_grade ->> 'score')::numeric,
+      "max_score" = (v_grade ->> 'maxScore')::numeric,
+      "passed" = (v_grade ->> 'passed')::boolean,
       "updated_at" = now()
     where x."id" = form_submission_save.submission_id
     returning * into v_row;
   else
-    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at")
+    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at", "score", "max_score", "passed")
     values (v_form."tenant_id", v_form."id", v_form."current_version_id", form_submission_save.subject_type, form_submission_save.subject_id, form_submission_save.respondent, form_submission_save.answers,
       case when form_submission_save.draft then 'draft' else 'submitted' end, form_submission_save.source,
-      case when form_submission_save.draft then null else now() end)
+      case when form_submission_save.draft then null else now() end, (v_grade ->> 'score')::numeric, (v_grade ->> 'maxScore')::numeric, (v_grade ->> 'passed')::boolean)
     returning * into v_row;
   end if;
   if not form_submission_save.draft then
-    perform "better_supabase".emit_event('form_submission.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', coalesce(v_row."subject_type", 'form'), 'subjectId', coalesce(v_row."subject_id", v_row."form_id"::text), 'id', v_row."id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'source', v_row."source"), 'form-submissions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
+    perform "better_supabase".emit_event('form_submission.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', coalesce(v_row."subject_type", 'form'), 'subjectId', coalesce(v_row."subject_id", v_row."form_id"::text), 'id', v_row."id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'source', v_row."source", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed"), 'form-submissions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/forms');
     declare
     v_hook regprocedure := to_regprocedure('"public"."after_form_submission"(uuid)');
   begin
@@ -1369,7 +1845,7 @@ begin
     end if;
   end;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."form_submission_save"(uuid, jsonb, text, text, uuid, text, boolean, uuid) from public, anon, authenticated;
@@ -1523,7 +1999,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_submission"(uuid) from public, anon;
@@ -1547,7 +2023,7 @@ begin
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
   v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
-  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at") order by r."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
@@ -1562,6 +2038,74 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
+
+
+-- The Net Promoter Score of an nps field (the current version's first one by
+-- default) over the submitted and accepted answers between since and until,
+-- with a row per day, week, month, quarter or year (UTC) when bucket is set.
+create or replace function "better_supabase"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_form "better_supabase"."forms"%rowtype;
+  v_field text := form_nps.field;
+  v_total jsonb;
+  v_periods jsonb;
+begin
+  select * into v_form from "better_supabase"."forms" x where x."id" = form_nps.form_id;
+  if not found then
+    raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to read this form''s results' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if form_nps.bucket is not null and form_nps.bucket not in ('day', 'week', 'month', 'quarter', 'year') then
+    raise exception 'bucket is day, week, month, quarter, year' using errcode = '22023', hint = 'FORM_NPS_BUCKET_INVALID';
+  end if;
+  if v_field is null then
+    select q.field ->> 'key' into v_field
+    from "better_supabase"."form_versions" x
+    cross join lateral jsonb_array_elements(x."definition" -> 'steps') with ordinality as p(step, step_ord)
+    cross join lateral jsonb_array_elements(p.step -> 'fields') with ordinality as q(field, field_ord)
+    where x."id" = v_form."current_version_id" and q.field ->> 'type' = 'nps'
+    order by p.step_ord, q.field_ord
+    limit 1;
+    if v_field is null then
+      raise exception 'the form has no nps field' using errcode = '22023', hint = 'FORM_NPS_FIELD_MISSING';
+    end if;
+  end if;
+  with answered as (
+    select r.answer, r.answered_at from (
+      select case when jsonb_typeof(x."answers" -> v_field) = 'number' then (x."answers" ->> v_field)::numeric end as answer,
+        x."submitted_at" as answered_at
+      from "better_supabase"."form_submissions" x
+      where x."form_id" = form_nps.form_id
+        and x."status" in ('submitted', 'accepted')
+        and (form_nps.since is null or x."submitted_at" >= form_nps.since)
+        and (form_nps.until is null or x."submitted_at" < form_nps.until)
+    ) r
+    where r.answer between 0 and 10
+  )
+  select jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where a.answer >= 9), 'passives', count(*) filter (where a.answer >= 7 and a.answer < 9), 'detractors', count(*) filter (where a.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where a.answer >= 9) - count(*) filter (where a.answer < 7)) * 100.0 / count(*), 1) end),
+    case when form_nps.bucket is null then '[]'::jsonb else coalesce((
+      select jsonb_agg(jsonb_build_object('start', g.start) || g.counts order by g.start)
+      from (
+        select date_trunc(form_nps.bucket, b.answered_at, 'UTC') as start, jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where b.answer >= 9), 'passives', count(*) filter (where b.answer >= 7 and b.answer < 9), 'detractors', count(*) filter (where b.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where b.answer >= 9) - count(*) filter (where b.answer < 7)) * 100.0 / count(*), 1) end) as counts
+        from answered b
+        group by 1
+      ) g), '[]'::jsonb) end
+  into v_total, v_periods
+  from answered a;
+  return jsonb_build_object('field', v_field) || v_total || jsonb_build_object('periods', v_periods);
+end;
+$$;
+revoke execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."review_form_submission"(submission_id uuid, status text)
 returns jsonb
@@ -1604,7 +2148,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', coalesce(v_row."subject_type", 'form'), 'subjectId', coalesce(v_row."subject_id", v_row."form_id"::text), 'id', v_row."id", 'formId', v_row."form_id", 'status', v_row."status")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."review_form_submission"(uuid, text) from public, anon;
@@ -1668,14 +2212,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('forms', 1, 'managed')
+values ('forms', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_86_forms.sql
 -- better-supabase module: forms
--- @bs-module forms@1 managed
--- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
+-- @bs-module forms@2 managed
+-- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1786,6 +2330,20 @@ grant all on "app_private"."form_submissions" to service_role;
 drop policy if exists "form_submissions_read" on "app_private"."form_submissions";
 create policy "form_submissions_read" on "app_private"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
+alter table "app_private"."form_submissions" add column if not exists "score" numeric;
+alter table "app_private"."form_submissions" add column if not exists "max_score" numeric;
+alter table "app_private"."form_submissions" add column if not exists "passed" boolean;
+
+-- The correct answers of a scored version, which only definer functions read.
+create table if not exists "app_private"."form_answer_keys" (
+  "version_id" uuid primary key references "app_private"."form_versions" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "answers" jsonb not null check (jsonb_typeof("answers") = 'object'),
+  "created_at" timestamptz not null default now()
+);
+alter table "app_private"."form_answer_keys" enable row level security;
+revoke all on "app_private"."form_answer_keys" from anon, authenticated;
+grant all on "app_private"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
 -- core/contracts/form-definition.ts.
@@ -1819,6 +2377,7 @@ begin
     when 'option' then jsonb_build_object('type', 'string', 'enum', v_values)
     when 'multi' then jsonb_build_object('type', 'array', 'items', jsonb_build_object('type', 'string', 'enum', v_values), 'uniqueItems', true)
       || jsonb_strip_nulls(jsonb_build_object('minItems', coalesce(field -> 'min', v_floor), 'maxItems', field -> 'max'))
+    when 'nps' then '{"type": "integer", "minimum": 0, "maximum": 10}'::jsonb
     else '{}'::jsonb
   end;
   return v_out || jsonb_strip_nulls(jsonb_build_object('title', field -> 'label', 'description', field -> 'help'));
@@ -1908,8 +2467,9 @@ declare
   v_options jsonb;
   v_step_keys text[] := '{}';
   v_keys text[] := '{}';
+  v_scored boolean := false;
 begin
-  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"}}}}}}}}}'::json, definition::json);
+  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json","nps"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},"correct":{},"points":{"type":"number","minimum":0,"maximum":10000}}}}}}},"scoring":{"type":"object","additionalProperties":false,"properties":{"passMark":{"type":"number","minimum":0,"maximum":100}}}}}'::json, definition::json);
   if cardinality(v_errors) > 0 then
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
@@ -1957,19 +2517,186 @@ begin
         end;
         exit steps when v_problem is not null;
       end if;
+      if v_field ? 'correct' then
+        v_scored := true;
+        if v_field -> 'correct' = 'null'::jsonb then
+          v_problem := format('field %s: correct can''t be null', v_field ->> 'key');
+          exit steps;
+        end if;
+        if (v_field ->> 'type') in ('consent', 'json', 'nps') then
+          v_problem := format('field %s: a %s field can''t have a correct answer', v_field ->> 'key', v_field ->> 'type');
+          exit steps;
+        end if;
+        if not "app_private"."form_correct_fits"(v_field) then
+          v_problem := format('field %s: correct isn''t an answer the field takes', v_field ->> 'key');
+          exit steps;
+        end if;
+      elsif v_field ? 'points' then
+        v_problem := format('field %s: points need a correct answer', v_field ->> 'key');
+        exit steps;
+      end if;
       v_fields := v_fields || jsonb_build_array(v_field);
     end loop;
     v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));
   end loop;
+  if v_problem is null and definition ? 'scoring' and not v_scored then
+    v_problem := 'scoring needs a field with a correct answer';
+  end if;
   if v_problem is not null then
     v_errors := array[v_problem];
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
   end if;
-  return jsonb_build_object('steps', v_steps);
+  return jsonb_build_object('steps', v_steps)
+    || case when definition ? 'scoring' then jsonb_build_object('scoring', definition -> 'scoring') else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "app_private"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
+
+-- Whether a field's correct answer is one it takes. Mirrors correctFits in
+-- core/contracts/form-definition.ts.
+create or replace function "app_private"."form_correct_fits"(field jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case field ->> 'type'
+    when 'text' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'textarea' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'email' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'url' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'date' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'number' then jsonb_typeof(field -> 'correct') = 'number'
+    when 'integer' then case when jsonb_typeof(field -> 'correct') = 'number'
+      then (field ->> 'correct')::numeric = trunc((field ->> 'correct')::numeric) else false end
+    when 'bool' then jsonb_typeof(field -> 'correct') = 'boolean'
+    when 'option' then jsonb_typeof(field -> 'correct') = 'string'
+      and exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = field -> 'correct')
+    when 'multi' then jsonb_typeof(field -> 'correct') = 'array'
+      and jsonb_array_length(field -> 'correct') > 0
+      and not exists (
+        select 1 from jsonb_array_elements(field -> 'correct') v
+        where jsonb_typeof(v) <> 'string'
+          or not exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = v))
+    else false
+  end
+$$;
+revoke execute on function "app_private"."form_correct_fits"(jsonb) from public, anon, authenticated;
+
+-- Whether a showIf condition holds for the answers. Mirrors conditionHolds in
+-- blocks/forms/questionnaire.ts.
+create or replace function "app_private"."form_condition_holds"(condition jsonb, answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not answers ? (condition ->> 'field') then false
+    when condition ? 'equals' then answers -> (condition ->> 'field') = condition -> 'equals'
+    when condition ? 'in' then exists (select 1 from jsonb_array_elements(condition -> 'in') x where x = answers -> (condition ->> 'field'))
+    else not (answers -> (condition ->> 'field') in ('null'::jsonb, '""'::jsonb, '[]'::jsonb))
+  end
+$$;
+revoke execute on function "app_private"."form_condition_holds"(jsonb, jsonb) from public, anon, authenticated;
+
+-- Whether an answer earns a field's points: text without case and surrounding
+-- spaces, a multi answer as a set, anything else as the same JSON value.
+create or replace function "app_private"."form_answer_matches"(type text, answer jsonb, correct jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when type in ('text', 'textarea', 'email', 'url') then jsonb_typeof(answer) = 'string' and jsonb_typeof(correct) = 'string'
+      and lower(btrim(answer #>> '{}', ' ')) = lower(btrim(correct #>> '{}', ' '))
+    when type = 'multi' then jsonb_typeof(answer) = 'array' and jsonb_typeof(correct) = 'array'
+      and answer @> correct and correct @> answer
+    else coalesce(answer = correct, false)
+  end
+$$;
+revoke execute on function "app_private"."form_answer_matches"(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- A submission's grade: { score, maxScore, passed } against the answer key
+-- (field key to correct answer), or null for a form without one. A field its
+-- showIf (or its step's) hides counts toward neither score; passed is null
+-- without scoring.passMark. Mirrors formScore in blocks/forms/scoring.ts.
+create or replace function "app_private"."form_score"(definition jsonb, answer_key jsonb, answers jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_field jsonb;
+  v_points numeric;
+  v_score numeric := 0;
+  v_max numeric := 0;
+  v_pass numeric := (definition -> 'scoring' ->> 'passMark')::numeric;
+begin
+  if answer_key is null or answer_key = '{}'::jsonb then
+    return null;
+  end if;
+  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop
+    continue when v_step ? 'showIf' and not "app_private"."form_condition_holds"(v_step -> 'showIf', answers);
+    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop
+      continue when not answer_key ? (v_field ->> 'key');
+      continue when v_field ? 'showIf' and not "app_private"."form_condition_holds"(v_field -> 'showIf', answers);
+      v_points := coalesce((v_field ->> 'points')::numeric, 1);
+      v_max := v_max + v_points;
+      if answers ? (v_field ->> 'key')
+        and "app_private"."form_answer_matches"(v_field ->> 'type', answers -> (v_field ->> 'key'), answer_key -> (v_field ->> 'key')) then
+        v_score := v_score + v_points;
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('score', v_score, 'maxScore', v_max,
+    'passed', case when v_pass is null then null else v_score * 100 >= v_pass * v_max end);
+end;
+$$;
+revoke execute on function "app_private"."form_score"(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The definition without its correct answers, and the answer key they make
+-- (field key to correct answer), as { definition, key }.
+create or replace function "app_private"."form_answer_split"(definition jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'definition', jsonb_set(definition, '{steps}', coalesce((
+      select jsonb_agg(jsonb_set(s.step, '{fields}', (
+        select jsonb_agg(f.field - 'correct' order by f.ord)
+        from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+      from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb)),
+    'key', coalesce((
+      select jsonb_object_agg(f.field ->> 'key', f.field -> 'correct')
+      from jsonb_array_elements(definition -> 'steps') s(step)
+      cross join lateral jsonb_array_elements(s.step -> 'fields') f(field)
+      where f.field ? 'correct'), '{}'::jsonb))
+$$;
+revoke execute on function "app_private"."form_answer_split"(jsonb) from public, anon, authenticated;
+
+-- A stored definition with its answer key put back, for the form's managers.
+create or replace function "app_private"."form_answer_merge"(definition jsonb, answer_key jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when answer_key is null or answer_key = '{}'::jsonb then definition
+  else jsonb_set(definition, '{steps}', coalesce((
+    select jsonb_agg(jsonb_set(s.step, '{fields}', (
+      select jsonb_agg(case when answer_key ? (f.field ->> 'key') then f.field || jsonb_build_object('correct', answer_key -> (f.field ->> 'key')) else f.field end order by f.ord)
+      from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+    from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb))
+  end
+$$;
+revoke execute on function "app_private"."form_answer_merge"(jsonb, jsonb) from public, anon, authenticated;
 
 -- Creates a draft form. fields sets the extra columns by name.
 drop function if exists "app_private"."create_form"(uuid, text, text, text);
@@ -2056,6 +2783,7 @@ as $$
 declare
   v_form "app_private"."forms"%rowtype;
   v_resolved jsonb;
+  v_split jsonb;
   v_number integer;
   v_row "app_private"."form_versions"%rowtype;
 begin
@@ -2078,10 +2806,18 @@ begin
     end if;
   end;
   v_resolved := "app_private"."form_resolve"(v_form."tenant_id", publish_form_version.definition);
+  v_split := "app_private"."form_answer_split"(v_resolved);
+  if v_split -> 'key' <> '{}'::jsonb then
+    v_resolved := v_split -> 'definition';
+  end if;
   select coalesce(max(x."number"), 0) + 1 into v_number from "app_private"."form_versions" x where x."form_id" = v_form."id";
   insert into "app_private"."form_versions" ("tenant_id", "form_id", "number", "definition", "schema", "created_by")
   values (v_form."tenant_id", v_form."id", v_number, v_resolved, "app_private"."form_schema"(v_resolved), auth.uid())
   returning * into v_row;
+  if v_split -> 'key' <> '{}'::jsonb then
+    insert into "app_private"."form_answer_keys" ("version_id", "tenant_id", "answers")
+    values (v_row."id", v_row."tenant_id", v_split -> 'key');
+  end if;
   update "app_private"."forms" x set
     "current_version_id" = v_row."id",
     "status" = case when x."status" = 'draft' then 'open' else x."status" end,
@@ -2096,7 +2832,9 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "app_private"."form_answer_merge"(v_row."definition", (select a."answers" from "app_private"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."publish_form_version"(uuid, jsonb) from public, anon;
@@ -2121,7 +2859,9 @@ begin
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select * into v_version from "app_private"."form_versions" x where x."id" = v_row."current_version_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', v_version."definition", 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
+        then "app_private"."form_answer_merge"(v_version."definition", (select a."answers" from "app_private"."form_answer_keys" a where a."version_id" = v_version."id"))
+        else v_version."definition" end, 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
 end;
 $$;
 revoke execute on function "app_private"."get_form"(uuid) from public, anon;
@@ -2144,7 +2884,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "app_private"."form_answer_merge"(v_row."definition", (select a."answers" from "app_private"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."get_form_version"(uuid) from public, anon;
@@ -2184,6 +2926,8 @@ as $$
 declare
   v_form "app_private"."forms"%rowtype;
   v_schema jsonb;
+  v_definition jsonb;
+  v_grade jsonb;
   v_errors text[];
   v_row "app_private"."form_submissions"%rowtype;
   v_link jsonb;
@@ -2207,12 +2951,13 @@ begin
     end if;
   end;
   if not form_submission_save.draft then
-    select x."schema" into v_schema from "app_private"."form_versions" x where x."id" = v_form."current_version_id";
+    select x."schema", x."definition" into v_schema, v_definition from "app_private"."form_versions" x where x."id" = v_form."current_version_id";
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, form_submission_save.answers::json);
     if cardinality(v_errors) > 0 then
       raise exception '%.answers does not match its JSON Schema: %', 'form_submissions', array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';
     end if;
+    v_grade := "app_private"."form_score"(v_definition, (select a."answers" from "app_private"."form_answer_keys" a where a."version_id" = v_form."current_version_id"), form_submission_save.answers);
   end if;
   if form_submission_save.submission_id is not null then
     select * into v_row from "app_private"."form_submissions" x where x."id" = form_submission_save.submission_id for update;
@@ -2229,14 +2974,17 @@ begin
       "submitted_at" = case when form_submission_save.draft then null else now() end,
       "subject_type" = coalesce(form_submission_save.subject_type, x."subject_type"),
       "subject_id" = coalesce(form_submission_save.subject_id, x."subject_id"),
+      "score" = (v_grade ->> 'score')::numeric,
+      "max_score" = (v_grade ->> 'maxScore')::numeric,
+      "passed" = (v_grade ->> 'passed')::boolean,
       "updated_at" = now()
     where x."id" = form_submission_save.submission_id
     returning * into v_row;
   else
-    insert into "app_private"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at")
+    insert into "app_private"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at", "score", "max_score", "passed")
     values (v_form."tenant_id", v_form."id", v_form."current_version_id", form_submission_save.subject_type, form_submission_save.subject_id, form_submission_save.respondent, form_submission_save.answers,
       case when form_submission_save.draft then 'draft' else 'submitted' end, form_submission_save.source,
-      case when form_submission_save.draft then null else now() end)
+      case when form_submission_save.draft then null else now() end, (v_grade ->> 'score')::numeric, (v_grade ->> 'maxScore')::numeric, (v_grade ->> 'passed')::boolean)
     returning * into v_row;
   end if;
   if not form_submission_save.draft then
@@ -2250,7 +2998,7 @@ begin
     end if;
   end;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "app_private"."form_submission_save"(uuid, jsonb, text, text, uuid, text, boolean, uuid) from public, anon, authenticated;
@@ -2304,7 +3052,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "app_private"."get_form_submission"(uuid) from public, anon;
@@ -2328,7 +3076,7 @@ begin
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
   v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
-  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at") order by r."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "app_private"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
@@ -2343,6 +3091,74 @@ end;
 $$;
 revoke execute on function "app_private"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
 grant execute on function "app_private"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
+
+
+-- The Net Promoter Score of an nps field (the current version's first one by
+-- default) over the submitted and accepted answers between since and until,
+-- with a row per day, week, month, quarter or year (UTC) when bucket is set.
+create or replace function "app_private"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_form "app_private"."forms"%rowtype;
+  v_field text := form_nps.field;
+  v_total jsonb;
+  v_periods jsonb;
+begin
+  select * into v_form from "app_private"."forms" x where x."id" = form_nps.form_id;
+  if not found then
+    raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to read this form''s results' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if form_nps.bucket is not null and form_nps.bucket not in ('day', 'week', 'month', 'quarter', 'year') then
+    raise exception 'bucket is day, week, month, quarter, year' using errcode = '22023', hint = 'FORM_NPS_BUCKET_INVALID';
+  end if;
+  if v_field is null then
+    select q.field ->> 'key' into v_field
+    from "app_private"."form_versions" x
+    cross join lateral jsonb_array_elements(x."definition" -> 'steps') with ordinality as p(step, step_ord)
+    cross join lateral jsonb_array_elements(p.step -> 'fields') with ordinality as q(field, field_ord)
+    where x."id" = v_form."current_version_id" and q.field ->> 'type' = 'nps'
+    order by p.step_ord, q.field_ord
+    limit 1;
+    if v_field is null then
+      raise exception 'the form has no nps field' using errcode = '22023', hint = 'FORM_NPS_FIELD_MISSING';
+    end if;
+  end if;
+  with answered as (
+    select r.answer, r.answered_at from (
+      select case when jsonb_typeof(x."answers" -> v_field) = 'number' then (x."answers" ->> v_field)::numeric end as answer,
+        x."submitted_at" as answered_at
+      from "app_private"."form_submissions" x
+      where x."form_id" = form_nps.form_id
+        and x."status" in ('submitted', 'accepted')
+        and (form_nps.since is null or x."submitted_at" >= form_nps.since)
+        and (form_nps.until is null or x."submitted_at" < form_nps.until)
+    ) r
+    where r.answer between 0 and 10
+  )
+  select jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where a.answer >= 9), 'passives', count(*) filter (where a.answer >= 7 and a.answer < 9), 'detractors', count(*) filter (where a.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where a.answer >= 9) - count(*) filter (where a.answer < 7)) * 100.0 / count(*), 1) end),
+    case when form_nps.bucket is null then '[]'::jsonb else coalesce((
+      select jsonb_agg(jsonb_build_object('start', g.start) || g.counts order by g.start)
+      from (
+        select date_trunc(form_nps.bucket, b.answered_at, 'UTC') as start, jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where b.answer >= 9), 'passives', count(*) filter (where b.answer >= 7 and b.answer < 9), 'detractors', count(*) filter (where b.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where b.answer >= 9) - count(*) filter (where b.answer < 7)) * 100.0 / count(*), 1) end) as counts
+        from answered b
+        group by 1
+      ) g), '[]'::jsonb) end
+  into v_total, v_periods
+  from answered a;
+  return jsonb_build_object('field', v_field) || v_total || jsonb_build_object('periods', v_periods);
+end;
+$$;
+revoke execute on function "app_private"."form_nps"(uuid, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function "app_private"."form_nps"(uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+
 
 create or replace function "app_private"."review_form_submission"(submission_id uuid, status text)
 returns jsonb
@@ -2377,7 +3193,7 @@ begin
   where x."id" = review_form_submission.submission_id
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "app_private"."review_form_submission"(uuid, text) from public, anon;
@@ -2433,14 +3249,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('forms', 1, 'managed')
+values ('forms', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_86_forms.sql
 -- better-supabase module: forms
--- @bs-module forms@1 managed
--- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
+-- @bs-module forms@2 managed
+-- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2549,6 +3365,20 @@ grant all on "better_supabase"."form_submissions" to service_role;
 drop policy if exists "form_submissions_read" on "better_supabase"."form_submissions";
 create policy "form_submissions_read" on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
+alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
+alter table "better_supabase"."form_submissions" add column if not exists "passed" boolean;
+
+-- The correct answers of a scored version, which only definer functions read.
+create table if not exists "better_supabase"."form_answer_keys" (
+  "version_id" uuid primary key references "better_supabase"."form_versions" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "answers" jsonb not null check (jsonb_typeof("answers") = 'object'),
+  "created_at" timestamptz not null default now()
+);
+alter table "better_supabase"."form_answer_keys" enable row level security;
+revoke all on "better_supabase"."form_answer_keys" from anon, authenticated;
+grant all on "better_supabase"."form_answer_keys" to service_role;
 
 -- The schema of one field's answer. Mirrors fieldSchema in
 -- core/contracts/form-definition.ts.
@@ -2582,6 +3412,7 @@ begin
     when 'option' then jsonb_build_object('type', 'string', 'enum', v_values)
     when 'multi' then jsonb_build_object('type', 'array', 'items', jsonb_build_object('type', 'string', 'enum', v_values), 'uniqueItems', true)
       || jsonb_strip_nulls(jsonb_build_object('minItems', coalesce(field -> 'min', v_floor), 'maxItems', field -> 'max'))
+    when 'nps' then '{"type": "integer", "minimum": 0, "maximum": 10}'::jsonb
     else '{}'::jsonb
   end;
   return v_out || jsonb_strip_nulls(jsonb_build_object('title', field -> 'label', 'description', field -> 'help'));
@@ -2671,8 +3502,9 @@ declare
   v_options jsonb;
   v_step_keys text[] := '{}';
   v_keys text[] := '{}';
+  v_scored boolean := false;
 begin
-  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"}}}}}}}}}'::json, definition::json);
+  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json","nps"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},"correct":{},"points":{"type":"number","minimum":0,"maximum":10000}}}}}}},"scoring":{"type":"object","additionalProperties":false,"properties":{"passMark":{"type":"number","minimum":0,"maximum":100}}}}}'::json, definition::json);
   if cardinality(v_errors) > 0 then
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
@@ -2720,19 +3552,186 @@ begin
         end;
         exit steps when v_problem is not null;
       end if;
+      if v_field ? 'correct' then
+        v_scored := true;
+        if v_field -> 'correct' = 'null'::jsonb then
+          v_problem := format('field %s: correct can''t be null', v_field ->> 'key');
+          exit steps;
+        end if;
+        if (v_field ->> 'type') in ('consent', 'json', 'nps') then
+          v_problem := format('field %s: a %s field can''t have a correct answer', v_field ->> 'key', v_field ->> 'type');
+          exit steps;
+        end if;
+        if not "better_supabase"."form_correct_fits"(v_field) then
+          v_problem := format('field %s: correct isn''t an answer the field takes', v_field ->> 'key');
+          exit steps;
+        end if;
+      elsif v_field ? 'points' then
+        v_problem := format('field %s: points need a correct answer', v_field ->> 'key');
+        exit steps;
+      end if;
       v_fields := v_fields || jsonb_build_array(v_field);
     end loop;
     v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));
   end loop;
+  if v_problem is null and definition ? 'scoring' and not v_scored then
+    v_problem := 'scoring needs a field with a correct answer';
+  end if;
   if v_problem is not null then
     v_errors := array[v_problem];
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
   end if;
-  return jsonb_build_object('steps', v_steps);
+  return jsonb_build_object('steps', v_steps)
+    || case when definition ? 'scoring' then jsonb_build_object('scoring', definition -> 'scoring') else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
+
+-- Whether a field's correct answer is one it takes. Mirrors correctFits in
+-- core/contracts/form-definition.ts.
+create or replace function "better_supabase"."form_correct_fits"(field jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case field ->> 'type'
+    when 'text' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'textarea' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'email' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'url' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'date' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'number' then jsonb_typeof(field -> 'correct') = 'number'
+    when 'integer' then case when jsonb_typeof(field -> 'correct') = 'number'
+      then (field ->> 'correct')::numeric = trunc((field ->> 'correct')::numeric) else false end
+    when 'bool' then jsonb_typeof(field -> 'correct') = 'boolean'
+    when 'option' then jsonb_typeof(field -> 'correct') = 'string'
+      and exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = field -> 'correct')
+    when 'multi' then jsonb_typeof(field -> 'correct') = 'array'
+      and jsonb_array_length(field -> 'correct') > 0
+      and not exists (
+        select 1 from jsonb_array_elements(field -> 'correct') v
+        where jsonb_typeof(v) <> 'string'
+          or not exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = v))
+    else false
+  end
+$$;
+revoke execute on function "better_supabase"."form_correct_fits"(jsonb) from public, anon, authenticated;
+
+-- Whether a showIf condition holds for the answers. Mirrors conditionHolds in
+-- blocks/forms/questionnaire.ts.
+create or replace function "better_supabase"."form_condition_holds"(condition jsonb, answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not answers ? (condition ->> 'field') then false
+    when condition ? 'equals' then answers -> (condition ->> 'field') = condition -> 'equals'
+    when condition ? 'in' then exists (select 1 from jsonb_array_elements(condition -> 'in') x where x = answers -> (condition ->> 'field'))
+    else not (answers -> (condition ->> 'field') in ('null'::jsonb, '""'::jsonb, '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_condition_holds"(jsonb, jsonb) from public, anon, authenticated;
+
+-- Whether an answer earns a field's points: text without case and surrounding
+-- spaces, a multi answer as a set, anything else as the same JSON value.
+create or replace function "better_supabase"."form_answer_matches"(type text, answer jsonb, correct jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when type in ('text', 'textarea', 'email', 'url') then jsonb_typeof(answer) = 'string' and jsonb_typeof(correct) = 'string'
+      and lower(btrim(answer #>> '{}', ' ')) = lower(btrim(correct #>> '{}', ' '))
+    when type = 'multi' then jsonb_typeof(answer) = 'array' and jsonb_typeof(correct) = 'array'
+      and answer @> correct and correct @> answer
+    else coalesce(answer = correct, false)
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_matches"(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- A submission's grade: { score, maxScore, passed } against the answer key
+-- (field key to correct answer), or null for a form without one. A field its
+-- showIf (or its step's) hides counts toward neither score; passed is null
+-- without scoring.passMark. Mirrors formScore in blocks/forms/scoring.ts.
+create or replace function "better_supabase"."form_score"(definition jsonb, answer_key jsonb, answers jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_field jsonb;
+  v_points numeric;
+  v_score numeric := 0;
+  v_max numeric := 0;
+  v_pass numeric := (definition -> 'scoring' ->> 'passMark')::numeric;
+begin
+  if answer_key is null or answer_key = '{}'::jsonb then
+    return null;
+  end if;
+  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop
+    continue when v_step ? 'showIf' and not "better_supabase"."form_condition_holds"(v_step -> 'showIf', answers);
+    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop
+      continue when not answer_key ? (v_field ->> 'key');
+      continue when v_field ? 'showIf' and not "better_supabase"."form_condition_holds"(v_field -> 'showIf', answers);
+      v_points := coalesce((v_field ->> 'points')::numeric, 1);
+      v_max := v_max + v_points;
+      if answers ? (v_field ->> 'key')
+        and "better_supabase"."form_answer_matches"(v_field ->> 'type', answers -> (v_field ->> 'key'), answer_key -> (v_field ->> 'key')) then
+        v_score := v_score + v_points;
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('score', v_score, 'maxScore', v_max,
+    'passed', case when v_pass is null then null else v_score * 100 >= v_pass * v_max end);
+end;
+$$;
+revoke execute on function "better_supabase"."form_score"(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The definition without its correct answers, and the answer key they make
+-- (field key to correct answer), as { definition, key }.
+create or replace function "better_supabase"."form_answer_split"(definition jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'definition', jsonb_set(definition, '{steps}', coalesce((
+      select jsonb_agg(jsonb_set(s.step, '{fields}', (
+        select jsonb_agg(f.field - 'correct' order by f.ord)
+        from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+      from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb)),
+    'key', coalesce((
+      select jsonb_object_agg(f.field ->> 'key', f.field -> 'correct')
+      from jsonb_array_elements(definition -> 'steps') s(step)
+      cross join lateral jsonb_array_elements(s.step -> 'fields') f(field)
+      where f.field ? 'correct'), '{}'::jsonb))
+$$;
+revoke execute on function "better_supabase"."form_answer_split"(jsonb) from public, anon, authenticated;
+
+-- A stored definition with its answer key put back, for the form's managers.
+create or replace function "better_supabase"."form_answer_merge"(definition jsonb, answer_key jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when answer_key is null or answer_key = '{}'::jsonb then definition
+  else jsonb_set(definition, '{steps}', coalesce((
+    select jsonb_agg(jsonb_set(s.step, '{fields}', (
+      select jsonb_agg(case when answer_key ? (f.field ->> 'key') then f.field || jsonb_build_object('correct', answer_key -> (f.field ->> 'key')) else f.field end order by f.ord)
+      from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+    from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_merge"(jsonb, jsonb) from public, anon, authenticated;
 
 -- Creates a draft form. fields sets the extra columns by name.
 drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
@@ -2819,6 +3818,7 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_resolved jsonb;
+  v_split jsonb;
   v_number integer;
   v_row "better_supabase"."form_versions"%rowtype;
 begin
@@ -2841,10 +3841,18 @@ begin
     end if;
   end;
   v_resolved := "better_supabase"."form_resolve"(v_form."tenant_id", publish_form_version.definition);
+  v_split := "better_supabase"."form_answer_split"(v_resolved);
+  if v_split -> 'key' <> '{}'::jsonb then
+    v_resolved := v_split -> 'definition';
+  end if;
   select coalesce(max(x."number"), 0) + 1 into v_number from "better_supabase"."form_versions" x where x."form_id" = v_form."id";
   insert into "better_supabase"."form_versions" ("tenant_id", "form_id", "number", "definition", "schema", "created_by")
   values (v_form."tenant_id", v_form."id", v_number, v_resolved, "better_supabase"."form_schema"(v_resolved), auth.uid())
   returning * into v_row;
+  if v_split -> 'key' <> '{}'::jsonb then
+    insert into "better_supabase"."form_answer_keys" ("version_id", "tenant_id", "answers")
+    values (v_row."id", v_row."tenant_id", v_split -> 'key');
+  end if;
   update "better_supabase"."forms" x set
     "current_version_id" = v_row."id",
     "status" = case when x."status" = 'draft' then 'open' else x."status" end,
@@ -2859,7 +3867,9 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_form_version"(uuid, jsonb) from public, anon;
@@ -2884,7 +3894,9 @@ begin
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
   select * into v_version from "better_supabase"."form_versions" x where x."id" = v_row."current_version_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', v_version."definition", 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'currentVersionId', v_row."current_version_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('version', case when v_version."id" is null then null else jsonb_build_object('id', v_version."id", 'formId', v_version."form_id", 'number', v_version."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_version."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_version."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_version."id"))
+        else v_version."definition" end, 'schema', v_version."schema", 'createdBy', v_version."created_by", 'createdAt', v_version."created_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."get_form"(uuid) from public, anon;
@@ -2907,7 +3919,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)) then
     raise exception 'not allowed to read this form' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', v_row."definition", 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'formId', v_row."form_id", 'number', v_row."number", 'definition', case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.manage'), false)
+        then "better_supabase"."form_answer_merge"(v_row."definition", (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_row."id"))
+        else v_row."definition" end, 'schema', v_row."schema", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_version"(uuid) from public, anon;
@@ -2947,6 +3961,8 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_schema jsonb;
+  v_definition jsonb;
+  v_grade jsonb;
   v_errors text[];
   v_row "better_supabase"."form_submissions"%rowtype;
   v_link jsonb;
@@ -2970,12 +3986,13 @@ begin
     end if;
   end;
   if not form_submission_save.draft then
-    select x."schema" into v_schema from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
+    select x."schema", x."definition" into v_schema, v_definition from "better_supabase"."form_versions" x where x."id" = v_form."current_version_id";
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, form_submission_save.answers::json);
     if cardinality(v_errors) > 0 then
       raise exception '%.answers does not match its JSON Schema: %', 'form_submissions', array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';
     end if;
+    v_grade := "better_supabase"."form_score"(v_definition, (select a."answers" from "better_supabase"."form_answer_keys" a where a."version_id" = v_form."current_version_id"), form_submission_save.answers);
   end if;
   if form_submission_save.submission_id is not null then
     select * into v_row from "better_supabase"."form_submissions" x where x."id" = form_submission_save.submission_id for update;
@@ -2992,14 +4009,17 @@ begin
       "submitted_at" = case when form_submission_save.draft then null else now() end,
       "subject_type" = coalesce(form_submission_save.subject_type, x."subject_type"),
       "subject_id" = coalesce(form_submission_save.subject_id, x."subject_id"),
+      "score" = (v_grade ->> 'score')::numeric,
+      "max_score" = (v_grade ->> 'maxScore')::numeric,
+      "passed" = (v_grade ->> 'passed')::boolean,
       "updated_at" = now()
     where x."id" = form_submission_save.submission_id
     returning * into v_row;
   else
-    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at")
+    insert into "better_supabase"."form_submissions" ("tenant_id", "form_id", "version_id", "subject_type", "subject_id", "respondent_id", "answers", "status", "source", "submitted_at", "score", "max_score", "passed")
     values (v_form."tenant_id", v_form."id", v_form."current_version_id", form_submission_save.subject_type, form_submission_save.subject_id, form_submission_save.respondent, form_submission_save.answers,
       case when form_submission_save.draft then 'draft' else 'submitted' end, form_submission_save.source,
-      case when form_submission_save.draft then null else now() end)
+      case when form_submission_save.draft then null else now() end, (v_grade ->> 'score')::numeric, (v_grade ->> 'maxScore')::numeric, (v_grade ->> 'passed')::boolean)
     returning * into v_row;
   end if;
   if not form_submission_save.draft then
@@ -3013,7 +4033,7 @@ begin
     end if;
   end;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."form_submission_save"(uuid, jsonb, text, text, uuid, text, boolean, uuid) from public, anon, authenticated;
@@ -3067,7 +4087,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."respondent_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_submission"(uuid) from public, anon;
@@ -3091,7 +4111,7 @@ begin
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
   v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
-  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at") order by r."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
@@ -3106,6 +4126,74 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
+
+
+-- The Net Promoter Score of an nps field (the current version's first one by
+-- default) over the submitted and accepted answers between since and until,
+-- with a row per day, week, month, quarter or year (UTC) when bucket is set.
+create or replace function "better_supabase"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_form "better_supabase"."forms"%rowtype;
+  v_field text := form_nps.field;
+  v_total jsonb;
+  v_periods jsonb;
+begin
+  select * into v_form from "better_supabase"."forms" x where x."id" = form_nps.form_id;
+  if not found then
+    raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to read this form''s results' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if form_nps.bucket is not null and form_nps.bucket not in ('day', 'week', 'month', 'quarter', 'year') then
+    raise exception 'bucket is day, week, month, quarter, year' using errcode = '22023', hint = 'FORM_NPS_BUCKET_INVALID';
+  end if;
+  if v_field is null then
+    select q.field ->> 'key' into v_field
+    from "better_supabase"."form_versions" x
+    cross join lateral jsonb_array_elements(x."definition" -> 'steps') with ordinality as p(step, step_ord)
+    cross join lateral jsonb_array_elements(p.step -> 'fields') with ordinality as q(field, field_ord)
+    where x."id" = v_form."current_version_id" and q.field ->> 'type' = 'nps'
+    order by p.step_ord, q.field_ord
+    limit 1;
+    if v_field is null then
+      raise exception 'the form has no nps field' using errcode = '22023', hint = 'FORM_NPS_FIELD_MISSING';
+    end if;
+  end if;
+  with answered as (
+    select r.answer, r.answered_at from (
+      select case when jsonb_typeof(x."answers" -> v_field) = 'number' then (x."answers" ->> v_field)::numeric end as answer,
+        x."submitted_at" as answered_at
+      from "better_supabase"."form_submissions" x
+      where x."form_id" = form_nps.form_id
+        and x."status" in ('submitted', 'accepted')
+        and (form_nps.since is null or x."submitted_at" >= form_nps.since)
+        and (form_nps.until is null or x."submitted_at" < form_nps.until)
+    ) r
+    where r.answer between 0 and 10
+  )
+  select jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where a.answer >= 9), 'passives', count(*) filter (where a.answer >= 7 and a.answer < 9), 'detractors', count(*) filter (where a.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where a.answer >= 9) - count(*) filter (where a.answer < 7)) * 100.0 / count(*), 1) end),
+    case when form_nps.bucket is null then '[]'::jsonb else coalesce((
+      select jsonb_agg(jsonb_build_object('start', g.start) || g.counts order by g.start)
+      from (
+        select date_trunc(form_nps.bucket, b.answered_at, 'UTC') as start, jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where b.answer >= 9), 'passives', count(*) filter (where b.answer >= 7 and b.answer < 9), 'detractors', count(*) filter (where b.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where b.answer >= 9) - count(*) filter (where b.answer < 7)) * 100.0 / count(*), 1) end) as counts
+        from answered b
+        group by 1
+      ) g), '[]'::jsonb) end
+  into v_total, v_periods
+  from answered a;
+  return jsonb_build_object('field', v_field) || v_total || jsonb_build_object('periods', v_periods);
+end;
+$$;
+revoke execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."review_form_submission"(submission_id uuid, status text)
 returns jsonb
@@ -3140,7 +4228,7 @@ begin
   where x."id" = review_form_submission.submission_id
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."review_form_submission"(uuid, text) from public, anon;
@@ -3281,6 +4369,15 @@ as $$ select "better_supabase"."list_form_submissions"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
 grant execute on function "api"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
+create or replace function "api"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."form_nps"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."form_nps"(uuid, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function "api"."form_nps"(uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+
 create or replace function "api"."review_form_submission"(submission_id uuid, status text)
 returns jsonb
 language sql
@@ -3320,14 +4417,14 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('forms', 1, 'managed')
+values ('forms', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_86_forms.sql
 -- better-supabase module: forms
--- @bs-module forms@1 adopt
--- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.
+-- @bs-module forms@2 adopt
+-- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3400,6 +4497,7 @@ begin
     when 'option' then jsonb_build_object('type', 'string', 'enum', v_values)
     when 'multi' then jsonb_build_object('type', 'array', 'items', jsonb_build_object('type', 'string', 'enum', v_values), 'uniqueItems', true)
       || jsonb_strip_nulls(jsonb_build_object('minItems', coalesce(field -> 'min', v_floor), 'maxItems', field -> 'max'))
+    when 'nps' then '{"type": "integer", "minimum": 0, "maximum": 10}'::jsonb
     else '{}'::jsonb
   end;
   return v_out || jsonb_strip_nulls(jsonb_build_object('title', field -> 'label', 'description', field -> 'help'));
@@ -3489,8 +4587,9 @@ declare
   v_options jsonb;
   v_step_keys text[] := '{}';
   v_keys text[] := '{}';
+  v_scored boolean := false;
 begin
-  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"}}}}}}}}}'::json, definition::json);
+  v_errors := extensions.jsonschema_validation_errors('{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["steps"],"additionalProperties":false,"properties":{"steps":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"object","required":["key","fields"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":2000},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"fields":{"type":"array","minItems":1,"maxItems":200,"items":{"type":"object","required":["key"],"additionalProperties":false,"properties":{"key":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"label":{"type":"string","minLength":1,"maxLength":200},"type":{"enum":["text","textarea","email","url","number","integer","date","bool","consent","option","multi","json","nps"]},"required":{"type":"boolean"},"help":{"type":"string","maxLength":1000},"placeholder":{"type":"string","maxLength":200},"options":{"type":"array","minItems":1,"maxItems":500,"items":{"type":"object","required":["value","label"],"additionalProperties":false,"properties":{"value":{"type":"string","minLength":1,"maxLength":200},"label":{"type":"string","minLength":1,"maxLength":200}}}},"min":{"type":"number"},"max":{"type":"number"},"minLength":{"type":"integer","minimum":0},"maxLength":{"type":"integer","minimum":1},"pattern":{"type":"string","maxLength":500},"showIf":{"type":"object","required":["field"],"minProperties":2,"maxProperties":2,"additionalProperties":false,"properties":{"field":{"type":"string","pattern":"^[a-z][a-zA-Z0-9_]{0,62}$"},"equals":{},"in":{"type":"array","minItems":1,"maxItems":500},"filled":{"const":true}}},"customField":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},"correct":{},"points":{"type":"number","minimum":0,"maximum":10000}}}}}}},"scoring":{"type":"object","additionalProperties":false,"properties":{"passMark":{"type":"number","minimum":0,"maximum":100}}}}}'::json, definition::json);
   if cardinality(v_errors) > 0 then
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
@@ -3538,19 +4637,186 @@ begin
         end;
         exit steps when v_problem is not null;
       end if;
+      if v_field ? 'correct' then
+        v_scored := true;
+        if v_field -> 'correct' = 'null'::jsonb then
+          v_problem := format('field %s: correct can''t be null', v_field ->> 'key');
+          exit steps;
+        end if;
+        if (v_field ->> 'type') in ('consent', 'json', 'nps') then
+          v_problem := format('field %s: a %s field can''t have a correct answer', v_field ->> 'key', v_field ->> 'type');
+          exit steps;
+        end if;
+        if not "better_supabase"."form_correct_fits"(v_field) then
+          v_problem := format('field %s: correct isn''t an answer the field takes', v_field ->> 'key');
+          exit steps;
+        end if;
+      elsif v_field ? 'points' then
+        v_problem := format('field %s: points need a correct answer', v_field ->> 'key');
+        exit steps;
+      end if;
       v_fields := v_fields || jsonb_build_array(v_field);
     end loop;
     v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));
   end loop;
+  if v_problem is null and definition ? 'scoring' and not v_scored then
+    v_problem := 'scoring needs a field with a correct answer';
+  end if;
   if v_problem is not null then
     v_errors := array[v_problem];
     raise exception 'the form definition is invalid: %', array_to_string(v_errors, '; ')
       using errcode = '22023', detail = to_jsonb(v_errors)::text, hint = 'FORM_DEFINITION_INVALID';
   end if;
-  return jsonb_build_object('steps', v_steps);
+  return jsonb_build_object('steps', v_steps)
+    || case when definition ? 'scoring' then jsonb_build_object('scoring', definition -> 'scoring') else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."form_resolve"(uuid, jsonb) from public, anon, authenticated;
+
+-- Whether a field's correct answer is one it takes. Mirrors correctFits in
+-- core/contracts/form-definition.ts.
+create or replace function "better_supabase"."form_correct_fits"(field jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case field ->> 'type'
+    when 'text' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'textarea' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'email' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'url' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'date' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'number' then jsonb_typeof(field -> 'correct') = 'number'
+    when 'integer' then case when jsonb_typeof(field -> 'correct') = 'number'
+      then (field ->> 'correct')::numeric = trunc((field ->> 'correct')::numeric) else false end
+    when 'bool' then jsonb_typeof(field -> 'correct') = 'boolean'
+    when 'option' then jsonb_typeof(field -> 'correct') = 'string'
+      and exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = field -> 'correct')
+    when 'multi' then jsonb_typeof(field -> 'correct') = 'array'
+      and jsonb_array_length(field -> 'correct') > 0
+      and not exists (
+        select 1 from jsonb_array_elements(field -> 'correct') v
+        where jsonb_typeof(v) <> 'string'
+          or not exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = v))
+    else false
+  end
+$$;
+revoke execute on function "better_supabase"."form_correct_fits"(jsonb) from public, anon, authenticated;
+
+-- Whether a showIf condition holds for the answers. Mirrors conditionHolds in
+-- blocks/forms/questionnaire.ts.
+create or replace function "better_supabase"."form_condition_holds"(condition jsonb, answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not answers ? (condition ->> 'field') then false
+    when condition ? 'equals' then answers -> (condition ->> 'field') = condition -> 'equals'
+    when condition ? 'in' then exists (select 1 from jsonb_array_elements(condition -> 'in') x where x = answers -> (condition ->> 'field'))
+    else not (answers -> (condition ->> 'field') in ('null'::jsonb, '""'::jsonb, '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_condition_holds"(jsonb, jsonb) from public, anon, authenticated;
+
+-- Whether an answer earns a field's points: text without case and surrounding
+-- spaces, a multi answer as a set, anything else as the same JSON value.
+create or replace function "better_supabase"."form_answer_matches"(type text, answer jsonb, correct jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when type in ('text', 'textarea', 'email', 'url') then jsonb_typeof(answer) = 'string' and jsonb_typeof(correct) = 'string'
+      and lower(btrim(answer #>> '{}', ' ')) = lower(btrim(correct #>> '{}', ' '))
+    when type = 'multi' then jsonb_typeof(answer) = 'array' and jsonb_typeof(correct) = 'array'
+      and answer @> correct and correct @> answer
+    else coalesce(answer = correct, false)
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_matches"(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- A submission's grade: { score, maxScore, passed } against the answer key
+-- (field key to correct answer), or null for a form without one. A field its
+-- showIf (or its step's) hides counts toward neither score; passed is null
+-- without scoring.passMark. Mirrors formScore in blocks/forms/scoring.ts.
+create or replace function "better_supabase"."form_score"(definition jsonb, answer_key jsonb, answers jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_field jsonb;
+  v_points numeric;
+  v_score numeric := 0;
+  v_max numeric := 0;
+  v_pass numeric := (definition -> 'scoring' ->> 'passMark')::numeric;
+begin
+  if answer_key is null or answer_key = '{}'::jsonb then
+    return null;
+  end if;
+  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop
+    continue when v_step ? 'showIf' and not "better_supabase"."form_condition_holds"(v_step -> 'showIf', answers);
+    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop
+      continue when not answer_key ? (v_field ->> 'key');
+      continue when v_field ? 'showIf' and not "better_supabase"."form_condition_holds"(v_field -> 'showIf', answers);
+      v_points := coalesce((v_field ->> 'points')::numeric, 1);
+      v_max := v_max + v_points;
+      if answers ? (v_field ->> 'key')
+        and "better_supabase"."form_answer_matches"(v_field ->> 'type', answers -> (v_field ->> 'key'), answer_key -> (v_field ->> 'key')) then
+        v_score := v_score + v_points;
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('score', v_score, 'maxScore', v_max,
+    'passed', case when v_pass is null then null else v_score * 100 >= v_pass * v_max end);
+end;
+$$;
+revoke execute on function "better_supabase"."form_score"(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The definition without its correct answers, and the answer key they make
+-- (field key to correct answer), as { definition, key }.
+create or replace function "better_supabase"."form_answer_split"(definition jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'definition', jsonb_set(definition, '{steps}', coalesce((
+      select jsonb_agg(jsonb_set(s.step, '{fields}', (
+        select jsonb_agg(f.field - 'correct' order by f.ord)
+        from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+      from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb)),
+    'key', coalesce((
+      select jsonb_object_agg(f.field ->> 'key', f.field -> 'correct')
+      from jsonb_array_elements(definition -> 'steps') s(step)
+      cross join lateral jsonb_array_elements(s.step -> 'fields') f(field)
+      where f.field ? 'correct'), '{}'::jsonb))
+$$;
+revoke execute on function "better_supabase"."form_answer_split"(jsonb) from public, anon, authenticated;
+
+-- A stored definition with its answer key put back, for the form's managers.
+create or replace function "better_supabase"."form_answer_merge"(definition jsonb, answer_key jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when answer_key is null or answer_key = '{}'::jsonb then definition
+  else jsonb_set(definition, '{steps}', coalesce((
+    select jsonb_agg(jsonb_set(s.step, '{fields}', (
+      select jsonb_agg(case when answer_key ? (f.field ->> 'key') then f.field || jsonb_build_object('correct', answer_key -> (f.field ->> 'key')) else f.field end order by f.ord)
+      from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+    from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb))
+  end
+$$;
+revoke execute on function "better_supabase"."form_answer_merge"(jsonb, jsonb) from public, anon, authenticated;
 
 -- Creates a draft form. fields sets the extra columns by name.
 drop function if exists "better_supabase"."create_form"(uuid, text, text, text);
@@ -3637,6 +4903,7 @@ as $$
 declare
   v_form "better_supabase"."forms"%rowtype;
   v_resolved jsonb;
+  v_split jsonb;
   v_number integer;
   v_row "better_supabase"."form_versions"%rowtype;
 begin
@@ -3659,6 +4926,10 @@ begin
     end if;
   end;
   v_resolved := "better_supabase"."form_resolve"(v_form."tenant_id", publish_form_version.definition);
+  v_split := "better_supabase"."form_answer_split"(v_resolved);
+  if v_split -> 'key' <> '{}'::jsonb then
+    raise exception 'scoring needs the form_answer_keys table and the score columns on form_submissions' using errcode = '0A000', hint = 'FORM_SCORING_UNAVAILABLE';
+  end if;
   select coalesce(max(x."number"), 0) + 1 into v_number from "better_supabase"."form_versions" x where x."form_id" = v_form."id";
   insert into "better_supabase"."form_versions" ("tenant_id", "form_id", "number", "definition", "schema", "created_by")
   values (v_form."tenant_id", v_form."id", v_number, v_resolved, "better_supabase"."form_schema"(v_resolved), auth.uid())
@@ -3925,6 +5196,74 @@ $$;
 revoke execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
+
+-- The Net Promoter Score of an nps field (the current version's first one by
+-- default) over the submitted and accepted answers between since and until,
+-- with a row per day, week, month, quarter or year (UTC) when bucket is set.
+create or replace function "better_supabase"."form_nps"(form_id uuid, field text default null, since timestamptz default null, until timestamptz default null, bucket text default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_form "better_supabase"."forms"%rowtype;
+  v_field text := form_nps.field;
+  v_total jsonb;
+  v_periods jsonb;
+begin
+  select * into v_form from "better_supabase"."forms" x where x."id" = form_nps.form_id;
+  if not found then
+    raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_form."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to read this form''s results' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if form_nps.bucket is not null and form_nps.bucket not in ('day', 'week', 'month', 'quarter', 'year') then
+    raise exception 'bucket is day, week, month, quarter, year' using errcode = '22023', hint = 'FORM_NPS_BUCKET_INVALID';
+  end if;
+  if v_field is null then
+    select q.field ->> 'key' into v_field
+    from "better_supabase"."form_versions" x
+    cross join lateral jsonb_array_elements(x."definition" -> 'steps') with ordinality as p(step, step_ord)
+    cross join lateral jsonb_array_elements(p.step -> 'fields') with ordinality as q(field, field_ord)
+    where x."id" = v_form."current_version_id" and q.field ->> 'type' = 'nps'
+    order by p.step_ord, q.field_ord
+    limit 1;
+    if v_field is null then
+      raise exception 'the form has no nps field' using errcode = '22023', hint = 'FORM_NPS_FIELD_MISSING';
+    end if;
+  end if;
+  with answered as (
+    select r.answer, r.answered_at from (
+      select case when jsonb_typeof(x."answers" -> v_field) = 'number' then (x."answers" ->> v_field)::numeric end as answer,
+        x."submitted_at" as answered_at
+      from "better_supabase"."form_submissions" x
+      where x."form_id" = form_nps.form_id
+        and x."status" in ('submitted', 'accepted')
+        and (form_nps.since is null or x."submitted_at" >= form_nps.since)
+        and (form_nps.until is null or x."submitted_at" < form_nps.until)
+    ) r
+    where r.answer between 0 and 10
+  )
+  select jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where a.answer >= 9), 'passives', count(*) filter (where a.answer >= 7 and a.answer < 9), 'detractors', count(*) filter (where a.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where a.answer >= 9) - count(*) filter (where a.answer < 7)) * 100.0 / count(*), 1) end),
+    case when form_nps.bucket is null then '[]'::jsonb else coalesce((
+      select jsonb_agg(jsonb_build_object('start', g.start) || g.counts order by g.start)
+      from (
+        select date_trunc(form_nps.bucket, b.answered_at, 'UTC') as start, jsonb_build_object('responses', count(*), 'promoters', count(*) filter (where b.answer >= 9), 'passives', count(*) filter (where b.answer >= 7 and b.answer < 9), 'detractors', count(*) filter (where b.answer < 7), 'score', case when count(*) = 0 then null else round((count(*) filter (where b.answer >= 9) - count(*) filter (where b.answer < 7)) * 100.0 / count(*), 1) end) as counts
+        from answered b
+        group by 1
+      ) g), '[]'::jsonb) end
+  into v_total, v_periods
+  from answered a;
+  return jsonb_build_object('field', v_field) || v_total || jsonb_build_object('periods', v_periods);
+end;
+$$;
+revoke execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."form_nps"(uuid, text, timestamptz, timestamptz, text) to authenticated, service_role;
+
+
 create or replace function "better_supabase"."review_form_submission"(submission_id uuid, status text)
 returns jsonb
 language plpgsql
@@ -4014,6 +5353,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('forms', 1, 'adopt')
+values ('forms', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

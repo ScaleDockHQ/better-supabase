@@ -16,6 +16,10 @@ import {
   revokeEngagementPasses,
   setRateEngagementBillableTime,
   invoiceEngagementBillableTime,
+  createEngagementDispatch,
+  cancelEngagementDispatch,
+  createEngagementShipments,
+  cancelEngagementShipments,
   linkEngagementRelations,
   unlinkEngagementRelations,
   createEngagementShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateEngagementBillableTime,
     invoice: invoiceEngagementBillableTime,
+  },
+  dispatch: {
+    create: createEngagementDispatch,
+    cancel: cancelEngagementDispatch,
+  },
+  shipments: {
+    create: createEngagementShipments,
+    cancel: cancelEngagementShipments,
   },
   relations: {
     link: linkEngagementRelations,

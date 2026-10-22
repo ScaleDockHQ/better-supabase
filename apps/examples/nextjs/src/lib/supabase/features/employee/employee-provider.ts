@@ -16,6 +16,10 @@ import {
   revokeEmployeePasses,
   setRateEmployeeBillableTime,
   invoiceEmployeeBillableTime,
+  createEmployeeDispatch,
+  cancelEmployeeDispatch,
+  createEmployeeShipments,
+  cancelEmployeeShipments,
   linkEmployeeRelations,
   unlinkEmployeeRelations,
   createEmployeeShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateEmployeeBillableTime,
     invoice: invoiceEmployeeBillableTime,
+  },
+  dispatch: {
+    create: createEmployeeDispatch,
+    cancel: cancelEmployeeDispatch,
+  },
+  shipments: {
+    create: createEmployeeShipments,
+    cancel: cancelEmployeeShipments,
   },
   relations: {
     link: linkEmployeeRelations,
