@@ -2351,11 +2351,13 @@ msgid "All day"
 msgstr "All day"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.dM-p3_"
 msgid "From"
 msgstr "From"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.9j3hXO"
 msgid "To"
 msgstr "To"
@@ -2366,6 +2368,7 @@ msgid "Location"
 msgstr "Location"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.47FYwb"
 msgid "Cancel"
 msgstr "Cancel"
@@ -2444,6 +2447,26 @@ msgstr "No events coming up"
 msgctxt "calendar.SxCBpE"
 msgid "Add an event, then set a reminder for it here."
 msgstr "Add an event, then set a reminder for it here."
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.hTxGRa"
+msgid "Working hours saved"
+msgstr "Working hours saved"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.pb74he"
+msgid "Working hours"
+msgstr "Working hours"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.Y-CeYn"
+msgid "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+msgstr "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.jvo0vs"
+msgid "Save"
+msgstr "Save"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
