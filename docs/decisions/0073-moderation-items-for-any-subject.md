@@ -1,4 +1,4 @@
-# 0072: One moderation item per subject, shared by reviews and comments
+# 0073: One moderation item per subject, shared by reviews and comments
 
 - Status: accepted
 - Date: 2026-10-22

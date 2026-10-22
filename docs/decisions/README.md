@@ -73,4 +73,4 @@ add one, and link it from the code or config it explains.
 | [0065](0065-double-entry-ledger.md)                       | Balances live in one double-entry ledger; inventory stock, leave balances and invoice payments move onto it (breaking)         |
 | [0066](0066-assets-optional-postgis.md)                   | Assets store coordinates as numbers; PostGIS geography points, areas and GiST indexes are an option                            |
 | [0067](0067-votes-and-score-models.md)                    | Votes are reactions of kind `vote` with a score per subject; scores come from versioned, tenant-editable models                |
-| [0072](0072-moderation-items-for-any-subject.md)          | One moderation item per subject with reports, decisions and bans; reviews and comments moderate through it                     |
+| [0073](0073-moderation-items-for-any-subject.md)          | One moderation item per subject with reports, decisions and bans; reviews and comments moderate through it                     |
