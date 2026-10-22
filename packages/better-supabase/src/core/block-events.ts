@@ -501,6 +501,14 @@ export interface DocumentEventData extends SubjectEventData {
   readonly name: string;
 }
 
+/** Events about a suggested change to a document. */
+export interface DocumentSuggestionEventData extends DocumentEventData {
+  readonly suggestionId: string;
+  /** Who suggested the change. */
+  readonly authorId: string | null;
+  readonly status: "open" | "accepted" | "rejected" | "withdrawn";
+}
+
 /**
  * Events from the catalog and inventory blocks. Amounts and quantities are
  * text: JSON numbers lose `bigint` precision.

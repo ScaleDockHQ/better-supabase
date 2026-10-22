@@ -160,6 +160,7 @@ export const permissions = {
   documents: {
     read: "documents.read",
     write: "documents.write",
+    suggest: "documents.suggest",
     manage: "documents.manage",
   },
   employee: {
@@ -223,7 +224,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -263,6 +264,9 @@ export const blockEvents: Events<BlockEvents> = {
     "calendar_event.deleted",
     "calendar_event.updated",
     "document.created",
+    "document.suggested",
+    "document.suggestion_accepted",
+    "document.suggestion_rejected",
     "employee.created",
     "employee.manager_changed",
     "employee.offboarded",
@@ -352,6 +356,9 @@ export const blockEventSchemas = {
   "calendar_event.deleted": true,
   "calendar_event.updated": true,
   "document.created": true,
+  "document.suggested": true,
+  "document.suggestion_accepted": true,
+  "document.suggestion_rejected": true,
   "employee.created": true,
   "employee.manager_changed": true,
   "employee.offboarded": true,

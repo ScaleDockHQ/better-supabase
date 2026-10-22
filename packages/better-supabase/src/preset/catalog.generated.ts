@@ -1459,6 +1459,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "write": "write"
               }
             }
+          },
+          "document_suggestion": {
+            "table": "suggestions",
+            "singular": "document_suggestion"
           }
         },
         "tables": {
@@ -1474,11 +1478,28 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
+          },
+          "suggestions": {
+            "name": "document_suggestions",
+            "columns": {
+              "id": "id",
+              "document": "document_id",
+              "tenant": "tenant_id",
+              "update": "payload",
+              "summary": "summary",
+              "status": "status",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "note": "note"
+            }
           }
         },
         "keys": {
           "read": "documents.read",
           "write": "documents.write",
+          "suggest": "documents.suggest",
           "manage": "documents.manage"
         }
       }
@@ -4384,6 +4405,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DocumentState"
         },
         {
+          "name": "DocumentSuggestion"
+        },
+        {
+          "name": "DocumentSuggestionStatus"
+        },
+        {
           "name": "DocumentUpdate"
         },
         {
@@ -4396,7 +4423,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "DocumentsEvents",
         "types": [
-          "document.created"
+          "document.created",
+          "document.suggested",
+          "document.suggestion_accepted",
+          "document.suggestion_rejected"
         ]
       }
     },

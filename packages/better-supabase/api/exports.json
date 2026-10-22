@@ -4324,6 +4324,7 @@
     "types": [
       "CompactDocumentOptions",
       "DocumentProvider",
+      "DocumentProviderMode",
       "DocumentProviderOptions",
       "DocumentProviderStatus",
       "YDocLike",
@@ -6563,15 +6564,19 @@
     ],
     "types": [
       "BlockTransport",
+      "DecidedSuggestion",
       "DocumentInfo",
       "DocumentRef",
       "Documents",
       "DocumentsEvents",
       "DocumentsOptions",
       "DocumentState",
+      "DocumentSuggestion",
+      "DocumentSuggestionStatus",
       "DocumentUpdate",
       "DocumentVersion",
-      "OpenedDocument"
+      "OpenedDocument",
+      "SuggestionDecision"
     ]
   },
   "./blocks/drive": {

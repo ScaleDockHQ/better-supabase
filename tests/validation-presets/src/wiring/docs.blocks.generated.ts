@@ -156,6 +156,7 @@ export const permissions = {
   documents: {
     read: "documents.read",
     write: "documents.write",
+    suggest: "documents.suggest",
     manage: "documents.manage",
   },
   invitations: {
@@ -218,7 +219,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "comments.create" | "comments.moderate" | "comments.read" | "documents.manage" | "documents.read" | "documents.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "comments.create" | "comments.moderate" | "comments.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -247,6 +248,9 @@ export const blockEvents: Events<BlockEvents> = {
     "comment.deleted",
     "comment.mentioned",
     "document.created",
+    "document.suggested",
+    "document.suggestion_accepted",
+    "document.suggestion_rejected",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
@@ -314,6 +318,9 @@ export const blockEventSchemas = {
   "comment.deleted": true,
   "comment.mentioned": true,
   "document.created": true,
+  "document.suggested": true,
+  "document.suggestion_accepted": true,
+  "document.suggestion_rejected": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,

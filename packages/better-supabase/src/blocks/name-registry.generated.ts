@@ -359,12 +359,14 @@ export interface BlockNameRegistry {
       readonly "documents": "id" | "tenant" | "subjectType" | "subjectId" | "name" | "createdBy" | "createdAt" | "updatedAt";
       readonly "updates": "seq" | "document" | "tenant" | "update" | "actor" | "createdAt";
       readonly "snapshots": "document" | "tenant" | "state" | "seq" | "createdAt";
+      readonly "suggestions": "id" | "document" | "tenant" | "update" | "summary" | "status" | "createdBy" | "createdAt" | "decidedBy" | "decidedAt" | "note";
     };
-    readonly functions: "compact_document" | "document_access" | "document_topic_access" | "document_updates_after" | "documents_to_compact" | "open_document" | "pull_document_updates" | "push_document_update";
-    readonly actions: "read" | "write" | "manage";
+    readonly functions: "compact_document" | "decide_document_suggestion" | "document_access" | "document_topic_access" | "document_updates_after" | "documents_to_compact" | "list_document_suggestions" | "open_document" | "pull_document_updates" | "push_document_update" | "suggest_document_change";
+    readonly actions: "read" | "write" | "suggest" | "manage";
     readonly hooks: "before_document_create" | "after_document_create";
     readonly entities: {
       readonly "document": "id" | "tenant_id" | "subject_type" | "subject_id" | "name" | "created_by" | "created_at" | "updated_at";
+      readonly "document_suggestion": "id" | "document_id" | "tenant_id" | "payload" | "summary" | "status" | "created_by" | "created_at" | "decided_by" | "decided_at" | "note";
     };
     readonly primary: "document";
   };
