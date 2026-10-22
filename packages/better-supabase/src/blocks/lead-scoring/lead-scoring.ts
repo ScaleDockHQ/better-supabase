@@ -36,9 +36,9 @@ export interface LeadScoringOptions extends BlockOptions {
 }
 
 /**
- * The fields lead scoring adds to a record, for a lead model's rules. Sync it
- * with `createRulesAdmin(...).syncFields(leadRuleFields("person"))`, next to
- * the record's own columns.
+ * The fields lead scoring adds to a record, for a lead model's rules.
+ * `syncFields` replaces a subject type's catalog, so sync these fields in one
+ * catalog with the record's own columns.
  */
 export function leadRuleFields<const S extends string>(
   subjectType: S,

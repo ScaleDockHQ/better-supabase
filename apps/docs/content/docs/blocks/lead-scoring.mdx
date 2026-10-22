@@ -22,16 +22,27 @@ no permissions of its own.
 ## Define the lead model
 
 The organization's lead model is a `scores` model with the key `lead` over
-`person`. Sync the record's columns and the block's fields to the rule
-catalog once per deploy, then save the model:
+`person`. `syncFields` replaces a subject type's catalog, so sync the
+record's columns and the block's fields as one catalog once per deploy, then
+save the model:
 
 ```ts
-import { createRulesAdmin } from "better-supabase/blocks/rules";
+import {
+  createRulesAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/rules";
 import { leadRuleFields } from "better-supabase/blocks/lead-scoring";
 import { createScores } from "better-supabase/blocks/scores";
 
+const columns = defineRuleFields("person", {
+  lifecycle: { type: "select", options: ["lead", "customer"] },
+});
+
 await createRulesAdmin({ transport: serviceTransport })
-  .syncFields(leadRuleFields("person"))
+  .syncFields({
+    subjectType: "person",
+    fields: [...columns.fields, ...leadRuleFields("person").fields],
+  })
   .orThrow();
 
 await createScores({ transport, tenant: organizationId })
