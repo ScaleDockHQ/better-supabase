@@ -36,23 +36,23 @@ describe("support cookies", () => {
     const expiresAt = Temporal.Instant.from("2026-10-03T10:30:00Z");
     const now = Temporal.Instant.from("2026-10-03T10:00:00Z").epochMilliseconds;
     expect(supportCookie({ id: "s 1", expiresAt }, {}, now)).toBe(
-      "bs-support=s%201; Path=/; Max-Age=1800; HttpOnly; SameSite=Lax; Secure",
+      "bsb-support=s%201; Path=/; Max-Age=1800; HttpOnly; SameSite=Lax; Secure",
     );
     expect(
       supportCookie({ id: "s", expiresAt }, { name: "sv", secure: false }, now),
     ).toBe("sv=s; Path=/; Max-Age=1800; HttpOnly; SameSite=Lax");
     expect(clearSupportCookie({ path: "/app" })).toBe(
-      "bs-support=; Path=/app; Max-Age=0; HttpOnly; SameSite=Lax; Secure",
+      "bsb-support=; Path=/app; Max-Age=0; HttpOnly; SameSite=Lax; Secure",
     );
   });
 
   it("reads the session id from a Cookie header", () => {
-    expect(supportCookieValue("a=1; bs-support=s%201; b=2")).toBe("s 1");
+    expect(supportCookieValue("a=1; bsb-support=s%201; b=2")).toBe("s 1");
     expect(supportCookieValue("sv=x", "sv")).toBe("x");
-    expect(supportCookieValue("bs-support=")).toBeUndefined();
+    expect(supportCookieValue("bsb-support=")).toBeUndefined();
     expect(supportCookieValue("other=1")).toBeUndefined();
     expect(supportCookieValue(null)).toBeUndefined();
-    expect(supportCookieValue("bs-support=%E0%A4%A")).toBeUndefined();
+    expect(supportCookieValue("bsb-support=%E0%A4%A")).toBeUndefined();
   });
 });
 

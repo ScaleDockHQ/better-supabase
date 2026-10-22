@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
@@ -87,7 +87,7 @@ function fields(d: (column: string) => string): readonly Field[] {
   ];
 }
 
-export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
+export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
   const { fn, t, c } = n;
   const dealId = sqlString(ctx.resolved.entityNaming.rename("dealId"));
   const d = (column: string): string => c("deals", column);

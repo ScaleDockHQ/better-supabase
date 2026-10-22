@@ -29,7 +29,7 @@ type Keys = Contributions<readonly [typeof entry]>;
 describe("withBetterSupabase", () => {
   it("publishes the context, the repositories and the withSupabase keys", () => {
     expectTypeOf<keyof Keys>().toEqualTypeOf<
-      | "bs"
+      | "bsb"
       | "jwtClaims"
       | "userClaims"
       | "authMode"
@@ -42,7 +42,7 @@ describe("withBetterSupabase", () => {
     expectTypeOf<Keys["authMode"]>().toEqualTypeOf<AuthMode>();
     expectTypeOf<Keys["userClaims"]>().toEqualTypeOf<UserClaims | null>();
     expectTypeOf<Keys["jwtClaims"]>().toExtend<JWTClaims | null>();
-    expectTypeOf<Keys["bs"]>().toHaveProperty("apply");
+    expectTypeOf<Keys["bsb"]>().toHaveProperty("apply");
     expectTypeOf<Keys["sql"]>().toEqualTypeOf<
       ReturnType<typeof server.actingAs> | undefined
     >();

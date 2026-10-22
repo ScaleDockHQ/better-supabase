@@ -1,11 +1,11 @@
 import type { PartiesEvents } from "../../blocks/parties/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PartyNames } from "./parties-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -30,7 +30,7 @@ const COMPANY = ["organizationId", "companyId", "name"] as const;
 const PERSON = ["organizationId", "personId", "name"] as const;
 const LINK = ["organizationId", "companyId", "personId", "role"] as const;
 
-const EVENTS: ModuleEvents<PartiesEvents> = {
+const EVENTS: BlockSqlEvents<PartiesEvents> = {
   "company.created": { subject: "companies", payload: [...COMPANY] },
   "company.updated": { subject: "companies", payload: [...COMPANY] },
   "company.archived": { subject: "companies", payload: [...COMPANY] },
@@ -43,7 +43,7 @@ const EVENTS: ModuleEvents<PartiesEvents> = {
   "person.merged": { subject: "persons", payload: [...PERSON, "mergedId"] },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     company: {
       table: "companies",
@@ -144,7 +144,7 @@ const NAMES: ModuleNames = {
 const STAGE = /^[a-z][a-z0-9_]{0,62}$/;
 
 function lifecycles(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   name: "companyLifecycles" | "personLifecycles",
   fallback: readonly string[],
 ): readonly string[] {
@@ -162,7 +162,7 @@ function lifecycles(
 const textArray = (items: readonly string[]): string =>
   `${sqlString(`{${items.join(",")}}`)}::text[]`;
 
-function tables(ctx: ModuleContext, names: PartyNames): string {
+function tables(ctx: BlockSqlContext, names: PartyNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -245,7 +245,7 @@ ${read("links")}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -273,7 +273,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}${partyFunctions(ctx, names)}${partiesInboxSql(ctx, names)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_company", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     { name: "save_person", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
@@ -320,7 +320,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const PARTIES: ModuleDefinition = {
+export const PARTIES: BlockSqlDefinition = {
   name: "parties",
   scopes: ["tenant"],
   title: "Parties",

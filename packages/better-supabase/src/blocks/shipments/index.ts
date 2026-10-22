@@ -24,7 +24,7 @@ export {
   type FlatRateCarrierOptions,
   type FlatRateService,
   type ShipmentAddress,
-  type ShipmentCarrier,
+  type ShippingProvider,
   type ShipmentLabel,
   type ShipmentLabelRequest,
   type ShipmentParcel,

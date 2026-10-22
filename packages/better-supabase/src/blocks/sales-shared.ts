@@ -1,11 +1,9 @@
+import type { RecordRef } from "../schema/types.ts";
+
 import { temporal } from "../core/temporal-required.ts";
 import { optionalText } from "./shared.ts";
 
-/** A record a sales document points at: a company, a contact, its origin. */
-export interface RecordRef {
-  readonly type: string;
-  readonly id: string;
-}
+export type { RecordRef } from "../schema/types.ts";
 
 type Loose<T> = { [K in keyof T]: T[K] | undefined };
 

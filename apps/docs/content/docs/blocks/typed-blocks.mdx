@@ -113,11 +113,11 @@ of a string:
 
 import * as v from "valibot";
 
-import { bs } from "@/lib/bs";
+import { bsb } from "@/lib/bsb";
 import { blocks } from "@/lib/blocks";
 import { permissions } from "@/lib/supabase/blocks.generated";
 
-export const renameTask = bs.blockAction(
+export const renameTask = bsb.blockAction(
   ({ supabase }) => blocks(supabase).tasks,
   "update",
   {

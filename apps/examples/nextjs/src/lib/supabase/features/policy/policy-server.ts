@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { policyFeature } from "./policy-feature.ts";
 
 /**
  * Loads a policy's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const policyRecord = recordServer(bs, policyFeature);
+export const policyRecord = recordServer(bsb, policyFeature);

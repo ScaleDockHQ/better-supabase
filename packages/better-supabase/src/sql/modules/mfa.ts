@@ -1,8 +1,8 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
-export const MFA: ModuleDefinition = {
+export const MFA: BlockSqlDefinition = {
   internal: ["mfa_satisfied"],
   name: "mfa",
   title: "MFA enforcement",

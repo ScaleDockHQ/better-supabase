@@ -51,11 +51,11 @@ export interface BetterTanStackStart<
   /**
    * The `.server()` callback of a request middleware: verifies the caller,
    * refreshes the session cookie on navigations and form posts, and puts `db`,
-   * `bs`, `auth`, `tenant` and the serializable `session` on `context`.
+   * `bsb`, `auth`, `tenant` and the serializable `session` on `context`.
    *
    * ```ts
    * // src/start.ts
-   * const supabase = createMiddleware().server(bs.middleware);
+   * const supabase = createMiddleware().server(bsb.middleware);
    * export const startInstance = createStart(() => ({
    *   requestMiddleware: [supabase],
    * }));
@@ -137,9 +137,9 @@ export function createTanStackStart<
   );
 
   const scopeOf = (context: Locals): Locals => {
-    if (typeof context !== "object" || !("bs" in context)) {
+    if (typeof context !== "object" || !("bsb" in context)) {
       throw new TypeError(
-        "better-supabase: no context; add bs.middleware to the request middleware in src/start.ts",
+        "better-supabase: no context; add bsb.middleware to the request middleware in src/start.ts",
       );
     }
 
@@ -157,7 +157,7 @@ export function createTanStackStart<
         const scope = scopeOf(context);
 
         const caller = await requireCaller(
-          scope.bs.auth,
+          scope.bsb.auth,
           requireOptions,
           scope.tenant,
           options.authorizer,
@@ -181,7 +181,7 @@ export function createTanStackStart<
           const scope = scopeOf(context);
 
           const result = await runAction(
-            scope.bs.auth,
+            scope.bsb.auth,
             actionOptions,
             data,
             scope.tenant,

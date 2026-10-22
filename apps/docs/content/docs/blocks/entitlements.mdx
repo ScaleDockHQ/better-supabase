@@ -239,7 +239,7 @@ typed claims schema, `key` only accepts its lookup keys:
 ```tsx
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
 
-const session = await bs.session();
+const session = await bsb.session();
 if (!hasEntitlement(session, organizationId, "exports"))
   return <UpgradePrompt />;
 ```
@@ -408,13 +408,13 @@ export const GET = async () => {
       postgres.admin,
       message.payload,
     ).orThrow();
-    for (const userId of members) bs.invalidateSession(userId);
+    for (const userId of members) bsb.invalidateSession(userId);
   });
   return Response.json(result);
 };
 ```
 
-`invalidateSession` drops `bs.cached()` entries, so the next render asks
+`invalidateSession` drops `bsb.cached()` entries, so the next render asks
 for the session again. The token itself only changes on refresh, which the
 proxy does when it expires. Send the event to its own endpoint: the Stripe
 Sync Engine keeps its webhook for syncing the tables.

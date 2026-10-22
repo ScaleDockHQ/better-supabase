@@ -11,7 +11,7 @@ import {
   tenantColumnOf,
 } from "../../src/create/index.ts";
 import { encodePreset, namedPreset } from "../../src/preset/index.ts";
-import { moduleLayout, renderModules } from "../../src/sql/index.ts";
+import { moduleLayout, renderBlocks } from "../../src/sql/index.ts";
 
 interface Rendered {
   readonly files: readonly SchemaSource[];
@@ -23,7 +23,7 @@ function rendered(name: PresetName, overrides: Partial<Preset> = {}): Rendered {
   const config = resolveConfig({ preset: encodePreset(preset) }, "/");
 
   return {
-    files: renderModules(config.blockNames, moduleLayout(config)),
+    files: renderBlocks(config.blockNames, moduleLayout(config)),
     tenantColumn: tenantColumnOf(preset),
   };
 }
@@ -52,7 +52,7 @@ describe("parseSchema", () => {
       const ids = new Set(tables.map((table) => table.id));
 
       const missing = [...createdTables(files)].filter(
-        (id) => id !== "better_supabase.modules" && !ids.has(id),
+        (id) => id !== "better_supabase.blocks" && !ids.has(id),
       );
 
       expect(missing).toEqual([]);
@@ -77,7 +77,7 @@ describe("parseSchema", () => {
     const tables = parseSchema(files, { tenantColumn });
     const byId = new Map(tables.map((table) => [table.id, table]));
 
-    expect(byId.has("better_supabase.modules")).toBe(false);
+    expect(byId.has("better_supabase.blocks")).toBe(false);
 
     const memberships = byId.get("better_supabase.memberships");
     expect(memberships?.module).toBe("tenant");

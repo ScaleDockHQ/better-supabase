@@ -4,9 +4,9 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type {
-  ModuleAccessProvider,
-  ModuleEntitlementsProvider,
-  ModuleLayout,
+  BlockSqlAccessProvider,
+  BlockSqlEntitlementsProvider,
+  BlockSqlLayout,
   AuditedTable,
 } from "../sql/index.ts";
 import type { FilePlan } from "./core/files.ts";
@@ -19,7 +19,7 @@ import {
   moduleLayout,
   policyGrants,
   resolveExposeColumns,
-  resolveModules,
+  resolveBlocks,
   sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
@@ -98,9 +98,9 @@ async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
 export interface LayoutInput {
   readonly names: readonly string[];
   readonly testsDir?: string | undefined;
-  readonly readSets?: ModuleLayout["readSets"] | undefined;
-  readonly entitlementsProvider?: ModuleEntitlementsProvider | undefined;
-  readonly accessProvider?: ModuleAccessProvider | undefined;
+  readonly readSets?: BlockSqlLayout["readSets"] | undefined;
+  readonly entitlementsProvider?: BlockSqlEntitlementsProvider | undefined;
+  readonly accessProvider?: BlockSqlAccessProvider | undefined;
   readonly permissionCatalog?: readonly string[] | undefined;
 }
 
@@ -111,9 +111,9 @@ export interface LayoutInput {
 export async function moduleLayoutFor(
   config: ResolvedConfig,
   input: LayoutInput,
-): Promise<ModuleLayout> {
+): Promise<BlockSqlLayout> {
   const resolved = new Set(
-    resolveModules(
+    resolveBlocks(
       input.names,
       input.entitlementsProvider
         ? { entitlementsProvider: input.entitlementsProvider }

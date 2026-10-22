@@ -7,14 +7,14 @@ import { CUSTOM_FIELD_FORM_TYPES } from "../core/contracts/field-formats.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 
 /** The input a field renders: a forms block field type, or a date and time. */
-export type EntityFormInput = FormFieldType | "datetime";
+export type RecordFormInput = FormFieldType | "datetime";
 
 /** One field of an entity form, in render order. */
-export interface EntityFormField {
+export interface RecordFormField {
   /** The input key, or the custom field key. */
   readonly key: string;
   readonly label: string;
-  readonly input: EntityFormInput;
+  readonly input: RecordFormInput;
   readonly required: boolean;
   /** `entity` for the block's input, `custom` for the tenant's custom fields. */
   readonly source: "entity" | "custom";
@@ -30,7 +30,7 @@ export interface EntityFormField {
 }
 
 /** A custom field definition; `customFields.listDefinitions(entity)` fits. */
-export interface EntityFormCustomField {
+export interface RecordFormCustomField {
   readonly key: string;
   readonly label: string;
   readonly type: string;
@@ -39,28 +39,28 @@ export interface EntityFormCustomField {
 }
 
 /** What a submitted form splits into: the block input and the custom values. */
-export interface EntityFormValues<T> {
+export interface RecordFormValues<T> {
   readonly input: T;
   readonly custom: Readonly<Record<string, unknown>>;
 }
 
-export type EntityFormResult<T> =
-  | ({ readonly ok: true } & EntityFormValues<T>)
+export type RecordFormResult<T> =
+  | ({ readonly ok: true } & RecordFormValues<T>)
   | {
       readonly ok: false;
       /** One message per field key; `""` for an issue not on one field. */
       readonly errors: Readonly<Record<string, string>>;
     };
 
-export interface EntityForm<T> {
-  readonly fields: readonly EntityFormField[];
+export interface RecordForm<T> {
+  readonly fields: readonly RecordFormField[];
   /** Checks the values with the entity schema and the custom fields' `required`. */
   validate(
     values: Readonly<Record<string, unknown>>,
-  ): Promise<EntityFormResult<T>>;
+  ): Promise<RecordFormResult<T>>;
 }
 
-export interface EntityFormOptions<T> {
+export interface RecordFormOptions<T> {
   /**
    * The input keys to show, in order. Default: every key the schema accepts,
    * except read-only ones.
@@ -69,7 +69,7 @@ export interface EntityFormOptions<T> {
   /** Labels by key. Default: the key in words (`dueAt` is `Due at`). */
   readonly labels?: Readonly<Partial<Record<string, string>>>;
   /** The tenant's custom fields for the entity, shown after the input fields. */
-  readonly customFields?: readonly EntityFormCustomField[];
+  readonly customFields?: readonly RecordFormCustomField[];
   /**
    * The zone a `datetime-local` value is read in for an instant field. Default:
    * `UTC`.
@@ -176,7 +176,7 @@ function labelOf(key: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function inputOf(spec: FieldSpec): EntityFormInput {
+function inputOf(spec: FieldSpec): RecordFormInput {
   switch (spec.kind) {
     case "uuid":
     case "string": {
@@ -229,7 +229,7 @@ function entityField(
   key: string,
   spec: FieldSpec,
   label: string,
-): EntityFormField {
+): RecordFormField {
   return {
     key,
     label,
@@ -252,9 +252,9 @@ function isCustomFieldType(type: string): type is CustomFieldType {
 }
 
 function customField(
-  definition: EntityFormCustomField,
+  definition: RecordFormCustomField,
   label: string | undefined,
-): EntityFormField {
+): RecordFormField {
   return {
     key: definition.key,
     label: label ?? definition.label,
@@ -282,7 +282,7 @@ function isBlank(value: unknown): boolean {
  * runs the schema, so the form accepts what the block's `create` accepts.
  *
  * ```ts
- * const form = entityForm(workItemsBlock.schemas.work_item.input, {
+ * const form = recordForm(workItemsBlock.schemas.work_item.input, {
  *   fields: ["title", "body", "priority", "dueAt"],
  *   customFields: await customFields
  *     .listDefinitions("work_item")
@@ -290,10 +290,10 @@ function isBlank(value: unknown): boolean {
  * });
  * ```
  */
-export function entityForm<T>(
+export function recordForm<T>(
   schema: EntitySchema<T>,
-  options: EntityFormOptions<T> = {},
-): EntityForm<T> {
+  options: RecordFormOptions<T> = {},
+): RecordForm<T> {
   const specs = schema.spec.fields;
 
   const keys =
@@ -303,7 +303,7 @@ export function entityForm<T>(
   const custom = options.customFields ?? [];
   const timeZone = options.timeZone ?? "UTC";
 
-  const fields: EntityFormField[] = [
+  const fields: RecordFormField[] = [
     ...keys.flatMap((key) => {
       const spec = specs[key];
 

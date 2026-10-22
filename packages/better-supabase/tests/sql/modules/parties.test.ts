@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},
   extra: readonly string[] = [],
 ): string =>
-  renderModules(["parties", ...extra], { modules: { parties: { options } } })
+  renderBlocks(["parties", ...extra], { modules: { parties: { options } } })
     .filter((file) => file.module === "parties")
     .map((file) => file.contents)
     .join("\n");
@@ -55,7 +55,7 @@ describe("parties module", () => {
 
 describe("parties module, custom mode", () => {
   it("renders no tables or functions", () => {
-    const sql = renderModules(["parties"], {
+    const sql = renderBlocks(["parties"], {
       modules: { parties: { mode: "custom" } },
     })
       .filter((file) => file.module === "parties")

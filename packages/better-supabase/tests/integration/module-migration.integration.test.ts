@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { renderModuleMigration } from "../../src/cli/sql/module-migration.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -38,7 +38,7 @@ describe.skipIf(!live)(
 
     it("applies twice, so a later module migration can repeat every statement", async () => {
       const migration = renderModuleMigration({
-        files: renderModules(MODULES).filter((file) => file.kind !== "test"),
+        files: renderBlocks(MODULES).filter((file) => file.kind !== "test"),
       });
 
       const client = await pool.connect();
@@ -50,7 +50,7 @@ describe.skipIf(!live)(
         await client.query(migration);
 
         const { rows } = await client.query<{ name: string }>(
-          "select name from better_supabase.modules order by name",
+          "select name from better_supabase.blocks order by name",
         );
 
         expect(rows.map((row) => row.name)).toEqual(

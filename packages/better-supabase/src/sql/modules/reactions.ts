@@ -1,11 +1,11 @@
 import type { ReactionsEvents } from "../../blocks/reactions/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -28,12 +28,12 @@ const PAYLOAD = [
   "value",
 ] as const;
 
-const EVENTS: ModuleEvents<ReactionsEvents> = {
+const EVENTS: BlockSqlEvents<ReactionsEvents> = {
   "reaction.added": { subject: "reactions", payload: PAYLOAD },
   "reaction.removed": { subject: "reactions", payload: PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     reaction: { table: "reactions", singular: "reaction", primary: true },
   },
@@ -92,7 +92,7 @@ const VOTE = "vote";
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const SHORTCODE = "^:[a-z0-9_+-]{1,32}:$";
 
-function topicOf(ctx: ModuleContext): string {
+function topicOf(ctx: BlockSqlContext): string {
   const topic = ctx.text("topic", "reactions");
 
   if (!TOPIC.test(topic)) {
@@ -109,7 +109,7 @@ function topicOf(ctx: ModuleContext): string {
  * messaging module is installed, under the message entity's subject type, even
  * when `options.subjects` lists other types.
  */
-function reactionSubjects(ctx: ModuleContext): readonly [string, Subject][] {
+function reactionSubjects(ctx: BlockSqlContext): readonly [string, Subject][] {
   const messages =
     ctx.installed("messaging") && ctx.of("messaging").mode !== "custom"
       ? ctx.of("messaging").table("messages").replaceAll('"', "")
@@ -126,13 +126,13 @@ function reactionSubjects(ctx: ModuleContext): readonly [string, Subject][] {
  * policies apply.
  */
 function visibleCase(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
   return subjectReadable(ctx, reactionSubjects(ctx), args, { live: true });
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -307,7 +307,7 @@ as $$
 declare
   v_row ${reactions}%rowtype;
 begin
-  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bsb_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then
@@ -630,7 +630,7 @@ ${subjectCascades(ctx, subjects, `delete from ${reactions} r where r.${c("subjec
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "react",
@@ -655,7 +655,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const REACTIONS: ModuleDefinition = {
+export const REACTIONS: BlockSqlDefinition = {
   internal: ["reaction_subject_visible"],
   name: "reactions",
   scopes: ["tenant"],

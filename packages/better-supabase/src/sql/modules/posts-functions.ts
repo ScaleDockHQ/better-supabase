@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -11,7 +11,7 @@ import { postsSql } from "./posts-sql.ts";
 
 const KEY = "^[a-z0-9][a-z0-9_-]{0,62}$";
 
-function boardFunctions(ctx: ModuleContext): string {
+function boardFunctions(ctx: BlockSqlContext): string {
   const q = postsSql(ctx);
   const { fn, b, boards, invalid, forbidden, boardMissing, boardJson } = q;
 
@@ -112,7 +112,7 @@ ${userGrant(`${fn("list_post_boards")}(${ctx.idType}, boolean)`)}
 `;
 }
 
-function postWrites(ctx: ModuleContext): string {
+function postWrites(ctx: BlockSqlContext): string {
   const q = postsSql(ctx);
 
   const { fn, b, p, boards, posts, subject, invalid, forbidden, postMissing } =
@@ -338,7 +338,7 @@ ${userGrant(`${fn("delete_post")}(uuid)`)}
 
 /** Moves the duplicate's votes to the target, skipping voters who voted there. */
 function mergeVotes(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   source: string,
   target: string,
 ): string {
@@ -362,7 +362,7 @@ function mergeVotes(
     and r.${c("subjectId")} = ${source}.${p("id")}::text and r.${c("kind")} = 'vote';`;
 }
 
-function postReads(ctx: ModuleContext): string {
+function postReads(ctx: BlockSqlContext): string {
   const q = postsSql(ctx);
 
   const { fn, p, posts, subject, reactions, invalid, forbidden, postMissing } =
@@ -471,6 +471,6 @@ ${userGrant(`${fn("vote_on_post")}(uuid, integer)`)}
 }
 
 /** The posts module's functions. */
-export function postFunctions(ctx: ModuleContext): string {
+export function postFunctions(ctx: BlockSqlContext): string {
   return `${boardFunctions(ctx)}${postWrites(ctx)}${postReads(ctx)}`;
 }

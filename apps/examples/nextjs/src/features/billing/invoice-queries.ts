@@ -8,7 +8,7 @@ import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const INVOICE_STATUSES = [
   "draft",
@@ -53,7 +53,7 @@ export interface InvoiceSummary {
  */
 async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

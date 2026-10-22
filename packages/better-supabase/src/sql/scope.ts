@@ -1,6 +1,6 @@
 import type { BlockScope } from "../config/blocks.ts";
 import type { GuestAction } from "../core/guest-actions.ts";
-import type { ModuleIdType } from "./context.ts";
+import type { BlockSqlIdType } from "./context.ts";
 
 export { GUEST_ACTIONS, type GuestAction } from "../core/guest-actions.ts";
 
@@ -11,13 +11,13 @@ export { GUEST_ACTIONS, type GuestAction } from "../core/guest-actions.ts";
  * tenant, per user or in one shared space. In `tenant` scope each one renders
  * the access contract call it replaces.
  */
-export interface ModuleScope {
+export interface BlockSqlScope {
   readonly kind: BlockScope;
   /**
    * The type of a scope id: the tenant id type, or `uuid` (a user id) in `user`
    * scope.
    */
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
   /**
    * The type of a managed table's scope column: `<idType> not null` per tenant,
    * nullable outside it (`uuid default auth.uid()` per user).
@@ -69,9 +69,9 @@ export interface ModuleScope {
   guestParty(tenant: string, type: string, id: string): string;
 }
 
-export interface ModuleScopeSource {
+export interface BlockSqlScopeSource {
   readonly kind: BlockScope;
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
   /**
    * Whether the `access` module is installed, for `platform` outside `tenant`
    * scope.
@@ -89,7 +89,7 @@ export interface ModuleScopeSource {
 const CALLER = "(select auth.uid())";
 const SIGNED_IN = `(${CALLER} is not null)`;
 
-export function moduleScope(source: ModuleScopeSource): ModuleScope {
+export function moduleScope(source: BlockSqlScopeSource): BlockSqlScope {
   const { kind, idType } = source;
   const guests = kind === "tenant" && source.guests === true;
 

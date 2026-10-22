@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
--- @bs-app-tables
+-- @bsb-tables
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -43,8 +43,8 @@ drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 create index if not exists "projects_workspace_id_idx" on "public"."projects" ("workspace_id");
 create index if not exists "projects_owner_id_idx" on "public"."projects" ("owner_id");
-drop trigger if exists "bs_updated_at" on "public"."projects";
-create trigger "bs_updated_at" before update on "public"."projects"
+drop trigger if exists "bsb_updated_at" on "public"."projects";
+create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
@@ -61,8 +61,8 @@ drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("workspace_id" in (select better_supabase.member_workspace_ids()));
 create index if not exists "tasks_workspace_id_idx" on "public"."tasks" ("workspace_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
-drop trigger if exists "bs_updated_at" on "public"."tasks";
-create trigger "bs_updated_at" before update on "public"."tasks"
+drop trigger if exists "bsb_updated_at" on "public"."tasks";
+create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 
 create unique index if not exists "projects_workspace_id_id_key" on "public"."projects" ("workspace_id", id);
@@ -71,7 +71,7 @@ alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key 
 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
--- @bs-module-test app-tables
+-- @bsb-block-test app-tables
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -87,7 +87,7 @@ select extensions.table_privs_are('public', 'projects', 'authenticated', array['
 
 with o as (
   insert into "better_supabase"."workspaces" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."projects" ("workspace_id", "name") select o.id, repeat('x', 1) from o;

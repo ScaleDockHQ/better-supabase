@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createSearch,
@@ -12,7 +12,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout = (dimensions = 0): ModuleLayout => ({
+const layout = (dimensions = 0): BlockSqlLayout => ({
   subjects: {
     note: {
       table: "search_it.notes",

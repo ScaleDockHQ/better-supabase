@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AppTablesConfig } from "../../src/config/types/app-tables.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -32,7 +32,7 @@ const BLOCKS = [
   "custom-fields",
 ];
 
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   appTables: TABLES,
   modules: { "custom-fields": { options: { auditReads: true } } },
 };

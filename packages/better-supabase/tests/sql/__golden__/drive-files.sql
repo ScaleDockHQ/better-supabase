@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module drive-files@1 managed
+-- @bsb-block drive-files@1 managed
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,33 +8,33 @@
 
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module-data drive-files
+-- @bsb-block-data drive-files
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('drive-files', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module drive-files@1 managed
+-- @bsb-block drive-files@1 managed
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,8 +76,8 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
-alter table "better_supabase"."drive_nodes" drop constraint if exists bs_drive_nodes_attachment;
-alter table "better_supabase"."drive_nodes" add constraint bs_drive_nodes_attachment foreign key ("attachment_id") references "better_supabase"."attachments" ("id") on delete set null;
+alter table "better_supabase"."drive_nodes" drop constraint if exists bsb_drive_nodes_attachment;
+alter table "better_supabase"."drive_nodes" add constraint bsb_drive_nodes_attachment foreign key ("attachment_id") references "better_supabase"."attachments" ("id") on delete set null;
 
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
@@ -122,8 +122,8 @@ begin
   return old;
 end;
 $$;
-drop trigger if exists "bs_drive_node_purging" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_purging"
+drop trigger if exists "bsb_drive_node_purging" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_purging"
   before delete on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_purging"();
 
@@ -142,8 +142,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_purged" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_purged"
+drop trigger if exists "bsb_drive_node_purged" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_purged"
   after delete on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_purged"();
 
@@ -299,26 +299,26 @@ grant execute on function "better_supabase"."drive_attachment_allowed"(text, tex
 
 -- Restrictive policies: the attachments policies still apply, and a node's
 -- files also need its grants.
-drop policy if exists "bs_drive_attachments_read" on "better_supabase"."attachments";
-create policy "bs_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
+drop policy if exists "bsb_drive_attachments_read" on "better_supabase"."attachments";
+create policy "bsb_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
   using ("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", false));
-drop policy if exists "bs_drive_attachments_insert" on "better_supabase"."attachments";
-create policy "bs_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
+drop policy if exists "bsb_drive_attachments_insert" on "better_supabase"."attachments";
+create policy "bsb_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
   with check (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_attachments_delete" on "better_supabase"."attachments";
-create policy "bs_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
+drop policy if exists "bsb_drive_attachments_delete" on "better_supabase"."attachments";
+create policy "bsb_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
   using (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_objects_read" on storage.objects;
-create policy "bs_drive_objects_read" on storage.objects as restrictive for select to authenticated
+drop policy if exists "bsb_drive_objects_read" on storage.objects;
+create policy "bsb_drive_objects_read" on storage.objects as restrictive for select to authenticated
   using ("better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
-drop policy if exists "bs_drive_objects_insert" on storage.objects;
-create policy "bs_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
+drop policy if exists "bsb_drive_objects_insert" on storage.objects;
+create policy "bsb_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
   with check (("better_supabase"."drive_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_objects_update" on storage.objects;
-create policy "bs_drive_objects_update" on storage.objects as restrictive for update to authenticated
+drop policy if exists "bsb_drive_objects_update" on storage.objects;
+create policy "bsb_drive_objects_update" on storage.objects as restrictive for update to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'update')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_objects_delete" on storage.objects;
-create policy "bs_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
+drop policy if exists "bsb_drive_objects_delete" on storage.objects;
+create policy "bsb_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- Attachments of nodes that are not the current content and not a saved
@@ -680,33 +680,33 @@ revoke execute on function "better_supabase"."drive_approvals"(uuid) from public
 grant execute on function "better_supabase"."drive_approvals"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module-data drive-files
+-- @bsb-block-data drive-files
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('drive-files', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module drive-files@1 managed
+-- @bsb-block drive-files@1 managed
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -714,33 +714,33 @@ on conflict (name) do update
 
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module-data drive-files
+-- @bsb-block-data drive-files
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('drive-files', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module drive-files@1 managed
+-- @bsb-block drive-files@1 managed
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -748,26 +748,26 @@ on conflict (name) do update
 
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_83_drive_files.sql
 -- better-supabase module: drive-files
--- @bs-module-data drive-files
+-- @bsb-block-data drive-files
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('drive-files', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

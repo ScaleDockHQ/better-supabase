@@ -251,9 +251,9 @@ describe("durableChat respond", () => {
       ],
       {
         attributes: {
-          "bs.tenant": "org",
-          "bs.actor": "user",
-          "bs.key": "ai-chat:c1",
+          "bsb.tenant": "org",
+          "bsb.actor": "user",
+          "bsb.key": "ai-chat:c1",
         },
       },
     );

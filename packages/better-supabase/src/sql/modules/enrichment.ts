@@ -1,11 +1,11 @@
 import type { EnrichmentEvents } from "../../blocks/enrichment/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -19,7 +19,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<EnrichmentEvents> = {
+const EVENTS: BlockSqlEvents<EnrichmentEvents> = {
   "party.enriched": {
     subject: "enrichments",
     payload: [
@@ -33,7 +33,7 @@ const EVENTS: ModuleEvents<EnrichmentEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     enrichment: { table: "enrichments", singular: "enrichment", primary: true },
   },
@@ -77,7 +77,7 @@ interface EnrichmentNames {
   readonly run: string;
 }
 
-function names(ctx: ModuleContext): EnrichmentNames {
+function names(ctx: BlockSqlContext): EnrichmentNames {
   const keys = moduleOperations("enrichment");
   const parties = ctx.of("parties");
 
@@ -98,7 +98,7 @@ function names(ctx: ModuleContext): EnrichmentNames {
   };
 }
 
-function tables(ctx: ModuleContext, n: EnrichmentNames): string {
+function tables(ctx: BlockSqlContext, n: EnrichmentNames): string {
   const { t, e, co, pe } = n;
   const policy = `${ctx.tableName("enrichments").name}_read`;
 
@@ -145,7 +145,7 @@ function personTarget(n: EnrichmentNames, row: string): string {
     limit 1))`;
 }
 
-function functions(ctx: ModuleContext, n: EnrichmentNames): string {
+function functions(ctx: BlockSqlContext, n: EnrichmentNames): string {
   const { fn, t, e, co, pe } = n;
 
   const json = (row: string): string =>
@@ -375,7 +375,7 @@ ${serviceGrant(`${fn("enrichment_due")}(text, integer, interval, text)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const n = names(ctx);
 
   return `${schemaPreamble(ctx)}
@@ -384,7 +384,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${functions(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "enrichment_target", args: ["text", "uuid"], returns: "jsonb" },
     {
@@ -401,7 +401,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ENRICHMENT: ModuleDefinition = {
+export const ENRICHMENT: BlockSqlDefinition = {
   name: "enrichment",
   scopes: ["tenant"],
   title: "Enrichment",

@@ -14,7 +14,7 @@ import {
 
 import { aiProviders } from "@/features/ai-providers/ai-providers-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig.messaging.api;
 
@@ -31,7 +31,7 @@ export function summaryMessaging(
   return createMessaging({
     ...generatedOptions(blockConfig.messaging),
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-    service: rpcTransport(bs.admin().$client, { schema: API_SCHEMA }),
+    service: rpcTransport(bsb.admin().$client, { schema: API_SCHEMA }),
     tenant: () => tenant,
   });
 }

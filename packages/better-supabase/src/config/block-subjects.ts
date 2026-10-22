@@ -1,11 +1,11 @@
 import type { EntityNoun, EntityRename } from "../core/entity-naming.ts";
-import type { ModuleNames } from "../sql/context.ts";
+import type { BlockSqlNames } from "../sql/context.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { resolveNames } from "../sql/resolved-names.ts";
-import { resolveModule } from "./blocks.ts";
+import { resolveBlock } from "./blocks.ts";
 
 const CATALOG = new Map(
   PRESET_CATALOG.blocks.map((block) => [block.name, block]),
@@ -37,7 +37,7 @@ function withRequired(names: readonly string[]): readonly string[] {
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 
 /** One installed module's names under `blocks`, from the catalog. */
-function catalogNames(module: string): ModuleNames | undefined {
+function catalogNames(module: string): BlockSqlNames | undefined {
   const entities = CATALOG.get(module)?.entities;
 
   return entities === undefined
@@ -98,7 +98,7 @@ export function blockEntities(
   }
 
   const resolved = resolveNames(module, names, blocks);
-  const mapped = resolveModule(blocks[module]).tables;
+  const mapped = resolveBlock(blocks[module]).tables;
 
   return Object.values(resolved.entities).map((entity) => {
     const logical = entity.table;
@@ -128,7 +128,7 @@ function subjectsOf(
 ): Readonly<Record<string, SubjectConfig>> {
   const entities = CATALOG.get(module)?.entities;
   const names = catalogNames(module);
-  const config = resolveModule(blocks[module]);
+  const config = resolveBlock(blocks[module]);
 
   if (
     entities === undefined ||

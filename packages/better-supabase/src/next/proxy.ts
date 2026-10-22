@@ -6,8 +6,8 @@ const REQUEST_PREFIX = "x-middleware-request-";
 /** A response whose headers can be changed (`Response.redirect()`'s cannot). */
 export function mutableResponse(response: Response): Response {
   try {
-    response.headers.append("x-bs-probe", "1");
-    response.headers.delete("x-bs-probe");
+    response.headers.append("x-bsb-probe", "1");
+    response.headers.delete("x-bsb-probe");
 
     return response;
   } catch {
@@ -70,7 +70,7 @@ export function overrideRequestHeaders(
   }
 }
 
-/** `bs-proxy;dur=1.2, bs-verify;dur=0.4`, per W3C Server Timing. */
+/** `bsb-proxy;dur=1.2, bsb-verify;dur=0.4`, per W3C Server Timing. */
 export function serverTimingValue(
   metrics: Readonly<Record<string, number>>,
 ): string {

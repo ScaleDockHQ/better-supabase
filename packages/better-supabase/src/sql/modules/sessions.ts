@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
 import { tableGlobs } from "../schema-scan.ts";
 import { SCHEMA } from "../shared.ts";
@@ -7,8 +7,8 @@ import { qualifiedTable } from "./grants.ts";
 
 /** The `schema.table` names `blocks.sessions.options.policies` covers. */
 export function sessionPolicyTables(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): readonly string[] {
   if (!ctx.flag("policies", false)) {
     return [];
@@ -25,7 +25,7 @@ export function sessionPolicyTables(
  * `blocks.sessions.options.policies`: a restrictive session policy on every
  * table the schema files create in `schemas`, except `exclude`.
  */
-function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
+function sessionPolicies(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const tables = sessionPolicyTables(ctx, layout);
 
   if (tables.length === 0) {
@@ -35,8 +35,8 @@ function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
   const statements = tables.map((table) => {
     const target = qualifiedTable(table);
 
-    return `drop policy if exists bs_session_active on ${target};
-create policy bs_session_active on ${target} as restrictive
+    return `drop policy if exists bsb_session_active on ${target};
+create policy bsb_session_active on ${target} as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));`;
@@ -49,7 +49,7 @@ create policy bs_session_active on ${target} as restrictive
 ${statements.join("\n")}`;
 }
 
-export const SESSIONS: ModuleDefinition = {
+export const SESSIONS: BlockSqlDefinition = {
   internal: ["session_active"],
   name: "sessions",
   names: { tables: {}, options: ["exclude", "policies"] },

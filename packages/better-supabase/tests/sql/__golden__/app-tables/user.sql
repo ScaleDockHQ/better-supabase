@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
--- @bs-app-tables
+-- @bsb-tables
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -43,8 +43,8 @@ drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("user_id" = (select auth.uid()));
 create index if not exists "projects_user_id_idx" on "public"."projects" ("user_id");
 create index if not exists "projects_owner_id_idx" on "public"."projects" ("owner_id");
-drop trigger if exists "bs_updated_at" on "public"."projects";
-create trigger "bs_updated_at" before update on "public"."projects"
+drop trigger if exists "bsb_updated_at" on "public"."projects";
+create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
@@ -61,13 +61,13 @@ drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("user_id" = (select auth.uid()));
 create index if not exists "tasks_user_id_idx" on "public"."tasks" ("user_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
-drop trigger if exists "bs_updated_at" on "public"."tasks";
-create trigger "bs_updated_at" before update on "public"."tasks"
+drop trigger if exists "bsb_updated_at" on "public"."tasks";
+create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
--- @bs-module-test app-tables
+-- @bsb-block-test app-tables
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -83,7 +83,7 @@ select extensions.table_privs_are('public', 'projects', 'authenticated', array['
 
 with u as (
   insert into auth.users (id, email, aud, role, instance_id)
-  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  values (gen_random_uuid(), 'bsb-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
   returning id
 )
 insert into "public"."projects" ("user_id", "name") select u.id, repeat('x', 1) from u;

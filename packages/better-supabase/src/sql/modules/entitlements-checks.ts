@@ -1,8 +1,8 @@
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleIdType } from "../context.ts";
+import type { BlockSqlIdType } from "../context.ts";
 import type {
-  ModuleLayout,
-  ModuleEntitlementsProvider,
+  BlockSqlLayout,
+  BlockSqlEntitlementsProvider,
 } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
@@ -17,13 +17,13 @@ interface Memberships {
   readonly table: string;
   readonly tenant: string;
   readonly user: string;
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
   /** The tenant module's `member_organization_ids` and `has_organization_role`. */
   readonly memberIds: string;
   readonly hasRole: string;
 }
 
-export function memberships(layout: ModuleLayout): Memberships {
+export function memberships(layout: BlockSqlLayout): Memberships {
   const ctx = moduleContext("tenant", layout);
 
   return {
@@ -219,7 +219,7 @@ export const tenantEntitlementChecks = (
  */
 export const providerEntitlementChecks = (
   claims: ClaimsMeta,
-  provider: ModuleEntitlementsProvider,
+  provider: BlockSqlEntitlementsProvider,
   claim?: FeatureClaimOption,
 ): string => {
   const member = fillTemplate(

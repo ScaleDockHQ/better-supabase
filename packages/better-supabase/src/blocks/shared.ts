@@ -39,7 +39,7 @@ export {
 
 export type { BlockTenantOptions } from "../core/block-tenant.ts";
 
-export type { SubjectRef } from "../schema/types.ts";
+export type { RecordRef } from "../schema/types.ts";
 
 export type {
   BlockCall,

@@ -67,7 +67,7 @@ const writes = writeSession(cookies, name, nextSession, cookieOptions, {
 ```ts title="src/lib/supabase/client.ts"
 import { createClient } from "better-supabase/client";
 
-export const bs = createClient(betterSupabase, {
+export const bsb = createClient(betterSupabase, {
   env: { url, publishableKey },
   cookies: { encode: "tokens-only" },
 });
@@ -81,7 +81,7 @@ into the cookie, and a browser client on `user-and-tokens` that reads a
 [BS412](/docs/cli/doctor#bs412) reports a mismatch in your sources.
 
 Nothing in better-supabase depends on the user object in the cookie.
-`bs.session()`, `useSession()` and the browser client's `auth.current()` read
+`bsb.session()`, `useSession()` and the browser client's `auth.current()` read
 the user's id, email, role and metadata from the verified (on the server) or
 decoded (in the browser) access token claims, so they are the same with either
 encoding. That is also why the claims, not `getUser()`, are the check to use
@@ -119,7 +119,7 @@ Next.js) keeps only the last write for each name, and don't pass them to
 ## Ended sessions in your own proxy
 
 An access token stays valid until it expires, even after its session is
-signed out elsewhere, revoked or deleted. `bs.proxy({ endedSession })` in
+signed out elsewhere, revoked or deleted. `bsb.proxy({ endedSession })` in
 Next.js checks for that on page loads. A proxy or middleware that runs its
 own `@supabase/ssr` client uses the same check through `sessionStatus` and
 `clearSessionCookies` from `better-supabase/ssr` or `better-supabase/server`:

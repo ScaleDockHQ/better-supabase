@@ -102,7 +102,7 @@ In poll mode, the first message a process queues starts its poller, and
 process stopped. Call it once at startup, for example from
 `instrumentation.ts`.
 
-Each delivery is signed with the secret (`x-bs-signature`, an HMAC-SHA256
+Each delivery is signed with the secret (`x-bsb-signature`, an HMAC-SHA256
 over the time, the job and the body). The World's queue handler refuses an
 unsigned or stale request with a 401 Problem Details response, and
 completes or fails the job itself, so a delivery whose response is lost runs
@@ -147,13 +147,13 @@ export async function requestApproval(invoiceId: string) {
 }
 ```
 
-`startFor` starts the run with the `bs.tenant` and `bs.actor` attributes
+`startFor` starts the run with the `bsb.tenant` and `bsb.actor` attributes
 of the caller, which the World copies into `workflow_runs.tenant_id` and
 `actor_id`. Pass `subject: { type: "deal", id }` to store the record the
-run belongs to (the `bs.subject` attribute, copied into `subject_type` and
+run belongs to (the `bsb.subject` attribute, copied into `subject_type` and
 `subject_id`; see [runs on a record](/docs/blocks/workflows#runs-on-a-record)). With `idempotencyKey`, it returns the run that already has the
 key instead of starting another. To act as the user inside a step, pass
-`workflowContext(ctx)` as an argument and call `bs.forContext(context)` in
+`workflowContext(ctx)` as an argument and call `bsb.forContext(context)` in
 the step. It keeps the actor and tenant and drops the claims, so no token
 ends up in the run's stored state. A delegated token's `client_id`,
 `scope`, `authorization_details` and `act` chain are the exception: they
@@ -163,9 +163,9 @@ stay, so a run an OAuth or MCP client started keeps that client's scopes
 ### Tickets
 
 `startFor(ctx, workflow, args, { ticket })` stores an opaque ticket from
-your authorization provider as the `bs.ticket` attribute. Pass
+your authorization provider as the `bsb.ticket` attribute. Pass
 `workflowContext(ctx, { ticket })` as an argument too: inside a step,
-`bs.forContext` resolves the ticket through the provider's
+`bsb.forContext` resolves the ticket through the provider's
 `tickets.subject` hook and runs as the context it returns, or fails with
 `forbidden` when the ticket is refused or nothing resolves it.
 `startOnEvent` takes `ticket: (event) => string | undefined`, and its
@@ -179,17 +179,17 @@ Nobody is signed in when an event or a schedule starts a run, so
 `startOnEvent` and the schedules of `workflowStarter` need `runAs`: the
 publisher, a user who holds the permissions the run needs, and the
 permission keys its steps may use. The context the run starts with is the
-publisher's, capped to those keys, so `bs.forContext(context)` in a step
+publisher's, capped to those keys, so `bsb.forContext(context)` in a step
 runs as the publisher and refuses every other key. A publisher who loses a
 permission fails the step that needs it. The event's actor or the
-schedule's creator is recorded as `bs.trigger` for audit and grants
-nothing; the publisher is recorded as `bs.publisher`. The run's `actor_id`
+schedule's creator is recorded as `bsb.trigger` for audit and grants
+nothing; the publisher is recorded as `bsb.publisher`. The run's `actor_id`
 is the user who triggered it (none for an event without an actor), so they
 see the run they caused, and `principal_kind` and `principal_id` record the
 publisher. Set `principalKind: "service_principal"` in `runAs` when the
 publisher is a [service principal](/docs/blocks/service-principals). The
 World records the principal only from these trusted starts: `startFor`
-drops `bs.principal_kind` and `bs.principal` from caller attributes.
+drops `bsb.principal_kind` and `bsb.principal` from caller attributes.
 
 ```ts title="workflows/start.ts"
 import { startOnEvent, workflowStarter } from "better-supabase/workflow-sdk";
@@ -411,8 +411,8 @@ never runs the `compiled` form stored with the version. Source over 128 KiB
 fails to publish. Node ids are 1 to 100 letters, digits, underscores or
 hyphens, in `validateGraph` and in `validate_workflow_graph`. Without it, `graphStarter` starts `executor`, a static
 `"use workflow"` function that walks the stored graph with `executeGraph`
-and takes the same branches. Either way a run carries `bs.definition`,
-`bs.version`, `bs.tenant`, `bs.actor` and `bs.key`, and a start with a key
+and takes the same branches. Either way a run carries `bsb.definition`,
+`bsb.version`, `bsb.tenant`, `bsb.actor` and `bsb.key`, and a start with a key
 that already ran returns the first run.
 
 `nodeRunReporter` records each step node's status, output and error in

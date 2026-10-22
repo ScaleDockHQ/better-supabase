@@ -1,5 +1,5 @@
 -- better-supabase module: posts
--- @bs-module posts@1 managed
+-- @bsb-block posts@1 managed
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -585,8 +585,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_moderated"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_moderated" on "better_supabase"."moderation_items";
-create trigger "bs_posts_moderated"
+drop trigger if exists "bsb_posts_moderated" on "better_supabase"."moderation_items";
+create trigger "bsb_posts_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'post')
   execute function "better_supabase"."posts_moderated"();
@@ -605,8 +605,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_removed"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_removed" on "better_supabase"."posts";
-create trigger "bs_posts_removed"
+drop trigger if exists "bsb_posts_removed" on "better_supabase"."posts";
+create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
@@ -636,8 +636,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_reply_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_reply_guard" on "better_supabase"."messages";
-create trigger "bs_posts_reply_guard"
+drop trigger if exists "bsb_posts_reply_guard" on "better_supabase"."messages";
+create trigger "bsb_posts_reply_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_reply_guard"();
 
@@ -663,8 +663,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_replied" on "better_supabase"."messages";
-create trigger "bs_posts_replied"
+drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
+create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
@@ -781,13 +781,13 @@ revoke execute on function "api"."vote_on_post"(uuid, integer) from public, anon
 grant execute on function "api"."vote_on_post"(uuid, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

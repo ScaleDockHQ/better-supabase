@@ -34,9 +34,9 @@ import type {
   PresetGlueItem,
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
-import type { ModuleContext } from "../packages/better-supabase/src/sql/context.ts";
-import type { SqlModule } from "../packages/better-supabase/src/sql/index.ts";
-import type { ModuleLayout } from "../packages/better-supabase/src/sql/module-types.ts";
+import type { BlockSqlContext } from "../packages/better-supabase/src/sql/context.ts";
+import type { BlockSql } from "../packages/better-supabase/src/sql/index.ts";
+import type { BlockSqlLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
@@ -47,7 +47,7 @@ import {
 import { PRESET_TENANT_NAMES } from "../packages/better-supabase/src/preset/fields.ts";
 import { tenantNameClashes } from "../packages/better-supabase/src/sql/entity-clashes.ts";
 import {
-  renderModules,
+  renderBlocks,
   SQL_MODULES,
 } from "../packages/better-supabase/src/sql/index.ts";
 import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
@@ -56,7 +56,7 @@ import {
   moduleOperations,
 } from "../packages/better-supabase/src/sql/modules/access-model.ts";
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
-import { resolveModules } from "../packages/better-supabase/src/sql/registry.ts";
+import { resolveBlocks } from "../packages/better-supabase/src/sql/registry.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
@@ -234,7 +234,7 @@ function exportsOf(): ReadonlyMap<string, string> {
  * needs options to render (`entitlements` needs a customer column) gets the
  * managed organizations module, which supplies the default.
  */
-function eventsOf(module: SqlModule): readonly string[] {
+function eventsOf(module: BlockSql): readonly string[] {
   const attempts = [
     [module.name, "outbox"],
     [module.name, "outbox", "organizations"],
@@ -242,7 +242,7 @@ function eventsOf(module: SqlModule): readonly string[] {
 
   for (const names of attempts) {
     try {
-      const sql = renderModules(names)
+      const sql = renderBlocks(names)
         .filter((file) => file.module === module.name)
         .map((file) => file.contents)
         .join("\n");
@@ -380,7 +380,7 @@ function entityTypesOf(
       .filter((entity) => entity.global !== true)
       .map((entity) => ({
         from: entityNoun(entity.singular, entity.plural),
-        to: entityNoun("bs_sentinel"),
+        to: entityNoun("bsb_sentinel"),
         cases: ["pascal" as const],
       })),
   );
@@ -551,26 +551,26 @@ const isPortName = (name: string): name is PortName =>
  * by rendering the module with a copy of its context (plain closures, no
  * getters) that records the table it passes to `ctx.extraColumns`.
  */
-function extraColumnsTable(module: SqlModule): string | undefined {
+function extraColumnsTable(module: BlockSql): string | undefined {
   if (module.names?.options?.includes("extraColumns") !== true) {
     return undefined;
   }
 
-  const layout: ModuleLayout = {
+  const layout: BlockSqlLayout = {
     modules: {
-      [module.name]: { options: { extraColumns: { bs_probe: "text" } } },
+      [module.name]: { options: { extraColumns: { bsb_probe: "text" } } },
     },
   };
 
   const ctx = moduleContext(
     module.name,
     layout,
-    resolveModules([module.name], layout).map((each) => each.name),
+    resolveBlocks([module.name], layout).map((each) => each.name),
   );
 
   const tables = new Set<string>();
 
-  const probe: ModuleContext = {
+  const probe: BlockSqlContext = {
     ...ctx,
     extraColumns: (table, reserved) => {
       tables.add(table);
@@ -591,7 +591,7 @@ function extraColumnsTable(module: SqlModule): string | undefined {
   return [...tables][0];
 }
 
-function presetBlock(module: SqlModule): PresetCatalogBlock {
+function presetBlock(module: BlockSql): PresetCatalogBlock {
   const manifest = BLOCK_MANIFESTS.find((each) =>
     each.sql.includes(module.name),
   );

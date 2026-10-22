@@ -7,7 +7,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -83,13 +83,13 @@ export interface Tags<F extends object = Record<never, never>> {
   reorder(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   delete(id: string): AsyncResult<boolean>;
   /** Puts a tag on `subject`. */
-  tag(subject: SubjectRef, tagId: string): AsyncResult<boolean>;
+  tag(subject: RecordRef, tagId: string): AsyncResult<boolean>;
   /** Takes a tag off `subject`. */
-  untag(subject: SubjectRef, tagId: string): AsyncResult<boolean>;
+  untag(subject: RecordRef, tagId: string): AsyncResult<boolean>;
   /** The tenant's tags of `kind` (every kind without it), in rank order. */
   list(kind?: string): AsyncResult<readonly Tag<F>[]>;
   /** The tags on `subject`, in rank order; the caller must be able to read it. */
-  forSubject(subject: SubjectRef): AsyncResult<readonly Tag<F>[]>;
+  forSubject(subject: RecordRef): AsyncResult<readonly Tag<F>[]>;
 }
 
 function tagOf(value: unknown): Tag {

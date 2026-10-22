@@ -10,7 +10,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { UndoCall, UndoToken } from "../undo/undo.ts";
 
 import {
@@ -58,13 +58,13 @@ export interface LinkResult<F extends object = Record<never, never>> {
    * The stored source, after an inverse name or a symmetric kind swapped the
    * ends.
    */
-  readonly source: SubjectRef;
-  readonly target: SubjectRef;
+  readonly source: RecordRef;
+  readonly target: RecordRef;
   /** `false` when the link existed; its data was updated if `data` was given. */
   readonly created: boolean;
   /** The target a one-target kind replaced. */
   readonly replaced: {
-    readonly target: SubjectRef;
+    readonly target: RecordRef;
     readonly data: Readonly<Record<string, unknown>>;
   } | null;
   readonly undo: UndoToken | null;
@@ -85,7 +85,7 @@ export interface Relation<F extends object = Record<never, never>> {
    */
   readonly kind: string;
   readonly direction: "out" | "in";
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly data: Readonly<Record<string, unknown>>;
   readonly createdAt: string;
   /** The app's extra columns (`options.extraColumns`), by column name. */
@@ -95,14 +95,14 @@ export interface Relation<F extends object = Record<never, never>> {
 export interface RelationEdge<F extends object = Record<never, never>> {
   readonly id: string;
   readonly kind: string;
-  readonly source: SubjectRef;
-  readonly target: SubjectRef;
+  readonly source: RecordRef;
+  readonly target: RecordRef;
   readonly data: Readonly<Record<string, unknown>>;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: RowFields<F>;
 }
 
-export interface RelationNode extends SubjectRef {
+export interface RelationNode extends RecordRef {
   readonly depth: number;
 }
 
@@ -139,27 +139,27 @@ export interface RelationsOptions<
 export interface Relations<F extends object = Record<never, never>> {
   /** Links `source` to `target` with a kind. */
   link(
-    source: SubjectRef,
-    target: SubjectRef,
+    source: RecordRef,
+    target: RecordRef,
     input: LinkInput<F>,
   ): AsyncResult<LinkResult<F>>;
   unlink(
-    source: SubjectRef,
-    target: SubjectRef,
+    source: RecordRef,
+    target: RecordRef,
     input: UnlinkInput,
   ): AsyncResult<UnlinkResult>;
   /** A subject's links in both directions, optionally of one kind. */
-  of(subject: SubjectRef, kind?: string): AsyncResult<Relation<F>[]>;
+  of(subject: RecordRef, kind?: string): AsyncResult<Relation<F>[]>;
   /** Every link of a kind in the tenant (up to 10,000), for a chart or a tree. */
   edges(kind: string): AsyncResult<RelationEdge<F>[]>;
-  ancestors(subject: SubjectRef, kind: string): AsyncResult<RelationNode[]>;
-  descendants(subject: SubjectRef, kind: string): AsyncResult<RelationNode[]>;
+  ancestors(subject: RecordRef, kind: string): AsyncResult<RelationNode[]>;
+  descendants(subject: RecordRef, kind: string): AsyncResult<RelationNode[]>;
   /**
    * Aggregates a column over a subject's descendants, such as estimates under
    * an epic.
    */
   rollup(
-    subject: SubjectRef,
+    subject: RecordRef,
     input: RollupInput,
   ): AsyncResult<number | string | null>;
   /**
@@ -168,7 +168,7 @@ export interface Relations<F extends object = Record<never, never>> {
    * so converting twice returns the first record.
    */
   convertedInto(
-    origin: SubjectRef,
+    origin: RecordRef,
     intoType: string,
   ): AsyncResult<string | undefined>;
   /**
@@ -177,7 +177,7 @@ export interface Relations<F extends object = Record<never, never>> {
    * order and the invoice.
    */
   lineage(
-    subject: SubjectRef,
+    subject: RecordRef,
   ): AsyncResult<{
     readonly origins: RelationNode[];
     readonly conversions: RelationNode[];
@@ -190,8 +190,8 @@ const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
 const linkArgs = (
   organizationId: string,
   kind: string,
-  source: SubjectRef,
-  target: SubjectRef,
+  source: RecordRef,
+  target: RecordRef,
 ): Record<string, unknown> => ({
   tenant: organizationId,
   kind,
@@ -204,7 +204,7 @@ const linkArgs = (
 const walkArgs = (
   organizationId: string,
   kind: string,
-  subject: SubjectRef,
+  subject: RecordRef,
 ): Record<string, unknown> => ({
   tenant: organizationId,
   kind,

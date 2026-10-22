@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { PlanLookup } from "./billing-platform.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -10,7 +10,7 @@ import { fail, SERVICE_CALLER } from "../shared.ts";
  */
 export type SubscriptionSource = "sync-engine" | "webhook";
 
-export function subscriptionSourceOf(ctx: ModuleContext): SubscriptionSource {
+export function subscriptionSourceOf(ctx: BlockSqlContext): SubscriptionSource {
   const value = ctx.text("subscriptions", "sync-engine");
 
   if (value !== "sync-engine" && value !== "webhook") {
@@ -28,7 +28,7 @@ export function subscriptionSourceOf(ctx: ModuleContext): SubscriptionSource {
  * Sync Engine still has plans, status and a checkout guard.
  */
 export function webhookSubscriptions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   plans: PlanLookup | undefined,
 ): string {
   const id = ctx.idType;

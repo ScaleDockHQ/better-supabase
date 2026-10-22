@@ -8,10 +8,10 @@ import {
   createJobs,
   createRateLimit,
   purgeWebhookInbox,
-  transportQueueBackend,
+  transportQueueProvider,
   withLease,
 } from "../../../src/blocks/jobs/index.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { fakeSql } from "../../fixtures/fake-sql.ts";
 
 interface Call {
@@ -40,7 +40,7 @@ function fakeTransport(answers: Readonly<Record<string, unknown>>): {
 
 /** The argument names of each wrapper `blocks.<module>.api` writes. */
 function wrapperArgs(module: string): Map<string, readonly string[]> {
-  const [file] = renderModules([module], {
+  const [file] = renderBlocks([module], {
     modules: { [module]: { api: "api" } },
   });
 
@@ -90,7 +90,7 @@ const ROW = {
   message: { payload: { to: "a@b.test" }, max_attempts: 3 },
 };
 
-describe("transportQueueBackend", () => {
+describe("transportQueueProvider", () => {
   it("calls every jobs function by name with the wrapper's argument names", async () => {
     const { transport, calls } = fakeTransport({
       enqueue_job: "7",
@@ -147,7 +147,7 @@ describe("transportQueueBackend", () => {
       advance_schedule: true,
     });
 
-    const backend = transportQueueBackend(transport, { schema: "api" });
+    const backend = transportQueueProvider(transport, { schema: "api" });
     expect(
       await backend.send("emails", { to: "x" }, 0, 3, "k", "waiting"),
     ).toBe(7);
@@ -241,11 +241,11 @@ describe("transportQueueBackend", () => {
   it("refuses a composite value it can't read as rows", async () => {
     const { transport } = fakeTransport({ claim_jobs: "(1,2)" });
     await expect(
-      transportQueueBackend(transport).read("emails", 30, 1),
+      transportQueueProvider(transport).read("emails", 30, 1),
     ).rejects.toThrow(/pass a SqlClient/);
     const { transport: empty } = fakeTransport({ enqueue_job: null });
     await expect(
-      transportQueueBackend(empty).send("emails", {}, 0, 1, undefined),
+      transportQueueProvider(empty).send("emails", {}, 0, 1, undefined),
     ).rejects.toThrow(/no id/);
   });
 });

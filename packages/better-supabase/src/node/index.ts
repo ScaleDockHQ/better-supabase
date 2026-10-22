@@ -116,7 +116,7 @@ export type ExpressErrorHandler = (
 
 /**
  * Express middleware that puts every contribution on `res.locals`
- * (`res.locals.db`, `res.locals.bs`). Mount it before the routes.
+ * (`res.locals.db`, `res.locals.bsb`). Mount it before the routes.
  *
  * ```ts
  * app.use(toExpress([withBetterSupabase(server)]));

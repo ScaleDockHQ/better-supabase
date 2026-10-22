@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const billing = (options?: Record<string, unknown>) =>
   moduleBody("billing", { modules: options ? { billing: { options } } : {} })!;
@@ -74,7 +74,7 @@ describe("billing module", () => {
       `foreign key ("organization_id") references "app"."accounts" ("account_id") on delete cascade`,
     );
 
-    const withOrganizations = renderModules(["organizations", "billing"]).find(
+    const withOrganizations = renderBlocks(["organizations", "billing"]).find(
       (file) => file.module === "billing" && file.kind === "schema",
     )!.contents;
 
@@ -82,7 +82,7 @@ describe("billing module", () => {
       'constraint "billing_customers_tenant_fkey"\n      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade',
     );
 
-    const off = renderModules(["organizations", "billing"], {
+    const off = renderBlocks(["organizations", "billing"], {
       modules: { billing: { options: { tenantKey: false } } },
     }).find((file) => file.module === "billing" && file.kind === "schema")!;
 
@@ -169,7 +169,7 @@ describe("billing module", () => {
       `alter table ${table} alter column "stripe_customer_id" drop not null;`,
     );
     expect(sql).toContain(
-      `add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
+      `add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
     );
     expect(sql).toContain(
       `on conflict ("organization_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,

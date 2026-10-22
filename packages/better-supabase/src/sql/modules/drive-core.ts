@@ -99,7 +99,7 @@ create table if not exists ${G} (
   unique (${g("node")}, ${g("principalType")}, ${g("principalId")})
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_principal_idx`)} on ${G} (${g("principalType")}, ${g("principalId")});
-${ensureCheck(G, "bs_drive_grants_role", `${g("role")} = any (${rolesArray})`)}
+${ensureCheck(G, "bsb_drive_grants_role", `${g("role")} = any (${rolesArray})`)}
 ${lockTable(G, { read: false })}
 `
     : "";

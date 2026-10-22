@@ -36,11 +36,11 @@ describe("tenant module sameTenant", () => {
     );
     expect(sql).toContain("hint = 'TENANT_MISMATCH'");
     expect(sql).toContain(
-      `create trigger "bs_same_tenant_project_id" before insert or update of "project_id", "organization_id" on "public"."tasks"
+      `create trigger "bsb_same_tenant_project_id" before insert or update of "project_id", "organization_id" on "public"."tasks"
   for each row execute function better_supabase.same_tenant('project_id', 'organization_id', '"public"."projects"', 'id', 'organization_id');`,
     );
     expect(sql).toContain(
-      `create trigger "bs_same_tenant_template_id" before insert or update of "template_id", "workspace_id" on "app"."template_settings"
+      `create trigger "bsb_same_tenant_template_id" before insert or update of "template_id", "workspace_id" on "app"."template_settings"
   for each row execute function better_supabase.same_tenant('template_id', 'workspace_id', '"app"."templates"', 'key', 'owner_workspace', 'p.kind = ''task''');`,
     );
   });
@@ -80,11 +80,11 @@ describe("tenant module sameTenant", () => {
     ]);
 
     expect(sql).toContain(
-      `create trigger "bs_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "customer_id", "site_id" on "public"."jobs"
+      `create trigger "bsb_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "customer_id", "site_id" on "public"."jobs"
   for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', '', 'customer_id', 'customer_id', 'site_id', 'location_id');`,
     );
     expect(sql).toContain(
-      `create trigger "bs_same_tenant_material_id" before insert or update of "material_id", "organization_id", "customer_id" on "public"."quote_materials"
+      `create trigger "bsb_same_tenant_material_id" before insert or update of "material_id", "organization_id", "customer_id" on "public"."quote_materials"
   for each row execute function better_supabase.same_tenant('material_id', 'organization_id', '"public"."materials"', 'id', 'organization_id', 'p.active', 'customer_id', 'customer_id', 'organization_id', 'owner_id');`,
     );
     expect(sql).toContain("while i + 1 < tg_nargs loop");
@@ -109,11 +109,11 @@ describe("tenant module sameTenant", () => {
     ]);
 
     expect(sql).toContain(
-      `create trigger "bs_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "quote_id" on "public"."quote_assets"
+      `create trigger "bsb_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "quote_id" on "public"."quote_assets"
   for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', 'p."customer_id" is not distinct from (select h."customer_id" from "public"."quotes" h where h."id" = ($1)."quote_id")');`,
     );
     expect(sql).toContain(
-      `create trigger "bs_same_tenant_quote_id" before insert or update of "quote_id", "organization_id", "site_id", "task_id" on "public"."task_materials"
+      `create trigger "bsb_same_tenant_quote_id" before insert or update of "quote_id", "organization_id", "site_id", "task_id" on "public"."task_materials"
   for each row execute function better_supabase.same_tenant('quote_id', 'organization_id', '"public"."quotes"', 'id', 'organization_id', '(p.status <> ''draft'') and (p."customer_id" is not distinct from (select h."customer_id" from "work"."tasks" h where h."key" = ($1)."task_id"))', 'site_id', 'site_id');`,
     );
     expect(() =>
@@ -266,9 +266,9 @@ alter table public.notes add constraint notes_task_fk foreign key (task_id) refe
   it("skips keys to tables without the tenant column and keys that include it", () => {
     const sql = autoBody({ auto: true });
 
-    expect(sql).not.toContain("bs_same_tenant_owner_id");
+    expect(sql).not.toContain("bsb_same_tenant_owner_id");
     expect(sql).not.toContain(
-      '"bs_same_tenant_customer_id" on "public"."notes"',
+      '"bsb_same_tenant_customer_id" on "public"."notes"',
     );
   });
 

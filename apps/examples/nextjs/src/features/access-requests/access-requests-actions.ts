@@ -8,7 +8,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const DURATIONS = ["PT1H", "P1D", "P7D", "none"] as const;
 
@@ -22,7 +22,7 @@ interface AccessRequestDraft {
   duration?: Temporal.Duration;
 }
 
-export const requestAccess = bs.action(
+export const requestAccess = bsb.action(
   {
     input: v.object({
       role: v.picklist(["member", "admin"]),
@@ -56,7 +56,7 @@ export const requestAccess = bs.action(
 );
 
 /** Approves or rejects the approvals request behind an access request. */
-export const decideAccessRequest = bs.action(
+export const decideAccessRequest = bsb.action(
   {
     input: v.object({
       approvalId: ID,
@@ -84,7 +84,7 @@ export const decideAccessRequest = bs.action(
 );
 
 /** Withdraws the caller's own pending request. */
-export const cancelAccessRequest = bs.action(
+export const cancelAccessRequest = bsb.action(
   { input: v.object({ approvalId: ID }), requireTenant: true },
   async ({ approvalId }, { supabase, auth }) => {
     const cancelled = await blocks(supabase).approvals.cancel(approvalId);
@@ -100,7 +100,7 @@ export const cancelAccessRequest = bs.action(
 );
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
-export const endAccess = bs.action(
+export const endAccess = bsb.action(
   { input: v.object({ id: ID }), requireTenant: true },
   async ({ id }, { supabase, auth }) => {
     const ended = await blocks(supabase).accessRequests.end(id);

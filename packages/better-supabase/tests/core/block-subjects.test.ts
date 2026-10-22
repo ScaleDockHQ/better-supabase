@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   bySubjectType,
-  optionalSubjectRefOf,
+  optionalRecordRefOf,
   subjectIdsByType,
   subjectKey,
   subjectRefOf,
@@ -13,9 +13,9 @@ import { AsyncResult } from "../../src/core/result.ts";
 describe("subject refs from rows", () => {
   it("reads the subject columns", () => {
     expect(subjectRefOf("deal", "d1")).toEqual({ type: "deal", id: "d1" });
-    expect(optionalSubjectRefOf("deal", 7)).toEqual({ type: "deal", id: "7" });
-    expect(optionalSubjectRefOf(null, null)).toBeUndefined();
-    expect(optionalSubjectRefOf("", "d1")).toBeUndefined();
+    expect(optionalRecordRefOf("deal", 7)).toEqual({ type: "deal", id: "7" });
+    expect(optionalRecordRefOf(null, null)).toBeUndefined();
+    expect(optionalRecordRefOf("", "d1")).toBeUndefined();
   });
 
   it("keys a subject as type:id", () => {

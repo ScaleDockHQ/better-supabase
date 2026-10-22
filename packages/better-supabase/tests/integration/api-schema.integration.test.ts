@@ -14,7 +14,7 @@ describe.skipIf(!live)("api wrappers", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      const schema = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+      const schema = `bsb_api_${crypto.randomUUID().slice(0, 8)}`;
       await s.rows(
         `create schema ${schema};
          alter default privileges in schema ${schema} grant execute on functions to anon, authenticated, service_role;`,

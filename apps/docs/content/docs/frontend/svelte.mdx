@@ -10,12 +10,12 @@ to Svelte 5. Bind it once in the root layout, next to TanStack Svelte Query:
 <script lang="ts">
   import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
   import { setBetterSupabase, setSession } from "better-supabase/svelte";
-  import { bs } from "$lib/supabase/client";
+  import { bsb } from "$lib/supabase/client";
 
   let { data, children } = $props();
   const queryClient = new QueryClient();
 
-  setBetterSupabase(bs, { queryClient });
+  setBetterSupabase(bsb, { queryClient });
   setSession(() => data.session);
 </script>
 
@@ -68,7 +68,7 @@ rendering. Inputs are getters, so a subscription follows the `$state` and
 | `useAction(action, { onSuccess })`      | `{ pending, pendingInputs, data, error, run, reset }`  |
 | `useSession()`                          | `current`: the session from the nearest `setSession()` |
 
-`getBetterSupabase<typeof bs>()` returns the bound client typed for your
+`getBetterSupabase<typeof bsb>()` returns the bound client typed for your
 schema, with `db`, `queries` and `supabase`. Outside a component (a module
-or a test), `createBetterSvelte(bs)` returns the same object without a
+or a test), `createBetterSvelte(bsb)` returns the same object without a
 context. For the server hook, see [SvelteKit](/docs/frameworks/sveltekit).

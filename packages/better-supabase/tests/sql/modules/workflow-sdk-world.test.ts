@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-const schemaOf = (config: Parameters<typeof renderModules>[1]) =>
-  renderModules(["workflow-sdk-world"], config)
+const schemaOf = (config: Parameters<typeof renderBlocks>[1]) =>
+  renderBlocks(["workflow-sdk-world"], config)
     .filter(
       (file) => file.kind === "schema" && file.module === "workflow-sdk-world",
     )
@@ -12,7 +12,7 @@ const schemaOf = (config: Parameters<typeof renderModules>[1]) =>
 
 describe("workflow-sdk-world module", () => {
   it("installs after jobs and access", () => {
-    const names = renderModules(["workflow-sdk-world"], {}).map(
+    const names = renderBlocks(["workflow-sdk-world"], {}).map(
       (file) => file.module,
     );
 

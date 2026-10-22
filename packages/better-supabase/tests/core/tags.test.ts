@@ -4,10 +4,10 @@ import { cacheTagsOf, tagCache, tagFor } from "../../src/core/tags.ts";
 
 describe("tagFor", () => {
   it("names table, row and tenant tags", () => {
-    expect(tagFor("notes")).toBe("bs:notes");
-    expect(tagFor("notes", 7)).toBe("bs:notes:7");
+    expect(tagFor("notes")).toBe("bsb:notes");
+    expect(tagFor("notes", 7)).toBe("bsb:notes:7");
     expect(tagFor("notes", undefined, { tenant: "acme" })).toBe(
-      "bs:notes@acme",
+      "bsb:notes@acme",
     );
   });
 });
@@ -22,14 +22,14 @@ describe("cacheTagsOf", () => {
         tenant: "acme",
       }),
     ).toEqual([
-      "bs:notes",
-      "bs:notes@acme",
-      "bs:projects",
-      "bs:projects@acme",
-      "bs:notes:a",
+      "bsb:notes",
+      "bsb:notes@acme",
+      "bsb:projects",
+      "bsb:projects@acme",
+      "bsb:notes:a",
     ]);
     expect(cacheTagsOf({ table: "notes", tables: ["notes"], ids: [] })).toEqual(
-      ["bs:notes", "bs:notes@*"],
+      ["bsb:notes", "bsb:notes@*"],
     );
   });
 });
@@ -41,9 +41,9 @@ describe("tagCache", () => {
     expect(adapter.name).toBe("cdn");
     await adapter.invalidate({ table: "notes", tables: ["notes"], ids: ["1"] });
     expect(invalidate).toHaveBeenCalledWith([
-      "bs:notes",
-      "bs:notes@*",
-      "bs:notes:1",
+      "bsb:notes",
+      "bsb:notes@*",
+      "bsb:notes:1",
     ]);
   });
 });

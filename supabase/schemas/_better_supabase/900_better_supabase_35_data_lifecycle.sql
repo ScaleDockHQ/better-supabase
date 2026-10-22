@@ -1,5 +1,5 @@
 -- better-supabase module: data-lifecycle
--- @bs-module data-lifecycle@6 managed
+-- @bsb-block data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -904,8 +904,8 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bs_data_exports_select" on storage.objects;
-create policy "bs_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists "bsb_data_exports_select" on storage.objects;
+create policy "bsb_data_exports_select" on storage.objects for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export
@@ -1708,13 +1708,13 @@ revoke execute on function "api"."purge_organization"(uuid) from public, anon, a
 grant execute on function "api"."purge_organization"(uuid) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

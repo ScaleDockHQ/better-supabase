@@ -1,12 +1,12 @@
 import type { CustomFieldsEvents } from "../../blocks/custom-fields/events.ts";
 import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -24,7 +24,7 @@ import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
 /** The custom field types whose values `encrypt_field_definition` encrypts. */
 const ENCRYPTABLE_TYPES: readonly CustomFieldType[] = ["text", "email", "url"];
 
-const EVENTS: ModuleEvents<CustomFieldsEvents> = {
+const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
   "custom_field.saved": {
     subject: "custom-fields",
     payload: ["organizationId", "id", "entity"],
@@ -43,7 +43,7 @@ const EVENTS: ModuleEvents<CustomFieldsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["layout", "auditReads"],
   tables: {
@@ -99,7 +99,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -352,7 +352,7 @@ ${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDef
  * Whether definitions can be encrypted: a definition table with the column, and
  * the field-encryption block.
  */
-function encrypts(ctx: ModuleContext): boolean {
+function encrypts(ctx: BlockSqlContext): boolean {
   return (
     ctx.text("layout", "normalized") !== "inline" &&
     ctx.has("definitions", "encrypted") &&
@@ -366,7 +366,7 @@ function encrypts(ctx: ModuleContext): boolean {
  * no way back: a field that holds ciphertext stays encrypted.
  */
 function encryptDefinition(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   definitions: string,
   values: string,
   manage: string,
@@ -416,16 +416,16 @@ ${userGrant(`${ctx.fn("encrypt_field_definition")}(uuid)`)}
  * The type check, named so a later release can widen it: dropping the inline
  * check an older install created, then adding the named one.
  */
-function typeCheck(ctx: ModuleContext, definitions: string): string {
+function typeCheck(ctx: BlockSqlContext, definitions: string): string {
   const column = ctx.colName("definitions", "type");
   const legacy = `${ctx.tableName("definitions").name}_${column}_check`;
 
   return `alter table ${definitions} drop constraint if exists ${sqlIdent(legacy)};
-${ensureCheck(definitions, "bs_field_definitions_type", `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
+${ensureCheck(definitions, "bsb_field_definitions_type", `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
 }
 
 function listDefinitions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   definitions: string,
   rank: string,
   read: string,
@@ -469,7 +469,7 @@ ${userGrant(`${ctx.fn("list_field_definitions")}(${ctx.idType}, text)`)}
 }
 
 function rankDefinition(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   definitions: string,
   rank: string,
   manage: string,
@@ -503,7 +503,7 @@ ${userGrant(`${ctx.fn("rank_field_definition")}(uuid, text)`)}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_field_definition",
@@ -552,7 +552,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CUSTOM_FIELDS: ModuleDefinition = {
+export const CUSTOM_FIELDS: BlockSqlDefinition = {
   name: "custom-fields",
   scopes: ["tenant"],
   title: "Custom fields",

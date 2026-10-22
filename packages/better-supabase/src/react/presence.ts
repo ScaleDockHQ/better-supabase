@@ -82,7 +82,7 @@ export function usePresence<P extends string, I, O>(
 
   if (!supabase) {
     throw new Error(
-      "better-supabase: usePresence needs <BetterSupabaseProvider client={bs}> or { client: supabase }",
+      "better-supabase: usePresence needs <BetterSupabaseProvider client={bsb}> or { client: supabase }",
     );
   }
 

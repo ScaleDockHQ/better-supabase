@@ -1,5 +1,5 @@
--- better-supabase module: service-principals (0.9.0)
--- @bs-module service-principals@1 managed
+-- better-supabase module: service-principals
+-- @bsb-block service-principals@1 managed
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7,7 +7,7 @@
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Non-human members of a tenant. Each row is an auth.users row that can't
--- sign in (no password, banned, app_metadata.bs_service_principal),
+-- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
@@ -37,7 +37,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
--- app_metadata.bs_service_principal and be banned, so a real account
+-- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
 drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
@@ -61,7 +61,7 @@ begin
   if not exists (
     select 1 from auth.users u
     where u.id = register_service_principal.principal
-      and coalesce((u.raw_app_meta_data ->> 'bs_service_principal')::boolean, false)
+      and coalesce((u.raw_app_meta_data ->> 'bsb_service_principal')::boolean, false)
       and u.banned_until > now() + interval '50 years'
   ) then
     raise exception 'The user is not a service principal: create it with createServicePrincipals().create' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_USER';
@@ -270,13 +270,13 @@ revoke execute on function "api"."service_principals_list"(uuid) from public, an
 grant execute on function "api"."service_principals_list"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

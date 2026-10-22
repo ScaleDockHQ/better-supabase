@@ -307,7 +307,7 @@ describe.skipIf(!live)("Realtime module", async () => {
 
       await client.query("savepoint before");
       await client.query(
-        `create trigger bs_before before insert on public.customers
+        `create trigger bsb_before before insert on public.customers
            for each row execute function better_supabase.broadcast_topic('x:{name}', '')`,
       );
       await expect(
@@ -329,22 +329,22 @@ describe.skipIf(!live)("Realtime module", async () => {
     try {
       await client.query("begin");
       await client.query(`
-        create table public.bs_rt_parents (id int primary key, org text not null);
-        create table public.bs_rt_children (
+        create table public.bsb_rt_parents (id int primary key, org text not null);
+        create table public.bsb_rt_children (
           id int primary key,
-          parent_id int not null references public.bs_rt_parents on delete cascade,
+          parent_id int not null references public.bsb_rt_parents on delete cascade,
           status text not null,
           note text
         );
-        insert into public.bs_rt_parents values (1, 'org-a'), (2, 'org-b');
+        insert into public.bsb_rt_parents values (1, 'org-a'), (2, 'org-b');
       `);
 
       const board = defineTopic("rtboard:{org}:{parentId}");
       await client.query(
-        board.trigger("public.bs_rt_children", {
+        board.trigger("public.bsb_rt_children", {
           values: {
             org: {
-              from: "public.bs_rt_parents",
+              from: "public.bsb_rt_parents",
               via: "parent_id",
               select: "org",
             },
@@ -363,19 +363,19 @@ describe.skipIf(!live)("Realtime module", async () => {
         ).rows.map((row) => row.event);
 
       await client.query(
-        "insert into public.bs_rt_children values (10, 1, 'open', null), (20, 2, 'open', null)",
+        "insert into public.bsb_rt_children values (10, 1, 'open', null), (20, 2, 'open', null)",
       );
       await client.query(
-        "update public.bs_rt_children set note = 'only a note' where id = 10",
+        "update public.bsb_rt_children set note = 'only a note' where id = 10",
       );
       expect(await sent("rtboard:org-a:1")).toEqual(["INSERT"]);
 
       await client.query(
-        "update public.bs_rt_children set status = 'done' where id = 10",
+        "update public.bsb_rt_children set status = 'done' where id = 10",
       );
       expect(await sent("rtboard:org-a:1")).toEqual(["INSERT", "UPDATE"]);
 
-      await client.query("delete from public.bs_rt_children where id = 10");
+      await client.query("delete from public.bsb_rt_children where id = 10");
       expect(await sent("rtboard:org-a:1")).toEqual([
         "INSERT",
         "UPDATE",
@@ -389,13 +389,13 @@ describe.skipIf(!live)("Realtime module", async () => {
       };
 
       client.on("notice", onNotice);
-      await client.query("delete from public.bs_rt_parents where id = 2");
+      await client.query("delete from public.bsb_rt_parents where id = 2");
       client.off("notice", onNotice);
 
       expect(await sent("rtboard:org-b:2")).toEqual(["INSERT"]);
       expect(warnings).toEqual([
         expect.stringContaining(
-          "better-supabase: realtime lookup found no row for a delete on public.bs_rt_children",
+          "better-supabase: realtime lookup found no row for a delete on public.bsb_rt_children",
         ),
       ]);
     } finally {

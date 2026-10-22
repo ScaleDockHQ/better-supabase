@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SqlModule } from "../../src/sql/module-types.ts";
+import type { BlockSql } from "../../src/sql/module-types.ts";
 
 import { createModuleContext } from "../../src/sql/context.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
@@ -10,7 +10,7 @@ import {
   upgradePlan,
 } from "../../src/sql/upgrade.ts";
 
-const widget: SqlModule = {
+const widget: BlockSql = {
   name: "widget",
   title: "Widget",
   description: "A test module.",
@@ -95,7 +95,7 @@ describe("upgradePlan", () => {
   });
 
   it("renders steps with the provider's scope id type", () => {
-    const typed: SqlModule = {
+    const typed: BlockSql = {
       ...widget,
       upgrades: [
         {
@@ -162,7 +162,7 @@ describe("upgradePlan", () => {
 describe("NAMES.migrations", () => {
   const comments = SQL_MODULES["comments"]!;
 
-  const moved: SqlModule = {
+  const moved: BlockSql = {
     ...comments,
     names: {
       ...comments.names!,

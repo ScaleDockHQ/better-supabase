@@ -1,10 +1,10 @@
-import type { ModuleUpgrade } from "../module-types.ts";
+import type { BlockSqlUpgrade } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { renameSql } from "../shared.ts";
 
 /** The audit module's `sql upgrade` steps, from each installed version. */
-export const AUDIT_UPGRADES: readonly ModuleUpgrade[] = [
+export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
   {
     from: 1,
     description:

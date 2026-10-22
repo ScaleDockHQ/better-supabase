@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { postFeature } from "./post-feature.ts";
 
 /**
  * Loads a post's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const postRecord = recordServer(bs, postFeature);
+export const postRecord = recordServer(bsb, postFeature);

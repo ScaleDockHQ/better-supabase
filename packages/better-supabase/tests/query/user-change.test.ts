@@ -43,7 +43,7 @@ const signedIn = (
 
 const signedOut: Snapshot = { status: "signed-out", user: null };
 
-const BS_KEY = ["bs", "customers", "findMany"];
+const BS_KEY = ["bsb", "customers", "findMany"];
 
 function seeded(): QueryClient {
   const client = new QueryClient();
@@ -56,7 +56,7 @@ function seeded(): QueryClient {
 const bsData = (client: QueryClient) => client.getQueryData(BS_KEY);
 
 describe("clearOnUserChange", () => {
-  it("resets bs queries when the user signs out or changes, and only those", () => {
+  it("resets bsb queries when the user signs out or changes, and only those", () => {
     const client = seeded();
     const { auth, set } = fakeAuth(signedIn("u1"));
     clearOnUserChange(client, auth);
@@ -123,7 +123,7 @@ describe("clearOnUserChange", () => {
 
   it("resets rows fetched as anon while the session was loading", () => {
     const client = new QueryClient();
-    const hydrated = ["bs", "customers", "findById", "c0"];
+    const hydrated = ["bsb", "customers", "findById", "c0"];
     client.setQueryData(hydrated, { id: "c0" });
     const { auth, set } = fakeAuth({ status: "loading", user: null });
     clearOnUserChange(client, auth);

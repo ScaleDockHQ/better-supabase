@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module announcements@1 managed
+-- @bsb-block announcements@1 managed
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,8 +63,8 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bs_announcements_audience;
-alter table "better_supabase"."announcements" add constraint bs_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
+alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
@@ -265,14 +265,14 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bs_announcements_broadcast" on "better_supabase"."announcements";
-create trigger "bs_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
+drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
+create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_announcements_receive" on realtime.messages;
-    create policy "bs_announcements_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_announcements_receive" on realtime.messages;
+    create policy "bsb_announcements_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
 end;
@@ -290,33 +290,33 @@ grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to 
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module-data announcements
+-- @bsb-block-data announcements
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('announcements', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module announcements@1 managed
+-- @bsb-block announcements@1 managed
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -379,8 +379,8 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bs_announcements_audience;
-alter table "better_supabase"."announcements" add constraint bs_announcements_audience check ("audience" in ('all', 'tenant', 'role', 'plan'));
+alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role', 'plan'));
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
@@ -595,14 +595,14 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bs_announcements_broadcast" on "better_supabase"."announcements";
-create trigger "bs_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
+drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
+create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_announcements_receive" on realtime.messages;
-    create policy "bs_announcements_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_announcements_receive" on realtime.messages;
+    create policy "bsb_announcements_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
 end;
@@ -620,33 +620,33 @@ grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to 
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module-data announcements
+-- @bsb-block-data announcements
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('announcements', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module announcements@1 managed
+-- @bsb-block announcements@1 managed
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -711,8 +711,8 @@ create table if not exists "app_private"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "app_private"."announcements" drop constraint if exists bs_announcements_audience;
-alter table "app_private"."announcements" add constraint bs_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
+alter table "app_private"."announcements" drop constraint if exists bsb_announcements_audience;
+alter table "app_private"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
 create index if not exists announcements_window_idx on "app_private"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "app_private"."announcements" ("created_by");
 alter table "app_private"."announcements" enable row level security;
@@ -913,14 +913,14 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bs_announcements_broadcast" on "app_private"."announcements";
-create trigger "bs_announcements_broadcast" after insert or update or delete on "app_private"."announcements"
+drop trigger if exists "bsb_announcements_broadcast" on "app_private"."announcements";
+create trigger "bsb_announcements_broadcast" after insert or update or delete on "app_private"."announcements"
   for each row execute function "app_private"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_announcements_receive" on realtime.messages;
-    create policy "bs_announcements_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_announcements_receive" on realtime.messages;
+    create policy "bsb_announcements_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
 end;
@@ -938,33 +938,33 @@ grant execute on function "app_private"."save_announcement"(uuid, jsonb) to auth
 grant execute on function "app_private"."delete_announcement"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module-data announcements
+-- @bsb-block-data announcements
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('announcements', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module announcements@1 managed
+-- @bsb-block announcements@1 managed
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1027,8 +1027,8 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bs_announcements_audience;
-alter table "better_supabase"."announcements" add constraint bs_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
+alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
@@ -1229,14 +1229,14 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bs_announcements_broadcast" on "better_supabase"."announcements";
-create trigger "bs_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
+drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
+create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_announcements_receive" on realtime.messages;
-    create policy "bs_announcements_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_announcements_receive" on realtime.messages;
+    create policy "bsb_announcements_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
 end;
@@ -1321,26 +1321,26 @@ revoke execute on function "api"."delete_announcement"(uuid) from public, anon;
 grant execute on function "api"."delete_announcement"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_39_announcements.sql
 -- better-supabase module: announcements
--- @bs-module-data announcements
+-- @bsb-block-data announcements
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('announcements', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

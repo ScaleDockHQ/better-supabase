@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { courseSql } from "./courses-sql.ts";
@@ -13,7 +13,7 @@ const notEnrolled = fail(
  * The quiz of lesson `row`: the grading form's current version without its
  * answer key, or null.
  */
-function quizJson(ctx: ModuleContext, row: string, form: string): string {
+function quizJson(ctx: BlockSqlContext, row: string, form: string): string {
   if (!ctx.installed("forms")) {
     return "null::jsonb";
   }
@@ -28,7 +28,7 @@ function quizJson(ctx: ModuleContext, row: string, form: string): string {
 }
 
 /** `submit_course_quiz`, which needs the forms block. */
-function quizSubmit(ctx: ModuleContext, learner: string): string {
+function quizSubmit(ctx: BlockSqlContext, learner: string): string {
   if (!ctx.installed("forms")) {
     return "";
   }
@@ -89,7 +89,7 @@ ${userGrant(`${fn("submit_course_quiz")}(uuid, jsonb)`)}
 }
 
 /** The courses module's learner functions. */
-export function courseLearningFunctions(ctx: ModuleContext): string {
+export function courseLearningFunctions(ctx: BlockSqlContext): string {
   const q = courseSql(ctx);
   const { fn, c, m, l, p, k, e } = q;
 

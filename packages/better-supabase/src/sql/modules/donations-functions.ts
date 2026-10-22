@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
@@ -21,7 +21,7 @@ const step = (frequency: string): string =>
 export const GIFT_RESERVED = ["fields"] as const;
 
 /** The donations module's functions. */
-export function donationsFunctions(ctx: ModuleContext): string {
+export function donationsFunctions(ctx: BlockSqlContext): string {
   const ledger = ctx.of("ledger");
   const funds = ctx.table("funds");
   const pledges = ctx.table("pledges");

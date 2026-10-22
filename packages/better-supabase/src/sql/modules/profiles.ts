@@ -1,5 +1,9 @@
-import type { ExtraColumn, ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type {
+  ExtraColumn,
+  BlockSqlContext,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -10,7 +14,7 @@ import {
   triggerGrant,
 } from "../shared.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: [
     "columnGrants",
     "extraColumns",
@@ -79,7 +83,7 @@ const DEFAULT_METADATA: readonly (readonly [string, readonly string[]])[] = [
   ["avatar", ["avatar_url", "picture"]],
 ];
 
-export function hasAvatarPath(ctx: ModuleContext): boolean {
+export function hasAvatarPath(ctx: BlockSqlContext): boolean {
   return (
     ctx.has("profiles", "avatarPath") &&
     (ctx.manages ||
@@ -100,7 +104,7 @@ function column(where: string, name: string): string {
 }
 
 function record(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = ctx.option(name);
@@ -118,7 +122,7 @@ function record(
 
 /** `extraColumns`: column name to SQL type, created on a managed table. */
 function extraColumns(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
   return ctx
     .extraColumns("profiles")
@@ -126,7 +130,7 @@ function extraColumns(
 }
 
 /** Column to the metadata keys it reads: `options.metadata` or the defaults. */
-function metadataColumns(ctx: ModuleContext): Map<string, string[]> {
+function metadataColumns(ctx: BlockSqlContext): Map<string, string[]> {
   const map = new Map<string, string[]>();
   const configured = record(ctx, "metadata");
 
@@ -167,7 +171,7 @@ const fromMeta = (keys: readonly string[]): string =>
     : `nullif(btrim(coalesce(${keys.map((key) => `meta ->> ${sqlString(key)}`).join(", ")})), '')`;
 
 /** Column to the SQL expression `sync_profile` inserts. */
-function syncValues(ctx: ModuleContext): Map<string, string> {
+function syncValues(ctx: BlockSqlContext): Map<string, string> {
   const values = new Map<string, string>();
   const has = (logical: string) => ctx.has("profiles", logical);
   const col = (logical: string) => ctx.col("profiles", logical);
@@ -231,7 +235,9 @@ interface UsernamePart {
  * The `{ names | columns, separator }` entries of `usernameFrom`; strings are
  * single metadata keys.
  */
-function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
+function usernameParts(
+  ctx: BlockSqlContext,
+): readonly (string | UsernamePart)[] {
   const configured = ctx.option("usernameFrom") ?? USERNAME_SOURCES;
   const where = "blocks.profiles.options.usernameFrom";
 
@@ -286,7 +292,7 @@ function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
  * The characters a username keeps besides letters, digits and `_`: the `.` and
  * `-` of the `usernameFrom` separators, so `ada.lovelace` stays as it is.
  */
-function usernameExtras(ctx: ModuleContext): string {
+function usernameExtras(ctx: BlockSqlContext): string {
   const extras = new Set(
     usernameParts(ctx)
       .flatMap((part) =>
@@ -306,7 +312,7 @@ function usernameExtras(ctx: ModuleContext): string {
  * `metadata` and `splitName`.
  */
 function usernameSource(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   values: ReadonlyMap<string, string>,
 ): string {
   const parts = usernameParts(ctx);
@@ -376,7 +382,7 @@ const RESERVED_USERNAMES = [
   "www",
 ];
 
-function usernameRules(ctx: ModuleContext): {
+function usernameRules(ctx: BlockSqlContext): {
   readonly min: number;
   readonly max: number;
   readonly reserved: string;
@@ -422,7 +428,7 @@ function usernameRules(ctx: ModuleContext): {
  * stored expression nests differently from the one pg-delta writes back, and a
  * declarative sync would drop and re-add the check every time.
  */
-function usernameCheck(ctx: ModuleContext): string {
+function usernameCheck(ctx: BlockSqlContext): string {
   const t = ctx.table("profiles");
   const u = ctx.col("profiles", "username");
   const { min, max, reserved } = usernameRules(ctx);
@@ -445,7 +451,7 @@ end;
 $$;`;
 }
 
-function table(ctx: ModuleContext): string {
+function table(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -511,11 +517,11 @@ create table if not exists ${t} (
 );${hasAvatarPath(ctx) ? `\nalter table ${t} add column if not exists ${c("avatarPath")} text;` : ""}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
 ${username}
 alter table ${t} enable row level security;
-drop policy if exists bs_profiles_read on ${t};
-create policy bs_profiles_read on ${t} for select to authenticated
+drop policy if exists bsb_profiles_read on ${t};
+create policy bsb_profiles_read on ${t} for select to authenticated
   using (${read});
-drop policy if exists bs_profiles_update on ${t};
-create policy bs_profiles_update on ${t} for update to authenticated
+drop policy if exists bsb_profiles_update on ${t};
+create policy bsb_profiles_update on ${t} for update to authenticated
   using (${c("key")} = (select auth.uid()))
   with check (${c("key")} = (select auth.uid()));
 ${selectGrant}
@@ -527,7 +533,7 @@ grant all on ${t} to service_role;
  * `readPolicy`: `self`, `members`, or `{ members, platform }` where `platform`
  * is a key `is_platform()` checks, so platform staff read every profile.
  */
-function readPolicy(ctx: ModuleContext): {
+function readPolicy(ctx: BlockSqlContext): {
   readonly members: boolean;
   readonly platform?: string;
 } {
@@ -557,7 +563,7 @@ function readPolicy(ctx: ModuleContext): {
 }
 
 /** Platform staff read every profile: a policy of its own, in either mode. */
-function platformRead(ctx: ModuleContext): string {
+function platformRead(ctx: BlockSqlContext): string {
   const platform = readPolicy(ctx).platform;
 
   if (platform === undefined) {
@@ -581,14 +587,14 @@ end;
 $$;
 revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;
 grant execute on function ${ctx.fn("profiles_platform_readable")}() to authenticated, service_role;
-drop policy if exists bs_profiles_platform_read on ${t};
-create policy bs_profiles_platform_read on ${t} for select to authenticated
+drop policy if exists bsb_profiles_platform_read on ${t};
+create policy bsb_profiles_platform_read on ${t} for select to authenticated
   using ((select ${ctx.fn("profiles_platform_readable")}()));
 `;
 }
 
 /** Profiles of the caller and of everyone who shares a tenant with them. */
-function membersRead(ctx: ModuleContext): string {
+function membersRead(ctx: BlockSqlContext): string {
   return `${ctx.col("profiles", "key")} in (select ${ctx.fn("profile_peer_ids")}())`;
 }
 
@@ -596,7 +602,7 @@ function membersRead(ctx: ModuleContext): string {
  * `profile_peer_ids()`: the caller and the users who share a tenant with them.
  * Security definer, so the memberships policies don't hide peers.
  */
-function peers(ctx: ModuleContext): string {
+function peers(ctx: BlockSqlContext): string {
   if (!readPolicy(ctx).members) {
     return "";
   }
@@ -632,7 +638,7 @@ grant execute on function ${ctx.fn("profile_peer_ids")}() to authenticated, serv
 }
 
 /** Column grants: users update only the columns in `options.updatable`. */
-function grants(ctx: ModuleContext): string {
+function grants(ctx: BlockSqlContext): string {
   if (!ctx.flag("columnGrants", ctx.manages)) {
     return "";
   }
@@ -675,7 +681,7 @@ ${columns.length > 0 ? `grant update (${[...new Set(columns)].join(", ")}) on ${
 }
 
 /** Rejects changes to service-owned columns from the API roles. */
-function guard(ctx: ModuleContext): string {
+function guard(ctx: BlockSqlContext): string {
   const defaults = [
     "email",
     "disabledAt",
@@ -740,7 +746,7 @@ create trigger ${trigger} before update on ${t}
   for each row execute function ${ctx.fn("guard_profile")}();`;
 }
 
-function functions(ctx: ModuleContext): string {
+function functions(ctx: BlockSqlContext): string {
   const t = ctx.table("profiles");
   const key = ctx.col("profiles", "key");
   const values = syncValues(ctx);
@@ -897,7 +903,7 @@ revoke execute on function ${ctx.fn("update_my_profile")}(jsonb) from public, an
 grant execute on function ${ctx.fn("update_my_profile")}(jsonb) to authenticated, service_role;`;
 }
 
-function profilePhysical(ctx: ModuleContext, logical: string): string {
+function profilePhysical(ctx: BlockSqlContext, logical: string): string {
   const mapped = ctx.config.columns["profiles"]?.[logical];
 
   return typeof mapped === "string"
@@ -905,7 +911,7 @@ function profilePhysical(ctx: ModuleContext, logical: string): string {
     : NAMES.tables["profiles"]!.columns[logical]!;
 }
 
-function selfUpdates(ctx: ModuleContext): string {
+function selfUpdates(ctx: BlockSqlContext): string {
   const columns = (
     [
       "fullName",
@@ -949,7 +955,7 @@ function selfUpdates(ctx: ModuleContext): string {
  * The extra columns `update_my_profile` writes: all of them, or those in
  * `options.updatable` when it is set, since the column grants allow no more.
  */
-function updatableExtras(ctx: ModuleContext): readonly ExtraColumn[] {
+function updatableExtras(ctx: BlockSqlContext): readonly ExtraColumn[] {
   const extras = ctx.extraColumns("profiles");
 
   if (ctx.option("updatable") === undefined) {
@@ -962,7 +968,7 @@ function updatableExtras(ctx: ModuleContext): readonly ExtraColumn[] {
 }
 
 /** The auth.users triggers: sync on sign-up and the email mirror. */
-function authTriggers(ctx: ModuleContext): string {
+function authTriggers(ctx: BlockSqlContext): string {
   const t = ctx.table("profiles");
   const key = ctx.col("profiles", "key");
   const sync = ctx.trigger("profile_sync");
@@ -1024,7 +1030,7 @@ create trigger ${mirror} after update of email on auth.users
   return parts.join("\n");
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1040,7 +1046,7 @@ function build(ctx: ModuleContext): string {
   ].join("\n");
 }
 
-export const PROFILES: ModuleDefinition = {
+export const PROFILES: BlockSqlDefinition = {
   name: "profiles",
   title: "Profiles",
   description:

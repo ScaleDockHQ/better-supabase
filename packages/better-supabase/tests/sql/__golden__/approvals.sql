@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module approvals@1 managed
+-- @bsb-block approvals@1 managed
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -553,33 +553,33 @@ revoke execute on function "better_supabase"."remind_approvals"(interval, intege
 grant execute on function "better_supabase"."remind_approvals"(interval, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module-data approvals
+-- @bsb-block-data approvals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('approvals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module approvals@1 managed
+-- @bsb-block approvals@1 managed
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1337,33 +1337,33 @@ revoke execute on function "better_supabase"."remind_approvals"(interval, intege
 grant execute on function "better_supabase"."remind_approvals"(interval, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module-data approvals
+-- @bsb-block-data approvals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('approvals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module approvals@1 managed
+-- @bsb-block approvals@1 managed
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1918,33 +1918,33 @@ revoke execute on function "app_private"."remind_approvals"(interval, integer) f
 grant execute on function "app_private"."remind_approvals"(interval, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module-data approvals
+-- @bsb-block-data approvals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('approvals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module approvals@1 managed
+-- @bsb-block approvals@1 managed
 -- Approval requests with steps per subject type and action: approvers by permission, role, team or user, a required count, delegation, expiry and reminders. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2620,26 +2620,26 @@ revoke execute on function "api"."remind_approvals"(interval, integer) from publ
 grant execute on function "api"."remind_approvals"(interval, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_77_approvals.sql
 -- better-supabase module: approvals
--- @bs-module-data approvals
+-- @bsb-block-data approvals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('approvals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

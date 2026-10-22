@@ -1,3 +1,3 @@
-import { bs } from "../lib/supabase/server";
+import { bsb } from "../lib/supabase/server";
 
-export default bs.middleware();
+export default bsb.middleware();

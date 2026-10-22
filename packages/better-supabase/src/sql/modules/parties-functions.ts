@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
@@ -8,7 +8,7 @@ import { watchSql } from "../watch-sql.ts";
 
 export interface PartyNames {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -28,7 +28,7 @@ type Kind = "company" | "person";
  * (`options.extraColumns`) for row `alias`; empty for people and without extra
  * columns.
  */
-function extraFields(ctx: ModuleContext, kind: Kind, alias: string): string {
+function extraFields(ctx: BlockSqlContext, kind: Kind, alias: string): string {
   if (kind !== "company") {
     return "";
   }
@@ -96,7 +96,7 @@ const SPEC = {
 } as const;
 
 const guard = (
-  scope: ModuleScope,
+  scope: BlockSqlScope,
   tenant: string,
   permission: string,
   code: string,
@@ -106,7 +106,7 @@ const guard = (
   end if;`;
 
 function saveFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PartyNames,
   kind: Kind,
 ): string {
@@ -246,7 +246,7 @@ ${userGrant(`${names.fn(fnName)}(${ctx.idType}, uuid, jsonb)`)}
 }
 
 function archiveFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PartyNames,
   kind: Kind,
 ): string {
@@ -289,7 +289,7 @@ ${userGrant(`${fn(name)}(uuid, boolean)`)}
 }
 
 function mergeFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PartyNames,
   kind: Kind,
 ): string {
@@ -341,7 +341,7 @@ function mergeFunction(
 }
 
 function listFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PartyNames,
   kind: Kind,
 ): string {
@@ -389,7 +389,10 @@ ${userGrant(`${fn(name)}(${ctx.idType}, text, text, uuid, text, uuid, integer)`)
 `;
 }
 
-export function partyFunctions(ctx: ModuleContext, names: PartyNames): string {
+export function partyFunctions(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+): string {
   const { t, c, fn } = names;
   const li = (logical: string): string => c("links", logical);
   const co = (logical: string): string => c("companies", logical);

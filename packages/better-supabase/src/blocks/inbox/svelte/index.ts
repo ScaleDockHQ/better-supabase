@@ -42,7 +42,7 @@ export type {
  * `createInboxController` as a Svelte readable store of the snapshot, with the
  * actions on `.actions`. Call it in a component's script; the work starts on
  * mount and the controller is disposed with the component. `auth` and `ports`
- * default to the client of `setBetterSupabase(bs)`.
+ * default to the client of `setBetterSupabase(bsb)`.
  */
 export function useInbox<T>(
   options: BlockOptions<InboxControllerOptions<T>>,
@@ -58,7 +58,7 @@ export function useInbox<T>(
  * `createConversationController` as a Svelte readable store of the snapshot,
  * with the actions on `.actions`. Call it in a component's script; the work
  * starts on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useConversation<T extends Identified>(
   options: BlockOptions<ConversationControllerOptions<T>>,
@@ -74,7 +74,7 @@ export function useConversation<T extends Identified>(
  * `createInboxWidgetController` as a Svelte readable store of the snapshot,
  * with the actions on `.actions`. Call it in a component's script; the work
  * starts on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useInboxWidget<T extends Identified>(
   options: BlockOptions<InboxWidgetControllerOptions<T>>,

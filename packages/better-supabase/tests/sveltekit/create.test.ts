@@ -43,7 +43,7 @@ const kit: SvelteKitHelpers = {
   fail: (status, data) => ({ status, data }),
 };
 
-const bs = createSvelteKit(betterSupabase, {
+const bsb = createSvelteKit(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
@@ -58,7 +58,7 @@ async function withEvent<T>(
 ): Promise<T> {
   const event = { request, locals: {}, url: new URL(request.url) };
   let out: T | undefined;
-  await bs.handle({
+  await bsb.handle({
     event,
     resolve: async () => {
       out = await fn(event);
@@ -74,7 +74,7 @@ async function withEvent<T>(
 describe("createSvelteKit", () => {
   it("fills event.locals in handle, and require returns the caller", async () => {
     const request = await requestAs({ role: "member" });
-    const caller = await withEvent(request, (event) => bs.require(event));
+    const caller = await withEvent(request, (event) => bsb.require(event));
     expect(caller.session).toMatchObject({ user: { id: USER } });
     expect(caller.db).toBeDefined();
   });
@@ -83,24 +83,24 @@ describe("createSvelteKit", () => {
     await expect(
       withEvent(
         await requestAs(undefined, { url: "https://app.test/notes" }),
-        (event) => bs.require(event),
+        (event) => bsb.require(event),
       ),
     ).rejects.toEqual(new Redirect(303, "/sign-in?next=%2Fnotes"));
     await expect(
       withEvent(await requestAs({ role: "member" }), (event) =>
-        bs.require(event, { requireTenant: true }),
+        bsb.require(event, { requireTenant: true }),
       ),
     ).rejects.toBeInstanceOf(HttpError);
   });
 
   it("require without handle throws a setup error", async () => {
     await expect(
-      bs.require({ request: new Request("https://app.test/"), locals: {} }),
+      bsb.require({ request: new Request("https://app.test/"), locals: {} }),
     ).rejects.toThrow(/hooks.server.ts/);
   });
 
   it("runs form actions into ActionResults and fail()", async () => {
-    const save = bs.action({}, (input) => ok({ input }));
+    const save = bsb.action({}, (input) => ok({ input }));
     const form = new FormData();
     form.append("title", "Hello");
 
@@ -126,13 +126,13 @@ describe("createSvelteKit", () => {
 
   it("maps errors in handleError and registers load dependencies", () => {
     expect(
-      bs.handleError({ error: new DbException(dbError("not_found", "Gone")) }),
+      bsb.handleError({ error: new DbException(dbError("not_found", "Gone")) }),
     ).toEqual({ message: "Gone", code: "not_found" });
-    expect(bs.handleError({ error: new Error("secret") }).message).toBeTypeOf(
+    expect(bsb.handleError({ error: new Error("secret") }).message).toBeTypeOf(
       "string",
     );
     const depends = vi.fn();
-    bs.depends({ depends }, "notes", "projects");
-    expect(depends.mock.calls).toEqual([["bs:notes"], ["bs:projects"]]);
+    bsb.depends({ depends }, "notes", "projects");
+    expect(depends.mock.calls).toEqual([["bsb:notes"], ["bsb:projects"]]);
   });
 });

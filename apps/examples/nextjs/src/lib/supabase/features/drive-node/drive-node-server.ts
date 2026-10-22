@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { driveNodeFeature } from "./drive-node-feature.ts";
 
 /**
  * Loads a drive_node's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const driveNodeRecord = recordServer(bs, driveNodeFeature);
+export const driveNodeRecord = recordServer(bsb, driveNodeFeature);

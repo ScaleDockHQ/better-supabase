@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { columnsObject, membershipDisabledAt, fail } from "../shared.ts";
 import { OPERATIONS, modulePermission } from "./access-model.ts";
@@ -15,7 +15,7 @@ const MEMBERSHIP_KEYS: readonly string[] = [
 
 /** `options.extraColumns`, which a managed organizations table gets. */
 export function organizationExtraColumns(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly ExtraColumn[] {
   return ctx.extraColumns("organizations", MEMBERSHIP_KEYS);
 }
@@ -25,7 +25,9 @@ export function organizationExtraColumns(
  * `options.extraColumns`. `create_organization` and `update_organization` copy
  * them from `attrs`, and `list_my_organizations` returns them.
  */
-export function organizationAttributes(ctx: ModuleContext): readonly string[] {
+export function organizationAttributes(
+  ctx: BlockSqlContext,
+): readonly string[] {
   const listed = ctx.list("attributes", []).map((column) => {
     if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
       throw new TypeError(
@@ -55,7 +57,7 @@ export interface OrganizationReadNames {
 }
 
 export function organizationReads(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: OrganizationReadNames,
 ): string {
   const name = ctx.col("organizations", "name");
@@ -130,7 +132,7 @@ $$;
 ${invites}`;
 }
 
-function invitationsRead(ctx: ModuleContext): string {
+function invitationsRead(ctx: BlockSqlContext): string {
   const invitations = ctx.of("invitations");
   const table = invitations.table("invitations");
   const id = invitations.col("invitations", "id");

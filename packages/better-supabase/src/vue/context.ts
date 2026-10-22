@@ -14,13 +14,13 @@ export interface Context {
 
 export const CLIENT: InjectionKey<Context> = Symbol("better-supabase");
 
-/** What `app.use(betterSupabase(bs))` provides. */
+/** What `app.use(betterSupabase(bsb))` provides. */
 export function useContext(): Context {
   const context = inject(CLIENT, null);
 
   if (!context) {
     throw new Error(
-      "better-supabase: install the plugin with app.use(betterSupabase(bs))",
+      "better-supabase: install the plugin with app.use(betterSupabase(bsb))",
     );
   }
 

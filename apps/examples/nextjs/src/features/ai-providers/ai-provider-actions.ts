@@ -6,7 +6,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { PROVIDERS } from "./ai-provider-options";
 import { aiProviders, providerCredentials } from "./ai-providers-server";
@@ -17,7 +17,7 @@ const Slug = v.pipe(v.string(), v.trim(), v.regex(/^[a-z0-9-]{1,40}$/));
  * Stores the API key in Vault under the organization, then saves the provider
  * row that names it. The row never holds the key itself.
  */
-export const addProviderKey = bs.action(
+export const addProviderKey = bsb.action(
   {
     input: v.object({
       provider: v.picklist(PROVIDERS),
@@ -62,7 +62,7 @@ export const addProviderKey = bs.action(
 );
 
 /** Deletes a key and revokes its Vault secret. */
-export const removeProviderKey = bs.action(
+export const removeProviderKey = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,

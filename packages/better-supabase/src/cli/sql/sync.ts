@@ -2,17 +2,13 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { ModuleLayout } from "../../sql/index.ts";
+import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
-import {
-  moduleTopics,
-  renderModules,
-  sameModuleFile,
-} from "../../sql/index.ts";
+import { moduleTopics, renderBlocks, sameBlockFile } from "../../sql/index.ts";
 import { applyPlan, changeLines, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
@@ -103,7 +99,7 @@ export async function syncModules(
     };
   }
 
-  const rendered = renderModules(config.blockNames, sqlLayout);
+  const rendered = renderBlocks(config.blockNames, sqlLayout);
 
   const plan = sqlPlan(config, {
     regenerate: "better-supabase sql sync",
@@ -127,11 +123,11 @@ export async function syncModules(
  */
 async function checkModuleMigration(
   config: ResolvedConfig,
-  sqlLayout: ModuleLayout,
+  sqlLayout: BlockSqlLayout,
   paint: Paint,
   topics: string | undefined,
 ): Promise<CommandResult> {
-  const files = renderModules(config.blockNames, sqlLayout);
+  const files = renderBlocks(config.blockNames, sqlLayout);
 
   const expected = renderModuleMigration({
     files,
@@ -154,7 +150,7 @@ async function checkModuleMigration(
       "utf-8",
     ).catch(() => undefined);
 
-    if (!sameModuleFile(current, file.contents)) {
+    if (!sameBlockFile(current, file.contents)) {
       const shown = display(config.root, file.path);
       stale.push(shown);
       diffs.push(fileDiff(shown, current, file.contents, paint));

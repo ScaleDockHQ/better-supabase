@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { pageSize, SERVICE_CALLER } from "../shared.ts";
@@ -32,7 +32,7 @@ export interface ActivityReads {
 
 export type ActivitySourceName = "event" | "audit" | "delivery" | "run";
 
-const DELIVERIES_SIGNATURE = (ctx: ModuleContext): string =>
+const DELIVERIES_SIGNATURE = (ctx: BlockSqlContext): string =>
   `${ctx.fn("activity_subject_deliveries")}(${ctx.idType}, text, text, timestamptz, integer)`;
 
 /**
@@ -43,7 +43,7 @@ const DELIVERIES_SIGNATURE = (ctx: ModuleContext): string =>
  * subject's timeline also returns the log's entries on its row, which that
  * policy gates by the audit read permission.
  */
-export function activityReads(ctx: ModuleContext): ActivityReads {
+export function activityReads(ctx: BlockSqlContext): ActivityReads {
   const none: ActivityReads = {
     readable: "",
     dropReadable: `\ndrop function if exists ${ctx.fn("activity_subject_readable")}(text, text);`,
@@ -141,7 +141,7 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
 
 /** An activity entry's keys, with the activity table's column names. */
 function entry(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   values: Readonly<Record<string, string>>,
   source: ActivitySourceName,
 ): string {
@@ -160,7 +160,7 @@ function entry(
  * The subject's workflow runs. list_activity runs as the caller, so the runs'
  * own read policy applies on top of the can_subject gate.
  */
-function runBranch(ctx: ModuleContext, types: string): string {
+function runBranch(ctx: BlockSqlContext, types: string): string {
   if (ctx.scope.kind !== "tenant" || !ctx.installed("workflows")) {
     return "";
   }
@@ -229,7 +229,10 @@ function runBranch(ctx: ModuleContext, types: string): string {
  * permissions in the tenant, the bar list_subject_deliveries sets.
  * list_activity has already checked can_subject.
  */
-function deliveryHelper(ctx: ModuleContext, types: string): string | undefined {
+function deliveryHelper(
+  ctx: BlockSqlContext,
+  types: string,
+): string | undefined {
   if (ctx.scope.kind !== "tenant" || !ctx.installed("notifications")) {
     return undefined;
   }
@@ -326,7 +329,7 @@ grant execute on function ${signature} to authenticated, service_role;
 }
 
 /** The union branch that reads the audit log's entries on v_table's row. */
-function auditBranch(ctx: ModuleContext, audit: ModuleContext): string {
+function auditBranch(ctx: BlockSqlContext, audit: BlockSqlContext): string {
   const a = (logical: string): string =>
     sqlString(ctx.col("activity", logical).replaceAll('"', ""));
 

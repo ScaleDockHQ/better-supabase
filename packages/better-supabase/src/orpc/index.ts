@@ -70,7 +70,7 @@ export interface OrpcContext<
   P = unknown,
   B = unknown,
 > {
-  readonly bs: ServerContext<M, F, E, C, P, B>;
+  readonly bsb: ServerContext<M, F, E, C, P, B>;
   readonly db: ServerContext<M, F, E, C, P, B>["db"];
   readonly auth: AuthState<C, P>;
 }
@@ -150,7 +150,7 @@ export interface OrpcGuardOptions<
     MiddlewareOptions,
     AuthorizeOptions<unknown, C, P, boolean, unknown, X> {}
 
-/** `os` with the caller's context: `bs.authed().handler(({ context }) => ...)`. */
+/** `os` with the caller's context: `bsb.authed().handler(({ context }) => ...)`. */
 export type OrpcAuthed<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -261,9 +261,9 @@ export interface BetterOrpc<
 > extends BetterServer<M, F, E, C, P, B> {
   /**
    * Resolves the caller, enforces `allow` and adds `context.db`, `context.auth`
-   * and `context.bs`. Thrown `DbException`s, and errors caused by a `DbError`,
+   * and `context.bsb`. Thrown `DbException`s, and errors caused by a `DbError`,
    * become `ORPCError`s. Serve the router with `fetchHandler` so refreshed
-   * session cookies and `bs-primary-until` reach the response.
+   * session cookies and `bsb-primary-until` reach the response.
    */
   middleware(
     options?: OrpcGuardOptions<
@@ -277,10 +277,10 @@ export interface BetterOrpc<
    * from the caller's context instead of repeating `.use()`:
    *
    * ```ts
-   * export const list = bs
+   * export const list = bsb
    *   .authed({ requireTenant: true })
    *   .handler(({ context }) =>
-   *     bs.unwrap(context.db.customers.findMany()),
+   *     bsb.unwrap(context.db.customers.findMany()),
    *   );
    * ```
    */
@@ -327,7 +327,7 @@ export interface BetterOrpc<
    * method that takes more than one argument takes them as a tuple:
    *
    * ```ts
-   * const invoices = bs.blockRouter(
+   * const invoices = bsb.blockRouter(
    *   ({ supabase }) => blocks(supabase).invoices,
    *   {
    *     name: "invoices",
@@ -473,7 +473,7 @@ export function createOrpc<
 
         try {
           return await next({
-            context: { bs: ctx, db: ctx.db, auth: ctx.auth },
+            context: { bsb: ctx, db: ctx.db, auth: ctx.auth },
           });
         } catch (cause) {
           const thrown = dbErrorOf(cause);
@@ -599,7 +599,7 @@ export function createOrpc<
           readonly context: OrpcContext<M, F, E, C, P, B>;
         }): Promise<unknown> => {
           const settled = await settle(() =>
-            callWithInput(client(context.bs), name, input),
+            callWithInput(client(context.bsb), name, input),
           );
 
           if (!settled.ok) {

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderModules(names, { modules: options ? { attachments: { options } } : {} })
+  renderBlocks(names, { modules: options ? { attachments: { options } } : {} })
     .filter((file) => file.module === "attachments")
     .map((file) => file.contents)
     .join("\n");
@@ -22,7 +22,7 @@ describe("attachments module", () => {
     );
     expect(sql).toContain(`a."status" = 'clean'`);
     expect(sql).toContain(
-      `create policy "bs_attachments_insert" on storage.objects`,
+      `create policy "bsb_attachments_insert" on storage.objects`,
     );
     expect(sql).toContain("'attachments.upload'");
     expect(sql).toContain("'attachments.manage'");
@@ -76,7 +76,7 @@ describe("attachments module", () => {
     );
     expect(sqlOf(["attachments"])).not.toContain("drop not null");
     expect(() =>
-      renderModules(["reactions"], {
+      renderBlocks(["reactions"], {
         modules: {
           reactions: {
             options: { subjects: { note: { table: "notes", tenant: false } } },
@@ -111,7 +111,7 @@ describe("attachments module", () => {
       }),
     ).toThrow(/use read, upload and manage/);
 
-    const scoped = renderModules(["attachments"], {
+    const scoped = renderBlocks(["attachments"], {
       modules: {
         access: { model: "provider" },
         attachments: {
@@ -134,7 +134,7 @@ describe("attachments module", () => {
     );
 
     const withScope = (scope: unknown, provider: boolean) => () =>
-      renderModules(["attachments"], {
+      renderBlocks(["attachments"], {
         modules: {
           ...(provider ? { access: { model: "provider" } } : {}),
           attachments: {
@@ -155,7 +155,7 @@ describe("attachments module", () => {
 
   it("takes upload and manage keys from the subject registry, and lets the block override them", () => {
     const render = (options?: Readonly<Record<string, unknown>>): string =>
-      renderModules(["attachments"], {
+      renderBlocks(["attachments"], {
         subjects: {
           contract: {
             table: "contracts",
@@ -201,7 +201,7 @@ describe("attachments module", () => {
   it("checks the messaging key for files on a message or a comment thread", () => {
     const modules = ["messaging", "comments", "attachments"];
 
-    const sql = renderModules(modules, {
+    const sql = renderBlocks(modules, {
       subjects: withBlockSubjects({}, modules, {}),
     })
       .filter((file) => file.module === "attachments")
@@ -266,11 +266,11 @@ describe("attachments module", () => {
     expect(sql).toContain(
       `"subject_type" is distinct from 'receipt' or "mime_type" like 'image/%'`,
     );
-    expect(sql).toContain("create trigger bs_object_scan_pending");
+    expect(sql).toContain("create trigger bsb_object_scan_pending");
     expect(sql).toContain("when (new.bucket_id in ('files'))");
-    expect(sql).toContain("bs_attachments_receipt_cascade");
+    expect(sql).toContain("bsb_attachments_receipt_cascade");
     expect(sqlOf(["attachments"])).toContain(
-      "drop trigger if exists bs_object_scan_pending on storage.objects;",
+      "drop trigger if exists bsb_object_scan_pending on storage.objects;",
     );
 
     for (const [options, message] of [
@@ -300,7 +300,7 @@ describe("attachments module", () => {
       sqlOf(["attachments"], { path: "{organization_id}/files/{id}-v2" }),
     ).toThrow(/-v and digits/);
 
-    const bare = renderModules(["attachments"], {
+    const bare = renderBlocks(["attachments"], {
       modules: {
         attachments: { columns: { attachments: { metadata: null } } },
       },
@@ -312,7 +312,7 @@ describe("attachments module", () => {
     expect(bare).toContain("create_attachment");
     expect(bare).not.toContain("create_attachment.metadata");
     expect(
-      renderModules(["attachments"], {
+      renderBlocks(["attachments"], {
         modules: { attachments: { mode: "custom" } },
       })
         .filter((file) => file.module === "attachments")

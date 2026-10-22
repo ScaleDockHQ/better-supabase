@@ -1,4 +1,4 @@
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
 import { userGrant } from "./shared.ts";
@@ -17,7 +17,7 @@ export interface GuestSource {
  * The provider's `portalSubjects` and `portalParties` as guest sources, under
  * the `provider` model only. Empty without them.
  */
-export function providerGuestSource(layout: ModuleLayout): GuestSource {
+export function providerGuestSource(layout: BlockSqlLayout): GuestSource {
   const provider = layout.accessProvider;
 
   if (layout.modules?.access?.model !== "provider" || !provider) {
@@ -55,7 +55,7 @@ export function providerGuestSource(layout: ModuleLayout): GuestSource {
  */
 export function providerGuestFunctions(
   installed: readonly string[],
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): string {
   if (installed.includes("guests")) {
     return "";
@@ -69,7 +69,7 @@ export function providerGuestFunctions(
 }
 
 /** Whether the provider answers for guests under the `provider` model. */
-export function providerAnswersForGuests(layout: ModuleLayout): boolean {
+export function providerAnswersForGuests(layout: BlockSqlLayout): boolean {
   const source = providerGuestSource(layout);
 
   return source.subjects !== undefined || source.parties !== undefined;

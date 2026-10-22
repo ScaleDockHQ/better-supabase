@@ -9,7 +9,7 @@ import { createMemory } from "better-supabase/blocks/memory";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { demoEmbedder } from "./demo-embedder";
 
@@ -27,7 +27,7 @@ function embedder(): Embedder {
   return embedderInstance;
 }
 
-const service = () => rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
+const service = () => rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });
 
 /** The knowledge block acting as the caller; the service role writes embeddings. */
 export function knowledge(supabase: RpcClient): Knowledge {

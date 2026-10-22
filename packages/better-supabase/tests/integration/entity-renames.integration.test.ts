@@ -23,7 +23,7 @@ import {
   blockQueries,
   invalidateOnBlockEvents,
 } from "../../src/query/blocks.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl } from "./stack-env.ts";
@@ -46,7 +46,7 @@ vi.mock(import("next/cache.js"), () => ({
  * A scratch schema for every module, since the stack's shared tables already
  * carry the default tenant column.
  */
-const SCRATCH = "bs_entity_rename";
+const SCRATCH = "bsb_entity_rename";
 
 const TENANT = "5f3c6a52-8d1e-4b7a-9c0f-2a4b6c8d0e1f";
 
@@ -146,7 +146,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     await client.query("begin");
     await client.query(`create schema ${SCRATCH}`);
 
-    const files = renderModules(config.blockNames, {
+    const files = renderBlocks(config.blockNames, {
       modules: config.blocks,
       subjects: config.subjects,
     });

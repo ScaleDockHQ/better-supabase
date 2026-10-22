@@ -1,11 +1,11 @@
 import type { ControlsEvents } from "../../blocks/controls/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -19,7 +19,7 @@ import { controlsFunctions } from "./controls-functions.ts";
 import { policyFunctions } from "./controls-policies.ts";
 import { CONTROL_RESERVED, evidenceAttachments } from "./controls-shared.ts";
 
-const EVENTS: ModuleEvents<ControlsEvents> = {
+const EVENTS: BlockSqlEvents<ControlsEvents> = {
   "control.saved": {
     subject: "controls",
     payload: ["organizationId", "controlId", "frameworkId", "code"],
@@ -48,7 +48,7 @@ const EVENTS: ModuleEvents<ControlsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     control: {
       table: "controls",
@@ -170,7 +170,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   const frameworks = ctx.table("frameworks");
   const controls = ctx.table("controls");
   const evidence = ctx.table("evidence");
@@ -322,7 +322,7 @@ ${readPolicy("acknowledgements", `${a("user")} = (select auth.uid()) or ${ctx.sc
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -339,7 +339,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${controlsFunctions(ctx)}${policyFunctions(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("controls", CONTROL_RESERVED),
   ).contract;
@@ -410,7 +410,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CONTROLS: ModuleDefinition = {
+export const CONTROLS: BlockSqlDefinition = {
   name: "controls",
   scopes: ["tenant"],
   title: "Compliance controls",

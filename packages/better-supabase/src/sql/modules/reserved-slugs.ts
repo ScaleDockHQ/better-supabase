@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SCHEMA, raise } from "../shared.ts";
@@ -18,7 +18,7 @@ on conflict (slug) do nothing;`;
 const SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
 /** `minLength` and `maxLength` of `blocks["reserved-slugs"].options`. */
-function slugLengths(ctx: ModuleContext): {
+function slugLengths(ctx: BlockSqlContext): {
   readonly min: number;
   readonly max: number;
 } {
@@ -43,7 +43,7 @@ function slugLengths(ctx: ModuleContext): {
  * `blocks["reserved-slugs"].options.slugs`: the app's own words, such as its
  * route names.
  */
-function appSlugs(ctx: ModuleContext): string {
+function appSlugs(ctx: BlockSqlContext): string {
   const slugs = ctx.list("slugs", []);
 
   for (const slug of slugs) {
@@ -67,7 +67,7 @@ from unnest(array[${slugs.map(sqlString).join(", ")}]) as value
 on conflict (slug) do nothing;`;
 }
 
-export const RESERVED_SLUGS: ModuleDefinition = {
+export const RESERVED_SLUGS: BlockSqlDefinition = {
   name: "reserved-slugs",
   names: { tables: {}, options: ["maxLength", "minLength", "slugs"] },
   data: (ctx) => `${RESERVED_SLUGS_SEED}${appSlugs(ctx)}`,
@@ -88,8 +88,8 @@ create table if not exists better_supabase.reserved_slugs (
 alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
-drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on better_supabase.reserved_slugs;
+create policy bsb_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside ${String(min)} to ${String(max)} characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -133,9 +133,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_slug on %s', target);
+  execute format('drop trigger if exists bsb_slug on %s', target);
   execute format(
-    'create trigger bs_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
+    'create trigger bsb_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
     column_name,
     target,
     column_name

@@ -1,5 +1,5 @@
 import type { AppTableConfig } from "../../config/types/app-tables.ts";
-import type { ModuleIdType } from "../context.ts";
+import type { BlockSqlIdType } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
@@ -39,7 +39,7 @@ export function settableColumns(config: AppTableConfig): readonly string[] {
  */
 export function appTableSetSql(
   tables: readonly SettableTable[],
-  idType: ModuleIdType,
+  idType: BlockSqlIdType,
 ): string {
   const arms = tables.flatMap((table) => {
     const subject = table.config.subject;

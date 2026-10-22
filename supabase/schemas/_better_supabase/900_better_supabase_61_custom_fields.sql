@@ -1,5 +1,5 @@
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@3 managed
+-- @bsb-block custom-fields@3 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,11 +61,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
   ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
   end if;
 end;
 $$;
@@ -403,13 +403,13 @@ revoke execute on function "api"."encrypt_field_definition"(uuid) from public, a
 grant execute on function "api"."encrypt_field_definition"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

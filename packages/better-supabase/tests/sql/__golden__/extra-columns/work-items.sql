@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_91_work_items.sql
 -- better-supabase module: work-items
--- @bs-module work-items@2 managed
+-- @bsb-block work-items@2 managed
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -172,7 +172,7 @@ drop policy if exists work_item_checklist_items_read on "better_supabase"."work_
 create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
-create or replace function better_supabase.bs_work_item_guard()
+create or replace function better_supabase.bsb_work_item_guard()
 returns trigger
 language plpgsql
 security definer
@@ -223,10 +223,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bs_work_item_guard on "better_supabase"."work_items";
-create trigger bs_work_item_guard before insert or update on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_work_item_guard();
+revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
+drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -762,26 +762,26 @@ revoke execute on function "better_supabase"."save_iteration"(uuid, uuid, jsonb)
 grant execute on function "better_supabase"."save_iteration"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_91_work_items.sql
 -- better-supabase module: work-items
--- @bs-module-data work-items
+-- @bsb-block-data work-items
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('work-items', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

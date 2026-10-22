@@ -24,7 +24,7 @@ export interface CrudQueueLike {
 }
 
 /**
- * A repository a table's changes replay through (`bs.db.customers`), so RLS,
+ * A repository a table's changes replay through (`bsb.db.customers`), so RLS,
  * plugins and validation run as they do online. `I` is the table's insert type
  * and `K` its primary key; every generated repository fits.
  */
@@ -249,8 +249,8 @@ function unsupportedOp(entry: CrudEntryLike, route: string): Result<never> {
  *
  * ```ts
  * tables: {
- *   customers: bs.db.customers,
- *   attachments: uploadRoute(bs.db.attachments, { put: "create" }),
+ *   customers: bsb.db.customers,
+ *   attachments: uploadRoute(bsb.db.attachments, { put: "create" }),
  * }
  * ```
  */
@@ -331,7 +331,7 @@ function replay(
  * const connector = createUploadConnector({
  *   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
  *   supabase,
- *   tables: { customers: bs.db.customers },
+ *   tables: { customers: bsb.db.customers },
  * });
  * await powersync.connect(connector);
  * ```

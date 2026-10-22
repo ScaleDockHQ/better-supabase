@@ -3,7 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import * as v from "valibot";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
 
@@ -44,7 +44,7 @@ export interface WebhooksOverview {
  */
 export async function loadWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";
-  const { session } = await bs.cached();
+  const { session } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

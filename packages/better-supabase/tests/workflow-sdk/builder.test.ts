@@ -178,7 +178,7 @@ describe("compileGraph", () => {
     expect(noMeta.log).toContain("approval :ok ok");
   });
 
-  it("files the approval through steps.bs_approval when it is passed", async () => {
+  it("files the approval through steps.bsb_approval when it is passed", async () => {
     const compiled = compileGraph(GRAPH);
     const runtime = fakeRuntime("pro", { approved: true });
     const requests: unknown[] = [];
@@ -190,7 +190,7 @@ describe("compileGraph", () => {
           (call: GraphStepCall) => runtime.step(call),
         ]),
       ),
-      bs_approval: async (call: unknown) => {
+      bsb_approval: async (call: unknown) => {
         requests.push(call);
 
         return "req-123";
@@ -416,14 +416,14 @@ describe("graphStarter", () => {
     ]);
     expect(options).toMatchObject({
       attributes: {
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.definition": "d1",
-        "bs.version": "3",
-        "bs.key": "run:k",
-        "bs.trigger_node": "start",
-        "bs.principal_kind": "user",
-        "bs.principal": "u1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.definition": "d1",
+        "bsb.version": "3",
+        "bsb.key": "run:k",
+        "bsb.trigger_node": "start",
+        "bsb.principal_kind": "user",
+        "bsb.principal": "u1",
       },
       experimental_dynamic: { exportName: "workflow" },
     });
@@ -440,7 +440,7 @@ describe("graphStarter", () => {
     ]);
   });
 
-  it("binds the approval step as steps.bs_approval", async () => {
+  it("binds the approval step as steps.bsb_approval", async () => {
     const approval = { stepId: "approval" };
     await graphStarter({ steps, approval, dynamic: true })(CALL);
     const [, , options] = start.mock.calls[0] ?? [];
@@ -449,7 +449,7 @@ describe("graphStarter", () => {
       options as { experimental_dynamic: { steps: Record<string, unknown> } }
     ).experimental_dynamic.steps;
 
-    expect(bound["bs_approval"]).toBe(approval);
+    expect(bound["bsb_approval"]).toBe(approval);
   });
 
   it("never runs a stored compiled form, and refuses steps it wasn't given", async () => {
@@ -499,7 +499,7 @@ describe("graphStarter", () => {
     expect(options).toMatchObject({ world });
     expect(
       (options as { attributes: Record<string, string> }).attributes,
-    ).not.toHaveProperty("bs.actor");
+    ).not.toHaveProperty("bsb.actor");
     await expect(graphStarter({ steps })(CALL)).rejects.toThrow(
       "pass an executor",
     );
@@ -523,10 +523,10 @@ describe("graphStarter", () => {
       .attributes;
 
     expect(attributes).toMatchObject({
-      "bs.subject": "deal/d9",
-      "bs.mode": "test",
+      "bsb.subject": "deal/d9",
+      "bsb.mode": "test",
     });
-    expect(attributes).not.toHaveProperty("bs.principal_kind");
+    expect(attributes).not.toHaveProperty("bsb.principal_kind");
   });
 
   it("records the service principal for an organization-owned version", async () => {
@@ -543,8 +543,8 @@ describe("graphStarter", () => {
     const attributes = (options as { attributes: Record<string, string> })
       .attributes;
 
-    expect(attributes["bs.principal_kind"]).toBe("service_principal");
-    expect(attributes).not.toHaveProperty("bs.principal");
+    expect(attributes["bsb.principal_kind"]).toBe("service_principal");
+    expect(attributes).not.toHaveProperty("bsb.principal");
   });
 
   it("refuses a test run on a static executor that doesn't take its stubs", async () => {

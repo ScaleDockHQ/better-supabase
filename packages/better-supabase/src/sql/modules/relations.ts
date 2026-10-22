@@ -1,11 +1,11 @@
 import type { RelationsEvents } from "../../blocks/relations/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -60,7 +60,7 @@ const MAX_DATA_BYTES = 8192;
 const MAX_DEPTH = 100;
 const MAX_EDGES = 10_000;
 
-const EVENTS: ModuleEvents<RelationsEvents> = {
+const EVENTS: BlockSqlEvents<RelationsEvents> = {
   "subject.linked": {
     subject: "subjects",
     payload: [
@@ -87,7 +87,7 @@ const EVENTS: ModuleEvents<RelationsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_relation_link", "after_relation_link"],
   options: ["kinds", "subjects", "extraColumns"],
@@ -123,7 +123,7 @@ interface ResolvedKind {
  * `options.kinds`, checked: names, inverses that clash, and symmetric kinds
  * without direction.
  */
-function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
+function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
   const where = "blocks.relations.options.kinds";
   const raw: unknown = ctx.option("kinds") ?? DEFAULT_RELATION_KINDS;
 
@@ -236,7 +236,7 @@ function subjectTables(list: readonly (readonly [string, Subject])[]): string {
  * `options.extraColumns`, added to a managed relations table. The keys
  * `relations_of` returns next to them are reserved.
  */
-const extrasOf = (ctx: ModuleContext) =>
+const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("relations", [
     "direction",
     "type",
@@ -244,7 +244,7 @@ const extrasOf = (ctx: ModuleContext) =>
     "other_id",
   ]);
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -748,7 +748,7 @@ ${userGrant(`${fn("relation_rollup")}(${ctx.idType}, text, text, text, text, tex
 ${cascades}${merges}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "link",
@@ -798,7 +798,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const RELATIONS: ModuleDefinition = {
+export const RELATIONS: BlockSqlDefinition = {
   name: "relations",
   scopes: ["tenant"],
   title: "Relations",

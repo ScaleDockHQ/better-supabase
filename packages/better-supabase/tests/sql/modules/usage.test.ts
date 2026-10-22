@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const usage = (options?: Record<string, unknown>) =>
   moduleBody("usage", { modules: options ? { usage: { options } } : {} })!;
@@ -20,7 +20,7 @@ describe("usage module", () => {
 
   it("matches plan quotas by plan key with a plan catalog", () => {
     const render = (source: unknown) =>
-      renderModules(["entitlements", "usage"], {
+      renderBlocks(["entitlements", "usage"], {
         entitlements: { key: "id", source },
       } as never).find(
         (file) => file.module === "usage" && file.kind === "schema",
@@ -38,7 +38,7 @@ describe("usage module", () => {
     );
     expect(render("custom")).not.toContain("tenant_plans");
     expect(
-      renderModules(["entitlements"], {
+      renderBlocks(["entitlements"], {
         entitlements: { key: "id", source: plans },
       }).find((file) => file.module === "entitlements")!.contents,
     ).toContain("create or replace function better_supabase.tenant_plans");

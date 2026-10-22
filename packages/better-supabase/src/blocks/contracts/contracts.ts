@@ -10,11 +10,11 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { BlockTemporalOptions, SubjectRef } from "../shared.ts";
+import type { BlockTemporalOptions, RecordRef } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
@@ -79,7 +79,7 @@ export interface Contract<F extends object = Record<never, never>> {
   readonly title: string;
   readonly description?: string;
   /** The other party: a registered subject, such as a party. */
-  readonly counterparty?: SubjectRef;
+  readonly counterparty?: RecordRef;
   readonly ownerId?: string;
   readonly status: ContractStatus;
   readonly value?: Money;
@@ -108,7 +108,7 @@ export interface Contract<F extends object = Record<never, never>> {
 export interface ContractInput<F extends object = Record<never, never>> {
   readonly title: string;
   readonly description?: string;
-  readonly counterparty?: SubjectRef;
+  readonly counterparty?: RecordRef;
   /** Default: the caller. */
   readonly ownerId?: string;
   readonly value?: Money;
@@ -134,7 +134,7 @@ export type ContractChanges<F extends object = Record<never, never>> = Partial<
 
 export interface ContractListOptions {
   readonly status?: ContractStatus;
-  readonly counterparty?: SubjectRef;
+  readonly counterparty?: RecordRef;
   readonly ownerId?: string;
   /** Active contracts whose notice deadline is on or before this date. */
   readonly renewingBefore?: Temporal.PlainDate;
@@ -226,7 +226,7 @@ export interface Contracts<F extends object = Record<never, never>> {
   ): AsyncResult<readonly Contract<F>[]>;
   /** The contracts with a counterparty, in every organization the caller reads. */
   forCounterparty(
-    counterparty: SubjectRef,
+    counterparty: RecordRef,
     options?: Omit<ContractListOptions, "counterparty">,
   ): AsyncResult<readonly Contract<F>[]>;
   /**
@@ -302,7 +302,7 @@ function contractOf(value: unknown, fn: string): Contract {
     ...optional("description", optionalText(row["description"])),
     ...optional(
       "counterparty",
-      optionalSubjectRefOf(row["counterpartyType"], row["counterpartyId"]),
+      optionalRecordRefOf(row["counterpartyType"], row["counterpartyId"]),
     ),
     ...optional("ownerId", optionalText(row["ownerId"])),
     ...optional(

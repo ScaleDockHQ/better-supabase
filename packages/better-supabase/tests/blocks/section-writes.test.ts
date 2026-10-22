@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnySection } from "../../src/blocks/sections.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { attachmentsBlock } from "../../src/blocks/attachments/index.ts";
 import { commentsBlock } from "../../src/blocks/comments/index.ts";
@@ -15,7 +15,7 @@ import { tagsBlock } from "../../src/blocks/tags/index.ts";
 import { versionsBlock } from "../../src/blocks/versions/index.ts";
 import { resolved } from "../fixtures/ports.ts";
 
-const subject: SubjectRef = { type: "customer", id: "c1" };
+const subject: RecordRef = { type: "customer", id: "c1" };
 const ID = "00000000-0000-4000-8000-000000000001";
 
 type Call = readonly [method: string, ...args: unknown[]];
@@ -66,7 +66,7 @@ async function run(
   // SAFETY: the recorder answers every method the write calls.
   const runWrite = section.writes?.[write]?.run as (
     client: object,
-    subject: SubjectRef,
+    subject: RecordRef,
     input: unknown,
   ) => AsyncResult<unknown>;
 

@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module incidents@1 managed
+-- @bsb-block incidents@1 managed
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -841,33 +841,33 @@ revoke all on function "better_supabase"."public_status_page"(text, integer) fro
 grant execute on function "better_supabase"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module-data incidents
+-- @bsb-block-data incidents
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('incidents', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module incidents@1 managed
+-- @bsb-block incidents@1 managed
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1766,33 +1766,33 @@ revoke all on function "better_supabase"."public_status_page"(text, integer) fro
 grant execute on function "better_supabase"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module-data incidents
+-- @bsb-block-data incidents
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('incidents', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module incidents@1 managed
+-- @bsb-block incidents@1 managed
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2635,33 +2635,33 @@ revoke all on function "app_private"."public_status_page"(text, integer) from pu
 grant execute on function "app_private"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module-data incidents
+-- @bsb-block-data incidents
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('incidents', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module incidents@1 managed
+-- @bsb-block incidents@1 managed
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3657,26 +3657,26 @@ revoke execute on function "api"."public_status_page"(text, integer) from public
 grant execute on function "api"."public_status_page"(text, integer) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
--- @bs-module-data incidents
+-- @bsb-block-data incidents
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('incidents', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

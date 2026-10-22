@@ -40,7 +40,7 @@ import { findSection, loadSections } from "../records/sections.ts";
 import { keyPart } from "./queries.ts";
 
 /** The first key part of every record query. */
-const RECORD_KEY = "bs-record";
+const RECORD_KEY = "bsb-record";
 
 /** The key part of a record's `can` query. */
 const CAN_KEY = "$can";
@@ -74,7 +74,7 @@ export interface RecordQueries<
   readonly $key: readonly [typeof RECORD_KEY, T];
   /** The key of one record's queries, or of one of its sections. */
   key(id: string, section?: N): readonly unknown[];
-  /** Query options per section, keyed `["bs-record", type, id, section]`. */
+  /** Query options per section, keyed `["bsb-record", type, id, section]`. */
   readonly sections: RecordSectionQueries<B, N>;
   /**
    * Mutation options per section write; each one makes the section's queries of

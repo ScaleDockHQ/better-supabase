@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const NAMES = ["catalog", "inventory"];
 
-const sqlOf = (module: string, layout: ModuleLayout = {}): string =>
-  renderModules(NAMES, layout)
+const sqlOf = (module: string, layout: BlockSqlLayout = {}): string =>
+  renderBlocks(NAMES, layout)
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -45,7 +45,7 @@ describe("inventory module", () => {
   it("makes catalog refuse to delete variants with stock history", () => {
     expect(sqlOf("catalog")).toContain("CATALOG_VARIANT_IN_USE");
     expect(
-      renderModules(["catalog"], {})
+      renderBlocks(["catalog"], {})
         .map((file) => file.contents)
         .join("\n"),
     ).not.toContain("CATALOG_VARIANT_IN_USE");

@@ -4,10 +4,10 @@ import type { BlockConfig } from "../../src/config/blocks.ts";
 
 import { apiWrappers } from "../../src/sql/api-schema.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
-  renderModules([name], { modules: { [name]: { api } } }).find(
+  renderBlocks([name], { modules: { [name]: { api } } }).find(
     (file) => file.module === name && file.kind === "schema",
   )!.contents;
 
@@ -19,7 +19,7 @@ describe("blocks.<module>.api", () => {
       }
 
       try {
-        renderModules([module.name]);
+        renderBlocks([module.name]);
       } catch {
         continue;
       }
@@ -56,7 +56,7 @@ describe("blocks.<module>.api", () => {
       `drop function if exists "api"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
     );
 
-    const listed = renderModules(["notifications"], {
+    const listed = renderBlocks(["notifications"], {
       modules: {
         notifications: {
           api: { schema: "api", functions: ["notification_counts"] },
@@ -142,7 +142,7 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
         expect({
           module: module.name,
           loops: /foreach fn in array array\[[\s\S]*?grant execute/.test(
-            renderModules([module.name]).find(
+            renderBlocks([module.name]).find(
               (file) => file.module === module.name,
             )?.contents ?? "",
           ),

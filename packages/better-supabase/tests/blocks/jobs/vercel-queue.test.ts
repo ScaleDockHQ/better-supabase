@@ -7,8 +7,8 @@ import type {
   VercelQueueMetadata,
 } from "../../../src/blocks/jobs/vercel-queue.ts";
 
-import { vercelQueueBackend } from "../../../src/blocks/jobs/vercel-queue.ts";
-import { testQueueBackend } from "../../../src/testing/index.ts";
+import { vercelQueueProvider } from "../../../src/blocks/jobs/vercel-queue.ts";
+import { testQueueProvider } from "../../../src/testing/index.ts";
 
 interface Stored {
   readonly id: string;
@@ -87,10 +87,10 @@ function fakeClient(): VercelQueueClient {
 // The real client must fit the structural type.
 export const fits = (client: PollingQueueClient): VercelQueueClient => client;
 
-describe("vercelQueueBackend", () => {
+describe("vercelQueueProvider", () => {
   it("passes the queue backend conformance kit", async () => {
-    const report = await testQueueBackend(
-      vercelQueueBackend(fakeClient(), { retryAfter: 0, settle: 1 }),
+    const report = await testQueueProvider(
+      vercelQueueProvider(fakeClient(), { retryAfter: 0, settle: 1 }),
       { queue: "conformance" },
     );
 
@@ -98,7 +98,7 @@ describe("vercelQueueBackend", () => {
   });
 
   it("refuses a queue name Vercel Queues would reject", async () => {
-    const backend = vercelQueueBackend(fakeClient());
+    const backend = vercelQueueProvider(fakeClient());
 
     await expect(backend.send("bad name", {}, 0, 1, undefined)).rejects.toThrow(
       /topic names/,
@@ -106,13 +106,13 @@ describe("vercelQueueBackend", () => {
   });
 
   it("needs the SQL backend for schedules", () => {
-    const backend = vercelQueueBackend(fakeClient());
+    const backend = vercelQueueProvider(fakeClient());
 
     expect(() => backend.unschedule("x")).toThrow(/SQL connection/);
   });
 
   it("settles held messages, and ignores jobs it does not hold", async () => {
-    const backend = vercelQueueBackend(fakeClient(), {
+    const backend = vercelQueueProvider(fakeClient(), {
       retryAfter: 0,
       settle: 1,
     });

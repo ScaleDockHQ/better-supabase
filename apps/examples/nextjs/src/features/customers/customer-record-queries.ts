@@ -6,7 +6,7 @@ import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
 import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * What a card on the customer page renders: the rows, or a failed read. The
@@ -122,7 +122,7 @@ export async function getRelations(
 ): Promise<Loaded<Relations>> {
   const [{ sections }, { db }] = await Promise.all([
     customerRecord.load(customerId, { sections: ["relations"] }),
-    bs.context(),
+    bsb.context(),
   ]);
 
   const links = visible(

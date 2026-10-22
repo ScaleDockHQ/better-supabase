@@ -1,10 +1,10 @@
 import type { SupportSession } from "./support.ts";
 
 /** The cookie that carries the support session id. */
-export const SUPPORT_COOKIE = "bs-support";
+export const SUPPORT_COOKIE = "bsb-support";
 
 export interface SupportCookieOptions {
-  /** Defaults to `bs-support`. */
+  /** Defaults to `bsb-support`. */
   readonly name?: string;
   /** Defaults to `/`. */
   readonly path?: string;

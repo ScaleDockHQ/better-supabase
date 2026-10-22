@@ -1,31 +1,31 @@
 import type { AccessBlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
-import type { ModuleContext, ModuleIdType } from "./context.ts";
-import type { ModuleLayout, SqlModule } from "./module-types.ts";
+import type { BlockSqlContext, BlockSqlIdType } from "./context.ts";
+import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
 import { providerAnswersForGuests } from "./guest-sql.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
-export interface ModuleRegistry {
-  readonly modules: Readonly<Record<string, SqlModule>>;
+export interface BlockSqlRegistry {
+  readonly modules: Readonly<Record<string, BlockSql>>;
   readonly resolve: (
     names: readonly string[],
-    layout: ModuleLayout,
-  ) => readonly SqlModule[];
+    layout: BlockSqlLayout,
+  ) => readonly BlockSql[];
 }
 
-let bound: ModuleRegistry | undefined;
+let bound: BlockSqlRegistry | undefined;
 
 /**
  * Called once by `registry.ts`. The registry imports every module, and some
  * modules build their SQL from a context, so the context reads the registry
  * through this binding instead of importing it.
  */
-export function bindModuleRegistry(registry: ModuleRegistry): void {
+export function bindModuleRegistry(registry: BlockSqlRegistry): void {
   bound = registry;
 }
 
-function registry(): ModuleRegistry {
+function registry(): BlockSqlRegistry {
   if (!bound) {
     throw new Error("The SQL module registry is not loaded.");
   }
@@ -36,9 +36,9 @@ function registry(): ModuleRegistry {
 /** The context a module renders with for `layout`. */
 export function moduleContext(
   name: string,
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
   installed?: readonly string[],
-): ModuleContext {
+): BlockSqlContext {
   const modules = withProviderDefaults(layout);
   const readable = new Map<string, ReadonlySet<string>>();
 
@@ -90,7 +90,7 @@ export function moduleContext(
  * roles table gets the same `roleThrough`, unless the config sets one.
  */
 export function withProviderDefaults(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): AnyBlocksConfig | undefined {
   return withProviderRoles(layout, withProviderSuspension(layout));
 }
@@ -100,7 +100,7 @@ export function withProviderDefaults(
  * `provider` model, per subject, unless the config sets that subject.
  */
 function withProviderSuspension(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): AnyBlocksConfig | undefined {
   const modules = layout.modules;
   const suspension = layout.accessProvider?.suspension;
@@ -133,7 +133,7 @@ function withProviderSuspension(
 }
 
 function withProviderRoles(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   modules: AnyBlocksConfig | undefined,
 ): AnyBlocksConfig | undefined {
   const sources = layout.accessProvider?.roleSources;
@@ -180,8 +180,8 @@ function withProviderRoles(
  * The tenant id type the authorization provider gives, preferring the access
  * model's scope.
  */
-export function providerIdType(layout: ModuleLayout): {
-  providerIdType?: ModuleIdType;
+export function providerIdType(layout: BlockSqlLayout): {
+  providerIdType?: BlockSqlIdType;
 } {
   const idType =
     layout.accessProvider?.idType ?? layout.entitlementsProvider?.idType;
@@ -193,7 +193,7 @@ export function providerIdType(layout: ModuleLayout): {
  * Whether the authorization provider answers for guests, which only counts
  * under the `provider` model.
  */
-export function providerGuests(layout: ModuleLayout): {
+export function providerGuests(layout: BlockSqlLayout): {
   providerGuests?: boolean;
 } {
   return providerAnswersForGuests(layout) ? { providerGuests: true } : {};

@@ -45,7 +45,7 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 const files = defineBucket({
-  id: "bs-it-support",
+  id: "bsb-it-support",
   path: "{organizationId}/{...rest}",
   policy: "tenant",
 });
@@ -221,14 +221,14 @@ beforeAll(async () => {
 });
 
 const plain = defineBucket({
-  id: "bs-it-support-plain",
+  id: "bsb-it-support-plain",
   path: "{organizationId}/{...rest}",
   policy: "tenant",
   allowedMimeTypes: ["text/plain"],
 });
 
-const INSERT_ONLY = "bs-it-support-insert-only";
-const REVOCABLE = "bs-it-support-revocable";
+const INSERT_ONLY = "bsb-it-support-insert-only";
+const REVOCABLE = "bsb-it-support-revocable";
 
 describe.skipIf(!live)("support storage writes against the local stack", () => {
   const supabase = createClient(url, publishableKey, {
@@ -272,13 +272,13 @@ describe.skipIf(!live)("support storage writes against the local stack", () => {
     await pool.query(`
 insert into storage.buckets (id, name, public) values ('${INSERT_ONLY}', '${INSERT_ONLY}', false)
 on conflict (id) do nothing;
-drop policy if exists bs_it_insert_only_insert on storage.objects;
-create policy bs_it_insert_only_insert on storage.objects for insert to authenticated
+drop policy if exists bsb_it_insert_only_insert on storage.objects;
+create policy bsb_it_insert_only_insert on storage.objects for insert to authenticated
   with check (bucket_id = '${INSERT_ONLY}' and owner_id = (select auth.uid())::text);
 insert into storage.buckets (id, name, public) values ('${REVOCABLE}', '${REVOCABLE}', false)
 on conflict (id) do nothing;
-drop policy if exists bs_it_insert_only_select on storage.objects;
-create policy bs_it_insert_only_select on storage.objects for select to authenticated
+drop policy if exists bsb_it_insert_only_select on storage.objects;
+create policy bsb_it_insert_only_select on storage.objects for select to authenticated
   using (bucket_id = '${INSERT_ONLY}' and owner_id = (select auth.uid())::text);`);
 
     const { error } = await service.storage
@@ -292,7 +292,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
   afterAll(async () => {
     await pool.query(
-      "drop policy if exists bs_it_revocable_insert on storage.objects",
+      "drop policy if exists bsb_it_revocable_insert on storage.objects",
     );
 
     for (const bucket of [files.id, plain.id, INSERT_ONLY, REVOCABLE]) {
@@ -603,8 +603,8 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
   it("refuses a claim once the target may no longer insert", async () => {
     await pool.query(`
-drop policy if exists bs_it_revocable_insert on storage.objects;
-create policy bs_it_revocable_insert on storage.objects for insert to authenticated
+drop policy if exists bsb_it_revocable_insert on storage.objects;
+create policy bsb_it_revocable_insert on storage.objects for insert to authenticated
   with check (bucket_id = '${REVOCABLE}' and owner_id = (select auth.uid())::text);`);
 
     const path = own("revoked.txt");
@@ -625,7 +625,7 @@ create policy bs_it_revocable_insert on storage.objects for insert to authentica
     ).toBeNull();
 
     await pool.query(
-      "drop policy if exists bs_it_revocable_insert on storage.objects",
+      "drop policy if exists bsb_it_revocable_insert on storage.objects",
     );
 
     expect(

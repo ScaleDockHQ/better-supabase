@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module messaging@1 managed
+-- @bsb-block messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -292,8 +292,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_written" on "better_supabase"."messages";
-create trigger "bs_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
 
@@ -1485,22 +1485,22 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_broadcast" on "better_supabase"."messages";
-create trigger "bs_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_messaging_receive" on realtime.messages;
-    create policy "bs_messaging_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_messaging_receive" on realtime.messages;
+    create policy "bsb_messaging_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
       );
-    drop policy if exists "bs_messaging_broadcast" on realtime.messages;
-    create policy "bs_messaging_broadcast" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_messaging_broadcast" on realtime.messages;
+    create policy "bsb_messaging_broadcast" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -1511,33 +1511,33 @@ end;
 $$;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module-data messaging
+-- @bsb-block-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module messaging@1 managed
+-- @bsb-block messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1833,8 +1833,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_written" on "better_supabase"."messages";
-create trigger "bs_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
 
@@ -3251,22 +3251,22 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_broadcast" on "better_supabase"."messages";
-create trigger "bs_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_messaging_receive" on realtime.messages;
-    create policy "bs_messaging_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_messaging_receive" on realtime.messages;
+    create policy "bsb_messaging_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
       );
-    drop policy if exists "bs_messaging_broadcast" on realtime.messages;
-    create policy "bs_messaging_broadcast" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_messaging_broadcast" on realtime.messages;
+    create policy "bsb_messaging_broadcast" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -3285,8 +3285,8 @@ alter table "better_supabase"."inbox_message_details" drop constraint if exists 
 alter table "better_supabase"."inbox_message_details" add constraint "inbox_message_details_core_fkey"
   foreign key ("message_id") references "better_supabase"."messages" ("id") on delete cascade;
 
-drop trigger if exists "bs_messaging_inbox_broadcast" on "better_supabase"."messages";
-create trigger "bs_messaging_inbox_broadcast" after insert or update on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_inbox_broadcast" on "better_supabase"."messages";
+create trigger "bsb_messaging_inbox_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."inbox_message_broadcast"();
 drop policy if exists "messages_moderation" on "better_supabase"."messages";
 create policy "messages_moderation" on "better_supabase"."messages" as restrictive for select to authenticated
@@ -3311,39 +3311,39 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messages_moderation_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_messages_moderation_guard" on "better_supabase"."messages";
-create trigger "bs_messages_moderation_guard"
+drop trigger if exists "bsb_messages_moderation_guard" on "better_supabase"."messages";
+create trigger "bsb_messages_moderation_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."messages_moderation_guard"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module-data messaging
+-- @bsb-block-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module messaging@1 managed
+-- @bsb-block messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3637,8 +3637,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_written" on "app_private"."messages";
-create trigger "bs_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "app_private"."messages"
+drop trigger if exists "bsb_messaging_message_written" on "app_private"."messages";
+create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "app_private"."messages"
   for each row execute function "app_private"."messaging_message_written"();
 
 
@@ -4830,22 +4830,22 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_broadcast" on "app_private"."messages";
-create trigger "bs_messaging_message_broadcast" after insert or update on "app_private"."messages"
+drop trigger if exists "bsb_messaging_message_broadcast" on "app_private"."messages";
+create trigger "bsb_messaging_message_broadcast" after insert or update on "app_private"."messages"
   for each row execute function "app_private"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_messaging_receive" on realtime.messages;
-    create policy "bs_messaging_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_messaging_receive" on realtime.messages;
+    create policy "bsb_messaging_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "app_private"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
       );
-    drop policy if exists "bs_messaging_broadcast" on realtime.messages;
-    create policy "bs_messaging_broadcast" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_messaging_broadcast" on realtime.messages;
+    create policy "bsb_messaging_broadcast" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -4856,33 +4856,33 @@ end;
 $$;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module-data messaging
+-- @bsb-block-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module messaging@1 managed
+-- @bsb-block messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5174,8 +5174,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_written" on "better_supabase"."messages";
-create trigger "bs_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
 
@@ -6367,22 +6367,22 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_broadcast" on "better_supabase"."messages";
-create trigger "bs_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_messaging_receive" on realtime.messages;
-    create policy "bs_messaging_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_messaging_receive" on realtime.messages;
+    create policy "bsb_messaging_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
       );
-    drop policy if exists "bs_messaging_broadcast" on realtime.messages;
-    create policy "bs_messaging_broadcast" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_messaging_broadcast" on realtime.messages;
+    create policy "bsb_messaging_broadcast" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
@@ -6666,26 +6666,26 @@ revoke execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) 
 grant execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bs-module-data messaging
+-- @bsb-block-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

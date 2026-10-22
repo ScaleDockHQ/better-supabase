@@ -31,7 +31,7 @@ import {
 } from "../shared.ts";
 
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
-export const SERVICE_PRINCIPAL_CLAIM = "bs_service_principal";
+export const SERVICE_PRINCIPAL_CLAIM = "bsb_service_principal";
 
 /** About 100 years: GoTrue refuses every sign-in while the user is banned. */
 const BAN_DURATION = "876000h";

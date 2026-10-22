@@ -7,7 +7,6 @@ import type {
   useBlockMutation as clientUseBlockMutation,
   useBlockQuery as clientUseBlockQuery,
 } from "./block-hooks.ts";
-import type { useEntityForm as clientUseEntityForm } from "./entity-form.ts";
 import type {
   ActionForm,
   ActionHandle,
@@ -21,6 +20,7 @@ import type {
   UseActionOptions,
 } from "./index.ts";
 import type { usePresence as clientUsePresence } from "./presence.ts";
+import type { useRecordForm as clientUseRecordForm } from "./record-form.ts";
 import type { useRecordListState as clientUseRecordListState } from "./record-list.ts";
 import type { createRecordProvider as clientCreateRecordProvider } from "./record.ts";
 import type { useDebouncedSearch as clientUseDebouncedSearch } from "./search.ts";
@@ -82,7 +82,7 @@ export type {
   RecordListUrlState,
 } from "./record-list.ts";
 
-export type { EntityFormState, UseEntityFormOptions } from "./entity-form.ts";
+export type { RecordFormState, UseRecordFormOptions } from "./record-form.ts";
 
 export type {
   RecordActionsOf,
@@ -130,24 +130,24 @@ export type { LiveCountSeed } from "../realtime/live.ts";
 function clientOnly(name: string): () => never {
   return () => {
     throw new Error(
-      `better-supabase: ${name}() runs in Client Components only. In Server Components use \`bs.context()\` or \`db.$run(spec)\`.`,
+      `better-supabase: ${name}() runs in Client Components only. In Server Components use \`bsb.context()\` or \`db.$run(spec)\`.`,
     );
   };
 }
 
-/** The `react-server` build of `useSession`: await `bs.session()` instead. */
+/** The `react-server` build of `useSession`: await `bsb.session()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
 
 /**
  * The `react-server` build of `useSupportSession`: use `supportOf(await
- * bs.session())` instead.
+ * bsb.session())` instead.
  */
 export const useSupportSession: () => SupportView | undefined =
   clientOnly("useSupportSession");
 
 /**
- * The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed
+ * The `react-server` build of `useLiveCount`: render the `bsb.liveCount()` seed
  * instead.
  */
 export const useLiveCount: (
@@ -258,8 +258,8 @@ export const useRecordListState: typeof clientUseRecordListState =
   clientOnly("useRecordListState");
 
 /**
- * The `react-server` build of `useEntityForm`: render the form in a client
+ * The `react-server` build of `useRecordForm`: render the form in a client
  * component.
  */
-export const useEntityForm: typeof clientUseEntityForm =
-  clientOnly("useEntityForm");
+export const useRecordForm: typeof clientUseRecordForm =
+  clientOnly("useRecordForm");

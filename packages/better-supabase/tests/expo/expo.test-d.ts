@@ -7,7 +7,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { createExpo } from "../../src/expo/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const bs = createExpo(defineSupabase(schema), {
+const bsb = createExpo(defineSupabase(schema), {
   env: {
     url: "https://abcdefghijklmnopqrst.supabase.co",
     publishableKey: "sb_publishable_test",
@@ -17,9 +17,9 @@ const bs = createExpo(defineSupabase(schema), {
   },
 });
 
-describe("bs.loader", () => {
+describe("bsb.loader", () => {
   it("is an expo-server LoaderFunction", () => {
-    const loader = bs.loader(({ db }) =>
+    const loader = bsb.loader(({ db }) =>
       db.customers.findMany({ select: ["id", "name"] }).orThrow(),
     );
 
@@ -28,9 +28,9 @@ describe("bs.loader", () => {
     >();
   });
 
-  it("composes inside createServerLoader through bs.request", () => {
+  it("composes inside createServerLoader through bsb.request", () => {
     const loader = createServerLoader(async (request: ImmutableRequest) => {
-      const { db } = await bs.request(request, { allow: ["user"] });
+      const { db } = await bsb.request(request, { allow: ["user"] });
 
       return db.customers.findMany({ select: ["id"] }).orThrow();
     });

@@ -64,7 +64,7 @@ wrappers with `client` and `schema`.
 
 ## Acting as a user without Postgres
 
-`bs.forContext` and `bs.actingAs` run work as a user who isn't calling, for
+`bsb.forContext` and `bsb.actingAs` run work as a user who isn't calling, for
 jobs and webhooks. They need a direct Postgres connection, because they set
 the user's claims for the transaction themselves. The Data API can't do
 that: PostgREST only trusts tokens signed by the project's signing keys,

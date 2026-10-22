@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { courseFeature } from "./course-feature.ts";
 
 /**
  * Loads a course's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const courseRecord = recordServer(bs, courseFeature);
+export const courseRecord = recordServer(bsb, courseFeature);

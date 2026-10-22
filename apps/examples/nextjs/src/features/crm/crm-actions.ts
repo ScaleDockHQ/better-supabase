@@ -8,7 +8,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
@@ -28,7 +28,7 @@ const Decimal = v.pipe(v.string(), v.trim(), v.regex(/^\d+(\.\d{1,2})?$/u));
 const IsoDate = v.pipe(v.string(), v.isoDate());
 
 /** Creates a company or a person and returns where it lives. */
-export const createContact = bs.action(
+export const createContact = bsb.action(
   {
     input: v.object({
       kind: v.picklist(["company", "person"]),
@@ -58,7 +58,7 @@ export const createContact = bs.action(
 );
 
 /** Adds a person to a company, with an optional role. */
-export const linkPerson = bs.action(
+export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
     requireTenant: true,
@@ -82,7 +82,7 @@ export const linkPerson = bs.action(
 );
 
 /** Logs a call, email, meeting or note on a contact. */
-export const logActivity = bs.action(
+export const logActivity = bsb.action(
   {
     input: v.object({
       subjectType: v.picklist(["company", "person"]),
@@ -135,7 +135,7 @@ const DEFAULT_STAGES = [
 ] as const;
 
 /** Creates the "Sales" deal pipeline with six stages, unless one exists. */
-export const createDefaultPipeline = bs.action(
+export const createDefaultPipeline = bsb.action(
   {
     requireTenant: true,
     authorize: (session) => can(session, "pipelines.manage"),
@@ -181,7 +181,7 @@ export const createDefaultPipeline = bs.action(
 );
 
 /** Creates a deal in a stage of the pipeline. */
-export const createDeal = bs.action(
+export const createDeal = bsb.action(
   {
     input: v.object({
       name: Name,
@@ -218,7 +218,7 @@ export const createDeal = bs.action(
 );
 
 /** Moves a deal to another stage; the deals block checks the transition. */
-export const moveDeal = bs.action(
+export const moveDeal = bsb.action(
   {
     input: v.object({ dealId: Id, stageId: Id }),
     requireTenant: true,
@@ -246,7 +246,7 @@ export const moveDeal = bs.action(
 );
 
 /** Creates a target for won deals in a period. */
-export const createTarget = bs.action(
+export const createTarget = bsb.action(
   {
     input: v.object({
       name: Name,
@@ -294,7 +294,7 @@ export const createTarget = bs.action(
 );
 
 /** Creates an empty draft quote; the builder adds its lines. */
-export const createQuote = bs.action(
+export const createQuote = bsb.action(
   {
     input: v.object({ title: Name, currency: Currency }),
     requireTenant: true,
@@ -325,7 +325,7 @@ const QuoteLine = v.object({
 });
 
 /** Replaces a draft's lines; the database computes the totals. */
-export const saveQuoteLines = bs.action(
+export const saveQuoteLines = bsb.action(
   {
     input: v.object({
       quoteId: Id,
@@ -358,7 +358,7 @@ export const saveQuoteLines = bs.action(
 );
 
 /** Sends a draft for acceptance. */
-export const sendQuote = bs.action(
+export const sendQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,
@@ -378,7 +378,7 @@ export const sendQuote = bs.action(
 );
 
 /** Records the customer's answer, taken by phone or email. */
-export const decideQuote = bs.action(
+export const decideQuote = bsb.action(
   {
     input: v.object({
       quoteId: Id,
@@ -401,7 +401,7 @@ export const decideQuote = bs.action(
 );
 
 /** Starts a new draft revision and returns its id. */
-export const reviseQuote = bs.action(
+export const reviseQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,

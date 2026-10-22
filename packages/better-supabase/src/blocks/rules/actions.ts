@@ -1,5 +1,5 @@
 import type { AsyncResult, Result } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { ApprovalRequestInput } from "../approvals/approvals.ts";
 import type { NotifierInput } from "../ports.ts";
 import type { Rule, RuleActionHandler } from "./rules.ts";
@@ -27,7 +27,7 @@ export interface RuleSubjectContext {
  */
 export interface RuleApprovals {
   request(
-    subject: SubjectRef,
+    subject: RecordRef,
     input: ApprovalRequestInput,
   ): AsyncResult<unknown>;
 }

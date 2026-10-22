@@ -27,7 +27,7 @@ const onInvoice = await approvals
 await approvals.approve(request.id, "Looks right").orThrow();
 ```
 
-`request(subject, input)` takes the subject as a `SubjectRef` (`{ type, id }`), and `request` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. Each request carries `subject` and `organizationId`.
+`request(subject, input)` takes the subject as a `RecordRef` (`{ type, id }`), and `request` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. Each request carries `subject` and `organizationId`.
 
 ## Configure policies
 

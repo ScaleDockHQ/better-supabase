@@ -1,5 +1,5 @@
--- better-supabase module: pipelines (0.9.0)
--- @bs-module pipelines@1 managed
+-- better-supabase module: pipelines
+-- @bsb-block pipelines@1 managed
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -229,7 +229,7 @@ revoke execute on function "better_supabase"."default_pipeline"(uuid, text, text
 grant execute on function "better_supabase"."default_pipeline"(uuid, text, text) to service_role;
 
 
-create or replace function better_supabase.bs_pipeline_deal()
+create or replace function better_supabase.bsb_pipeline_deal()
 returns trigger
 language plpgsql
 security definer
@@ -335,11 +335,11 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_pipeline_deal on "better_supabase"."deals";
-create trigger bs_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
-for each row execute function better_supabase.bs_pipeline_deal();
+drop trigger if exists bsb_pipeline_deal on "better_supabase"."deals";
+create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_pipeline_deal();
 
-create or replace function better_supabase.bs_pipeline_status_deal()
+create or replace function better_supabase.bsb_pipeline_status_deal()
 returns trigger
 language plpgsql
 security definer
@@ -357,11 +357,11 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bs_pipeline_status_deal on "better_supabase"."deals";
-create trigger bs_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
-for each row execute function better_supabase.bs_pipeline_status_deal();
+drop trigger if exists bsb_pipeline_status_deal on "better_supabase"."deals";
+create trigger bsb_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_pipeline_status_deal();
 
-create or replace function better_supabase.bs_pipeline_work_item()
+create or replace function better_supabase.bsb_pipeline_work_item()
 returns trigger
 language plpgsql
 security definer
@@ -455,11 +455,11 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_pipeline_work_item on "better_supabase"."work_items";
-create trigger bs_pipeline_work_item before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_pipeline_work_item();
+drop trigger if exists bsb_pipeline_work_item on "better_supabase"."work_items";
+create trigger bsb_pipeline_work_item before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_pipeline_work_item();
 
-create or replace function better_supabase.bs_pipeline_status_work_item()
+create or replace function better_supabase.bsb_pipeline_status_work_item()
 returns trigger
 language plpgsql
 security definer
@@ -477,11 +477,11 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bs_pipeline_status_work_item on "better_supabase"."work_items";
-create trigger bs_pipeline_status_work_item after insert or update of "stage_id" on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_pipeline_status_work_item();
+drop trigger if exists bsb_pipeline_status_work_item on "better_supabase"."work_items";
+create trigger bsb_pipeline_status_work_item after insert or update of "stage_id" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_pipeline_status_work_item();
 
-create or replace function better_supabase.bs_pipeline_application()
+create or replace function better_supabase.bsb_pipeline_application()
 returns trigger
 language plpgsql
 security definer
@@ -587,11 +587,11 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_pipeline_application on "better_supabase"."applications";
-create trigger bs_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_pipeline_application();
+drop trigger if exists bsb_pipeline_application on "better_supabase"."applications";
+create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_pipeline_application();
 
-create or replace function better_supabase.bs_pipeline_status_application()
+create or replace function better_supabase.bsb_pipeline_status_application()
 returns trigger
 language plpgsql
 security definer
@@ -609,9 +609,9 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bs_pipeline_status_application on "better_supabase"."applications";
-create trigger bs_pipeline_status_application after insert or update of "stage_id" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_pipeline_status_application();
+drop trigger if exists bsb_pipeline_status_application on "better_supabase"."applications";
+create trigger bsb_pipeline_status_application after insert or update of "stage_id" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_pipeline_status_application();
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
@@ -1350,13 +1350,13 @@ revoke execute on function "api"."list_pipelines"(uuid, text) from public, anon;
 grant execute on function "api"."list_pipelines"(uuid, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

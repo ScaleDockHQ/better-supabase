@@ -7,7 +7,7 @@ import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** A loaded region: its data, no active organization, or a failed read. */
 export type Loaded<T> =
@@ -75,7 +75,7 @@ export async function loadContacts(): Promise<
   readonly ContactSummary[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -115,7 +115,7 @@ export async function loadContact(
   id: string,
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -239,7 +239,7 @@ export async function loadTimeline(
   id: string,
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
@@ -289,7 +289,7 @@ export interface DealBoardData {
 /** The default deal pipeline's columns and its open deals. */
 export async function loadDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -360,7 +360,7 @@ export interface TargetRow {
 /** The organization's targets running today, with their progress. */
 export async function loadTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -479,7 +479,7 @@ function quoteOf(row: v.InferOutput<typeof QuoteRow>): QuoteDetailData {
  */
 export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -502,7 +502,7 @@ export async function loadQuote(
   id: string,
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;

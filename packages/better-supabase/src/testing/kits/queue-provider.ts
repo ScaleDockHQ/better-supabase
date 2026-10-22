@@ -1,5 +1,5 @@
 import type {
-  QueueBackend,
+  QueueProvider,
   QueueMessageRow,
 } from "../../blocks/jobs/backends.ts";
 import type { Job } from "../../blocks/jobs/types.ts";
@@ -9,7 +9,7 @@ import { temporal } from "../../core/temporal-required.ts";
 import { conform, expect, same } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
-export interface TestQueueBackendOptions {
+export interface TestQueueProviderOptions {
   /** A queue the kit may fill and drain; use a fresh name per run. */
   readonly queue: string;
   /**
@@ -36,14 +36,14 @@ function claimedJob(queue: string, row: QueueMessageRow): Job {
 }
 
 /**
- * Proves a `QueueBackend` round-trips payloads, hides claimed messages for
+ * Proves a `QueueProvider` round-trips payloads, hides claimed messages for
  * their lease, counts attempts, retries and dead-letters on `fail`, and (when
  * it has `leases`) rejects a stale attempt and extends a lease. It writes to
  * `options.queue` on the backend's real store.
  */
-export function testQueueBackend(
-  backend: QueueBackend,
-  options: TestQueueBackendOptions,
+export function testQueueProvider(
+  backend: QueueProvider,
+  options: TestQueueProviderOptions,
 ): Promise<ConformanceReport> {
   const { queue } = options;
 
@@ -53,7 +53,7 @@ export function testQueueBackend(
     return row && claimedJob(queue, row);
   };
 
-  return conform(`QueueBackend "${backend.name}"`, [
+  return conform(`QueueProvider "${backend.name}"`, [
     hasName(backend),
     [
       "has apiVersion 1",

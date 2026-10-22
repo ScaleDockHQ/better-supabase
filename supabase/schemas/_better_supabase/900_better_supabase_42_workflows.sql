@@ -1,5 +1,5 @@
--- better-supabase module: workflows (0.9.0)
--- @bs-module workflows@3 managed
+-- better-supabase module: workflows
+-- @bsb-block workflows@3 managed
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -213,8 +213,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_runs";
-create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
+create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
@@ -841,8 +841,8 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_workflow_runs_receive" on realtime.messages;
-    create policy "bs_workflow_runs_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
+    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (
@@ -1045,13 +1045,13 @@ revoke execute on function "api"."mark_workflow_start_request"(uuid, text) from 
 grant execute on function "api"."mark_workflow_start_request"(uuid, text) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

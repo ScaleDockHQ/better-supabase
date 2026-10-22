@@ -42,7 +42,7 @@ export type {
  * `createInboxController` as a Solid primitive: `state()` reads the snapshot.
  * Call it in a component; the work starts on mount and the controller is
  * disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useInbox<T>(
   options: BlockOptions<InboxControllerOptions<T>>,
@@ -58,7 +58,7 @@ export function useInbox<T>(
  * `createConversationController` as a Solid primitive: `state()` reads the
  * snapshot. Call it in a component; the work starts on mount and the controller
  * is disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useConversation<T extends Identified>(
   options: BlockOptions<ConversationControllerOptions<T>>,
@@ -74,7 +74,7 @@ export function useConversation<T extends Identified>(
  * `createInboxWidgetController` as a Solid primitive: `state()` reads the
  * snapshot. Call it in a component; the work starts on mount and the controller
  * is disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useInboxWidget<T extends Identified>(
   options: BlockOptions<InboxWidgetControllerOptions<T>>,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
@@ -48,7 +48,7 @@ describe("messaging module", () => {
 
   it("opens a record's conversation to a grant on the record's scope", () => {
     const render = (provider: boolean) =>
-      renderModules(["messaging"], {
+      renderBlocks(["messaging"], {
         modules: provider ? { access: { model: "provider" } } : {},
         subjects: {
           project: { table: "projects", scope: "project" },
@@ -70,7 +70,7 @@ describe("messaging module", () => {
   });
 
   it("mentions on a record notify only members who read it", () => {
-    const sql = renderModules(["notifications", "messaging"], {
+    const sql = renderBlocks(["notifications", "messaging"], {
       modules: {},
       subjects: {
         deal: { table: "deals", permissions: { read: "deals.read" } },
@@ -86,7 +86,7 @@ describe("messaging module", () => {
     );
     expect(sql).not.toContain("when 'note' then coalesce");
     expect(
-      renderModules(["notifications", "messaging"], {
+      renderBlocks(["notifications", "messaging"], {
         modules: {},
         subjects: { note: { table: "notes" } },
       })
@@ -97,7 +97,7 @@ describe("messaging module", () => {
   });
 
   it("opens a record's conversation only in the record's tenant", () => {
-    const sql = renderModules(["messaging"], {
+    const sql = renderBlocks(["messaging"], {
       modules: {},
       subjects: {
         deal: { table: "deals", tenant: "workspace_id" },
@@ -120,7 +120,7 @@ describe("messaging module", () => {
 
   it("labels its notifications and sends none with options.notify false", () => {
     const render = (options: Readonly<Record<string, unknown>> = {}) =>
-      renderModules(["notifications", "messaging"], {
+      renderBlocks(["notifications", "messaging"], {
         modules: { messaging: { options } },
         subjects: { deal: { table: "deals", title: "name" } },
       })

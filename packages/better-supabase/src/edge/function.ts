@@ -100,7 +100,7 @@ async function readInput(request: Request): Promise<Result<unknown>> {
  * it through `functions<Contracts>()` from `better-supabase/client`.
  *
  * ```ts
- * const sendInvite = defineFunction(bs, {
+ * const sendInvite = defineFunction(bsb, {
  *   input: z.object({ email: z.email() }),
  *   handler: (input, ctx) => ctx.db.invites.create({ data: input }),
  * });

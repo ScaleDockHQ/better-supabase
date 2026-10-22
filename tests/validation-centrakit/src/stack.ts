@@ -1,10 +1,10 @@
 import type { BlocksConfig, SubjectsConfig } from "better-supabase/config";
 import type { SqlClient } from "better-supabase/postgres";
-import type { ModuleAccessProvider } from "better-supabase/sql";
+import type { BlockSqlAccessProvider } from "better-supabase/sql";
 import type { PoolClient, QueryResultRow } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
-import { moduleLayout, renderModules } from "better-supabase/sql";
+import { moduleLayout, renderBlocks } from "better-supabase/sql";
 import { readdir, readFile } from "node:fs/promises";
 import { DatabaseError, Pool } from "pg";
 
@@ -19,7 +19,7 @@ const provider = centrakitProvider();
 
 // What `sql add` derives from config.authorization for the access module; the
 // extra modules a test installs render against the same provider.
-const accessProvider: Writable<ModuleAccessProvider> = {
+const accessProvider: Writable<BlockSqlAccessProvider> = {
   name: provider.name,
   scope: provider.tenantScope,
   scopes: provider.scopes.map((scope) => scope.name),
@@ -281,7 +281,7 @@ export async function withCentraKit(
         layout.subjects = extra.subjects;
       }
 
-      for (const file of renderModules(extra.modules, layout)) {
+      for (const file of renderBlocks(extra.modules, layout)) {
         await client.query(file.contents);
       }
     }

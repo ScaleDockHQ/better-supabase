@@ -5,7 +5,7 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   moduleBody,
   moduleTopics,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
@@ -13,7 +13,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-chat", { modules })!;
 
 const withModules = (names: readonly string[]): string =>
-  renderModules([...names, "ai-chat"], { modules: {} })
+  renderBlocks([...names, "ai-chat"], { modules: {} })
     .filter((file) => file.contents.includes("ai_messages"))
     .map((file) => file.contents)
     .join("\n");

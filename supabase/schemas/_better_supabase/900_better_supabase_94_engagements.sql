@@ -1,5 +1,5 @@
 -- better-supabase module: engagements
--- @bs-module engagements@1 managed
+-- @bsb-block engagements@1 managed
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -851,7 +851,7 @@ grant execute on function "better_supabase"."engagement_notes"(uuid) to authenti
 -- A meeting engagement for each confirmed booking (options.bookings), with
 -- the external ref booking:<id>: moved when the booking moves, and closed
 -- with the outcome cancelled when it is cancelled.
-create or replace function "better_supabase"."bs_booking_engagement"()
+create or replace function "better_supabase"."bsb_booking_engagement"()
 returns trigger
 language plpgsql
 security definer
@@ -927,11 +927,11 @@ begin
   return null;
 end;
 $$;
-revoke all on function "better_supabase"."bs_booking_engagement"() from public, anon, authenticated;
+revoke all on function "better_supabase"."bsb_booking_engagement"() from public, anon, authenticated;
 drop trigger if exists bookings_engagement on "better_supabase"."bookings";
 create trigger bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
-for each row execute function "better_supabase"."bs_booking_engagement"();
+for each row execute function "better_supabase"."bsb_booking_engagement"();
 
 -- blocks.engagements.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1109,13 +1109,13 @@ revoke execute on function "api"."engagement_notes"(uuid) from public, anon;
 grant execute on function "api"."engagement_notes"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

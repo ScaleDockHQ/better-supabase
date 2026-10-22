@@ -41,14 +41,14 @@ export type {
 
 export {
   pgmqPublicBackend,
-  sqlQueueBackend,
-  transportQueueBackend,
+  sqlQueueProvider,
+  transportQueueProvider,
 } from "./backends.ts";
 
-export { vercelQueueBackend } from "./vercel-queue.ts";
+export { vercelQueueProvider } from "./vercel-queue.ts";
 
 export type {
-  VercelQueueBackendOptions,
+  VercelQueueProviderOptions,
   VercelQueueClient,
   VercelQueueMetadata,
 } from "./vercel-queue.ts";
@@ -56,13 +56,13 @@ export type {
 export type {
   DeadJobRow,
   DueSchedule,
-  QueueBackend,
+  QueueProvider,
   QueueMessageBody,
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
   QueuePurgeArgs,
-  TransportQueueBackendOptions,
+  TransportQueueProviderOptions,
 } from "./backends.ts";
 
 export { createJobs } from "./queue.ts";

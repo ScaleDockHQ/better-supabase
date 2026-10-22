@@ -44,7 +44,7 @@ describe("resourceRoutes", () => {
   });
 });
 
-describe("bs.resources()", () => {
+describe("bsb.resources()", () => {
   const authorizer = defineAuthorizer<"invite" | "export">({
     name: "test",
     key: (ref) => ref,
@@ -54,13 +54,13 @@ describe("bs.resources()", () => {
         : { outcome: "approval-required", approval: { id: "apr_9" } },
   });
 
-  const bs = createNext(defineSupabase(schema), {
+  const bsb = createNext(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer,
   });
 
-  const routes = bs.resources(
+  const routes = bsb.resources(
     {
       customers: {
         actions: {
@@ -141,13 +141,13 @@ describe("bs.resources()", () => {
       new NextRequest("https://app.test/api/x", { headers: mocks.headers });
 
     const segment = { params: Promise.resolve({}) };
-    const byRole = bs.route(() => ({ ok: true }), { roles: ["admin"] });
+    const byRole = bsb.route(() => ({ ok: true }), { roles: ["admin"] });
     expect((await byRole(request(), segment)).status).toBe(403);
-    const exporting = bs.route(() => ({ ok: true }), { permission: "export" });
+    const exporting = bsb.route(() => ({ ok: true }), { permission: "export" });
     expect(await (await exporting(request(), segment)).json()).toEqual({
       ok: true,
     });
-    const inviting = bs.route(() => ({ ok: true }), { permission: "invite" });
+    const inviting = bsb.route(() => ({ ok: true }), { permission: "invite" });
     expect(await (await inviting(request(), segment)).json()).toMatchObject({
       code: "APPROVAL_REQUIRED",
     });
@@ -155,8 +155,8 @@ describe("bs.resources()", () => {
 
   it("types permissions from the authorizer", () => {
     // @ts-expect-error "delete" is not a permission of this authorizer
-    bs.route(() => null, { permission: "delete" });
+    bsb.route(() => null, { permission: "delete" });
     // @ts-expect-error "delete" is not a permission of this authorizer
-    bs.resources({ customers: { permissions: { list: "delete" } } });
+    bsb.resources({ customers: { permissions: { list: "delete" } } });
   });
 });

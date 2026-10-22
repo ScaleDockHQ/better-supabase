@@ -1,14 +1,14 @@
 import "server-only";
 import { cacheTag } from "next/cache";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { Permission } from "./user-permissions";
 
 import { PERMISSIONS, can } from "./user-permissions";
 
 // An authorization library with its own snapshot replaces `can` here and
-// keeps the `bs.cached()` call.
+// keeps the `bsb.cached()` call.
 // See https://bettersupabase.com/docs/frameworks/next-cache-components#permission-snapshots.
 
 /** The tag of a user's snapshot entries. */
@@ -23,13 +23,13 @@ interface PermissionSnapshot {
 }
 
 /**
- * The caller's permissions, cached per user. `bs.cached()` tags the entry with
+ * The caller's permissions, cached per user. `bsb.cached()` tags the entry with
  * the session and snapshot tags, and keeps it no longer than the token or the
  * snapshot.
  */
 export async function getPermissionSnapshot(): Promise<PermissionSnapshot> {
   "use cache: private";
-  const { session } = await bs.cached();
+  const { session } = await bsb.cached();
   cacheTag(snapshotTag(session.kind === "user" ? session.user.id : null));
 
   return {

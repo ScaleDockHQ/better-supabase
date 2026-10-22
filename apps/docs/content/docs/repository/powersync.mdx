@@ -215,7 +215,7 @@ pass it).
 
 Writes go to the local database and PowerSync uploads them.
 `createUploadConnector` replays them through the repositories, and
-`uploadRoute(bs.db.attachments, { put: "create" })` inserts the rows of a
+`uploadRoute(bsb.db.attachments, { put: "create" })` inserts the rows of a
 write-once table, counting a conflict as already applied. `onError` reports a
 failed session read and retried uploads. See
 [Offline-first](/docs/guides/offline-first) for the routes, outcomes and

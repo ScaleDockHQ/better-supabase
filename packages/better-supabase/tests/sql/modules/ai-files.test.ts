@@ -5,14 +5,14 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-files", { modules })!;
 
 const rendered = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
-  renderModules([...names, "ai-files"], { modules })
+  renderBlocks([...names, "ai-files"], { modules })
     .filter((file) => file.module === "ai-files")
     .map((file) => file.contents)
     .join("\n");
@@ -44,7 +44,7 @@ describe("ai-files module", () => {
       `when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()`,
     );
     expect(sql).toContain(
-      `create policy bs_ai_files_insert on storage.objects for insert to authenticated`,
+      `create policy bsb_ai_files_insert on storage.objects for insert to authenticated`,
     );
     expect(sql).toContain("bucket_id = 'ai-files'");
   });

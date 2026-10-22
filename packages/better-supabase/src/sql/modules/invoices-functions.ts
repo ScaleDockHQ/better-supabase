@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
@@ -27,7 +27,10 @@ export interface InvoiceNames {
   readonly extras: readonly ExtraColumn[];
 }
 
-export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
+export function invoiceFunctions(
+  ctx: BlockSqlContext,
+  n: InvoiceNames,
+): string {
   const { fn, t, c } = n;
   const i = (column: string): string => c("invoices", column);
   const l = (column: string): string => c("lines", column);

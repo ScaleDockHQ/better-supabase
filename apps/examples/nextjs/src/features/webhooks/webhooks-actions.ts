@@ -9,7 +9,7 @@ import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { EVENT_PATTERN } from "./webhook-types";
 
@@ -49,7 +49,7 @@ function canManage(session: Parameters<typeof can>[0]): boolean {
  * caller (RLS checks `webhooks.manage`). The secret is returned once; the
  * module keeps it in Vault.
  */
-export const createWebhookEndpoint = bs.action(
+export const createWebhookEndpoint = bsb.action(
   { ...manage, input: CreateEndpoint },
   async (
     { name, url, eventTypes },
@@ -100,7 +100,7 @@ export const createWebhookEndpoint = bs.action(
 );
 
 /** Turns an endpoint on or off. Turning it on clears an automatic disable. */
-export const setWebhookEndpointEnabled = bs.action(
+export const setWebhookEndpointEnabled = bsb.action(
   { ...manage, input: v.object({ id: Id, enabled: v.boolean() }) },
   async ({ id, enabled }, { session, auth }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
@@ -139,7 +139,7 @@ export const setWebhookEndpointEnabled = bs.action(
 );
 
 /** Deletes an endpoint with its deliveries and secrets. */
-export const deleteWebhookEndpoint = bs.action(
+export const deleteWebhookEndpoint = bsb.action(
   { ...manage, input: v.object({ id: Id }) },
   async ({ id }, { session, auth }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
@@ -174,7 +174,7 @@ export const deleteWebhookEndpoint = bs.action(
 );
 
 /** Queues a `webhook.test` event for one endpoint, outside its filters. */
-export const sendTestWebhook = bs.action(
+export const sendTestWebhook = bsb.action(
   { ...manage, input: v.object({ id: Id }) },
   async ({ id }, { supabase, auth }) => {
     const sent = await blocks(supabase).webhooks.dispatch({
@@ -192,7 +192,7 @@ export const sendTestWebhook = bs.action(
 );
 
 /** Queues a finished delivery again (`redeliver_webhook`). */
-export const redeliverWebhook = bs.action(
+export const redeliverWebhook = bsb.action(
   { ...manage, input: v.object({ id: Id }) },
   async ({ id }, { supabase, auth }) => {
     const queued = await blocks(supabase).webhooks.redeliver(id);

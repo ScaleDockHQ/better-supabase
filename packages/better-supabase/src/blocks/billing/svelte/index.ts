@@ -26,7 +26,7 @@ export type {
  * `createPlanPickerController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function usePlanPicker<P extends { readonly key: string } = PlanOption>(
   options: BlockOptions<PlanPickerControllerOptions<P>>,

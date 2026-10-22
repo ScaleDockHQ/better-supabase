@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module oauth-server@1 managed
+-- @bsb-block oauth-server@1 managed
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -839,33 +839,33 @@ revoke execute on function "better_supabase"."purge_oauth_server"() from public,
 grant execute on function "better_supabase"."purge_oauth_server"() to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module-data oauth-server
+-- @bsb-block-data oauth-server
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('oauth-server', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module oauth-server@1 managed
+-- @bsb-block oauth-server@1 managed
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1750,33 +1750,33 @@ revoke execute on function "better_supabase"."purge_oauth_server"() from public,
 grant execute on function "better_supabase"."purge_oauth_server"() to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module-data oauth-server
+-- @bsb-block-data oauth-server
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('oauth-server', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module oauth-server@1 managed
+-- @bsb-block oauth-server@1 managed
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2617,33 +2617,33 @@ revoke execute on function "app_private"."purge_oauth_server"() from public, ano
 grant execute on function "app_private"."purge_oauth_server"() to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module-data oauth-server
+-- @bsb-block-data oauth-server
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('oauth-server', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module oauth-server@1 managed
+-- @bsb-block oauth-server@1 managed
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3689,26 +3689,26 @@ revoke execute on function "api"."purge_oauth_server"() from public, anon, authe
 grant execute on function "api"."purge_oauth_server"() to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
--- @bs-module-data oauth-server
+-- @bsb-block-data oauth-server
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('oauth-server', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

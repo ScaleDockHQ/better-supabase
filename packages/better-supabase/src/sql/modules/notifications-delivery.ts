@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { PARTITION_VARIABLES, dropExpiredPartitions, fail } from "../shared.ts";
@@ -10,7 +10,7 @@ import {
 } from "./notifications-tracking.ts";
 
 /** The worker side: claim pending deliveries of a channel, then complete them. */
-export function delivery(ctx: ModuleContext, n: NotifyNames): string {
+export function delivery(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!ctx.hasTable("deliveries")) {
     return "";
   }
@@ -172,7 +172,7 @@ grant execute on function ${ctx.fn("complete_notification_delivery")}(${complete
  * Deletes up to batch notifications older than older_than, with their
  * recipients and deliveries.
  */
-export function purge(ctx: ModuleContext, n: NotifyNames): string {
+export function purge(ctx: BlockSqlContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const fn = ctx.fn("purge_notifications");
   const partitioned = eventsPartitioned(ctx);

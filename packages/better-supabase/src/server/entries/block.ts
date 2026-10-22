@@ -12,7 +12,7 @@ import { defineMiddleware } from "@supabase/middleware";
  * ```ts
  * pipeline(
  *   [
- *     withBetterSupabase(bs),
+ *     withBetterSupabase(bsb),
  *     withPostgresAdminClient(),
  *     withBlock("jobs", (ctx) =>
  *       createJobs({ sql: ctx.postgresAdmin, queues }),

@@ -1,5 +1,5 @@
--- better-supabase module: ai-chat (0.9.0)
--- @bs-module ai-chat@3 managed
+-- better-supabase module: ai-chat
+-- @bsb-block ai-chat@3 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2336,16 +2336,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_ai_chat_receive" on realtime.messages;
-    create policy "bs_ai_chat_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
+    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
       );
-    drop policy if exists "bs_ai_chats_receive" on realtime.messages;
-    create policy "bs_ai_chats_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
+    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text
@@ -2838,13 +2838,13 @@ revoke execute on function "api"."unlock_ai_harness_session"(uuid, text, text) f
 grant execute on function "api"."unlock_ai_harness_session"(uuid, text, text) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   fail,
@@ -15,7 +15,7 @@ import {
   userGrant,
 } from "../shared.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["codeMinutes", "verifiedEmails"],
   tables: {
     links: {
@@ -52,7 +52,7 @@ const NAMES: ModuleNames = {
 
 const KINDS = "'email', 'chat'";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const links = ctx.table("links");
   const codes = ctx.table("codes");
   const l = (column: string): string => ctx.col("links", column);
@@ -326,7 +326,7 @@ ${emailTrigger}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "begin_identity_link", args: ["text", "text"], returns: "jsonb" },
     {
@@ -346,7 +346,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const IDENTITIES: ModuleDefinition = {
+export const IDENTITIES: BlockSqlDefinition = {
   name: "identities",
   title: "Identities",
   description:

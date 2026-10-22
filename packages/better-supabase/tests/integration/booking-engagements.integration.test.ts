@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createBookings } from "../../src/blocks/bookings/bookings.ts";
 import { createEngagements } from "../../src/blocks/engagements/index.ts";
@@ -22,7 +22,7 @@ const MODULES = [
   "engagements",
 ];
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["parties"], {}),
   modules: { engagements: { options: { bookings: true } } },
 };

@@ -71,7 +71,7 @@
   built. In a sandbox, set `PLAYWRIGHT_BROWSERS_PATH` to the user's
   `ms-playwright` cache, or run `pnpm exec playwright install chromium`.
   A database budget only works on a navigation that reaches the server: one
-  served from the client cache has no `x-bs-request-id` response and fails.
+  served from the client cache has no `x-bsb-request-id` response and fails.
 - TIMINGS (one local run, 3 s delay): login 27 ms; dashboard shell 62 ms,
   summary 3397 ms; Customers full load 3333 ms, warm visit 40 ms, reload
   3356 ms; search 3323 ms, again 14 ms; plans 63 ms on the first load (a
@@ -83,10 +83,10 @@
   `security-queries.ts`), the settings contract is RED for every user at
   Security ("getByTestId('mfa-status') was not visible under the instant()
   lock"); the cached server reads turn it GREEN. Replacing
-  `"use cache: private"` and `bs.cached()` in
-  `getCustomers` with `bs.context()` turns both Customers list contracts RED
+  `"use cache: private"` and `bsb.cached()` in
+  `getCustomers` with `bsb.context()` turns both Customers list contracts RED
   ("not in the prefetched UI"); restoring it turns them GREEN. Removing only
-  the directive fails the render, because `bs.cached()` calls `cacheLife()`.
+  the directive fails the render, because `bsb.cached()` calls `cacheLife()`.
   With the delay, removing `"use cache"` from `getPlans` turns the shared
   plan catalog contract RED (the reload waits for the database); restoring
   it turns it GREEN.

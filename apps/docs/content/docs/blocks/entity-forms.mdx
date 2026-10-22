@@ -3,13 +3,13 @@ title: Entity forms
 description: Build a create or edit form from a block's entity schema and the organization's custom fields, and validate both together.
 ---
 
-`entityForm(schema, options)` from `better-supabase/records` turns a block's
+`recordForm(schema, options)` from `better-supabase/records` turns a block's
 entity schema, such as `workItemInputSchema`, into a list of form fields and
 adds the organization's [custom fields](/docs/blocks/custom-fields) after
 them. Its `validate` turns the text from the inputs into typed values,
 validates the entity part with the schema and checks the required custom
 fields, then returns the entity input and the custom values apart. The
-`useEntityForm` hook from `better-supabase/react` holds the values and the
+`useRecordForm` hook from `better-supabase/react` holds the values and the
 errors in a component. Neither ships markup: the
 [entity form recipe](/docs/registry/ui-recipes/entity-form) renders them
 with your shadcn components.
@@ -18,13 +18,13 @@ with your shadcn components.
 
 ```ts
 import { workItemInputSchema } from "better-supabase/blocks/work-items";
-import { entityForm } from "better-supabase/records";
+import { recordForm } from "better-supabase/records";
 
 const fields = await blocks(supabase, tenant)
   .customFields.listDefinitions("work_item")
   .orThrow();
 
-const form = entityForm(workItemInputSchema, {
+const form = recordForm(workItemInputSchema, {
   fields: ["title", "priority", "dueAt"],
   labels: { dueAt: "Due" },
   customFields: fields.map((field) => ({
@@ -89,7 +89,7 @@ message per field; an issue without a path is under `""`.
 
 ## Use it in a component
 
-`useEntityForm(form, { initial, onSubmit })` returns `values`, `errors`,
+`useRecordForm(form, { initial, onSubmit })` returns `values`, `errors`,
 `pending`, `set(key, value)`, `submit(event?)` and `reset()`. `submit`
 prevents the browser's submit, validates, and calls `onSubmit` with the
 split values only when they pass:
@@ -97,9 +97,9 @@ split values only when they pass:
 ```tsx
 "use client";
 
-import { useEntityForm } from "better-supabase/react";
+import { useRecordForm } from "better-supabase/react";
 
-const state = useEntityForm(form, {
+const state = useRecordForm(form, {
   initial: { title: "", priority: "0" },
   onSubmit: ({ input, custom }) => create.run({ ...input, custom }),
 });

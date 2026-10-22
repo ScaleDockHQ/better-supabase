@@ -66,7 +66,7 @@ describe("scaffold api", () => {
     expect(generated).toContain('"customers"');
     expect(generated).toContain('export const basePath = "/api";');
     expect(await read("src/app/api/[...path]/route.ts")).toContain(
-      "bs.resources(resources, { basePath })",
+      "bsb.resources(resources, { basePath })",
     );
     expect(await read("src/app/api/openapi.json/route.ts")).toContain(
       "specResponse(document, request)",
@@ -91,12 +91,12 @@ describe("scaffold api", () => {
       "Skipped src/lib/api.ts (exists; pass --force to overwrite)",
     );
     expect(again.stdout).toContain("Updated src/lib/api.generated.ts");
-    expect(again.stdout).toContain(".route('/', apiRoutes(bs))");
+    expect(again.stdout).toContain(".route('/', apiRoutes(bsb))");
     expect(await read("src/lib/api.ts")).toBe("// mine\n");
     expect(await read("src/lib/api.generated.ts")).toContain(
       'export const basePath = "/v1";',
     );
-    expect(await read("src/api-routes.ts")).toContain("bs.resource(table)");
+    expect(await read("src/api-routes.ts")).toContain("bsb.resource(table)");
 
     const same = await scaffold(
       "api",
@@ -271,7 +271,7 @@ describe("scaffold screens", () => {
 
     const list = await read("src/app/tasks/page.tsx");
     expect(list).toContain("from '../../lib/supabase/server';");
-    expect(list).toContain("bs.require({ requireTenant: true })");
+    expect(list).toContain("bsb.require({ requireTenant: true })");
     expect(list).toContain(
       "select: ['id', 'title', 'status', 'projectId', 'estimate', 'dueOn']",
     );
@@ -323,7 +323,7 @@ describe("scaffold screens", () => {
     const result = await screens("projects", { sql: { scope: "user" } });
     expect(result.code).toBe(0);
     const list = await read("src/app/projects/page.tsx");
-    expect(list).toContain("const { db } = await bs.require();");
+    expect(list).toContain("const { db } = await bsb.require();");
     expect(list).not.toContain("tenant");
   });
 

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { SubjectsConfig } from "../../../src/config/index.ts";
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const SUBJECTS: SubjectsConfig = {
   deal: { table: "public.deals", deletedAt: "deleted_at" },
@@ -28,9 +28,9 @@ const DEAL = {
 const render = (
   subjects: Record<string, unknown>,
   extra: readonly string[] = [],
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string =>
-  renderModules(["pipelines", ...extra], {
+  renderBlocks(["pipelines", ...extra], {
     ...layout,
     subjects: SUBJECTS,
     modules: {
@@ -54,7 +54,7 @@ describe("pipelines module", () => {
     expect(sql).toContain(
       '"better_supabase"."pipeline_board"(subject_type text, pipeline uuid, owner uuid default null)',
     );
-    expect(sql).not.toContain("bs_pipeline_deal");
+    expect(sql).not.toContain("bsb_pipeline_deal");
   });
 
   it("renders a trigger per bound subject that seeds the stage template", () => {
@@ -67,10 +67,10 @@ describe("pipelines module", () => {
     });
 
     expect(sql).toContain(
-      'create trigger bs_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_id" on "public"."deals"',
+      'create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_id" on "public"."deals"',
     );
     expect(sql).toContain(
-      'create trigger bs_pipeline_application before insert or update of "stage_id", "pipeline_id" on "hr"."applications"',
+      'create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id" on "hr"."applications"',
     );
     expect(sql).toContain("('lead', 'Lead', 'open', 'open', 10::smallint");
     expect(sql).toContain(
@@ -79,11 +79,11 @@ describe("pipelines module", () => {
     expect(sql).toContain('new."job_id"::text');
     expect(sql).toContain('new."stage_entered_at" := now();');
     expect(sql).toContain(
-      'create trigger bs_pipeline_status_deal after insert or update of "stage_id"',
+      'create trigger bsb_pipeline_status_deal after insert or update of "stage_id"',
     );
     expect(sql).toContain("when 'won' then 'won' when 'lost' then 'lost'");
     expect(sql).toContain(
-      'drop trigger if exists bs_pipeline_status_application on "hr"."applications"',
+      'drop trigger if exists bsb_pipeline_status_application on "hr"."applications"',
     );
     expect(sql).toContain('and r."deleted_at" is null');
   });
@@ -169,7 +169,7 @@ describe("pipelines module", () => {
 describe("pipelines module, other layouts", () => {
   it("renders nothing in custom mode and no watch without a subscriptions table", () => {
     expect(
-      renderModules(["pipelines"], {
+      renderBlocks(["pipelines"], {
         subjects: SUBJECTS,
         modules: { pipelines: { mode: "custom" } },
       })
@@ -178,7 +178,7 @@ describe("pipelines module, other layouts", () => {
         .join(""),
     ).not.toContain("create table");
 
-    const sql = renderModules(["pipelines", "notifications"], {
+    const sql = renderBlocks(["pipelines", "notifications"], {
       subjects: SUBJECTS,
       modules: {
         pipelines: { options: { subjects: { deal: DEAL } } },

@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AppTablesConfig } from "../../src/config/types/app-tables.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { withAppTableSubjects } from "../../src/config/app-tables.ts";
@@ -28,7 +28,7 @@ const TABLES: AppTablesConfig = {
 
 const BLOCKS = ["tenant", "organizations", "updated-at", "subjects", "search"];
 
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   appTables: TABLES,
   subjects: withAppTableSubjects({}, TABLES, undefined),
 };

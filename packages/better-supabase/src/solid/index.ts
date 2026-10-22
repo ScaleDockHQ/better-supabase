@@ -183,7 +183,7 @@ export function useSession<C = unknown, P = unknown>(): Accessor<
     );
   }
 
-  // SAFETY: the provider receives `bs.session()` from the same
+  // SAFETY: the provider receives `bsb.session()` from the same
   // `betterSupabase`, whose schemas fix `C` and `P`.
   return session as Accessor<AuthSession<C, P> | undefined>;
 }
@@ -219,7 +219,7 @@ export interface BetterPrimitives<B extends ClientLike> {
  *
  * ```ts
  * export const { useDb, useQueries, useAuth } =
- *   createBindings<typeof bs>();
+ *   createBindings<typeof bsb>();
  * ```
  */
 export function createBindings<B extends ClientLike>(): BetterPrimitives<B> {
@@ -283,7 +283,7 @@ function supabaseFor(
 
   if (!supabase) {
     throw new Error(
-      `better-supabase: ${hook} needs <BetterSupabaseProvider client={bs}> or { client: supabase }`,
+      `better-supabase: ${hook} needs <BetterSupabaseProvider client={bsb}> or { client: supabase }`,
     );
   }
 
@@ -422,7 +422,7 @@ export interface LiveCount {
 
 /**
  * A count that stays current: refetches only the `count` spec after each
- * debounced change to a table it reads. Takes a spec or a `bs.liveCount()`
+ * debounced change to a table it reads. Takes a spec or a `bsb.liveCount()`
  * seed; `null` pauses. The returned object's fields are reactive.
  *
  * ```tsx
@@ -605,7 +605,7 @@ export interface ActionHandle<I, T> extends ActionState<I, T> {
 }
 
 /**
- * Calls a server action (`action()` from SolidStart, or a `bs.action()`) from
+ * Calls a server action (`action()` from SolidStart, or a `bsb.action()`) from
  * an event handler: tracks pending inputs and the last result, and calls
  * `onSuccess` or `onError`. The returned object's fields are reactive.
  *

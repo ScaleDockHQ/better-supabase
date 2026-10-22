@@ -14,14 +14,14 @@ const request = new Request("https://app.test/admin");
 describe("routeRefusal", () => {
   it("lets allowed callers through", async () => {
     const auth = await authAs({ role: "admin" });
-    expect(await routeRefusal({ bs: { auth } }, request, {})).toBeUndefined();
+    expect(await routeRefusal({ bsb: { auth } }, request, {})).toBeUndefined();
   });
 
   it("answers refused callers with Problem Details or a redirect", async () => {
     const anonymous = await authAs();
 
     const problem = await routeRefusal(
-      { bs: { auth: anonymous } },
+      { bsb: { auth: anonymous } },
       request,
       {},
     );
@@ -31,7 +31,7 @@ describe("routeRefusal", () => {
       "application/problem+json",
     );
 
-    const redirect = await routeRefusal({ bs: { auth: anonymous } }, request, {
+    const redirect = await routeRefusal({ bsb: { auth: anonymous } }, request, {
       signIn: "/sign-in",
     });
 
@@ -42,7 +42,7 @@ describe("routeRefusal", () => {
 
     const member = await authAs({ role: "member" });
 
-    const forbidden = await routeRefusal({ bs: { auth: member } }, request, {
+    const forbidden = await routeRefusal({ bsb: { auth: member } }, request, {
       requireTenant: true,
     });
 
@@ -57,20 +57,20 @@ describe("routeRefusal", () => {
     });
 
     expect(
-      await routeRefusal({ bs: { auth } }, request, {
+      await routeRefusal({ bsb: { auth } }, request, {
         permission: "reports:read",
         authorizer,
       }),
     ).toBeUndefined();
 
-    const denied = await routeRefusal({ bs: { auth } }, request, {
+    const denied = await routeRefusal({ bsb: { auth } }, request, {
       permission: "reports:write",
       authorizer,
     });
 
     expect(denied?.status).toBe(403);
 
-    const missing = await routeRefusal({ bs: { auth } }, request, {
+    const missing = await routeRefusal({ bsb: { auth } }, request, {
       permission: "reports:read",
     });
 
@@ -92,13 +92,13 @@ describe("errorResponse", () => {
 });
 
 describe("guardedLocals", () => {
-  it("reads bs and tenant, and fails without withBetterSupabase", async () => {
+  it("reads bsb and tenant, and fails without withBetterSupabase", async () => {
     const auth = await authAs();
-    expect(guardedLocals({ bs: { auth }, tenant: "acme" })).toEqual({
-      bs: { auth },
+    expect(guardedLocals({ bsb: { auth }, tenant: "acme" })).toEqual({
+      bsb: { auth },
       tenant: "acme",
     });
-    expect(guardedLocals({ bs: { auth }, tenant: 1 }).tenant).toBeUndefined();
+    expect(guardedLocals({ bsb: { auth }, tenant: 1 }).tenant).toBeUndefined();
     expect(() => guardedLocals({})).toThrow(/withBetterSupabase/);
   });
 });

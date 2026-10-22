@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -8,13 +8,13 @@ export const requestHeader = (name: string): string =>
 const traceId = (setting: string, header: string): string =>
   `coalesce(better_supabase.request_id_or_null(current_setting(${sqlString(setting)}, true)), better_supabase.request_id_or_null(${requestHeader(header)}))`;
 
-export const requestIdSql = (ctx: ModuleContext): string =>
+export const requestIdSql = (ctx: BlockSqlContext): string =>
   traceId(
     "better_supabase.request_id",
     ctx.text("requestIdHeader", "x-request-id").toLowerCase(),
   );
 
-export const correlationIdSql = (ctx: ModuleContext): string =>
+export const correlationIdSql = (ctx: BlockSqlContext): string =>
   traceId(
     "better_supabase.correlation_id",
     ctx.text("correlationIdHeader", "x-correlation-id").toLowerCase(),

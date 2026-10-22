@@ -19,7 +19,7 @@ const env = {
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
-const bs = createEdge(defineSupabase(schema), {
+const bsb = createEdge(defineSupabase(schema), {
   env,
   auth: { jwks: signer.jwks },
 });
@@ -44,7 +44,7 @@ const call = (
   );
 
 describe("defineFunction", () => {
-  const sendInvite = defineFunction(bs, {
+  const sendInvite = defineFunction(bsb, {
     input: Invite,
     output: v.object({ email: v.string(), by: v.string() }),
     handler: (input, ctx) =>
@@ -100,7 +100,7 @@ describe("defineFunction", () => {
   });
 
   it("answers 500 when the handler returns data its output rejects", async () => {
-    const broken = defineFunction(bs, {
+    const broken = defineFunction(bsb, {
       input: v.optional(v.object({})),
       output: v.object({ id: v.string() }),
       // @ts-expect-error -- the handler returns what the output rejects
@@ -113,14 +113,14 @@ describe("defineFunction", () => {
   });
 
   it("sends a handler's error, Response or empty result as is", async () => {
-    const failing = defineFunction(bs, {
+    const failing = defineFunction(bsb, {
       input: v.optional(v.object({})),
       handler: () => err(dbError("conflict", "Already invited")),
     });
 
     expect((await call(failing, { body: "" })).status).toBe(409);
 
-    const raw = defineFunction(bs, {
+    const raw = defineFunction(bsb, {
       input: v.optional(v.object({})),
       output: v.object({ id: v.string() }),
       handler: () => new Response("teapot", { status: 418 }),
@@ -128,7 +128,7 @@ describe("defineFunction", () => {
 
     expect((await call(raw, { method: "GET" })).status).toBe(418);
 
-    const empty = defineFunction(bs, {
+    const empty = defineFunction(bsb, {
       input: v.optional(v.object({})),
       handler: () => undefined,
     });
@@ -137,7 +137,7 @@ describe("defineFunction", () => {
   });
 
   it("passes the middleware options on", async () => {
-    const open = defineFunction(bs, {
+    const open = defineFunction(bsb, {
       allow: ["anon"],
       input: v.optional(v.object({})),
       handler: (_input, ctx) => ({ kind: ctx.auth.kind, url: ctx.request.url }),

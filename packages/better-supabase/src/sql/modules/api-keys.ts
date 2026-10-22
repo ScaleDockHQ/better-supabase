@@ -1,11 +1,11 @@
 import type { ApiKeysEvents } from "../../blocks/api-keys/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -21,7 +21,7 @@ import {
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<ApiKeysEvents> = {
+const EVENTS: BlockSqlEvents<ApiKeysEvents> = {
   "api_key.created": {
     subject: "api-keys",
     payload: ["keyId", "organizationId", "userId", "name", "publicId"],
@@ -67,7 +67,7 @@ const KEY_KEYS: readonly string[] = [
   "fields",
 ];
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["scopes", "kinds", "touchInterval", "prefix", "extraColumns"],
   tables: {
@@ -108,8 +108,8 @@ const KIND = /^[a-z][a-z0-9_-]*$/;
  * (`authorization.permissions`).
  */
 function allowedScopes(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): readonly string[] | undefined {
   const option = ctx.option("scopes");
 
@@ -141,7 +141,7 @@ function allowedScopes(
 }
 
 /** `blocks.api-keys.options.kinds`: the kinds a key may have, any when unset. */
-function kindsOf(ctx: ModuleContext): readonly string[] {
+function kindsOf(ctx: BlockSqlContext): readonly string[] {
   const kinds = ctx.list("kinds", []);
 
   for (const kind of kinds) {
@@ -155,7 +155,7 @@ function kindsOf(ctx: ModuleContext): readonly string[] {
   return kinds;
 }
 
-function prefixOf(ctx: ModuleContext): string {
+function prefixOf(ctx: BlockSqlContext): string {
   const prefix = ctx.text("prefix", "bs");
 
   if (!PREFIX.test(prefix)) {
@@ -167,7 +167,7 @@ function prefixOf(ctx: ModuleContext): string {
   return prefix;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -537,7 +537,7 @@ grant execute on function ${fn("has_scope")}(text) to anon, authenticated, servi
 grant execute on function ${fn("api_key_tenant")}() to anon, authenticated, service_role;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("keys", KEY_KEYS)).contract;
 
   return [
@@ -571,7 +571,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const API_KEYS: ModuleDefinition = {
+export const API_KEYS: BlockSqlDefinition = {
   name: "api-keys",
   scopes: ["tenant"],
   title: "API keys",

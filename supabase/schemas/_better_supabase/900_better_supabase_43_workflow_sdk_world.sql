@@ -1,5 +1,5 @@
--- better-supabase module: workflow-sdk-world (0.8.0)
--- @bs-module workflow-sdk-world@2 managed
+-- better-supabase module: workflow-sdk-world
+-- @bsb-block workflow-sdk-world@2 managed
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -312,12 +312,12 @@ grant usage, select on all sequences in schema workflow to service_role;
 create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
--- the bs.tenant and bs.actor attributes that startFor sets. A run with an
+-- the bsb.tenant and bsb.actor attributes that startFor sets. A run with an
 -- actor keeps its tenant only when the actor holds workflow.run there; a
--- run without one, or one with bs.principal_kind (a runAs start, whose
+-- run without one, or one with bsb.principal_kind (a runAs start, whose
 -- actor is the user who triggered it), was started by the server, which is
--- trusted. bs.subject
--- (type/id), bs.principal_kind, bs.principal, bs.mode and bs.trigger_node
+-- trusted. bsb.subject
+-- (type/id), bsb.principal_kind, bsb.principal, bsb.mode and bsb.trigger_node
 -- fill the run's subject, principal, mode and trigger node.
 create or replace function "better_supabase"."workflow_sdk_mirror_run"()
 returns trigger
@@ -335,16 +335,16 @@ declare
   v_mode text;
 begin
   begin
-    v_tenant := (new.attributes ->> 'bs.tenant')::uuid;
+    v_tenant := (new.attributes ->> 'bsb.tenant')::uuid;
   exception when others then
     v_tenant := null;
   end;
   begin
-    v_actor := (new.attributes ->> 'bs.actor')::uuid;
+    v_actor := (new.attributes ->> 'bsb.actor')::uuid;
   exception when others then
     v_actor := null;
   end;
-  v_principal_kind := new.attributes ->> 'bs.principal_kind';
+  v_principal_kind := new.attributes ->> 'bsb.principal_kind';
   if v_principal_kind is not null and v_principal_kind not in ('user', 'service_principal', 'system', 'external') then
     v_principal_kind := null;
   end if;
@@ -352,13 +352,13 @@ begin
     and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
     v_tenant := null;
   end if;
-  v_subject := new.attributes ->> 'bs.subject';
+  v_subject := new.attributes ->> 'bsb.subject';
   if v_subject is not null and position('/' in v_subject) between 2 and 101
     and length(v_subject) - position('/' in v_subject) between 1 and 200 then
     v_subject_type := left(v_subject, position('/' in v_subject) - 1);
     v_subject_id := substr(v_subject, position('/' in v_subject) + 1);
   end if;
-  v_mode := case when new.attributes ->> 'bs.mode' = 'test' then 'test' else 'live' end;
+  v_mode := case when new.attributes ->> 'bsb.mode' = 'test' then 'test' else 'live' end;
   perform "better_supabase"."record_workflow_run"(
     'workflow-sdk',
     new.id,
@@ -366,28 +366,28 @@ begin
     case new.status::text when 'pending' then 'queued' else new.status::text end,
     v_tenant,
     v_actor,
-    coalesce(new.attributes, '{}'::jsonb) - 'bs.tenant' - 'bs.actor' - 'bs.subject' - 'bs.principal_kind' - 'bs.principal' - 'bs.mode' - 'bs.trigger_node',
+    coalesce(new.attributes, '{}'::jsonb) - 'bsb.tenant' - 'bsb.actor' - 'bsb.subject' - 'bsb.principal_kind' - 'bsb.principal' - 'bsb.mode' - 'bsb.trigger_node',
     case when new.status::text = 'failed' then coalesce(new.error_code, left(new.error, 4000)) end,
     new.started_at at time zone 'UTC',
     new.completed_at at time zone 'UTC',
     v_subject_type,
     v_subject_id,
     v_principal_kind,
-    case when v_principal_kind is null then null else nullif(left(new.attributes ->> 'bs.principal', 200), '') end,
+    case when v_principal_kind is null then null else nullif(left(new.attributes ->> 'bsb.principal', 200), '') end,
     v_mode,
-    nullif(left(new.attributes ->> 'bs.trigger_node', 100), '')
+    nullif(left(new.attributes ->> 'bsb.trigger_node', 100), '')
   );
   return null;
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_sdk_runs_mirror" on workflow.workflow_runs;
-create trigger "bs_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
+drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
+create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 
 -- pg_net delivery: posts up to batch due messages to the flow route in the
 -- Vault secret workflow_flow_url, signed with workflow_delivery_secret
--- (x-bs-signature: t=<unix>,v1=hex(hmac_sha256(t.job.body))). The body is
+-- (x-bsb-signature: t=<unix>,v1=hex(hmac_sha256(t.job.body))). The body is
 -- the stored message; the route completes or fails the job, so a delivery
 -- whose response is lost runs again after the lease.
 create or replace function "better_supabase"."dispatch_workflow_deliveries"(batch integer default 20)
@@ -423,8 +423,8 @@ begin
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
       using v_url, v_body, jsonb_build_object(
         'content-type', 'application/json',
-        'x-bs-job', v_job_header,
-        'x-bs-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
+        'x-bsb-job', v_job_header,
+        'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
       ), 30000;
     v_count := v_count + 1;
   end loop;
@@ -435,13 +435,13 @@ revoke execute on function "better_supabase"."dispatch_workflow_deliveries"(inte
 grant execute on function "better_supabase"."dispatch_workflow_deliveries"(integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

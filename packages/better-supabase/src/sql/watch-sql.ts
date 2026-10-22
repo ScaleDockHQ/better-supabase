@@ -1,4 +1,4 @@
-import type { ModuleContext } from "./context.ts";
+import type { BlockSqlContext } from "./context.ts";
 
 import { sqlString } from "../core/template.ts";
 
@@ -9,7 +9,7 @@ import { sqlString } from "../core/template.ts";
  * expression is SQL; `module` must integrate notifications.
  */
 export function watchSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   watch: {
     readonly tenant: string;
     readonly user: string;
@@ -59,7 +59,7 @@ export function watchSql(
  * is SQL; `module` must integrate notifications.
  */
 export function followersSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   watch: {
     readonly tenant: string;
     readonly subjectType: string;

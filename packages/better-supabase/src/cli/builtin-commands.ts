@@ -115,6 +115,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "codemod 0.11",
     () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.11")),
   ],
+  [
+    "codemod 0.15",
+    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.15")),
+  ],
 ];
 
 /** The built-in commands, for `createCli`. */

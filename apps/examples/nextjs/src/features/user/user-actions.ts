@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { avatars } from "@/lib/buckets";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * Call after the browser client signs in or out. `refresh()` from a Server
@@ -18,7 +18,7 @@ export async function sessionChanged(): Promise<void> {
 }
 
 /** The caller's name in the profiles SQL module (`public.update_my_profile`). */
-export const updateProfile = bs.action(
+export const updateProfile = bsb.action(
   {
     input: v.object({
       fullName: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(120)),
@@ -53,7 +53,7 @@ const AVATAR_EXTENSIONS = new Map([
  * Uploads a new avatar under the caller's id, points the profile at its path
  * (`public.set_my_avatar_path`), then removes the previous object.
  */
-export const uploadAvatar = bs.action(
+export const uploadAvatar = bsb.action(
   {
     input: v.object({
       avatar: v.pipe(
@@ -110,13 +110,13 @@ export const uploadAvatar = bs.action(
  * organization, so that bucket is left alone. Needs a verified second factor in
  * this session.
  */
-export const deleteMyAccount = bs.action(
+export const deleteMyAccount = bsb.action(
   { aal: "aal2" },
   async (_input, { auth }) => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to delete your account"));
     }
 
-    return bs.deleteAccount(auth.user.id, { buckets: [avatars] });
+    return bsb.deleteAccount(auth.user.id, { buckets: [avatars] });
   },
 );

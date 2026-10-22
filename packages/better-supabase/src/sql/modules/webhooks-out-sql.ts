@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
@@ -71,7 +71,7 @@ const isStatus = (value: string): value is WebhookStatus =>
 
 /** `blocks.webhooks-out.options.statuses`: the values an adopted table stores. */
 function statusValues(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): Readonly<Record<WebhookStatus, string>> {
   const configured = ctx.option("statuses") ?? {};
 
@@ -117,7 +117,7 @@ function statusValues(
 
 const TYPE = /^[a-z][a-z0-9_ ]*$/;
 
-function typeOption(ctx: ModuleContext, name: string): string {
+function typeOption(ctx: BlockSqlContext, name: string): string {
   const type = ctx.text(name, "text");
 
   if (!TYPE.test(type)) {
@@ -130,8 +130,8 @@ function typeOption(ctx: ModuleContext, name: string): string {
 }
 
 function userMay(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): HookNames["userMay"] {
   const provider = layout.accessProvider;
   const template = provider?.functions.idsWithFor;
@@ -164,8 +164,8 @@ export const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
 };
 
 export function hookNames(
-  ctx: ModuleContext,
-  layout: ModuleLayout = {},
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout = {},
 ): HookNames {
   const has = (table: string, logical: string) =>
     ctx.has(table, logical) &&
@@ -267,7 +267,7 @@ const touched = (n: HookNames, table: string, alias = ""): string =>
     ? `, ${alias}${n.col(table, "updatedAt")} = now()`
     : "";
 
-function publish(ctx: ModuleContext, n: HookNames): string {
+function publish(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("publish_webhook_event");
   const id = ctx.idType;
   const d = (logical: string) => n.col("endpoints", logical);
@@ -434,7 +434,7 @@ function readable(n: HookNames): string {
 const deliveryLock = (eventId: string): string =>
   `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.webhook_deliveries'), pg_catalog.hashtext(${eventId}));`;
 
-function dispatch(ctx: ModuleContext, n: HookNames): string {
+function dispatch(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("dispatch_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
 
@@ -524,7 +524,7 @@ $$;
 ${grants(fn, "uuid, text, jsonb, text, text", true)}`;
 }
 
-function claim(ctx: ModuleContext, n: HookNames): string {
+function claim(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("claim_webhook_deliveries");
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
@@ -619,7 +619,7 @@ $$;
 ${grants(fn, "integer, interval, integer", false)}`;
 }
 
-function complete(ctx: ModuleContext, n: HookNames): string {
+function complete(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("complete_webhook_delivery");
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
@@ -753,7 +753,7 @@ $$;
 ${grants(fn, "uuid, jsonb", false)}`;
 }
 
-function redeliver(ctx: ModuleContext, n: HookNames): string {
+function redeliver(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("redeliver_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
 
@@ -806,7 +806,7 @@ $$;
 ${grants(fn, "uuid", true)}`;
 }
 
-function purge(ctx: ModuleContext, n: HookNames): string {
+function purge(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("purge_webhook_deliveries");
   const v = (logical: string) => n.col("deliveries", logical);
 
@@ -865,7 +865,7 @@ $$;
 ${grants(fn, "interval, boolean, integer", false)}`;
 }
 
-function secrets(ctx: ModuleContext, n: HookNames): string {
+function secrets(ctx: BlockSqlContext, n: HookNames): string {
   const rotate = ctx.fn("rotate_webhook_secret");
   const read = ctx.fn("webhook_secrets");
   const s = (logical: string) => n.col("secrets", logical);
@@ -978,7 +978,7 @@ $$;
 ${grants(read, "uuid", false)}`;
 }
 
-export function functions(ctx: ModuleContext, n: HookNames): string {
+export function functions(ctx: BlockSqlContext, n: HookNames): string {
   return [
     publish(ctx, n),
     dispatch(ctx, n),

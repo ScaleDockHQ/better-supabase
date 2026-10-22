@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -70,7 +70,7 @@ const REPORT_STATUSES = ["open", "resolved", "dismissed"] as const;
 export interface ModerationItem {
   readonly id: string;
   readonly organizationId: string;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly authorId?: string;
   readonly status: ModerationStatus;
   readonly openReports: number;
@@ -149,7 +149,7 @@ export interface Moderation {
    * auto-hide threshold.
    */
   report(
-    subject: SubjectRef,
+    subject: RecordRef,
     report: { readonly reason: string; readonly note?: string },
   ): AsyncResult<ModerationReport & { readonly autoHidden: boolean }>;
   /** The review queue, most recently changed first. */
@@ -158,7 +158,7 @@ export interface Moderation {
    * A subject's item with its reports and log, or `null` when nothing moderated
    * it.
    */
-  item(subject: SubjectRef): AsyncResult<ModerationItemDetail | null>;
+  item(subject: RecordRef): AsyncResult<ModerationItemDetail | null>;
   /** Decides on an item. `ban` needs the ban permission as well. */
   decide(
     itemId: string,

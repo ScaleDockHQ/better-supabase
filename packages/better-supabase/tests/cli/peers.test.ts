@@ -47,7 +47,7 @@ describe("satisfies", () => {
 
 describe("installed versions", () => {
   it("finds a package in node_modules above the root", async () => {
-    const root = await mkdtemp(join(tmpdir(), "bs-peers-"));
+    const root = await mkdtemp(join(tmpdir(), "bsb-peers-"));
     const pkg = join(root, "node_modules", "@scope", "lib");
     await mkdir(pkg, { recursive: true });
     await writeFile(

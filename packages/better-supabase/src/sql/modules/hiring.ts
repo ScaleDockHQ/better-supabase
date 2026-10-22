@@ -1,11 +1,11 @@
 import type { HiringEvents } from "../../blocks/hiring/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -31,7 +31,7 @@ const APPLICATION = [
   "candidateId",
 ] as const;
 
-const EVENTS: ModuleEvents<HiringEvents> = {
+const EVENTS: BlockSqlEvents<HiringEvents> = {
   "job.opened": {
     subject: "jobs",
     payload: ["organizationId", "jobId", "title"],
@@ -60,7 +60,7 @@ const EVENTS: ModuleEvents<HiringEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_application_hire", "after_application_hire"],
   options: ["candidate", "extraColumns"],
@@ -140,7 +140,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -289,7 +289,7 @@ using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("
 ${tables}
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -314,10 +314,10 @@ begin
   return new;
 end;
 $$;
-${triggerGrant("better_supabase.bs_application_guard()")}
-drop trigger if exists bs_application_guard on ${t("applications")};
-create trigger bs_application_guard before update of ${a("state")} on ${t("applications")}
-for each row execute function better_supabase.bs_application_guard();
+${triggerGrant("better_supabase.bsb_application_guard()")}
+drop trigger if exists bsb_application_guard on ${t("applications")};
+create trigger bsb_application_guard before update of ${a("state")} on ${t("applications")}
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
@@ -535,7 +535,7 @@ ${userGrant(`${fn("application_detail")}(uuid)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_job", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {
@@ -562,7 +562,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const HIRING: ModuleDefinition = {
+export const HIRING: BlockSqlDefinition = {
   name: "hiring",
   scopes: ["tenant"],
   title: "Hiring",

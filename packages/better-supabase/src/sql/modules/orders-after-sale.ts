@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
@@ -11,7 +11,7 @@ import {
   serviceOnlyGuard,
 } from "./orders-shared.ts";
 
-function restock(ctx: ModuleContext): string {
+function restock(ctx: BlockSqlContext): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
@@ -28,7 +28,7 @@ function restock(ctx: ModuleContext): string {
 }
 
 export function afterSaleFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: OrdersNames,
 ): string {
   const { fn } = names;

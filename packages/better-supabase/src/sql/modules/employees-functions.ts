@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
@@ -33,7 +33,7 @@ interface Field {
  * Every field `create_employee` and `update_employees` write, by its camelCase
  * name.
  */
-function fields(ctx: ModuleContext): readonly Field[] {
+function fields(ctx: BlockSqlContext): readonly Field[] {
   const text = (v: string): string => `nullif(trim(${v} #>> '{}'), '')`;
 
   const cast =
@@ -57,7 +57,7 @@ function fields(ctx: ModuleContext): readonly Field[] {
 }
 
 export function employeeFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: EmployeeNames,
 ): string {
   const employeeId = sqlString(ctx.resolved.entityNaming.rename("employeeId"));
@@ -472,7 +472,7 @@ ${fromApplication(ctx, n)}`;
  * `employee_from_application`, with the hiring module and the origin columns:
  * the employee for a hired application, made once.
  */
-function fromApplication(ctx: ModuleContext, n: EmployeeNames): string {
+function fromApplication(ctx: BlockSqlContext, n: EmployeeNames): string {
   if (
     !ctx.installed("hiring") ||
     !ctx.has("employees", "originType") ||

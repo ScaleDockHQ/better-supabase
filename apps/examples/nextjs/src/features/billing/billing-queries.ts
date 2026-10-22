@@ -4,7 +4,7 @@ import type { Money } from "better-supabase/commerce";
 import { money } from "better-supabase/commerce";
 import { cacheLife } from "next/cache";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface PlanOption {
   readonly key: string;
@@ -26,9 +26,9 @@ export interface PlanOption {
 export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";
   cacheLife("hours");
-  bs.cacheTag("plans");
+  bsb.cacheTag("plans");
 
-  const plans = await bs
+  const plans = await bsb
     .admin()
     .plans.findMany({
       select: ["key", "name", "priceCents", "currency"],
@@ -52,7 +52,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
 /** The organization's subscription; RLS limits it to members. */
 export async function getSubscription(organizationId: string) {
   "use cache: private";
-  const { db } = await bs.cached();
+  const { db } = await bsb.cached();
 
   return db.subscriptions
     .findFirst({

@@ -11,13 +11,13 @@ import {
   USER,
 } from "../fixtures/test-server.ts";
 
-const bs = createEdge(betterSupabase, {
+const bsb = createEdge(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
 });
 
-const handler = bs.routes(
+const handler = bsb.routes(
   {
     "GET /me": (_request, ctx) =>
       ok({ id: ctx.session.kind === "user" ? ctx.session.user.id : null }),
@@ -38,7 +38,7 @@ const at = async (path: string, init: RequestInit = {}, signedIn = true) =>
     }),
   );
 
-describe("bs.routes", () => {
+describe("bsb.routes", () => {
   it("routes by method and path, with params and the session", async () => {
     expect(await (await at("/api/me")).json()).toEqual({ id: USER });
     expect(await (await at("/api/notes/a%20b")).json()).toEqual({ id: "a b" });

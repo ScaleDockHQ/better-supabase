@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module actor@1 managed
+-- @bsb-block actor@1 managed
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,7 +8,7 @@
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- The user a service caller acts for, from the x-bs-actor header. Null for
+-- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
 -- Only service_role may call it; the security definer functions and triggers
 -- that record an actor call it as their owner.
@@ -24,7 +24,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
   return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
 exception when others then
   return null;
@@ -87,9 +87,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_actor on %s', target);
+  execute format('drop trigger if exists bsb_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
+    'create trigger bsb_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
     coalesce(updated_by, ''),
@@ -168,33 +168,33 @@ revoke execute on function better_supabase.token_scope_allows(text) from public;
 grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module-data actor
+-- @bsb-block-data actor
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('actor', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module actor@1 managed
+-- @bsb-block actor@1 managed
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -202,7 +202,7 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- The user a service caller acts for, from the x-bs-actor header. Null for
+-- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
 -- Only service_role may call it; the security definer functions and triggers
 -- that record an actor call it as their owner.
@@ -218,7 +218,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
   return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
 exception when others then
   return null;
@@ -281,9 +281,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_actor on %s', target);
+  execute format('drop trigger if exists bsb_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
+    'create trigger bsb_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
     coalesce(updated_by, ''),
@@ -362,33 +362,33 @@ revoke execute on function better_supabase.token_scope_allows(text) from public;
 grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module-data actor
+-- @bsb-block-data actor
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('actor', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module actor@1 managed
+-- @bsb-block actor@1 managed
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -396,7 +396,7 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- The user a service caller acts for, from the x-bs-actor header. Null for
+-- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
 -- Only service_role may call it; the security definer functions and triggers
 -- that record an actor call it as their owner.
@@ -412,7 +412,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
   return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
 exception when others then
   return null;
@@ -475,9 +475,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_actor on %s', target);
+  execute format('drop trigger if exists bsb_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
+    'create trigger bsb_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
     coalesce(updated_by, ''),
@@ -556,33 +556,33 @@ revoke execute on function better_supabase.token_scope_allows(text) from public;
 grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module-data actor
+-- @bsb-block-data actor
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('actor', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module actor@1 managed
+-- @bsb-block actor@1 managed
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -590,7 +590,7 @@ on conflict (name) do update
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
--- The user a service caller acts for, from the x-bs-actor header. Null for
+-- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
 -- Only service_role may call it; the security definer functions and triggers
 -- that record an actor call it as their owner.
@@ -606,7 +606,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
   return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
 exception when others then
   return null;
@@ -669,9 +669,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_actor on %s', target);
+  execute format('drop trigger if exists bsb_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
+    'create trigger bsb_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
     coalesce(updated_by, ''),
@@ -790,26 +790,26 @@ revoke execute on function "api"."token_scope_allows"(text) from public;
 grant execute on function "api"."token_scope_allows"(text) to anon, authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_02_actor.sql
 -- better-supabase module: actor
--- @bs-module-data actor
+-- @bsb-block-data actor
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('actor', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

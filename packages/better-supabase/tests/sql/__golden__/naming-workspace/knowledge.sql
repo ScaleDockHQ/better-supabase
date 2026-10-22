@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_49_knowledge.sql
 -- better-supabase module: knowledge
--- @bs-module knowledge@1 managed
+-- @bsb-block knowledge@1 managed
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -461,26 +461,26 @@ revoke execute on function "better_supabase"."reembed_knowledge"(uuid, text) fro
 grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_49_knowledge.sql
 -- better-supabase module: knowledge
--- @bs-module-data knowledge
+-- @bsb-block-data knowledge
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('knowledge', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

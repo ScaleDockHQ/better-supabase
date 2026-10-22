@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createApprovals,
@@ -41,7 +41,7 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
         grant usage on schema ${schema} to authenticated;
       `);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: { model: "provider" },
           approvals: {

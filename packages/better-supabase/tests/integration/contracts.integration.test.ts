@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createContracts } from "../../src/blocks/contracts/index.ts";
 import { createSignatures } from "../../src/blocks/signatures/index.ts";
@@ -32,7 +32,7 @@ const MODULES = [
   "contracts",
 ];
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: withBlockSubjects(
     { vendor: { table: "contracts_it.vendors", idType: "uuid" } },
     ["contracts"],

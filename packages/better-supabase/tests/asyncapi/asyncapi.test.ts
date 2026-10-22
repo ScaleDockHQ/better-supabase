@@ -206,7 +206,7 @@ describe("asyncapiFormat", () => {
 
   it("describes table change signals with their topic parameters", () => {
     expect(channels["tableCustomers"]).toMatchObject({
-      address: "bs:t:public.customers:{tenant}",
+      address: "bsb:t:public.customers:{tenant}",
       parameters: {
         tenant: { description: "The row's `organizationId` value." },
       },
@@ -215,9 +215,9 @@ describe("asyncapiFormat", () => {
       "x-better-supabase-table": "public.customers",
     });
     expect(channels["tableNotes"]?.["address"]).toBe(
-      "bs:t:public.notes:u:{userId}",
+      "bsb:t:public.notes:u:{userId}",
     );
-    expect(channels["tableTags"]?.["address"]).toBe("bs:t:public.tags");
+    expect(channels["tableTags"]?.["address"]).toBe("bsb:t:public.tags");
     expect(channels["tableTags"]).not.toHaveProperty("parameters");
     const message = doc.components.messages?.["tableCustomersChange"];
     expect(message).toMatchObject({

@@ -1,11 +1,11 @@
 import type { OAuthServerEvents } from "../../blocks/oauth-server/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -17,7 +17,7 @@ import {
   userGrant,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents<OAuthServerEvents> = {
+const EVENTS: BlockSqlEvents<OAuthServerEvents> = {
   "oauth_client.registered": {
     subject: "oauth-clients",
     payload: ["clientId"],
@@ -33,7 +33,7 @@ const EVENTS: ModuleEvents<OAuthServerEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["clientIdPattern"],
   tables: {
@@ -128,7 +128,7 @@ const guard = `
   end if;`;
 
 function clientEvent(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: "oauth_client.registered" | "oauth_client.deleted",
   clientId: string,
 ): string {
@@ -145,7 +145,7 @@ function clientEvent(
 }
 
 function grantEvent(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: "oauth_grant.created" | "oauth_grant.revoked",
   row: string,
 ): string {
@@ -164,7 +164,7 @@ function grantEvent(
   });
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -869,7 +869,7 @@ $$;
 ${serviceGrant(`${fn("purge_oauth_server")}()`)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "register_oauth_client",
@@ -959,7 +959,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const OAUTH_SERVER: ModuleDefinition = {
+export const OAUTH_SERVER: BlockSqlDefinition = {
   name: "oauth-server",
   title: "OAuth server",
   description:

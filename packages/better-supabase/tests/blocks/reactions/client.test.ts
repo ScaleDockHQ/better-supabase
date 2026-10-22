@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReactionCount } from "../../../src/blocks/reactions/reactions.ts";
-import type { SubjectRef } from "../../../src/schema/types.ts";
+import type { RecordRef } from "../../../src/schema/types.ts";
 
 import { createReactionsController } from "../../../src/blocks/reactions/client.ts";
 import {
@@ -21,12 +21,12 @@ const count = (emoji: string, reacted: boolean): ReactionCount => ({
   actors: [],
 });
 
-const comment = (id: string): SubjectRef => ({ type: "comment", id });
+const comment = (id: string): RecordRef => ({ type: "comment", id });
 
 function setup(topicName?: string | null, tenant: string | null = "org-1") {
   const topic = fakeTopic();
 
-  const summary = vi.fn((subjects: readonly SubjectRef[]) =>
+  const summary = vi.fn((subjects: readonly RecordRef[]) =>
     resolved(
       Object.fromEntries(
         subjects.map((subject) => [

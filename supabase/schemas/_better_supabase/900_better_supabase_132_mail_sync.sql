@@ -1,5 +1,5 @@
 -- better-supabase module: mail-sync
--- @bs-module mail-sync@1 managed
+-- @bsb-block mail-sync@1 managed
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1128,13 +1128,13 @@ revoke execute on function "api"."mail_template_stats"(uuid, timestamptz) from p
 grant execute on function "api"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

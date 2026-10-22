@@ -4,7 +4,7 @@ import * as v from "valibot";
 
 import { postgres } from "@/features/developer/postgres";
 import { can } from "@/features/user/user-permissions";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { JOBS_PERMISSION, QUEUE_NAME } from "./jobs-server";
 
@@ -74,7 +74,7 @@ function queueRuns(queue: string, param: string): string {
  */
 export async function loadJobRuns(): Promise<readonly JobRunRow[] | null> {
   "use cache: private";
-  const { session } = await bs.cached();
+  const { session } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant || !can(session, JOBS_PERMISSION)) {

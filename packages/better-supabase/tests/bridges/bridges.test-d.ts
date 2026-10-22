@@ -29,7 +29,7 @@ describe("bridges", () => {
 
   it("types the edge handler's ctx", () => {
     toEdge([entry], (_request, ctx) => {
-      expectTypeOf(ctx.bs).toEqualTypeOf<Keys["bs"]>();
+      expectTypeOf(ctx.bsb).toEqualTypeOf<Keys["bsb"]>();
 
       return new Response(null);
     });

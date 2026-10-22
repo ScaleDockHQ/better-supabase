@@ -114,9 +114,9 @@ resource:
 
 ```ts title="app/projects/actions.ts"
 import * as v from "valibot";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
-export const renameProject = bs.action(
+export const renameProject = bsb.action(
   {
     input: v.object({ id: v.string(), name: v.string() }),
     permission: "projects.update",
@@ -181,7 +181,7 @@ guard and MCP tool of that server uses it:
 import { createHono } from "better-supabase/hono";
 import { authorizer } from "./lib/authorizer";
 
-const bs = createHono(betterSupabase, { authorizer });
+const bsb = createHono(betterSupabase, { authorizer });
 ```
 
 | Where                                                                   | Option                                     |

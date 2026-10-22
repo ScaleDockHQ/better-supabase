@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[] = ["identities"],
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
-  renderModules(names, layout)
+  renderBlocks(names, layout)
     .filter((file) => file.module === "identities")
     .map((file) => file.contents)
     .join("\n");
@@ -85,7 +85,7 @@ describe("identities module", () => {
     });
 
     expect(off).toContain(
-      'drop trigger if exists "bs_identity_email" on auth.users;',
+      'drop trigger if exists "bsb_identity_email" on auth.users;',
     );
     expect(off).not.toContain("create trigger");
   });

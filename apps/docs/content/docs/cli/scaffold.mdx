@@ -92,15 +92,15 @@ Describe the resources, add list queries and custom routes there (see
 
 ### Next.js
 
-A catch-all route serves every resource through `bs.resources`, and a
+A catch-all route serves every resource through `bsb.resources`, and a
 second route serves the document with
 [`specResponse`](/docs/specs#serve-the-document):
 
 ```ts title="src/app/api/[...path]/route.ts"
 import { basePath, resources } from "../../../lib/api";
-import { bs } from "../../../lib/supabase/server";
+import { bsb } from "../../../lib/supabase/server";
 
-export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(resources, {
+export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(resources, {
   basePath,
 });
 ```
@@ -117,9 +117,9 @@ export const GET = (request: Request) => specResponse(document, request);
 
 ### Hono
 
-`api-routes.ts` exports `apiRoutes(bs)`: the document at
-`<basePath>/openapi.json`, `bs.middleware()` on `<basePath>/*`, and
-`bs.resource(table)` for each table. Mount it in `src/server.ts`:
+`api-routes.ts` exports `apiRoutes(bsb)`: the document at
+`<basePath>/openapi.json`, `bsb.middleware()` on `<basePath>/*`, and
+`bsb.resource(table)` for each table. Mount it in `src/server.ts`:
 
 ```ts title="src/server.ts"
 import { createHono } from "better-supabase/hono";
@@ -127,9 +127,9 @@ import { createHono } from "better-supabase/hono";
 import { apiRoutes } from "./api-routes";
 import { betterSupabase } from "./lib/supabase";
 
-export const bs = createHono(betterSupabase);
+export const bsb = createHono(betterSupabase);
 
-export const app = bs.app().route("/", apiRoutes(bs));
+export const app = bsb.app().route("/", apiRoutes(bsb));
 ```
 
 ## Next steps
@@ -148,7 +148,7 @@ The command prints what is left to do:
 
 `scaffold screens <table>` writes Next.js pages for one of your
 [app tables](/docs/blocks/app-tables): a list, a create form and a detail
-page. They read and write through the generated repository with `bs` from
+page. They read and write through the generated repository with `bsb` from
 `lib/supabase/server`, so the table's policies check every request.
 
 ```bash

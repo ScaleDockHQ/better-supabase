@@ -32,7 +32,7 @@ import {
 } from "better-supabase/blocks/identities";
 
 export async function linkSlack() {
-  const ctx = await bs.context();
+  const ctx = await bsb.context();
   const identities = createIdentities({
     transport: sqlTransport(ctx.postgres),
   });
@@ -72,7 +72,7 @@ import {
 } from "better-supabase/blocks/identities";
 import { createServer, defineAuthorizationHooks } from "better-supabase/server";
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   authorization: defineAuthorizationHooks({
     apiVersion: 1,
     name: "app",

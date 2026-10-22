@@ -1,9 +1,9 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { ACTING_MEMBER, actorWriteFunctions } from "../actor-guard.ts";
 import { SCHEMA } from "../shared.ts";
 
-export const ACTOR: ModuleDefinition = {
+export const ACTOR: BlockSqlDefinition = {
   name: "actor",
   title: "Actor stamping",
   description:
@@ -68,9 +68,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_actor on %s', target);
+  execute format('drop trigger if exists bsb_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
+    'create trigger bsb_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
     coalesce(updated_by, ''),

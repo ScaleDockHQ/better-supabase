@@ -856,6 +856,6 @@ export const buckets = {
 export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "engagement", "work_item", "employee", "ledger_account", "product", "product_variant", "calendar_event", "asset", "asset_location", "lease", "maintenance_request", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "policy", "incident", "document", "customer", "drive_node", "application", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
-export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
+export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
 
 export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);

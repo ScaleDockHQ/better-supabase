@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../config/index.ts";
-import type { ModuleTopic } from "../sql/index.ts";
+import type { BlockSqlTopic } from "../sql/index.ts";
 import type { LoadedTopic, LoadedTriggerOptions } from "./topics.ts";
 
 import { CliError } from "./core/errors.ts";
@@ -39,7 +39,7 @@ function triggerStatement(
 /** The file `realtime.policies` writes, or `undefined` when it isn't set. */
 export async function topicPolicyFile(
   config: ResolvedConfig,
-  owned: readonly ModuleTopic[] = [],
+  owned: readonly BlockSqlTopic[] = [],
 ): Promise<{ readonly path: string; readonly contents: string } | undefined> {
   const policies = config.realtime.policies;
   const triggers = config.realtime.triggers;

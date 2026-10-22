@@ -5,8 +5,8 @@ import type {
   AppTableConfig,
   AppTableEventKind,
 } from "../../config/types/app-tables.ts";
-import type { ModuleContext, ModuleIdType } from "../context.ts";
-import type { ModuleFile, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlIdType } from "../context.ts";
+import type { BlockSqlFile, BlockSqlLayout } from "../module-types.ts";
 import type { SealTable } from "./app-table-seal.ts";
 
 import { hasColumnAccess } from "../../config/app-access.ts";
@@ -40,22 +40,22 @@ import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
 
 /**
- * The `module` of the files `renderModules` writes for `appTables`. App tables
+ * The `module` of the files `renderBlocks` writes for `appTables`. App tables
  * aren't a block: no `SQL_MODULES` entry, no preset, no row in
- * `better_supabase.modules` (ADR 0040).
+ * `better_supabase.blocks` (ADR 0040).
  */
 export const APP_TABLES_MODULE = "app-tables";
 
 /** The first line after the title of the app tables schema file. */
-export const APP_TABLES_MARKER = "-- @bs-app-tables";
+export const APP_TABLES_MARKER = "-- @bsb-tables";
 
 const SCHEMA = "public";
 const COMMANDS = ["select", "insert", "update", "delete"] as const;
 
 /** A literal of each scope id type no tenant holds, for the RLS test. */
-const FOREIGN_ID: Readonly<Record<ModuleIdType, string>> = {
+const FOREIGN_ID: Readonly<Record<BlockSqlIdType, string>> = {
   uuid: "gen_random_uuid()",
-  text: "'bs-app-tables-test'",
+  text: "'bsb-app-tables-test'",
   bigint: "-1",
   integer: "-1",
 };
@@ -63,17 +63,17 @@ const FOREIGN_ID: Readonly<Record<ModuleIdType, string>> = {
 interface ScopeColumn {
   readonly name: string;
   readonly definition: string;
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
 }
 
 interface AppTable {
   readonly name: string;
   readonly config: AppTableConfig;
-  readonly ctx: ModuleContext;
+  readonly ctx: BlockSqlContext;
   readonly scope: ScopeColumn | undefined;
   /** Whether `expose` sets the table's grants instead. */
   readonly exposed: boolean;
-  /** Whether `blocks.sessions.options.policies` adds `bs_session_active`. */
+  /** Whether `blocks.sessions.options.policies` adds `bsb_session_active`. */
   readonly sessionPolicy: boolean;
   /** The columns whose reference checks the tenant too, by column name. */
   readonly tenantReferences: ReadonlyMap<string, TenantReference>;
@@ -94,7 +94,7 @@ interface TenantReference {
 const qualified = (table: string): string =>
   `${sqlIdent(SCHEMA)}.${sqlIdent(table)}`;
 
-function scopeOf(table: AppTableConfig, layout: ModuleLayout): BlockScope {
+function scopeOf(table: AppTableConfig, layout: BlockSqlLayout): BlockScope {
   switch (table.scope) {
     case "user":
     case "none": {
@@ -116,7 +116,7 @@ function scopeOf(table: AppTableConfig, layout: ModuleLayout): BlockScope {
 
 function scopeColumn(
   name: string,
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): ScopeColumn | undefined {
   switch (ctx.scope.kind) {
     case "tenant": {
@@ -166,7 +166,7 @@ function scopeColumn(
 function referenceSql(
   where: string,
   reference: AppReference,
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): string {
   const onDelete =
     reference.onDelete === undefined ? "" : ` on delete ${reference.onDelete}`;
@@ -852,7 +852,7 @@ function tableSql(table: AppTable): string {
 /** Throws when an app table has the name of a table an installed block keeps. */
 function checkBlockTables(
   names: readonly string[],
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   installed: readonly string[],
 ): void {
   const taken = new Map<string, string>();
@@ -882,7 +882,7 @@ function checkBlockTables(
   }
 }
 
-function isExposed(name: string, layout: ModuleLayout): boolean {
+function isExposed(name: string, layout: BlockSqlLayout): boolean {
   return (layout.grants ?? []).some(
     (grant) => grant.table === name || grant.table === `${SCHEMA}.${name}`,
   );
@@ -924,7 +924,7 @@ function foreignRow(table: AppTable): string | undefined {
   if (ctx.scope.kind === "user") {
     return `with u as (
   insert into auth.users (id, email, aud, role, instance_id)
-  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  values (gen_random_uuid(), 'bsb-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
   returning id
 )
 ${insert("u.id")} from u;`;
@@ -940,7 +940,7 @@ ${insert("u.id")} from u;`;
 
     return `with o as (
   insert into ${organizations.table("organizations")} (${org("name")}${slug ? `, ${org("slug")}` : ""})
-  values ('bs-app-tables-test'${slug ? ", 'bs-app-tables-' || substr(md5(random()::text), 1, 8)" : ""})
+  values ('bsb-app-tables-test'${slug ? ", 'bsb-app-tables-' || substr(md5(random()::text), 1, 8)" : ""})
   returning ${org("id")} as id
 )
 ${insert("o.id")} from o;`;
@@ -958,7 +958,7 @@ function testSql(table: AppTable): string {
     ...(table.scope ? COMMANDS : (["select"] as const)).map(
       (command) => `${table.name}_${command}`,
     ),
-    ...(table.sessionPolicy ? ["bs_session_active"] : []),
+    ...(table.sessionPolicy ? ["bsb_session_active"] : []),
   ];
 
   const checks = [
@@ -1069,13 +1069,13 @@ reset role;`;
  * security, the grants and policies of its scope, indexes on the scope and
  * reference columns, and the `updated_at` trigger when the `updated-at` block
  * is installed; and one pgTAP file that checks the policies and grants. Empty
- * without app tables. `installed` is every block module `renderModules`
+ * without app tables. `installed` is every block module `renderBlocks`
  * resolved.
  */
 export function appTablesFiles(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   installed: readonly string[],
-): ModuleFile[] {
+): BlockSqlFile[] {
   const entries = Object.entries(layout.appTables ?? {});
 
   if (entries.length === 0) {
@@ -1203,7 +1203,7 @@ export function appTablesFiles(
       module: APP_TABLES_MODULE,
       kind: "test",
       path: `${testsDir}/900_better_supabase_app_tables.test.sql`,
-      contents: `${title}\n-- @bs-module-test ${APP_TABLES_MODULE}\n${managed.join("\n")}\n\nbegin;
+      contents: `${title}\n-- @bsb-block-test ${APP_TABLES_MODULE}\n${managed.join("\n")}\n\nbegin;
 create extension if not exists pgtap with schema extensions;
 select extensions.plan(${String(plan)});
 

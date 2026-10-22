@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
@@ -14,8 +14,8 @@ import { accessModel } from "./access-model.ts";
  * includes a platform-role holder. Never every member.
  */
 export function permissionAudience(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string {
   const named = "nullif(notification ->> 'permission', '')";
 
@@ -47,7 +47,7 @@ export function permissionAudience(
 }
 
 function providerAudience(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   needsTenant: string,
   unavailable: string,
   named: string,
@@ -74,7 +74,7 @@ function providerAudience(
 }
 
 function customAudience(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   needsTenant: string,
   unavailable: string,
   named: string,
@@ -94,7 +94,7 @@ function customAudience(
 }
 
 function membershipAudience(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   model: ReturnType<typeof accessModel>,
   needsTenant: string,
   named: string,
@@ -147,7 +147,7 @@ const NAME = /^[a-z][a-z0-9_]*$/;
  * A channel nobody chose is on for `in_app` and off for the rest, unless
  * `channelDefaults` says otherwise.
  */
-export function channelDefaults(ctx: ModuleContext, channel: string): string {
+export function channelDefaults(ctx: BlockSqlContext, channel: string): string {
   const value = ctx.option("channelDefaults") ?? {};
 
   if (!isRecord(value)) {

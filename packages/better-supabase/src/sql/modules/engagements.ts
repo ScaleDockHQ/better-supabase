@@ -1,11 +1,11 @@
 import type { EngagementsEvents } from "../../blocks/engagements/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -39,7 +39,7 @@ const PAYLOAD = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents<EngagementsEvents> = {
+const EVENTS: BlockSqlEvents<EngagementsEvents> = {
   "engagement.logged": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.updated": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.completed": { subject: "engagements", payload: [...PAYLOAD] },
@@ -60,7 +60,7 @@ const EVENTS: ModuleEvents<EngagementsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     engagement: {
       table: "engagements",
@@ -114,7 +114,7 @@ const NAMES: ModuleNames = {
 
 const TYPE = /^[a-z][a-z0-9_]{0,62}$/;
 
-function types(ctx: ModuleContext): readonly string[] {
+function types(ctx: BlockSqlContext): readonly string[] {
   const list = ctx.list("types", ENGAGEMENT_TYPES);
 
   if (list.length === 0 || list.some((item) => !TYPE.test(item))) {
@@ -126,7 +126,7 @@ function types(ctx: ModuleContext): readonly string[] {
   return list;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -511,7 +511,7 @@ ${
 }${logsBookings(ctx, types(ctx)) ? bookingEngagementsSql(ctx) : ""}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "log_engagement",
@@ -546,7 +546,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 
 const REQUIRES = ["tenant", "access", "subjects"] as const;
 
-export const ENGAGEMENTS: ModuleDefinition = {
+export const ENGAGEMENTS: BlockSqlDefinition = {
   name: "engagements",
   scopes: ["tenant"],
   title: "Engagements",

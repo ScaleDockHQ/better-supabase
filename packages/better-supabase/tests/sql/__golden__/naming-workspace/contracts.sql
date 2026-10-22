@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
--- @bs-module contracts@1 managed
+-- @bsb-block contracts@1 managed
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -449,8 +449,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."contract_signature_settled"() from public, anon, authenticated;
-drop trigger if exists "bs_contracts_signature_settled" on "better_supabase"."signature_requests";
-create trigger "bs_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
+drop trigger if exists "bsb_contracts_signature_settled" on "better_supabase"."signature_requests";
+create trigger "bsb_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
   for each row when (old."status" = 'pending' and new."status" <> 'pending')
   execute function "better_supabase"."contract_signature_settled"();
 
@@ -677,26 +677,26 @@ revoke execute on function "better_supabase"."list_obligations"(uuid, uuid, uuid
 grant execute on function "better_supabase"."list_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
--- @bs-module-data contracts
+-- @bsb-block-data contracts
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('contracts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

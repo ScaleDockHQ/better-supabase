@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { DbError } from "../core/errors.ts";
 import type { AsyncResult } from "../core/result.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { EntitySchema } from "./entity-schema.ts";
 
 import { entitySchema } from "./entity-schema.ts";
@@ -32,7 +32,7 @@ export interface SectionWrite<Client, Input, Output = unknown> {
   readonly input: StandardSchemaV1<unknown, Input>;
   readonly run: (
     client: Client,
-    subject: SubjectRef,
+    subject: RecordRef,
     input: Input,
   ) => AsyncResult<Output>;
 }
@@ -43,7 +43,7 @@ export interface AnySectionWrite {
   readonly input: StandardSchemaV1;
   readonly run: (
     client: never,
-    subject: SubjectRef,
+    subject: RecordRef,
     input: never,
   ) => AsyncResult<unknown>;
 }
@@ -83,7 +83,7 @@ export interface SectionDefinition<
   /** The section's rows for one subject. */
   readonly load: (
     client: Client,
-    subject: SubjectRef,
+    subject: RecordRef,
     options: Options | undefined,
   ) => AsyncResult<Data>;
   /**
@@ -92,7 +92,7 @@ export interface SectionDefinition<
    */
   readonly count?: (
     client: Client,
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, number>>>;
   /**
    * The section's value for each of many subjects, keyed by `subjectKey`
@@ -101,7 +101,7 @@ export interface SectionDefinition<
    */
   readonly column?: (
     client: Client,
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, unknown>>>;
   /** The section's rows as timeline entries, for `loadTimeline`. */
   readonly timeline?: (data: Data) => readonly TimelineItem[];
@@ -137,16 +137,16 @@ export interface AnySection {
   readonly module?: string;
   readonly load: (
     client: never,
-    subject: SubjectRef,
+    subject: RecordRef,
     options: never,
   ) => AsyncResult<unknown>;
   readonly count?: (
     client: never,
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, number>>>;
   readonly column?: (
     client: never,
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, unknown>>>;
   readonly timeline?: (data: never) => readonly TimelineItem[];
   readonly events: readonly string[];

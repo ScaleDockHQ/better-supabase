@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_44_workflow_builder.sql
 -- better-supabase module: workflow-builder
--- @bs-module workflow-builder@2 managed
+-- @bsb-block workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1873,7 +1873,7 @@ $$;
 revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
 grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
 
--- Fires the failed alerts of a run's definition (the bs.definition
+-- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
 create or replace function "better_supabase"."workflow_runs_alert"()
 returns trigger
@@ -1891,7 +1891,7 @@ begin
   end if;
   for v_alert in
     select * from "better_supabase"."workflow_alerts" x
-    where x."on_event" = 'failed' and x."definition_id"::text = new."attributes" ->> 'bs.definition'
+    where x."on_event" = 'failed' and x."definition_id"::text = new."attributes" ->> 'bsb.definition'
   loop
     insert into "better_supabase"."workflow_alert_fires" ("alert_id", "run_id") values (v_alert."id", v_run."id")
       on conflict do nothing;
@@ -1903,8 +1903,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_alert"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_alert" on "better_supabase"."workflow_runs";
-create trigger "bs_workflow_runs_alert" after insert or update of "status" on "better_supabase"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_alert" on "better_supabase"."workflow_runs";
+create trigger "bsb_workflow_runs_alert" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_alert"();
 
 -- Fires the slow alerts whose runs are still unfinished after their
@@ -1924,7 +1924,7 @@ declare
 begin
   for v_pair in
     select x."id" as alert, y."id" as run from "better_supabase"."workflow_alerts" x
-    join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bs.definition' = x."definition_id"::text
+    join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bsb.definition' = x."definition_id"::text
     where x."on_event" = 'slow'
       and y."mode" = 'live'
       and y."status" in ('queued', 'running', 'waiting')
@@ -1947,20 +1947,20 @@ revoke execute on function "better_supabase"."check_workflow_alerts"(integer) fr
 grant execute on function "better_supabase"."check_workflow_alerts"(integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_44_workflow_builder.sql
 -- better-supabase module: workflow-builder
--- @bs-module-data workflow-builder
+-- @bsb-block-data workflow-builder
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -1968,7 +1968,7 @@ grant select on better_supabase.modules to service_role;
 
 create extension if not exists "pgcrypto" with schema "extensions";
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('workflow-builder', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -1,5 +1,5 @@
 -- better-supabase module: comments
--- @bs-module comments@8 managed
+-- @bsb-block comments@8 managed
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with work-items).
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -465,13 +465,13 @@ end;
 $$;
 revoke execute on function "better_supabase"."comments_subject_deleted"() from public, anon, authenticated;
 
-drop trigger if exists "bs_comments_product_cascade" on "better_supabase"."products";
-create trigger "bs_comments_product_cascade"
+drop trigger if exists "bsb_comments_product_cascade" on "better_supabase"."products";
+create trigger "bsb_comments_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."comments_subject_deleted"('product', 'id', 'tenant_id');
 
-drop trigger if exists "bs_comments_product_variant_cascade" on "better_supabase"."product_variants";
-create trigger "bs_comments_product_variant_cascade"
+drop trigger if exists "bsb_comments_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bsb_comments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id', 'tenant_id');
 
@@ -577,13 +577,13 @@ revoke execute on function "api"."assign_comment"(uuid, uuid, jsonb) from public
 grant execute on function "api"."assign_comment"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

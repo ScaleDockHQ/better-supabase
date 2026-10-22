@@ -1,7 +1,7 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -32,7 +32,7 @@ export interface StateMachineOptions<
 /** Where a record is in its machine, from `state()`. */
 export interface StatusState {
   readonly organizationId: string;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly status: string;
   /** The machine's `order`, empty when it sets none. */
   readonly order: readonly string[];
@@ -84,7 +84,7 @@ export interface StateMachine<S extends string = string> {
    * allow. `not_found` for a record they can't see.
    */
   transition(
-    subject: SubjectRef<S>,
+    subject: RecordRef<S>,
     to: string,
     reason?: string,
   ): AsyncResult<boolean>;
@@ -93,35 +93,35 @@ export interface StateMachine<S extends string = string> {
    * until `until` passes, or until `resume()` without one.
    */
   pause(
-    subject: SubjectRef<S>,
+    subject: RecordRef<S>,
     options?: { readonly until?: Temporal.Instant; readonly reason?: string },
   ): AsyncResult<boolean>;
   /** Ends a pause; `false` when the record wasn't paused. */
-  resume(subject: SubjectRef<S>): AsyncResult<boolean>;
+  resume(subject: RecordRef<S>): AsyncResult<boolean>;
   /**
    * Turns a flag the machine lists in `flags` on or off; `false` when it
    * already was.
    */
   setFlag(
-    subject: SubjectRef<S>,
+    subject: RecordRef<S>,
     flag: string,
     enabled: boolean,
   ): AsyncResult<boolean>;
   /** The record's status, progress, flags, pause and pinned version. */
-  state(subject: SubjectRef<S>): AsyncResult<StatusState>;
+  state(subject: RecordRef<S>): AsyncResult<StatusState>;
   /**
    * Status changes, newest first; page with the last `createdAt` as `cursor`.
    * Default 50, at most 500.
    */
   history(
-    subject: SubjectRef<S>,
+    subject: RecordRef<S>,
     page?: CursorPageOptions<Temporal.Instant>,
   ): AsyncResult<readonly StatusChange[]>;
   /**
    * The stages timeline in display order; empty for a machine without `stages:
    * true`.
    */
-  stages(subject: SubjectRef<S>): AsyncResult<readonly StatusStage[]>;
+  stages(subject: RecordRef<S>): AsyncResult<readonly StatusStage[]>;
 }
 
 const optionalNumber = (value: unknown): number | undefined =>

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -35,7 +35,7 @@ const decimalText = (amount: string): string =>
  * the type's pool or taken account, or another period's account.
  */
 export function leaveLedgerFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   parts: LeaveLedgerParts,
 ): string {
   const ledger = ctx.of("ledger");
@@ -375,7 +375,7 @@ ${userGrant(`${fn("close_leave_year")}(${idType}, integer)`)}
 }
 
 /** Copies `leave_ledger` into the ledger, keeping each row's id. */
-export function leaveLedgerUpgrade(ctx: ModuleContext): string {
+export function leaveLedgerUpgrade(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }

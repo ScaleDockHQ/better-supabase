@@ -8,7 +8,7 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { answerHelp } from "./help-bot";
 import {
@@ -31,7 +31,7 @@ function laterInstant(later: Later): Temporal.Instant {
 }
 
 /** The list for the filters, loaded again by `useInbox` after each ping. */
-export const loadConversations = bs.action(
+export const loadConversations = bsb.action(
   {
     input: v.object({ status: ConversationStatus, assignee: AssigneeFilter }),
     requireTenant: true,
@@ -52,7 +52,7 @@ export const loadConversations = bs.action(
  * The conversation with its messages, oldest first; staff also get the notes.
  * Opening it marks it read.
  */
-export const loadThread = bs.action(
+export const loadThread = bsb.action(
   { input: ConversationInput },
   async ({ conversationId }, { supabase }) => {
     const { inbox } = blocks(supabase);
@@ -94,7 +94,7 @@ export const loadThread = bs.action(
 );
 
 /** One message, for the Realtime ping that names it. */
-export const loadMessage = bs.action(
+export const loadMessage = bsb.action(
   { input: v.object({ messageId: Id }) },
   async ({ messageId }, { supabase }) => {
     const message = await blocks(supabase).inbox.messages.get(messageId);
@@ -106,7 +106,7 @@ export const loadMessage = bs.action(
 );
 
 /** A reply to the contact, or with `note` an internal note only staff see. */
-export const reply = bs.action(
+export const reply = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
   async ({ conversationId, body, note }, { supabase }) => {
     const { messages } = blocks(supabase).inbox;
@@ -119,7 +119,7 @@ export const reply = bs.action(
   },
 );
 
-export const assign = bs.action(
+export const assign = bsb.action(
   { input: v.object({ conversationId: Id, toMe: v.boolean() }) },
   async ({ conversationId, toMe }, { auth, supabase }) => {
     const assigned = await blocks(supabase).inbox.conversations.assign(
@@ -132,7 +132,7 @@ export const assign = bs.action(
 );
 
 /** Hands a bot conversation to staff. */
-export const takeOver = bs.action(
+export const takeOver = bsb.action(
   { input: ConversationInput },
   async ({ conversationId }, { supabase }) => {
     const changed = await blocks(supabase).inbox.conversations.handoff(
@@ -144,7 +144,7 @@ export const takeOver = bs.action(
   },
 );
 
-export const setStatus = bs.action(
+export const setStatus = bsb.action(
   { input: v.object({ conversationId: Id, resolved: v.boolean() }) },
   async ({ conversationId, resolved }, { supabase }) => {
     const { conversations } = blocks(supabase).inbox;
@@ -158,7 +158,7 @@ export const setStatus = bs.action(
 );
 
 /** Hides the conversation until the time comes; then it opens again. */
-export const snooze = bs.action(
+export const snooze = bsb.action(
   { input: v.object({ conversationId: Id, until: Later }) },
   async ({ conversationId, until }, { supabase }) => {
     const changed = await blocks(supabase).inbox.conversations.snooze(
@@ -171,7 +171,7 @@ export const snooze = bs.action(
 );
 
 /** The caller's replies on the conversation that wait to go out. */
-export const loadScheduled = bs.action(
+export const loadScheduled = bsb.action(
   { input: ConversationInput },
   async ({ conversationId }, { supabase }) => {
     const listed =
@@ -182,7 +182,7 @@ export const loadScheduled = bs.action(
 );
 
 /** A reply that goes out later, as the caller, when `publishDue` runs. */
-export const scheduleReply = bs.action(
+export const scheduleReply = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, at: Later }) },
   async ({ conversationId, body, at }, { supabase }) => {
     const scheduled = await blocks(supabase).inbox.messages.schedule(
@@ -195,7 +195,7 @@ export const scheduleReply = bs.action(
   },
 );
 
-export const cancelScheduled = bs.action(
+export const cancelScheduled = bsb.action(
   { input: v.object({ scheduledId: Id }) },
   async ({ scheduledId }, { supabase }) =>
     blocks(supabase).inbox.messages.cancelScheduled(scheduledId),
@@ -205,7 +205,7 @@ export const cancelScheduled = bs.action(
  * The Help sheet's first message: opens a conversation as the visitor, with the
  * `/assistant` bot answering until staff take over.
  */
-export const askForHelp = bs.action(
+export const askForHelp = bsb.action(
   { input: v.object({ message: Body }) },
   async ({ message }, { auth, supabase }) => {
     const opened = await blocks(supabase).inbox.conversations.open(
@@ -227,7 +227,7 @@ export const askForHelp = bs.action(
 );
 
 /** The Help sheet's later messages, as the conversation's contact. */
-export const sendHelp = bs.action(
+export const sendHelp = bsb.action(
   { input: v.object({ conversationId: Id, message: Body }) },
   async ({ conversationId, message }, { auth, supabase }) => {
     const sent = await blocks(supabase).inbox.messages.send(conversationId, {

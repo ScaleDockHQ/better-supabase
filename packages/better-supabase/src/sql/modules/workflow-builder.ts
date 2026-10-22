@@ -1,11 +1,11 @@
 import type { WorkflowBuilderEvents } from "../../blocks/workflow-builder/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -27,7 +27,7 @@ import {
   sqlList as list,
 } from "./workflow-builder-starts.ts";
 
-const EVENTS: ModuleEvents<WorkflowBuilderEvents> = {
+const EVENTS: BlockSqlEvents<WorkflowBuilderEvents> = {
   "workflow.published": {
     subject: "workflows",
     payload: ["organizationId", "definitionId", "versionId", "version"],
@@ -48,7 +48,7 @@ const EVENTS: ModuleEvents<WorkflowBuilderEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["extraColumns"],
   tables: {
@@ -216,7 +216,7 @@ const NODE_RUN_STATUSES = [
   "skipped",
 ] as const;
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -860,7 +860,7 @@ ${builderStartsSql(ctx, s)}
 ${builderRuntimeSql(s)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("definitions", ["fields"]),
   ).contract;
@@ -978,7 +978,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const WORKFLOW_BUILDER: ModuleDefinition = {
+export const WORKFLOW_BUILDER: BlockSqlDefinition = {
   name: "workflow-builder",
   scopes: ["tenant"],
   title: "Workflow builder",

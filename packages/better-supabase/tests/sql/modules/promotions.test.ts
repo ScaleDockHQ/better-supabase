@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (names: readonly string[]): string =>
-  renderModules([...names], {})
+  renderBlocks([...names], {})
     .filter((file) => file.module === "promotions")
     .map((file) => file.contents)
     .join("\n");
@@ -54,9 +54,7 @@ describe("promotions module", () => {
   });
 
   it("installs catalog and orders with it", () => {
-    const modules = renderModules(["promotions"], {}).map(
-      (file) => file.module,
-    );
+    const modules = renderBlocks(["promotions"], {}).map((file) => file.module);
 
     expect(modules).toEqual(expect.arrayContaining(["catalog", "orders"]));
   });

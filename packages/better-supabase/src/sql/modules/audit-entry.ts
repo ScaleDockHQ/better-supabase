@@ -1,7 +1,7 @@
-import type { ModuleIdType } from "../context.ts";
+import type { BlockSqlIdType } from "../context.ts";
 
 /** A text expression as the id type, or null when it doesn't parse as one. */
-export function castId(value: string, idType: ModuleIdType): string {
+export function castId(value: string, idType: BlockSqlIdType): string {
   switch (idType) {
     case "uuid": {
       return `case when ${value} ~* '^[0-9a-f-]{36}$' then (${value})::uuid end`;
@@ -64,7 +64,7 @@ export function entrySql(): string {
  * Resolves the tenant of a row without a tenant column, through its
  * `tenant_path` and `tenant_function`.
  */
-export function tenantFallbackSql(idType: ModuleIdType): string {
+export function tenantFallbackSql(idType: BlockSqlIdType): string {
   const cast = castId("path_value", idType);
 
   return `  -- A child row without a tenant column: follow the foreign-key path

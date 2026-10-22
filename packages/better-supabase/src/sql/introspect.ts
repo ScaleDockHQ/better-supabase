@@ -1,5 +1,5 @@
 import type { AnyBlocksConfig } from "../config/blocks.ts";
-import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
+import type { BlockSqlFile, BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { sqlIdent } from "../core/template.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
@@ -11,10 +11,10 @@ import {
   moduleOperations,
   modulePermissionKey,
 } from "./modules/access-model.ts";
-import { SQL_MODULES, checkModules, resolveModules } from "./registry.ts";
+import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";
 
 /** A permission key a SQL module checks, from `modulePermissionKeys`. */
-export interface ModulePermissionKey {
+export interface BlockSqlPermissionKey {
   readonly module: string;
   /** The action in `blocks.<module>.permissions` that overrides the key. */
   readonly action: string;
@@ -50,13 +50,13 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
 export function modulePermissionKeys(
   config: AnyBlocksConfig,
   names: readonly string[],
-): ModulePermissionKey[] {
-  const layout: ModuleLayout = { modules: config };
+): BlockSqlPermissionKey[] {
+  const layout: BlockSqlLayout = { modules: config };
   checkModules(config);
-  const modules = resolveModules(names, layout);
+  const modules = resolveBlocks(names, layout);
   const installed = modules.map((module) => module.name);
 
-  return modules.flatMap((module): ModulePermissionKey[] => {
+  return modules.flatMap((module): BlockSqlPermissionKey[] => {
     const name = module.name;
 
     if (!isOperationModule(name)) {
@@ -74,7 +74,7 @@ export function modulePermissionKeys(
 
     const optional = Object.entries(
       OPTIONAL_MODULE_PERMISSIONS[name] ?? {},
-    ).flatMap(([action, scope]): ModulePermissionKey[] => {
+    ).flatMap(([action, scope]): BlockSqlPermissionKey[] => {
       const key = ctx.permissionKey(action, "");
 
       return key === "" ? [] : [{ module: name, action, key, scope }];
@@ -82,7 +82,7 @@ export function modulePermissionKeys(
 
     return [
       ...Object.entries(moduleOperations(name)).flatMap(
-        ([action, fallback]): ModulePermissionKey[] =>
+        ([action, fallback]): BlockSqlPermissionKey[] =>
           action === "invitePlatform" && !hasPlatformRoles(ctx)
             ? []
             : [
@@ -96,7 +96,7 @@ export function modulePermissionKeys(
       ),
       ...optional,
       ...(SQL_MODULES[name]?.permissionKeys?.(ctx) ?? []).map(
-        (entry): ModulePermissionKey => ({ module: name, ...entry }),
+        (entry): BlockSqlPermissionKey => ({ module: name, ...entry }),
       ),
     ];
   });
@@ -117,17 +117,17 @@ export function moduleExtensions(body: string): string {
     .join("\n");
 }
 
-export interface ModuleExtension {
+export interface BlockSqlExtension {
   readonly name: string;
   readonly statement: string;
 }
 
-function extensionsOf(bodies: readonly string[]): ModuleExtension[] {
+function extensionsOf(bodies: readonly string[]): BlockSqlExtension[] {
   const seen = new Set<string>();
 
   return bodies.flatMap((body) =>
     [...body.matchAll(CREATE_EXTENSION)].flatMap(
-      ([, name = "", schema]): ModuleExtension[] => {
+      ([, name = "", schema]): BlockSqlExtension[] => {
         const key = name.toLowerCase();
 
         if (seen.has(key)) {
@@ -148,21 +148,21 @@ function extensionsOf(bodies: readonly string[]): ModuleExtension[] {
 }
 
 export const moduleSchemaExtensions = (
-  files: readonly ModuleFile[],
-): ModuleExtension[] =>
+  files: readonly BlockSqlFile[],
+): BlockSqlExtension[] =>
   extensionsOf(
     files.filter((file) => file.kind === "schema").map((file) => file.contents),
   );
 
 /**
- * The installed modules' soft-delete columns (`SqlModule.hidingColumns`), as
+ * The installed modules' soft-delete columns (`BlockSql.hidingColumns`), as
  * `schema.table.column` after the layout's renames, for doctor BS213.
  */
 export function moduleHidingColumns(
   installed: readonly string[],
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): string[] {
-  return resolveModules(installed, layout).flatMap((module) => {
+  return resolveBlocks(installed, layout).flatMap((module) => {
     if (!module.hidingColumns) {
       return [];
     }
@@ -189,7 +189,7 @@ export function moduleHidingColumns(
  */
 export function moduleEventTriggers(
   names: readonly string[],
-  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+  modules: Readonly<Record<string, BlockSql>> = SQL_MODULES,
 ): { readonly module: string; readonly name: string }[] {
   return names.flatMap((module) => {
     const definition = modules[module];

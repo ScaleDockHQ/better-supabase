@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
@@ -23,7 +23,7 @@ function addressCheck(address: string): string {
  * owns it.
  */
 function ownCart(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   id: string,
   options: { readonly lock?: boolean; readonly readers?: string } = {},
 ): string {
@@ -49,7 +49,7 @@ function openCart(): string {
 }
 
 /** Raises unless `variant` is an active product's variant in the cart's tenant. */
-function sellable(ctx: ModuleContext, variant: string): string {
+function sellable(ctx: BlockSqlContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
   const p = columns(catalog, "products");
@@ -63,7 +63,7 @@ function sellable(ctx: ModuleContext, variant: string): string {
 }
 
 export function shippingRateFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: OrdersNames,
 ): string {
   const { fn } = names;
@@ -147,7 +147,7 @@ ${userGrant(`${fn("delete_shipping_rate")}(uuid)`)}
 }
 
 /** `cart_totals`: the internal pricing every cart read and checkout share. */
-function totalsFunction(ctx: ModuleContext, names: OrdersNames): string {
+function totalsFunction(ctx: BlockSqlContext, names: OrdersNames): string {
   const { fn } = names;
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
@@ -287,7 +287,10 @@ revoke execute on function ${fn("cart_totals")}(uuid) from public, anon, authent
 `;
 }
 
-export function cartFunctions(ctx: ModuleContext, names: OrdersNames): string {
+export function cartFunctions(
+  ctx: BlockSqlContext,
+  names: OrdersNames,
+): string {
   const { fn } = names;
   const carts = ctx.table("carts");
   const lines = ctx.table("cartLines");

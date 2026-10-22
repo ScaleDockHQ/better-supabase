@@ -6,13 +6,13 @@ import type {
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { WorkOrderPriority, WorkOrderStatus } from "./statuses.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -65,7 +65,7 @@ export interface WorkOrder<F extends object = Record<never, never>> {
   readonly assetId?: string;
   /** The booking its slot came from. */
   readonly bookingId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** A free-text address, for a place that isn't an assets location. */
   readonly address?: string;
   readonly enRouteAt?: Temporal.Instant;
@@ -91,7 +91,7 @@ export interface WorkOrderInput<F extends object = Record<never, never>> {
   /** Takes the slot from the booking when `startsAt` is unset. */
   readonly bookingId?: string;
   /** The record the job is for, registered in `config.subjects`. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly address?: string;
   /** With `startsAt` (or a booking), the work order is scheduled at once. */
   readonly technicianId?: string;
@@ -129,7 +129,7 @@ export type WorkOrderTransition = Extract<
 export interface WorkOrderListOptions {
   readonly status?: WorkOrderStatus;
   readonly technicianId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** Work orders whose slot ends after this. */
   readonly from?: Temporal.Instant;
   /** Work orders whose slot starts before this. */
@@ -283,7 +283,7 @@ function defined<T extends object>(values: T): Defined<T> {
 
 function workOrderOf(value: unknown, fn: string): WorkOrder {
   const row = recordOf(value, fn);
-  const subject = optionalSubjectRefOf(row["subjectType"], row["subjectId"]);
+  const subject = optionalRecordRefOf(row["subjectType"], row["subjectId"]);
   const day = optionalText(row["day"]);
 
   return {

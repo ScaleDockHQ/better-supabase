@@ -1,8 +1,8 @@
 import type { OrganizationsEvents } from "../../blocks/organizations/events.ts";
-import type { ModuleEvents } from "../context.ts";
+import type { BlockSqlEvents } from "../context.ts";
 
 /** The outbox events the module records. */
-export const ORGANIZATION_EVENTS: ModuleEvents<OrganizationsEvents> = {
+export const ORGANIZATION_EVENTS: BlockSqlEvents<OrganizationsEvents> = {
   "organization.created": {
     subject: "organizations",
     payload: ["organizationId", "userId", "role"],

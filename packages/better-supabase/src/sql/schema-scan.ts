@@ -445,7 +445,7 @@ const EXTENSION = /* @__PURE__ */ new RegExp(
   "gi",
 );
 
-const MODULE_FILE = /^-- @bs-module /m;
+const MODULE_FILE = /^-- @(?:bsb-block|bs-module) /m;
 
 export function extensionSchema(
   sources: readonly { readonly text: string }[],

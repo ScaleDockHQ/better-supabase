@@ -201,25 +201,25 @@ describe("contextClaims", () => {
       contextClaims({ actor: user }, { permissions: ["posts.write"] }),
     ).toMatchObject({
       ok: true,
-      claims: { bs_permission_cap: ["posts.write"] },
+      claims: { bsb_permission_cap: ["posts.write"] },
     });
     expect(
       contextClaims(
-        { actor: user, claims: { bs_permission_cap: ["posts.*"] } },
+        { actor: user, claims: { bsb_permission_cap: ["posts.*"] } },
         { permissions: ["posts.write", "billing.manage"] },
       ),
     ).toMatchObject({
       ok: true,
-      claims: { bs_permission_cap: ["posts.write"] },
+      claims: { bsb_permission_cap: ["posts.write"] },
     });
     expect(
-      contextClaims({ actor: user, claims: { bs_permission_cap: ["a"] } }),
-    ).toMatchObject({ ok: true, claims: { bs_permission_cap: ["a"] } });
+      contextClaims({ actor: user, claims: { bsb_permission_cap: ["a"] } }),
+    ).toMatchObject({ ok: true, claims: { bsb_permission_cap: ["a"] } });
     expect(
-      contextClaims({ actor: user }, { extra: { bs_permission_cap: ["*"] } }),
+      contextClaims({ actor: user }, { extra: { bsb_permission_cap: ["*"] } }),
     ).toEqual({ ok: true, claims: { role: "authenticated", sub: "user-1" } });
     expect(
-      contextClaims({ actor: user, claims: { bs_permission_cap: "a" } }),
+      contextClaims({ actor: user, claims: { bsb_permission_cap: "a" } }),
     ).toEqual({
       ok: false,
       message: "forContext got an invalid permission cap",

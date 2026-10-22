@@ -1,6 +1,6 @@
 "use client";
 
-import type { SubjectRef } from "../../../schema/types.ts";
+import type { RecordRef } from "../../../schema/types.ts";
 import type { BlockEnv } from "../../block-env.ts";
 import type { SubjectsActions, SubjectsSnapshot } from "../client.ts";
 import type { ResolvedSubject, Subjects } from "../subjects.ts";
@@ -30,7 +30,7 @@ function sourceOf(env: BlockEnv): Subjects {
 
 export interface SubjectsState extends SubjectsSnapshot, SubjectsActions {
   /** The resolved subject of `ref`, or `undefined` while loading or unreadable. */
-  readonly get: (ref: SubjectRef) => ResolvedSubject | undefined;
+  readonly get: (ref: RecordRef) => ResolvedSubject | undefined;
 }
 
 /**
@@ -42,7 +42,7 @@ export interface SubjectsState extends SubjectsSnapshot, SubjectsActions {
  * const { get } = useSubjects(rows.map((row) => row.subject));
  * ```
  */
-export function useSubjects(refs: readonly SubjectRef[]): SubjectsState {
+export function useSubjects(refs: readonly RecordRef[]): SubjectsState {
   const env = useBlockEnv();
 
   const key = [
@@ -59,7 +59,7 @@ export function useSubjects(refs: readonly SubjectRef[]): SubjectsState {
         refs:
           key === ""
             ? []
-            : key.split("\n").map((line): SubjectRef => {
+            : key.split("\n").map((line): RecordRef => {
                 // SAFETY: each line is the `[type, id]` pair written above.
                 const [type, id] = JSON.parse(line) as [string, string];
 
@@ -83,7 +83,7 @@ export interface SubjectState {
  * One subject's title and path, batched with the other `useSubject` and
  * `useSubjects` calls of the same render.
  */
-export function useSubject(ref: SubjectRef | null | undefined): SubjectState {
+export function useSubject(ref: RecordRef | null | undefined): SubjectState {
   const { subjects, error, get, refresh } = useSubjects(ref ? [ref] : []);
 
   return {

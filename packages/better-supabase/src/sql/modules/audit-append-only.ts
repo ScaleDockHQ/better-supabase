@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { triggerGrant } from "../shared.ts";
@@ -7,7 +7,7 @@ import { triggerGrant } from "../shared.ts";
  * The triggers that keep audit log entries append-only, or drops them when
  * `appendOnly` is off.
  */
-export function appendOnly(ctx: ModuleContext): string {
+export function appendOnly(ctx: BlockSqlContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_append_only");
   const truncate = ctx.trigger("audit_no_truncate");

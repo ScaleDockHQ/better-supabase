@@ -4,13 +4,13 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * Adds an address to the waitlist, or returns its place when it is already
  * there. `api.join_waitlist` is granted to `anon`, so this works signed out.
  */
-export const joinWaitlist = bs.action(
+export const joinWaitlist = bsb.action(
   {
     input: v.object({
       email: v.pipe(v.string(), v.trim(), v.email(), v.maxLength(320)),

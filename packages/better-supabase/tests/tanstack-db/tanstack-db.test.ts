@@ -143,7 +143,7 @@ describe("collectionOptions", () => {
     const db = betterSupabase.connect(capturingClient().client);
     expect(() =>
       collectionOptions(betterSupabase, db, "customers", {
-        query: { queryKey: ["bs"], queryFn: skipToken },
+        query: { queryKey: ["bsb"], queryFn: skipToken },
         queryClient: new QueryClient(),
       }),
     ).toThrow(/skipToken/);

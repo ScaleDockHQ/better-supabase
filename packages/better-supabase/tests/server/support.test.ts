@@ -143,7 +143,9 @@ describe("support sessions on the server", () => {
     ).toBeUndefined();
     expect(
       server.support.sessionIdOf(
-        new Request("https://a.test/", { headers: { cookie: "bs-support=s" } }),
+        new Request("https://a.test/", {
+          headers: { cookie: "bsb-support=s" },
+        }),
       ),
     ).toBeUndefined();
     expect(server.support.clearCookie()).toMatch(/Max-Age=0/);
@@ -260,14 +262,16 @@ describe("support sessions on the server", () => {
       .orThrow();
 
     expect(started.session.readOnly).toBe(true);
-    expect(started.cookie).toMatch(/^bs-support=[^;]+; Path=\/; Max-Age=1800;/);
+    expect(started.cookie).toMatch(
+      /^bsb-support=[^;]+; Path=\/; Max-Age=1800;/,
+    );
     expect(events.at(-1)).toMatchObject({
       type: "support.started",
       actorId: ADMIN,
       subject: `support_sessions/${started.session.id}`,
     });
 
-    const cookie = `bs-support=${started.session.id}`;
+    const cookie = `bsb-support=${started.session.id}`;
     const ctx = await server.context(await request(cookie));
     expect(ctx.support?.admin).toEqual({ id: ADMIN, email: "admin@acme.test" });
     expect(ctx.auth).toMatchObject({
@@ -332,7 +336,7 @@ describe("support sessions on the server", () => {
     const { server, pg } = setup({}, [
       ["pg_catalog.pg_proc", [{ returns_set: false, returns_void: false }]],
       [
-        "bs_call",
+        "bsb_call",
         () => ({
           throws: pgError("42501", "Not a member", {
             hint: "ORGANIZATION_FORBIDDEN",
@@ -346,7 +350,7 @@ describe("support sessions on the server", () => {
       .orThrow();
 
     const ctx = await server.context(
-      await request(`bs-support=${started.session.id}`),
+      await request(`bsb-support=${started.session.id}`),
     );
 
     expect(() => ctx.db.$client).toThrow(/support session/);
@@ -383,7 +387,7 @@ describe("support sessions on the server", () => {
     expect(session.readOnly).toBe(false);
 
     const ctx = await server.context(
-      await request(`bs-support=${session.id}`),
+      await request(`bsb-support=${session.id}`),
       { tenant: "t1" },
     );
 
@@ -415,7 +419,7 @@ describe("support sessions on the server", () => {
     });
 
     const cookie = new Request("https://a.test/", {
-      headers: { cookie: `bs-support=${session.id}` },
+      headers: { cookie: `bsb-support=${session.id}` },
     });
 
     const active = await server.support.current(cookie, admin());
@@ -501,7 +505,11 @@ describe("support sessions on the server", () => {
 
       return get(...args);
     });
-    const ctx = await server.context(await request(`bs-support=${session.id}`));
+
+    const ctx = await server.context(
+      await request(`bsb-support=${session.id}`),
+    );
+
     expect(supportStartedFirst).toBe(true);
     expect(tenantDone).toBe(true);
     expect(ctx.support?.session.id).toBe(session.id);
@@ -517,7 +525,7 @@ describe("support sessions on the server", () => {
       .orThrow();
 
     const cookie = new Request("https://a.test/", {
-      headers: { cookie: `bs-support=${session.id}` },
+      headers: { cookie: `bsb-support=${session.id}` },
     });
 
     claims.mockClear();
@@ -542,7 +550,7 @@ describe("support sessions on the server", () => {
       .orThrow();
 
     const cookie = new Request("https://a.test/", {
-      headers: { cookie: `bs-support=${session.id}` },
+      headers: { cookie: `bsb-support=${session.id}` },
     });
 
     expect(
@@ -578,7 +586,7 @@ describe("support sessions on the server", () => {
       }),
     });
 
-    const ctx = await server.context(await request("bs-support=x"));
+    const ctx = await server.context(await request("bsb-support=x"));
     expect(ctx.support).toBeUndefined();
     expect(ctx.auth).toMatchObject({ user: { id: ADMIN } });
   });
@@ -707,7 +715,7 @@ describe("support sessions on the server", () => {
       .orThrow();
 
     const ctx = await server.context(
-      await request(`bs-support=${started.session.id}`),
+      await request(`bsb-support=${started.session.id}`),
     );
 
     const docs = ctx.storage!.from("docs");
@@ -752,7 +760,7 @@ describe("support sessions on the server", () => {
       .orThrow();
 
     const ctx = await server.context(
-      await request(`bs-support=${started.session.id}`),
+      await request(`bsb-support=${started.session.id}`),
     );
 
     const docs = ctx.storage!.from("docs");

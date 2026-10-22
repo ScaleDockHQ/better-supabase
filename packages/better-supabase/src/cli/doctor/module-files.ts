@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { ModuleFile } from "../../sql/index.ts";
+import type { BlockSqlFile } from "../../sql/index.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import { moduleFileVersion, renderModules } from "../../sql/index.ts";
+import { moduleFileVersion, renderBlocks } from "../../sql/index.ts";
 import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
 import {
   latestMigration,
@@ -15,8 +15,8 @@ import {
 import { accessModule, entitlementsModule } from "./authorization.ts";
 import { permissionCatalogKeys, workflowOf } from "./shared.ts";
 
-export interface ModuleFileState {
-  readonly file: ModuleFile;
+export interface BlockSqlFileState {
+  readonly file: BlockSqlFile;
   /**
    * Where the module lives: its file, or the module migration under the
    * migrations workflow.
@@ -27,16 +27,16 @@ export interface ModuleFileState {
    * unchanged.
    */
   readonly current: string | undefined;
-  /** The installed `@bs-module` version (1 without one). */
+  /** The installed `@bsb-block` version (1 without one). */
   readonly installed?: number | undefined;
-  /** The file's `@bs-module` version (1 without one) is below the module's. */
+  /** The file's `@bsb-block` version (1 without one) is below the module's. */
   readonly behind: boolean;
 }
 
 /** The `blocks` files as this release renders them, next to what is on disk. */
 export async function moduleFiles(
   context: DoctorContext,
-): Promise<ModuleFileState[]> {
+): Promise<BlockSqlFileState[]> {
   if (
     context.config.blockNames.length === 0 &&
     Object.keys(context.config.appTables).length === 0
@@ -54,10 +54,10 @@ export async function moduleFiles(
 
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
-  let rendered: ModuleFile[];
+  let rendered: BlockSqlFile[];
 
   try {
-    rendered = renderModules(
+    rendered = renderBlocks(
       context.config.blockNames,
       await moduleLayoutFor(context.config, {
         names: context.config.blockNames,
@@ -87,7 +87,7 @@ export async function moduleFiles(
       `${migrationsDir(context.config)}/<stamp>${MODULES_SUFFIX}`;
 
     return Promise.all(
-      files.map(async (file): Promise<ModuleFileState> => {
+      files.map(async (file): Promise<BlockSqlFileState> => {
         if (file.kind === "test") {
           return fileState(context, file);
         }
@@ -118,8 +118,8 @@ export async function moduleFiles(
 
 async function fileState(
   context: DoctorContext,
-  file: ModuleFile,
-): Promise<ModuleFileState> {
+  file: BlockSqlFile,
+): Promise<BlockSqlFileState> {
   const current = await readFile(
     resolve(context.config.root, file.path),
     "utf-8",

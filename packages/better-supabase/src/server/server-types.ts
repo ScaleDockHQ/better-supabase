@@ -116,7 +116,7 @@ export interface ServerOptions {
    * The active tenant of a request when it doesn't come from a claim, e.g. from
    * a URL slug (`blocks.access.activeTenant: 'resolver'`). It becomes
    * `context.tenant` for the `tenant()` plugin, the `better_supabase.tenant`
-   * setting over Postgres and the `x-bs-tenant` header over PostgREST, which
+   * setting over Postgres and the `x-bsb-tenant` header over PostgREST, which
    * `current_tenant_id()` reads only while the caller is a member. Async
    * resolvers need `context(request)`; `contextFromResolution` takes
    * `options.tenant` instead. Under `createNext`, Server Components and actions
@@ -187,7 +187,7 @@ export interface ForContextOptions {
   readonly ticket?: TicketSubject;
   /**
    * The permission keys the work may use (`*` and `prefix.*` match as in
-   * grants). Set as the `bs_permission_cap` claim, which the access functions
+   * grants). Set as the `bsb_permission_cap` claim, which the access functions
    * check through `better_supabase.cap_allows`, so a key outside the cap is
    * refused even when the user holds it. A cap the context already carries is
    * narrowed, never widened.
@@ -196,7 +196,7 @@ export interface ForContextOptions {
 }
 
 /** The header `current_tenant_id()` reads over the Data API. */
-export const TENANT_HEADER = "x-bs-tenant";
+export const TENANT_HEADER = "x-bsb-tenant";
 
 export interface ServerContext<
   M extends AnyModels,
@@ -226,13 +226,13 @@ export interface ServerContext<
   readonly replica: ReplicaState | undefined;
   /**
    * `response` with this request's cookies: refreshed session cookies
-   * (`resolution.apply`) and, after a write, `bs-primary-until`.
+   * (`resolution.apply`) and, after a write, `bsb-primary-until`.
    */
   apply(response: Response): Response;
   /**
    * The cookies `apply` would set, for frameworks that write cookies through a
    * cookie store instead of a response (`cookies().set`, `setResponseHeaders`).
-   * Read it after the handler ran: a write adds `bs-primary-until`.
+   * Read it after the handler ran: a write adds `bsb-primary-until`.
    */
   cookies(): readonly CookieWrite[];
   /**
@@ -262,7 +262,7 @@ export interface ContextOptions {
    */
   readonly cookies?: boolean;
   /**
-   * Epoch ms until which `db` reads from the primary (the `bs-primary-until`
+   * Epoch ms until which `db` reads from the primary (the `bsb-primary-until`
    * cookie).
    */
   readonly pinnedUntil?: number;
@@ -280,7 +280,7 @@ export interface ContextOptions {
 }
 
 /**
- * The repositories `bs.admin()` returns: a secret-key `Db` with the Auth admin
+ * The repositories `bsb.admin()` returns: a secret-key `Db` with the Auth admin
  * API.
  */
 export type AdminDb<
@@ -371,7 +371,7 @@ export interface BetterServer<
   ): Db<M, F, E, SupabaseClient, B>;
   /**
    * Service-role repositories. Bypasses RLS; the actor is `service`. With `as`,
-   * every request carries the `x-bs-actor` header, so the audit log and
+   * every request carries the `x-bsb-actor` header, so the audit log and
    * `track_actor` columns record that user for writes the secret key makes.
    * Only a service caller can set it; the database ignores it for anyone else.
    */

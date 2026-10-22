@@ -1,7 +1,7 @@
 import type {
   CarrierTrackingEvent,
   ShipmentAddress,
-  ShipmentCarrier,
+  ShippingProvider,
   ShipmentLabel,
   ShipmentRateRequest,
 } from "../../blocks/shipments/carrier.ts";
@@ -16,7 +16,7 @@ import {
 import { isMoney } from "../../commerce/money.ts";
 import { conform, expect } from "../conformance.ts";
 
-export interface TestShipmentCarrierOptions {
+export interface TestShippingProviderOptions {
   /** Addresses the carrier ships between. */
   readonly from: ShipmentAddress;
   readonly to: ShipmentAddress;
@@ -65,14 +65,14 @@ function eventsValid(
 }
 
 /**
- * Runs the `ShipmentCarrier` contract against `carrier`: the API version,
+ * Runs the `ShippingProvider` contract against `carrier`: the API version,
  * refused requests, rates, a label with idempotent retries, tracking, voiding
  * the label and, with `webhook`, signed and forged tracking webhooks. Run it
  * against a carrier's test account: it buys one label and voids it.
  */
-export function testShipmentCarrier(
-  carrier: ShipmentCarrier,
-  options: TestShipmentCarrierOptions,
+export function testShippingProvider(
+  carrier: ShippingProvider,
+  options: TestShippingProviderOptions,
 ): Promise<ConformanceReport> {
   const request: ShipmentRateRequest = {
     from: options.from,
@@ -98,7 +98,7 @@ export function testShipmentCarrier(
     return label;
   };
 
-  return conform(`ShipmentCarrier "${carrier.name}"`, [
+  return conform(`ShippingProvider "${carrier.name}"`, [
     [
       "has apiVersion 1 and a name",
       () => {

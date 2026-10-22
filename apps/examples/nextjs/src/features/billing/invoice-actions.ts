@@ -8,10 +8,10 @@ import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** A draft invoice with one line; it gets its number when it's issued. */
-export const createDraftInvoice = bs.action(
+export const createDraftInvoice = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -48,7 +48,7 @@ export const createDraftInvoice = bs.action(
 );
 
 /** Issues a draft: it gets its number, today's date and its due date. */
-export const issueInvoice = bs.action(
+export const issueInvoice = bsb.action(
   {
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,

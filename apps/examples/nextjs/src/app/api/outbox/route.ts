@@ -17,7 +17,7 @@ import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const TASK_STATUSES = ["todo", "doing", "done"] as const;
 
@@ -45,7 +45,7 @@ const setTaskField: RuleFieldSetter = async (write) => {
     );
   }
 
-  return bs.admin().tasks.update(write.subjectId, { status });
+  return bsb.admin().tasks.update(write.subjectId, { status });
 };
 
 /**
@@ -57,7 +57,7 @@ const setTaskField: RuleFieldSetter = async (write) => {
 export async function GET(request: Request): Promise<Response> {
   // Without a request-time API, Next.js runs this handler at build time.
   await connection();
-  const admin = bs.admin();
+  const admin = bsb.admin();
   const schema = blockConfig.rules.api;
 
   const sink = createRuleSink<RuleSubjectContext>({

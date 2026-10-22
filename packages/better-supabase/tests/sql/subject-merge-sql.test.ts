@@ -4,7 +4,7 @@ import type { Subject } from "../../src/sql/subjects.ts";
 
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import {
   SUBJECT_MERGE_MARKER,
   moveSubjectRows,
@@ -131,7 +131,7 @@ describe("recordMergeFunction", () => {
 });
 
 describe("rendered modules", () => {
-  const files = renderModules(
+  const files = renderBlocks(
     Object.values(SQL_MODULES)
       .filter((module) => module.target === "schema")
       .map((module) => module.name),

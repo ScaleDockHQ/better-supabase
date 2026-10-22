@@ -54,7 +54,7 @@ type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in MCP", () => {
   it("types the claims in the hooks and tools", () => {
-    const bs = createMcp(betterSupabase.claims(Claims), {
+    const bsb = createMcp(betterSupabase.claims(Claims), {
       name: "x",
       version: "1",
       authorize: (ctx) => {
@@ -71,7 +71,7 @@ describe("betterSupabase.claims(schema) in MCP", () => {
       },
     });
 
-    bs.tool({
+    bsb.tool({
       name: "whoami",
       description: "The caller's role.",
       run: (_args, ctx) => {
@@ -80,7 +80,7 @@ describe("betterSupabase.claims(schema) in MCP", () => {
         return ctx.auth.kind === "user" ? ctx.auth.claims.user_role : null;
       },
     });
-    expectTypeOf(bs.endpoint).toEqualTypeOf<
+    expectTypeOf(bsb.endpoint).toEqualTypeOf<
       (request: Request) => Promise<Response>
     >();
   });

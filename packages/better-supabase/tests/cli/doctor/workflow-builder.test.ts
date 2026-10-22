@@ -30,7 +30,7 @@ describe("BS333", () => {
       },
       {
         path: "src/workflows/step.ts",
-        text: "export const step = (call: GraphStepCall) => bs.admin ( );\n",
+        text: "export const step = (call: GraphStepCall) => bsb.admin ( );\n",
       },
     ]);
 
@@ -65,7 +65,7 @@ describe("BS333", () => {
         },
         {
           path: "src/builder-server.ts",
-          text: 'import { createWorkflowBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bs.admin().$client);\n',
+          text: 'import { createWorkflowBuilder, rpcTransport } from "better-supabase/blocks/workflow-builder";\nimport { graphStarter } from "better-supabase/workflow-sdk/builder";\nconst service = rpcTransport(bsb.admin().$client);\n',
         },
       ]),
     ).toEqual([]);

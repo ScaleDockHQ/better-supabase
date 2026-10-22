@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { customContracts, renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (
   modules: readonly string[],
   layout: Layout = {},
   module = "time-tracking",
 ): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");

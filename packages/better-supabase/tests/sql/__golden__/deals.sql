@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module deals@1 managed
+-- @bsb-block deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -145,7 +145,7 @@ drop policy if exists deal_members_read on "better_supabase"."deal_members";
 create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
 using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
-create or replace function better_supabase.bs_deal_guard()
+create or replace function better_supabase.bsb_deal_guard()
 returns trigger
 language plpgsql
 security definer
@@ -209,10 +209,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
-drop trigger if exists bs_deal_guard on "better_supabase"."deals";
-create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
-for each row execute function better_supabase.bs_deal_guard();
+revoke execute on function better_supabase.bsb_deal_guard() from public, anon, authenticated;
+drop trigger if exists bsb_deal_guard on "better_supabase"."deals";
+create trigger bsb_deal_guard before insert or update on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_deal_guard();
 
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
@@ -655,7 +655,7 @@ revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from
 -- trigger per event, so there are three triggers on one function. The
 -- transition tables are read through execute because plpgsql_check (db lint)
 -- doesn't know them.
-create or replace function better_supabase.bs_deal_lines_totals()
+create or replace function better_supabase.bsb_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
@@ -674,20 +674,20 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
-drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+revoke execute on function better_supabase.bsb_deal_lines_totals() from public, anon, authenticated;
+drop trigger if exists bsb_deal_lines_totals on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bsb_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
 referencing new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_update after update on "better_supabase"."deal_lines"
 referencing old table as old_rows new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
 referencing old table as old_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
+for each statement execute function better_supabase.bsb_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -888,33 +888,33 @@ revoke execute on function "better_supabase"."deal_health"(uuid) from public, an
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module-data deals
+-- @bsb-block-data deals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('deals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module deals@1 managed
+-- @bsb-block deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1059,7 +1059,7 @@ drop policy if exists deal_members_read on "better_supabase"."deal_members";
 create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
 using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
-create or replace function better_supabase.bs_deal_guard()
+create or replace function better_supabase.bsb_deal_guard()
 returns trigger
 language plpgsql
 security definer
@@ -1145,10 +1145,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
-drop trigger if exists bs_deal_guard on "better_supabase"."deals";
-create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
-for each row execute function better_supabase.bs_deal_guard();
+revoke execute on function better_supabase.bsb_deal_guard() from public, anon, authenticated;
+drop trigger if exists bsb_deal_guard on "better_supabase"."deals";
+create trigger bsb_deal_guard before insert or update on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_deal_guard();
 
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
@@ -1596,7 +1596,7 @@ revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from
 -- trigger per event, so there are three triggers on one function. The
 -- transition tables are read through execute because plpgsql_check (db lint)
 -- doesn't know them.
-create or replace function better_supabase.bs_deal_lines_totals()
+create or replace function better_supabase.bsb_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
@@ -1615,20 +1615,20 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
-drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+revoke execute on function better_supabase.bsb_deal_lines_totals() from public, anon, authenticated;
+drop trigger if exists bsb_deal_lines_totals on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bsb_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
 referencing new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_update after update on "better_supabase"."deal_lines"
 referencing old table as old_rows new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
 referencing old table as old_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
+for each statement execute function better_supabase.bsb_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -1830,33 +1830,33 @@ revoke execute on function "better_supabase"."deal_health"(uuid) from public, an
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module-data deals
+-- @bsb-block-data deals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('deals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module deals@1 managed
+-- @bsb-block deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2003,7 +2003,7 @@ drop policy if exists deal_members_read on "app_private"."deal_members";
 create policy deal_members_read on "app_private"."deal_members" for select to authenticated
 using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
-create or replace function better_supabase.bs_deal_guard()
+create or replace function better_supabase.bsb_deal_guard()
 returns trigger
 language plpgsql
 security definer
@@ -2067,10 +2067,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
-drop trigger if exists bs_deal_guard on "app_private"."deals";
-create trigger bs_deal_guard before insert or update on "app_private"."deals"
-for each row execute function better_supabase.bs_deal_guard();
+revoke execute on function better_supabase.bsb_deal_guard() from public, anon, authenticated;
+drop trigger if exists bsb_deal_guard on "app_private"."deals";
+create trigger bsb_deal_guard before insert or update on "app_private"."deals"
+for each row execute function better_supabase.bsb_deal_guard();
 
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
@@ -2513,7 +2513,7 @@ revoke execute on function "app_private"."set_deal_lines_recount"(uuid) from pub
 -- trigger per event, so there are three triggers on one function. The
 -- transition tables are read through execute because plpgsql_check (db lint)
 -- doesn't know them.
-create or replace function better_supabase.bs_deal_lines_totals()
+create or replace function better_supabase.bsb_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
@@ -2532,20 +2532,20 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
-drop trigger if exists bs_deal_lines_totals on "app_private"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_insert on "app_private"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_update on "app_private"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_delete on "app_private"."deal_lines";
-create trigger bs_deal_lines_totals_insert after insert on "app_private"."deal_lines"
+revoke execute on function better_supabase.bsb_deal_lines_totals() from public, anon, authenticated;
+drop trigger if exists bsb_deal_lines_totals on "app_private"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_insert on "app_private"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_update on "app_private"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_delete on "app_private"."deal_lines";
+create trigger bsb_deal_lines_totals_insert after insert on "app_private"."deal_lines"
 referencing new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_update after update on "app_private"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_update after update on "app_private"."deal_lines"
 referencing old table as old_rows new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_delete after delete on "app_private"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_delete after delete on "app_private"."deal_lines"
 referencing old table as old_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
+for each statement execute function better_supabase.bsb_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -2746,33 +2746,33 @@ revoke execute on function "app_private"."deal_health"(uuid) from public, anon;
 grant execute on function "app_private"."deal_health"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module-data deals
+-- @bsb-block-data deals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('deals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module deals@1 managed
+-- @bsb-block deals@1 managed
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2917,7 +2917,7 @@ drop policy if exists deal_members_read on "better_supabase"."deal_members";
 create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
 using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
-create or replace function better_supabase.bs_deal_guard()
+create or replace function better_supabase.bsb_deal_guard()
 returns trigger
 language plpgsql
 security definer
@@ -2981,10 +2981,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
-drop trigger if exists bs_deal_guard on "better_supabase"."deals";
-create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
-for each row execute function better_supabase.bs_deal_guard();
+revoke execute on function better_supabase.bsb_deal_guard() from public, anon, authenticated;
+drop trigger if exists bsb_deal_guard on "better_supabase"."deals";
+create trigger bsb_deal_guard before insert or update on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_deal_guard();
 
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
@@ -3427,7 +3427,7 @@ revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from
 -- trigger per event, so there are three triggers on one function. The
 -- transition tables are read through execute because plpgsql_check (db lint)
 -- doesn't know them.
-create or replace function better_supabase.bs_deal_lines_totals()
+create or replace function better_supabase.bsb_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
@@ -3446,20 +3446,20 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
-drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+revoke execute on function better_supabase.bsb_deal_lines_totals() from public, anon, authenticated;
+drop trigger if exists bsb_deal_lines_totals on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bsb_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
 referencing new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_update after update on "better_supabase"."deal_lines"
 referencing old table as old_rows new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
 referencing old table as old_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
+for each statement execute function better_supabase.bsb_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
@@ -3781,26 +3781,26 @@ revoke execute on function "api"."deal_health"(uuid) from public, anon;
 grant execute on function "api"."deal_health"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_91_deals.sql
 -- better-supabase module: deals
--- @bs-module-data deals
+-- @bsb-block-data deals
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('deals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

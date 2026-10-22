@@ -13,7 +13,7 @@ import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const SCHEMA = blockConfig["data-lifecycle"].api;
 const ID = v.pipe(v.string(), v.uuid());
@@ -23,7 +23,7 @@ const ID = v.pipe(v.string(), v.uuid());
  * queue runs `exporter.job` from a worker instead.
  */
 async function runExport(exportId: string): Promise<void> {
-  const service = bs.admin().$client;
+  const service = bsb.admin().$client;
 
   await createDataExporter({
     transport: rpcTransport(service, { schema: SCHEMA }),
@@ -33,7 +33,7 @@ async function runExport(exportId: string): Promise<void> {
 }
 
 /** Exports the caller's own data. */
-export const requestMyExport = bs.action(
+export const requestMyExport = bsb.action(
   {},
   async (_input, { supabase, auth }) => {
     const requested = await blocks(supabase).dataLifecycle.requestExport();
@@ -50,7 +50,7 @@ export const requestMyExport = bs.action(
 );
 
 /** Exports the active organization's data (`organization.export`). */
-export const requestOrganizationExport = bs.action(
+export const requestOrganizationExport = bsb.action(
   {
     requireTenant: true,
     authorize: (session) => can(session, "organization.export"),
@@ -72,7 +72,7 @@ export const requestOrganizationExport = bs.action(
 );
 
 /** Signed download URLs for a ready export, one per table. */
-export const downloadExport = bs.action(
+export const downloadExport = bsb.action(
   { input: v.object({ id: ID }) },
   async ({ id }, { supabase }) => {
     const download = await createDataLifecycle({
@@ -89,7 +89,7 @@ export const downloadExport = bs.action(
  * Disables the organization and schedules its purge after the module's grace
  * period (`organization.delete`).
  */
-export const requestOrganizationDeletion = bs.action(
+export const requestOrganizationDeletion = bsb.action(
   {
     requireTenant: true,
     authorize: (session) => can(session, "organization.delete"),
@@ -109,7 +109,7 @@ export const requestOrganizationDeletion = bs.action(
 );
 
 /** Cancels the pending purge and enables the organization again. */
-export const cancelOrganizationDeletion = bs.action(
+export const cancelOrganizationDeletion = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase, auth }) => {
     const cancelled =

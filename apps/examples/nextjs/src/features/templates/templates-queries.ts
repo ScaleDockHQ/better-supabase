@@ -5,7 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { CustomerTemplateBody, templatesOf } from "./templates-server";
 
@@ -30,7 +30,7 @@ export type TemplatesView =
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

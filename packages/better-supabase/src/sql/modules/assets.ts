@@ -1,11 +1,11 @@
 import type { AssetsEvents } from "../../blocks/assets/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, triggerGrant, schemaPreamble } from "../shared.ts";
@@ -36,7 +36,7 @@ const ASSET_PAYLOAD = [
   "assigneeId",
 ] as const;
 
-const EVENTS: ModuleEvents<AssetsEvents> = {
+const EVENTS: BlockSqlEvents<AssetsEvents> = {
   "asset_location.created": {
     subject: "asset-locations",
     payload: LOCATION_PAYLOAD,
@@ -55,7 +55,7 @@ const EVENTS: ModuleEvents<AssetsEvents> = {
   "asset.released": { subject: "assets", payload: ASSET_PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["postgis"],
   entities: {
     asset: {
@@ -147,7 +147,7 @@ const coordinates = (latitude: string, longitude: string): string =>
 const pointColumn = (latitude: string, longitude: string): string =>
   `point ${GEOGRAPHY}(Point, 4326) generated always as (case when ${latitude} is null then null else ${geographyPoint(latitude, longitude)} end) stored,`;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -304,7 +304,7 @@ ${tables}
 ${assetsFunctions(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   const id = "{id}";
 
   return [
@@ -333,7 +333,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ASSETS: ModuleDefinition = {
+export const ASSETS: BlockSqlDefinition = {
   internal: ["asset_location_check_parent"],
   name: "assets",
   scopes: ["tenant"],

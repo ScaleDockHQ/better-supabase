@@ -1,11 +1,11 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { Names } from "./catalog-functions.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { SLUG, amountOf, guard } from "./catalog-functions.ts";
 
-export function priceFunctions(ctx: ModuleContext, names: Names): string {
+export function priceFunctions(ctx: BlockSqlContext, names: Names): string {
   const { fn } = names;
   const variants = ctx.table("variants");
   const prices = ctx.table("prices");
@@ -254,7 +254,7 @@ grant execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) 
 `;
 }
 
-export function categoryFunctions(ctx: ModuleContext, names: Names): string {
+export function categoryFunctions(ctx: BlockSqlContext, names: Names): string {
   if (!ctx.hasTable("categories")) {
     return "";
   }
@@ -427,7 +427,10 @@ ${userGrant(`${fn("delete_category")}(uuid)`)}
 ${links}`;
 }
 
-export function collectionFunctions(ctx: ModuleContext, names: Names): string {
+export function collectionFunctions(
+  ctx: BlockSqlContext,
+  names: Names,
+): string {
   if (!ctx.hasTable("collections")) {
     return "";
   }
@@ -594,7 +597,10 @@ ${userGrant(`${fn("delete_collection")}(uuid)`)}
 ${members}`;
 }
 
-export function storefrontFunctions(ctx: ModuleContext, names: Names): string {
+export function storefrontFunctions(
+  ctx: BlockSqlContext,
+  names: Names,
+): string {
   if (!ctx.hasTable("storefronts")) {
     return "";
   }

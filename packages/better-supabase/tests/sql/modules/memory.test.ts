@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("memory", { modules })!;
 
 const rendered = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
-  renderModules([...names, "memory"], { modules })
+  renderBlocks([...names, "memory"], { modules })
     .filter((file) => file.module === "memory")
     .map((file) => file.contents)
     .join("\n");

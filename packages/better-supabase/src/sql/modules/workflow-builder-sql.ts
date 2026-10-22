@@ -1,6 +1,6 @@
 import type { OperationTable } from "../../core/operations.ts";
-import type { ModuleContext } from "../context.ts";
-import type { ModuleOperations } from "./access-model.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlOperations } from "./access-model.ts";
 
 import {
   OPERATION_PREFIXES,
@@ -18,7 +18,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
-export type BuilderAction = keyof ModuleOperations<"workflow-builder">;
+export type BuilderAction = keyof BlockSqlOperations<"workflow-builder">;
 
 /** The names and SQL fragments the workflow-builder module's functions share. */
 export interface BuilderSql {
@@ -105,7 +105,7 @@ export interface BuilderSql {
   readonly alertEmit: string;
   readonly fire: string;
   readonly failedTrigger: string;
-  readonly broadcast: ModuleContext["broadcast"];
+  readonly broadcast: BlockSqlContext["broadcast"];
 }
 
 /**
@@ -159,7 +159,7 @@ function operationKeysOf(
 }
 
 export function builderSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   operations?: OperationTable,
 ): BuilderSql {
   const id = ctx.idType;
@@ -886,7 +886,7 @@ end;
 $$;
 ${callable(`${fn("remove_workflow_alert")}(uuid)`)}
 
--- Fires the failed alerts of a run's definition (the bs.definition
+-- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
 create or replace function ${fn("workflow_runs_alert")}()
 returns trigger
@@ -904,7 +904,7 @@ begin
   end if;
   for v_alert in
     select * from ${a} x
-    where x.${ca("onEvent")} = 'failed' and x.${ca("definition")}::text = new.${cr("attributes")} ->> 'bs.definition'
+    where x.${ca("onEvent")} = 'failed' and x.${ca("definition")}::text = new.${cr("attributes")} ->> 'bsb.definition'
   loop
     ${fire}
   end loop;
@@ -933,7 +933,7 @@ declare
 begin
   for v_pair in
     select x.${ca("id")} as alert, y.${cr("id")} as run from ${a} x
-    join ${r} y on y.${cr("attributes")} ->> 'bs.definition' = x.${ca("definition")}::text
+    join ${r} y on y.${cr("attributes")} ->> 'bsb.definition' = x.${ca("definition")}::text
     where x.${ca("onEvent")} = 'slow'
       and y.${cr("mode")} = 'live'
       and y.${cr("status")} in ('queued', 'running', 'waiting')

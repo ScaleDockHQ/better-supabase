@@ -16,7 +16,7 @@ export type { UndoActions, UndoSnapshot, UndoStackOptions } from "../client.ts";
  * `createUndoController` as a Solid primitive: `state()` reads the snapshot.
  * Call it in a component; the work starts on mount and the controller is
  * disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useUndoStack(
   options: BlockOptions<UndoStackOptions>,

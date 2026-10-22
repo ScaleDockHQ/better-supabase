@@ -1,12 +1,12 @@
 import type { TagsEvents } from "../../blocks/tags/events.ts";
 import type {
   ExtraColumn,
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -30,7 +30,7 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 
-const EVENTS: ModuleEvents<TagsEvents> = {
+const EVENTS: BlockSqlEvents<TagsEvents> = {
   "tag.created": {
     subject: "tags",
     payload: ["organizationId", "id", "kind", "name"],
@@ -47,7 +47,7 @@ const EVENTS: ModuleEvents<TagsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_tag_apply", "after_tag_apply"],
   options: ["subjects", "extraColumns"],
@@ -91,11 +91,11 @@ const LINK_COLUMNS = ["subject", "tag"] as const;
 /** The keys the tag reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function subjects(ctx: ModuleContext) {
+function subjects(ctx: BlockSqlContext) {
   return subjectsOption(ctx, ["links", "kinds"]);
 }
 
-function links(ctx: ModuleContext) {
+function links(ctx: BlockSqlContext) {
   return subjectTableBindings(ctx, subjects(ctx), "links", {
     columns: [...LINK_COLUMNS],
     optional: ["tenant", "createdAt"],
@@ -131,7 +131,7 @@ function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
 }
 
 function untagBody(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   bound: readonly SubjectTableBinding[],
   taggings: string,
 ): string {
@@ -165,7 +165,7 @@ ${whens}
   end case;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -530,7 +530,7 @@ ${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}${
 
 /** One tag row as the JSON `list_tags` and `subject_tags` return. */
 function tagJson(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   alias: string,
   extras: readonly ExtraColumn[],
 ): string {
@@ -545,7 +545,7 @@ function tagJson(
  * table.
  */
 function subjectTagIds(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   bound: readonly SubjectTableBinding[],
   taggings: string,
 ): string {
@@ -578,7 +578,7 @@ ${whens}
   end case;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("tags", RESERVED)).contract;
 
   return [
@@ -605,7 +605,7 @@ interface RankTagNames {
   readonly manage: string;
 }
 
-function rankTag(ctx: ModuleContext, names: RankTagNames): string {
+function rankTag(ctx: BlockSqlContext, names: RankTagNames): string {
   const { tags, id, tenant, rank, updatedAt, manage } = names;
 
   return `
@@ -637,7 +637,7 @@ ${userGrant(`${ctx.fn("rank_tag")}(uuid, text)`)}
 `;
 }
 
-export const TAGS: ModuleDefinition = {
+export const TAGS: BlockSqlDefinition = {
   name: "tags",
   scopes: ["tenant", "user", "none"],
   title: "Tags",

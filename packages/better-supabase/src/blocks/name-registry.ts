@@ -3,7 +3,7 @@ import type { BlockNameRegistry } from "./name-registry.generated.ts";
 export type { BlockNameRegistry };
 
 /** The names one module's config keys accept. */
-export interface ModuleNameSet {
+export interface BlockSqlNameSet {
   /** Logical table to its logical columns. */
   readonly tables: { readonly [table: string]: string };
   readonly functions: string;
@@ -15,7 +15,7 @@ export interface ModuleNameSet {
 }
 
 /** The names of a module the registry doesn't know: every name is a string. */
-export type AnyModuleNames = ModuleNameSet;
+export type AnyModuleNames = BlockSqlNameSet;
 
 export type NamesOf<M extends string> = M extends keyof BlockNameRegistry
   ? BlockNameRegistry[M]

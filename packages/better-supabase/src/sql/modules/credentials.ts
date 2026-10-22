@@ -1,16 +1,16 @@
 import type { CredentialsEvents } from "../../blocks/credentials/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
-const EVENTS: ModuleEvents<CredentialsEvents> = {
+const EVENTS: BlockSqlEvents<CredentialsEvents> = {
   "credential.set": { subject: "credentials", payload: ["provider", "name"] },
   "credential.deleted": {
     subject: "credentials",
@@ -18,7 +18,7 @@ const EVENTS: ModuleEvents<CredentialsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   tables: {
     secrets: {
       name: "credentials",
@@ -73,7 +73,7 @@ const secretName = (name: string): string =>
   `'bs:cred:' || ${name}.provider || ':' || ${name}.name`;
 
 function credentialEvent(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: string,
   name: string,
 ): string {
@@ -90,7 +90,7 @@ function credentialEvent(
 }
 
 /** Whether an adopted table keeps secrets in Vault (`vaultId`) or in a column. */
-function vaultStorage(ctx: ModuleContext): boolean {
+function vaultStorage(ctx: BlockSqlContext): boolean {
   const storage = ctx.text("secretStorage", "vault");
 
   if (storage !== "vault" && storage !== "column") {
@@ -117,7 +117,7 @@ function vaultStorage(ctx: ModuleContext): boolean {
  * provider's row as `<provider>:<name>`.
  */
 function adoptedKey(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   fn: string,
 ): {
   readonly declare: string;
@@ -172,7 +172,7 @@ function adoptedKey(
  * Deleting a row, or replacing its `vaultId`, deletes the Vault secret it
  * pointed to.
  */
-function vaultCleanup(ctx: ModuleContext, vault: boolean): string {
+function vaultCleanup(ctx: BlockSqlContext, vault: boolean): string {
   const t = ctx.table("secrets");
   const trigger = ctx.trigger("credential_vault");
 
@@ -203,7 +203,7 @@ create trigger ${trigger} after delete or update of ${id} on ${t}
 }
 
 /** The three functions over an app's own secrets table. */
-function adopted(ctx: ModuleContext): string {
+function adopted(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const vault = vaultStorage(ctx);
   const t = ctx.table("secrets");
@@ -342,7 +342,7 @@ ${serviceGrant(`${fn("credential_delete")}(text, text)`)}
 ${vaultCleanup(ctx, vault)}`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -430,7 +430,7 @@ $$;
 ${serviceGrant(`${fn("credential_delete")}(text, text)`)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "credential_get", args: ["text", "text"], returns: "text" },
     {
@@ -442,7 +442,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CREDENTIALS: ModuleDefinition = {
+export const CREDENTIALS: BlockSqlDefinition = {
   name: "credentials",
   title: "Credentials in Vault",
   description:

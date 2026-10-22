@@ -75,7 +75,7 @@ describe("better-supabase/nestjs", () => {
       list(): void {}
     }
 
-    Ctx("bs")(Notes.prototype, "list", 0);
+    Ctx("bsb")(Notes.prototype, "list", 0);
 
     const args = Reflect.getMetadata(
       "__routeArguments__",
@@ -96,11 +96,14 @@ describe("better-supabase/nestjs", () => {
     const url = await listen(async (req, res) => {
       const fastifyRequest = { raw: req };
       const host = hostOf(fastifyRequest, { raw: res });
-      const bs = param?.factory(param.data, host) as { auth: { kind: string } };
+
+      const bsb = param?.factory(param.data, host) as {
+        auth: { kind: string };
+      };
 
       try {
         await admins.canActivate(host);
-        res.end(`${bs.auth.kind}:${contextOf(fastifyRequest) ? "ctx" : ""}`);
+        res.end(`${bsb.auth.kind}:${contextOf(fastifyRequest) ? "ctx" : ""}`);
       } catch (error) {
         const status = error instanceof HttpException ? error.getStatus() : 500;
         res.statusCode = status;

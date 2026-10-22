@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import {
   fail,
@@ -11,7 +11,7 @@ import {
 
 export interface InventoryNames {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -34,7 +34,7 @@ const ADJUST_REASONS = [
 ] as const;
 
 export function guard(
-  scope: ModuleScope,
+  scope: BlockSqlScope,
   permission: string,
   tenant: string,
 ): string {
@@ -48,7 +48,7 @@ export function guard(
  * applies it to the level. Returns the ledger transaction id (`uuid`).
  */
 export function moveStock(
-  inventory: ModuleContext,
+  inventory: BlockSqlContext,
   values: {
     readonly tenant: string;
     readonly variant: string;
@@ -68,7 +68,7 @@ export function moveStock(
  * gets the account's variant id as a `uuid` expression.
  */
 export function stockHistory(
-  inventory: ModuleContext,
+  inventory: BlockSqlContext,
   match: (variant: string) => string,
 ): string {
   const ledger = inventory.of("ledger");
@@ -79,7 +79,7 @@ export function stockHistory(
 
 /** Column accessors for one logical table. */
 export const columns =
-  (ctx: ModuleContext, table: string) =>
+  (ctx: BlockSqlContext, table: string) =>
   (column: string): string =>
     ctx.col(table, column);
 
@@ -87,7 +87,7 @@ export const columns =
  * Whether a variant's stock can't go below zero: catalog's `track_inventory` is
  * on and `allow_backorder` off.
  */
-export function strict(ctx: ModuleContext, variant: string): string {
+export function strict(ctx: BlockSqlContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
 
@@ -99,7 +99,7 @@ export function strict(ctx: ModuleContext, variant: string): string {
  * and a location from two organizations.
  */
 function variantCheck(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   variant: string,
   tenant: string,
 ): string {
@@ -116,7 +116,7 @@ function variantCheck(
  * point.
  */
 export function threshold(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   values: {
     readonly tenant: string;
     readonly variant: string;
@@ -144,7 +144,7 @@ export function threshold(
 }
 
 /** Loads a location's tenant into `v_tenant`, raising when it doesn't exist. */
-function loadLocation(ctx: ModuleContext, location: string): string {
+function loadLocation(ctx: BlockSqlContext, location: string): string {
   const l = columns(ctx, "locations");
 
   return `select x.${l("tenant")}, x.${l("active")} into v_tenant, v_active from ${ctx.table("locations")} x where x.${l("id")} = ${location};
@@ -155,7 +155,7 @@ function loadLocation(ctx: ModuleContext, location: string): string {
 
 /** Creates the level row when missing and locks it. */
 function lockLevel(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   variant: string,
   location: string,
 ): string {
@@ -169,7 +169,7 @@ function lockLevel(
 }
 
 export function locationFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
   const { fn } = names;
@@ -278,7 +278,7 @@ ${userGrant(`${fn("delete_location")}(uuid)`)}
 }
 
 export function stockFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
   const { fn } = names;
@@ -402,7 +402,7 @@ ${userGrant(`${fn("set_reorder_point")}(uuid, uuid, integer)`)}
 }
 
 export function reservationFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
   const { fn } = names;

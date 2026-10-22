@@ -22,7 +22,7 @@ import { createServicePrincipals } from "better-supabase/blocks/service-principa
 `create(organizationId, name, role)` creates the user through the Auth admin
 API, then registers it. The user is banned for about 100 years, has no
 password, gets an address under `service-principals.invalid` and carries
-`app_metadata.bs_service_principal`, so nobody can sign in as it. If the
+`app_metadata.bsb_service_principal`, so nobody can sign in as it. If the
 registration is refused, the user is deleted again.
 
 ```ts title="app/settings/automations/actions.ts"
@@ -35,11 +35,11 @@ import {
 
 const principals = createServicePrincipals({
   transport: sqlTransport(postgres.admin),
-  admin: bs.admin().$authAdmin,
+  admin: bsb.admin().$authAdmin,
 });
 
 export async function addAutomationAccount(organizationId: string) {
-  const ctx = await bs.context();
+  const ctx = await bsb.context();
   return principals
     .create(organizationId, "Automations", "member", {
       default: true,
@@ -64,7 +64,7 @@ own, for setup scripts and migrations.
 | `list(org)`                      | The organization's principals, through the `service_principals.read` policy  |
 
 `register_service_principal` refuses a user without the
-`bs_service_principal` flag or without a ban, so an existing account never
+`bsb_service_principal` flag or without a ban, so an existing account never
 becomes a principal.
 
 ## What runs as the default principal
@@ -78,7 +78,7 @@ for the common case:
   checks on every step that its role still holds every permission the
   version stored, and refuses the step with `WORKFLOW_PUBLISHER_REVOKED`
   otherwise. Without a `runAs` hook, `versions.runAs` returns
-  `{ role: "authenticated", sub, tenant_id, bs_permission_cap }`, the
+  `{ role: "authenticated", sub, tenant_id, bsb_permission_cap }`, the
   principal capped to the stored permissions. An `automation.runAs` hook
   still overrides it. See [Workflow builder](/docs/blocks/workflow-builder).
 - **Outgoing webhooks.** A service endpoint (one without `created_by`) gets

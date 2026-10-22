@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { UsageMeter } from "./usage-meters.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -16,7 +16,7 @@ export interface UsageKinds {
   }[];
 }
 
-function usageKindsOf(ctx: ModuleContext): UsageKinds {
+function usageKindsOf(ctx: BlockSqlContext): UsageKinds {
   const meters = metersOf(ctx);
 
   const entries: readonly [string, UsageMeter][] =
@@ -40,13 +40,13 @@ function usageKindsOf(ctx: ModuleContext): UsageKinds {
  * counters table, so quotas, status and Stripe reporting read them like any
  * counter.
  */
-export function usageKindsSql(ctx: ModuleContext): string {
+export function usageKindsSql(ctx: BlockSqlContext): string {
   const kinds = usageKindsOf(ctx);
 
   return `${kinds.distinct.length > 0 ? distinctSql(ctx, kinds) : ""}${kinds.computed.length > 0 ? computedSql(ctx, kinds) : ""}`;
 }
 
-function distinctSql(ctx: ModuleContext, kinds: UsageKinds): string {
+function distinctSql(ctx: BlockSqlContext, kinds: UsageKinds): string {
   const permissions = moduleOperations("usage");
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
@@ -113,7 +113,7 @@ grant execute on function ${fn("track_usage")}(${id}, text, text, text) to authe
 `;
 }
 
-function computedSql(ctx: ModuleContext, kinds: UsageKinds): string {
+function computedSql(ctx: BlockSqlContext, kinds: UsageKinds): string {
   const fn = (name: string): string => ctx.fn(name);
   const counters = ctx.table("counters");
   const cc = (logical: string): string => ctx.col("counters", logical);
@@ -168,7 +168,7 @@ grant execute on function ${fn("usage_refresh")}(text) to service_role;
 }
 
 /** Hourly pg_cron schedule for computed meters, when pg_cron is installed. */
-export function usageRefreshSchedule(ctx: ModuleContext): string {
+export function usageRefreshSchedule(ctx: BlockSqlContext): string {
   if (usageKindsOf(ctx).computed.length === 0) {
     return "";
   }
@@ -186,8 +186,8 @@ $$;`;
 }
 
 export function usageKindsContract(
-  ctx: ModuleContext,
-): readonly ModuleContractFunction[] {
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   const kinds = usageKindsOf(ctx);
 
   return [

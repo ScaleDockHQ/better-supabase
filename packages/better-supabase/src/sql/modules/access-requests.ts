@@ -1,11 +1,11 @@
 import type { AccessRequestsEvents } from "../../blocks/access-requests/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -38,7 +38,7 @@ const PAYLOAD = [
   "expiresAt",
 ] as const;
 
-const EVENTS: ModuleEvents<AccessRequestsEvents> = {
+const EVENTS: BlockSqlEvents<AccessRequestsEvents> = {
   "access.requested": { subject: "access-requests", payload: PAYLOAD },
   "access.request_approved": { subject: "access-requests", payload: PAYLOAD },
   "access.ended": {
@@ -47,7 +47,7 @@ const EVENTS: ModuleEvents<AccessRequestsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_access_request",
@@ -89,7 +89,7 @@ const REQUEST_KEYS: readonly string[] = [
 ];
 
 /** `options.roles`, or every role but `owner` when the model names them. */
-function requestableRoles(ctx: ModuleContext): readonly string[] {
+function requestableRoles(ctx: BlockSqlContext): readonly string[] {
   const raw = ctx.option("roles");
 
   if (raw === undefined) {
@@ -108,7 +108,7 @@ function requestableRoles(ctx: ModuleContext): readonly string[] {
 }
 
 /** `options.policy` as an approvals policy; defaults to one approver step. */
-function accessPolicy(ctx: ModuleContext): string {
+function accessPolicy(ctx: BlockSqlContext): string {
   const raw = ctx.option("policy") ?? {
     steps: [
       {
@@ -135,7 +135,7 @@ function accessPolicy(ctx: ModuleContext): string {
   return policySnapshot(policy);
 }
 
-function maxDuration(ctx: ModuleContext): string | undefined {
+function maxDuration(ctx: BlockSqlContext): string | undefined {
   const raw = ctx.option("maxDuration");
 
   if (raw === undefined) {
@@ -151,7 +151,7 @@ function maxDuration(ctx: ModuleContext): string | undefined {
   return raw;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -479,7 +479,7 @@ ${userGrant(`${fn("list_access_requests")}(${ctx.idType}, text, boolean, integer
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("requests", REQUEST_KEYS),
   ).contract;
@@ -495,7 +495,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ACCESS_REQUESTS: ModuleDefinition = {
+export const ACCESS_REQUESTS: BlockSqlDefinition = {
   name: "access-requests",
   scopes: ["tenant"],
   title: "Access requests",

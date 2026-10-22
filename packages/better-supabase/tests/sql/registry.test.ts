@@ -12,29 +12,27 @@ import {
   modulePermissionKeys,
 } from "../../src/sql/introspect.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
-import { sameModuleFile } from "../../src/sql/markers.ts";
-import { resolveModules, SQL_MODULES } from "../../src/sql/registry.ts";
-import { moduleTopics, renderModules } from "../../src/sql/render.ts";
+import { sameBlockFile } from "../../src/sql/markers.ts";
+import { resolveBlocks, SQL_MODULES } from "../../src/sql/registry.ts";
+import { moduleTopics, renderBlocks } from "../../src/sql/render.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
 
-describe("resolveModules", () => {
+describe("resolveBlocks", () => {
   it("adds dependencies and keeps registry order", () => {
     expect(
-      resolveModules(["invitations", "updated-at"]).map(
-        (module) => module.name,
-      ),
+      resolveBlocks(["invitations", "updated-at"]).map((module) => module.name),
     ).toEqual(["updated-at", "tenant", "invitations", "access"]);
   });
 
   it("deduplicates and rejects unknown modules", () => {
-    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(4);
-    expect(() => resolveModules(["nope"])).toThrow(/Unknown SQL module "nope"/);
+    expect(resolveBlocks(["tenant", "tenant", "invitations"])).toHaveLength(4);
+    expect(() => resolveBlocks(["nope"])).toThrow(/Unknown SQL module "nope"/);
   });
 });
 
 describe("pg-safeupdate", () => {
   it("gives every delete in the modules a where clause", () => {
-    const sql = renderModules(
+    const sql = renderBlocks(
       Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
       { modules: { usage: { options: { history: true } } } },
     )
@@ -54,7 +52,7 @@ describe("pg-safeupdate", () => {
 
 describe("plpgsql_check", () => {
   it("creates no temporary tables that supabase db lint cannot see", () => {
-    const sql = renderModules(
+    const sql = renderBlocks(
       Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
       { modules: { usage: { options: { history: true } } } },
     )
@@ -70,7 +68,7 @@ describe("moduleTopics", () => {
     expect(
       moduleTopics(["notifications", "announcements", "realtime-tables"]),
     ).toEqual([
-      { module: "realtime-tables", topic: "bs:t:*" },
+      { module: "realtime-tables", topic: "bsb:t:*" },
       { module: "notifications", topic: "notifications:{userId}" },
       { module: "announcements", topic: "announcements" },
     ]);
@@ -92,10 +90,10 @@ describe("moduleTopics", () => {
   });
 });
 
-describe("renderModules", () => {
+describe("renderBlocks", () => {
   it("numbers files by registry position so paths stay stable", () => {
-    const all = renderModules(Object.keys(SQL_MODULES));
-    const jobs = renderModules(["jobs"]);
+    const all = renderBlocks(Object.keys(SQL_MODULES));
+    const jobs = renderBlocks(["jobs"]);
     expect(jobs[0]!.path).toBe(
       all.find((file) => file.module === "jobs")!.path,
     );
@@ -105,7 +103,7 @@ describe("renderModules", () => {
   });
 
   it("writes pgtap to the tests directory with a managed header", () => {
-    const [file] = renderModules(["pgtap"], { testsDir: "db/tests/" });
+    const [file] = renderBlocks(["pgtap"], { testsDir: "db/tests/" });
 
     expect(file!.path).toBe("db/tests/000_better_supabase_pgtap.test.sql");
     expect(file!.contents).toMatch(/^-- better-supabase module: pgtap\n/);
@@ -114,16 +112,16 @@ describe("renderModules", () => {
   });
 
   it("honours dir and prefix", () => {
-    const [file] = renderModules(["audit"], { dir: "schemas/", prefix: "zz" });
+    const [file] = renderBlocks(["audit"], { dir: "schemas/", prefix: "zz" });
     expect(file!.path).toMatch(/^schemas\/zz_\d\d_audit\.sql$/);
   });
 
   it("renders the audit log's tenant column from config and keys rows by their primary key", () => {
-    const [plain] = renderModules(["audit"]);
+    const [plain] = renderBlocks(["audit"]);
     expect(plain!.contents).toContain(
       "row_data ->> coalesce(entry.tenant_column, 'organization_id')",
     );
-    const [file] = renderModules(["audit"], { tenantColumn: "team_id" });
+    const [file] = renderBlocks(["audit"], { tenantColumn: "team_id" });
     expect(file!.contents).toContain(
       "row_data ->> coalesce(entry.tenant_column, 'team_id')",
     );
@@ -157,7 +155,7 @@ describe("renderModules", () => {
     ];
 
     for (const layout of layouts) {
-      const files = renderModules(Object.keys(SQL_MODULES), layout);
+      const files = renderBlocks(Object.keys(SQL_MODULES), layout);
 
       for (const file of files.filter((entry) => entry.kind === "schema")) {
         expect(file.contents).not.toMatch(
@@ -176,7 +174,7 @@ describe("renderModules", () => {
 
   it("shapes the features claim with entitlements.claim", () => {
     const entitlements = (claim: unknown) =>
-      renderModules(["entitlements"], {
+      renderBlocks(["entitlements"], {
         entitlements: {
           key: "id",
           source: "custom",
@@ -203,7 +201,7 @@ describe("renderModules", () => {
       .filter((module) => module.target === "schema")
       .map((module) => module.name);
 
-    const unwrapped = renderModules(names).flatMap((file) =>
+    const unwrapped = renderBlocks(names).flatMap((file) =>
       [...file.contents.matchAll(/create policy[\s\S]*?;/g)]
         .map((match) => match[0])
         .filter((policy) => /(?<!select )auth\.(uid|jwt|role)\(\)/.test(policy))
@@ -228,7 +226,7 @@ describe("renderModules", () => {
     ];
 
     for (const layout of layouts) {
-      const perRow = renderModules(Object.keys(SQL_MODULES), layout).flatMap(
+      const perRow = renderBlocks(Object.keys(SQL_MODULES), layout).flatMap(
         (file) =>
           [...file.contents.matchAll(/create policy[\s\S]*?;\n/g)]
             .map((match) => match[0].split(/\bwith check\b/)[0]!)
@@ -244,7 +242,7 @@ describe("renderModules", () => {
 
   it("compares subject ids on the id column's type when idType is set", () => {
     const reactions = (subject: { table: string; idType?: string }) =>
-      renderModules(["reactions"], { subjects: { deal: subject } }).find(
+      renderBlocks(["reactions"], { subjects: { deal: subject } }).find(
         (file) => file.module === "reactions",
       )!.contents;
 
@@ -261,7 +259,7 @@ describe("renderModules", () => {
 
   it("creates the extensions a module's schema file creates in its data file", () => {
     const data = (name: string, layout = {}) =>
-      renderModules([name], layout).find(
+      renderBlocks([name], layout).find(
         (file) => file.kind === "data" && file.module === name,
       )!.contents;
 
@@ -287,7 +285,7 @@ describe("module order", () => {
       (table) => `"better_supabase"."${table}"`,
     );
 
-    const early = renderModules(all, {
+    const early = renderBlocks(all, {
       subjects: withBlockSubjects({}, all, {}),
     })
       .filter(
@@ -316,23 +314,23 @@ describe("module order", () => {
 describe("module event triggers", () => {
   it("repeats a module's event triggers in its data file", () => {
     const data = (name: string) =>
-      renderModules([name]).find(
+      renderBlocks([name]).find(
         (file) => file.kind === "data" && file.module === name,
       )!.contents;
 
     expect(data("audit")).toContain(
-      "drop event trigger if exists bs_audit_forget_dropped;\ncreate event trigger bs_audit_forget_dropped on sql_drop\n  when tag in ('DROP TABLE', 'DROP SCHEMA')\n  execute function better_supabase.audit_forget_dropped();",
+      "drop event trigger if exists bsb_audit_forget_dropped;\ncreate event trigger bsb_audit_forget_dropped on sql_drop\n  when tag in ('DROP TABLE', 'DROP SCHEMA')\n  execute function better_supabase.audit_forget_dropped();",
     );
     expect(data("ensure-rls")).toContain(
-      "drop event trigger if exists bs_ensure_rls;\ncreate event trigger bs_ensure_rls on ddl_command_end",
+      "drop event trigger if exists bsb_ensure_rls;\ncreate event trigger bsb_ensure_rls on ddl_command_end",
     );
     expect(data("tenant")).not.toContain("event trigger");
   });
 
   it("names the event triggers of the installed modules", () => {
     expect(moduleEventTriggers(["audit", "ensure-rls", "tenant"])).toEqual([
-      { module: "audit", name: "bs_audit_forget_dropped" },
-      { module: "ensure-rls", name: "bs_ensure_rls" },
+      { module: "audit", name: "bsb_audit_forget_dropped" },
+      { module: "ensure-rls", name: "bsb_ensure_rls" },
     ]);
     expect(
       moduleEventTriggers(["broken", "missing"], {
@@ -363,13 +361,13 @@ describe("module event triggers", () => {
 
 describe("ensure-rls", () => {
   it("installs a replaceable event trigger that skips managed schemas", () => {
-    const [file] = renderModules(["ensure-rls"]);
+    const [file] = renderBlocks(["ensure-rls"]);
     expect(file!.path).toMatch(/_ensure_rls\.sql$/);
     expect(file!.contents).toContain(
-      "drop event trigger if exists bs_ensure_rls;",
+      "drop event trigger if exists bsb_ensure_rls;",
     );
     expect(file!.contents).toContain(
-      "create event trigger bs_ensure_rls on ddl_command_end",
+      "create event trigger bsb_ensure_rls on ddl_command_end",
     );
     expect(file!.contents).toContain(
       "when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')",
@@ -383,9 +381,9 @@ describe("ensure-rls", () => {
   });
 });
 
-describe("sameModuleFile", () => {
+describe("sameBlockFile", () => {
   it("ignores a version in the header only", () => {
-    const [file] = renderModules(["updated-at"]);
+    const [file] = renderBlocks(["updated-at"]);
 
     const older = file!.contents.replace(
       "-- better-supabase module: updated-at\n",
@@ -393,15 +391,15 @@ describe("sameModuleFile", () => {
     );
 
     expect(older).not.toBe(file!.contents);
-    expect(sameModuleFile(older, file!.contents)).toBe(true);
-    expect(sameModuleFile(`${file!.contents}-- edited\n`, file!.contents)).toBe(
+    expect(sameBlockFile(older, file!.contents)).toBe(true);
+    expect(sameBlockFile(`${file!.contents}-- edited\n`, file!.contents)).toBe(
       false,
     );
-    expect(sameModuleFile(undefined, file!.contents)).toBe(false);
+    expect(sameBlockFile(undefined, file!.contents)).toBe(false);
   });
 
   it("keeps the package version out of the header", () => {
-    for (const file of renderModules(["audit", "updated-at"])) {
+    for (const file of renderBlocks(["audit", "updated-at"])) {
       expect(file.contents.split("\n", 1)[0]).toMatch(
         /^-- better-supabase module: [a-z-]+$/,
       );
@@ -409,7 +407,7 @@ describe("sameModuleFile", () => {
   });
 
   it("registers realtime tables with the tenant column", () => {
-    const [file] = renderModules(["realtime-tables"], {
+    const [file] = renderBlocks(["realtime-tables"], {
       realtimeTables: ["customers", "billing.invoices", "plans"],
       realtimeGlobal: ["public.plans"],
       tenantColumn: "organization_id",
@@ -425,13 +423,13 @@ describe("sameModuleFile", () => {
       "select better_supabase.track_realtime('public.plans', tenant_column => null);",
     );
     expect(file!.contents).toContain("raise exception '% has no column %'");
-    expect(renderModules(["realtime-tables"])[0]!.contents).not.toContain(
+    expect(renderBlocks(["realtime-tables"])[0]!.contents).not.toContain(
       "config.realtime.tables",
     );
   });
 
   it("registers realtime.users tables per user, and lets only that user receive them", () => {
-    const [file] = renderModules(["realtime-tables"], {
+    const [file] = renderBlocks(["realtime-tables"], {
       realtimeTables: ["notifications", "customers"],
       realtimeUsers: { notifications: "user_id" },
       tenantColumn: "organization_id",
@@ -456,7 +454,7 @@ describe("sameModuleFile", () => {
     expect(schema).toMatchObject({ type: "object", required: ["source"] });
     expect(resolveJsonSchema({ type: "array" })).toEqual({ type: "array" });
 
-    const [file] = renderModules(["jsonb-schemas"], {
+    const [file] = renderBlocks(["jsonb-schemas"], {
       jsonSchemas: [
         { table: "customers", column: "metadata", schema: { type: "object" } },
         {
@@ -471,10 +469,10 @@ describe("sameModuleFile", () => {
       "create extension if not exists pg_jsonschema with schema extensions;",
     );
     expect(file!.contents).toContain(
-      `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bs_json_metadata";`,
+      `alter table "public"."customers" add constraint "bsb_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bsb_json_metadata";`,
     );
     expect(file!.contents).toContain(
-      'alter table "billing"."invoices" drop constraint if exists "bs_json_lines";',
+      'alter table "billing"."invoices" drop constraint if exists "bsb_json_lines";',
     );
   });
 
@@ -495,7 +493,7 @@ describe("sameModuleFile", () => {
       "/project",
     );
 
-    const [file] = renderModules(["grants"], moduleLayout(config));
+    const [file] = renderBlocks(["grants"], moduleLayout(config));
     expect(file!.path).toBe(
       "supabase/schemas/900_better_supabase_13_grants.sql",
     );
@@ -515,13 +513,13 @@ describe("sameModuleFile", () => {
       ].join("\n"),
     );
     expect(file!.contents).not.toContain('"reprice"(uuid) to');
-    expect(renderModules(["grants"])[0]!.contents).not.toContain(
+    expect(renderBlocks(["grants"])[0]!.contents).not.toContain(
       "config.expose",
     );
   });
 
   it("checks slug lengths and lets service_role read the reserved slugs", () => {
-    const [file] = renderModules(["reserved-slugs"], {
+    const [file] = renderBlocks(["reserved-slugs"], {
       modules: {
         "reserved-slugs": { options: { minLength: 3, maxLength: 40 } },
       },
@@ -533,11 +531,11 @@ describe("sameModuleFile", () => {
     expect(file!.contents).toContain(
       "when length(slug) < 3 or length(slug) > 40 then 'invalid'",
     );
-    expect(renderModules(["reserved-slugs"])[0]!.contents).toContain(
+    expect(renderBlocks(["reserved-slugs"])[0]!.contents).toContain(
       "when length(slug) < 1 or length(slug) > 63 then 'invalid'",
     );
     expect(() =>
-      renderModules(["reserved-slugs"], {
+      renderBlocks(["reserved-slugs"], {
         modules: {
           "reserved-slugs": { options: { minLength: 5, maxLength: 4 } },
         },
@@ -547,9 +545,8 @@ describe("sameModuleFile", () => {
 
   it("points the pre-request hook at check_request unless preRequest is false", () => {
     const data = (layout = {}) =>
-      renderModules(["rate-limit"], layout).find(
-        (file) => file.kind === "data",
-      )!.contents;
+      renderBlocks(["rate-limit"], layout).find((file) => file.kind === "data")!
+        .contents;
 
     expect(data()).toContain(
       "alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';",
@@ -563,7 +560,7 @@ describe("sameModuleFile", () => {
     expect(off).toContain(
       "alter role authenticator reset pgrst.db_pre_request;",
     );
-    expect(renderModules(["rate-limit"])[0]!.contents).toContain(
+    expect(renderBlocks(["rate-limit"])[0]!.contents).toContain(
       "if current_setting('transaction_read_only', true) = 'on' then",
     );
   });
@@ -576,11 +573,11 @@ describe("sameModuleFile", () => {
       declaredTables: ["public.invoices", "public.audit_log"],
     };
 
-    const [file] = renderModules(["sessions"], layout);
+    const [file] = renderBlocks(["sessions"], layout);
     expect(file!.contents).toContain(
       [
-        'drop policy if exists bs_session_active on "public"."invoices";',
-        'create policy bs_session_active on "public"."invoices" as restrictive',
+        'drop policy if exists bsb_session_active on "public"."invoices";',
+        'create policy bsb_session_active on "public"."invoices" as restrictive',
         "  for all to authenticated",
         "  using ((select better_supabase.session_active()))",
         "  with check ((select better_supabase.session_active()));",
@@ -588,13 +585,13 @@ describe("sameModuleFile", () => {
     );
     expect(file!.contents).not.toContain("audit_log");
     expect(
-      renderModules(["sessions"], { declaredTables: ["public.invoices"] })[0]!
+      renderBlocks(["sessions"], { declaredTables: ["public.invoices"] })[0]!
         .contents,
-    ).not.toContain("bs_session_active");
+    ).not.toContain("bsb_session_active");
   });
 
   it("writes a service-only last_sign_ins in the sessions module", () => {
-    const [file] = renderModules(["sessions"], {});
+    const [file] = renderBlocks(["sessions"], {});
     expect(file!.contents).toContain(
       "create or replace function better_supabase.last_sign_ins(p_users uuid[])\nreturns table (user_id uuid, last_sign_in_at timestamptz)",
     );
@@ -618,7 +615,7 @@ describe("sameModuleFile", () => {
       "/project",
     );
 
-    const [file] = renderModules(["grants"], {
+    const [file] = renderBlocks(["grants"], {
       ...moduleLayout(config),
       policyGrants: [
         {
@@ -684,7 +681,7 @@ describe("sameModuleFile", () => {
       ],
     };
 
-    const [file] = renderModules(["grants"], layout);
+    const [file] = renderBlocks(["grants"], layout);
     expect(file!.contents).toContain(
       [
         'revoke all on table "public"."jobs" from public, anon, authenticated, service_role;',
@@ -697,7 +694,7 @@ describe("sameModuleFile", () => {
       'grant select, insert, update, delete on table "public"."notes" to authenticated',
     );
 
-    const [rlsOff] = renderModules(["grants"], {
+    const [rlsOff] = renderBlocks(["grants"], {
       ...layout,
       rlsTables: ["audit.entries"],
     });
@@ -705,7 +702,7 @@ describe("sameModuleFile", () => {
     expect(rlsOff!.contents).not.toContain('"public"."jobs"');
     expect(rlsOff!.contents).toContain('"audit"."entries"');
 
-    const [without] = renderModules(["grants"], {
+    const [without] = renderBlocks(["grants"], {
       ...moduleLayout(config),
       declaredTables: layout.declaredTables,
     });
@@ -732,7 +729,7 @@ describe("sameModuleFile", () => {
       "/project",
     );
 
-    expect(() => renderModules(["grants"], moduleLayout(config))).toThrow(
+    expect(() => renderBlocks(["grants"], moduleLayout(config))).toThrow(
       /is not a function signature/,
     );
   });
@@ -748,7 +745,7 @@ describe("sameModuleFile", () => {
       "/project",
     );
 
-    const [file] = renderModules(["vector-search"], moduleLayout(config));
+    const [file] = renderBlocks(["vector-search"], moduleLayout(config));
     expect(file!.path).toBe(
       "supabase/schemas/900_better_supabase_18_vector_search.sql",
     );
@@ -781,12 +778,12 @@ describe("sameModuleFile", () => {
     expect(file!.contents).toContain(
       'grant execute on function "docs"."search_pages"(extensions.vector, integer) to authenticated, service_role;',
     );
-    expect(renderModules(["vector-search"])[0]!.contents).not.toContain(
+    expect(renderBlocks(["vector-search"])[0]!.contents).not.toContain(
       "config.vectorSearch",
     );
 
     const elsewhere = (layout: Record<string, unknown>) =>
-      renderModules(["vector-search"], {
+      renderBlocks(["vector-search"], {
         ...moduleLayout(config),
         ...layout,
       })[0]!.contents;
@@ -816,7 +813,7 @@ describe("sameModuleFile", () => {
 
 describe("vector search options", () => {
   const render = (entry: Record<string, unknown>) =>
-    renderModules(
+    renderBlocks(
       ["vector-search"],
       moduleLayout(
         resolveConfig(
@@ -949,17 +946,17 @@ describe("entitlements with provider memberships", () => {
 
   it("drops the tenant dependency", () => {
     expect(
-      resolveModules(["entitlements"]).map((module) => module.name),
+      resolveBlocks(["entitlements"]).map((module) => module.name),
     ).toEqual(["updated-at", "tenant", "entitlements"]);
     expect(
-      resolveModules(["entitlements"], { entitlementsProvider }).map(
+      resolveBlocks(["entitlements"], { entitlementsProvider }).map(
         (module) => module.name,
       ),
     ).toEqual(["entitlements"]);
   });
 
   it("reads member_<scope>_ids and member_<scope>_ids_for", () => {
-    const [file] = renderModules(["entitlements"], {
+    const [file] = renderBlocks(["entitlements"], {
       entitlementsProvider,
       entitlements,
     });
@@ -984,7 +981,7 @@ describe("entitlements with provider memberships", () => {
   it.each(["uuid", "text", "bigint", "integer"] as const)(
     "renders the %s scope id type in every tenant signature",
     (idType) => {
-      const file = renderModules(["entitlements"], {
+      const file = renderBlocks(["entitlements"], {
         entitlementsProvider: { ...entitlementsProvider, idType },
         entitlements,
       }).find((entry) => entry.module === "entitlements");
@@ -1012,7 +1009,7 @@ describe("entitlements with provider memberships", () => {
   );
 
   it("keeps the tenant-mode functions without a provider", () => {
-    const file = renderModules(["entitlements"], { entitlements }).find(
+    const file = renderBlocks(["entitlements"], { entitlements }).find(
       (entry) => entry.module === "entitlements",
     );
 
@@ -1023,15 +1020,15 @@ describe("entitlements with provider memberships", () => {
   });
 
   it("needs a customer column unless the managed organizations module adds one", () => {
-    expect(() => renderModules(["entitlements"])).toThrow(
+    expect(() => renderBlocks(["entitlements"])).toThrow(
       "The entitlements module needs entitlements.customer",
     );
     expect(() =>
-      renderModules(["entitlements", "organizations"], {
+      renderBlocks(["entitlements", "organizations"], {
         modules: { organizations: { mode: "adopt" } },
       }),
     ).toThrow("The entitlements module needs entitlements.customer");
-    const files = renderModules(["entitlements", "organizations"]);
+    const files = renderBlocks(["entitlements", "organizations"]);
 
     const sql = (name: string) =>
       files.find((file) => file.module === name && file.kind === "schema")!
@@ -1045,7 +1042,7 @@ describe("entitlements with provider memberships", () => {
     );
     expect(sql("entitlements")).toContain("returns text\nlanguage plpgsql");
     expect(
-      renderModules(["entitlements"], {
+      renderBlocks(["entitlements"], {
         entitlements: {
           table: "billing",
           column: "customer",
@@ -1056,7 +1053,7 @@ describe("entitlements with provider memberships", () => {
       )!.contents,
     ).toContain("returns text\nlanguage sql");
     expect(
-      renderModules(["organizations"]).find(
+      renderBlocks(["organizations"]).find(
         (file) => file.module === "organizations",
       )!.contents,
     ).not.toContain("stripe_customer_id");
@@ -1249,7 +1246,7 @@ describe("modulePermissionKeys", () => {
 
   it("adds the app's reserved slugs to the data file", () => {
     const data = (slugs: readonly string[]) =>
-      renderModules(["reserved-slugs"], {
+      renderBlocks(["reserved-slugs"], {
         modules: { "reserved-slugs": { options: { slugs } } },
       }).find((file) => file.kind === "data")!.contents;
 

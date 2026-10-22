@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_34_attachments.sql
 -- better-supabase module: attachments
--- @bs-module attachments@4 managed
+-- @bsb-block attachments@4 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,11 +96,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bs_attachments_bucket'
+    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_bucket'
   ), 'pg_constraint'), '') <> 'better-supabase check 06ecf11d' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bs_attachments_bucket";
-    alter table "better_supabase"."attachments" add constraint "bs_attachments_bucket" check ("bucket" in ('attachments')) not valid;
-    comment on constraint "bs_attachments_bucket" on "better_supabase"."attachments" is 'better-supabase check 06ecf11d';
+    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_bucket";
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_bucket" check ("bucket" in ('attachments')) not valid;
+    comment on constraint "bsb_attachments_bucket" on "better_supabase"."attachments" is 'better-supabase check 06ecf11d';
   end if;
 end;
 $$;
@@ -108,15 +108,15 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bs_attachments_size'
+    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bs_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bs_attachments_size" check ("size" between 0 and 52428800);
-    comment on constraint "bs_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
+    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;
 $$;
-alter table "better_supabase"."attachments" drop constraint if exists bs_attachments_mime_type;
+alter table "better_supabase"."attachments" drop constraint if exists bsb_attachments_mime_type;
 create unique index if not exists attachments_object_idx on "better_supabase"."attachments" ("bucket", "object_path");
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
@@ -197,9 +197,9 @@ create policy "attachment_versions_read" on "better_supabase"."attachment_versio
 -- read a clean file or the uploader or attachments.manage, a delete
 -- the uploader or attachments.manage. It reads the table as its owner, so
 -- the storage policies don't depend on the table's own policies.
-drop policy if exists "bs_attachments_insert" on storage.objects;
-drop policy if exists "bs_attachments_select" on storage.objects;
-drop policy if exists "bs_attachments_delete" on storage.objects;
+drop policy if exists "bsb_attachments_insert" on storage.objects;
+drop policy if exists "bsb_attachments_select" on storage.objects;
+drop policy if exists "bsb_attachments_delete" on storage.objects;
 drop function if exists "better_supabase"."attachment_object_allowed"(text, text);
 create or replace function "better_supabase"."attachment_object_allowed"(bucket text, path text, action text)
 returns boolean
@@ -255,11 +255,11 @@ $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
 
-create policy "bs_attachments_insert" on storage.objects for insert to authenticated
+create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-create policy "bs_attachments_select" on storage.objects for select to authenticated
+create policy "bsb_attachments_select" on storage.objects for select to authenticated
   using (bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'select'));
-create policy "bs_attachments_delete" on storage.objects for delete to authenticated
+create policy "bsb_attachments_delete" on storage.objects for delete to authenticated
   using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- The caller's new record, for a signed upload URL to its object_path.
@@ -633,7 +633,7 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-drop trigger if exists bs_object_scan_pending on storage.objects;
+drop trigger if exists bsb_object_scan_pending on storage.objects;
 
 revoke execute on function "better_supabase"."object_clean"(text, text) from public, anon;
 revoke execute on function "better_supabase"."object_scan"(text, text) from public, anon, authenticated;
@@ -655,20 +655,20 @@ grant execute on function "better_supabase"."get_attachment"(uuid) to authentica
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_34_attachments.sql
 -- better-supabase module: attachments
--- @bs-module-data attachments
+-- @bsb-block-data attachments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -678,7 +678,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do nothing;
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('attachments', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

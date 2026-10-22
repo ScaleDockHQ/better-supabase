@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import type { QueueBackend } from "../../../src/blocks/jobs/index.ts";
+import type { QueueProvider } from "../../../src/blocks/jobs/index.ts";
 import type { IncomingDestination } from "../../../src/blocks/webhooks/index.ts";
 
 import { createJobs } from "../../../src/blocks/jobs/index.ts";
@@ -19,7 +19,7 @@ function onceBackend(withOnce = true) {
   const keys = new Map<string, number>();
   const sent: unknown[] = [];
 
-  const backend: QueueBackend = {
+  const backend: QueueProvider = {
     apiVersion: 1,
     name: "once",
     leases: true,

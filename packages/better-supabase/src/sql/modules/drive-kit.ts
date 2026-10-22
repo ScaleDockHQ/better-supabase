@@ -1,9 +1,9 @@
 import type { DriveEvents } from "../../blocks/drive/events.ts";
 import type {
-  ModuleAudit,
-  ModuleContext,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlAudit,
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -30,7 +30,7 @@ const PATH_SEGMENT = "drive-nodes";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents<DriveEvents> = {
+const EVENTS: BlockSqlEvents<DriveEvents> = {
   "drive.node_created": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "kind", "name", "parentId"],
@@ -53,14 +53,14 @@ const EVENTS: ModuleEvents<DriveEvents> = {
   },
 };
 
-export const FILE_EVENTS: ModuleEvents<DriveEvents> = {
+export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
   "drive.node_purged": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "objects"],
   },
 };
 
-export const NAMES: ModuleNames = {
+export const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_drive_node_create",
@@ -146,7 +146,7 @@ export interface DriveRoles {
 }
 
 /** `options.roles` (lowest first) and the roles each action needs. */
-function driveRoles(ctx: ModuleContext): DriveRoles {
+function driveRoles(ctx: BlockSqlContext): DriveRoles {
   const where = "blocks.drive.options";
   const all = ctx.list("roles", ["viewer", "editor", "owner"]);
 
@@ -191,7 +191,7 @@ function driveRoles(ctx: ModuleContext): DriveRoles {
 }
 
 /** Tags with a link table per tenant, which drive labels sit on. */
-export function labelTags(ctx: ModuleContext): ModuleContext | undefined {
+export function labelTags(ctx: BlockSqlContext): BlockSqlContext | undefined {
   if (!ctx.installed("tags")) {
     return undefined;
   }
@@ -227,7 +227,7 @@ export interface DriveSubjectGuard {
  * approvals on a node the drive hides from them.
  */
 export function driveSubjectGuard(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): DriveSubjectGuard | undefined {
   if (!ctx.installed("drive")) {
     return undefined;
@@ -250,7 +250,7 @@ export function driveSubjectGuard(
 }
 
 /** `options.subjectType`: the subject type of a node, `drive_node` by default. */
-export function driveSubjectType(ctx: ModuleContext): string {
+export function driveSubjectType(ctx: BlockSqlContext): string {
   const type = ctx.text("subjectType", "drive_node");
 
   if (!SUBJECT_TYPE.test(type)) {
@@ -262,7 +262,7 @@ export function driveSubjectType(ctx: ModuleContext): string {
   return type;
 }
 
-function conflictDefault(ctx: ModuleContext): string {
+function conflictDefault(ctx: BlockSqlContext): string {
   const conflict = ctx.text("conflict", "fail");
 
   if (!CONFLICTS.some((value) => value === conflict)) {
@@ -274,15 +274,18 @@ function conflictDefault(ctx: ModuleContext): string {
   return conflict;
 }
 
-const usable = (ctx: ModuleContext, name: string): ModuleContext | undefined =>
+const usable = (
+  ctx: BlockSqlContext,
+  name: string,
+): BlockSqlContext | undefined =>
   ctx.installed(name) && ctx.of(name).mode !== "custom"
     ? ctx.of(name)
     : undefined;
 
 /** What both drive modules render with: tables, options and SQL helpers. */
 export interface DriveKit {
-  readonly ctx: ModuleContext;
-  readonly own: ModuleContext;
+  readonly ctx: BlockSqlContext;
+  readonly own: BlockSqlContext;
   readonly T: string;
   readonly G: string;
   readonly n: (value: string) => string;
@@ -295,7 +298,7 @@ export interface DriveKit {
   readonly type: string;
   readonly typeLit: string;
   readonly conflict: string;
-  readonly extras: ReturnType<ModuleContext["extraColumns"]>;
+  readonly extras: ReturnType<BlockSqlContext["extraColumns"]>;
   readonly has: (column: string) => boolean;
   readonly pathMode: boolean;
   readonly ranked: boolean;
@@ -303,18 +306,18 @@ export interface DriveKit {
   readonly typed: boolean;
   readonly teamColumn: boolean;
   readonly expiring: boolean;
-  readonly attachments: ModuleContext | undefined;
+  readonly attachments: BlockSqlContext | undefined;
   readonly A: string | undefined;
   readonly a: (value: string) => string;
-  readonly versions: ModuleContext | undefined;
+  readonly versions: BlockSqlContext | undefined;
   readonly v: (value: string) => string;
-  readonly trash: ModuleContext | undefined;
+  readonly trash: BlockSqlContext | undefined;
   readonly ti: (value: string) => string;
-  readonly shareLinks: ModuleContext | undefined;
-  readonly state: ModuleContext | undefined;
+  readonly shareLinks: BlockSqlContext | undefined;
+  readonly state: BlockSqlContext | undefined;
   readonly st: (value: string) => string;
-  readonly teams: ModuleContext | undefined;
-  readonly tenant: ModuleContext;
+  readonly teams: BlockSqlContext | undefined;
+  readonly tenant: BlockSqlContext;
   readonly m: (value: string) => string;
   readonly rolesArray: string;
   readonly rank: (value: string) => string;
@@ -328,10 +331,10 @@ export interface DriveKit {
     event: string,
     row: string,
     extra: string,
-    audit: ModuleAudit | false,
+    audit: BlockSqlAudit | false,
   ) => string;
-  readonly dataAudit: (row: string, summary: string) => ModuleAudit;
-  readonly accessAudit: (row: string, summary: string) => ModuleAudit;
+  readonly dataAudit: (row: string, summary: string) => BlockSqlAudit;
+  readonly accessAudit: (row: string, summary: string) => BlockSqlAudit;
   readonly principalMatch: (
     grant: string,
     uid: string,
@@ -360,7 +363,7 @@ export interface DriveKit {
  * `ctx` is the drive module's context; `own` records the events of the module
  * rendering.
  */
-export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
+export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const T = ctx.table("nodes");
   const G = ctx.table("grants");
   const n = (column: string): string => ctx.col("nodes", column);
@@ -459,7 +462,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
     event: string,
     row: string,
     extra: string,
-    audit: ModuleAudit | false,
+    audit: BlockSqlAudit | false,
   ): string =>
     own.record({
       type: event,
@@ -469,7 +472,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
       audit,
     });
 
-  const dataAudit = (row: string, summary: string): ModuleAudit => ({
+  const dataAudit = (row: string, summary: string): BlockSqlAudit => ({
     category: "data",
     targetType: type,
     recordId: `${row}.${n("id")}::text`,
@@ -477,7 +480,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
     summary: sqlString(summary),
   });
 
-  const accessAudit = (row: string, summary: string): ModuleAudit => ({
+  const accessAudit = (row: string, summary: string): BlockSqlAudit => ({
     category: "access",
     targetType: type,
     recordId: `${row}.${n("id")}::text`,

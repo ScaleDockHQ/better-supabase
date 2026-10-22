@@ -1,11 +1,11 @@
 import type { RulesEvents } from "../../blocks/rules/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
@@ -29,7 +29,7 @@ const RULE_PAYLOAD = [
   "version",
 ] as const;
 
-const EVENTS: ModuleEvents<RulesEvents> = {
+const EVENTS: BlockSqlEvents<RulesEvents> = {
   "rule.saved": { subject: "rules", payload: RULE_PAYLOAD },
   "rule.enabled": { subject: "rules", payload: RULE_PAYLOAD },
   "rule.disabled": { subject: "rules", payload: RULE_PAYLOAD },
@@ -47,7 +47,7 @@ const EVENTS: ModuleEvents<RulesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["maxConditions", "maxDepth", "maxActions"],
   hooks: [],
@@ -131,7 +131,7 @@ const TRIGGER = "^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$";
 const ACTION_KIND = "^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$";
 const FIELD_ID = "^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$";
 
-function limitOf(ctx: ModuleContext, name: string, fallback: number): number {
+function limitOf(ctx: BlockSqlContext, name: string, fallback: number): number {
   const value = ctx.number(name, fallback);
 
   if (!Number.isInteger(value) || value < 1 || value > 1000) {
@@ -143,7 +143,7 @@ function limitOf(ctx: ModuleContext, name: string, fallback: number): number {
   return value;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -901,7 +901,7 @@ $$;
 ${grants}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "rule_evaluate",
@@ -955,7 +955,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const RULES: ModuleDefinition = {
+export const RULES: BlockSqlDefinition = {
   name: "rules",
   scopes: ["tenant"],
   title: "Rules",

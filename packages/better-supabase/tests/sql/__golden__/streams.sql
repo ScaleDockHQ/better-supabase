@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module streams@1 managed
+-- @bsb-block streams@1 managed
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -301,8 +301,8 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -317,33 +317,33 @@ end;
 $$;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module-data streams
+-- @bsb-block-data streams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('streams', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module streams@1 managed
+-- @bsb-block streams@1 managed
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -644,8 +644,8 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -660,33 +660,33 @@ end;
 $$;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module-data streams
+-- @bsb-block-data streams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('streams', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module streams@1 managed
+-- @bsb-block streams@1 managed
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -989,8 +989,8 @@ grant execute on function "app_private"."purge_streams"(interval, integer) to se
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -1005,33 +1005,33 @@ end;
 $$;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module-data streams
+-- @bsb-block-data streams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('streams', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module streams@1 managed
+-- @bsb-block streams@1 managed
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1332,8 +1332,8 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -1433,26 +1433,26 @@ revoke execute on function "api"."purge_streams"(interval, integer) from public,
 grant execute on function "api"."purge_streams"(interval, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_40_streams.sql
 -- better-supabase module: streams
--- @bs-module-data streams
+-- @bsb-block-data streams
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('streams', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

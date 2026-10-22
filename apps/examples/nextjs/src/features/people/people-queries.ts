@@ -10,7 +10,7 @@ import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -59,7 +59,7 @@ export async function loadDirectory(): Promise<
   readonly DirectoryEmployee[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -115,7 +115,7 @@ export async function loadTimesheet(
   week: string,
 ): Promise<TimesheetWeek | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -227,7 +227,7 @@ export interface HiringBoardData {
  */
 export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
-  const { session, supabase, db } = await bs.cached();
+  const { session, supabase, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

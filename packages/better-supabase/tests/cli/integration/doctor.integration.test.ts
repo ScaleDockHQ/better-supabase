@@ -18,7 +18,7 @@ import {
 import { stackDbUrl } from "../../integration/stack-env.ts";
 
 const dbUrl = stackDbUrl();
-const SCHEMA = `bs_doctor_${Date.now()}`;
+const SCHEMA = `bsb_doctor_${Date.now()}`;
 const ORG = "00000000-0000-4000-8000-000000000001";
 
 async function open(): Promise<IntrospectionSource | undefined> {
@@ -262,7 +262,7 @@ describe.skipIf(!hookSource)(
   "doctor Auth hooks against the local stack",
   () => {
     const db = hookSource!;
-    const HOOKS = `bs_doctor_hooks_${Date.now()}`;
+    const HOOKS = `bsb_doctor_hooks_${Date.now()}`;
     const USER = crypto.randomUUID();
 
     const database: LiveDatabase = {

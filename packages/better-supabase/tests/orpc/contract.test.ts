@@ -59,14 +59,14 @@ const failed = (
 ): Result<Customer> => err(dbError(kind, message));
 
 describe("a contract-first router under Hono", () => {
-  const bs = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });
 
   const os = implement(contract)
     .$context<OrpcRequestContext>()
-    .use(bs.middleware());
+    .use(bsb.middleware());
 
   const router = os.router({
     me: os.me.handler(({ context }) => ({
@@ -75,18 +75,18 @@ describe("a contract-first router under Hono", () => {
     customers: {
       get: os.customers.get.handler(({ input }) =>
         input.id === "missing"
-          ? bs.unwrap(failed("not_found", "No such customer"))
-          : bs.unwrap(ok({ id: input.id, name: "Acme" })),
+          ? bsb.unwrap(failed("not_found", "No such customer"))
+          : bsb.unwrap(ok({ id: input.id, name: "Acme" })),
       ),
       rename: os.customers.rename.handler(() =>
-        bs.unwrap(
+        bsb.unwrap(
           failed("forbidden", "new row violates row-level security policy"),
         ),
       ),
     },
   });
 
-  const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+  const handle = bsb.fetchHandler(new OpenAPIHandler(router), {
     prefix: "/api",
   });
 
@@ -156,7 +156,7 @@ describe("a permission on one contract procedure", () => {
     },
   };
 
-  const bs = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer: staticAuthorizer({
@@ -166,23 +166,23 @@ describe("a permission on one contract procedure", () => {
 
   const os = implement(guarded)
     .$context<OrpcRequestContext>()
-    .use(bs.middleware());
+    .use(bsb.middleware());
 
   const router = os.router({
     customers: {
       get: os.customers.get
-        .use(bs.middleware({ permission: "customers.read" }))
+        .use(bsb.middleware({ permission: "customers.read" }))
         .handler(({ input, context }) => ({
           id: input.id,
           name: context.auth.kind,
         })),
       remove: os.customers.remove
-        .use(bs.middleware({ permission: "customers.delete" }))
+        .use(bsb.middleware({ permission: "customers.delete" }))
         .handler(() => ({ deleted: true })),
     },
   });
 
-  const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+  const handle = bsb.fetchHandler(new OpenAPIHandler(router), {
     prefix: "/api",
   });
 
@@ -215,7 +215,7 @@ describe("a permission on one contract procedure", () => {
 describe("a resource loader on a contract procedure", () => {
   const loaded: unknown[] = [];
 
-  const bs = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer: defineAuthorizer({
@@ -230,13 +230,13 @@ describe("a resource loader on a contract procedure", () => {
 
   const os = implement({ customers: { get: contract.customers.get } })
     .$context<OrpcRequestContext>()
-    .use(bs.middleware());
+    .use(bsb.middleware());
 
   const router = os.router({
     customers: {
       get: os.customers.get
         .use(
-          bs.middleware({
+          bsb.middleware({
             permission: "customers.read",
             resource: (input, ctx) => {
               loaded.push({ input, db: typeof ctx.db, tenant: ctx.tenant });
@@ -260,7 +260,7 @@ describe("a resource loader on a contract procedure", () => {
     },
   });
 
-  const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+  const handle = bsb.fetchHandler(new OpenAPIHandler(router), {
     prefix: "/api",
   });
 

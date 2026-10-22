@@ -9,7 +9,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const RUN = String(Date.now());
-const SCHEMA = `bs_perm_${RUN}`;
+const SCHEMA = `bsb_perm_${RUN}`;
 
 // A stand-in provider: `permitted` answers from a grants table per instance.
 const PROVIDER = `

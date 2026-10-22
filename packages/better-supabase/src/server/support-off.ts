@@ -11,7 +11,7 @@ const NOT_CONFIGURED =
 const notConfigured = <T>(): AsyncResult<T> =>
   AsyncResult.err<T>(dbError("unexpected", NOT_CONFIGURED));
 
-/** `bs.support` without `ServerOptions.support`: every call fails. */
+/** `bsb.support` without `ServerOptions.support`: every call fails. */
 export const supportOff: SupportApi = {
   start: notConfigured,
   request: notConfigured,

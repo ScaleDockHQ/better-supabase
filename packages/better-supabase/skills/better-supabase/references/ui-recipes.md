@@ -5894,7 +5894,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
   const overlay = useWorkflowCanvasRun(runId, { schema: "api" });
 
   const definitionRuns = (runs ?? []).filter(
-    (run) => run.attributes["bs.definition"] === detail.definition.id,
+    (run) => run.attributes["bsb.definition"] === detail.definition.id,
   );
 
   const graph = fromFlow(nodes, edges);
@@ -6438,7 +6438,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getSession } from "../user-queries";
 
 /**
- * Shown during a support session (`bs.startSupport`): staff see the app as the
+ * Shown during a support session (`bsb.startSupport`): staff see the app as the
  * user, and the audit log records who acted. Render inside `<Suspense>`.
  */
 export async function ImpersonationBanner() {
@@ -7636,7 +7636,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 import { metrics } from "@/metrics";
 
 const DAYS = 30;
@@ -7664,7 +7664,7 @@ async function loadPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = {
@@ -7860,7 +7860,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** The flags `src/flags.ts` defines. */
 const FLAG_KEYS = ["beta-page", "pricing-banner"] as const;
@@ -7885,7 +7885,7 @@ type FlagValues =
  */
 async function loadFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -9023,7 +9023,7 @@ npx shadcn add button skeleton
 ```tsx title="apps/examples/nextjs/src/features/subjects/components/subject-link.tsx"
 "use client";
 
-import type { SubjectRef } from "better-supabase/blocks/subjects";
+import type { RecordRef } from "better-supabase/blocks/subjects";
 
 import { useSubject } from "better-supabase/blocks/subjects/react";
 import { RotateCwIcon } from "lucide-react";
@@ -9038,7 +9038,7 @@ import { Link } from "@/i18n/navigation";
  * `subject_titles`. The links rendered in one pass share one round trip, and a
  * subject the caller can't read shows as plain text.
  */
-export function SubjectLink({ subject }: { subject: SubjectRef }) {
+export function SubjectLink({ subject }: { subject: RecordRef }) {
   const t = useExtracted("subjects");
   const { subject: resolved, error, refresh } = useSubject(subject);
 
@@ -9100,7 +9100,7 @@ npx shadcn add skeleton
 ```tsx title="apps/examples/nextjs/src/features/subjects/components/subject-chip.tsx"
 "use client";
 
-import type { SubjectRef } from "better-supabase/blocks/subjects";
+import type { RecordRef } from "better-supabase/blocks/subjects";
 
 import { useSubject } from "better-supabase/blocks/subjects/react";
 import { useExtracted } from "next-intl";
@@ -9113,7 +9113,7 @@ import { Link } from "@/i18n/navigation";
  * A compact badge for a subject: its type and title, linking to its page. Rows
  * that each render a chip share one `subject_titles` call.
  */
-export function SubjectChip({ subject }: { subject: SubjectRef }) {
+export function SubjectChip({ subject }: { subject: RecordRef }) {
   const t = useExtracted("subjects");
   const { subject: resolved, error } = useSubject(subject);
 
@@ -12226,7 +12226,7 @@ export function WorkItemBoard({
 
 ## Entity form
 
-A create dialog whose inputs come from `entityForm`: the entity's own fields and the organization's custom fields, validated together by `useEntityForm` before the Server Action runs. It calls `useEntityForm` from `better-supabase/react`; the [work-items](https://bettersupabase.com/blocks/work-items), [custom-fields](https://bettersupabase.com/blocks/custom-fields) blocks must be installed (`npx better-supabase add work-items custom-fields`). Page: https://bettersupabase.com/recipes/entity-form.
+A create dialog whose inputs come from `recordForm`: the entity's own fields and the organization's custom fields, validated together by `useRecordForm` before the Server Action runs. It calls `useRecordForm` from `better-supabase/react`; the [work-items](https://bettersupabase.com/blocks/work-items), [custom-fields](https://bettersupabase.com/blocks/custom-fields) blocks must be installed (`npx better-supabase add work-items custom-fields`). Page: https://bettersupabase.com/recipes/entity-form.
 
 Web, with shadcn components:
 
@@ -12236,11 +12236,11 @@ npx shadcn add button checkbox dialog field input select
 
 ```tsx title="apps/examples/nextjs/src/features/work/components/create-work-item-dialog.tsx"
 import type { DbError } from "better-supabase";
-import type { EntityFormInput } from "better-supabase/records";
+import type { RecordFormInput } from "better-supabase/records";
 
 import { workItemInputSchema } from "better-supabase/blocks/work-items";
-import { useEntityForm } from "better-supabase/react";
-import { entityForm } from "better-supabase/records";
+import { useRecordForm } from "better-supabase/react";
+import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useMemo, useState } from "react";
@@ -12284,7 +12284,7 @@ import { createWorkItem } from "../work-actions";
 const NO_TEAM = "";
 
 /** The HTML input type for each form input; the rest are text inputs. */
-const INPUT_TYPES: Partial<Record<EntityFormInput, string>> = {
+const INPUT_TYPES: Partial<Record<RecordFormInput, string>> = {
   number: "number",
   integer: "number",
   date: "date",
@@ -12295,7 +12295,7 @@ const INPUT_TYPES: Partial<Record<EntityFormInput, string>> = {
 
 /**
  * A dialog that creates a work item with a title, a team, a priority and the
- * organization's custom fields for work items. `entityForm` turns the entity
+ * organization's custom fields for work items. `recordForm` turns the entity
  * schema and the field definitions into one list of inputs and validates them
  * together.
  */
@@ -12317,7 +12317,7 @@ export function CreateWorkItemDialog({
 
   const definition = useMemo(
     () =>
-      entityForm(workItemInputSchema, {
+      recordForm(workItemInputSchema, {
         fields: ["title", "priority"],
         customFields: customFields.map((field) => ({
           key: field.key,
@@ -12332,7 +12332,7 @@ export function CreateWorkItemDialog({
 
   const [failure, setFailure] = useState<DbError>();
 
-  const form = useEntityForm(definition, {
+  const form = useRecordForm(definition, {
     initial: { title: "", priority: "0" },
     onSubmit: async ({ input, custom }) => {
       const result = await createWorkItem({

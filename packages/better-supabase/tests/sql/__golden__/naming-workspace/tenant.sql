@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_04_tenant.sql
 -- better-supabase module: tenant
--- @bs-module tenant@2 managed
+-- @bsb-block tenant@2 managed
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,8 +18,8 @@ create table if not exists "better_supabase"."memberships" (
 );
 create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
 alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."memberships";
-create trigger bs_updated_at before update on "better_supabase"."memberships"
+drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create trigger bsb_updated_at before update on "better_supabase"."memberships"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
@@ -60,7 +60,7 @@ grant execute on function better_supabase.tenant_disabled(uuid) to service_role,
 grant execute on function better_supabase.user_disabled(uuid) to service_role, supabase_auth_admin;
 
 -- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
--- the x-bs-tenant header over the Data API), then the `tenant_id` claim.
+-- the x-bsb-tenant header over the Data API), then the `tenant_id` claim.
 -- A tenant the caller isn't a member of counts as none.
 create or replace function better_supabase.current_tenant_id()
 returns uuid
@@ -71,7 +71,7 @@ set search_path = ''
 as $$
   select coalesce(
     (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(current_setting('better_supabase.tenant', true), '') and m."user_id" = auth.uid() limit 1),
-    (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(current_setting('request.headers', true)::jsonb ->> 'x-bs-tenant', '') and m."user_id" = auth.uid() limit 1),
+    (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(current_setting('request.headers', true)::jsonb ->> 'x-bsb-tenant', '') and m."user_id" = auth.uid() limit 1),
     (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(coalesce(auth.jwt() ->> 'tenant_id', auth.jwt() -> 'app_metadata' ->> 'tenant_id'), '') and m."user_id" = auth.uid() limit 1)
   )::uuid
 $$;
@@ -128,8 +128,8 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."workspace_id" = workspace_member_role.organization and m."user_id" = workspace_member_role.member
 $$;
 
-drop policy if exists bs_memberships_read on "better_supabase"."memberships";
-create policy bs_memberships_read on "better_supabase"."memberships"
+drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
+create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.member_workspace_ids()));
 
@@ -169,26 +169,26 @@ revoke execute on function better_supabase.membership_claims(uuid) from public, 
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_04_tenant.sql
 -- better-supabase module: tenant
--- @bs-module-data tenant
+-- @bsb-block-data tenant
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('tenant', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

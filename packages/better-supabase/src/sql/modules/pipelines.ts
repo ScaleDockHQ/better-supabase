@@ -1,11 +1,11 @@
 import type { PipelinesEvents } from "../../blocks/pipelines/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./pipelines-bindings.ts";
 
 import {
@@ -34,7 +34,7 @@ const STAGE_PAYLOAD = [
   "outcome",
 ] as const;
 
-const EVENTS: ModuleEvents<PipelinesEvents> = {
+const EVENTS: BlockSqlEvents<PipelinesEvents> = {
   "pipeline.created": {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "subjectType", "key"],
@@ -63,7 +63,7 @@ const EVENTS: ModuleEvents<PipelinesEvents> = {
 
 const tenantExport = { tenant: "tenant", export: true } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_pipeline_save",
@@ -149,7 +149,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, names: Names): string {
+function tables(ctx: BlockSqlContext, names: Names): string {
   if (!ctx.manages) {
     return "";
   }
@@ -256,10 +256,10 @@ using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjec
  * `options.extraColumns`, added to the pipelines table. `stages` is reserved:
  * `list_pipelines` returns it next to the row.
  */
-const extrasOf = (ctx: ModuleContext) =>
+const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("pipelines", ["stages", "fields"]);
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -285,7 +285,7 @@ ${bindings.map((binding) => stageTrigger(ctx, names, binding)).join("\n")}
 ${manageFunctions(ctx, names, bindings)}${readFunctions(ctx.idType, names, bindings)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_pipeline",
@@ -343,7 +343,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const PIPELINES: ModuleDefinition = {
+export const PIPELINES: BlockSqlDefinition = {
   name: "pipelines",
   scopes: ["tenant"],
   title: "Pipelines",

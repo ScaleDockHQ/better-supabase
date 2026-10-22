@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { createComments } from "../../src/blocks/comments/index.ts";
@@ -13,7 +13,9 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = { subjects: withBlockSubjects({}, ["posts"], {}) };
+const layout: BlockSqlLayout = {
+  subjects: withBlockSubjects({}, ["posts"], {}),
+};
 
 describe.skipIf(!live)("posts module in Postgres", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });

@@ -9,7 +9,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import {
@@ -88,7 +88,7 @@ export interface ApprovalStep {
 export interface ApprovalRequest {
   readonly id: string;
   readonly organizationId: string;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly action: string;
   readonly status: ApprovalStatus;
   /** The current step, from 0. */
@@ -134,7 +134,7 @@ export interface ApprovalListOptions {
   /** Only requests whose current step the caller can decide. */
   readonly assigned?: boolean;
   /** Only requests on this subject. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly pageSize?: number;
   /** Requests made before this time, for the next page. */
   readonly before?: Temporal.Instant;
@@ -150,7 +150,7 @@ export interface Approvals<F extends object = Record<never, never>> {
    * besides the input's own are the request's extra columns.
    */
   request(
-    subject: SubjectRef,
+    subject: RecordRef,
     input: ApprovalRequestInput & Partial<F>,
   ): AsyncResult<ApprovalRequest & F>;
   /** Approves the current step; the last step runs the policy's action. */
@@ -171,7 +171,7 @@ export interface Approvals<F extends object = Record<never, never>> {
     options?: ApprovalListOptions,
   ): AsyncResult<readonly (ApprovalRequest & F)[]>;
   /** Whether the subject's latest request for the action was approved. */
-  isApproved(subject: SubjectRef, action: string): AsyncResult<boolean>;
+  isApproved(subject: RecordRef, action: string): AsyncResult<boolean>;
 }
 
 const STATUSES: readonly ApprovalStatus[] = [

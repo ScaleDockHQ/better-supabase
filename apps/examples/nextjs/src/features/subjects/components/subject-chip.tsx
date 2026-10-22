@@ -1,7 +1,7 @@
 // #region recipe:subject-chip
 "use client";
 
-import type { SubjectRef } from "better-supabase/blocks/subjects";
+import type { RecordRef } from "better-supabase/blocks/subjects";
 
 import { useSubject } from "better-supabase/blocks/subjects/react";
 import { useExtracted } from "next-intl";
@@ -14,7 +14,7 @@ import { Link } from "@/i18n/navigation";
  * A compact badge for a subject: its type and title, linking to its page. Rows
  * that each render a chip share one `subject_titles` call.
  */
-export function SubjectChip({ subject }: { subject: SubjectRef }) {
+export function SubjectChip({ subject }: { subject: RecordRef }) {
   const t = useExtracted("subjects");
   const { subject: resolved, error } = useSubject(subject);
 

@@ -1,5 +1,5 @@
 -- better-supabase module: documents
--- @bs-module documents@1 managed
+-- @bsb-block documents@1 managed
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1667,14 +1667,14 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_documents_receive" on realtime.messages;
-    create policy "bs_documents_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_documents_receive" on realtime.messages;
+    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false)
       );
-    drop policy if exists "bs_documents_send" on realtime.messages;
-    create policy "bs_documents_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_documents_send" on realtime.messages;
+    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
       with check ((
         (realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))
@@ -1700,13 +1700,13 @@ end;
 $$;
 revoke execute on function "better_supabase"."documents_subject_deleted"() from public, anon, authenticated;
 
-drop trigger if exists "bs_documents_product_cascade" on "better_supabase"."products";
-create trigger "bs_documents_product_cascade"
+drop trigger if exists "bsb_documents_product_cascade" on "better_supabase"."products";
+create trigger "bsb_documents_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."documents_subject_deleted"('product', 'id');
 
-drop trigger if exists "bs_documents_product_variant_cascade" on "better_supabase"."product_variants";
-create trigger "bs_documents_product_variant_cascade"
+drop trigger if exists "bsb_documents_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bsb_documents_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."documents_subject_deleted"('product_variant', 'id');
 
@@ -1859,13 +1859,13 @@ revoke execute on function "api"."name_document_version"(uuid, uuid, text) from 
 grant execute on function "api"."name_document_version"(uuid, uuid, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

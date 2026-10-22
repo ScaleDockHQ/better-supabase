@@ -1,5 +1,5 @@
--- better-supabase module: webhooks-out (0.8.0)
--- @bs-module webhooks-out@5 adopt
+-- better-supabase module: webhooks-out
+-- @bsb-block webhooks-out@5 adopt
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,8 +40,8 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
-drop trigger if exists "bs_webhook_endpoint_reenable" on "centrakit"."webhook_destinations";
-drop trigger if exists "bs_webhook_secret_vault" on "centrakit"."webhook_destination_secrets";
+drop trigger if exists "bsb_webhook_endpoint_reenable" on "centrakit"."webhook_destinations";
+drop trigger if exists "bsb_webhook_secret_vault" on "centrakit"."webhook_destination_secrets";
 
 drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
@@ -471,13 +471,13 @@ revoke execute on function "better_supabase"."webhook_secrets"(uuid) from public
 grant execute on function "better_supabase"."webhook_secrets"(uuid) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

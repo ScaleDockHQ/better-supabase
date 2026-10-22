@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createApprovals } from "../../src/blocks/approvals/index.ts";
 import { createStateMachine } from "../../src/blocks/state-machine/index.ts";
@@ -40,7 +40,7 @@ const MODULES = [
   "approvals",
 ];
 
-const layout = (owner: string): ModuleLayout => ({
+const layout = (owner: string): BlockSqlLayout => ({
   subjects: { quote: { table: "sm_it.quotes", idType: "uuid" } },
   modules: {
     "state-machine": {

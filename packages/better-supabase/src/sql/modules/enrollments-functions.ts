@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -6,7 +6,7 @@ import { moduleOperations } from "./access-model.ts";
 const STEP_ID = "^[a-z][a-z0-9_.-]{0,63}$";
 const TYPE = "^[a-z][a-z0-9_-]{0,62}$";
 
-function maxStepsOf(ctx: ModuleContext): string {
+function maxStepsOf(ctx: BlockSqlContext): string {
   const value = ctx.number("maxSteps", 100);
 
   if (!Number.isInteger(value) || value < 1 || value > 1000) {
@@ -19,7 +19,7 @@ function maxStepsOf(ctx: ModuleContext): string {
 }
 
 /** The enrollments module's functions. */
-export function enrollmentsFunctions(ctx: ModuleContext): string {
+export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   const programs = ctx.table("programs");
   const enrollments = ctx.table("enrollments");
   const steps = ctx.table("steps");

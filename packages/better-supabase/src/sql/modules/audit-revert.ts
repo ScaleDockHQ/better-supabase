@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { SERVICE_CALLER, fail, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
@@ -14,7 +14,7 @@ const MAX_ENTRIES = 1000;
  * restricted table) and the access module. With the restricted table, the
  * caller also needs the reveal permission, since the snapshots live there.
  */
-export function revert(ctx: ModuleContext, restricted: boolean): string {
+export function revert(ctx: BlockSqlContext, restricted: boolean): string {
   const snapshots = restricted
     ? hasColumn(ctx, "restricted", "old") && hasColumn(ctx, "restricted", "new")
     : hasColumn(ctx, "log", "old") && hasColumn(ctx, "log", "new");

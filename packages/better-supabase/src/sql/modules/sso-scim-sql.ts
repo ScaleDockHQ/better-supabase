@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import { fail, lockTable, raise, serviceGrant } from "../shared.ts";
 /** The SCIM storage functions of the sso module, for the SCIM handler. */
@@ -297,7 +297,7 @@ $$;`;
 
 const SCIM_SYNC_LOG = "better_supabase.scim_sync_log";
 
-export const SCIM_SYNC_LOG_CONTRACT: readonly ModuleContractFunction[] = [
+export const SCIM_SYNC_LOG_CONTRACT: readonly BlockSqlContractFunction[] = [
   {
     name: "scim_log_sync",
     args: ["{id}", "text", "text", "text", "integer", "text", "text"],
@@ -313,7 +313,7 @@ export const SCIM_SYNC_LOG_CONTRACT: readonly ModuleContractFunction[] = [
 
 /** `blocks.sso.options.syncLog`: one row per SCIM write, for the handler's log. */
 export function scimSyncLogSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   serviceOnly: (what: string) => string,
 ): string {
   const id = ctx.idType;

@@ -27,7 +27,7 @@ decides what each user sees, and includes and filters stay correct.
    ```
 
 With the [tenant plugin](/docs/plugins/tenant), tables broadcast on a
-per-tenant topic (`bs:t:public.customers:<organization>`), and the policy only lets a
+per-tenant topic (`bsb:t:public.customers:<organization>`), and the policy only lets a
 user join the tenant in their `tenant_id` claim. A table without the tenant
 column fails to install, so a tenant table never broadcasts to everyone by
 mistake. List tables that are global on purpose in `realtime.global`; they
@@ -39,7 +39,7 @@ realtime: { tables: ["customers", "plans"], global: ["plans"] },
 
 A table whose rows each belong to one user, such as notifications, can
 broadcast per user instead: map it to its user column in `realtime.users`.
-It uses the topic `bs:t:public.notifications:u:<user id>`, which only that
+It uses the topic `bsb:t:public.notifications:u:<user id>`, which only that
 user receives, so a change to one user's rows doesn't make the rest of the
 tenant refetch. The React hooks pass the signed-in user; `liveQuery` and
 `liveCount` take it as `user`.
@@ -57,7 +57,7 @@ const spec = betterSupabase.spec.customers.findMany({
 });
 
 function Customers() {
-  const { data } = useQuery(bs.queries.$spec(spec));
+  const { data } = useQuery(bsb.queries.$spec(spec));
   useLiveQuery(spec); // refetches on changes to customers or notes
   return <List rows={data} />;
 }
@@ -90,17 +90,17 @@ seed. The client then skips its first request:
 
 ```tsx
 // Server Component, inside <Suspense>
-const seed = await bs.liveCount(unread); // { spec, count }
+const seed = await bsb.liveCount(unread); // { spec, count }
 return <UnreadSummary seed={seed} />;
 
 // Client Component
 const { count } = useLiveCount(seed);
 ```
 
-`bs.liveCount` uses `bs.context()`; inside `'use cache: private'`,
-pass the `db` from `bs.cached()` as the second argument. For a tenant from
-the route, pass the `db` from `bs.context({ tenant })` or
-`bs.cached({ tenant })`, and give the client hook the same
+`bsb.liveCount` uses `bsb.context()`; inside `'use cache: private'`,
+pass the `db` from `bsb.cached()` as the second argument. For a tenant from
+the route, pass the `db` from `bsb.context({ tenant })` or
+`bsb.cached({ tenant })`, and give the client hook the same
 `{ tenant }`. A failed count
 gives `count: null`, and the client fetches it instead. Don't seed from a
 cache entry that can outlive changes made by other users: changes made

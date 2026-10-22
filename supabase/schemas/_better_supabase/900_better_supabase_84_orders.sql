@@ -1,5 +1,5 @@
 -- better-supabase module: orders
--- @bs-module orders@1 managed
+-- @bsb-block orders@1 managed
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1897,14 +1897,14 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."order_line_preparations_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_order_line_preparations_broadcast" on "better_supabase"."order_line_preparations";
-create trigger "bs_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
+drop trigger if exists "bsb_order_line_preparations_broadcast" on "better_supabase"."order_line_preparations";
+create trigger "bsb_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
   for each row execute function "better_supabase"."order_line_preparations_changed"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_kitchen_receive" on realtime.messages;
-    create policy "bs_kitchen_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_kitchen_receive" on realtime.messages;
+    create policy "bsb_kitchen_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'kitchen:%'
@@ -2573,13 +2573,13 @@ revoke execute on function "api"."order_board"(uuid, timestamptz, integer) from 
 grant execute on function "api"."order_board"(uuid, timestamptz, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

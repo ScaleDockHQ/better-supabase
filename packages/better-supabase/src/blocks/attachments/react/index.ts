@@ -1,6 +1,6 @@
 "use client";
 
-import type { SubjectRef } from "../../../schema/types.ts";
+import type { RecordRef } from "../../../schema/types.ts";
 import type {
   AttachmentSend,
   AttachmentUploadActions,
@@ -25,7 +25,7 @@ export type {
 
 export interface UseAttachmentUploadOptions {
   /** The record the files go to; `null` for files without one. */
-  readonly subject: SubjectRef | null;
+  readonly subject: RecordRef | null;
   /**
    * Creates the record and signs the upload. Default `attachments.upload`
    * through the browser client; pass a server action to create it on the
@@ -100,7 +100,7 @@ export function useAttachmentUpload(
       ...(tenant === undefined ? {} : { tenant }),
     });
 
-    const subject: SubjectRef | null =
+    const subject: RecordRef | null =
       type === undefined || id === undefined ? null : { type, id };
 
     const scanOf = (file: string) =>

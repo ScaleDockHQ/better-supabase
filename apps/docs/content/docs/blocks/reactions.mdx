@@ -25,7 +25,7 @@ byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
 await reactions.react(doc, "👍", { present: false }).orThrow();
 ```
 
-Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A subject is a `SubjectRef`, `{ type, id }`. `summary(subjects)` takes up to 200 subjects of each type and returns their reactions keyed `type:id` (`subjectKey(subject)` from `better-supabase/blocks`); a subject without reactions may be left out.
+Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A subject is a `RecordRef`, `{ type, id }`. `summary(subjects)` takes up to 200 subjects of each type and returns their reactions keyed `type:id` (`subjectKey(subject)` from `better-supabase/blocks`); a subject without reactions may be left out.
 
 `react` returns the subject's reactions, most used first:
 
@@ -103,7 +103,7 @@ await toggle({ type: "message", id: commentId }, "🎉");
 `better-supabase/blocks/reactions/vue` exports `useReactions`. It takes the
 options of `createReactionsController`: a client built with its `tenant`, the
 same `tenant` for the topic, `subjects` and an optional `topic`; `auth` and `ports` come from
-`app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref
+`app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref
 of the snapshot and `actions` are the controller's actions. The work starts
 on mount, and the controller is disposed with the component.
 
@@ -141,7 +141,7 @@ const { state, actions } = useReactions({
 
 `better-supabase/blocks/reactions/svelte` exports `useReactions`. It takes
 the options of `createReactionsController`; `auth` and `ports` come from
-`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+`setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
 
@@ -171,7 +171,7 @@ work starts on mount, and the controller is disposed with the component.
 
 `better-supabase/blocks/reactions/solid` exports `useReactions`. It takes
 the options of `createReactionsController`; `auth` and `ports` come from
-`<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads
+`<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads
 the snapshot through `from`, and `actions` are the controller's actions. The
 work starts on mount, and the controller is disposed with the owner.
 

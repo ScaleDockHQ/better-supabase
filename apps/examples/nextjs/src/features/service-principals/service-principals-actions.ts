@@ -10,7 +10,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["service-principals"].api;
 
@@ -20,7 +20,7 @@ const API_SCHEMA = blockConfig["service-principals"].api;
  * and that they may assign the role.
  */
 function serviceClient() {
-  const admin = bs.admin().$client;
+  const admin = bsb.admin().$client;
 
   return createServicePrincipals({
     transport: rpcTransport(admin, { schema: API_SCHEMA }),
@@ -30,7 +30,7 @@ function serviceClient() {
 }
 
 /** Creates a machine identity that workflows and webhooks can run as. */
-export const createServicePrincipal = bs.action(
+export const createServicePrincipal = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -61,7 +61,7 @@ export const createServicePrincipal = bs.action(
 );
 
 /** Removes a principal's membership, so nothing runs as it any more. */
-export const disableServicePrincipal = bs.action(
+export const disableServicePrincipal = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,

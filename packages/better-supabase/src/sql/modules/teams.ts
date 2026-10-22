@@ -1,11 +1,11 @@
 import type { TeamsEvents } from "../../blocks/teams/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -21,7 +21,7 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 import { providerTeamIds } from "./team-ids.ts";
 
-const EVENTS: ModuleEvents<TeamsEvents> = {
+const EVENTS: BlockSqlEvents<TeamsEvents> = {
   "team.created": {
     subject: "teams",
     payload: ["organizationId", "id", "name"],
@@ -42,7 +42,7 @@ const EVENTS: ModuleEvents<TeamsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_team_create", "after_team_create"],
   options: ["teamIdType", "extraColumns"],
@@ -78,7 +78,7 @@ const NAMES: ModuleNames = {
 /** The keys the team reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
+function teamIdType(ctx: BlockSqlContext): "uuid" | "bigint" {
   const value = ctx.option("teamIdType") ?? "uuid";
 
   if (value !== "uuid" && value !== "bigint") {
@@ -96,7 +96,7 @@ function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
   return value;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -371,12 +371,12 @@ ${userGrant(`${fn("list_teams")}(${ctx.idType})`)}
 `;
 }
 
-function service(ctx: ModuleContext): string {
+function service(ctx: BlockSqlContext): string {
   return ctx.installed("access") ? "auth.role() = 'service_role'" : "false";
 }
 
 function membershipFk(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   members: string,
   tenant: string,
   user: string,
@@ -395,7 +395,7 @@ alter table ${members}
 }
 
 function membershipCheck(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenant: string,
   user: string,
 ): string {
@@ -415,7 +415,7 @@ function membershipCheck(
 }
 
 function inboxMove(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   teams: string,
   members: string,
   id: string,
@@ -477,7 +477,7 @@ alter table ${conversations}
 }
 
 function record(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: keyof typeof EVENTS,
   id: string,
   tenant: string,
@@ -504,7 +504,7 @@ function record(
   });
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const id = teamIdType(ctx);
   const extra = extraFieldsArg(ctx.extraColumns("teams", RESERVED)).contract;
 
@@ -528,7 +528,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const TEAMS: ModuleDefinition = {
+export const TEAMS: BlockSqlDefinition = {
   name: "teams",
   scopes: ["tenant"],
   title: "Teams",

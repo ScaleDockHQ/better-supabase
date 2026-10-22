@@ -1,12 +1,12 @@
 import type { AiChatEvents } from "../../blocks/ai-chat/events.ts";
 import type {
   ExtraColumn,
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
@@ -234,7 +234,7 @@ const HARNESS = {
   updatedAt: "updated_at",
 } as const;
 
-const EVENTS: ModuleEvents<AiChatEvents> = {
+const EVENTS: BlockSqlEvents<AiChatEvents> = {
   "ai_chat_message.completed": {
     subject: "ai-chats",
     payload: [
@@ -265,7 +265,7 @@ const EVENTS: ModuleEvents<AiChatEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "topic",
@@ -346,7 +346,7 @@ type Columns<T> = { readonly [K in keyof T]: string };
 
 /** Every logical column of `table`, quoted. */
 function columnsOf<T extends Readonly<Record<string, string>>>(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {
@@ -425,7 +425,7 @@ const INTERVAL =
   /^\d{1,6} (?:second|minute|hour|day|week)s?(?: \d{1,6} (?:second|minute|hour|day|week)s?)*$/;
 
 function topicOption(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   name: string,
   fallback: string,
 ): string {
@@ -441,7 +441,7 @@ function topicOption(
 }
 
 function intervalOption(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   name: string,
   fallback: string,
 ): string {
@@ -456,7 +456,7 @@ function intervalOption(
   return value;
 }
 
-function sandboxIdleAfter(ctx: ModuleContext): number {
+function sandboxIdleAfter(ctx: BlockSqlContext): number {
   const value = ctx.number("sandboxIdleAfter", 600);
 
   if (!Number.isInteger(value) || value < 1) {
@@ -468,7 +468,7 @@ function sandboxIdleAfter(ctx: ModuleContext): number {
   return value;
 }
 
-function namesOf(ctx: ModuleContext): AiChatNames {
+function namesOf(ctx: BlockSqlContext): AiChatNames {
   const permissions = moduleOperations("ai-chat");
   const topic = topicOption(ctx, "topic", "ai-chat");
   const listTopic = topicOption(ctx, "listTopic", "ai-chats");
@@ -530,7 +530,7 @@ function namesOf(ctx: ModuleContext): AiChatNames {
   };
 }
 
-function tables(ctx: ModuleContext, names: AiChatNames): string {
+function tables(ctx: BlockSqlContext, names: AiChatNames): string {
   const id = ctx.idType;
   const { c, t, perm } = names;
   const p = c.projects;
@@ -865,7 +865,7 @@ ${lockTable(t.harness)}
 drop policy if exists ai_harness_sessions_owner_read on ${t.harness};`;
 }
 
-function realtime(ctx: ModuleContext, names: AiChatNames): string {
+function realtime(ctx: BlockSqlContext, names: AiChatNames): string {
   const chatReceive = ctx.trigger("ai_chat_receive");
   const listReceive = ctx.trigger("ai_chats_receive");
   const prefix = `${names.topic}:`;
@@ -894,7 +894,7 @@ end;
 $$;`;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -915,12 +915,12 @@ ${aiChatDurable(ctx, names)}
 ${realtime(ctx, names)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   const fn = (
     name: string,
     args: readonly string[],
     returns = "jsonb",
-  ): ModuleContractFunction => ({ name, args, returns });
+  ): BlockSqlContractFunction => ({ name, args, returns });
 
   return [
     fn("ai_chat_can_read", ["uuid"], "boolean"),
@@ -1011,7 +1011,7 @@ function contract(): readonly ModuleContractFunction[] {
 
 // Version 1 ended runs done, error or stopped; version 2 uses the words
 // ai-tasks and workflow runs use.
-function upgradeRunStates(ctx: ModuleContext): string {
+function upgradeRunStates(ctx: BlockSqlContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
 
@@ -1032,7 +1032,7 @@ ${replaceColumnCheck({
 })}`;
 }
 
-export const AI_CHAT: ModuleDefinition = {
+export const AI_CHAT: BlockSqlDefinition = {
   name: "ai-chat",
   scopes: ["tenant"],
   title: "AI chat",

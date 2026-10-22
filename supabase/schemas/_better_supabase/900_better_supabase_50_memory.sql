@@ -1,5 +1,5 @@
--- better-supabase module: memory (0.8.0)
--- @bs-module memory@2 managed
+-- better-supabase module: memory
+-- @bsb-block memory@2 managed
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1104,13 +1104,13 @@ revoke execute on function "api"."purge_memory_documents"(integer) from public, 
 grant execute on function "api"."purge_memory_documents"(integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

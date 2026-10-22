@@ -15,10 +15,10 @@ import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleIdType,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlIdType,
+  BlockSqlNames,
 } from "./context.ts";
 import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
@@ -27,12 +27,12 @@ import type { VectorSearchTable } from "./modules/vector-search.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
 /** The step from one module version to the next, for `sql upgrade`. */
-export interface ModuleUpgrade {
+export interface BlockSqlUpgrade {
   /** The installed version this step upgrades from. */
   readonly from: number;
   readonly description: string;
   /** SQL run before the module's current file, e.g. renames and backfills. */
-  readonly sql: (ctx: ModuleContext) => string;
+  readonly sql: (ctx: BlockSqlContext) => string;
 }
 
 /**
@@ -40,7 +40,7 @@ export interface ModuleUpgrade {
  * minor release, then is removed; doctor reports uses of both (BS309), and the
  * name stays reserved.
  */
-export interface ModuleDeprecation {
+export interface BlockSqlDeprecation {
   readonly kind: "function" | "claim" | "table" | "column";
   /**
    * The old name: `schema.function`, a claim name, `schema.table` or
@@ -58,14 +58,14 @@ export interface ModuleDeprecation {
    * old name that calls the new one and a `comment on function ... is
    * 'deprecated: use X'`.
    */
-  readonly wrapper?: (ctx: ModuleContext) => string;
+  readonly wrapper?: (ctx: BlockSqlContext) => string;
 }
 
 /**
  * SQL modules for `better-supabase add`. Every module is idempotent (`create or
  * replace`, `if not exists`), so re-running it upgrades in place.
  */
-export interface SqlModule {
+export interface BlockSql {
   readonly name: string;
   readonly title: string;
   readonly description: string;
@@ -103,7 +103,7 @@ export interface SqlModule {
    * What it needs for this layout, e.g. per `blocks.access.model`; overrides
    * both.
    */
-  readonly dependencies?: (layout: ModuleLayout) => readonly string[];
+  readonly dependencies?: (layout: BlockSqlLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
   /** The module built for the default layout. */
@@ -113,36 +113,38 @@ export interface SqlModule {
   /** The modes `blocks.<name>.mode` accepts. Defaults to `managed` only. */
   readonly modes?: readonly BlockMode[];
   /** The logical tables and columns `blocks.<name>.tables` and `columns` map. */
-  readonly names?: ModuleNames;
+  readonly names?: BlockSqlNames;
   /** The functions other modules and the TypeScript side call. */
-  readonly contract?: (ctx: ModuleContext) => readonly ModuleContractFunction[];
+  readonly contract?: (
+    ctx: BlockSqlContext,
+  ) => readonly BlockSqlContractFunction[];
   /** Renders the module for a layout. */
-  readonly build: (ctx: ModuleContext, layout: ModuleLayout) => string;
+  readonly build: (ctx: BlockSqlContext, layout: BlockSqlLayout) => string;
   /**
    * SQL appended after the module's body that depends on the whole layout, for
    * example the grants for the tables in `expose`. Unlike `build`, it stays out
    * of what `api` wrappers and extension scans read.
    */
-  readonly extras?: (ctx: ModuleContext, layout: ModuleLayout) => string;
-  readonly upgrades?: readonly ModuleUpgrade[];
-  readonly deprecated?: readonly ModuleDeprecation[];
+  readonly extras?: (ctx: BlockSqlContext, layout: BlockSqlLayout) => string;
+  readonly upgrades?: readonly BlockSqlUpgrade[];
+  readonly deprecated?: readonly BlockSqlDeprecation[];
   /**
    * Rows, role settings and calls that a schema diff doesn't capture. They go
    * to `better-supabase-data/` next to the schema folder and a migration (`sql
    * data`) instead of the schema file.
    */
-  readonly data?: (ctx: ModuleContext, layout: ModuleLayout) => string;
+  readonly data?: (ctx: BlockSqlContext, layout: BlockSqlLayout) => string;
   /**
    * PgTAP files for this layout, written to the tests folder next to the
    * `pgtap` module's.
    */
   readonly tests?: (
-    ctx: ModuleContext,
-    layout: ModuleLayout,
-  ) => readonly ModuleTestFile[];
-  readonly topics?: (ctx: ModuleContext) => readonly string[];
+    ctx: BlockSqlContext,
+    layout: BlockSqlLayout,
+  ) => readonly BlockSqlTestFile[];
+  readonly topics?: (ctx: BlockSqlContext) => readonly string[];
   readonly permissionKeys?: (
-    ctx: ModuleContext,
+    ctx: BlockSqlContext,
   ) => readonly {
     readonly action: string;
     readonly key: string;
@@ -162,14 +164,14 @@ export interface SqlModule {
    */
   readonly hidingColumns?: readonly string[];
   readonly adoptOptional?: (
-    ctx: ModuleContext,
+    ctx: BlockSqlContext,
   ) => Readonly<Record<string, readonly string[]>>;
   /**
    * Adopted tables a subject carries (`options.subjects.<type>.<key>`), checked
    * by `adoptedColumnProblems`. A null column is mapped away.
    */
   readonly adoptSubjectTables?: (
-    ctx: ModuleContext,
+    ctx: BlockSqlContext,
   ) => readonly {
     readonly logical: string;
     readonly schema: string;
@@ -179,18 +181,19 @@ export interface SqlModule {
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
-export interface ModuleTestFile {
+export interface BlockSqlTestFile {
   /** The file name's suffix, after the module's slug. */
   readonly name: string;
   readonly sql: string;
 }
 
-export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
+export const blockSqlVersion = (module: BlockSql): number =>
+  module.version ?? 1;
 
 /** A module as written; `built` adds `sql`, the build for the default layout. */
-export type ModuleDefinition = Omit<SqlModule, "sql">;
+export type BlockSqlDefinition = Omit<BlockSql, "sql">;
 
-export interface ModuleFile {
+export interface BlockSqlFile {
   readonly module: string;
   /** `schema` and `test` files are diffed; `data` files go in a migration too. */
   readonly kind: "schema" | "data" | "test";
@@ -198,7 +201,7 @@ export interface ModuleFile {
   readonly contents: string;
 }
 
-export interface ModuleLayout {
+export interface BlockSqlLayout {
   /** Directory for schema modules. Defaults to `supabase/schemas`. */
   readonly dir?: string;
   /**
@@ -217,7 +220,7 @@ export interface ModuleLayout {
   readonly auditedTables?: readonly AuditedTable[];
   /**
    * Ignored: the header names only the module, so a release doesn't rewrite
-   * every file. The `@bs-module name@N` marker carries the module version.
+   * every file. The `@bsb-block name@N` marker carries the module version.
    *
    * @deprecated Remove it; it has no effect.
    */
@@ -284,9 +287,9 @@ export interface ModuleLayout {
    * The authorization provider's memberships: `entitlements` reads them instead
    * of `tenant`'s.
    */
-  readonly entitlementsProvider?: ModuleEntitlementsProvider;
+  readonly entitlementsProvider?: BlockSqlEntitlementsProvider;
   /** The authorization provider the `access` module's `provider` model calls. */
-  readonly accessProvider?: ModuleAccessProvider;
+  readonly accessProvider?: BlockSqlAccessProvider;
   /** `config.blocks`: modes, names and permission keys per module. */
   readonly modules?: AnyBlocksConfig;
   /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
@@ -311,12 +314,12 @@ export interface ModuleLayout {
  * Where the `entitlements` module reads the provider's memberships, and the
  * tables behind them.
  */
-export interface ModuleEntitlementsProvider {
+export interface BlockSqlEntitlementsProvider {
   /** The provider's name, for comments. */
   readonly name: string;
   /** The provider scope tenants are, e.g. `organization`. */
   readonly scope: string;
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
   /** `authorization.functions.memberIds`. */
   readonly memberIds: string;
   /** `authorization.functions.memberIdsFor`. */
@@ -325,14 +328,14 @@ export interface ModuleEntitlementsProvider {
 }
 
 /** What the `access` module's `provider` model calls. */
-export interface ModuleAccessProvider {
+export interface BlockSqlAccessProvider {
   /** The provider's name, for comments and errors. */
   readonly name: string;
   /** The provider scope tenants are. */
   readonly scope: string;
   /** Every scope it declares, for `options.subjects.<type>.scope`. */
   readonly scopes?: readonly string[];
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
   readonly functions: AuthorizationFunctions;
   /** The access module's `disabled` setting defaults to these. */
   readonly suspension?: {

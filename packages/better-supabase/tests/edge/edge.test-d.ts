@@ -15,8 +15,8 @@ type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in Edge", () => {
   it("types the claims in the handler context", () => {
-    const bs = createEdge(defineSupabase(schema).claims(Claims));
-    bs.handler((_request, ctx) => {
+    const bsb = createEdge(defineSupabase(schema).claims(Claims));
+    bsb.handler((_request, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
 
       if (ctx.auth.kind === "user") {
@@ -28,8 +28,8 @@ describe("betterSupabase.claims(schema) in Edge", () => {
   });
 
   it("keeps untyped claims for untyped definitions", () => {
-    const bs = createEdge(defineSupabase(schema));
-    bs.handler((_request, ctx) => {
+    const bsb = createEdge(defineSupabase(schema));
+    bsb.handler((_request, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState>();
 
       return null;
@@ -37,10 +37,10 @@ describe("betterSupabase.claims(schema) in Edge", () => {
   });
 });
 
-describe("bs.routes params", () => {
+describe("bsb.routes params", () => {
   it("types ctx.params from each route key", () => {
-    const bs = createEdge(defineSupabase(schema));
-    bs.routes({
+    const bsb = createEdge(defineSupabase(schema));
+    bsb.routes({
       "GET /orgs/:org/customers/:id": (_request, { params }) => {
         expectTypeOf(params).toEqualTypeOf<{
           readonly org: string;
@@ -69,16 +69,16 @@ describe("bs.routes params", () => {
 describe("betterSupabase.buckets() in Edge", () => {
   it("types db.$buckets in handlers and routes", () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-    const bs = createEdge(defineSupabase(schema).buckets({ logos }));
+    const bsb = createEdge(defineSupabase(schema).buckets({ logos }));
 
     type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 
-    bs.handler((_request, ctx) => {
+    bsb.handler((_request, ctx) => {
       expectTypeOf(ctx.db.$buckets.logos).toEqualTypeOf<Logos>();
 
       return null;
     });
-    bs.routes({
+    bsb.routes({
       "GET /logo": (_request, ctx) => {
         expectTypeOf(ctx.db.$buckets.logos).toEqualTypeOf<Logos>();
 

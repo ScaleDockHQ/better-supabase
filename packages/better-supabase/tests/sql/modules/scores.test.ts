@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleContext } from "../../../src/sql/context.ts";
+import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { SCORES } from "../../../src/sql/modules/scores.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (modules: readonly string[], layout: Layout = {}): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === "scores")
     .map((file) => file.contents)
     .join("\n");
@@ -51,7 +51,7 @@ describe("scores module", () => {
       "",
     );
     // SAFETY: custom mode returns before reading anything else on the context.
-    const custom = { mode: "custom" } as unknown as ModuleContext;
+    const custom = { mode: "custom" } as unknown as BlockSqlContext;
 
     expect(SCORES.build(custom, {})).toBe("");
   });

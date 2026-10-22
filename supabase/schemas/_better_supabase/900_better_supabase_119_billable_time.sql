@@ -1,5 +1,5 @@
 -- better-supabase module: billable-time
--- @bs-module billable-time@1 managed
+-- @bsb-block billable-time@1 managed
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -114,8 +114,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on "better_supabase"."time_entries";
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
+create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
 
@@ -132,8 +132,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on "better_supabase"."invoices";
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
+create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
   execute function "better_supabase"."billable_time_release"();
@@ -734,13 +734,13 @@ revoke execute on function "api"."list_invoiced_time"(uuid, integer) from public
 grant execute on function "api"."list_invoiced_time"(uuid, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

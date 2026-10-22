@@ -96,9 +96,9 @@ const wait = (ms: number) =>
 
 describe("liveTopic", () => {
   it("scopes tenant tables and requires the tenant", () => {
-    expect(liveTopic(betterSupabase.meta, "notes")).toBe("bs:t:public.notes");
+    expect(liveTopic(betterSupabase.meta, "notes")).toBe("bsb:t:public.notes");
     expect(liveTopic(betterSupabase.meta, "customers", "o1")).toBe(
-      "bs:t:public.customers:o1",
+      "bsb:t:public.customers:o1",
     );
     expect(() => liveTopic(betterSupabase.meta, "customers")).toThrow(
       /pass `tenant`/,
@@ -114,7 +114,9 @@ describe("liveTopic", () => {
       },
     };
 
-    expect(liveTopic(meta, "notes", "o1", "u1")).toBe("bs:t:public.notes:u:u1");
+    expect(liveTopic(meta, "notes", "o1", "u1")).toBe(
+      "bsb:t:public.notes:u:u1",
+    );
     expect(() => liveTopic(meta, "notes", "o1")).toThrow(/pass `user`/);
   });
 
@@ -166,7 +168,7 @@ describe("liveQuery join states", () => {
     });
 
     await expect(customers.ready).rejects.toThrow(
-      "Realtime timed_out on bs:t:public.customers:o1",
+      "Realtime timed_out on bsb:t:public.customers:o1",
     );
     expect(errors).toEqual([cause]);
     await notes.unsubscribe();
@@ -185,8 +187,8 @@ describe("liveQuery join states", () => {
     });
 
     await live.ready;
-    status("bs:t:public.notes", "CHANNEL_ERROR");
-    status("bs:t:public.notes", "SUBSCRIBED");
+    status("bsb:t:public.notes", "CHANNEL_ERROR");
+    status("bsb:t:public.notes", "SUBSCRIBED");
     await wait(5);
     expect(statuses).toEqual(["joining", "subscribed", "error", "subscribed"]);
     expect(onChange).toHaveBeenCalledWith(["notes"]);
@@ -274,7 +276,7 @@ describe("liveQuery join states", () => {
     });
 
     await expect(failed.ready).rejects.toThrow(
-      "Realtime timed_out on bs:t:public.notes",
+      "Realtime timed_out on bsb:t:public.notes",
     );
     expect(raw.removeChannel).toHaveBeenCalledOnce();
 
@@ -364,7 +366,7 @@ describe("liveQuery join states", () => {
     });
 
     await live.ready;
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await live.unsubscribe();
     await live.unsubscribe();
     await wait(15);
@@ -412,14 +414,14 @@ describe("liveQuery", () => {
     expect(live.unwatched).toEqual(["organizations"]);
     await live.ready;
 
-    emit("bs:t:public.customers:o1");
-    emit("bs:t:public.notes");
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.customers:o1");
+    emit("bsb:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(20);
     expect(onChange).toHaveBeenCalledExactlyOnceWith(["customers", "notes"]);
 
     await live.unsubscribe();
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(20);
     expect(onChange).toHaveBeenCalledOnce();
     expect(statuses).toEqual(["joining", "subscribed", "closed"]);
@@ -443,7 +445,7 @@ describe("liveQuery", () => {
     expect(raw.channel).toHaveBeenCalledOnce();
     await Promise.all([a.ready, b.ready]);
 
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(10);
     expect(first).toHaveBeenCalledOnce();
     expect(second).toHaveBeenCalledOnce();
@@ -474,7 +476,7 @@ describe("liveQuery", () => {
     expect(raw.removeChannel).not.toHaveBeenCalled();
     expect(raw.channel).toHaveBeenCalledOnce();
     await second.ready;
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(10);
     expect(onChange).toHaveBeenCalledOnce();
     await second.unsubscribe();
@@ -494,8 +496,8 @@ describe("liveQuery", () => {
     await wait(5);
     expect(onChange).not.toHaveBeenCalled();
 
-    status("bs:t:public.notes", "CHANNEL_ERROR");
-    status("bs:t:public.notes", "SUBSCRIBED");
+    status("bsb:t:public.notes", "CHANNEL_ERROR");
+    status("bsb:t:public.notes", "SUBSCRIBED");
     await wait(10);
     expect(onChange).toHaveBeenCalledExactlyOnceWith(["notes"]);
     await live.unsubscribe();
@@ -528,13 +530,13 @@ describe("liveCount", () => {
     await wait(5);
     expect(counts).toEqual([1]);
 
-    emit("bs:t:public.notes");
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(10);
     expect(counts).toEqual([1, 2]);
     expect(run).toHaveBeenCalledTimes(2);
 
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(10);
     expect(errors).toEqual(["network"]);
     await live.unsubscribe();
@@ -570,9 +572,9 @@ describe("liveCount", () => {
     await live.ready;
     expect(run).not.toHaveBeenCalled();
 
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(5);
-    emit("bs:t:public.notes");
+    emit("bsb:t:public.notes");
     await wait(5);
     release(3);
     await wait(5);
@@ -611,14 +613,14 @@ describe("liveCount", () => {
       );
 
       await live.ready;
-      expect(raw.channel).toHaveBeenCalledWith("bs:t:public.customers:o1", {
+      expect(raw.channel).toHaveBeenCalledWith("bsb:t:public.customers:o1", {
         config: { private: true },
       });
     }
 
     release(4);
     await wait(5);
-    emit("bs:t:public.customers:o1");
+    emit("bsb:t:public.customers:o1");
     await wait(5);
     expect(run).toHaveBeenCalledOnce();
     expect(counts).toEqual([]);

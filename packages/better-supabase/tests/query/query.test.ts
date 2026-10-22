@@ -41,7 +41,7 @@ describe("createQueries", () => {
     });
 
     expect(options.queryKey).toEqual([
-      "bs",
+      "bsb",
       "customers",
       "findMany",
       {
@@ -51,8 +51,8 @@ describe("createQueries", () => {
       },
     ]);
     expect(options.meta.bsTables).toEqual(["customers", "notes"]);
-    expect(q.customers.key).toEqual(["bs", "customers"]);
-    expect(q.$key).toEqual(["bs"]);
+    expect(q.customers.key).toEqual(["bsb", "customers"]);
+    expect(q.$key).toEqual(["bsb"]);
 
     const queryClient = new QueryClient();
     expect(await queryClient.query(options)).toEqual([
@@ -100,7 +100,7 @@ describe("createQueries", () => {
 
     expect(q.customers.findById(skipToken).queryFn).toBe(skipToken);
     expect(q.customers.findMany(skipToken).queryKey).toEqual([
-      "bs",
+      "bsb",
       "customers",
       "findMany",
       "$skip",
@@ -124,7 +124,7 @@ describe("createQueries", () => {
     }
 
     expect(options[0]?.queryKey).toEqual([
-      "bs",
+      "bsb",
       "notes",
       "findMany",
       { where: { id: { in: [{ $bigint: "9007199254740993" }] } } },
@@ -229,7 +229,7 @@ describe("createQueries", () => {
       })
       .setData([]);
     queryClient.setQueryData(organizations.queryKey, []);
-    queryClient.setQueryData(["bs", "customers", "custom"], 1);
+    queryClient.setQueryData(["bsb", "customers", "custom"], 1);
 
     const options = q.customers.update({ select: ["id", "name"] });
     const data = await options.mutationFn({ id: "c1", patch: { name: "New" } });
@@ -240,24 +240,24 @@ describe("createQueries", () => {
       { client: queryClient },
     );
     expect(isInvalid(queryClient, withNotes.queryKey)).toBe(true);
-    expect(isInvalid(queryClient, ["bs", "customers", "custom"])).toBe(true);
+    expect(isInvalid(queryClient, ["bsb", "customers", "custom"])).toBe(true);
     expect(isInvalid(queryClient, organizations.queryKey)).toBe(false);
 
     const stop = invalidateOnMutation(betterSupabase, queryClient);
-    queryClient.setQueryData(["bs", "customerTags", "x"], 1);
+    queryClient.setQueryData(["bsb", "customerTags", "x"], 1);
     await db.tags.delete("t1").orThrow();
     await new Promise((resolve) => {
       setTimeout(resolve, 0);
     });
-    expect(isInvalid(queryClient, ["bs", "customerTags", "x"])).toBe(true);
+    expect(isInvalid(queryClient, ["bsb", "customerTags", "x"])).toBe(true);
     stop();
   });
 
   it("ignores an empty table list", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(["bs", "customers"], 1);
+    queryClient.setQueryData(["bsb", "customers"], 1);
     await invalidateTables(queryClient, []);
-    expect(isInvalid(queryClient, ["bs", "customers"])).toBe(false);
+    expect(isInvalid(queryClient, ["bsb", "customers"])).toBe(false);
   });
 
   it("builds rpc query and mutation options", async () => {
@@ -283,7 +283,7 @@ describe("createQueries", () => {
       tables: ["customers"],
     });
 
-    expect(rpc.queryKey).toEqual(["bs", "$rpc", "customer_stats", {}]);
+    expect(rpc.queryKey).toEqual(["bsb", "$rpc", "customer_stats", {}]);
     expect(rpc.meta.bsTables).toEqual(["customers"]);
     const queryClient = new QueryClient();
     expect(await queryClient.query(rpc)).toBe(42);
@@ -346,15 +346,15 @@ describe("query helpers", () => {
   it("indexes queries by table and skips the scan when none read it", async () => {
     const queryClient = new QueryClient();
     const cache = queryClient.getQueryCache();
-    queryClient.setQueryData(["bs", "customers", "a"], 1);
+    queryClient.setQueryData(["bsb", "customers", "a"], 1);
     await invalidateTables(queryClient, ["customers"]);
-    expect(isInvalid(queryClient, ["bs", "customers", "a"])).toBe(true);
+    expect(isInvalid(queryClient, ["bsb", "customers", "a"])).toBe(true);
 
-    queryClient.setQueryData(["bs", "notes", "b"], 1);
+    queryClient.setQueryData(["bsb", "notes", "b"], 1);
     await invalidateTables(queryClient, ["notes"]);
-    expect(isInvalid(queryClient, ["bs", "notes", "b"])).toBe(true);
+    expect(isInvalid(queryClient, ["bsb", "notes", "b"])).toBe(true);
 
-    queryClient.removeQueries({ queryKey: ["bs", "notes"] });
+    queryClient.removeQueries({ queryKey: ["bsb", "notes"] });
     const findAll = vi.spyOn(cache, "findAll");
     await invalidateTables(queryClient, ["notes", "organizations"]);
     expect(findAll).not.toHaveBeenCalled();
@@ -366,7 +366,7 @@ describe("query helpers", () => {
 
     type Row = { id: string; name: string };
 
-    const list = { queryKey: ["bs", "customers", "findMany", {}] as never };
+    const list = { queryKey: ["bsb", "customers", "findMany", {}] as never };
     queryClient.setQueryData<Row[]>(list.queryKey, [
       { id: "a", name: "A" },
       { id: "b", name: "B" },
@@ -394,7 +394,7 @@ describe("query helpers", () => {
     await remove.onSettled(undefined, null, "b", undefined, context);
     expect(isInvalid(queryClient, list.queryKey)).toBe(true);
 
-    const empty = { queryKey: ["bs", "notes", "findMany"] as never };
+    const empty = { queryKey: ["bsb", "notes", "findMany"] as never };
 
     const rewrite = optimistic<Row[], string>([empty], (rows) => rows);
     const snapshot = await rewrite.onMutate("x", context);

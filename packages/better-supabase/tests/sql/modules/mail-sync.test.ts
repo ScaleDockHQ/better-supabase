@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},
   extra: readonly string[] = [],
 ): string =>
-  renderModules(["mail-sync", ...extra], {
+  renderBlocks(["mail-sync", ...extra], {
     subjects: { deal: { table: "public.deals" } },
     modules: { "mail-sync": { options } },
   })

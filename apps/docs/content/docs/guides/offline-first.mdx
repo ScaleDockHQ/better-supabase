@@ -8,12 +8,12 @@ definition:
 
 - `local`: [`powersyncExecutor`](/docs/repository/powersync) over the PowerSync
   database. Screens read and write here, online or not.
-- `bs.db`: the [React Native client](/docs/frontend/react-native) over
+- `bsb.db`: the [React Native client](/docs/frontend/react-native) over
   PostgREST, as the signed-in user. Only the upload path uses it.
 
 PowerSync syncs rows down and queues local writes. Its connector's
 `uploadData` sends the queue to your backend; replaying each change through
-`bs.db` means RLS, plugins and validation run on it, exactly as for an online
+`bsb.db` means RLS, plugins and validation run on it, exactly as for an online
 write.
 
 ## Upload through the repositories
@@ -24,12 +24,12 @@ table's repository and authenticates sync with the Supabase session:
 
 ```ts title="src/lib/powersync/connector.ts"
 import { createUploadConnector } from "better-supabase/powersync";
-import { bs, supabase } from "../supabase/client.native";
+import { bsb, supabase } from "../supabase/client.native";
 
 export const connector = createUploadConnector({
   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
   supabase,
-  tables: { customers: bs.db.customers },
+  tables: { customers: bsb.db.customers },
 });
 ```
 
@@ -41,8 +41,8 @@ custom replay:
 
 ```ts
 tables: {
-  customers: bs.db.customers,
-  notes: (entry) => bs.db.notes.upsert({ ...renameColumns(entry.opData), id: entry.id }),
+  customers: bsb.db.customers,
+  notes: (entry) => bsb.db.notes.upsert({ ...renameColumns(entry.opData), id: entry.id }),
 },
 ```
 
@@ -63,8 +63,8 @@ discarded; a `DELETE` still deletes.
 import { uploadRoute } from "better-supabase/powersync";
 
 tables: {
-  customers: bs.db.customers,
-  attachments: uploadRoute(bs.db.attachments, { put: "create" }),
+  customers: bsb.db.customers,
+  attachments: uploadRoute(bsb.db.attachments, { put: "create" }),
 },
 ```
 
@@ -82,7 +82,7 @@ keep the database.
 import { syncWithAuth } from "better-supabase/powersync";
 
 export function useSync(): void {
-  useEffect(() => syncWithAuth(powersync, bs.auth, { connector }), []);
+  useEffect(() => syncWithAuth(powersync, bsb.auth, { connector }), []);
 }
 ```
 
@@ -117,7 +117,7 @@ an error:
 createUploadConnector({
   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
   supabase,
-  tables: { customers: bs.db.customers },
+  tables: { customers: bsb.db.customers },
   onError: (error, { phase }) => log.warn(`powersync ${phase}`, error),
 });
 ```

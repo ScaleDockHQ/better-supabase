@@ -594,7 +594,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
             definition: "dynamic",
             status,
             tenant,
-            attributes: { "bs.definition": definition.id, "bs.version": "1" },
+            attributes: { "bsb.definition": definition.id, "bsb.version": "1" },
           })
           .orThrow();
 

@@ -12,7 +12,7 @@ import { createServer } from "better-supabase/server";
 import { createPostgres } from "better-supabase/postgres";
 import { betterSupabase } from "./index";
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   postgres: createPostgres(), // optional: enables ctx.sql and actingAs()
 });
 ```
@@ -20,13 +20,13 @@ export const bs = createServer(betterSupabase, {
 ## Per request
 
 ```ts
-const ctx = await bs.context(request);
+const ctx = await bsb.context(request);
 
 ctx.auth; // the resolved AuthState
 ctx.db; // repositories over PostgREST as the caller (RLS applies)
 ctx.sql; // the same repositories over direct Postgres as the caller
 ctx.supabase; // a stateless supabase-js client for storage, functions, …
-ctx.apply(response); // refreshed session cookies, and bs-primary-until after a write
+ctx.apply(response); // refreshed session cookies, and bsb-primary-until after a write
 ctx.cookies(); // the same cookies as CookieWrite objects, for a framework's cookie API
 ```
 
@@ -43,20 +43,20 @@ middleware and several Server Components share it. Calls that pass
 By default `context()` never refreshes; run the proxy for that. For routes
 that browsers call with cookies outside a proxy, `context(request, { refresh: true })`
 refreshes an expiring session; send the new cookies with
-`ctx.apply(response)`, which also sets `bs-primary-until` after a write when
-read replicas are configured. The Hono, edge and oRPC (`bs.fetchHandler`)
+`ctx.apply(response)`, which also sets `bsb-primary-until` after a write when
+read replicas are configured. The Hono, edge and oRPC (`bsb.fetchHandler`)
 adapters do this for you, and so does
 [`handle()`](/docs/frameworks/other#write-an-adapter) in your own. To verify
 a bare access token (a WebSocket's, a queue message's), use
-`resolveToken(bs, token)`. The supabase-js client is built from the verified
+`resolveToken(bsb, token)`. The supabase-js client is built from the verified
 token, so it makes no auth calls and keeps no state between requests.
 
 To build several contexts from one request without verifying the token
 again, resolve once and pass the resolution:
 
 ```ts
-const resolution = await bs.resolve(request);
-const ctx = bs.contextFromResolution(resolution, request);
+const resolution = await bsb.resolve(request);
+const ctx = bsb.contextFromResolution(resolution, request);
 ```
 
 When `env.jwksUrl` is set and `auth.jwks` is not, `createServer` fetches the
@@ -93,10 +93,10 @@ A test server that must not see your shell's variables passes both, as in
 
 ```ts
 // Service role: bypasses RLS. The actor is `service`, so audit columns say so.
-await bs.admin().customers.count();
+await bsb.admin().customers.count();
 
 // A user, with RLS, without their token: jobs, webhooks, support tooling.
-await bs.actingAs(userId, { tenant_id: organizationId }).customers.findMany();
+await bsb.actingAs(userId, { tenant_id: organizationId }).customers.findMany();
 ```
 
 `actingAs` runs over direct Postgres with the user's claims set for the
@@ -113,7 +113,7 @@ It returns a `Result`, which fails with `forbidden` when the context has no
 user, so a job never falls back to the service role:
 
 ```ts
-const db = await bs.forContext(job.context).orThrow();
+const db = await bsb.forContext(job.context).orThrow();
 ```
 
 A job has no token, so claims that a custom access token hook adds (a role,
@@ -121,7 +121,7 @@ an organization list) are missing. `claimsFor` rebuilds them when the job
 runs; `sub`, `role`, `tenant_id` and `act` always come from the context:
 
 ```ts
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   postgres: createPostgres(),
   claimsFor: async (userId, context) => ({
     user_role: await roleOf(userId, context.tenant),
@@ -138,16 +138,16 @@ have, for example one resolved in a proxy.
 
 When something else already verified the caller (a gateway, a proxy, a queue
 message that carries the token), skip a second verification and build the
-context from the result. `resolveToken(bs, token)` verifies a bearer token
-once and returns the `AuthState`; `bs.contextFor(auth)` turns any
-`AuthState` into the same context `bs.context(request)` returns, with `db`,
+context from the result. `resolveToken(bsb, token)` verifies a bearer token
+once and returns the `AuthState`; `bsb.contextFor(auth)` turns any
+`AuthState` into the same context `bsb.context(request)` returns, with `db`,
 `supabase` and the caller's claims:
 
 ```ts
 import { resolveToken } from "better-supabase/server";
 
-const auth = await resolveToken(bs, message.accessToken);
-const { db } = bs.contextFor(auth);
+const auth = await resolveToken(bsb, message.accessToken);
+const { db } = bsb.contextFor(auth);
 await db.customers.findMany();
 ```
 
@@ -177,7 +177,7 @@ also takes OAuth access tokens issued for its own URL, such as an
 [MCP server](/docs/frameworks/mcp), lists both:
 
 ```ts
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   auth: { audience: ["authenticated", "https://api.example.com/mcp"] },
 });
 ```
@@ -199,7 +199,7 @@ locally, and keeps verifying tokens that carry a `kid` through the JWKS.
 tracing, rate limits or log fields:
 
 ```ts
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   headers: (request) => ({ "x-channel": "web" }),
 });
 ```
@@ -223,7 +223,7 @@ client can send any value, so never use them to decide access.
 the ids off:
 
 ```ts
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   requestIds: {
     requestHeader: "x-vercel-id",
     correlationHeader: "x-correlation-id",
@@ -261,24 +261,24 @@ service-role transport or a log line.
 Apps that pick the tenant from the URL or a profile, rather than a claim,
 pass `tenant`. It returns the tenant id for a request, or `undefined`. The
 result becomes `context.tenant` for the [`tenant()` plugin](/docs/plugins/tenant),
-the `better_supabase.tenant` setting for `ctx.sql` and the `x-bs-tenant`
+the `better_supabase.tenant` setting for `ctx.sql` and the `x-bsb-tenant`
 header (`TENANT_HEADER`) for `ctx.db`, which `current_tenant_id()` reads with
 `blocks.access.activeTenant: 'resolver'`. See
 [The active tenant](/docs/blocks/access#the-active-tenant).
 
 ```ts
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   tenant: (request) => request.headers.get("x-organization-id") ?? undefined,
 });
 
-const ctx = await bs.context(request, { tenant: organizationId });
+const ctx = await bsb.context(request, { tenant: organizationId });
 ```
 
 `context(request, { tenant })` overrides the resolver for one call.
 `contextFromResolution` can't wait for an async resolver, so it throws unless
 you pass `{ tenant }`. Under `createNext`, Server Components and actions
 have no request URL; pass the tenant from route params with
-`bs.context({ tenant })` or `bs.cached({ tenant })` (see
+`bsb.context({ tenant })` or `bsb.cached({ tenant })` (see
 [The active tenant](/docs/blocks/access#the-active-tenant)).
 
 ## Machine callers
@@ -288,7 +288,7 @@ of key names to accept only some of the keys in `SUPABASE_SECRET_KEYS`:
 
 ```ts
 // SUPABASE_SECRET_KEYS={"default":"sb_secret_…","cron":"sb_secret_…"}
-export const bs = createServer(betterSupabase, { auth: { secret: ["cron"] } });
+export const bsb = createServer(betterSupabase, { auth: { secret: ["cron"] } });
 // ctx.auth is { kind: 'service', keyName: 'cron' }; guard with allow: ['service']
 ```
 
@@ -296,27 +296,27 @@ export const bs = createServer(betterSupabase, { auth: { secret: ["cron"] } });
 first `admin()` call, so servers that never use it don't need a secret key.
 
 For a service caller `ctx.db` runs with the secret key, so RLS doesn't apply,
-and `ctx.sql` is `undefined`: there is no user to run as. Use `bs.admin()`
-for privileged repository work, or `bs.actingAs(userId)` to run over Postgres
+and `ctx.sql` is `undefined`: there is no user to run as. Use `bsb.admin()`
+for privileged repository work, or `bsb.actingAs(userId)` to run over Postgres
 as a particular user.
 
 ### Cron jobs and webhooks
 
 Code that runs without a caller, such as a cron job or a webhook handler, gets
-everything it needs from `bs.admin()`. You don't need a second client from
+everything it needs from `bsb.admin()`. You don't need a second client from
 `@supabase/server/core`:
 
-| Work                              | Handle                                                     |
-| --------------------------------- | ---------------------------------------------------------- |
-| Rows and database functions       | `bs.admin().<model>` repositories and `bs.admin().$rpc`    |
-| A bucket registered with `bucket` | `bs.admin().$buckets.<name>`                               |
-| Any other bucket                  | `bs.admin().$storage.from(bucket)`, e.g. `.remove([path])` |
-| Auth users (create, invite, ban)  | `bs.admin().$authAdmin`, from 0.11                         |
-| Anything else supabase-js does    | `bs.admin().$client`, the secret-key client                |
+| Work                              | Handle                                                      |
+| --------------------------------- | ----------------------------------------------------------- |
+| Rows and database functions       | `bsb.admin().<model>` repositories and `bsb.admin().$rpc`   |
+| A bucket registered with `bucket` | `bsb.admin().$buckets.<name>`                               |
+| Any other bucket                  | `bsb.admin().$storage.from(bucket)`, e.g. `.remove([path])` |
+| Auth users (create, invite, ban)  | `bsb.admin().$authAdmin`, from 0.11                         |
+| Anything else supabase-js does    | `bsb.admin().$client`, the secret-key client                |
 
 ```ts title="app/api/cron/cleanup/route.ts"
 export async function GET() {
-  const admin = bs.admin();
+  const admin = bsb.admin();
   const { data } = await admin.$authAdmin.listUsers({ perPage: 100 });
   const stale = data.users.filter((user) => user.banned_until);
 
@@ -329,7 +329,7 @@ export async function GET() {
 ```
 
 All of them use the secret key and bypass RLS. Pass `{ as: userId }` to
-`bs.admin()` to record that user as the actor of the writes.
+`bsb.admin()` to record that user as the actor of the writes.
 
 Pass `fetch` (for example `tracedFetch()` from `better-supabase/otel`) to send
 every PostgREST and supabase-js request through it. Auth refreshes use

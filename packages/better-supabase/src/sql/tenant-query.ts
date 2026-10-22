@@ -1,4 +1,4 @@
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
 
@@ -13,7 +13,7 @@ export interface TenantQuery {
  * text. Undefined when the organizations module isn't installed.
  */
 export function tenantsQuery(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   installed: readonly string[],
   tenant: string,
 ): TenantQuery | undefined {

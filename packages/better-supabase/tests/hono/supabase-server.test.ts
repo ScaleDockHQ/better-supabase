@@ -42,8 +42,8 @@ describe("better-supabase/hono after @supabase/server's withSupabase through toH
     auth: { jwks: stranger.jwks },
   });
 
-  const who = (bs: typeof alone) =>
-    bs.handler((_c, ctx) => ({
+  const who = (bsb: typeof alone) =>
+    bsb.handler((_c, ctx) => ({
       ok: true,
       data: {
         auth: ctx.auth.kind === "user" ? ctx.auth.claims : ctx.auth.kind,

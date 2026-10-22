@@ -626,7 +626,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
   });
 
   it("calls functions without generated metadata over Postgres", async () => {
-    const probe = `bs_rpc_probe_${String(Date.now())}`;
+    const probe = `bsb_rpc_probe_${String(Date.now())}`;
     await postgres.admin.queryRaw(`
       create function public.${probe}_scalar(n integer) returns integer language sql as 'select n * 2';
       create function public.${probe}_set(n integer) returns setof integer language sql as 'select generate_series(1, n)';

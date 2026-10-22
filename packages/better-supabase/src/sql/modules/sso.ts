@@ -1,11 +1,11 @@
 import type { SsoEvents } from "../../blocks/sso/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ScimSqlNames } from "./sso-scim-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -26,7 +26,7 @@ import {
 } from "./sso-scim-sql.ts";
 import { roleNameOf } from "./tenant.ts";
 
-const EVENTS: ModuleEvents<SsoEvents> = {
+const EVENTS: BlockSqlEvents<SsoEvents> = {
   "organization.member_removed": {
     subject: "organizations",
     payload: ["organizationId", "userId"],
@@ -81,7 +81,7 @@ const EVENTS: ModuleEvents<SsoEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["txtPrefix", "defaultRole", "roleOrder", "groupRoles", "syncLog"],
   hooks: [],
@@ -165,7 +165,7 @@ interface Roles {
   readonly groups: readonly (readonly [string, string])[];
 }
 
-function rolesFor(ctx: ModuleContext): Roles {
+function rolesFor(ctx: BlockSqlContext): Roles {
   const model = accessModel(ctx);
   const listed = model === "roles" || model === "catalog";
 
@@ -220,7 +220,7 @@ function rolesFor(ctx: ModuleContext): Roles {
   return { owner, order, fallback, groups };
 }
 
-function prefixOf(ctx: ModuleContext): string {
+function prefixOf(ctx: BlockSqlContext): string {
   const prefix = ctx.text("txtPrefix", "_better-supabase");
 
   if (!PREFIX.test(prefix)) {
@@ -232,7 +232,7 @@ function prefixOf(ctx: ModuleContext): string {
   return prefix;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -923,7 +923,7 @@ grant execute on function ${fn("scim_save_group")}(${id}, uuid, jsonb, integer) 
 grant execute on function ${fn("scim_delete_group")}(${id}, uuid) to service_role;${ctx.flag("syncLog", false) ? `\n\n${scimSyncLogSql(ctx, serviceOnly)}` : ""}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     ...(ctx.flag("syncLog", false) ? SCIM_SYNC_LOG_CONTRACT : []),
     { name: "scim_group_role", args: ["text"], returns: "text" },
@@ -985,7 +985,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SSO: ModuleDefinition = {
+export const SSO: BlockSqlDefinition = {
   name: "sso",
   scopes: ["tenant"],
   title: "SSO and SCIM",

@@ -10,7 +10,7 @@ import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
-import type { QueueBackend, QueueRpcClient, QueueStats } from "./backends.ts";
+import type { QueueProvider, QueueRpcClient, QueueStats } from "./backends.ts";
 
 export type QueueSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -27,7 +27,7 @@ type PayloadOut<
 /**
  * What a job records about the request that enqueued it, under wire names: the
  * actor, the tenant, the ticket, and the delegation of the token, so
- * `bs.forContext(job.context)` runs the job under the same terms.
+ * `bsb.forContext(job.context)` runs the job under the same terms.
  */
 export interface JobContext {
   readonly actor?: Actor;
@@ -47,7 +47,7 @@ export interface JobContext {
   /** The opaque ticket `forContext` resolves into the context the job runs as. */
   readonly ticket?: string;
   /** The permission keys a `forContext({ permissions })` cap left the work. */
-  readonly bs_permission_cap?: readonly string[];
+  readonly bsb_permission_cap?: readonly string[];
 }
 
 export interface Job<P = unknown> {
@@ -64,7 +64,7 @@ export interface Job<P = unknown> {
   readonly lastError: string | null;
   /**
    * The actor and tenant recorded at enqueue, ready for
-   * `bs.forContext(job.context)`, which runs as that user with RLS. Without a
+   * `bsb.forContext(job.context)`, which runs as that user with RLS. Without a
    * recorded tenant, `tenant()` applies its `onMissing` unless the worker runs
    * with `allTenants: true`.
    */
@@ -103,7 +103,7 @@ export interface EnqueueOptions {
   readonly context?: RequestContext;
   /**
    * An opaque ticket, recorded instead of `context.ticket`.
-   * `bs.forContext(job.context)` resolves it through the authorization
+   * `bsb.forContext(job.context)` resolves it through the authorization
    * provider's `tickets.subject` and runs as the context it returns.
    */
   readonly ticket?: string;
@@ -519,8 +519,8 @@ export interface JobsOptions<
    * `jobsBlock.with({ queues })` sets them.
    */
   readonly queues?: Q;
-  /** Any `QueueBackend`. */
-  readonly backend?: QueueBackend;
+  /** Any `QueueProvider`. */
+  readonly backend?: QueueProvider;
   /**
    * A service SQL connection (`postgres.admin`, `ctx.sql`), for the full
    * feature set.

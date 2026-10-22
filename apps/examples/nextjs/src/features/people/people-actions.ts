@@ -13,7 +13,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { TIME_ZONE } from "./people-queries";
 
@@ -39,7 +39,7 @@ const PlainDate = v.pipe(v.string(), v.isoDate());
  * Adds an employee. Phone and personal email are private details, saved only
  * when the caller may see them (`employees.view_sensitive`).
  */
-export const createEmployee = bs.action(
+export const createEmployee = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -123,7 +123,7 @@ export const createEmployee = bs.action(
  * An employee's private details; the block refuses callers without
  * `employees.view_sensitive`.
  */
-export const getPrivateDetails = bs.action(
+export const getPrivateDetails = bsb.action(
   {
     input: v.object({ employeeId: Id }),
     requireTenant: true,
@@ -153,7 +153,7 @@ export const getPrivateDetails = bs.action(
 const Clock = v.pipe(v.string(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
 
 /** Logs a block of time on a day of the caller's week, in the block's zone. */
-export const logTime = bs.action(
+export const logTime = bsb.action(
   {
     input: v.pipe(
       v.object({
@@ -197,7 +197,7 @@ export const logTime = bs.action(
 );
 
 /** Starts the caller's timer on a project, stopping the one that runs. */
-export const startTimer = bs.action(
+export const startTimer = bsb.action(
   {
     input: v.object({
       project: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -220,7 +220,7 @@ export const startTimer = bs.action(
   },
 );
 
-export const stopTimer = bs.action(
+export const stopTimer = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
@@ -240,7 +240,7 @@ export const stopTimer = bs.action(
 );
 
 /** Sends the caller's week for approval; the block refuses while a timer runs. */
-export const submitTimesheet = bs.action(
+export const submitTimesheet = bsb.action(
   {
     input: v.object({ week: PlainDate }),
     requireTenant: true,
@@ -262,7 +262,7 @@ export const submitTimesheet = bs.action(
 );
 
 /** Opens a new opening that takes applications right away. */
-export const createOpening = bs.action(
+export const createOpening = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -291,7 +291,7 @@ export const createOpening = bs.action(
 );
 
 /** Adds a customer as a candidate for an opening, in its first stage. */
-export const addCandidate = bs.action(
+export const addCandidate = bsb.action(
   {
     input: v.object({ jobId: Id, candidateId: Id }),
     requireTenant: true,
@@ -318,7 +318,7 @@ export const addCandidate = bs.action(
  * Moves an application to another open stage. `rank.move` sets the stage as the
  * row's group, which needs `application` in `config.subjects`.
  */
-export const moveApplication = bs.action(
+export const moveApplication = bsb.action(
   {
     input: v.object({ applicationId: Id, stageId: Id }),
     requireTenant: true,
@@ -342,7 +342,7 @@ export const moveApplication = bs.action(
 );
 
 /** Hires or rejects a candidate, which moves the card to that stage. */
-export const closeApplication = bs.action(
+export const closeApplication = bsb.action(
   {
     input: v.object({
       applicationId: Id,

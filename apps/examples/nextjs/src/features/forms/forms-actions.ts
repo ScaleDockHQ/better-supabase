@@ -7,7 +7,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -22,7 +22,7 @@ function keyOf(title: string): string {
   return `${slug || "form"}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-export const createForm = bs.action(
+export const createForm = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -67,7 +67,7 @@ const Field = v.object({
 });
 
 /** Publishes the fields as the form's next version; a draft form opens. */
-export const publishForm = bs.action(
+export const publishForm = bsb.action(
   {
     input: v.object({
       formId: Id,
@@ -106,7 +106,7 @@ const Answer = v.union([
 ]);
 
 /** Postgres validates the answers against the current version's schema. */
-export const submitForm = bs.action(
+export const submitForm = bsb.action(
   {
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
     requireTenant: true,

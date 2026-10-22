@@ -1,11 +1,11 @@
 import type { WorkflowsEvents } from "../../blocks/workflows/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { NOTHING } from "../context.ts";
@@ -21,7 +21,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<WorkflowsEvents> = {
+const EVENTS: BlockSqlEvents<WorkflowsEvents> = {
   "workflow_run.completed": {
     subject: "workflow-runs",
     payload: [
@@ -69,7 +69,7 @@ const EVENTS: ModuleEvents<WorkflowsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   tables: {
     runs: {
@@ -169,7 +169,7 @@ const PRINCIPAL_KINDS = [
 
 const TERMINAL = "('completed', 'failed', 'cancelled')";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -901,7 +901,7 @@ end;
 $$;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "record_workflow_run",
@@ -1007,7 +1007,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const WORKFLOWS: ModuleDefinition = {
+export const WORKFLOWS: BlockSqlDefinition = {
   name: "workflows",
   scopes: ["tenant"],
   title: "Workflows",

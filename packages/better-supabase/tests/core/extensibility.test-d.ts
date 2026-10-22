@@ -11,7 +11,7 @@ import type {
   NoteTaker,
   Transcriber,
 } from "../../src/blocks/engagements/index.ts";
-import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
+import type { QueueProvider } from "../../src/blocks/jobs/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type {
   DeliveryTransport,
@@ -22,7 +22,7 @@ import type {
   InviteRequest,
 } from "../../src/blocks/organizations/index.ts";
 import type { Profiles } from "../../src/blocks/profiles/index.ts";
-import type { ShipmentCarrier } from "../../src/blocks/shipments/index.ts";
+import type { ShippingProvider } from "../../src/blocks/shipments/index.ts";
 import type {
   IncomingDestination,
   WebhookSecretStore,
@@ -95,7 +95,7 @@ import type { TestDocumentFormatOptions } from "../../src/testing/document-forma
 
 import {
   pgmqPublicBackend,
-  sqlQueueBackend,
+  sqlQueueProvider,
 } from "../../src/blocks/jobs/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createProfiles } from "../../src/blocks/profiles/index.ts";
@@ -155,9 +155,9 @@ describe("extension interfaces", () => {
     expectTypeOf(nextCache()).toExtend<CacheAdapter>();
     expectTypeOf(queryCache(queryClient)).toExtend<CacheAdapter>();
     expectTypeOf(httpSink).returns.toExtend<EventSink>();
-    expectTypeOf(sqlQueueBackend).returns.toExtend<QueueBackend>();
-    expectTypeOf(pgmqPublicBackend).returns.toExtend<QueueBackend>();
-    expectTypeOf<QueueBackend["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(sqlQueueProvider).returns.toExtend<QueueProvider>();
+    expectTypeOf(pgmqPublicBackend).returns.toExtend<QueueProvider>();
+    expectTypeOf<QueueProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
@@ -168,8 +168,8 @@ describe("extension interfaces", () => {
     expectTypeOf(fixedRates).returns.toExtend<TaxProvider>();
     expectTypeOf(stripeTax).returns.toExtend<TaxProvider>();
     expectTypeOf<TaxProvider["apiVersion"]>().toEqualTypeOf<1>();
-    expectTypeOf(flatRateCarrier).returns.toExtend<ShipmentCarrier>();
-    expectTypeOf<ShipmentCarrier["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(flatRateCarrier).returns.toExtend<ShippingProvider>();
+    expectTypeOf<ShippingProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
     expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
     expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();

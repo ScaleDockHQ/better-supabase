@@ -1,8 +1,8 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
 
-export const UPDATED_AT: ModuleDefinition = {
+export const UPDATED_AT: BlockSqlDefinition = {
   name: "updated-at",
   title: "Update timestamps",
   description: "Keeps an updated_at column current on every update.",
@@ -44,11 +44,11 @@ set search_path = ''
 as $$
 begin
   perform better_supabase.replace_equivalent_triggers(
-    target, 'bs_updated_at', 'updated_at|moddatetime|touch', replace_trigger
+    target, 'bsb_updated_at', 'updated_at|moddatetime|touch', replace_trigger
   );
-  execute format('drop trigger if exists bs_updated_at on %s', target);
+  execute format('drop trigger if exists bsb_updated_at on %s', target);
   execute format(
-    'create trigger bs_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',
+    'create trigger bsb_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',
     target,
     column_name
   );

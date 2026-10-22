@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { EnrichmentProvider } from "../../src/blocks/enrichment/index.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createEnrichment } from "../../src/blocks/enrichment/index.ts";
 import { createParties } from "../../src/blocks/parties/index.ts";
@@ -13,7 +13,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["parties"], {}),
 };
 

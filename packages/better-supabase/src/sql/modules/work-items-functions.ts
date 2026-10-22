@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
@@ -66,7 +66,7 @@ function fields(
 }
 
 export function workItemFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: WorkItemNames,
 ): string {
   const { fn, t, c, e } = n;

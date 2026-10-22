@@ -7,21 +7,21 @@ description: Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers.
 import { createEdge } from "better-supabase/edge";
 import { betterSupabase } from "../_shared/supabase.ts";
 
-export const bs = createEdge(betterSupabase, { cors: true });
+export const bsb = createEdge(betterSupabase, { cors: true });
 ```
 
 ```ts title="supabase/functions/api/index.ts"
-import { bs } from "./server.ts";
+import { bsb } from "./server.ts";
 
 Deno.serve(
-  bs.handler(async (request, { db }) => {
+  bsb.handler(async (request, { db }) => {
     const { name } = await request.json();
     return db.customers.create({ name, organizationId: "..." });
   }),
 );
 ```
 
-`bs.handler(fn)` returns a plain `(request) => Promise<Response>`. The handler
+`bsb.handler(fn)` returns a plain `(request) => Promise<Response>`. The handler
 runs as the caller, so RLS applies, and its return value is converted the
 same way as in the other adapters:
 
@@ -43,7 +43,7 @@ in the handler is typed by the schema's output:
 
 ```ts
 Deno.serve(
-  bs.handler((_request, { auth }) => ({
+  bsb.handler((_request, { auth }) => ({
     role: auth.kind === "user" ? auth.claims.user_role : null,
   })),
 );
@@ -51,12 +51,12 @@ Deno.serve(
 
 ## REST resources
 
-`bs.resources` serves the same REST routes as [Hono resources](/docs/frameworks/hono#resources)
+`bsb.resources` serves the same REST routes as [Hono resources](/docs/frameworks/hono#resources)
 without a router:
 
 ```ts
 Deno.serve(
-  bs.resources(
+  bsb.resources(
     {
       customers: { list: customerList },
       tags: { operations: ["list", "get"] },
@@ -77,10 +77,10 @@ Each entry takes the same options as a Hono resource, including `hooks`,
 ```ts
 import { createEdge, defineAction } from "better-supabase/edge";
 
-const bs = createEdge(betterSupabase, { cors: true, authorizer });
+const bsb = createEdge(betterSupabase, { cors: true, authorizer });
 
 Deno.serve(
-  bs.resources(
+  bsb.resources(
     {
       customers: {
         permissions: { delete: "customers.delete" },
@@ -103,14 +103,14 @@ See [Resources](/docs/specs/resources) for hooks, actions and permissions.
 
 ## Routes
 
-`bs.routes` serves several handlers from one function. Keys are
+`bsb.routes` serves several handlers from one function. Keys are
 `"METHOD /path"` or `"/path"` (any method), with `:name` segments and a
 trailing `/*`. `params` in each handler is typed from its key. A route can be
-a handler or an object with the same guards as Hono's `bs.require`:
+a handler or an object with the same guards as Hono's `bsb.require`:
 
 ```ts
 Deno.serve(
-  bs.routes(
+  bsb.routes(
     {
       "GET /customers/:id": (_request, { db, params }) =>
         db.customers.findById(params.id),
@@ -141,7 +141,7 @@ Workers the handler uses the `ctx` that `fetch(request, env, ctx)` receives.
 On Supabase, pass the runtime's function:
 
 ```ts
-const bs = createEdge(betterSupabase, {
+const bsb = createEdge(betterSupabase, {
   waitUntil: (promise) => EdgeRuntime.waitUntil(promise),
 });
 ```
@@ -177,11 +177,11 @@ import { withCors } from "@supabase/middleware/cors";
 import { toEdge } from "better-supabase/edge";
 import { createServer, withBetterSupabase } from "better-supabase/server";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 
 export default {
   fetch: toEdge(
-    [withCors({ origin: "https://app.example.com" }), withBetterSupabase(bs)],
+    [withCors({ origin: "https://app.example.com" }), withBetterSupabase(bsb)],
     async (_request, ctx) =>
       Response.json(await ctx.db.notes.findMany().orThrow()),
   ),

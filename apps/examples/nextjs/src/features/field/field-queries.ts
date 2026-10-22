@@ -13,7 +13,7 @@ import { Temporal } from "temporal-polyfill";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** One work order as the board and the day plan show it. */
 export interface WorkOrderCard {
@@ -106,7 +106,7 @@ export async function loadDispatchWeek(
   monday: string,
 ): Promise<DispatchWeek | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -160,7 +160,7 @@ export async function loadTechnicianDay(
   date: string,
 ): Promise<TechnicianDayPlan | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -186,7 +186,7 @@ export async function loadShipmentTracking(
   selectedId: string | undefined,
 ): Promise<ShipmentTracking | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -1,4 +1,4 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
@@ -26,7 +26,7 @@ const ENSURE_RLS_SKIPPED_SCHEMAS = [
   "information_schema",
 ];
 
-export const ENSURE_RLS: ModuleDefinition = {
+export const ENSURE_RLS: BlockSqlDefinition = {
   name: "ensure-rls",
   title: "RLS on every new table",
   description:
@@ -60,8 +60,8 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();`,
 };

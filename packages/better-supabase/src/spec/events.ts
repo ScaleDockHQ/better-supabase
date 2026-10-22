@@ -143,7 +143,7 @@ export interface CloudEventsInput extends Pick<
 /** Channels and messages for AsyncAPI, built from the schema and the app. */
 export interface EventsOptions<Ref = string> {
   /**
-   * Table change signals (`bs:t:<schema>.<table>`) for the tables in
+   * Table change signals (`bsb:t:<schema>.<table>`) for the tables in
    * `realtime.tables`: `true` for all, or app keys. Defaults to `true`.
    */
   readonly tables?: boolean | readonly string[];
@@ -269,7 +269,7 @@ function tableChannels<Ref>(
     }
 
     const id = `table${keyPart(key)}`;
-    const base = `bs:t:${table.schema}.${table.name}`;
+    const base = `bsb:t:${table.schema}.${table.name}`;
 
     const address = config.user
       ? `${base}:u:{userId}`

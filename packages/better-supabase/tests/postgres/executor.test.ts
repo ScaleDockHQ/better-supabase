@@ -667,7 +667,7 @@ describe("postgresExecutor rpc", () => {
   const fn = schema.meta.functions["rs_workspace_summary"]!;
 
   it("calls the function by schema and named arguments, as json for json types", async () => {
-    const fake = fakeSql([["to_json(bs_call)", [{ value: { ok: true } }]]]);
+    const fake = fakeSql([["to_json(bsb_call)", [{ value: { ok: true } }]]]);
     const executor = postgresExecutor(fake.sql);
 
     const result = await executor.rpc!(
@@ -679,14 +679,14 @@ describe("postgresExecutor rpc", () => {
     expect(result).toMatchObject({ ok: true, data: { ok: true } });
     expect(fake.calls).toEqual([
       {
-        text: 'select to_json(bs_call) as value from "public"."rs_workspace_summary"("p" => $1) as bs_call',
+        text: 'select to_json(bsb_call) as value from "public"."rs_workspace_summary"("p" => $1) as bsb_call',
         values: ["[1,2]"],
       },
     ]);
   });
 
   it("selects the listed columns from the call, cast where asked", async () => {
-    const fake = fakeSql([["to_json(bs_call)", [{ value: { amount: "1" } }]]]);
+    const fake = fakeSql([["to_json(bsb_call)", [{ value: { amount: "1" } }]]]);
 
     await postgresExecutor(fake.sql).rpc!(
       "rs_workspace_summary",
@@ -700,7 +700,7 @@ describe("postgresExecutor rpc", () => {
     );
 
     expect(fake.calls.at(-1)?.text).toBe(
-      'select to_json(bs_call) as value from (select bs_call."label", bs_call."amount"::text as "amount" from "public"."rs_workspace_summary"("p" => $1) as bs_call) as bs_call',
+      'select to_json(bsb_call) as value from (select bsb_call."label", bsb_call."amount"::text as "amount" from "public"."rs_workspace_summary"("p" => $1) as bsb_call) as bsb_call',
     );
   });
 
@@ -726,14 +726,14 @@ describe("postgresExecutor rpc", () => {
             },
           ],
         ],
-        ["to_json(bs_call)", [{ value: 1 }]],
+        ["to_json(bsb_call)", [{ value: 1 }]],
       ]);
 
       await postgresExecutor(fake.sql).rpc!("log_event", args, {
         schema: "public",
         errorMappers: [],
       });
-      const call = fake.calls.find((c) => c.text.includes("to_json(bs_call)"));
+      const call = fake.calls.find((c) => c.text.includes("to_json(bsb_call)"));
       expect(call!.values).toEqual([expected]);
     },
   );
@@ -741,7 +741,7 @@ describe("postgresExecutor rpc", () => {
   it("sends objects as json, Temporal values as text and bigints as strings", async () => {
     const fake = fakeSql([
       ["pg_proc", [{ returns_set: true, returns_void: false }]],
-      ["to_json(bs_call)", [{ value: 1 }, { value: 2 }]],
+      ["to_json(bsb_call)", [{ value: 1 }, { value: 2 }]],
     ]);
 
     const at = Temporal.Instant.from("2026-01-02T03:04:05Z");
@@ -761,7 +761,7 @@ describe("postgresExecutor rpc", () => {
     expect(result).toMatchObject({ ok: true, data: [1, 2] });
     expect(fake.calls[0]!.values).toEqual(["app", "probe"]);
     expect(fake.calls[1]).toEqual({
-      text: 'select to_json(bs_call) as value from "app"."probe"("a" => $1, "at" => $2, "n" => $3, "ids" => $4, "none" => $5) as bs_call',
+      text: 'select to_json(bsb_call) as value from "app"."probe"("a" => $1, "at" => $2, "n" => $3, "ids" => $4, "none" => $5) as bsb_call',
       values: [
         '{"b":1}',
         "2026-01-02T03:04:05Z",
@@ -817,7 +817,7 @@ describe("postgresExecutor rpc", () => {
     const fake = fakeSql([
       ["pg_proc", [{ returns_set: false, returns_void: false }]],
       [
-        "to_json(bs_call)",
+        "to_json(bsb_call)",
         () =>
           fail
             ? { throws: pgError("42883", "function does not exist") }
@@ -877,7 +877,7 @@ describe("postgresExecutor rpc", () => {
           },
         ],
       ],
-      ["to_json(bs_call)", [{ value: { total: 1 } }]],
+      ["to_json(bsb_call)", [{ value: { total: 1 } }]],
     ]);
 
     await postgresExecutor(fake.sql).rpc!(
@@ -886,7 +886,7 @@ describe("postgresExecutor rpc", () => {
       { schema: "public", errorMappers: [] },
     );
     expect(fake.calls[1]).toEqual({
-      text: 'select to_json(bs_call) as value from "public"."totals"("p_status" => $1, "typo" => $2) as bs_call',
+      text: 'select to_json(bsb_call) as value from "public"."totals"("p_status" => $1, "typo" => $2) as bsb_call',
       values: ["active", 1],
     });
   });

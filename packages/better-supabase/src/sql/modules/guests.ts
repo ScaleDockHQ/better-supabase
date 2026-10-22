@@ -1,11 +1,11 @@
 import type { GuestsEvents } from "../../blocks/guests/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { guestFunctions, providerGuestSource } from "../guest-sql.ts";
@@ -33,7 +33,7 @@ const ACCESS_PAYLOAD = [
   "actions",
 ] as const;
 
-const EVENTS: ModuleEvents<GuestsEvents> = {
+const EVENTS: BlockSqlEvents<GuestsEvents> = {
   "guest.invited": {
     subject: "guests",
     payload: ["organizationId", "id", "email", "partyType", "partyId"],
@@ -47,7 +47,7 @@ const EVENTS: ModuleEvents<GuestsEvents> = {
   "guest_grant.revoked": { subject: "guest-grants", payload: ACCESS_PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     guest: { table: "guests", singular: "guest", primary: true },
     guest_grant: { table: "grants", singular: "guest_grant" },
@@ -102,7 +102,7 @@ const ACTIONS = `array[${GUEST_ACTIONS.map((action) => sqlString(action)).join("
  * subject. Null for an unknown record.
  */
 function grantSubjectTenant(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: string,
   id: string,
 ): string {
@@ -130,7 +130,7 @@ function grantSubjectTenant(
     : `(case ${type}\n      ${owned.join("\n      ")}\n      else ${registered}\n    end)`;
 }
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -194,7 +194,7 @@ create policy ${index("grants", "read")} on ${grants} for select to authenticate
 `;
 }
 
-function functions(ctx: ModuleContext, layout: ModuleLayout): string {
+function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const guests = ctx.table("guests");
   const grants = ctx.table("grants");
   const g = (column: string): string => ctx.col("guests", column);
@@ -595,7 +595,7 @@ ${userGrant(`${fn("my_guest_access")}()`)}
 `;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -608,7 +608,7 @@ ${tables(ctx)}${functions(ctx, layout)}${grantMerges(ctx)}`;
 }
 
 /** Moves the grants on a merged registered subject to the record it merged into. */
-function grantMerges(ctx: ModuleContext): string {
+function grantMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -632,7 +632,7 @@ function grantMerges(ctx: ModuleContext): string {
   );
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "invite_guest",
@@ -658,7 +658,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const GUESTS: ModuleDefinition = {
+export const GUESTS: BlockSqlDefinition = {
   name: "guests",
   scopes: ["tenant"],
   title: "Guests",

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -14,7 +14,7 @@ export interface AuditInsert {
  * metadata key that fills each.
  */
 export function metadataColumns(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly (readonly [column: string, key: string])[] {
   const where = "blocks.audit.options.metadataColumns";
   const configured = ctx.option("metadataColumns");
@@ -59,7 +59,7 @@ export function metadataColumns(
  * `keepMappedMetadata`.
  */
 export function storedMetadata(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   extra: readonly (readonly [column: string, key: string])[],
 ): string {
   if (extra.length === 0 || ctx.flag("keepMappedMetadata", false)) {
@@ -77,7 +77,7 @@ export function storedMetadata(
  * the column to its default.
  */
 export function eventInsert(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   insert: AuditInsert,
   extra: readonly (readonly [column: string, key: string])[],
 ): string {

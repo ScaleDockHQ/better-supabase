@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -17,7 +17,7 @@ export interface AutoTables {
   readonly purge: boolean;
 }
 
-export function autoTablesOf(ctx: ModuleContext): AutoTables | undefined {
+export function autoTablesOf(ctx: BlockSqlContext): AutoTables | undefined {
   const where = "blocks.data-lifecycle.options.autoTables";
 
   const option =

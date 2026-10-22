@@ -19,7 +19,7 @@ import "server-only";
 import { createNext } from "better-supabase/next";
 import { betterSupabase } from "./index";
 
-export const bs = createNext(betterSupabase, {
+export const bsb = createNext(betterSupabase, {
   readUrl: process.env.REPLICA_URL,
   replicas: { pinMs: 5000 },
 });
@@ -44,8 +44,8 @@ _pins_ the request to the primary: every later read in that request goes
 there too.
 
 The pin also crosses the redirect. When a Next.js action or route, a Hono
-or edge handler, or an oRPC procedure served by `bs.fetchHandler` writes, the
-response sets an `HttpOnly` cookie `bs-primary-until` that holds a timestamp
+or edge handler, or an oRPC procedure served by `bsb.fetchHandler` writes, the
+response sets an `HttpOnly` cookie `bsb-primary-until` that holds a timestamp
 `replicas.pinMs` (5 s by default) ahead. Custom adapters get the same cookie
 from `ctx.apply(response)`. Every request with that cookie reads
 from the primary until then, so the page you redirect to shows the new data.
@@ -62,9 +62,9 @@ ctx.replica?.pin();
 
 ## Other adapters
 
-`bs.context(request)` reads the cookie for every adapter, so Hono, oRPC
-and edge functions honor a pin set by Next.js. Only `bs.action` and
-`bs.route` set it. Elsewhere, set it yourself when `ctx.replica?.wrote` is
+`bsb.context(request)` reads the cookie for every adapter, so Hono, oRPC
+and edge functions honor a pin set by Next.js. Only `bsb.action` and
+`bsb.route` set it. Elsewhere, set it yourself when `ctx.replica?.wrote` is
 true:
 
 ```ts

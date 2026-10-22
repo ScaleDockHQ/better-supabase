@@ -1,11 +1,11 @@
 import type { AnnouncementsEvents } from "../../blocks/announcements/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -19,7 +19,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<AnnouncementsEvents> = {
+const EVENTS: BlockSqlEvents<AnnouncementsEvents> = {
   "announcement.saved": {
     subject: "announcements",
     payload: ["announcementId"],
@@ -30,7 +30,7 @@ const EVENTS: ModuleEvents<AnnouncementsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["topic", "event", "extraColumns"],
   tables: {
@@ -80,7 +80,7 @@ const EDITABLE = [
   "updatedAt",
 ] as const;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -150,8 +150,8 @@ create table if not exists ${a} (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table ${a} drop constraint if exists bs_announcements_audience;
-alter table ${a} add constraint bs_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
+alter table ${a} drop constraint if exists bsb_announcements_audience;
+alter table ${a} add constraint bsb_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
 create index if not exists announcements_window_idx on ${a} (${ca("startsAt")}, ${ca("endsAt")});
 create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});${addExtraColumns(a, extras)}
 ${lockTable(a)}
@@ -364,7 +364,7 @@ grant execute on function ${fn("save_announcement")}(uuid, jsonb) to authenticat
 grant execute on function ${fn("delete_announcement")}(uuid) to authenticated, service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "active_announcements", args: ["{id}"], returns: "jsonb" },
     { name: "dismiss_announcement", args: ["uuid"], returns: "boolean" },
@@ -374,7 +374,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ANNOUNCEMENTS: ModuleDefinition = {
+export const ANNOUNCEMENTS: BlockSqlDefinition = {
   name: "announcements",
   scopes: ["tenant"],
   title: "Announcements",

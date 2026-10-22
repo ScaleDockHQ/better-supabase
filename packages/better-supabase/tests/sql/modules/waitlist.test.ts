@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const sqlOf = (
   names: readonly string[],
   modules: AnyBlocksConfig = {},
 ): string =>
-  renderModules(names, { modules, accessProvider: moduleProvider })
+  renderBlocks(names, { modules, accessProvider: moduleProvider })
     .filter((file) => file.contents.includes("waitlist_entries"))
     .map((file) => file.contents)
     .join("\n");

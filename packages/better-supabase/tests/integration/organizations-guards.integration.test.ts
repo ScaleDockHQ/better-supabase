@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -9,7 +9,7 @@ const live = await reachable();
 
 /** An adopted memberships table in its own schema, with text roles. */
 async function teamSchema(s: BlockSession): Promise<string> {
-  const schema = `bs_team_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bsb_team_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.team_members (
@@ -26,7 +26,7 @@ async function teamSchema(s: BlockSession): Promise<string> {
 function adopted(
   schema: string,
   organizations: Record<string, unknown> = {},
-): ModuleLayout {
+): BlockSqlLayout {
   return {
     modules: {
       access: { schema },
@@ -143,7 +143,7 @@ describe.skipIf(!live)("organizations member guards", () => {
       const member = await s.user("member");
       const newcomer = await s.user("newcomer");
       const organization = await s.organization(owner, { admin, member });
-      const schema = `bs_app_${crypto.randomUUID().slice(0, 8)}`;
+      const schema = `bsb_app_${crypto.randomUUID().slice(0, 8)}`;
       await s.client.query(`
         create schema ${schema};
         grant usage on schema ${schema} to authenticated;
@@ -154,7 +154,7 @@ describe.skipIf(!live)("organizations member guards", () => {
         $$;
         grant execute on function ${schema}.seat(uuid, uuid, text) to authenticated;
         grant update on better_supabase.memberships to authenticated;
-        create policy bs_test_update on better_supabase.memberships for update to authenticated
+        create policy bsb_test_update on better_supabase.memberships for update to authenticated
           using (true) with check (true);
       `);
 
@@ -311,7 +311,7 @@ describe.skipIf(!live)("organizations member guards", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      const log = `public.bs_activity_${crypto.randomUUID().slice(0, 8)}`;
+      const log = `public.bsb_activity_${crypto.randomUUID().slice(0, 8)}`;
       await s.client.query(`
         create table ${log} (
           id bigint generated always as identity primary key,
@@ -346,7 +346,7 @@ describe.skipIf(!live)("organizations member guards", () => {
       const owner = await s.user("owner");
 
       const categories = async (
-        modules: NonNullable<ModuleLayout["modules"]>,
+        modules: NonNullable<BlockSqlLayout["modules"]>,
       ) => {
         await s.install(["organizations", "audit"], { modules });
         const organization = await s.organization(owner);
@@ -401,7 +401,7 @@ describe.skipIf(!live)("organizations member guards", () => {
             select auth.uid() = '${staff.id}' and permission in ('platform.members.update_role', 'platform.members.remove') $$;
       `);
 
-      const layout = (permissions: Record<string, string>): ModuleLayout => ({
+      const layout = (permissions: Record<string, string>): BlockSqlLayout => ({
         accessProvider: {
           name: "test",
           scope: "organization",

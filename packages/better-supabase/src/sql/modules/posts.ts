@@ -1,11 +1,11 @@
 import type { PostsEvents } from "../../blocks/posts/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
@@ -25,7 +25,7 @@ const POST_PAYLOAD = [
 
 const post = { subject: "posts", payload: POST_PAYLOAD } as const;
 
-const EVENTS: ModuleEvents<PostsEvents> = {
+const EVENTS: BlockSqlEvents<PostsEvents> = {
   "post_board.saved": {
     subject: "post-boards",
     payload: ["organizationId", "id", "key", "kind"],
@@ -38,7 +38,7 @@ const EVENTS: ModuleEvents<PostsEvents> = {
   "post.deleted": post,
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     post_board: { table: "boards", singular: "post_board" },
     post: {
@@ -105,7 +105,7 @@ const POST_STATUSES = [
   "closed",
 ] as const;
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   const q = postsSql(ctx);
   const { b, p, boards, posts, read, moderate } = q;
 
@@ -167,7 +167,7 @@ create policy ${name("posts", "read")} on ${posts} for select to authenticated
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -186,7 +186,7 @@ ${postFunctions(ctx)}
 ${postTriggers(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_post_board", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "list_post_boards", args: ["{id}", "boolean"], returns: "jsonb" },
@@ -201,7 +201,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const POSTS: ModuleDefinition = {
+export const POSTS: BlockSqlDefinition = {
   internal: [...POST_TRIGGERS],
   name: "posts",
   scopes: ["tenant"],

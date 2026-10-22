@@ -8,7 +8,7 @@ import {
   assistantContext,
 } from "@/features/assistant/assistant-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** The API schema `gen` wrote for the inbox block. */
 const API_SCHEMA = blockConfig.inbox.api;
@@ -24,7 +24,7 @@ const TextDelta = v.object({
 /** The inbox as the service role: the bot writes as `bot`, not as the visitor. */
 function serviceInbox() {
   return createInbox({
-    transport: rpcTransport(bs.admin().$client, { schema: API_SCHEMA }),
+    transport: rpcTransport(bsb.admin().$client, { schema: API_SCHEMA }),
     schema: API_SCHEMA,
   });
 }

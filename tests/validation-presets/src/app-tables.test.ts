@@ -1,7 +1,7 @@
 import type { PoolClient, QueryArrayResult } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
-import { moduleLayout, renderModules } from "better-supabase/sql";
+import { moduleLayout, renderBlocks } from "better-supabase/sql";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -38,7 +38,7 @@ const config = resolveConfig(
   process.cwd(),
 );
 
-const files = renderModules(config.blockNames, moduleLayout(config));
+const files = renderBlocks(config.blockNames, moduleLayout(config));
 
 const schema = files
   .filter((file) => file.kind !== "test")

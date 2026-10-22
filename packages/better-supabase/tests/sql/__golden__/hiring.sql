@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module hiring@1 managed
+-- @bsb-block hiring@1 managed
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,7 +142,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or
 
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -167,10 +167,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_application_guard() from public, anon, authenticated;
-drop trigger if exists bs_application_guard on "better_supabase"."applications";
-create trigger bs_application_guard before update of "state" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_application_guard();
+revoke execute on function better_supabase.bsb_application_guard() from public, anon, authenticated;
+drop trigger if exists bsb_application_guard on "better_supabase"."applications";
+create trigger bsb_application_guard before update of "state" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
@@ -446,33 +446,33 @@ revoke execute on function "better_supabase"."application_detail"(uuid) from pub
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module-data hiring
+-- @bsb-block-data hiring
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('hiring', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module hiring@1 managed
+-- @bsb-block hiring@1 managed
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -614,7 +614,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or
 
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -639,10 +639,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_application_guard() from public, anon, authenticated;
-drop trigger if exists bs_application_guard on "better_supabase"."applications";
-create trigger bs_application_guard before update of "state" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_application_guard();
+revoke execute on function better_supabase.bsb_application_guard() from public, anon, authenticated;
+drop trigger if exists bsb_application_guard on "better_supabase"."applications";
+create trigger bsb_application_guard before update of "state" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
@@ -918,33 +918,33 @@ revoke execute on function "better_supabase"."application_detail"(uuid) from pub
 grant execute on function "better_supabase"."application_detail"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module-data hiring
+-- @bsb-block-data hiring
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('hiring', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module hiring@1 managed
+-- @bsb-block hiring@1 managed
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1088,7 +1088,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or
 
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -1113,10 +1113,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_application_guard() from public, anon, authenticated;
-drop trigger if exists bs_application_guard on "app_private"."applications";
-create trigger bs_application_guard before update of "state" on "app_private"."applications"
-for each row execute function better_supabase.bs_application_guard();
+revoke execute on function better_supabase.bsb_application_guard() from public, anon, authenticated;
+drop trigger if exists bsb_application_guard on "app_private"."applications";
+create trigger bsb_application_guard before update of "state" on "app_private"."applications"
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
@@ -1392,33 +1392,33 @@ revoke execute on function "app_private"."application_detail"(uuid) from public,
 grant execute on function "app_private"."application_detail"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module-data hiring
+-- @bsb-block-data hiring
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('hiring', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module hiring@1 managed
+-- @bsb-block hiring@1 managed
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1560,7 +1560,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or
 
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -1585,10 +1585,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_application_guard() from public, anon, authenticated;
-drop trigger if exists bs_application_guard on "better_supabase"."applications";
-create trigger bs_application_guard before update of "state" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_application_guard();
+revoke execute on function better_supabase.bsb_application_guard() from public, anon, authenticated;
+drop trigger if exists bsb_application_guard on "better_supabase"."applications";
+create trigger bsb_application_guard before update of "state" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
@@ -1940,26 +1940,26 @@ revoke execute on function "api"."application_detail"(uuid) from public, anon;
 grant execute on function "api"."application_detail"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_91_hiring.sql
 -- better-supabase module: hiring
--- @bs-module-data hiring
+-- @bsb-block-data hiring
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('hiring', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

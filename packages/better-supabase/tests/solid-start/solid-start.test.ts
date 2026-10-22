@@ -14,7 +14,7 @@ import {
 
 let current: SolidFetchEvent | undefined;
 
-const bs = createSolidStart(betterSupabase, {
+const bsb = createSolidStart(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
@@ -37,7 +37,7 @@ async function serve<T>(
     locals: {},
   };
 
-  const short = await bs.middleware.onRequest(event);
+  const short = await bsb.middleware.onRequest(event);
 
   if (short) {
     return { event, short };
@@ -49,29 +49,29 @@ async function serve<T>(
     return { event, out: await fn() };
   } finally {
     current = undefined;
-    bs.middleware.onBeforeResponse(event);
+    bsb.middleware.onBeforeResponse(event);
   }
 }
 
 describe("createSolidStart", () => {
   it("fills event.locals, and require returns the caller", async () => {
     const { out } = await serve(await requestAs({ role: "member" }), () =>
-      bs.require(),
+      bsb.require(),
     );
 
     expect(out?.session).toMatchObject({ user: { id: USER } });
 
     const { out: locals } = await serve(await requestAs(), () =>
-      Promise.resolve(bs.locals()),
+      Promise.resolve(bsb.locals()),
     );
 
-    expect(locals?.bs.auth.kind).toBe("anon");
+    expect(locals?.bsb.auth.kind).toBe("anon");
   });
 
   it("throws a redirect or Problem Details for refused callers", async () => {
     const anonymous = serve(
       await requestAs(undefined, { url: "https://app.test/notes" }),
-      () => bs.require(),
+      () => bsb.require(),
     );
 
     await expect(anonymous).rejects.toSatisfy(
@@ -82,13 +82,13 @@ describe("createSolidStart", () => {
     );
     await expect(
       serve(await requestAs({ role: "member" }), () =>
-        bs.require({ roles: ["admin"] }),
+        bsb.require({ roles: ["admin"] }),
       ),
     ).rejects.toSatisfy((response: Response) => response.status === 403);
   });
 
   it("runs actions into ActionResults", async () => {
-    const save = bs.action({}, (input) => ok({ input }));
+    const save = bsb.action({}, (input) => ok({ input }));
     const form = new FormData();
     form.append("title", "Hello");
 
@@ -104,7 +104,7 @@ describe("createSolidStart", () => {
   });
 
   it("needs the middleware and a request event", () => {
-    expect(() => bs.locals()).toThrow(/src\/middleware.ts/);
+    expect(() => bsb.locals()).toThrow(/src\/middleware.ts/);
   });
 
   it("reads the env from the native event's Cloudflare bindings", async () => {
@@ -118,7 +118,7 @@ describe("createSolidStart", () => {
       nativeEvent: { req: request },
     };
 
-    expect(await bs.middleware.onRequest(event)).toBeUndefined();
+    expect(await bsb.middleware.onRequest(event)).toBeUndefined();
     expect(event.locals).toHaveProperty("db");
   });
 });

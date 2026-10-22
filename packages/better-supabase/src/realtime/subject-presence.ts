@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { Topic } from "./topic.ts";
 
 import { defineTopic } from "./topic.ts";
@@ -56,7 +56,7 @@ export interface SubjectPresenceValues {
  * ```
  */
 export function subjectPresenceValues(
-  subject: SubjectRef | null | undefined,
+  subject: RecordRef | null | undefined,
 ): SubjectPresenceValues | null {
   return subject ? { subjectType: subject.type, subjectId: subject.id } : null;
 }

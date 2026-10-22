@@ -39,6 +39,11 @@ export interface Codemod {
    * import is used.
    */
   readonly imports?: Readonly<Record<string, string>>;
+  /**
+   * Local bindings, renamed where a file declares or imports them and imports
+   * from `better-supabase` or a `supabase` module.
+   */
+  readonly bindings?: Readonly<Record<string, string>>;
   /** Member names, renamed after a `.` anywhere in code. */
   readonly members?: readonly MemberRename[];
   /** JSX props on one component. */
@@ -212,6 +217,23 @@ const SQL_ADD_HINT: ReviewHint = {
     "`sql add` still only writes the block's SQL; `add` also wires its clients and config. Use `add` unless the script needs the SQL alone",
 };
 
+const BLOCK_SQL_TYPES =
+  "Context ContractFunction Names Layout File IdType AccessProvider EntitlementsProvider TableSpec Upgrade PermissionKey Audit Deprecation Extension Emit UpgradePlan Topic TestFile Action";
+
+const ENTITY_FORM_TYPES =
+  " CustomField Field Input Options Result State Values";
+
+/** `from` and `to` prefixed to each space-separated suffix in `suffixes`. */
+function prefixed(
+  from: string,
+  to: string,
+  suffixes: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    suffixes.split(" ").map((suffix) => [from + suffix, to + suffix]),
+  );
+}
+
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.4": {
     name: "0.4",
@@ -240,15 +262,15 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\.server\(\)/,
         message:
-          "`next.server()` is `bs.context()` on the createNext() instance",
+          "`next.server()` is `bsb.context()` on the createNext() instance",
       },
       {
         pattern: /\.handle\(\)/,
-        message: "Hono's `bs.handle()` is `bs.handler()`",
+        message: "Hono's `bsb.handle()` is `bsb.handler()`",
       },
       {
         pattern: /\bmcp\.handler\b/,
-        message: "`mcp.handler` is `bs.endpoint`",
+        message: "`mcp.handler` is `bsb.endpoint`",
       },
       { pattern: /\.sb\b/, message: "`client.sb` is `client.betterSupabase`" },
       {
@@ -472,7 +494,93 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     configFile: (source, json) =>
       withWebhookFormat({ ok: true, text: source }, json, "cloudevents"),
   },
+  "0.15": {
+    name: "0.15",
+    description:
+      "Renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; cache tags, query keys and the debug header and route that start with bs are listed for review",
+    bindings: {
+      bs: "bsb",
+      SqlModule: "BlockSql",
+      ModuleDefinition: "BlockSqlDefinition",
+      ...prefixed("Module", "BlockSql", BLOCK_SQL_TYPES),
+      ...prefixed("EntityForm", "RecordForm", ENTITY_FORM_TYPES),
+      renderModules: "renderBlocks",
+      resolveModules: "resolveBlocks",
+      resolveModule: "resolveBlock",
+      isModuleIdType: "isBlockSqlIdType",
+      sameModuleFile: "sameBlockFile",
+      InstalledModule: "InstalledBlock",
+      SkippedModule: "SkippedBlock",
+      SubjectRef: "RecordRef",
+      entityForm: "recordForm",
+      useEntityForm: "useRecordForm",
+      UseEntityFormOptions: "UseRecordFormOptions",
+      ShipmentCarrier: "ShippingProvider",
+      testShipmentCarrier: "testShippingProvider",
+      TestShipmentCarrierOptions: "TestShippingProviderOptions",
+      QueueBackend: "QueueProvider",
+      sqlQueueBackend: "sqlQueueProvider",
+      testQueueBackend: "testQueueProvider",
+      transportQueueBackend: "transportQueueProvider",
+      vercelQueueBackend: "vercelQueueProvider",
+      TestQueueBackendOptions: "TestQueueProviderOptions",
+      TransportQueueBackendOptions: "TransportQueueProviderOptions",
+      VercelQueueBackendOptions: "VercelQueueProviderOptions",
+    },
+    members: [{ from: "bs", to: "bsb" }],
+    review: [
+      {
+        pattern: /["'`]bs[:.]|\[\s*["']bs["']/,
+        message:
+          "Cache tags (`bsb:<table>`), query keys (`['bsb', ...]`) and workflow attributes (`bsb.tenant`) now start with `bsb`",
+      },
+      {
+        pattern: /x-bs-db-calls|\/api\/bs-stats|\bbs-(?:proxy|verify)\b/,
+        message:
+          "The debug header is `x-bsb-db-calls`, the stats route `/api/bsb-stats`, and the Server-Timing names `bsb-proxy` and `bsb-verify`",
+      },
+      {
+        pattern: /["'`]bs:t:/,
+        message: "Realtime change topics are `bsb:t:<schema>.<table>`",
+      },
+    ],
+  },
 };
+
+const SUPABASE_IMPORT =
+  /\bfrom\s*["'](?:better-supabase(?:\/[\w./-]*)?|[^"']*supabase[^"']*)["']/;
+
+/**
+ * Renames bindings a file declares, destructures or imports, in files that
+ * import from `better-supabase` or a `supabase` module.
+ */
+function renameBindings(
+  text: string,
+  bindings: Readonly<Record<string, string>>,
+): string {
+  const ranges = codeRanges(text);
+
+  if (
+    codeMatches(text, new RegExp(SUPABASE_IMPORT, "g"), ranges).length === 0
+  ) {
+    return text;
+  }
+
+  const renames = new Map(
+    Object.entries(bindings).filter(([from]) => {
+      const name = escapeRegExp(from);
+
+      const declared = new RegExp(
+        `\\b(?:const|let|var|function)\\s+${name}(?![\\w$])|[{,]\\s*(?:type\\s+)?${name}\\s*(?:[,}]|as\\b)|\\(\\s*${name}\\s*[:,)]`,
+        "g",
+      );
+
+      return codeMatches(text, declared, ranges).length > 0;
+    }),
+  );
+
+  return renameIdentifiers(text, renames);
+}
 
 interface Edit {
   readonly start: number;
@@ -1040,6 +1148,10 @@ export function applyCodemod(
         [...imported.locals].map((name) => [name, codemod.imports![name]!]),
       ),
     );
+  }
+
+  if (codemod.bindings) {
+    text = renameBindings(text, codemod.bindings);
   }
 
   if (codemod.members) {

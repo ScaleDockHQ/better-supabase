@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import {
   blockScope,
-  resolveModules,
+  resolveBlocks,
   SQL_MODULES,
 } from "../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../src/sql/render.ts";
 import { moduleScope } from "../../src/sql/scope.ts";
 
 const MODULES_DIR = new URL("../../src/sql/modules/", import.meta.url);
@@ -93,24 +93,24 @@ describe("block scope", () => {
 
   it("drops tenant and access from what a user-scoped block needs", () => {
     const names = (scope?: "user") =>
-      resolveModules(["tags"], scope ? { scope } : {}).map((m) => m.name);
+      resolveBlocks(["tags"], scope ? { scope } : {}).map((m) => m.name);
 
     expect(names()).toEqual(expect.arrayContaining(["tenant", "access"]));
     expect(names("user")).toEqual(["tags"]);
   });
 
   it("refuses a block that needs tenants outside tenant scope", () => {
-    expect(() => resolveModules(["organizations"], { scope: "user" })).toThrow(
+    expect(() => resolveBlocks(["organizations"], { scope: "user" })).toThrow(
       'blocks.organizations: the organizations module runs in tenant scope, not user (from sql.scope). Set blocks.organizations.scope to "tenant" or remove the block.',
     );
     expect(() =>
-      resolveModules(["organizations"], {
+      resolveBlocks(["organizations"], {
         scope: "user",
         modules: { organizations: { scope: "tenant" } },
       }),
     ).not.toThrow();
     expect(() =>
-      resolveModules(["drive-files"], {
+      resolveBlocks(["drive-files"], {
         scope: "none",
         modules: { "drive-files": { scope: "tenant" } },
       }),
@@ -196,7 +196,7 @@ describe("blocks.tenant.entities.organization", () => {
     const names = Object.keys(SQL_MODULES).filter((name) => name !== "pgtap");
 
     const found = new Set(
-      renderModules(names, layout).flatMap((file) =>
+      renderBlocks(names, layout).flatMap((file) =>
         [...code(file.contents).matchAll(/\w*organization\w*/g)].map(
           (match) => match[0],
         ),
@@ -227,14 +227,14 @@ describe("blocks.tenant.entities.organization", () => {
 describe("tenant name clashes", () => {
   it("refuses a tenant name that renames onto a name a module already uses", () => {
     expect(() =>
-      renderModules(["teams"], {
+      renderBlocks(["teams"], {
         modules: { tenant: { entities: { organization: "team" } } },
       }),
     ).toThrow(
       'blocks.tenant.entities.organization: "team" renames the tenant tables and columns to names the teams module already uses (teams, team_id). Choose another name.',
     );
     expect(() =>
-      renderModules(["teams"], {
+      renderBlocks(["teams"], {
         modules: { tenant: { entities: { organization: "workspace" } } },
       }),
     ).not.toThrow();
@@ -267,7 +267,7 @@ describe("blocks.<name>.functions", () => {
 
   it("rejects a function the module doesn't write", () => {
     expect(() =>
-      renderModules(["tags"], {
+      renderBlocks(["tags"], {
         modules: { tags: { functions: { make_coffee: "brew" } } },
       }),
     ).toThrow(

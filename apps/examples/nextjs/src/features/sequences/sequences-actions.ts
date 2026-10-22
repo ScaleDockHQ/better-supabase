@@ -8,13 +8,13 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Text = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
 
 /** Saves a draft sequence with an email, a wait and a follow-up task. */
-export const createSampleSequence = bs.action(
+export const createSampleSequence = bsb.action(
   {
     input: v.object({
       name: Text,
@@ -47,7 +47,7 @@ export const createSampleSequence = bs.action(
 );
 
 /** Activates a sequence so it takes enrollments, or pauses every run. */
-export const setSequenceStatus = bs.action(
+export const setSequenceStatus = bsb.action(
   {
     input: v.object({
       sequenceId: Id,
@@ -112,7 +112,7 @@ function stepOf(input: v.InferOutput<typeof StepInput>): SequenceStep {
 }
 
 /** Appends a step; the sequence's version goes up. */
-export const addSequenceStep = bs.action(
+export const addSequenceStep = bsb.action(
   {
     input: v.intersect([v.object({ sequenceId: Id }), StepInput]),
     requireTenant: true,

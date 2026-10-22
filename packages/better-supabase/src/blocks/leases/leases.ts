@@ -10,7 +10,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -74,7 +74,7 @@ export interface Lease<F extends object = Record<never, never>> {
   /** The asset let. */
   readonly unitId: string;
   /** The party renting the unit, such as a contact. */
-  readonly party: SubjectRef;
+  readonly party: RecordRef;
   readonly title: string;
   readonly status: LeaseStatus;
   readonly startsOn: Temporal.PlainDate;
@@ -102,7 +102,7 @@ export interface Lease<F extends object = Record<never, never>> {
 
 export interface LeaseInput<F extends object = Record<never, never>> {
   readonly unitId: string;
-  readonly party: SubjectRef;
+  readonly party: RecordRef;
   readonly startsOn: Temporal.PlainDate;
   readonly endsOn?: Temporal.PlainDate;
   /** Per period, in minor units. */
@@ -121,7 +121,7 @@ export interface LeaseInput<F extends object = Record<never, never>> {
 export interface LeaseListOptions {
   readonly status?: LeaseStatus;
   readonly unitId?: string;
-  readonly party?: SubjectRef;
+  readonly party?: RecordRef;
   readonly pageSize?: number;
 }
 

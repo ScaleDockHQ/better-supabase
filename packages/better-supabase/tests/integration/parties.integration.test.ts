@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createComments } from "../../src/blocks/comments/index.ts";
 import { createParties } from "../../src/blocks/parties/index.ts";
@@ -19,7 +19,7 @@ const MODULES = [
   "parties",
 ];
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   modules: { parties: { options: { extraColumns: { segment: "text" } } } },
 };
 

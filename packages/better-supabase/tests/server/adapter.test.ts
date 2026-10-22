@@ -294,12 +294,12 @@ describe("testAdapter", () => {
     await testAdapter("hono", {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
-        const bs = createHono(betterSupabase, { ...server, waitUntil });
-        const app = bs.app();
-        app.use(bs.middleware({ allow }));
+        const bsb = createHono(betterSupabase, { ...server, waitUntil });
+        const app = bsb.app();
+        app.use(bsb.middleware({ allow }));
         app.get(
           "*",
-          bs.handler((_c, ctx) => run(ctx)),
+          bsb.handler((_c, ctx) => run(ctx)),
         );
 
         return async (request) => app.fetch(request);
@@ -311,14 +311,14 @@ describe("testAdapter", () => {
     await testAdapter("orpc", {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
-        const bs = createOrpc(betterSupabase, { ...server, waitUntil });
+        const bsb = createOrpc(betterSupabase, { ...server, waitUntil });
 
         const procedure = os
           .$context<OrpcRequestContext>()
-          .use(bs.middleware({ allow }))
-          .handler(({ context }) => bs.unwrap(run(context.bs)));
+          .use(bsb.middleware({ allow }))
+          .handler(({ context }) => bsb.unwrap(run(context.bsb)));
 
-        const fetch = bs.fetchHandler(new RPCHandler({ procedure }));
+        const fetch = bsb.fetchHandler(new RPCHandler({ procedure }));
 
         return (request) =>
           fetch(

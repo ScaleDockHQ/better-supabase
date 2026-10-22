@@ -1,10 +1,10 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { COURSE_KEYS, courseSql } from "./courses-sql.ts";
 
-function quizForm(ctx: ModuleContext, lesson: string): string {
+function quizForm(ctx: BlockSqlContext, lesson: string): string {
   if (!ctx.installed("forms")) {
     return "";
   }
@@ -18,7 +18,7 @@ function quizForm(ctx: ModuleContext, lesson: string): string {
 }
 
 /** The courses module's authoring functions and the helpers they sync with. */
-export function courseAuthoringFunctions(ctx: ModuleContext): string {
+export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
   const q = courseSql(ctx);
   const { fn, c, m, l, e } = q;
   const idType = ctx.idType;

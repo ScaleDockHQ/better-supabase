@@ -6,7 +6,7 @@ workflow; this page is the checklist for a new block.
 
 ## The SQL module
 
-- One file in `src/sql/modules/<name>.ts` exporting a `ModuleDefinition`
+- One file in `src/sql/modules/<name>.ts` exporting a `BlockSqlDefinition`
   with `NAMES` (logical tables, columns, options and hooks), `contract` (the
   functions the TypeScript side calls) and `build(ctx)`. Append it to
   `SQL_MODULES` in `src/sql/registry.ts`: the position is part of the file
@@ -82,12 +82,12 @@ workflow; this page is the checklist for a new block.
   `audit-everywhere.integration.test.ts` checks one entry and one event per
   action; add the action there.
 - Every outbox event type a module records is declared in `NAMES.events`
-  (`ModuleEvents`): its subject collection (a kebab-case plural), the
+  (`BlockSqlEvents`): its subject collection (a kebab-case plural), the
   payload keys and `retries` when a retried call can record it again, which
   then needs a `key`. `ctx.record` throws for an undeclared type or a
   mismatch. Add the type and its data to the block's `events.ts`
   (`src/blocks/<name>/events.ts`: the map type and its `defineEvents` value),
-  type the module's `EVENTS` as `ModuleEvents<NameEvents>`, and add the row
+  type the module's `EVENTS` as `BlockSqlEvents<NameEvents>`, and add the row
   on `extending/events.mdx`; `tests/sql/event-catalog.test.ts` and
   `tests/blocks/conformance.test.ts` check them. Names are
   `<entity>.<past_tense_verb>`, the payload is camelCase and carries

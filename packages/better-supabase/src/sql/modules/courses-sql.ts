@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, withExtraFields } from "../shared.ts";
@@ -20,7 +20,7 @@ export const COURSE_KEYS = [
 ] as const;
 
 /** The enrollments courses run on, checked to be managed. */
-export function courseEnrollments(ctx: ModuleContext): ModuleContext {
+export function courseEnrollments(ctx: BlockSqlContext): BlockSqlContext {
   const enrolled = ctx.of("enrollments");
 
   if (!enrolled.manages) {
@@ -51,7 +51,7 @@ export interface CourseSql {
   /** The one-certificate-per-enrollment constraint. */
   readonly certificateKey: string;
   readonly enrollments: string;
-  readonly enrolled: ModuleContext;
+  readonly enrolled: BlockSqlContext;
   readonly read: string;
   readonly enroll: string;
   readonly manage: string;
@@ -70,7 +70,7 @@ export interface CourseSql {
 }
 
 /** The names and helpers both courses function files build on. */
-export function courseSql(ctx: ModuleContext): CourseSql {
+export function courseSql(ctx: BlockSqlContext): CourseSql {
   const enrolled = courseEnrollments(ctx);
   const c = (column: string): string => ctx.col("courses", column);
   const keys = moduleOperations("courses");

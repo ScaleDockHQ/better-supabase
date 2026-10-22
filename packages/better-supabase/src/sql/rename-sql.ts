@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNameMigration } from "./context.ts";
+import type { BlockSqlContext, BlockSqlNameMigration } from "./context.ts";
 
 import { sqlString } from "../core/template.ts";
 
@@ -100,8 +100,8 @@ end $$;`;
 
 /** The `alter table ... rename` statements for one declared move. */
 export function nameMigrationSql(
-  ctx: ModuleContext,
-  migration: ModuleNameMigration,
+  ctx: BlockSqlContext,
+  migration: BlockSqlNameMigration,
 ): string {
   if (!ctx.hasTable(migration.table)) {
     return "";

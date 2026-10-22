@@ -135,7 +135,7 @@ export interface ApiKeysOptions<
   readonly logger?: Logger;
   readonly transport: BlockTransport;
   readonly schema?: string;
-  /** The token's first segment, lowercase letters and digits. Defaults to `bs`. */
+  /** The token's first segment, lowercase letters and digits. Defaults to `bsb`. */
   readonly prefix?: string;
 }
 

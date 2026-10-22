@@ -1,6 +1,6 @@
 import type { ActiveTenantSource } from "../../config/blocks.ts";
-import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
@@ -41,7 +41,7 @@ export interface RoleThrough {
 }
 
 /** The tenant module's `roleThrough` option, quoted; `undefined` when unset. */
-export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
+export function roleThrough(tenant: BlockSqlContext): RoleThrough | undefined {
   const value = tenant.option("roleThrough");
 
   if (value === undefined) {
@@ -96,7 +96,7 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
  * `where`; `undefined` when unset or malformed.
  */
 export function roleThroughTable(
-  tenant: ModuleContext,
+  tenant: BlockSqlContext,
 ): { readonly table: string; readonly where: boolean } | undefined {
   const value = tenant.option("roleThrough");
 
@@ -123,7 +123,9 @@ export function roleThroughTable(
  * the platform roles of `blocks.invitations.options.platformRoles.through`.
  * `undefined` when it doesn't.
  */
-export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
+export function sharedRolesProblem(
+  tenant: BlockSqlContext,
+): string | undefined {
   const own = roleThroughTable(tenant);
 
   if (!own || own.where) {
@@ -138,11 +140,11 @@ export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
 }
 
 /**
- * The `bs_role_scope` trigger on the memberships table: with
+ * The `bsb_role_scope` trigger on the memberships table: with
  * `roleThrough.where`, every write (the service role's too) stores a role that
  * the condition names. Removed when `where` is unset.
  */
-function roleScope(ctx: ModuleContext): string {
+function roleScope(ctx: BlockSqlContext): string {
   if (ctx.manages) {
     return "";
   }
@@ -188,7 +190,7 @@ create trigger ${ctx.trigger("role_scope")} before insert or update of ${role} o
 }
 
 /** A stored role value (a key or a role id) as the role name. */
-export function roleNameFrom(tenant: ModuleContext, value: string): string {
+export function roleNameFrom(tenant: BlockSqlContext, value: string): string {
   const through = roleThrough(tenant);
 
   if (through) {
@@ -205,7 +207,7 @@ export function roleNameFrom(tenant: ModuleContext, value: string): string {
 }
 
 /** Expression for a membership row's role name, whatever the role column holds. */
-export function roleNameOf(ctx: ModuleContext, alias: string): string {
+export function roleNameOf(ctx: BlockSqlContext, alias: string): string {
   return roleNameFrom(ctx, `${alias}.${ctx.col("memberships", "role")}`);
 }
 
@@ -213,7 +215,7 @@ export function roleNameOf(ctx: ModuleContext, alias: string): string {
  * The active tenant: `blocks.access.activeTenant` (claim, resolver or profile
  * column).
  */
-function currentTenant(ctx: ModuleContext): string {
+function currentTenant(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -235,11 +237,11 @@ function currentTenant(ctx: ModuleContext): string {
     requested = member(claim);
   } else if (source === "resolver") {
     comment = `-- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
--- the x-bs-tenant header over the Data API), then the \`${ctx.claims.tenant}\` claim.
+-- the x-bsb-tenant header over the Data API), then the \`${ctx.claims.tenant}\` claim.
 -- A tenant the caller isn't a member of counts as none.`;
     requested = `coalesce(
     ${member(`nullif(current_setting('better_supabase.tenant', true), '')`)},
-    ${member(`nullif(current_setting('request.headers', true)::jsonb ->> 'x-bs-tenant', '')`)},
+    ${member(`nullif(current_setting('request.headers', true)::jsonb ->> 'x-bsb-tenant', '')`)},
     ${member(claim)}
   )`;
   } else {
@@ -273,7 +275,7 @@ grant execute on function better_supabase.current_tenant_id() to anon, authentic
 }
 
 /** `blocks.access.activeTenant`, defaulting to the resolver (URL tenancy). */
-export function activeTenantSource(ctx: ModuleContext): ActiveTenantSource {
+export function activeTenantSource(ctx: BlockSqlContext): ActiveTenantSource {
   return ctx.modules.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
 }
 
@@ -281,7 +283,7 @@ export function activeTenantSource(ctx: ModuleContext): ActiveTenantSource {
  * With the claim source, removing a membership also clears the claim that
  * points at it, so the next token carries no tenant.
  */
-function clearClaim(ctx: ModuleContext): string {
+function clearClaim(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -319,8 +321,8 @@ create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
  * the memberships table only names roles.
  */
 export function providerMembers(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): { readonly ids?: string; readonly idsFor?: (user: string) => string } {
   const provider =
     accessModel(ctx) === "provider" ? layout.accessProvider : undefined;
@@ -351,7 +353,7 @@ export function providerMembers(
   };
 }
 
-function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
+function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -448,8 +450,8 @@ grant all on ${m} to service_role;
 
   const policy = ctx.manages
     ? `
-drop policy if exists bs_memberships_read on ${m};
-create policy bs_memberships_read on ${m}
+drop policy if exists bsb_memberships_read on ${m};
+create policy bsb_memberships_read on ${m}
   for select to authenticated
   using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
 `
@@ -544,7 +546,7 @@ revoke execute on function better_supabase.membership_claims(uuid) from public, 
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;${deferBodies ? "\nreset check_function_bodies;" : ""}`;
 }
 
-export const TENANT: ModuleDefinition = {
+export const TENANT: BlockSqlDefinition = {
   name: "tenant",
   title: "Tenant memberships and permission helper",
   description:

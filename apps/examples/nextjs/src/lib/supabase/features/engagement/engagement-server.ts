@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { engagementFeature } from "./engagement-feature.ts";
 
 /**
  * Loads a engagement's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const engagementRecord = recordServer(bs, engagementFeature);
+export const engagementRecord = recordServer(bsb, engagementFeature);

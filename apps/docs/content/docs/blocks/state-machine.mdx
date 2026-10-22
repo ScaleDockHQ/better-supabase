@@ -54,7 +54,7 @@ The block's readers run as the caller too, and return `STATE_SUBJECT_NOT_FOUND` 
 | `history(subject, page)` | Status changes, newest first, 50 per page and at most 500; pass the last `createdAt` as `cursor` for the next page |
 | `stages(subject)`        | The stages timeline in display order, empty for a machine without `stages: true`                                   |
 
-Every method takes the record as a `SubjectRef`, `{ type, id }`, whose type is the machine name; `createStateMachine<"quote">` narrows it. `state` returns the record as `subject` next to its `organizationId`.
+Every method takes the record as a `RecordRef`, `{ type, id }`, whose type is the machine name; `createStateMachine<"quote">` narrows it. `state` returns the record as `subject` next to its `organizationId`.
 
 `progress` is 0 at the first status of `order` and 1 at the last; a status outside `order` (`void` above) has no `step` or `progress`. The `status_history`, `status_stages` and `subject_lifecycles` tables have select policies that show a row when the caller can see its record, so a query on them returns the same rows as the readers.
 

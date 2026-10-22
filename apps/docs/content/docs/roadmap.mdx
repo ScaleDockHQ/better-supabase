@@ -110,7 +110,7 @@ verticals become thin blocks and presets on top of them.
 2. **Entities for the collaboration blocks:** comments, attachments,
    reactions, engagements, documents, calendar and reminders declare
    renameable entities and `schemas`, and the hand-written subject cases go.
-3. **One `SubjectRef` (breaking):** every subject block takes the subject as
+3. **One `RecordRef` (breaking):** every subject block takes the subject as
    its first argument, reads the tenant from the block environment and
    returns comment and file authors. `createBlockClient` replaces the
    per-block `connect*` wrappers.
@@ -122,7 +122,7 @@ verticals become thin blocks and presets on top of them.
 6. **Generated features:** `gen` writes one binding per subject with a
    section per installed block. UI stays recipes only.
 7. **Lists, workspace, flows and forms:** `defineRecordList`, `my_work`,
-   generated navigation and commands, `defineFlow` and `entityForm`.
+   generated navigation and commands, `defineFlow` and `recordForm`.
 8. **The messaging core and the `channels` block:** conversations,
    messages, edits, members, thread reads, follows, mentions, typing and
    scheduled send, with attachments and reactions on messages, and a `chat`
@@ -165,7 +165,7 @@ request, and comes with a codemod or a doctor lint. The terms are on the
 records the decision.
 
 1. **Terminology:** module becomes block, organization replaces tenant in
-   every name you see, and `bs` becomes `bsb` everywhere.
+   every name you see, and `bsb` becomes `bsb` everywhere.
 2. **Config groups** (`database`, `auth`, `records`, `tables`, `blocks`,
    `adapters`, `gen`, `api`, `tooling`) and one organization resolver.
 3. **The CLI** with one command per job, and a new `remove`.

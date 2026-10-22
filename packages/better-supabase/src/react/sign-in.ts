@@ -69,7 +69,7 @@ function useAuthApi(options: AuthHookOptions, hook: string): AuthApi {
 
   if (!auth) {
     throw new Error(
-      `better-supabase: ${hook} needs <BetterSupabaseProvider client={bs}> or { client: supabase }`,
+      `better-supabase: ${hook} needs <BetterSupabaseProvider client={bsb}> or { client: supabase }`,
     );
   }
 

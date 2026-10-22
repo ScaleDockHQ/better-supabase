@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module settings@1 managed
+-- @bsb-block settings@1 managed
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -263,39 +263,39 @@ grant execute on function "better_supabase"."reset_organization_setting"(uuid, t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
 drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module-data settings
+-- @bsb-block-data settings
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('settings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module settings@1 managed
+-- @bsb-block settings@1 managed
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -594,8 +594,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_organization_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
-create trigger "bs_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
+create trigger "bsb_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
   for each row execute function "better_supabase"."record_organization_setting"();
 create or replace function "better_supabase"."record_platform_setting"()
 returns trigger
@@ -631,38 +631,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_platform_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
-create trigger "bs_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
+create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module-data settings
+-- @bsb-block-data settings
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('settings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module settings@1 managed
+-- @bsb-block settings@1 managed
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -927,39 +927,39 @@ grant execute on function "app_private"."reset_organization_setting"(uuid, text)
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_organization_setting" on "app_private"."organization_settings";
+drop trigger if exists "bsb_record_organization_setting" on "app_private"."organization_settings";
 drop function if exists "app_private"."record_organization_setting"();
-drop trigger if exists "bs_record_platform_setting" on "app_private"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "app_private"."platform_settings";
 drop function if exists "app_private"."record_platform_setting"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module-data settings
+-- @bsb-block-data settings
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('settings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module settings@1 managed
+-- @bsb-block settings@1 managed
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1222,9 +1222,9 @@ grant execute on function "better_supabase"."reset_organization_setting"(uuid, t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
 drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
 -- blocks.settings.api: entry points for the Data API.
@@ -1331,26 +1331,26 @@ revoke execute on function "api"."reset_organization_setting"(uuid, text) from p
 grant execute on function "api"."reset_organization_setting"(uuid, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_29_settings.sql
 -- better-supabase module: settings
--- @bs-module-data settings
+-- @bsb-block-data settings
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('settings', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

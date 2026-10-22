@@ -114,9 +114,9 @@ export const MAX_DELIVERIES = 73;
 
 export const SIGNATURE_TOLERANCE_SECONDS = 300;
 
-export const JOB_HEADER = "x-bs-job";
+export const JOB_HEADER = "x-bsb-job";
 
-export const SIGNATURE_HEADER = "x-bs-signature";
+export const SIGNATURE_HEADER = "x-bsb-signature";
 
 export const FLOW_PATH = "/.well-known/workflow/v1/flow";
 

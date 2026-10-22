@@ -2,7 +2,7 @@ import { QueryClient, skipToken } from "@tanstack/query-core";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AsyncResult } from "../../src/core/result.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
@@ -21,8 +21,8 @@ interface Note {
 }
 
 interface Notes {
-  list(subject: SubjectRef): AsyncResult<readonly Note[]>;
-  add(subject: SubjectRef, body: string): AsyncResult<Note>;
+  list(subject: RecordRef): AsyncResult<readonly Note[]>;
+  add(subject: RecordRef, body: string): AsyncResult<Note>;
 }
 
 function notesClient() {
@@ -62,7 +62,7 @@ const notesBlock = defineBlock({
           }),
           run: (
             client: Notes,
-            subject: SubjectRef,
+            subject: RecordRef,
             input: { readonly body: string },
           ) => client.add(subject, input.body),
         },
@@ -84,13 +84,13 @@ describe("recordQueries", () => {
     const queryClient = new QueryClient();
 
     const options = queries.sections.notes("c1");
-    expect(options.queryKey).toEqual(["bs-record", "customer", "c1", "notes"]);
+    expect(options.queryKey).toEqual(["bsb-record", "customer", "c1", "notes"]);
     await expect(queryClient.query(options)).resolves.toEqual([
       { id: "n1", body: "First" },
     ]);
-    expect(queries.$key).toEqual(["bs-record", "customer"]);
+    expect(queries.$key).toEqual(["bsb-record", "customer"]);
     expect(queries.key("c1", "notes")).toEqual([
-      "bs-record",
+      "bsb-record",
       "customer",
       "c1",
       "notes",
@@ -121,7 +121,7 @@ describe("recordQueries", () => {
       client: queryClient,
     });
     expect(
-      queryClient.getQueryState(["bs-record", "customer", "c1", "notes"])
+      queryClient.getQueryState(["bsb-record", "customer", "c1", "notes"])
         ?.isInvalidated,
     ).toBe(true);
   });
@@ -159,7 +159,7 @@ describe("recordQueries options", () => {
 
     const options = queries.sections.notes("c1", { pageSize: 5 } as never);
     expect(options.queryKey).toEqual([
-      "bs-record",
+      "bsb-record",
       "customer",
       "c1",
       "notes",
@@ -168,9 +168,9 @@ describe("recordQueries options", () => {
     ]);
     expect(options.staleTime).toBe(1000);
     await expect(new QueryClient().query(options)).resolves.toHaveLength(1);
-    expect(queries.key("c1")).toEqual(["bs-record", "customer", "c1"]);
+    expect(queries.key("c1")).toEqual(["bsb-record", "customer", "c1"]);
     expect(queries.can().queryKey).toEqual([
-      "bs-record",
+      "bsb-record",
       "customer",
       expect.anything(),
       { scope: "org" },

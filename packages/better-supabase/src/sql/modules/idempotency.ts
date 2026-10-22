@@ -1,8 +1,8 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
 
-export const IDEMPOTENCY: ModuleDefinition = {
+export const IDEMPOTENCY: BlockSqlDefinition = {
   name: "idempotency",
   title: "Idempotency keys",
   description:

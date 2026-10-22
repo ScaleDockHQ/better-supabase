@@ -44,7 +44,7 @@ import {
 } from "better-supabase/blocks/ai-providers";
 import { vaultCredentials } from "better-supabase/credentials";
 
-const service = rpcTransport(bs.admin().$client, { schema: "api" });
+const service = rpcTransport(bsb.admin().$client, { schema: "api" });
 
 export const providersFor = (supabase: SupabaseClient) =>
   createAiProviders({

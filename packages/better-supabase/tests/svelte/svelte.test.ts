@@ -92,18 +92,18 @@ const anything: StandardSchemaV1<unknown, unknown> = {
 describe("setBetterSupabase", () => {
   it("binds the client for the component and resets queries on a new user", async () => {
     const { browser, setAuth } = fakeBrowser(signedIn(USER));
-    const { queryClient } = cachedClient(["bs", "customers"]);
+    const { queryClient } = cachedClient(["bsb", "customers"]);
     const reset = vi.spyOn(queryClient, "resetQueries");
 
     const bound = inComponent(() => {
       setBetterSupabase(browser, { queryClient });
 
-      return { bs: getBetterSupabase(), auth: useAuth() };
+      return { bsb: getBetterSupabase(), auth: useAuth() };
     });
 
-    expect(bound.bs.db).toBe(browser.db);
-    expect(bound.bs.queries).toBe(browser.queries);
-    expect(bound.bs.supabase).toBe(browser.supabase);
+    expect(bound.bsb.db).toBe(browser.db);
+    expect(bound.bsb.queries).toBe(browser.queries);
+    expect(bound.bsb.supabase).toBe(browser.supabase);
     const auth = observe(() => bound.auth.current.user?.id);
     expect(auth.last()).toBe(USER);
     setAuth(signedIn(OTHER));
@@ -115,7 +115,7 @@ describe("setBetterSupabase", () => {
 
   it("explains a missing binding and a missing session", () => {
     expect(() => inComponent(() => getBetterSupabase())).toThrow(
-      /setBetterSupabase\(bs\)/,
+      /setBetterSupabase\(bsb\)/,
     );
     expect(() => inComponent(() => useSession())).toThrow(/setSession/);
   });
@@ -163,12 +163,12 @@ describe("broadcast", () => {
 
   it("subscribes while read, pauses on null, resubscribes on a new user and stops unread", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"]);
-    const bs = createBetterSvelte(browser, { queryClient: cache.queryClient });
+    const cache = cachedClient(["bsb", "customers"]);
+    const bsb = createBetterSvelte(browser, { queryClient: cache.queryClient });
     const roomId = $.state<string | null>("r1");
     const created = vi.fn();
 
-    const status = bs.broadcast(
+    const status = bsb.broadcast(
       room,
       () => {
         const id = $.get(roomId);
@@ -190,7 +190,7 @@ describe("broadcast", () => {
     emit("room:r1", "created", {});
     await flush();
     expect(created).toHaveBeenCalledOnce();
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
 
     setAuth(signedIn(OTHER));
     $.flush();
@@ -206,14 +206,14 @@ describe("broadcast", () => {
 
   it("follows a plain client's auth and needs a query client to invalidate", async () => {
     const { browser, client, emitAuth } = fakeBrowser(LOADING);
-    const bs = createBetterSvelte(browser);
+    const bsb = createBetterSvelte(browser);
     expect(() =>
-      bs.broadcast(room, () => ({ roomId: "r" }), undefined, {
+      bsb.broadcast(room, () => ({ roomId: "r" }), undefined, {
         invalidate: ["customers"],
       }),
     ).toThrow(/needs a queryClient/);
 
-    const status = bs.broadcast(room, () => ({ roomId: "r" }), undefined, {
+    const status = bsb.broadcast(room, () => ({ roomId: "r" }), undefined, {
       client: client as never,
     });
 
@@ -230,23 +230,23 @@ describe("liveQuery", () => {
 
   it("watches with the claimed tenant, invalidates and rejoins", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
-    const bs = createBetterSvelte(browser, { queryClient: cache.queryClient });
+    const cache = cachedClient(["bsb", "customers"], ["bsb", "organizations"]);
+    const bsb = createBetterSvelte(browser, { queryClient: cache.queryClient });
     const current = $.state<typeof spec | null>(spec);
-    const live = bs.liveQuery(() => $.get(current), { debounceMs: 1 });
+    const live = bsb.liveQuery(() => $.get(current), { debounceMs: 1 });
     const view = observe(() => live.current);
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
     $.flush();
     expect(client.channel.mock.calls.map(([topic]) => topic)).toEqual([
-      "bs:t:public.customers:org-1",
-      "bs:t:public.notes",
+      "bsb:t:public.customers:org-1",
+      "bsb:t:public.notes",
     ]);
     await settle();
     expect(view.last()).toBe("subscribed");
-    emit("bs:t:public.customers:org-1", "change");
+    emit("bsb:t:public.customers:org-1", "change");
     await wait(10);
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
-    expect(cache.invalidated(["bs", "organizations"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "organizations"])).toBe(false);
     $.set(current, null);
     $.flush();
     await wait(5);
@@ -275,8 +275,8 @@ describe("liveCount", () => {
 
     const run = vi.fn(() => answers.shift() ?? AsyncResult.ok(0));
     const { browser, emit } = fakeBrowser(signedIn(USER), { $run: run });
-    const bs = createBetterSvelte(browser);
-    const counted = bs.liveCount(() => spec, { debounceMs: 1 });
+    const bsb = createBetterSvelte(browser);
+    const counted = bsb.liveCount(() => spec, { debounceMs: 1 });
 
     const view = observe(() => ({
       count: counted.count,
@@ -292,14 +292,14 @@ describe("liveCount", () => {
       status: "subscribed",
       error: undefined,
     });
-    emit("bs:t:public.notes", "change");
+    emit("bsb:t:public.notes", "change");
     await wait(10);
     $.flush();
     expect(view.last().count).toBe(4);
     expect(view.last().error?.kind).toBe("network");
     view.stop();
 
-    const seeded = bs.liveCount(() => ({ spec, count: 3 }), { debounceMs: 1 });
+    const seeded = bsb.liveCount(() => ({ spec, count: 3 }), { debounceMs: 1 });
     const shown = observe(() => seeded.count);
     await settle();
     expect(shown.last()).toBe(3);
@@ -311,11 +311,11 @@ describe("presence", () => {
   it("joins, tracks the state, re-tracks when it changes and leaves", async () => {
     const { browser, setAuth } = fakeBrowser(LOADING);
     const { topic, joins } = fakePresenceTopic();
-    const bs = createBetterSvelte(browser);
+    const bsb = createBetterSvelte(browser);
     const roomId = $.state<string | null>("r1");
     const name = $.state<string | null>("Ada");
 
-    const room = bs.presence(
+    const room = bsb.presence(
       topic,
       () => {
         const id = $.get(roomId);

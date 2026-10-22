@@ -5,7 +5,7 @@ import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { driveOf } from "./drive-client";
 
@@ -18,7 +18,7 @@ const ParentId = v.pipe(
   v.transform((id) => (id === "" ? null : id)),
 );
 
-export const createDriveFolder = bs.action(
+export const createDriveFolder = bsb.action(
   {
     input: v.object({ parentId: ParentId, name: Name }),
     requireTenant: true,
@@ -46,7 +46,7 @@ export const createDriveFolder = bs.action(
  * straight to Storage, so the file never passes the Server Action body limit,
  * then calls `commitDriveUpload`.
  */
-export const startDriveUpload = bs.action(
+export const startDriveUpload = bsb.action(
   {
     input: v.object({
       parentId: v.nullable(Id),
@@ -83,7 +83,7 @@ export const startDriveUpload = bs.action(
 );
 
 /** Makes the uploaded object the file's content. */
-export const commitDriveUpload = bs.action(
+export const commitDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id, attachmentId: Id }),
     requireTenant: true,
@@ -103,7 +103,7 @@ export const commitDriveUpload = bs.action(
 );
 
 /** Removes a file whose bytes never reached Storage. */
-export const abandonDriveUpload = bs.action(
+export const abandonDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id }),
     requireTenant: true,
@@ -112,7 +112,7 @@ export const abandonDriveUpload = bs.action(
   async ({ nodeId }, { supabase }) => driveOf(supabase).delete(nodeId),
 );
 
-export const renameDriveItem = bs.action(
+export const renameDriveItem = bsb.action(
   {
     input: v.object({ id: Id, name: Name }),
     requireTenant: true,
@@ -137,7 +137,7 @@ export const renameDriveItem = bs.action(
  * Moves the item and everything under it to the trash; returns the trash item
  * for Undo.
  */
-export const trashDriveItem = bs.action(
+export const trashDriveItem = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -157,7 +157,7 @@ export const trashDriveItem = bs.action(
 );
 
 /** A short-lived signed URL for the file's current content. */
-export const downloadDriveFile = bs.action(
+export const downloadDriveFile = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -175,7 +175,7 @@ export const downloadDriveFile = bs.action(
 );
 
 /** Asks for approval of the file's current version. */
-export const requestDriveApproval = bs.action(
+export const requestDriveApproval = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,

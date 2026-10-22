@@ -1,11 +1,11 @@
 import type { WorkItemsEvents } from "../../blocks/work-items/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { WorkItemNames } from "./work-items-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -28,7 +28,7 @@ const ITEM = [
   "title",
 ] as const;
 
-const EVENTS: ModuleEvents<WorkItemsEvents> = {
+const EVENTS: BlockSqlEvents<WorkItemsEvents> = {
   "work_item.created": { subject: "work-items", payload: [...ITEM] },
   "work_item.updated": { subject: "work-items", payload: [...ITEM, "fields"] },
   "work_item.assigned": {
@@ -44,7 +44,7 @@ const EVENTS: ModuleEvents<WorkItemsEvents> = {
   "work_item.deleted": { subject: "work-items", payload: [...ITEM] },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   entities: {
     work_item: {
@@ -167,7 +167,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, n: WorkItemNames): string {
+function tables(ctx: BlockSqlContext, n: WorkItemNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -284,10 +284,10 @@ ${checklistTable(ctx, n)}`;
  * state stamps closed_at and a close reason and records work_item.closed, and
  * reopening clears both.
  */
-function guard(ctx: ModuleContext, n: WorkItemNames): string {
+function guard(ctx: BlockSqlContext, n: WorkItemNames): string {
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
-  const guardName = ctx.naming.rename("bs_work_item_guard");
+  const guardName = ctx.naming.rename("bsb_work_item_guard");
 
   const payload = (extra: string): string =>
     `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', ${sqlString(n.e("work_item"))}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
@@ -359,7 +359,7 @@ for each row execute function better_supabase.${guardName}();
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -393,7 +393,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${guard(ctx, n)}${workItemFunctions(ctx, n)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_work_item",
@@ -440,7 +440,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const WORK_ITEMS: ModuleDefinition = {
+export const WORK_ITEMS: BlockSqlDefinition = {
   name: "work-items",
   scopes: ["tenant"],
   title: "Work items",

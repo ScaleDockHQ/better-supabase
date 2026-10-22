@@ -5,7 +5,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { GuestAction } from "../../core/guest-actions.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -56,7 +56,7 @@ export interface Guest {
    * The party the guest acts for, such as a customer company: they see its
    * invoices and bookings.
    */
-  readonly party?: SubjectRef;
+  readonly party?: RecordRef;
   readonly status: GuestStatus;
   readonly invitedBy?: string;
   readonly expiresAt?: Temporal.Instant;
@@ -80,7 +80,7 @@ export interface GuestGrant {
   readonly id: string;
   readonly organizationId: string;
   readonly guestId: string;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   /** Always holds `read`. */
   readonly actions: readonly GuestAction[];
   readonly grantedBy?: string;
@@ -103,7 +103,7 @@ export interface GuestInviteInput {
   readonly email: string;
   readonly name?: string;
   /** The customer company or person the guest acts for. */
-  readonly party?: SubjectRef;
+  readonly party?: RecordRef;
   /** When the invite stops working. */
   readonly expiresAt?: Temporal.Instant;
 }
@@ -142,17 +142,17 @@ export interface Guests {
    */
   grant(
     guestId: string,
-    subject: SubjectRef,
+    subject: RecordRef,
     input?: GuestGrantInput,
   ): AsyncResult<GuestGrant>;
   /** `false` when the grant is gone or the caller can't manage it. */
   revokeGrant(grantId: string): AsyncResult<boolean>;
   /** The guests who reach a record. The record decides the tenant. */
-  grants(subject: SubjectRef): AsyncResult<readonly RecordGuestGrant[]>;
+  grants(subject: RecordRef): AsyncResult<readonly RecordGuestGrant[]>;
   /** What the caller reaches as a guest, for a portal's home page. */
   mine(): AsyncResult<readonly GuestMembership[]>;
   /** Whether the caller reaches a record as a guest for an action. */
-  can(subject: SubjectRef, action?: GuestAction): AsyncResult<boolean>;
+  can(subject: RecordRef, action?: GuestAction): AsyncResult<boolean>;
 }
 
 const STATUSES: readonly GuestStatus[] = ["invited", "active", "revoked"];
@@ -167,7 +167,7 @@ function optional<K extends string, V>(
   };
 }
 
-function partyOf(row: Record<string, unknown>): SubjectRef | undefined {
+function partyOf(row: Record<string, unknown>): RecordRef | undefined {
   const type = optionalText(row["partyType"]);
   const id = optionalText(row["partyId"]);
 

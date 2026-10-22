@@ -16,7 +16,7 @@ export type { UndoActions, UndoSnapshot, UndoStackOptions } from "../client.ts";
  * `createUndoController` as a Vue composable: `state` is a shallow ref of the
  * snapshot. Call it in `setup` or an effect scope; the work starts on mount and
  * the controller is disposed with the scope. `auth` and `ports` default to the
- * client of `app.use(betterSupabase(bs))`.
+ * client of `app.use(betterSupabase(bsb))`.
  */
 export function useUndoStack(
   options: BlockOptions<UndoStackOptions>,

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (): string =>
-  renderModules(["forecasts", "deals", "pipelines", "outbox"], {
+  renderBlocks(["forecasts", "deals", "pipelines", "outbox"], {
     modules: { forecasts: {} },
   })
     .filter((file) => file.module === "forecasts")

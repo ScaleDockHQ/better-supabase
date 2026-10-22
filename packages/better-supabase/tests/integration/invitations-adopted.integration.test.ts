@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -18,7 +18,7 @@ async function providerSchema(
   organization: string,
   members: Readonly<Record<string, TestUser>>,
 ): Promise<string> {
-  const schema = `bs_authz_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bsb_authz_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.team_members (
@@ -60,7 +60,7 @@ async function providerSchema(
 const provider = (
   schema: string,
   canAssignFor?: string,
-): NonNullable<ModuleLayout["accessProvider"]> => ({
+): NonNullable<BlockSqlLayout["accessProvider"]> => ({
   name: "test",
   scope: "organization",
   idType: "uuid",
@@ -72,7 +72,7 @@ const provider = (
   },
 });
 
-function providerLayout(schema: string, canAssignFor?: string): ModuleLayout {
+function providerLayout(schema: string, canAssignFor?: string): BlockSqlLayout {
   return {
     accessProvider: provider(schema, canAssignFor),
     modules: {
@@ -508,7 +508,7 @@ async function sharedSchema(
   owner: TestUser,
   staff: TestUser,
 ): Promise<string> {
-  const schema = `bs_shared_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bsb_shared_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.roles (
@@ -561,7 +561,7 @@ async function sharedSchema(
   return schema;
 }
 
-function sharedLayout(schema: string): ModuleLayout {
+function sharedLayout(schema: string): BlockSqlLayout {
   const roles = { table: `${schema}.roles`, id: "id", column: "key" };
 
   return {

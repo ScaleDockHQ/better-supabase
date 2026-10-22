@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 const body = (module: string): string =>
-  renderModules([module])
+  renderBlocks([module])
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -15,7 +15,7 @@ describe("line item totals", () => {
     ["deals", "deal_lines"],
   ])("recounts each %s record once per statement", (module, lines) => {
     const sql = body(module);
-    const trigger = `bs_${lines}_totals`;
+    const trigger = `bsb_${lines}_totals`;
     const table = `"better_supabase"."${lines}"`;
 
     expect(sql).toContain(

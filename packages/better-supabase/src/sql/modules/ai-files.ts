@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -104,7 +104,7 @@ const SUGGESTIONS = {
   accepted: "accepted",
 } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: [
     "bucket",
     "maxSize",
@@ -150,7 +150,7 @@ interface BucketOptions {
   readonly mimeTypes: readonly string[];
 }
 
-function bucketOptions(ctx: ModuleContext): BucketOptions {
+function bucketOptions(ctx: BlockSqlContext): BucketOptions {
   const bucket = ctx.text("bucket", "ai-files");
 
   if (!BUCKET.test(bucket)) {
@@ -183,7 +183,7 @@ function bucketOptions(ctx: ModuleContext): BucketOptions {
 type Columns<T> = { readonly [K in keyof T]: string };
 
 function columnsOf<T extends Readonly<Record<string, string>>>(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {
@@ -193,7 +193,7 @@ function columnsOf<T extends Readonly<Record<string, string>>>(
   ) as Columns<T>;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -230,7 +230,7 @@ function build(ctx: ModuleContext): string {
     ${raise("media type % is not allowed", "22023", "AI_FILE_TYPE", "media_type")}
   end if;`;
 
-  const policy = (name: string): string => `bs_ai_files_${name}`;
+  const policy = (name: string): string => `bsb_ai_files_${name}`;
   const extras = ctx.extraColumns("files", FILE_KEYS);
 
   const fileJson = (row: string): string =>
@@ -873,7 +873,7 @@ ${userGrant(`${fn("delete_ai_document")}(uuid)`)}`;
 }
 
 // An existing bucket keeps its settings.
-function data(ctx: ModuleContext): string {
+function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -890,7 +890,7 @@ values (${sqlString(bucket)}, ${sqlString(bucket)}, false, ${String(maxSize)}, $
 on conflict (id) do nothing;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("files", FILE_KEYS)).contract;
 
   return [
@@ -967,7 +967,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const AI_FILES: ModuleDefinition = {
+export const AI_FILES: BlockSqlDefinition = {
   internal: ["ai_file_object_allowed"],
   name: "ai-files",
   scopes: ["tenant"],

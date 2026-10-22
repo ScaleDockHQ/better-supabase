@@ -1,11 +1,11 @@
 import type { IncidentsEvents } from "../../blocks/incidents/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -24,7 +24,7 @@ import {
 } from "./incidents-shared.ts";
 import { statusPageFunctions } from "./incidents-status-page.ts";
 
-const EVENTS: ModuleEvents<IncidentsEvents> = {
+const EVENTS: BlockSqlEvents<IncidentsEvents> = {
   "incident.opened": {
     subject: "incidents",
     payload: [
@@ -59,7 +59,7 @@ const EVENTS: ModuleEvents<IncidentsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     incident: {
       table: "incidents",
@@ -187,7 +187,7 @@ const NAMES: ModuleNames = {
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   const components = ctx.table("components");
   const history = ctx.table("history");
   const incidents = ctx.table("incidents");
@@ -346,7 +346,7 @@ ${readPolicy("pages", g("tenant"))}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -357,7 +357,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${incidentsFunctions(ctx)}${statusPageFunctions(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("incidents", INCIDENT_RESERVED),
   ).contract;
@@ -404,7 +404,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const INCIDENTS: ModuleDefinition = {
+export const INCIDENTS: BlockSqlDefinition = {
   internal: ["incident_apply_impacts", "incident_refresh_components"],
   name: "incidents",
   scopes: ["tenant"],

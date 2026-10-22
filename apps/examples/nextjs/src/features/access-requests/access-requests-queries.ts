@@ -8,7 +8,7 @@ import type { Role } from "@/lib/claims";
 import { getMembers } from "@/features/organization/organization-queries";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface AccessRequestRow {
   readonly id: string;
@@ -56,7 +56,7 @@ async function memberNames(
  */
 export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
-  const { session, supabase, auth } = await bs.cached();
+  const { session, supabase, auth } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant || auth.kind !== "user") {

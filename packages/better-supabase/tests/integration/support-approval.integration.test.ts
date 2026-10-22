@@ -1,10 +1,10 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -29,11 +29,11 @@ async function reinstall(
   s: BlockSession,
   modules: readonly string[],
   module: string,
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): Promise<void> {
   await s.client.query("reset role");
 
-  for (const file of renderModules(modules, layout)) {
+  for (const file of renderBlocks(modules, layout)) {
     if (file.module === module && file.kind === "schema") {
       await s.client.query(file.contents);
     }
@@ -47,7 +47,7 @@ async function reinstall(
 async function providerLayout(
   s: BlockSession,
   kind: string,
-): Promise<ModuleLayout> {
+): Promise<BlockSqlLayout> {
   const schema = `approver_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};

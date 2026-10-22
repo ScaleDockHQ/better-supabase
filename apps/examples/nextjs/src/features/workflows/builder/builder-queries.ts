@@ -8,7 +8,7 @@ import type {
 import { tenantOf } from "better-supabase/next";
 import "server-only";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { builderFor } from "./builder-server";
 
@@ -54,7 +54,7 @@ const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
 /** The active organization's workflow definitions. */
 export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -83,7 +83,7 @@ export async function getBuilderDetail(
   id: string,
 ): Promise<BuilderDetail | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

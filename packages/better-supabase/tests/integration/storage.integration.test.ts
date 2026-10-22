@@ -40,7 +40,7 @@ const live = await reachable();
 
 // Own bucket ids: `customer-logos` belongs to the example app's migration.
 const logos = defineBucket({
-  id: "bs-it-logos",
+  id: "bsb-it-logos",
   path: "{organizationId}/{customerId}/logo/{version}.webp",
   policy: "tenant",
   fileSizeLimit: "5MiB",
@@ -48,7 +48,7 @@ const logos = defineBucket({
 });
 
 const avatars = defineBucket({
-  id: "bs-it-avatars",
+  id: "bsb-it-avatars",
   path: "{organizationId}/{file}",
   public: true,
   policy: "public",
@@ -176,7 +176,7 @@ describe.skipIf(!live)("Storage module", async () => {
     // (no imgproxy), `/render/image/sign/` when they're on.
     expect(rendered.pathname).toMatch(
       new RegExp(
-        `^/storage/v1/(render/image|object)/sign/bs-it-logos/${ACME}/${CUSTOMER}/logo/v1\\.webp$`,
+        `^/storage/v1/(render/image|object)/sign/bsb-it-logos/${ACME}/${CUSTOMER}/logo/v1\\.webp$`,
       ),
     );
     expect(rendered.searchParams.get("token")).toBeTruthy();
@@ -211,7 +211,7 @@ describe.skipIf(!live)("Storage module", async () => {
       .orThrow();
 
     expect(rendered).toBe(
-      `${url}/storage/v1/render/image/public/bs-it-avatars/${ACME}/${CUSTOMER}.webp?width=128&quality=60`,
+      `${url}/storage/v1/render/image/public/bsb-it-avatars/${ACME}/${CUSTOMER}.webp?width=128&quality=60`,
     );
     expect(
       createImageLoader({ url })({ src: object, width: 128, quality: 60 }),

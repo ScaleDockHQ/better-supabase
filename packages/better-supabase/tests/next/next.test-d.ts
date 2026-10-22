@@ -19,11 +19,11 @@ import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const bs = createNext(defineSupabase(schema));
+const bsb = createNext(defineSupabase(schema));
 
 describe("next.session", () => {
   it("returns the serializable session union", () => {
-    expectTypeOf(bs.session()).resolves.toEqualTypeOf<AuthSession>();
+    expectTypeOf(bsb.session()).resolves.toEqualTypeOf<AuthSession>();
     expectTypeOf(useSession).returns.toEqualTypeOf<AuthSession>();
   });
 
@@ -74,7 +74,7 @@ describe("betterSupabase.claims(schema)", () => {
   });
 
   it("keeps an untyped session for untyped definitions", () => {
-    expectTypeOf(bs.session()).resolves.toEqualTypeOf<AuthSession>();
+    expectTypeOf(bsb.session()).resolves.toEqualTypeOf<AuthSession>();
   });
 
   it("distinguishes token, claims and actor failures", () => {
@@ -159,7 +159,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
   });
 
   it("leaves the profile unknown without a schema", async () => {
-    const session = await bs.session();
+    const session = await bsb.session();
 
     if (session.kind === "user") {
       expectTypeOf(session.profile).toEqualTypeOf<unknown>();
@@ -169,7 +169,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
 
 describe("next.action", () => {
   it("keeps the data type when one path returns err()", () => {
-    const action = bs.action({}, async () => {
+    const action = bsb.action({}, async () => {
       if (Math.random() > 0.5) {
         return err(dbError("forbidden", "no"));
       }
@@ -183,7 +183,7 @@ describe("next.action", () => {
   });
 
   it("unwraps an AsyncResult and passes plain values through", () => {
-    const fromResult = bs.action(
+    const fromResult = bsb.action(
       {},
       () => new AsyncResult(Promise.resolve(ok(1))),
     );
@@ -191,14 +191,14 @@ describe("next.action", () => {
     expectTypeOf(fromResult).returns.resolves.toEqualTypeOf<
       ActionResult<number>
     >();
-    const plain = bs.action({}, () => "done" as const);
+    const plain = bsb.action({}, () => "done" as const);
     expectTypeOf(plain).returns.resolves.toEqualTypeOf<ActionResult<"done">>();
   });
 });
 
 describe("resource", () => {
   it("gets the validated input and the request's context", () => {
-    bs.action(
+    bsb.action(
       {
         input: v.object({ id: v.string() }),
         permission: "customers.update",
@@ -213,7 +213,7 @@ describe("resource", () => {
       },
       () => "done",
     );
-    void bs.require({
+    void bsb.require({
       permission: "customers.read",
       resource: (input, ctx) => {
         expectTypeOf(input).toEqualTypeOf<undefined>();
@@ -227,14 +227,14 @@ describe("resource", () => {
 
 describe("authorize and requireTenant", () => {
   it("narrows ctx.tenant to a string only with requireTenant", () => {
-    bs.action({ requireTenant: true }, (_input, ctx) => {
+    bsb.action({ requireTenant: true }, (_input, ctx) => {
       expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
       expectTypeOf(ctx.session).toEqualTypeOf<AuthSession>();
     });
-    bs.action({}, (_input, ctx) => {
+    bsb.action({}, (_input, ctx) => {
       expectTypeOf(ctx.tenant).toEqualTypeOf<string | undefined>();
     });
-    bs.action(
+    bsb.action(
       {
         input: v.object({ id: v.string() }),
         authorize: (session, input) => {
@@ -246,27 +246,27 @@ describe("authorize and requireTenant", () => {
       },
       () => undefined,
     );
-    bs.route(
+    bsb.route(
       (_request, ctx) => {
         expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
       },
       { requireTenant: true },
     );
-    expectTypeOf(bs.require({ requireTenant: true }))
+    expectTypeOf(bsb.require({ requireTenant: true }))
       .resolves.toHaveProperty("tenant")
       .toEqualTypeOf<string>();
   });
 
-  it("types bs.cached tables by the schema", () => {
-    void bs.cached({ tables: ["customers"], id: "c1" });
+  it("types bsb.cached tables by the schema", () => {
+    void bsb.cached({ tables: ["customers"], id: "c1" });
     // @ts-expect-error not a table
-    void bs.cached({ tables: ["nope"] });
+    void bsb.cached({ tables: ["nope"] });
   });
 });
 
 describe("ActionInputOf", () => {
   it("drops FormData from a schema action's input", () => {
-    const save = bs.action(
+    const save = bsb.action(
       { input: v.object({ id: v.string() }) },
       () => "saved" as const,
     );

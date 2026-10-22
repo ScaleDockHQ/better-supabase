@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
--- @bs-app-tables
+-- @bsb-tables
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -48,8 +48,8 @@ create policy "projects_update" on "public"."projects" for update to authenticat
 drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
-drop trigger if exists "bs_updated_at" on "public"."projects";
-create trigger "bs_updated_at" before update on "public"."projects"
+drop trigger if exists "bsb_updated_at" on "public"."projects";
+create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
@@ -66,8 +66,8 @@ drop policy if exists "tasks_delete" on "public"."tasks";
 create policy "tasks_delete" on "public"."tasks" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
-drop trigger if exists "bs_updated_at" on "public"."tasks";
-create trigger "bs_updated_at" before update on "public"."tasks"
+drop trigger if exists "bsb_updated_at" on "public"."tasks";
+create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."rates" enable row level security;
@@ -76,8 +76,8 @@ grant select ("id", "created_at", "updated_at") on "public"."rates" to authentic
 grant all on "public"."rates" to service_role;
 drop policy if exists "rates_select" on "public"."rates";
 create policy "rates_select" on "public"."rates" for select to authenticated using (((select auth.uid()) is not null));
-drop trigger if exists "bs_updated_at" on "public"."rates";
-create trigger "bs_updated_at" before update on "public"."rates"
+drop trigger if exists "bsb_updated_at" on "public"."rates";
+create trigger "bsb_updated_at" before update on "public"."rates"
   for each row execute function better_supabase.set_updated_at();
 
 create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);
@@ -102,7 +102,7 @@ comment on view "public"."projects_view" is 'The rollups and lookups of public.p
 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
--- @bs-module-test app-tables
+-- @bsb-block-test app-tables
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
 
@@ -128,7 +128,7 @@ select extensions.table_privs_are('public', 'projects_view', 'authenticated', ar
 
 with o as (
   insert into "better_supabase"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { resolveModules } from "../../../src/sql/registry.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
@@ -58,7 +58,7 @@ describe("agents module", () => {
   });
 
   it("needs tenant and access", () => {
-    const names = resolveModules(["agents"]).map((module) => module.name);
+    const names = resolveBlocks(["agents"]).map((module) => module.name);
     expect(names).toContain("tenant");
     expect(names).toContain("access");
     expect(names.at(-1)).toBe("agents");

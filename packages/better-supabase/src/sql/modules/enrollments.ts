@@ -1,11 +1,11 @@
 import type { EnrollmentsEvents } from "../../blocks/enrollments/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
@@ -26,7 +26,7 @@ const ENROLLMENT_PAYLOAD = [
   "totalSteps",
 ] as const;
 
-const EVENTS: ModuleEvents<EnrollmentsEvents> = {
+const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
   "enrollment_program.saved": {
     subject: "enrollment-programs",
     payload: PROGRAM_PAYLOAD,
@@ -50,7 +50,7 @@ const EVENTS: ModuleEvents<EnrollmentsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     enrollment_program: {
       table: "programs",
@@ -119,7 +119,7 @@ const NAMES: ModuleNames = {
  * The enrollments tables, their indexes and read policies. The onboarding
  * upgrade writes them too, so its rows can move before this module renders.
  */
-export function enrollmentTables(ctx: ModuleContext): string {
+export function enrollmentTables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -204,13 +204,13 @@ create policy ${name("steps", "read")} on ${steps} for select to authenticated
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 ${enrollmentTables(ctx)}
 ${enrollmentsFunctions(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_enrollment_program",
@@ -237,7 +237,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ENROLLMENTS: ModuleDefinition = {
+export const ENROLLMENTS: BlockSqlDefinition = {
   internal: [
     "enrollment_ensure",
     "enrollment_mark",

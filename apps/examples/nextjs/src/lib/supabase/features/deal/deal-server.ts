@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { dealFeature } from "./deal-feature.ts";
 
 /**
  * Loads a deal's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const dealRecord = recordServer(bs, dealFeature);
+export const dealRecord = recordServer(bsb, dealFeature);

@@ -6,7 +6,7 @@ import type {
   SectionResult,
 } from "../blocks/sections.ts";
 import type { DbError } from "../core/errors.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 
 import { can as holds } from "../blocks/access/permissions.ts";
 import { dbError } from "../core/errors.ts";
@@ -147,7 +147,7 @@ export async function loadSections<
   const N extends SectionName<B>,
 >(
   source: SectionSource<B>,
-  subject: SubjectRef,
+  subject: RecordRef,
   names: readonly N[],
   options: LoadSectionsOptions<B, N> = {},
 ): Promise<LoadedSections<B, N>> {
@@ -189,7 +189,7 @@ export async function loadSections<
       // options `LoadSectionsOptions` typed for it.
       const load = found.section.load as (
         client: unknown,
-        subject: SubjectRef,
+        subject: RecordRef,
         options: unknown,
       ) => AsyncResult<unknown>;
 
@@ -221,7 +221,7 @@ export async function loadSections<
 export function countSection<B extends SectionBlocks>(
   source: SectionSource<B>,
   name: SectionName<B>,
-  subjects: readonly SubjectRef[],
+  subjects: readonly RecordRef[],
 ): AsyncResult<Readonly<Record<string, number>>> {
   const found = findSection(source.blocks, name);
   const client = found && clientOf(source.clients, found.key);
@@ -235,7 +235,7 @@ export function countSection<B extends SectionBlocks>(
   // SAFETY: the section takes the client its block's creator made.
   const count = found.section.count as (
     client: unknown,
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ) => AsyncResult<Readonly<Record<string, number>>>;
 
   return count(client, subjects);

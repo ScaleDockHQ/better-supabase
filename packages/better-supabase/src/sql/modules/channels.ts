@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ChannelsSql } from "./channels-names.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -351,7 +351,7 @@ ${userGrant(`${fn("channels_for_record")}(text, text)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -367,7 +367,7 @@ ${channelsTable(q)}
 ${channelsFunctions(q)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_channel",
@@ -390,7 +390,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CHANNELS: ModuleDefinition = {
+export const CHANNELS: BlockSqlDefinition = {
   name: "channels",
   scopes: ["tenant"],
   title: "Channels",

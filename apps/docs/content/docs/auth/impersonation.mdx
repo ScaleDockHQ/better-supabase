@@ -24,7 +24,7 @@ import {
   supportSessions,
 } from "better-supabase/server";
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   env,
   postgres,
   support: supportSessions({
@@ -61,29 +61,29 @@ In Next.js, start and stop the session from server actions:
 
 ```ts title="app/admin/users/actions.ts"
 "use server";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export async function viewAs(userId: string, reason: string) {
-  return bs.startSupport({ targetUserId: userId, reason });
+  return bsb.startSupport({ targetUserId: userId, reason });
 }
 
 export async function stopViewing() {
-  return bs.stopSupport();
+  return bsb.stopSupport();
 }
 ```
 
-`startSupport` records the session, sets an HTTP-only `bs-support` cookie that
+`startSupport` records the session, sets an HTTP-only `bsb-support` cookie that
 holds the session id, and returns an `ActionResult`. From the next request on,
-`bs.session()`, `bs.context()`, actions, routes and `bs.cached()` all run as
+`bsb.session()`, `bsb.context()`, actions, routes and `bsb.cached()` all run as
 the target. Ending the session (or its expiry) brings the admin back to their
-own view. Outside Next.js, `bs.support.start(auth, request)` returns the
+own view. Outside Next.js, `bsb.support.start(auth, request)` returns the
 session and the `Set-Cookie` header to send.
 
 ### Your own request context
 
 An app that owns its request context (its own `AsyncLocalStorage`, a header
 set by a gateway, or a context object built per request) can keep the
-session id there instead of in the `bs-support` cookie. Pass `sessionId` to
+session id there instead of in the `bsb-support` cookie. Pass `sessionId` to
 read it from the request, or resolve the session yourself:
 
 ```ts title="src/server.ts"
@@ -138,7 +138,7 @@ caller's `supabase.storage`, so code that connects buckets through the `Db`
 works in both (`documents` is a `defineBucket` definition):
 
 ```ts title="app/files/[...path]/route.ts"
-const ctx = await bs.context(request);
+const ctx = await bsb.context(request);
 const url = await documents
   .connect(ctx.db.$storage)
   .signedUrl(path, { ttl: 60 })
@@ -411,8 +411,8 @@ changes in a writable session records the same columns, so you can list
 everything one session did, from its start to its end. A session that
 another staff member revokes keeps the session id in the entry's metadata.
 
-`bs.support.list(auth, { active: true })` lists running sessions for an
-admin page, and `bs.support.revoke(auth, id)` ends a session. Both run as the
+`bsb.support.list(auth, { active: true })` lists running sessions for an
+admin page, and `bsb.support.revoke(auth, id)` ends a session. Both run as the
 caller: the SQL store lists sessions for staff with `support.read`, and ends
 the caller's own session or, with `support.revoke`, anyone's.
 
@@ -420,7 +420,7 @@ the caller's own session or, with `support.revoke`, anyone's.
 
 A session stops working the moment it expires, since every request checks
 `expires_at`. Its row stays open until something ends it, so run
-`bs.support.expire()` on a schedule to close expired sessions and record
+`bsb.support.expire()` on a schedule to close expired sessions and record
 them: the SQL store calls `expire_support_sessions()` over `postgres.admin`,
 which ends each one through `end_support_session(id, 'expired')`, so the
 audit log gets a `support.ended` entry, and `betterSupabase.on` receives `support.ended`
@@ -430,14 +430,14 @@ behind a bearer secret and answers `{ "expired": 2 }`:
 ```ts title="app/api/cron/support/route.ts"
 import "server-only";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
-export const GET = bs.support.expireRoute({ secret: process.env.CRON_SECRET });
+export const GET = bsb.support.expireRoute({ secret: process.env.CRON_SECRET });
 ```
 
 `expire_support_sessions()` is executable by the service role only. A store
 of your own implements the optional `expire()` method for this; without it,
-`bs.support.expire()` fails with `SUPPORT_EXPIRE_UNSUPPORTED`.
+`bsb.support.expire()` fails with `SUPPORT_EXPIRE_UNSUPPORTED`.
 
 The SQL module refuses a target who holds platform permissions (the platform
 claim in `app_metadata`, or a platform role), because the admin would gain
@@ -461,7 +461,7 @@ against it (see [conformance](/docs/extending/conformance)).
 session or a cookie. Use it in jobs and scripts:
 
 ```ts title="app/admin/actions.ts"
-const db = bs.actingAs(
+const db = bsb.actingAs(
   userId,
   { tenant_id: organizationId },
   { actor: admin.id, reason: "Support ticket 4211" },
@@ -474,7 +474,7 @@ The third argument adds an [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#sec
 `auth.uid() = userId`. Check who acts first: `actingAs` trusts its caller, so
 only call it after your own admin check.
 
-Jobs run as the user who enqueued them with `bs.forContext(job.context)`,
+Jobs run as the user who enqueued them with `bsb.forContext(job.context)`,
 which keeps the impersonating admin when the job was enqueued during
 impersonation. See
 [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).

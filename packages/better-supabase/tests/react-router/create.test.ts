@@ -31,7 +31,7 @@ function contextProvider(): ReactRouterArgs["context"] {
   };
 }
 
-const bs = createReactRouter(betterSupabase, {
+const bsb = createReactRouter(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
@@ -47,7 +47,7 @@ async function serve(
   const args = { request, context: contextProvider() };
   let out: unknown;
   let thrown: unknown;
-  await bs.middleware(args, async () => {
+  await bsb.middleware(args, async () => {
     try {
       out = await fn(args);
     } catch (error) {
@@ -67,7 +67,7 @@ async function serve(
 
 describe("createReactRouter", () => {
   it("guards loaders and unwraps their Results", async () => {
-    const loader = bs.loader({}, (_args, ctx) =>
+    const loader = bsb.loader({}, (_args, ctx) =>
       ok({ id: ctx.session.kind === "user" ? ctx.session.user.id : null }),
     );
 
@@ -77,7 +77,7 @@ describe("createReactRouter", () => {
   });
 
   it("throws a redirect or Problem Details response for refusals and errors", async () => {
-    const loader = bs.loader({}, () => 1);
+    const loader = bsb.loader({}, () => 1);
 
     const redirect = await serve(
       await requestAs(undefined, { url: "https://app.test/notes" }),
@@ -87,7 +87,7 @@ describe("createReactRouter", () => {
     expect(redirect).toBeInstanceOf(Response);
     expect((redirect as Response).status).toBe(303);
 
-    const failing = bs.loader({}, () => err(dbError("not_found", "Gone")));
+    const failing = bsb.loader({}, () => err(dbError("not_found", "Gone")));
 
     const problem = await serve(
       await requestAs({ role: "member" }),
@@ -98,7 +98,7 @@ describe("createReactRouter", () => {
   });
 
   it("runs actions into ActionResults", async () => {
-    const action = bs.action({}, (input) => ok(input));
+    const action = bsb.action({}, (input) => ok(input));
 
     const request = await requestAs(
       { role: "member" },
@@ -118,7 +118,7 @@ describe("createReactRouter", () => {
 
   it("locals fails without the middleware", () => {
     expect(() =>
-      bs.locals({
+      bsb.locals({
         request: new Request("https://app.test/"),
         context: contextProvider(),
       }),

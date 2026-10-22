@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, lockTable, SERVICE_CALLER, userGrant } from "../shared.ts";
@@ -23,7 +23,7 @@ export const CREDIT_TABLES = {
 } as const;
 
 /** Whether `blocks.passes.options.credits` is on; it needs bookings. */
-export const creditsOn = (ctx: ModuleContext): boolean =>
+export const creditsOn = (ctx: BlockSqlContext): boolean =>
   ctx.manages && ctx.installed("bookings") && ctx.flag("credits", false);
 
 /**
@@ -31,7 +31,7 @@ export const creditsOn = (ctx: ModuleContext): boolean =>
  * and gives the use back when the booking is cancelled early enough. Every
  * movement is a row in the credit ledger; `passes.uses` is its running total.
  */
-export function creditsSql(ctx: ModuleContext): string {
+export function creditsSql(ctx: BlockSqlContext): string {
   const passes = ctx.table("passes");
   const credits = ctx.table("credits");
   const p = (column: string): string => ctx.col("passes", column);
@@ -204,7 +204,7 @@ ${userGrant(`${fn("list_pass_credits")}(uuid)`)}
 `;
 }
 
-export function creditsContract(): readonly ModuleContractFunction[] {
+export function creditsContract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "book_with_credit",

@@ -1,11 +1,11 @@
 import type { PassesEvents } from "../../blocks/passes/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -59,7 +59,7 @@ const CREDIT_PAYLOAD = [
   "bookingId",
 ] as const;
 
-const EVENTS: ModuleEvents<PassesEvents> = {
+const EVENTS: BlockSqlEvents<PassesEvents> = {
   "pass.issued": {
     subject: "passes",
     payload: ["organizationId", "id", "kind", "holderUserId", "bookingId"],
@@ -74,7 +74,7 @@ const EVENTS: ModuleEvents<PassesEvents> = {
   "pass.credit_refunded": { subject: "passes", payload: CREDIT_PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     pass: {
       table: "passes",
@@ -137,7 +137,7 @@ const NAMES: ModuleNames = {
 const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -230,7 +230,7 @@ ${lockTable(checkIns)}
 `;
 }
 
-function functions(ctx: ModuleContext): string {
+function functions(ctx: BlockSqlContext): string {
   const passes = ctx.table("passes");
   const checkIns = ctx.table("checkIns");
   const p = (column: string): string => ctx.col("passes", column);
@@ -349,7 +349,7 @@ function functions(ctx: ModuleContext): string {
     end if;
   end if;
   if v_reason is null and v_pass.${p("booking")} is null and v_resource is not null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:passes:' || v_resource::text, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:passes:' || v_resource::text, 0));
     select rs.${r("capacity")} into v_capacity from ${bookings.table("resources")} rs
       where rs.${r("id")} = v_resource and rs.${r("tenant")} = v_pass.${p("tenant")};
     if v_capacity is null then
@@ -633,7 +633,7 @@ ${occupancy}`;
 }
 
 /** Moves the passes on a merged registered subject to the record it merged into. */
-function passMerges(ctx: ModuleContext): string {
+function passMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -656,7 +656,7 @@ function passMerges(ctx: ModuleContext): string {
   );
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -667,7 +667,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${functions(ctx)}${passMerges(ctx)}${creditsOn(ctx) ? creditsSql(ctx) : ""}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "issue_pass",
@@ -712,7 +712,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const PASSES: ModuleDefinition = {
+export const PASSES: BlockSqlDefinition = {
   name: "passes",
   scopes: ["tenant"],
   title: "Passes",

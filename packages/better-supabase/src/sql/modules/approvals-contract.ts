@@ -1,4 +1,4 @@
-import type { ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContractFunction } from "../context.ts";
 
 /**
  * The approvals functions the module exposes; extra is the contract of
@@ -6,7 +6,7 @@ import type { ModuleContractFunction } from "../context.ts";
  */
 export function approvalsContract(
   extra: readonly string[],
-): readonly ModuleContractFunction[] {
+): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "request_approval",

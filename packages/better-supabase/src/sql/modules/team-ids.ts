@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { accessModel } from "./access-model.ts";
@@ -9,8 +9,8 @@ import { accessModel } from "./access-model.ts";
  * and sets it.
  */
 export function providerTeamIds(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
   user: string,
 ): string | undefined {
   const template =
@@ -29,8 +29,8 @@ export function providerTeamIds(
  * teams).
  */
 export function callerTeamIdsSql(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string {
   const caller = "(select auth.uid())";
   const provider = providerTeamIds(ctx, layout, caller);

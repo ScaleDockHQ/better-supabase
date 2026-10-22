@@ -5,7 +5,7 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 import { callerOnlyProvider } from "../../fixtures/authorization-provider.ts";
 
@@ -32,7 +32,7 @@ describe("notifications module", () => {
   it("broadcasts an update only when a read, dismissed or resolved time changes", () => {
     const sql = body();
     expect(sql).toContain(
-      'create trigger "bs_notification_broadcast" after insert on "better_supabase"."notification_recipients"',
+      'create trigger "bsb_notification_broadcast" after insert on "better_supabase"."notification_recipients"',
     );
     expect(sql).toContain(
       'after update of "read_at", "dismissed_at", "resolved_at" on "better_supabase"."notification_recipients"\n  for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")',
@@ -102,10 +102,10 @@ describe("notifications module", () => {
   });
 
   it("checks permissions and emits through the outbox when they are installed", () => {
-    const plain = renderModules(["notifications"]).at(-1)!.contents;
+    const plain = renderBlocks(["notifications"]).at(-1)!.contents;
     expect(plain).not.toContain("member_can");
     expect(plain).not.toContain("emit_event");
-    const files = renderModules(["access", "outbox", "notifications"]);
+    const files = renderBlocks(["access", "outbox", "notifications"]);
 
     const sql = files.find((file) =>
       file.path.includes("notifications"),
@@ -328,7 +328,7 @@ describe("notifications module", () => {
 
   it("skips the recipient read filter when the provider answers for the caller only", () => {
     const notify = (modules: AnyBlocksConfig) =>
-      renderModules(["access", "notifications"], {
+      renderBlocks(["access", "notifications"], {
         modules,
         accessProvider: callerOnlyProvider,
       }).find((file) => file.path.includes("notifications"))!.contents;
@@ -380,7 +380,7 @@ describe("notification subjects", () => {
   end if;`,
     );
     expect(sql).toContain(
-      `create trigger "bs_notifications_time-off-request_cascade"
+      `create trigger "bsb_notifications_time-off-request_cascade"
   after delete on "app"."time_off_requests"
   for each row execute function "better_supabase"."notifications_subject_deleted"('time-off-request', 'id', 'organization_id');`,
     );
@@ -388,7 +388,7 @@ describe("notification subjects", () => {
       `after delete on "public"."expenses"
   for each row execute function "better_supabase"."notifications_subject_deleted"('expense', 'id');`,
     );
-    expect(sql).not.toContain("bs_notifications_invoice_cascade");
+    expect(sql).not.toContain("bsb_notifications_invoice_cascade");
     expect(body()).not.toContain("notifications_subject_deleted");
   });
 
@@ -444,7 +444,7 @@ describe("notification subjects", () => {
 describe("notification actors", () => {
   it("reads actor profiles only next to the profiles module", () => {
     const file = (names: readonly string[]) =>
-      renderModules(names).find(
+      renderBlocks(names).find(
         (entry) => entry.module === "notifications" && entry.kind === "schema",
       )!.contents;
 
@@ -455,7 +455,7 @@ describe("notification actors", () => {
     expect(sql).toContain("'username', pr.\"username\"");
     expect(sql).toContain("'avatarPath', pr.\"avatar_path\"");
     expect(
-      renderModules(["notifications", "profiles"], {
+      renderBlocks(["notifications", "profiles"], {
         modules: {
           profiles: { mode: "adopt", tables: { profiles: "public.profiles" } },
         },
@@ -480,7 +480,7 @@ describe("notification actors", () => {
   });
 
   it("lets a sender add a level for another member only when none is set", () => {
-    const sql = renderModules(["access", "notifications"])
+    const sql = renderBlocks(["access", "notifications"])
       .filter((file) => file.module === "notifications")
       .map((file) => file.contents)
       .join("\n");

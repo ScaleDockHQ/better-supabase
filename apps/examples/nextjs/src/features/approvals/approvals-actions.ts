@@ -7,7 +7,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { APPROVAL_ACTIONS, APPROVAL_SUBJECT } from "./approvals-types";
 
@@ -15,7 +15,7 @@ const Id = v.pipe(v.string(), v.uuid());
 const Comment = v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500)), "");
 
 /** Files a request under the customer policy for the action. */
-export const requestApproval = bs.action(
+export const requestApproval = bsb.action(
   {
     input: v.object({
       subjectId: Id,
@@ -45,7 +45,7 @@ export const requestApproval = bs.action(
  * Approves or rejects the request's current step. The block checks that the
  * caller is one of the step's approvers.
  */
-export const decideApproval = bs.action(
+export const decideApproval = bsb.action(
   {
     input: v.object({
       id: Id,

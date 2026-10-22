@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
@@ -11,7 +11,7 @@ import { schemaPreamble, SERVICE_CALLER, fail, raise } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { enrollmentTables } from "./enrollments.ts";
 
-const NAMES: ModuleNames = { options: ["checklists"], tables: {} };
+const NAMES: BlockSqlNames = { options: ["checklists"], tables: {} };
 
 /** The prefix of the enrollment program each checklist runs as. */
 const PROGRAM = "onboarding:";
@@ -59,7 +59,7 @@ function eventsOf(value: unknown, path: string): readonly string[] {
 }
 
 /** The steps of every `defineChecklist()` result in `options.checklists`. */
-function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
+function checklistSteps(ctx: BlockSqlContext): readonly StepOption[] {
   const option = ctx.option("checklists");
 
   if (option === undefined) {
@@ -148,7 +148,7 @@ function checklistRows(steps: readonly StepOption[]): string {
 }
 
 /** The enrollments the checklists run on, checked to be managed. */
-function enrollmentsOf(ctx: ModuleContext): ModuleContext {
+function enrollmentsOf(ctx: BlockSqlContext): BlockSqlContext {
   const enrolled = ctx.of("enrollments");
 
   if (!enrolled.manages) {
@@ -160,7 +160,7 @@ function enrollmentsOf(ctx: ModuleContext): ModuleContext {
   return enrolled;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -319,7 +319,7 @@ ${eventSteps(ctx, steps, lists)}`;
  * tenant.
  */
 function eventSteps(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   steps: readonly StepOption[],
   lists: string,
 ): string {
@@ -404,7 +404,7 @@ create trigger ${trigger} after insert on ${events}
  * enrollments: one enrollment per checklist and subject with the checklist's
  * configured steps, then drops the table.
  */
-function enrollmentsUpgrade(ctx: ModuleContext): string {
+function enrollmentsUpgrade(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -455,7 +455,7 @@ end;
 $upgrade$;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "onboarding_progress", args: ["text", "{id}"], returns: "jsonb" },
     {
@@ -471,7 +471,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ONBOARDING: ModuleDefinition = {
+export const ONBOARDING: BlockSqlDefinition = {
   name: "onboarding",
   scopes: ["tenant"],
   title: "Onboarding",

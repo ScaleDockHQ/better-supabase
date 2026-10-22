@@ -2,7 +2,7 @@ import "server-only";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Row = v.object({ name: v.string(), status: v.string() });
 
@@ -22,7 +22,7 @@ export async function getSharedCustomer(
   token: string,
 ): Promise<SharedCustomer | null> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
 
   const link = await blocks(supabase).shareLinks.resolve(token).orThrow();
 
@@ -30,7 +30,7 @@ export async function getSharedCustomer(
     return null;
   }
 
-  const { data, error } = await bs
+  const { data, error } = await bsb
     .admin()
     .$client.from("customers")
     .select("name, status")

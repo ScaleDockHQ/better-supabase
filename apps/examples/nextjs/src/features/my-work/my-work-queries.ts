@@ -6,7 +6,7 @@ import { loadMyWork } from "better-supabase/records";
 import { unstable_rethrow } from "next/navigation";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface MyWorkRow {
   readonly key: string;
@@ -34,7 +34,7 @@ export type Loaded<T> =
  */
 async function loadView(): Promise<MyWorkView | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

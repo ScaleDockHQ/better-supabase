@@ -78,14 +78,14 @@ describe("flagContextOf", () => {
 
 describe("betterSupabaseAdapter", () => {
   it("decides from cached definitions, called or by reference", async () => {
-    const bs = betterSupabaseAdapter({
+    const bsb = betterSupabaseAdapter({
       definitions: DEFINITIONS,
       origin: "https://admin.example.com/flags/{key}",
     });
 
-    const adapter = bs<boolean>();
+    const adapter = bsb<boolean>();
 
-    expect(adapter.adapterId).toBe(bs<string>().adapterId);
+    expect(adapter.adapterId).toBe(bsb<string>().adapterId);
     expect(adapter.origin?.("new editor")).toBe(
       "https://admin.example.com/flags/new%20editor",
     );
@@ -99,13 +99,13 @@ describe("betterSupabaseAdapter", () => {
       await adapter.decide({ key: "new_editor", defaultValue: true }),
     ).toBe(false);
     expect(
-      await bs<string>().decide({
+      await bsb<string>().decide({
         key: "theme",
         entities: { organization: { id: "org-1" } },
         defaultValue: "light",
       }),
     ).toBe("dark");
-    expect(bs.origin).toBe("https://admin.example.com/flags/{key}");
+    expect(bsb.origin).toBe("https://admin.example.com/flags/{key}");
   });
 
   it("falls back to defaultValue, and throws without one", async () => {
@@ -288,12 +288,12 @@ describe("flagOptions and getProviderData", () => {
   });
 
   it("describes every flag that is not archived", async () => {
-    const bs = betterSupabaseAdapter({
+    const bsb = betterSupabaseAdapter({
       definitions: DEFINITIONS,
       origin: (key) => (key === "theme" ? undefined : `/admin/${key}`),
     });
 
-    expect(await getProviderData(bs)).toEqual({
+    expect(await getProviderData(bsb)).toEqual({
       definitions: {
         new_editor: {
           options: [
@@ -331,11 +331,11 @@ describe("flagOptions and getProviderData", () => {
   });
 
   it("turns a failed load into a hint", async () => {
-    const bs = betterSupabaseAdapter({
+    const bsb = betterSupabaseAdapter({
       transport: { call: () => Promise.reject(new Error("offline")) },
     });
 
-    expect(await getProviderData(bs)).toEqual({
+    expect(await getProviderData(bsb)).toEqual({
       definitions: {},
       hints: [
         {

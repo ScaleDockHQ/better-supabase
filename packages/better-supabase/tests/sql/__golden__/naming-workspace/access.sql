@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_19_access.sql
 -- better-supabase module: access
--- @bs-module access@1 managed
+-- @bsb-block access@1 managed
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.access.model).
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,7 +61,7 @@ as $$
 $$;
 
 -- False when the token is narrower than the permission: a permission cap
--- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
@@ -72,9 +72,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -389,26 +389,26 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 --     better_supabase.permission_claims((event ->> 'user_id')::uuid));
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_19_access.sql
 -- better-supabase module: access
--- @bs-module-data access
+-- @bsb-block-data access
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('access', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

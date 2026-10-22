@@ -1,5 +1,5 @@
--- better-supabase module: notifications (0.8.0)
--- @bs-module notifications@8 adopt
+-- better-supabase module: notifications
+-- @bsb-block notifications@8 adopt
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -840,31 +840,31 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_notification"() from public, anon, authenticated;
-drop trigger if exists "bs_notification_broadcast" on "centrakit"."notification_recipients";
-drop trigger if exists "bs_notification_broadcast_update" on "centrakit"."notification_recipients";
-create trigger "bs_notification_broadcast" after insert on "centrakit"."notification_recipients"
+drop trigger if exists "bsb_notification_broadcast" on "centrakit"."notification_recipients";
+drop trigger if exists "bsb_notification_broadcast_update" on "centrakit"."notification_recipients";
+create trigger "bsb_notification_broadcast" after insert on "centrakit"."notification_recipients"
   for each row execute function "better_supabase"."broadcast_notification"();
-create trigger "bs_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "centrakit"."notification_recipients"
+create trigger "bsb_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "centrakit"."notification_recipients"
   for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")
   execute function "better_supabase"."broadcast_notification"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_notifications_receive" on realtime.messages;
-    create policy "bs_notifications_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_notifications_receive" on realtime.messages;
+    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'organization:' || '[^:]+' || ':notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;
 $$;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

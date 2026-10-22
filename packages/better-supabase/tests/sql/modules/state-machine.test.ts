@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   modules: AnyBlocksConfig = {},
   installed: readonly string[] = [],
 ): string =>
-  renderModules([...installed, "state-machine"], { modules })
+  renderBlocks([...installed, "state-machine"], { modules })
     .filter((file) => file.module === "state-machine")
     .map((file) => file.contents)
     .join("\n");
@@ -131,7 +131,7 @@ describe("state machine", () => {
     expect(transition).not.toContain("security definer");
     expect(transition).toContain("STATE_SUBJECT_NOT_FOUND");
     expect(transition).toContain("v_found := found;");
-    expect(sql).toMatch(/bs_transition_quote\(\)[\s\S]*?security definer/);
+    expect(sql).toMatch(/bsb_transition_quote\(\)[\s\S]*?security definer/);
   });
 
   it("clears and numbers stages within the record's tenant and machine", () => {
@@ -163,7 +163,7 @@ describe("state machine", () => {
   });
 
   it("falls back to config.subjects for a machine without a table", () => {
-    const sql = renderModules(["state-machine"], {
+    const sql = renderBlocks(["state-machine"], {
       subjects: {
         deal: { table: "crm.deals", idType: "uuid", tenant: "org_id" },
       },
@@ -185,7 +185,7 @@ describe("state machine", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain("create trigger bs_transition_deal");
+    expect(sql).toContain("create trigger bsb_transition_deal");
     expect(sql).toContain(`on "crm"."deals"`);
     expect(sql).toContain(`new."org_id"`);
     expect(sql).toContain(`s."id" = (transition.subject_id)::uuid`);
@@ -333,7 +333,7 @@ describe("state machine", () => {
 
   it("rejects a registered subject without a tenant", () => {
     expect(() =>
-      renderModules(["state-machine"], {
+      renderBlocks(["state-machine"], {
         subjects: { note: { table: "public.notes", tenant: false } },
         modules: {
           "state-machine": {

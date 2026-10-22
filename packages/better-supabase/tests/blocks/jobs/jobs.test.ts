@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type {
   Job,
-  QueueBackend,
+  QueueProvider,
   QueueRpcClient,
 } from "../../../src/blocks/jobs/index.ts";
 import type { DbError } from "../../../src/core/errors.ts";
@@ -18,7 +18,7 @@ import {
   createJobs,
   nextCronRun,
   pgmqPublicBackend,
-  sqlQueueBackend,
+  sqlQueueProvider,
   sqlTransport,
 } from "../../../src/blocks/jobs/index.ts";
 import { signWebhook } from "../../../src/blocks/webhooks/index.ts";
@@ -1669,10 +1669,10 @@ describe("drain budget", () => {
 });
 
 describe("custom queue backends", () => {
-  it("runs jobs on any QueueBackend", async () => {
+  it("runs jobs on any QueueProvider", async () => {
     const sent: unknown[] = [];
 
-    const backend: QueueBackend = {
+    const backend: QueueProvider = {
       apiVersion: 1,
       name: "memory",
       leases: false,
@@ -1698,7 +1698,7 @@ describe("custom queue backends", () => {
   });
 
   it("exposes the built-in backends", () => {
-    expect(sqlQueueBackend(fakeSql([]).sql)).toMatchObject({
+    expect(sqlQueueProvider(fakeSql([]).sql)).toMatchObject({
       apiVersion: 1,
       name: "sql",
       leases: true,

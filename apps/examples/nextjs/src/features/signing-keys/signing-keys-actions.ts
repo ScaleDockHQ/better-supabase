@@ -4,7 +4,7 @@ import { ok } from "better-supabase";
 
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import {
   organizationOwner,
@@ -17,7 +17,7 @@ import {
  * until the tokens it signed expire. With no key yet, it creates the first
  * (Ed25519).
  */
-export const rotateSigningKey = bs.action(
+export const rotateSigningKey = bsb.action(
   {
     requireTenant: true,
     authorize: (session) => can(session, SIGNING_KEYS_PERMISSION),

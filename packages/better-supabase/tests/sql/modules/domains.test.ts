@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("domains", { modules })!;
@@ -74,7 +74,7 @@ describe("domains module", () => {
   });
 
   it("checks reserved slugs for subdomains when that module is installed", () => {
-    const sql = renderModules(["domains", "reserved-slugs"], {
+    const sql = renderBlocks(["domains", "reserved-slugs"], {
       modules: { domains: { options: { platformDomain: "acme.app" } } },
     })
       .map((file) => file.contents)

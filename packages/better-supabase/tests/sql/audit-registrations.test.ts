@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { auditRegistrations, renderModules } from "../../src/sql/index.ts";
+import { auditRegistrations, renderBlocks } from "../../src/sql/index.ts";
 
 const file = (text: string) => ({ text });
 
@@ -79,7 +79,7 @@ describe("audit pgTAP files", () => {
   ];
 
   it("writes one test file per audited table", () => {
-    const tests = renderModules(["audit"], { auditedTables: audited }).filter(
+    const tests = renderBlocks(["audit"], { auditedTables: audited }).filter(
       (entry) => entry.kind === "test",
     );
 
@@ -88,7 +88,7 @@ describe("audit pgTAP files", () => {
       "supabase/tests/900_better_supabase_audit_crm_deals.test.sql",
     ]);
     const [customers, deals] = tests.map((entry) => entry.contents);
-    expect(customers).toContain("-- @bs-module-test audit");
+    expect(customers).toContain("-- @bsb-block-test audit");
     expect(customers).toContain("select extensions.plan(7);");
     expect(customers).toContain(`like "public"."customers" including defaults`);
     expect(customers).toContain(
@@ -101,7 +101,7 @@ describe("audit pgTAP files", () => {
   });
 
   it("reads the snapshots from the restricted table and skips what an adopted log lacks", () => {
-    const restricted = renderModules(["audit"], {
+    const restricted = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
       modules: { audit: { options: { restricted: true } } },
     }).find((entry) => entry.kind === "test");
@@ -110,7 +110,7 @@ describe("audit pgTAP files", () => {
       'left join "better_supabase"."audit_events_restricted" r on r."entry_id" = l."id"',
     );
 
-    const bare = renderModules(["audit"], {
+    const bare = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
       modules: {
         audit: {
@@ -122,28 +122,28 @@ describe("audit pgTAP files", () => {
     }).find((entry) => entry.kind === "test");
 
     expect(bare!.contents).toContain("select extensions.plan(4);");
-    expect(bare!.contents).not.toContain("bs_audit_probe");
+    expect(bare!.contents).not.toContain("bsb_audit_probe");
   });
 
   it("writes no test files without audited tables", () => {
     expect(
-      renderModules(["audit"]).filter((entry) => entry.kind === "test"),
+      renderBlocks(["audit"]).filter((entry) => entry.kind === "test"),
     ).toEqual([]);
   });
 });
 
 describe("auditRegistrations of static triggers", () => {
-  it("reads bs_audit triggers that pass their settings to audit_row_change", () => {
+  it("reads bsb_audit triggers that pass their settings to audit_row_change", () => {
     expect(
       auditRegistrations([
         {
-          text: `create trigger bs_audit after insert or update or delete on public.invoices
+          text: `create trigger bsb_audit after insert or update or delete on public.invoices
   for each row execute function better_supabase.audit_row_change('{"ignore": ["updated_at"], "redact": ["iban"], "event_prefix": "invoice"}');
-create trigger bs_audit after insert or update or delete on "Billing"."Plans"
+create trigger bsb_audit after insert or update or delete on "Billing"."Plans"
   for each row execute function better_supabase.audit_row_change();
 create trigger other after insert on public.skipped
   for each row execute function better_supabase.audit_row_change();
-create trigger bs_audit after insert on public.broken
+create trigger bsb_audit after insert on public.broken
   for each row execute function better_supabase.audit_row_change('not json');`,
         },
         { text: "select better_supabase.unaudit('Billing.\"Plans\"');" },

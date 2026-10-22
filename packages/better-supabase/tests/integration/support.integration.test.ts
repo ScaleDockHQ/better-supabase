@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { sqlSupportStore, supportClaims } from "../../src/auth/support.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { testSupportSessionStore } from "../../src/testing/kits/support-session-store.ts";
 import { FIXTURE_HELPERS_SQL, FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 import { stackDbUrl } from "./stack-env.ts";
@@ -48,7 +48,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
     await postgres.admin.queryRaw(
       [
         // The second admin is covered in support-approval.integration.test.ts.
-        ...renderModules(["support-sessions"], {
+        ...renderBlocks(["support-sessions"], {
           modules: { "support-sessions": { options: { approval: "none" } } },
         }).map((file) => file.contents),
         FIXTURE_TENANT_SQL,

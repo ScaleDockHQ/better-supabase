@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("push", { modules })!;
 
 const withOutbox = (): string =>
-  renderModules(["outbox", "push"], { modules: {} })
+  renderBlocks(["outbox", "push"], { modules: {} })
     .filter((file) => file.contents.includes("push_devices"))
     .map((file) => file.contents)
     .join("\n");
@@ -61,7 +61,7 @@ describe("push module", () => {
   });
 
   it("needs no other module and is empty in custom mode", () => {
-    expect(resolveModules(["push"]).map((module) => module.name)).toEqual([
+    expect(resolveBlocks(["push"]).map((module) => module.name)).toEqual([
       "push",
     ]);
     expect(

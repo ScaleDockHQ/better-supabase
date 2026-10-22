@@ -35,10 +35,10 @@ function memoryStore() {
 describe("better-supabase/client/native", () => {
   it("binds repositories to a client the app created", async () => {
     const { client } = capturingClient(() => ({ body: [] }));
-    const bs = createNativeClient(defineSupabase(schema), client);
-    expect(bs.supabase).toBe(client);
-    expect(bs.auth.current().status).toBe("loading");
-    expect(await bs.db.tags.findMany({ select: ["id"] })).toMatchObject({
+    const bsb = createNativeClient(defineSupabase(schema), client);
+    expect(bsb.supabase).toBe(client);
+    expect(bsb.auth.current().status).toBe("loading");
+    expect(await bsb.db.tags.findMany({ select: ["id"] })).toMatchObject({
       ok: true,
     });
   });

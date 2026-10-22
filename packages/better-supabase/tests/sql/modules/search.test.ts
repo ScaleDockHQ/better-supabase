@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-const subjects: ModuleLayout["subjects"] = {
+const subjects: BlockSqlLayout["subjects"] = {
   task: {
     table: "app.tasks",
     title: "name",
@@ -17,10 +17,12 @@ const subjects: ModuleLayout["subjects"] = {
   plain: { table: "app.plain", title: "name" },
 };
 
-const render = (layout: ModuleLayout, names: readonly string[] = ["search"]) =>
-  renderModules(names, layout).filter((file) => file.module === "search");
+const render = (
+  layout: BlockSqlLayout,
+  names: readonly string[] = ["search"],
+) => renderBlocks(names, layout).filter((file) => file.module === "search");
 
-const sqlOf = (layout?: ModuleLayout, names?: readonly string[]) =>
+const sqlOf = (layout?: BlockSqlLayout, names?: readonly string[]) =>
   render(layout ?? { subjects }, names)
     .map((file) => file.contents)
     .join("\n");
@@ -34,9 +36,9 @@ describe("search module", () => {
     expect(sql).toContain(
       `execute function "better_supabase"."search_index_row"('task', 'id')`,
     );
-    expect(sql).toContain(`create trigger "bs_search_doc_index"`);
-    expect(sql).not.toContain("bs_search_label_index");
-    expect(sql).not.toContain("bs_search_plain_index");
+    expect(sql).toContain(`create trigger "bsb_search_doc_index"`);
+    expect(sql).not.toContain("bsb_search_label_index");
+    expect(sql).not.toContain("bsb_search_plain_index");
     expect(sql).toContain(
       `nullif(concat_ws(E'\\n', s."description"::text, s."notes"::text), '')`,
     );
@@ -112,7 +114,7 @@ describe("search module", () => {
   });
 
   it("reindexes in the data file, only when a subject is searched", () => {
-    const data = (layout: ModuleLayout) =>
+    const data = (layout: BlockSqlLayout) =>
       render(layout)
         .filter((file) => file.kind === "data")
         .map((file) => file.contents)

@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { createSavedViews } from "../../src/blocks/saved-views/index.ts";
@@ -10,7 +10,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   modules: { "saved-views": { schema: "sv_it" } },
 };
 

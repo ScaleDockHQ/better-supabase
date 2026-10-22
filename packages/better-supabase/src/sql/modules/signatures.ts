@@ -1,11 +1,11 @@
 import type { SignaturesEvents } from "../../blocks/signatures/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -26,7 +26,7 @@ import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents<SignaturesEvents> = {
+const EVENTS: BlockSqlEvents<SignaturesEvents> = {
   "signature.requested": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id", "versionId"],
@@ -49,7 +49,7 @@ const EVENTS: ModuleEvents<SignaturesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_signature_request",
@@ -123,7 +123,7 @@ const signedHash = (parts: {
     `${parts.request}::text || ':' || ${parts.contentHash} || ':' || ${parts.signer}::text || ':' || ${parts.method} || ':' || coalesce(${parts.typedName}, '') || ':' || coalesce(${parts.image}::text, '') || ':' || to_char(${parts.signedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
   );
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -636,7 +636,7 @@ ${userGrant(`${fn("list_signature_requests")}(${ctx.idType}, text, text, text, b
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_signature_request",
@@ -662,7 +662,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SIGNATURES: ModuleDefinition = {
+export const SIGNATURES: BlockSqlDefinition = {
   name: "signatures",
   scopes: ["tenant"],
   title: "Signatures",

@@ -1,6 +1,6 @@
 import type {
   AnyModuleNames,
-  ModuleNameSet,
+  BlockSqlNameSet,
   NamesOf,
 } from "../blocks/name-registry.ts";
 import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
@@ -56,7 +56,7 @@ export interface EntityConfig<Columns extends string = string> {
  * module's tables, columns, functions, events, permission keys, hooks and
  * TypeScript names follow.
  */
-export type EntitiesConfig<Names extends ModuleNameSet = AnyModuleNames> =
+export type EntitiesConfig<Names extends BlockSqlNameSet = AnyModuleNames> =
   | ([Names["primary"]] extends [never] ? never : string)
   | ([keyof Names["entities"]] extends [never]
       ? never
@@ -72,7 +72,7 @@ export type EntitiesConfig<Names extends ModuleNameSet = AnyModuleNames> =
  */
 export interface BlockConfig<
   Options extends object = Readonly<Record<string, unknown>>,
-  Names extends ModuleNameSet = AnyModuleNames,
+  Names extends BlockSqlNameSet = AnyModuleNames,
 > {
   readonly mode?: BlockMode;
   /**
@@ -165,7 +165,7 @@ export type ActiveTenantSource =
   | "claim"
   /**
    * A TypeScript resolver (`ServerOptions.tenant`), e.g. from a URL slug (the
-   * default). The server sends it as the `x-bs-tenant` header, then the
+   * default). The server sends it as the `x-bsb-tenant` header, then the
    * `claims.tenant` claim is the fallback.
    */
   | "resolver"
@@ -204,7 +204,7 @@ export interface DisabledRow {
 
 export interface AccessBlockConfig<
   Options extends object = Readonly<Record<string, unknown>>,
-  Names extends ModuleNameSet = AnyModuleNames,
+  Names extends BlockSqlNameSet = AnyModuleNames,
 > extends Omit<BlockConfig<Options, Names>, "functions"> {
   /**
    * `roles`: a fixed role list from `roles` (the default without
@@ -348,7 +348,7 @@ function isNameList(
 }
 
 /** A module's config with defaults applied. */
-export interface ResolvedModule {
+export interface ResolvedBlock {
   readonly mode: BlockMode;
   readonly schema: string;
   readonly tables: Readonly<Record<string, string | null>>;
@@ -385,7 +385,7 @@ function defined<V>(
   );
 }
 
-export function resolveModule(config: BlockConfig = {}): ResolvedModule {
+export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
   return {
     mode: config.mode ?? "managed",
     schema: config.schema ?? MODULE_SCHEMA,

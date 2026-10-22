@@ -117,9 +117,9 @@ function nextFiles(context: ScaffoldContext, api: string): ScaffoldFile[] {
       path: resources,
       generated: false,
       contents: `import { basePath, resources } from '${importFrom(context, resources, api)}';
-import { bs } from '${importFrom(context, resources, server)}';
+import { bsb } from '${importFrom(context, resources, server)}';
 
-export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(resources, { basePath });
+export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(resources, { basePath });
 `,
     },
     {
@@ -148,20 +148,20 @@ function honoFiles(context: ScaffoldContext, api: string): ScaffoldFile[] {
       contents: `import { specResponse } from 'better-supabase/spec';
 
 import { api, basePath, tableNames } from '${importFrom(context, path, api)}';
-import type { bs as server } from '${importFrom(context, path, server)}';
+import type { bsb as server } from '${importFrom(context, path, server)}';
 
 const { document } = api.openapi();
 
 /**
  * The OpenAPI document and a REST resource per table. Mount it in
- * server.ts with \`.route('/', apiRoutes(bs))\`.
+ * server.ts with \`.route('/', apiRoutes(bsb))\`.
  */
-export function apiRoutes(bs: typeof server) {
-  const routes = bs
+export function apiRoutes(bsb: typeof server) {
+  const routes = bsb
     .app()
     .get(\`\${basePath}/openapi.json\`, (c) => specResponse(document, c.req.raw))
-    .use(\`\${basePath}/*\`, bs.middleware());
-  for (const table of tableNames) routes.route(\`\${basePath}/\${table}\`, bs.resource(table));
+    .use(\`\${basePath}/*\`, bsb.middleware());
+  for (const table of tableNames) routes.route(\`\${basePath}/\${table}\`, bsb.resource(table));
   return routes;
 }
 `,
@@ -210,7 +210,7 @@ export function scaffoldNextSteps(
 
   if (context.framework === "hono") {
     steps.push(
-      `Mount the routes in ${join(context.srcDir, "server.ts")}: \`.route('/', apiRoutes(bs))\`.`,
+      `Mount the routes in ${join(context.srcDir, "server.ts")}: \`.route('/', apiRoutes(bsb))\`.`,
     );
   }
 

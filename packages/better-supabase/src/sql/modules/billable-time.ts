@@ -1,11 +1,11 @@
 import type { BillableTimeEvents } from "../../blocks/billable-time/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -23,14 +23,14 @@ import { moduleOperations } from "./access-model.ts";
 
 const GROUPINGS = ["subject", "member", "entry"] as const;
 
-const EVENTS: ModuleEvents<BillableTimeEvents> = {
+const EVENTS: BlockSqlEvents<BillableTimeEvents> = {
   "time.invoiced": {
     subject: "invoices",
     payload: ["organizationId", "invoiceId", "entryIds", "currency", "total"],
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     time_rate: {
       table: "rates",
@@ -74,13 +74,13 @@ const NAMES: ModuleNames = {
   },
 };
 
-function weekZone(ctx: ModuleContext): string {
+function weekZone(ctx: BlockSqlContext): string {
   const zone = ctx.of("time-tracking").option("timeZone");
 
   return typeof zone === "string" && zone.length > 0 ? zone : "UTC";
 }
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -137,7 +137,7 @@ create policy ${index("billed", "read")} on ${billed} for select to authenticate
 `;
 }
 
-function functions(ctx: ModuleContext): string {
+function functions(ctx: BlockSqlContext): string {
   const time = ctx.of("time-tracking");
   const invoices = ctx.of("invoices");
   const members = ctx.of("tenant");
@@ -262,8 +262,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("billable_time_guard")}() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on ${entries};
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on ${entries};
+create trigger bsb_billable_time_guard
   before update or delete on ${entries}
   for each row execute function ${fn("billable_time_guard")}();
 
@@ -280,8 +280,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("billable_time_release")}() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on ${invoices.table("invoices")};
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on ${invoices.table("invoices")};
+create trigger bsb_billable_time_release
   after update of ${iv("status")} on ${invoices.table("invoices")}
   for each row when (new.${iv("status")} = 'void' and old.${iv("status")} <> 'void')
   execute function ${fn("billable_time_release")}();
@@ -540,7 +540,7 @@ ${userGrant(`${fn("list_invoiced_time")}(uuid, integer)`)}
 }
 
 /** Moves the rates on a merged registered subject to the record it merged into. */
-function rateMerges(ctx: ModuleContext): string {
+function rateMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -568,7 +568,7 @@ function rateMerges(ctx: ModuleContext): string {
   );
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -587,7 +587,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${functions(ctx)}${rateMerges(ctx)}`;
 }
 
-function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(_ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "set_time_rate",
@@ -619,7 +619,7 @@ function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const BILLABLE_TIME: ModuleDefinition = {
+export const BILLABLE_TIME: BlockSqlDefinition = {
   name: "billable-time",
   scopes: ["tenant"],
   title: "Billable time",

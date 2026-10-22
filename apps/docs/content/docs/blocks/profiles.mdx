@@ -165,7 +165,7 @@ profiles: {
 
 `readPolicy` also takes `{ members, platform }`. `platform` is a permission
 key that `is_platform()` checks, so platform staff read every profile, which
-admin consoles need. It writes its own policy, `bs_profiles_platform_read`,
+admin consoles need. It writes its own policy, `bsb_profiles_platform_read`,
 in managed and adopt mode, and pulls in the `access` module. Column grants
 still apply, so the private columns stay behind them.
 

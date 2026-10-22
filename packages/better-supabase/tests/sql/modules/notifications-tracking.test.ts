@@ -5,14 +5,14 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
-const rendered = (names: Parameters<typeof renderModules>[0]) =>
-  renderModules(names)
+const rendered = (names: Parameters<typeof renderBlocks>[0]) =>
+  renderBlocks(names)
     .filter((file) => file.module === "notifications")
     .map((file) => file.contents)
     .join("\n");
@@ -62,7 +62,7 @@ describe("notification delivery tracking", () => {
       /grant (insert|update|delete)[^;]*notification_delivery_events"? to authenticated/,
     );
     expect(sql).toMatch(
-      /create policy "bs_notification_delivery_events_read"[^;]*r\."user_id" = \(select auth\.uid\(\)\)/,
+      /create policy "bsb_notification_delivery_events_read"[^;]*r\."user_id" = \(select auth\.uid\(\)\)/,
     );
   });
 

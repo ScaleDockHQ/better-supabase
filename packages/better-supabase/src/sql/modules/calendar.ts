@@ -1,11 +1,11 @@
 import type { CalendarEvents } from "../../blocks/calendar/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -29,7 +29,7 @@ import {
 } from "./calendar-availability.ts";
 import { liveShareLink } from "./share-links.ts";
 
-const EVENTS: ModuleEvents<CalendarEvents> = {
+const EVENTS: BlockSqlEvents<CalendarEvents> = {
   "calendar.created": {
     subject: "calendars",
     payload: ["organizationId", "id", "name"],
@@ -48,7 +48,7 @@ const EVENTS: ModuleEvents<CalendarEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     calendar_event: {
       table: "events",
@@ -156,7 +156,7 @@ const ROLES = "('chair', 'required', 'optional', 'non-participant')";
  * exist.
  */
 function eventFields(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
   const e = (column: string) => ctx.col("events", column);
 
@@ -206,7 +206,7 @@ function eventFields(
 }
 
 /** An update keeps a column the payload leaves out. */
-function updateSet(ctx: ModuleContext): string {
+function updateSet(ctx: BlockSqlContext): string {
   const keys: Readonly<Record<string, string>> = {
     title: "title",
     startsAt: "startsAt",
@@ -275,11 +275,11 @@ const EVENT_KEYS: readonly string[] = [
 ];
 
 /** `options.extraColumns`, which the events table gets. */
-const eventExtras = (ctx: ModuleContext) =>
+const eventExtras = (ctx: BlockSqlContext) =>
   ctx.extraColumns("events", EVENT_KEYS);
 
 /** A jsonb object of one event row, aliased `e`. */
-function eventJson(ctx: ModuleContext, attendees: string): string {
+function eventJson(ctx: BlockSqlContext, attendees: string): string {
   const e = (column: string) => `e.${ctx.col("events", column)}`;
 
   const optional = (key: string, column: string) =>
@@ -295,7 +295,7 @@ function eventJson(ctx: ModuleContext, attendees: string): string {
 }
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
-function reminderRule(ctx: ModuleContext, op: "save" | "delete"): string {
+function reminderRule(ctx: BlockSqlContext, op: "save" | "delete"): string {
   if (!ctx.installed("reminders")) {
     return "";
   }
@@ -321,7 +321,7 @@ function reminderRule(ctx: ModuleContext, op: "save" | "delete"): string {
 }
 
 function feed(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   events: string,
   calendars: string,
   attendees: string,
@@ -380,7 +380,7 @@ grant execute on function ${ctx.fn("calendar_feed")}(text) to anon, authenticate
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -921,7 +921,7 @@ ${userGrant(`${fn("list_calendars")}(${ctx.idType})`)}
 ${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_calendar",
@@ -973,7 +973,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CALENDAR: ModuleDefinition = {
+export const CALENDAR: BlockSqlDefinition = {
   name: "calendar",
   scopes: ["tenant"],
   title: "Calendar",

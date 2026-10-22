@@ -38,7 +38,7 @@ function publishAll(c: Context, ctx: object): void {
 
 /**
  * The Hono middleware for `entries`. `publish` decides what lands on `c.var`;
- * `createHono` adds `auth` from `ctx.bs`.
+ * `createHono` adds `auth` from `ctx.bsb`.
  */
 export function honoMiddleware(
   entries: readonly AnyEntry[],

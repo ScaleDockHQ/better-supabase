@@ -6,7 +6,7 @@ import * as v from "valibot";
 import { customerAttachments } from "@/features/customers/customer-attachments";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { summaryMessaging, threadSummarizer } from "./chat-summaries";
 
@@ -24,7 +24,7 @@ export interface ChannelRow {
 }
 
 /** Every channel the caller can see, joined or not. */
-export const browseChannels = bs.action(
+export const browseChannels = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const listed = await blocks(supabase, tenant).channels.list({
@@ -46,7 +46,7 @@ export const browseChannels = bs.action(
   },
 );
 
-export const createChannel = bs.action(
+export const createChannel = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -67,7 +67,7 @@ export const createChannel = bs.action(
   },
 );
 
-export const joinChannel = bs.action(
+export const joinChannel = bsb.action(
   { input: v.object({ channelId: Id }), requireTenant: true },
   async ({ channelId }, { tenant, supabase }) =>
     blocks(supabase, tenant).channels.join(channelId),
@@ -78,7 +78,7 @@ export const joinChannel = bs.action(
  * conversation and a signed upload URL. The browser uploads the bytes, then
  * `confirmChatUpload`; `send` moves the file onto the message.
  */
-export const startChatUpload = bs.action(
+export const startChatUpload = bsb.action(
   {
     input: v.object({
       conversationId: Id,
@@ -119,7 +119,7 @@ export const startChatUpload = bs.action(
   },
 );
 
-export const confirmChatUpload = bs.action(
+export const confirmChatUpload = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -143,7 +143,7 @@ export interface ThreadSummaryRow {
  * Summarizes a thread for someone who missed it. A current summary comes back
  * without a model call; `force` writes a new one.
  */
-export const summarizeThread = bs.action(
+export const summarizeThread = bsb.action(
   {
     input: v.object({ threadId: Id, force: v.optional(v.boolean(), false) }),
     requireTenant: true,

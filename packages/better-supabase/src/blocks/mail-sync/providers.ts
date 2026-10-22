@@ -326,7 +326,7 @@ export function buildMime(input: {
   readonly reply?: MailReplyTarget;
 }): string {
   const { draft, from, reply } = input;
-  const boundary = `bs-${input.messageId.replaceAll(/[^A-Za-z0-9]/g, "")}`;
+  const boundary = `bsb-${input.messageId.replaceAll(/[^A-Za-z0-9]/g, "")}`;
 
   const join = (addresses: readonly MailAddress[] | undefined): string =>
     (addresses ?? []).map(formatAddress).join(", ");

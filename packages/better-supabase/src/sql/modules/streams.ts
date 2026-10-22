@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -13,7 +13,7 @@ import {
   revokeTable,
 } from "../shared.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["topic"],
   tables: {
     streams: {
@@ -40,7 +40,7 @@ const NAMES: ModuleNames = {
 
 const TOPIC_PREFIX = /^[a-z][a-z0-9_-]{0,30}$/;
 
-function topicPrefix(ctx: ModuleContext): string {
+function topicPrefix(ctx: BlockSqlContext): string {
   const prefix = ctx.text("topic", "stream");
 
   if (!TOPIC_PREFIX.test(prefix)) {
@@ -52,7 +52,7 @@ function topicPrefix(ctx: ModuleContext): string {
   return prefix;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -342,7 +342,7 @@ end;
 $$;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "stream_open",
@@ -370,7 +370,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const STREAMS: ModuleDefinition = {
+export const STREAMS: BlockSqlDefinition = {
   name: "streams",
   title: "Durable streams",
   description:

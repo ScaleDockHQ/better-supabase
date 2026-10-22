@@ -21,7 +21,7 @@ export {
   type UnlinkResult,
 } from "./relations.ts";
 
-export type { SubjectRef } from "../../schema/types.ts";
+export type { RecordRef } from "../../schema/types.ts";
 
 export { relationsBlock } from "./manifest.ts";
 

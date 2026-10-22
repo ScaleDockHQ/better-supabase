@@ -1,11 +1,11 @@
 import type { ApprovalsEvents } from "../../blocks/approvals/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -80,7 +80,7 @@ const PAYLOAD = [
   "step",
 ] as const;
 
-const EVENTS: ModuleEvents<ApprovalsEvents> = {
+const EVENTS: BlockSqlEvents<ApprovalsEvents> = {
   "approval.requested": { subject: "approval-requests", payload: PAYLOAD },
   "approval.approved": { subject: "approval-requests", payload: PAYLOAD },
   "approval.rejected": { subject: "approval-requests", payload: PAYLOAD },
@@ -102,7 +102,7 @@ const REQUEST_KEYS: readonly string[] = [
   "fields",
 ];
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_approval_request",
@@ -151,7 +151,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1040,13 +1040,13 @@ ${subjectCascades(ctx, subjects, `delete from ${requests} r where r.${c("subject
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return approvalsContract(
     extraFieldsArg(ctx.extraColumns("requests", REQUEST_KEYS)).contract,
   );
 }
 
-export const APPROVALS: ModuleDefinition = {
+export const APPROVALS: BlockSqlDefinition = {
   name: "approvals",
   scopes: ["tenant"],
   title: "Approvals",

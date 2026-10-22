@@ -1,11 +1,11 @@
 import type { ContractsEvents } from "../../blocks/contracts/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -34,7 +34,7 @@ const OBLIGATION_PAYLOAD = [
   "status",
 ] as const;
 
-const EVENTS: ModuleEvents<ContractsEvents> = {
+const EVENTS: BlockSqlEvents<ContractsEvents> = {
   "contract.created": { subject: "contracts", payload: CONTRACT_PAYLOAD },
   "contract.updated": { subject: "contracts", payload: CONTRACT_PAYLOAD },
   "contract.status_changed": {
@@ -52,7 +52,7 @@ const EVENTS: ModuleEvents<ContractsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     contract: {
       table: "contracts",
@@ -118,7 +118,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   const contracts = ctx.table("contracts");
   const obligations = ctx.table("obligations");
   const c = (column: string): string => ctx.col("contracts", column);
@@ -201,7 +201,7 @@ create policy ${name("obligations", "read")} on ${obligations} for select to aut
 }
 
 /** Moves the contracts of a merged counterparty to the record it merged into. */
-function counterpartyMerges(ctx: ModuleContext): string {
+function counterpartyMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -224,7 +224,7 @@ function counterpartyMerges(ctx: ModuleContext): string {
   );
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -243,7 +243,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${contractsFunctions(ctx)}${counterpartyMerges(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("contracts", CONTRACT_RESERVED),
   ).contract;
@@ -300,7 +300,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CONTRACTS: ModuleDefinition = {
+export const CONTRACTS: BlockSqlDefinition = {
   internal: [
     "contract_apply_status",
     "contract_schedule_renewal",

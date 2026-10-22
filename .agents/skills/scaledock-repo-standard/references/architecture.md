@@ -113,8 +113,8 @@ A `library` repo publishes packages that other repos install, so a few rules cha
 Applies to every repo kind. Database names are in [`data-conventions.md`](data-conventions.md).
 
 - **One name per concept** across every adapter, example and doc.
-  - The declarative definition has one name, and every runtime instance an adapter creates has one short name (better-supabase: `betterSupabase` and `bs`).
-  - Never let near-mirror names sit side by side (`sb` next to `bs`), and never name an instance after its framework (`next`, `browser`, `server`, `mcp`).
+  - The declarative definition has one name, and every runtime instance an adapter creates has one short name (better-supabase: `betterSupabase` and `bsb`).
+  - Never let near-mirror names sit side by side (`sb` next to `bsb`), and never name an instance after its framework (`next`, `browser`, `server`, `mcp`).
 - **Same operation, same method name** in every adapter. A Next adapter's `server()` next to a server adapter's `context()` for the same operation is a bug, and so is `handle` in one adapter and `handler` in another.
 - **Factories and types.**
   - `define*` returns a declarative value, and `create*` returns a runtime instance.
@@ -127,7 +127,7 @@ Applies to every repo kind. Database names are in [`data-conventions.md`](data-c
 - **Server and client layout.**
   - One folder per concern: `lib/supabase/index.ts`, `server.ts` and `client.ts`, matching Supabase's Next.js guide. Never `.server.ts` or `.client.ts` suffixes.
   - A Next `server.ts` starts with `import "server-only"`.
-  - Generators never write a path that two adapters would both claim. Hono and oRPC create `bs` in their entry file, and each edge function gets its own `server.ts`.
+  - Generators never write a path that two adapters would both claim. Hono and oRPC create `bsb` in their entry file, and each edge function gets its own `server.ts`.
 - **Enforcement.**
   - `docs:drift` fails on old instance names, old file paths, and API members that are not in `api/exports.json` (or the repo's exported API list).
   - It walks files with `fs.glob`, excludes `node_modules` and `.next`, and skips the Naming page.

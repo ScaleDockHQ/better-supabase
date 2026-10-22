@@ -1,18 +1,18 @@
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 
 import { textOf } from "./block-helpers.ts";
 import { AsyncResult, ok } from "./result.ts";
 
-/** A row's subject columns as a `SubjectRef`. */
-export function subjectRefOf(type: unknown, id: unknown): SubjectRef {
+/** A row's subject columns as a `RecordRef`. */
+export function subjectRefOf(type: unknown, id: unknown): RecordRef {
   return { type: textOf(type), id: textOf(id) };
 }
 
-/** A row's subject columns as a `SubjectRef`, or `undefined` when unset. */
-export function optionalSubjectRefOf(
+/** A row's subject columns as a `RecordRef`, or `undefined` when unset. */
+export function optionalRecordRefOf(
   type: unknown,
   id: unknown,
-): SubjectRef | undefined {
+): RecordRef | undefined {
   return typeof type === "string" &&
     type !== "" &&
     (typeof id === "string" || typeof id === "number")
@@ -25,7 +25,7 @@ export function optionalSubjectRefOf(
  * repeats, for functions that take one subject type and many ids.
  */
 export function subjectIdsByType(
-  subjects: readonly SubjectRef[],
+  subjects: readonly RecordRef[],
 ): ReadonlyMap<string, readonly string[]> {
   const grouped = new Map<string, string[]>();
 
@@ -43,7 +43,7 @@ export function subjectIdsByType(
 }
 
 /** The map key of a subject in a batch result: `type:id`. */
-export function subjectKey(subject: SubjectRef): string {
+export function subjectKey(subject: RecordRef): string {
   return `${subject.type}:${subject.id}`;
 }
 
@@ -52,7 +52,7 @@ export function subjectKey(subject: SubjectRef): string {
  * keyed by `subjectKey` (`type:id`). The first error wins.
  */
 export function bySubjectType<V>(
-  subjects: readonly SubjectRef[],
+  subjects: readonly RecordRef[],
   call: (
     type: string,
     ids: readonly string[],

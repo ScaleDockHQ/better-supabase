@@ -7,14 +7,14 @@ import {
 import { activeCustomers } from "@better-supabase/example-monorepo-crm";
 import { betterSupabase } from "@better-supabase/example-monorepo-runtime";
 
-const bs = createHono(betterSupabase);
+const bsb = createHono(betterSupabase);
 
-const app = bs
+const app = bsb
   .app()
-  .use("/api/*", bs.middleware())
+  .use("/api/*", bsb.middleware())
   .get(
     "/api/customers",
-    bs.handler((_c, { db }) => activeCustomers(db)),
+    bsb.handler((_c, { db }) => activeCustomers(db)),
   )
   .get("/api/customers/:id/billing-address", async (c) =>
     c.json(await billingAddress(c.var.db, c.req.param("id")).orThrow()),

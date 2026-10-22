@@ -54,13 +54,13 @@ export interface Store<T> {
   readonly subscribe: (listener: () => void) => () => void;
 }
 
-/** What a `bs.action()` Server Action or server function resolves to. */
+/** What a `bsb.action()` Server Action or server function resolves to. */
 export type ActionResultOf<T> =
   | { readonly ok: true; readonly data: T; readonly error: null }
   | { readonly ok: false; readonly data: null; readonly error: DbError };
 
 /**
- * The input `useAction` passes: a `bs.action()` with an `input` schema also
+ * The input `useAction` passes: a `bsb.action()` with an `input` schema also
  * accepts `FormData`, which belongs to `useActionForm`.
  */
 export type ActionInputOf<I> = [Exclude<I, FormData>] extends [never]
@@ -348,7 +348,7 @@ export function startLiveQuery(run: LiveQueryRun): () => void {
   };
 }
 
-/** A count spec or a `bs.liveCount()` seed. */
+/** A count spec or a `bsb.liveCount()` seed. */
 export type LiveCountSource =
   | QuerySpec<string, "count", number>
   | LiveCountSeed

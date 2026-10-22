@@ -38,19 +38,19 @@ async function reachable(): Promise<boolean> {
 }
 
 const documents = defineBucket({
-  id: "bs-it-documents",
+  id: "bsb-it-documents",
   path: "{userId}/{file}",
   policy: "owner",
 });
 
 // `{userId}` is not the first segment: the whole bucket is listed and filtered.
 const shared = defineBucket({
-  id: "bs-it-shared",
+  id: "bsb-it-shared",
   path: "{organizationId}/{userId}/{file}",
 });
 
 const logos = defineBucket({
-  id: "bs-it-logos",
+  id: "bsb-it-logos",
   path: "{organizationId}/{file}",
 });
 
@@ -60,7 +60,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   });
 
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
-  const table = `bs_del_${RUN}`;
+  const table = `bsb_del_${RUN}`;
   const betterSupabase = defineSupabase(schema);
 
   const server = createServer(betterSupabase, {
@@ -155,7 +155,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   });
 
   it("keeps the objects and returns the database's hint when a check refuses the delete", async () => {
-    const guard = `bs_del_guard_${RUN}`;
+    const guard = `bsb_del_guard_${RUN}`;
     const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
 
     const withPostgres = createServer(betterSupabase, {
@@ -223,7 +223,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      data: { userId, removed: { "bs-it-documents": 2, "bs-it-shared": 1 } },
+      data: { userId, removed: { "bsb-it-documents": 2, "bsb-it-shared": 1 } },
     });
     expect(await documents.connect(service).list({ userId }).orThrow()).toEqual(
       [],

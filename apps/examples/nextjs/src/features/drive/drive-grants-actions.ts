@@ -7,7 +7,7 @@ import { getMembers } from "@/features/organization/organization-queries";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { driveOf } from "./drive-client";
 import { DRIVE_ROLES } from "./drive-roles";
@@ -35,7 +35,7 @@ export interface SharingTarget {
  * The item's grants, inherited ones included, and the members and teams it can
  * be shared with. The drive functions decide who may read the grants.
  */
-export const loadDriveSharing = bs.action(
+export const loadDriveSharing = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -89,7 +89,7 @@ export const loadDriveSharing = bs.action(
 );
 
 /** Shares the item with a member or a team; a second share changes the role. */
-export const shareDriveItem = bs.action(
+export const shareDriveItem = bsb.action(
   {
     input: v.object({
       id: Id,
@@ -113,7 +113,7 @@ export const shareDriveItem = bs.action(
 );
 
 /** Removes a grant made on the item itself. */
-export const unshareDriveItem = bs.action(
+export const unshareDriveItem = bsb.action(
   {
     input: v.object({ id: Id, principal: Principal }),
     requireTenant: true,

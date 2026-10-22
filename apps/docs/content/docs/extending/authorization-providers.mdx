@@ -418,7 +418,7 @@ const authorization = defineAuthorizationHooks({
   approverOf: (approver, request) => policy.mayApprove(approver, request),
 });
 
-export const bs = createServer(betterSupabase, { authorization });
+export const bsb = createServer(betterSupabase, { authorization });
 ```
 
 Every hook is optional. A slot passed to a block directly wins over the hook.

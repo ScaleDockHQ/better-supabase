@@ -117,11 +117,11 @@ describe.skipIf(!available)(
       runSql(resolveConfig({ blocks: NAMES }, root), parseArgs(argv, SQL_ARGS));
 
     beforeAll(async () => {
-      root = await mkdtemp(join(tmpdir(), "bs-pgdelta-"));
+      root = await mkdtemp(join(tmpdir(), "bsb-pgdelta-"));
       await mkdir(join(root, "supabase/migrations"), { recursive: true });
       await writeFile(
         join(root, "supabase/config.toml"),
-        `project_id = "bs-pgdelta-roundtrip"
+        `project_id = "bsb-pgdelta-roundtrip"
 [api]
 port = 56421
 [db]
@@ -193,7 +193,7 @@ declarative_schema_path = "./schemas"
 
       try {
         const { rows: modules } = await client.query<{ name: string }>(
-          "select name from better_supabase.modules order by name",
+          "select name from better_supabase.blocks order by name",
         );
 
         expect(modules.map((row) => row.name)).toEqual(INSTALLED);
@@ -217,11 +217,11 @@ declarative_schema_path = "./schemas"
         );
 
         expect(triggers.map((row) => row.tgname)).toEqual([
-          "bs_identity_email",
-          "bs_profile_email",
-          "bs_profile_sync",
-          "bs_sso_auth_user",
-          "bs_waitlist_auth_user",
+          "bsb_identity_email",
+          "bsb_profile_email",
+          "bsb_profile_sync",
+          "bsb_sso_auth_user",
+          "bsb_waitlist_auth_user",
         ]);
       } finally {
         await client.end();

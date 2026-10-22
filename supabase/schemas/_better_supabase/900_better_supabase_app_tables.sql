@@ -1,5 +1,5 @@
 -- better-supabase module: app-tables
--- @bs-app-tables
+-- @bsb-tables
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -72,8 +72,8 @@ create policy "projects_delete" on "public"."projects" for delete to authenticat
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
 create index if not exists "projects_lead_id_idx" on "public"."projects" ("lead_id");
 create index if not exists "projects_label_id_idx" on "public"."projects" ("label_id");
-drop trigger if exists "bs_updated_at" on "public"."projects";
-create trigger "bs_updated_at" before update on "public"."projects"
+drop trigger if exists "bsb_updated_at" on "public"."projects";
+create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."tasks" enable row level security;
@@ -98,8 +98,8 @@ create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("org
 create index if not exists "tasks_assignee_id_idx" on "public"."tasks" ("assignee_id");
 create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
 create index if not exists "tasks_status_rank_idx" on "public"."tasks" ("status", "rank");
-drop trigger if exists "bs_updated_at" on "public"."tasks";
-create trigger "bs_updated_at" before update on "public"."tasks"
+drop trigger if exists "bsb_updated_at" on "public"."tasks";
+create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 create or replace function "better_supabase"."tasks_emit_event"()
 returns trigger
@@ -133,8 +133,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."tasks_emit_event"() from public, anon, authenticated;
-drop trigger if exists "bs_emit_event" on "public"."tasks";
-create trigger "bs_emit_event" after insert or update or delete on "public"."tasks"
+drop trigger if exists "bsb_emit_event" on "public"."tasks";
+create trigger "bsb_emit_event" after insert or update or delete on "public"."tasks"
   for each row execute function "better_supabase"."tasks_emit_event"();
 
 alter table "public"."client_notes" enable row level security;
@@ -152,8 +152,8 @@ create policy "client_notes_update" on "public"."client_notes" for update to aut
 drop policy if exists "client_notes_delete" on "public"."client_notes";
 create policy "client_notes_delete" on "public"."client_notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "client_notes_organization_id_idx" on "public"."client_notes" ("organization_id");
-drop trigger if exists "bs_updated_at" on "public"."client_notes";
-create trigger "bs_updated_at" before update on "public"."client_notes"
+drop trigger if exists "bsb_updated_at" on "public"."client_notes";
+create trigger "bsb_updated_at" before update on "public"."client_notes"
   for each row execute function better_supabase.set_updated_at();
 -- Encrypts diagnosis, birth_date with the row's data key before the row is written.
 create or replace function "better_supabase"."client_notes_seal"()
@@ -191,8 +191,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."client_notes_seal"() from public, anon, authenticated;
-drop trigger if exists "bs_seal_fields" on "public"."client_notes";
-create trigger "bs_seal_fields" before insert or update of "organization_id", "diagnosis", "birth_date" on "public"."client_notes"
+drop trigger if exists "bsb_seal_fields" on "public"."client_notes";
+create trigger "bsb_seal_fields" before insert or update of "organization_id", "diagnosis", "birth_date" on "public"."client_notes"
   for each row execute function "better_supabase"."client_notes_seal"();
 -- Decrypts diagnosis, birth_date for the rows the caller reaches, as the table's policies do.
 create or replace function "better_supabase"."client_notes_reveal"(ids uuid[])
@@ -230,16 +230,16 @@ begin
   end loop;
   return query
     with r as materialized (
-      select t.id, 'tenant:' || (t."organization_id")::text as bs_owner, t."diagnosis", t."birth_date"
+      select t.id, 'tenant:' || (t."organization_id")::text as bsb_owner, t."diagnosis", t."birth_date"
       from "public"."client_notes" t
       where t.id = any (client_notes_reveal.ids) and (v_service or ("organization_id" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))
     ),
     k as materialized (
-      select o.bs_owner, "better_supabase"."field_key"(o.bs_owner, false) as bs_key
-      from (select distinct r.bs_owner from r) o
+      select o.bsb_owner, "better_supabase"."field_key"(o.bsb_owner, false) as bsb_key
+      from (select distinct r.bsb_owner from r) o
     )
-    select r.id, ("better_supabase"."field_open"(k.bs_key, r."diagnosis"))::text, ("better_supabase"."field_open"(k.bs_key, r."birth_date"))::date
-    from r join k on k.bs_owner = r.bs_owner;
+    select r.id, ("better_supabase"."field_open"(k.bsb_key, r."diagnosis"))::text, ("better_supabase"."field_open"(k.bsb_key, r."birth_date"))::date
+    from r join k on k.bsb_owner = r.bsb_owner;
 end;
 $$;
 revoke execute on function "better_supabase"."client_notes_reveal"(uuid[]) from public, anon;
@@ -269,8 +269,8 @@ create policy "saved_views_update" on "public"."saved_views" for update to authe
 drop policy if exists "saved_views_delete" on "public"."saved_views";
 create policy "saved_views_delete" on "public"."saved_views" for delete to authenticated using ("user_id" = (select auth.uid()));
 create index if not exists "saved_views_user_id_idx" on "public"."saved_views" ("user_id");
-drop trigger if exists "bs_updated_at" on "public"."saved_views";
-create trigger "bs_updated_at" before update on "public"."saved_views"
+drop trigger if exists "bsb_updated_at" on "public"."saved_views";
+create trigger "bsb_updated_at" before update on "public"."saved_views"
   for each row execute function better_supabase.set_updated_at();
 
 create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);
@@ -312,8 +312,8 @@ grant select on "public"."tasks_view" to authenticated;
 grant select on "public"."tasks_view" to service_role;
 comment on view "public"."tasks_view" is 'The rollups and lookups of public.tasks, read with the caller''s row level security.';
 
-drop trigger if exists "bs_search_project_index" on "public"."projects";
-create trigger "bs_search_project_index"
+drop trigger if exists "bsb_search_project_index" on "public"."projects";
+create trigger "bsb_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
 

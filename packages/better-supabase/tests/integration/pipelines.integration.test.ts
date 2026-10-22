@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -29,7 +29,7 @@ create policy deals_members on pipe_it.deals for all to authenticated
 grant usage on schema pipe_it to authenticated;
 grant select, insert, update on pipe_it.deals to authenticated;`;
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: {
     deal: {
       table: "pipe_it.deals",

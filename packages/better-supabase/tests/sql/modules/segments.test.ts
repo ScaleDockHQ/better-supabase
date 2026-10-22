@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const SUBJECTS: Record<string, unknown> = {
   deal: { table: "public.deals", idType: "uuid", deletedAt: "archived_at" },
@@ -12,7 +12,7 @@ const sqlOf = (
   options: Record<string, unknown> = {},
   subjects = SUBJECTS,
 ): string =>
-  renderModules([module, "outbox"], {
+  renderBlocks([module, "outbox"], {
     subjects,
     modules: { [module]: { options } },
     // SAFETY: the subject entries are partial configs the renderer fills in.

@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
 const sqlOf = (modules: AnyBlocksConfig = {}): string =>
-  renderModules(["number-sequences"], { modules })
+  renderBlocks(["number-sequences"], { modules })
     .filter((file) => file.module === "number-sequences")
     .map((file) => file.contents)
     .join("\n");
@@ -320,7 +320,7 @@ async function withNumbers(
   seed: readonly string[],
   block: Record<string, unknown> = {},
 ): Promise<void> {
-  const files = renderModules(["number-sequences"], {
+  const files = renderBlocks(["number-sequences"], {
     modules: { "number-sequences": { ...block, options: { entities } } },
   });
 
@@ -842,10 +842,10 @@ describe("per-tenant periods", () => {
     perform "better_supabase"."sync_number_sequences"(new."id", 'invoice');`,
     );
     expect(sql).toContain(
-      `create trigger "bs_sync_number_period_invoice" after update on "public"."organizations"`,
+      `create trigger "bsb_sync_number_period_invoice" after update on "public"."organizations"`,
     );
     expect(sql).toContain(
-      `revoke execute on function better_supabase."bs_sync_number_period_invoice"() from public, anon, authenticated;`,
+      `revoke execute on function better_supabase."bsb_sync_number_period_invoice"() from public, anon, authenticated;`,
     );
   });
 
@@ -862,24 +862,24 @@ describe("per-tenant periods", () => {
     });
 
     expect(split).toContain(
-      `create trigger "bs_sync_number_period_invoice" after update on "public"."settings"`,
+      `create trigger "bsb_sync_number_period_invoice" after update on "public"."settings"`,
     );
     expect(split).toContain(
-      `create trigger "bs_sync_number_period_invoice_format" after update on "public"."organizations"`,
+      `create trigger "bsb_sync_number_period_invoice_format" after update on "public"."organizations"`,
     );
     expect(split).toContain(
       `coalesce((select nullif(btrim(s."invoice_reset"::text), '') from "public"."settings" s where s."org_id" = new."id"), 'format')`,
     );
-    expect(render({})).toContain("bs_sync_number_period_invoice");
+    expect(render({})).toContain("bsb_sync_number_period_invoice");
     expect(render({ period: "year" })).not.toContain(
-      "bs_sync_number_period_invoice",
+      "bsb_sync_number_period_invoice",
     );
     expect(
       render({
         periodFrom: { column: "public.organizations.invoice_number_reset" },
         periodColumn: undefined,
       }),
-    ).not.toContain("bs_sync_number_period_invoice");
+    ).not.toContain("bsb_sync_number_period_invoice");
   });
 
   it("refuses a periodFrom that is not a tenant column", () => {

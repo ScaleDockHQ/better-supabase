@@ -437,7 +437,7 @@ with `ORGANIZATION_ROLE_UNKNOWN`. When the table is
 also `platformRoles.through`'s, `where` is required on both, and
 [doctor BS324](/docs/cli/doctor#bs324) reports the side that lacks it.
 
-With `where` set, the tenant module also puts a `bs_role_scope` trigger on
+With `where` set, the tenant module also puts a `bsb_role_scope` trigger on
 the memberships table, so a direct write can't store a role outside it
 either: an insert or a role update through a client policy, the service role
 or an admin connection fails with `MEMBERSHIP_ROLE_SCOPE` (SQLSTATE `23514`).
@@ -457,7 +457,7 @@ A foreign key checks that a referenced row exists, not that it belongs to
 the same tenant, so a task could point at another organization's project.
 `blocks.tenant.options.sameTenant` lists the references that must stay
 inside the row's tenant, and the tenant module puts a
-`bs_same_tenant_<column>` trigger on each table. Every insert, and every
+`bsb_same_tenant_<column>` trigger on each table. Every insert, and every
 update of the column or the tenant column, then needs a referenced row with
 the same tenant, whoever writes it (a client policy, the service role or an
 admin connection); otherwise it fails with `TENANT_MISMATCH` (SQLSTATE
@@ -576,7 +576,7 @@ sameTenant: {
 ```
 
 A derived entry renders the same trigger as the same entry listed by hand.
-`doctor` reports each such foreign key that has no `bs_same_tenant_<column>`
+`doctor` reports each such foreign key that has no `bsb_same_tenant_<column>`
 trigger ([BS340](/docs/cli/doctor#bs340)).
 
 Composite foreign keys are the trigger-free alternative: a unique
@@ -614,7 +614,7 @@ blocks: {
 },
 ```
 
-`cap_allows` also reads the `bs_permission_cap` claim that
+`cap_allows` also reads the `bsb_permission_cap` claim that
 `forContext(context, { permissions })` sets, and refuses every key outside
 it. A check about another user (an inviter, the holders of a permission) is
 not narrowed by the caller's token, and the service role is never narrowed.
@@ -724,7 +724,7 @@ from.
 
 With `'resolver'`, pass `tenant` to the server. It runs once per request, and
 the tenant it returns becomes `context.tenant` for the `tenant()` plugin, the
-`better_supabase.tenant` setting for `ctx.sql`, and the `x-bs-tenant` header
+`better_supabase.tenant` setting for `ctx.sql`, and the `x-bsb-tenant` header
 for `ctx.db`. `current_tenant_id()` returns it only while the caller is a
 member, so a tampered header or slug grants nothing.
 
@@ -734,7 +734,7 @@ import { createServer } from "better-supabase/server";
 
 import { betterSupabase } from "./index";
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   tenant: async (request, auth) => {
     const slug = new URL(request.url).pathname.split("/")[2];
     return slug ? organizationIdForSlug(slug) : undefined;
@@ -754,31 +754,31 @@ export default async function Customers({
   params,
 }: PageProps<"/[organizationId]/customers">) {
   const { organizationId } = await params;
-  const { db } = await bs.context({ tenant: organizationId });
+  const { db } = await bsb.context({ tenant: organizationId });
   const customers = await db.customers.findMany().orThrow();
   return <CustomerList customers={customers} />;
 }
 ```
 
-`bs.cached({ tenant })` does the same inside `'use cache: private'`. Take
+`bsb.cached({ tenant })` does the same inside `'use cache: private'`. Take
 the tenant as an argument of your function, because Next.js keys the
 cache entry on the arguments:
 
 ```ts
 async function getCustomers(organizationId: string) {
   "use cache: private";
-  const { db } = await bs.cached({ tenant: organizationId });
+  const { db } = await bsb.cached({ tenant: organizationId });
   return db.customers.findMany().orThrow();
 }
 ```
 
 Actions take it from their validated input with
-`bs.action({ input, tenant: (input) => input.organizationId }, fn)`.
-`bs.route()` and `bs.context(request)` pass the real request, so a resolver
+`bsb.action({ input, tenant: (input) => input.organizationId }, fn)`.
+`bsb.route()` and `bsb.context(request)` pass the real request, so a resolver
 that reads the URL works there.
 
 A route that already knows the tenant passes it directly:
-`bs.context(request, { tenant })`. `contextFromResolution` runs only
+`bsb.context(request, { tenant })`. `contextFromResolution` runs only
 synchronous resolvers; pass `{ tenant }` to it when yours is async.
 
 With `'claim'`, [doctor `--as <user id>`](/docs/cli/doctor#bs308) calls your
@@ -791,12 +791,12 @@ expires (`jwt_expiry` in `supabase/config.toml`: 3600 seconds by default and
 in the fixture). What a removed member can still do depends on which check
 reads the claim:
 
-| Check                                                                                                                                                                     | After the membership row is deleted                                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `current_tenant_id()` from the `tenant` module (managed or adopted)                                                                                                       | Returns no tenant on the next call: it returns the claimed tenant only while the caller is still a member, for every `activeTenant` source. |
-| `tenant_ids_with()` and `can()`                                                                                                                                           | Grant nothing on the next call: they read the membership table.                                                                             |
-| A `current_tenant_id()` you write yourself in custom mode that returns the claim, like the fixture's `supabase/schemas/better_supabase/functions/current_tenant_id.sql`   | Keeps returning the tenant until the token expires.                                                                                         |
-| The `bs:t:*` receive policy of [`realtime-tables`](/docs/platform/realtime), a topic's default tenant check, and your own policies that read `auth.jwt() ->> 'tenant_id'` | Keep passing until the token expires.                                                                                                       |
+| Check                                                                                                                                                                      | After the membership row is deleted                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `current_tenant_id()` from the `tenant` module (managed or adopted)                                                                                                        | Returns no tenant on the next call: it returns the claimed tenant only while the caller is still a member, for every `activeTenant` source. |
+| `tenant_ids_with()` and `can()`                                                                                                                                            | Grant nothing on the next call: they read the membership table.                                                                             |
+| A `current_tenant_id()` you write yourself in custom mode that returns the claim, like the fixture's `supabase/schemas/better_supabase/functions/current_tenant_id.sql`    | Keeps returning the tenant until the token expires.                                                                                         |
+| The `bsb:t:*` receive policy of [`realtime-tables`](/docs/platform/realtime), a topic's default tenant check, and your own policies that read `auth.jwt() ->> 'tenant_id'` | Keep passing until the token expires.                                                                                                       |
 
 A claim in `app_metadata` also survives a refresh. With the `'claim'`
 source, the `tenant` module (managed or adopted) clears `app_metadata.tenant_id` when the
@@ -814,7 +814,7 @@ To close that window sooner:
   `supabase.auth.admin.signOut(jwt, "global")` with one of their access
   tokens, or delete their rows in `auth.sessions` from a security definer
   function. The current access token still works until it expires, but
-  `bs.proxy({ endedSession })` turns away their page loads right away (see
+  `bsb.proxy({ endedSession })` turns away their page loads right away (see
   [Ended sessions](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
 - Prefer the module's `current_tenant_id()` or `tenant_ids_with()` over the
   raw claim in your own policies, since both read the membership table.

@@ -13,7 +13,7 @@ export type {
 
 const clientOnly = (name: string): Error =>
   new Error(
-    `better-supabase: ${name} runs in Client Components only. In Server Components call \`bs.blocks.client(db, "access").permissions(keys)\` and \`can(set, key)\` from \`better-supabase/blocks/access\` instead.`,
+    `better-supabase: ${name} runs in Client Components only. In Server Components call \`bsb.blocks.client(db, "access").permissions(keys)\` and \`can(set, key)\` from \`better-supabase/blocks/access\` instead.`,
   );
 
 /** The `react-server` build of `usePermissions`. */

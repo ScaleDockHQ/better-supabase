@@ -1,8 +1,8 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type {
-  ModuleAccessProvider,
-  ModuleEntitlementsProvider,
-  ModuleLayout,
+  BlockSqlAccessProvider,
+  BlockSqlEntitlementsProvider,
+  BlockSqlLayout,
 } from "./module-types.ts";
 
 import { resolveJsonSchema } from "../config/json.ts";
@@ -11,11 +11,11 @@ import { resolveJsonSchema } from "../config/json.ts";
 export function moduleLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
-  readSets: ModuleLayout["readSets"] = [],
-  entitlementsProvider?: ModuleEntitlementsProvider,
-  accessProvider?: ModuleAccessProvider,
+  readSets: BlockSqlLayout["readSets"] = [],
+  entitlementsProvider?: BlockSqlEntitlementsProvider,
+  accessProvider?: BlockSqlAccessProvider,
   permissionCatalog?: readonly string[],
-): ModuleLayout {
+): BlockSqlLayout {
   return {
     ...(entitlementsProvider ? { entitlementsProvider } : {}),
     ...(accessProvider ? { accessProvider } : {}),

@@ -2,7 +2,7 @@ import { tenantOf } from "better-supabase/next";
 import "server-only";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** The flags the app checks; each is evaluated for the active organization. */
 const FLAGS = ["beta-page"] as const;
@@ -16,7 +16,7 @@ export type FlagKey = (typeof FLAGS)[number];
  */
 export async function getEnabledFlags(): Promise<readonly FlagKey[]> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

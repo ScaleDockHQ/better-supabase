@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module identities@1 managed
+-- @bsb-block identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -297,38 +297,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module-data identities
+-- @bsb-block-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module identities@1 managed
+-- @bsb-block identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -625,38 +625,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module-data identities
+-- @bsb-block-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module identities@1 managed
+-- @bsb-block identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -955,38 +955,38 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "app_private"."on_auth_user_email"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module-data identities
+-- @bsb-block-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module identities@1 managed
+-- @bsb-block identities@1 managed
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1283,8 +1283,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
 -- blocks.identities.api: entry points for the Data API.
@@ -1373,26 +1373,26 @@ revoke execute on function "api"."unlink_identity"(uuid) from public, anon;
 grant execute on function "api"."unlink_identity"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
--- @bs-module-data identities
+-- @bsb-block-data identities
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('identities', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -320,7 +320,7 @@ export async function runScaffoldScreens(
   }
 
   const steps = [
-    `Open ${basePath} in \`next dev\`. The pages call \`bs\` from lib/supabase/server; \`better-supabase add next\` writes it if you don't have one.`,
+    `Open ${basePath} in \`next dev\`. The pages call \`bsb\` from lib/supabase/server; \`better-supabase add next\` writes it if you don't have one.`,
     "The files are yours. For search, saved views, a board or a calendar, start from the record-* recipes: https://bettersupabase.com/docs/registry/ui-recipes",
   ];
 

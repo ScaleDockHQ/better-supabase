@@ -16,7 +16,7 @@ const options: NextOptions = {
   replicas: { pinMs: 5000 },
 };
 
-export const bs = createNext(
+export const bsb = createNext(
   betterSupabase,
   serverFetch
     ? { ...options, fetch: serverFetch, auth: { fetch: serverFetch } }

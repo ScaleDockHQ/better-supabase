@@ -5,10 +5,10 @@ import type {
   ResolvedConfig,
 } from "../config/index.ts";
 import type {
-  ModuleAccessProvider,
-  ModuleEntitlementsProvider,
-  ModuleIdType,
-  ModulePermissionKey,
+  BlockSqlAccessProvider,
+  BlockSqlEntitlementsProvider,
+  BlockSqlIdType,
+  BlockSqlPermissionKey,
 } from "../sql/index.ts";
 
 import {
@@ -25,20 +25,23 @@ export const providerLabel = (provider: AuthorizationProvider): string =>
 /** How the `entitlements` SQL module finds memberships. */
 export type EntitlementsMode =
   | { readonly kind: "tenant" }
-  | { readonly kind: "provider"; readonly provider: ModuleEntitlementsProvider }
+  | {
+      readonly kind: "provider";
+      readonly provider: BlockSqlEntitlementsProvider;
+    }
   | { readonly kind: "invalid"; readonly problem: string };
 
 /** How the `access` module's `provider` model reaches the provider. */
 export type AccessProviderMode =
   | { readonly kind: "off" }
-  | { readonly kind: "provider"; readonly access: ModuleAccessProvider }
+  | { readonly kind: "provider"; readonly access: BlockSqlAccessProvider }
   | { readonly kind: "invalid"; readonly problem: string };
 
 type TenantScope =
   | {
       readonly kind: "ok";
       readonly scope: string;
-      readonly idType: ModuleIdType;
+      readonly idType: BlockSqlIdType;
     }
   | { readonly kind: "invalid"; readonly problem: string };
 
@@ -312,7 +315,7 @@ export function unsafeKey(
 }
 
 /** A module permission key the provider's functions can't answer for fully. */
-export interface ModuleKeyProblem {
+export interface BlockSqlKeyProblem {
   /** `blocks.<module>.permissions.<action>`, or `authorization.permissions`. */
   readonly target: string;
   readonly message: string;
@@ -325,8 +328,8 @@ export interface ModuleKeyProblem {
  */
 export function moduleKeyProblems(
   provider: AuthorizationProvider,
-  keys: readonly ModulePermissionKey[],
-): ModuleKeyProblem[] {
+  keys: readonly BlockSqlPermissionKey[],
+): BlockSqlKeyProblem[] {
   if (keys.length === 0) {
     return [];
   }
@@ -340,7 +343,7 @@ export function moduleKeyProblems(
     ];
   }
 
-  return keys.flatMap((entry): ModuleKeyProblem[] => {
+  return keys.flatMap((entry): BlockSqlKeyProblem[] => {
     const problem = unsafeKey(provider, entry.key);
 
     if (!problem) {
@@ -401,7 +404,7 @@ const requirementsOf = (
 
 /** The functions the `provider` access model calls, as `authenticated`. */
 export const accessRequirements = (
-  access: ModuleAccessProvider,
+  access: BlockSqlAccessProvider,
 ): readonly ProviderRequirement[] =>
   requirementsOf(access.functions, access.scope, [
     ["idsWith", "authenticated"],
@@ -424,7 +427,7 @@ export interface EntitlementRequirement extends ProviderRequirement {
  * `supabase_auth_admin`.
  */
 export const entitlementRequirements = (
-  provider: ModuleEntitlementsProvider,
+  provider: BlockSqlEntitlementsProvider,
 ): readonly EntitlementRequirement[] => [
   ...templateFunctions(provider.memberIds, provider.scope).map(
     (fn): EntitlementRequirement => ({

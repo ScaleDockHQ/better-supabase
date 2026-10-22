@@ -3,12 +3,12 @@ import * as v from "valibot";
 
 import { betterSupabase } from "./lib/supabase";
 
-export const bs = createOrpc(betterSupabase);
+export const bsb = createOrpc(betterSupabase);
 
-const authed = bs.authed();
+const authed = bsb.authed();
 
 /** The fixture's token hook writes the role to the top-level `user_role` claim. */
-const admin = bs.authed({
+const admin = bsb.authed({
   roles: ["admin"],
   roleClaim: "user_role",
   requireTenant: true,
@@ -30,7 +30,7 @@ export const router = {
         }),
       )
       .handler(({ context, input }) =>
-        bs.unwrap(
+        bsb.unwrap(
           context.db.customers.findMany({
             select: customer,
             where: input.q ? { name: { contains: input.q } } : {},
@@ -42,7 +42,7 @@ export const router = {
     get: authed
       .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(({ context, input }) =>
-        bs.unwrap(
+        bsb.unwrap(
           context.db.customers.findById(input.id, { select: customer }),
         ),
       ),
@@ -54,12 +54,12 @@ export const router = {
         }),
       )
       .handler(({ context, input }) =>
-        bs.unwrap(context.db.customers.create(input, { select: customer })),
+        bsb.unwrap(context.db.customers.create(input, { select: customer })),
       ),
     archive: admin
       .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(({ context, input }) =>
-        bs.unwrap(
+        bsb.unwrap(
           context.db.customers.update(
             input.id,
             { status: "archived" },
@@ -70,7 +70,7 @@ export const router = {
     remove: authed
       .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(async ({ context, input }) => {
-        await bs.unwrap(context.db.customers.delete(input.id));
+        await bsb.unwrap(context.db.customers.delete(input.id));
 
         return { deleted: true };
       }),

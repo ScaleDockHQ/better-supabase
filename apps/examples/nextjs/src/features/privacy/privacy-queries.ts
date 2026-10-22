@@ -7,7 +7,7 @@ import { tenantOf } from "better-supabase/next";
 
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface ExportRow {
   readonly id: string;
@@ -45,7 +45,7 @@ function toRow(item: DataExport): ExportRow {
  */
 export async function loadPrivacy(): Promise<PrivacyData> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
   const { dataLifecycle } = blocks(supabase);
   const canExport = tenant !== undefined && can(session, "organization.export");

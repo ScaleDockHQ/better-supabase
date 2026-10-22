@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { quotedTable } from "../shared.ts";
@@ -103,7 +103,7 @@ export const qualifiedTable = (table: string): string => quotedTable(table);
  * keeps in a table; with either, unknown meters are refused.
  */
 export function metersOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): Readonly<Record<string, UsageMeter>> | MeterTable | undefined {
   const where = "blocks.usage.options.meters";
   const option = ctx.option("meters");

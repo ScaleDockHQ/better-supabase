@@ -31,7 +31,7 @@ describe("createAnalytics", () => {
     const page = await analytics.runs.list({
       workflowName: "w",
       status: "running",
-      attributes: { "bs.key": "k" },
+      attributes: { "bsb.key": "k" },
       startTime: "2026-01-01T00:00:00Z",
       endTime: "2026-01-02T00:00:00Z",
       pagination: { limit: 2, cursor, sortOrder: "asc" },
@@ -52,7 +52,7 @@ describe("createAnalytics", () => {
     expect(params).toEqual([
       "w",
       "running",
-      '{"bs.key":"k"}',
+      '{"bsb.key":"k"}',
       "2026-01-01T00:00:00Z",
       "2026-01-02T00:00:00Z",
       "2026-01-01 00:00:00",

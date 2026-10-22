@@ -9,14 +9,14 @@ Solid. Wrap the app in the provider, next to TanStack Solid Query:
 ```tsx title="src/app.tsx"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { BetterSupabaseProvider } from "better-supabase/solid";
-import { bs } from "./lib/supabase/client";
+import { bsb } from "./lib/supabase/client";
 
 const queryClient = new QueryClient();
 
 export default function App(props: { children: JSX.Element }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <BetterSupabaseProvider client={bs} queryClient={queryClient}>
+      <BetterSupabaseProvider client={bsb} queryClient={queryClient}>
         {props.children}
       </BetterSupabaseProvider>
     </QueryClientProvider>
@@ -34,10 +34,10 @@ Create primitives typed for your schema once:
 
 ```ts title="src/lib/primitives.ts"
 import { createBindings } from "better-supabase/solid";
-import type { bs } from "./supabase/client";
+import type { bsb } from "./supabase/client";
 
 export const { useDb, useQueries, useAuth, useSession } =
-  createBindings<typeof bs>();
+  createBindings<typeof bsb>();
 ```
 
 ## Primitives

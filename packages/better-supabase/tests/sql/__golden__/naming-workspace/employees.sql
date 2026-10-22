@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bs-module employees@1 managed
+-- @bsb-block employees@1 managed
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,7 +138,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_se
 
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.bsb_employee_manager_guard()
 returns trigger
 language plpgsql
 security definer
@@ -167,13 +167,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bs_employee_manager_guard on "better_supabase"."employees";
-create trigger bs_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_manager_guard();
+revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
+drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
+create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_manager_guard();
 
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.bsb_employee_user_mirror()
 returns trigger
 language plpgsql
 security definer
@@ -186,10 +186,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bs_employee_user_mirror on "better_supabase"."employees";
-create trigger bs_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_user_mirror();
+revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
+drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
+create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_user_mirror();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
@@ -683,26 +683,26 @@ revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb
 grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bs-module-data employees
+-- @bsb-block-data employees
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('employees', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

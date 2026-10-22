@@ -89,8 +89,8 @@ describe.skipIf(!live)("audit block", () => {
   it("maps an adopted log's values and labels tenants from the app's table", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
-    const log = `public.bs_activity_${suffix}`;
-    const workspaces = `public.bs_workspaces_${suffix}`;
+    const log = `public.bsb_activity_${suffix}`;
+    const workspaces = `public.bsb_workspaces_${suffix}`;
 
     try {
       await s.client.query(`
@@ -208,7 +208,7 @@ describe.skipIf(!live)("audit block", () => {
 
   it("takes the actor context from definer functions through audit_event_trusted only", async () => {
     const s = await BlockSession.open(pool);
-    const fn = `public.bs_save_role_${crypto.randomUUID().slice(0, 8)}`;
+    const fn = `public.bsb_save_role_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.install(["audit"], {
@@ -271,7 +271,7 @@ describe.skipIf(!live)("audit block", () => {
 
   it("fills an adopted log's column derived from the actor through a generated column", async () => {
     const s = await BlockSession.open(pool);
-    const log = `public.bs_staff_log_${crypto.randomUUID().slice(0, 8)}`;
+    const log = `public.bsb_staff_log_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.client.query(`
@@ -356,7 +356,7 @@ describe.skipIf(!live)("audit block", () => {
   it("records events with a request id, a scope and metadata in adopted columns", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
-    const log = `public.bs_activity_${suffix}`;
+    const log = `public.bsb_activity_${suffix}`;
 
     try {
       await s.client.query(`

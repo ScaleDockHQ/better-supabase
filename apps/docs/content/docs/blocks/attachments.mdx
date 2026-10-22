@@ -13,7 +13,7 @@ file only after your scanner marks it clean.
 better-supabase add attachments   # adds tenant and access as well
 ```
 
-The block's entity is `attachment` (the `attachments` table). It isn't registered as a subject, so files can't be attached to files. Rename it with `blocks.attachments.entities`; the storage paths (`.../attachments/...`) and the `bs_attachments_*` constraint and storage policy names keep the block name, so existing files stay where they are. `attachmentInputSchema` validates what `upload` takes.
+The block's entity is `attachment` (the `attachments` table). It isn't registered as a subject, so files can't be attached to files. Rename it with `blocks.attachments.entities`; the storage paths (`.../attachments/...`) and the `bsb_attachments_*` constraint and storage policy names keep the block name, so existing files stay where they are. `attachmentInputSchema` validates what `upload` takes.
 
 | Column                       | Holds                                                               |
 | ---------------------------- | ------------------------------------------------------------------- |
@@ -182,13 +182,13 @@ export async function startUpload(projectId: string, file: FileMeta) {
 }
 ```
 
-The first argument is the record as a `SubjectRef` (`{ type, id }`), or
+The first argument is the record as a `RecordRef` (`{ type, id }`), or
 `null` for a file without one. The tenant comes from the block's `tenant`
 option, an organization id or a function that returns the current one;
 `createBlocks` and `createBlockClient` pass the request's tenant (see
 [createBlocks](/docs/blocks/create-blocks#one-block-per-request)). A call
 that needs a tenant and has none fails with `invalid_request` and the hint
-`TENANT_REQUIRED`. Each attachment carries `subject` (a `SubjectRef`, or
+`TENANT_REQUIRED`. Each attachment carries `subject` (a `RecordRef`, or
 `undefined` without one) and `organizationId`.
 
 The browser uploads with the token,

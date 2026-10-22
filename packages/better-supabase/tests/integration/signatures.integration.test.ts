@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createSignatures,
@@ -27,7 +27,7 @@ const MODULES = [
   "signatures",
 ];
 
-const layoutFor = (signer: string): ModuleLayout => ({
+const layoutFor = (signer: string): BlockSqlLayout => ({
   subjects: { contract: { table: "signatures_it.contracts", idType: "uuid" } },
   modules: {
     versions: { options: { subjects: { contract: { columns: ["body"] } } } },

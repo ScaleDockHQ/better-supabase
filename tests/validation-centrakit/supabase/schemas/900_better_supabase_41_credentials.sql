@@ -1,5 +1,5 @@
--- better-supabase module: credentials (0.8.0)
--- @bs-module credentials@1 adopt
+-- better-supabase module: credentials
+-- @bsb-block credentials@1 adopt
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -182,18 +182,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_credential_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_credential_vault" on "centrakit"."integration_credentials";
-create trigger "bs_credential_vault" after delete or update of "vault_secret_id" on "centrakit"."integration_credentials"
+drop trigger if exists "bsb_credential_vault" on "centrakit"."integration_credentials";
+create trigger "bsb_credential_vault" after delete or update of "vault_secret_id" on "centrakit"."integration_credentials"
   for each row execute function "better_supabase"."drop_credential_vault_secret"();
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

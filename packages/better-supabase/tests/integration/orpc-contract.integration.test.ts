@@ -74,26 +74,26 @@ describe.skipIf(!live)(
       SUPABASE_PUBLISHABLE_KEY: publishableKey,
     }).env!;
 
-    const bs = createOrpc(betterSupabase, { env });
+    const bsb = createOrpc(betterSupabase, { env });
 
     const os = implement(contract)
       .$context<OrpcRequestContext>()
-      .use(bs.middleware());
+      .use(bsb.middleware());
 
     const select = ["id", "name", "organizationId"] as const;
 
     const router = os.router({
       customers: {
         get: os.customers.get.handler(({ context, input }) =>
-          bs.unwrap(context.db.customers.findById(input.id, { select })),
+          bsb.unwrap(context.db.customers.findById(input.id, { select })),
         ),
         create: os.customers.create.handler(({ context, input }) =>
-          bs.unwrap(context.db.customers.create(input, { select })),
+          bsb.unwrap(context.db.customers.create(input, { select })),
         ),
       },
     });
 
-    const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+    const handle = bsb.fetchHandler(new OpenAPIHandler(router), {
       prefix: "/api",
     });
 

@@ -1,5 +1,5 @@
 -- better-supabase module: passes
--- @bs-module passes@1 managed
+-- @bsb-block passes@1 managed
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -362,7 +362,7 @@ begin
     end if;
   end if;
   if v_reason is null and v_pass."booking_id" is null and v_resource is not null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:passes:' || v_resource::text, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:passes:' || v_resource::text, 0));
     select rs."capacity" into v_capacity from "better_supabase"."booking_resources" rs
       where rs."id" = v_resource and rs."tenant_id" = v_pass."tenant_id";
     if v_capacity is null then
@@ -799,13 +799,13 @@ revoke execute on function "api"."list_pass_credits"(uuid) from public, anon;
 grant execute on function "api"."list_pass_credits"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

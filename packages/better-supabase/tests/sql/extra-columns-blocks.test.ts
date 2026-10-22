@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 /**
  * Each module that takes `extraColumns`: the modules it needs, its table, and
@@ -126,7 +126,7 @@ const sqlOf = (
   needs: readonly string[],
   options: Record<string, unknown> = {},
 ): string =>
-  renderModules([...needs, module], { modules: { [module]: { options } } })
+  renderBlocks([...needs, module], { modules: { [module]: { options } } })
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");

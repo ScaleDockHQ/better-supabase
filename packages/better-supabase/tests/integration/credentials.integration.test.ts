@@ -60,7 +60,7 @@ describe.skipIf(!live)("credentials module", () => {
   it("passes the kit over an adopted table with Vault ids", async () => {
     const s = await BlockSession.open(pool);
     const tenant = crypto.randomUUID();
-    const table = `public.bs_secrets_${tenant.slice(0, 8)}`;
+    const table = `public.bsb_secrets_${tenant.slice(0, 8)}`;
 
     try {
       await s.rows(`
@@ -143,7 +143,7 @@ describe.skipIf(!live)("credentials module", () => {
 
   it("reads and writes an adopted secret column", async () => {
     const s = await BlockSession.open(pool);
-    const table = `public.bs_plain_${crypto.randomUUID().slice(0, 8)}`;
+    const table = `public.bsb_plain_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.rows(

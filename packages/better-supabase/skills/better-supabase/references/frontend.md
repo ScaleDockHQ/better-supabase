@@ -1,6 +1,6 @@
 # Vue, Solid, Svelte, TanStack DB and expo-sqlite
 
-Each framework binding wraps the browser client `bs` from
+Each framework binding wraps the browser client `bsb` from
 `lib/supabase/client.ts` and the TanStack Query client for that framework.
 Reads still go through PostgREST as the signed-in user, so RLS applies.
 
@@ -11,17 +11,17 @@ import { betterSupabase } from "better-supabase/vue";
 
 createApp(App)
   .use(VueQueryPlugin, { queryClient })
-  .use(betterSupabase(bs, { queryClient }))
+  .use(betterSupabase(bsb, { queryClient }))
   .mount("#app");
 ```
 
 ```ts title="src/lib/composables.ts"
 import { createBindings } from "better-supabase/vue";
 
-import type { bs } from "./supabase/client";
+import type { bsb } from "./supabase/client";
 
 export const { useDb, useQueries, useAuth, useSession } =
-  createBindings<typeof bs>();
+  createBindings<typeof bsb>();
 ```
 
 Use `useQuery(q.customers.findMany({ ... }))` from `@tanstack/vue-query`
@@ -31,15 +31,15 @@ with `const q = useQueries()`. `useLiveQuery`, `useLiveCount`,
 
 ## Solid
 
-Wrap the app in `<BetterSupabaseProvider client={bs} queryClient={queryClient}>`
+Wrap the app in `<BetterSupabaseProvider client={bsb} queryClient={queryClient}>`
 inside `QueryClientProvider`, and get typed primitives from
-`createBindings<typeof bs>()` in `better-supabase/solid`. Pass a function to
+`createBindings<typeof bsb>()` in `better-supabase/solid`. Pass a function to
 the live primitives, so they track their inputs:
 `useLiveCount(() => betterSupabase.spec.messages.count({ where: { read: false } }))`.
 
 ## Svelte 5
 
-In the root `+layout.svelte`, call `setBetterSupabase(bs, { queryClient })`
+In the root `+layout.svelte`, call `setBetterSupabase(bsb, { queryClient })`
 and `setSession(() => data.session)` from `better-supabase/svelte`. In
 components, `useAuth()`, `useLiveQuery(() => spec)` and `useLiveCount(() => spec)`
 return objects whose fields are reactive (`auth.current.status`,

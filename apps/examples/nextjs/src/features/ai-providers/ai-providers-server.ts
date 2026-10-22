@@ -11,11 +11,11 @@ import {
 import { vaultCredentials } from "better-supabase/credentials";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["ai-providers"].api;
 
-const service = () => rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
+const service = () => rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });
 
 /** Vault, as the service role: provider keys are stored per tenant. */
 export function providerCredentials(): VaultCredentials {

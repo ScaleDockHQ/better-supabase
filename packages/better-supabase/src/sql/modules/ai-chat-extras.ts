@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 import type { ApproverCheck } from "./approver.ts";
 
@@ -45,9 +45,9 @@ function moderationJson(names: AiChatNames, row: string): string {
  * tool name.
  */
 function toolApprover(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): ApproverCheck | undefined {
   const a = names.c.approvals;
   const ch = names.c.chats;
@@ -83,9 +83,9 @@ function approver(
 }
 
 function approvals(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t, perm } = names;
@@ -406,7 +406,7 @@ $$;
 ${userGrant(`${fn("answer_ai_pending_input")}(uuid, jsonb)`)}`;
 }
 
-function sharing(ctx: ModuleContext, names: AiChatNames): string {
+function sharing(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t, perm } = names;
   const ch = names.c.chats;
@@ -593,7 +593,7 @@ revoke execute on function ${fn("get_shared_ai_chat")}(text) from public;
 grant execute on function ${fn("get_shared_ai_chat")}(text) to anon, authenticated, service_role;`;
 }
 
-function catalog(ctx: ModuleContext, names: AiChatNames): string {
+function catalog(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t, perm } = names;
   const ch = names.c.chats;
@@ -772,9 +772,9 @@ ${serviceGrant(`${fn("purge_ai_chats")}(integer)`)}`;
 
 /** Approvals, policies, questions, feedback, links, models and moderation. */
 export function aiChatExtras(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): string {
   return `${approvals(ctx, names, layout)}
 

@@ -22,7 +22,7 @@ const signer = await createTestSigner();
 describe("createEdge", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createEdge(betterSupabase, {
+  const bsb = createEdge(betterSupabase, {
     env,
     auth: { jwks: signer.jwks },
     cors: { origin: ["https://app.test"] },
@@ -44,7 +44,7 @@ describe("createEdge", () => {
     });
 
   it("wraps a handler with auth, Results and CORS", async () => {
-    const serve = bs.handler((_request, ctx) =>
+    const serve = bsb.handler((_request, ctx) =>
       ok({ id: ctx.auth.kind === "user" ? ctx.auth.user.id : null }),
     );
 
@@ -85,7 +85,7 @@ describe("createEdge", () => {
     const kept: Promise<unknown>[] = [];
     let release: () => void = () => undefined;
 
-    const serve = bs.handler(() => {
+    const serve = bsb.handler(() => {
       betterSupabase.events.track(
         new Promise<void>((resolve) => {
           release = resolve;
@@ -109,7 +109,7 @@ describe("createEdge", () => {
     await kept[0];
     expect(done).toBe(true);
 
-    const quiet = bs.handler(() => undefined);
+    const quiet = bsb.handler(() => undefined);
     await quiet(await request("/x", { token }), undefined, {
       waitUntil: (promise) => void kept.push(promise),
     });
@@ -137,13 +137,13 @@ describe("createEdge", () => {
   it("maps thrown errors without leaking details", async () => {
     const token = await signer.sign({ sub: USER });
 
-    const missing = bs.handler(() => {
+    const missing = bsb.handler(() => {
       throw new DbException(dbError("not_found", "Gone"));
     });
 
     expect((await missing(await request("/x", { token }))).status).toBe(404);
 
-    const crash = bs.handler(() => {
+    const crash = bsb.handler(() => {
       throw new Error("secret detail");
     });
 
@@ -153,7 +153,7 @@ describe("createEdge", () => {
   });
 
   it("routes resources under a base path", async () => {
-    const serve = bs.resources({ customers: true }, { basePath: "/api" });
+    const serve = bsb.resources({ customers: true }, { basePath: "/api" });
     const token = await signer.sign({ sub: USER });
     expect((await serve(await request("/api/nope", { token }))).status).toBe(
       404,
@@ -180,7 +180,7 @@ describe("createEdge", () => {
   });
 
   it("routes resource requests that carry a body", async () => {
-    const serve = bs.resources({ customers: true }, { basePath: "/api" });
+    const serve = bsb.resources({ customers: true }, { basePath: "/api" });
     const token = await signer.sign({ sub: USER });
 
     const response = await serve(
@@ -213,7 +213,7 @@ describe("createEdge", () => {
   });
 });
 
-describe("bs.resources() actions", () => {
+describe("bsb.resources() actions", () => {
   const authorizer = defineAuthorizer({
     name: "test",
     key: (ref: string) => ref,
@@ -223,13 +223,13 @@ describe("bs.resources() actions", () => {
         : { outcome: "denied", reason: "CSV only" },
   });
 
-  const bs = createEdge(defineSupabase(schema), {
+  const bsb = createEdge(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer,
   });
 
-  const serve = bs.resources(
+  const serve = bsb.resources(
     {
       customers: {
         path: "/crm/customers",

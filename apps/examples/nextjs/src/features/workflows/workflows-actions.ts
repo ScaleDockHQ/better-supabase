@@ -18,7 +18,7 @@ import type { Permission } from "@/features/user/user-permissions";
 
 import { can, PERMISSIONS } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import {
   approvalToken,
@@ -37,7 +37,7 @@ function contextOf(userId: string, tenant: string): RequestContext {
 }
 
 /** Starts a sample workflow as the caller in the active organization. */
-export const startWorkflow = bs.action(
+export const startWorkflow = bsb.action(
   {
     input: v.object({
       workflow: WorkflowName,
@@ -68,7 +68,7 @@ export const startWorkflow = bs.action(
 );
 
 /** Starts an expense approval that the requester or an admin can decide. */
-export const requestApproval = bs.action(
+export const requestApproval = bsb.action(
   {
     input: v.object({ amount: v.pipe(v.number(), v.minValue(1)) }),
     requireTenant: true,
@@ -97,7 +97,7 @@ export const requestApproval = bs.action(
  * Approves or rejects an expense approval run. `authorizeHook` checks the
  * hook's metadata against the caller, so knowing the token is not enough.
  */
-export const decideApproval = bs.action(
+export const decideApproval = bsb.action(
   {
     input: v.object({ run: v.string(), approved: v.boolean() }),
     requireTenant: true,
@@ -135,7 +135,7 @@ export const decideApproval = bs.action(
 );
 
 /** Marks the run cancelled in the registry, then cancels it in the engine. */
-export const cancelRun = bs.action(
+export const cancelRun = bsb.action(
   { input: v.object({ run: v.string() }), requireTenant: true },
   async ({ run }, { supabase }) => {
     const marked = await blocks(supabase).workflows.runs.requestCancel(run);
@@ -159,7 +159,7 @@ export const cancelRun = bs.action(
  * Creates or replaces a schedule that starts a sample workflow. The tick route
  * starts it as the organization's owner, not as its creator.
  */
-export const createSchedule = bs.action(
+export const createSchedule = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
@@ -193,7 +193,7 @@ export const createSchedule = bs.action(
   },
 );
 
-export const pauseSchedule = bs.action(
+export const pauseSchedule = bsb.action(
   {
     input: v.object({ id: v.string(), paused: v.boolean() }),
     requireTenant: true,
@@ -214,7 +214,7 @@ export const pauseSchedule = bs.action(
   },
 );
 
-export const removeSchedule = bs.action(
+export const removeSchedule = bsb.action(
   { input: v.object({ id: v.string() }), requireTenant: true },
   async ({ id }, { supabase }) => {
     const removed = await blocks(supabase).workflows.schedules.remove(id);

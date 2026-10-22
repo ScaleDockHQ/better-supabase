@@ -11,13 +11,13 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { betterSupabase } from "better-supabase/vue";
 import { createApp } from "vue";
 import App from "./App.vue";
-import { bs } from "./lib/supabase/client";
+import { bsb } from "./lib/supabase/client";
 
 const queryClient = new QueryClient();
 
 createApp(App)
   .use(VueQueryPlugin, { queryClient })
-  .use(betterSupabase(bs, { queryClient }))
+  .use(betterSupabase(bsb, { queryClient }))
   .mount("#app");
 ```
 
@@ -30,10 +30,10 @@ Create composables typed for your schema once:
 
 ```ts title="src/lib/composables.ts"
 import { createBindings } from "better-supabase/vue";
-import type { bs } from "./supabase/client";
+import type { bsb } from "./supabase/client";
 
 export const { useDb, useQueries, useAuth, useSession } =
-  createBindings<typeof bs>();
+  createBindings<typeof bsb>();
 ```
 
 ```vue title="src/components/CustomerList.vue"

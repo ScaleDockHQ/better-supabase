@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Tag } from "../../../src/blocks/tags/tags.ts";
-import type { SubjectRef } from "../../../src/schema/types.ts";
+import type { RecordRef } from "../../../src/schema/types.ts";
 
 import { createTagInputController } from "../../../src/blocks/tags/client.ts";
 import {
@@ -20,12 +20,12 @@ const tag = (id: string, name: string): Tag => ({
   fields: {},
 });
 
-const CUSTOMER: SubjectRef = { type: "customer", id: "cu1" };
+const CUSTOMER: RecordRef = { type: "customer", id: "cu1" };
 
-function setup(subject: SubjectRef | null = CUSTOMER) {
+function setup(subject: RecordRef | null = CUSTOMER) {
   const auth = fakeAuth();
 
-  const forSubject = vi.fn((_subject: SubjectRef) =>
+  const forSubject = vi.fn((_subject: RecordRef) =>
     resolved<readonly Tag[]>([tag("t1", "VIP")]),
   );
 
@@ -33,9 +33,9 @@ function setup(subject: SubjectRef | null = CUSTOMER) {
     resolved<readonly Tag[]>([tag("t1", "VIP"), tag("t2", "Churn")]),
   );
 
-  const tagFn = vi.fn((_subject: SubjectRef, _tagId: string) => resolved(true));
+  const tagFn = vi.fn((_subject: RecordRef, _tagId: string) => resolved(true));
 
-  const untag = vi.fn((_subject: SubjectRef, _tagId: string) => resolved(true));
+  const untag = vi.fn((_subject: RecordRef, _tagId: string) => resolved(true));
 
   const create = vi.fn((_kind: string, name: string) =>
     resolved<Tag>({ id: "t3", name, slug: name.toLowerCase(), fields: {} }),

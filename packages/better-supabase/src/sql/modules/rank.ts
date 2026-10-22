@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { RANK_ALPHABET, RANK_REBALANCE_QUEUE } from "../../core/rank-keys.ts";
@@ -14,7 +14,7 @@ import {
   registeredSubjects,
 } from "../subject-registry.ts";
 
-const NAMES: ModuleNames = { tables: {} };
+const NAMES: BlockSqlNames = { tables: {} };
 
 /** Keys longer than this queue a rebalance of their group. */
 const RANK_REBALANCE_LENGTH = 24;
@@ -23,7 +23,7 @@ const RANK_REBALANCE_LENGTH = 24;
 
 const ALPHABET = sqlString(RANK_ALPHABET);
 
-function ranked(ctx: ModuleContext): readonly RegisteredSubject[] {
+function ranked(ctx: BlockSqlContext): readonly RegisteredSubject[] {
   return registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) => subject.config.rank !== undefined,
   );
@@ -56,7 +56,7 @@ function typedGroup(subject: RegisteredSubject, column: string): string {
 }
 
 /** The `move` branch for one subject: neighbours, the new key, one update. */
-function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
+function moveBranch(ctx: BlockSqlContext, subject: RegisteredSubject): string {
   const rank = sqlIdent(subject.config.rank?.column ?? "rank");
   const groupName = subject.config.rank?.group;
   const group = groupName === undefined ? undefined : sqlIdent(groupName);
@@ -104,7 +104,7 @@ function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
  * group.
  */
 function rebalanceBranch(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subject: RegisteredSubject,
 ): string {
   const rank = sqlIdent(subject.config.rank?.column ?? "rank");
@@ -133,7 +133,7 @@ function rebalanceBranch(
       get diagnostics v_count = row_count;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -279,7 +279,7 @@ ${serviceGrant(`${fn("rebalance_ranks")}(text, text, text)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "rank_between", args: ["text", "text"], returns: "text" },
     { name: "rank_key", args: ["bigint", "bigint"], returns: "text" },
@@ -296,7 +296,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const RANK: ModuleDefinition = {
+export const RANK: BlockSqlDefinition = {
   name: "rank",
   scopes: ["tenant"],
   title: "Rank",

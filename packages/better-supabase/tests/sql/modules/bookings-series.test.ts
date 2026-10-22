@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   module: string,
   names: readonly string[],
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string =>
-  renderModules([...names], layout)
+  renderBlocks([...names], layout)
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
 
-const RECURRING: ModuleLayout = {
+const RECURRING: BlockSqlLayout = {
   modules: { bookings: { options: { recurring: true } } },
 };
 
-const CREDITS: ModuleLayout = {
+const CREDITS: BlockSqlLayout = {
   modules: {
     bookings: { options: { recurring: true } },
     passes: { options: { credits: true, creditRefundBefore: "1 day" } },

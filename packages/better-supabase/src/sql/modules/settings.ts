@@ -1,12 +1,12 @@
 import type { SettingsEvents } from "../../blocks/settings/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlScope } from "../scope.ts";
 import type { JsonSchemaCheck } from "../shared.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -20,7 +20,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<SettingsEvents> = {
+const EVENTS: BlockSqlEvents<SettingsEvents> = {
   "organization_setting.reset": {
     subject: "organizations",
     payload: ["organizationId", "key"],
@@ -33,7 +33,7 @@ const EVENTS: ModuleEvents<SettingsEvents> = {
   "platform_setting.updated": { subject: "settings", payload: ["key"] },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["schemas", "platform"],
   tables: {
@@ -93,7 +93,7 @@ const isRead = (value: unknown): value is PlatformRead =>
  * and its keys with their own `permission` and `read`, from
  * `options.schemas.platform`.
  */
-function platformKeys(ctx: ModuleContext): {
+function platformKeys(ctx: BlockSqlContext): {
   readonly fallback: {
     readonly permission: string;
     readonly read: PlatformRead;
@@ -167,7 +167,7 @@ function platformKeys(ctx: ModuleContext): {
 }
 
 const readRule = (
-  scope: ModuleScope,
+  scope: BlockSqlScope,
   read: PlatformRead,
   permission: string,
 ): string =>
@@ -221,7 +221,7 @@ function jsonSchemaOf(
  * `blocks.settings.options.schemas`: `{ user, organization }` maps of key to
  * schema, or a `defineSettings()` result (its `schemas`).
  */
-function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
+function settingsChecks(ctx: BlockSqlContext): readonly JsonSchemaCheck[] {
   const option = ctx.option("schemas");
 
   if (option === undefined) {
@@ -283,7 +283,7 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
   return checks;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -608,7 +608,7 @@ ${recordTrigger(ctx, {
 ${jsonSchemaChecks(settingsChecks(ctx))}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "get_user_settings", args: [], returns: "jsonb" },
     { name: "set_user_setting", args: ["text", "jsonb"], returns: "jsonb" },
@@ -630,7 +630,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SETTINGS: ModuleDefinition = {
+export const SETTINGS: BlockSqlDefinition = {
   name: "settings",
   scopes: ["tenant"],
   title: "Settings",

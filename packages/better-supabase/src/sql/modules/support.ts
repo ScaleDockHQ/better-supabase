@@ -1,6 +1,10 @@
 import type { SupportSessionsEvents } from "../../blocks/support-sessions/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -20,9 +24,9 @@ import {
 import { linkedPolicy, SUPPORT_REQUEST_SUBJECT } from "./approvals.ts";
 import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
-import { supportApprovalFunctions } from "./support-approvals.ts";
+import { approvalMode, supportApprovalFunctions } from "./support-approvals.ts";
 
-const EVENTS: ModuleEvents<SupportSessionsEvents> = {
+const EVENTS: BlockSqlEvents<SupportSessionsEvents> = {
   "support.started": {
     subject: "support-sessions",
     payload: [
@@ -50,14 +54,7 @@ const EVENTS: ModuleEvents<SupportSessionsEvents> = {
   },
 };
 
-const APPROVAL_MODES = ["distinct", "none"] as const;
-
-type ApprovalMode = (typeof APPROVAL_MODES)[number];
-
-const isApprovalMode = (value: string): value is ApprovalMode =>
-  APPROVAL_MODES.some((mode) => mode === value);
-
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "allowPlatformTargets",
@@ -115,7 +112,7 @@ const NAMES: ModuleNames = {
  * The session as the jsonb every function returns, with fixed keys whatever the
  * column names.
  */
-function sessionJson(ctx: ModuleContext, row: string): string {
+function sessionJson(ctx: BlockSqlContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("sessions", logical)}`;
 
   const optional = (logical: string, fallback: string) =>
@@ -141,7 +138,7 @@ function supportPayload(session: string, extra = ""): string {
   return `jsonb_build_object('sessionId', ${session} ->> 'id', 'adminId', ${session} ->> 'admin_id', 'targetUserId', ${session} ->> 'target_user_id', 'reason', ${session} ->> 'reason', 'readOnly', (${session} ->> 'read_only')::boolean, 'expiresAt', ${session} ->> 'expires_at', 'organizationId', ${session} ->> 'tenant'${extra})`;
 }
 
-function table(ctx: ModuleContext): string {
+function table(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -174,8 +171,8 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
-drop policy if exists bs_support_read on ${sessions};
-create policy bs_support_read on ${sessions} for select to authenticated
+drop policy if exists bsb_support_read on ${sessions};
+create policy bsb_support_read on ${sessions} for select to authenticated
   using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${sessions} to authenticated;
 `;
@@ -185,7 +182,7 @@ grant select on ${sessions} to authenticated;
  * Whether the module creates the requests table: when it manages its tables, or
  * in `adopt` mode while `tables.requests` keeps its default name.
  */
-function ownsRequests(ctx: ModuleContext): boolean {
+function ownsRequests(ctx: BlockSqlContext): boolean {
   if (!ctx.hasTable("requests")) {
     return false;
   }
@@ -200,7 +197,7 @@ function ownsRequests(ctx: ModuleContext): boolean {
 }
 
 /** The request as the jsonb the request functions return. */
-function requestJson(ctx: ModuleContext, row: string): string {
+function requestJson(ctx: BlockSqlContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("requests", logical)}`;
 
   return `jsonb_build_object(
@@ -219,7 +216,7 @@ function requestJson(ctx: ModuleContext, row: string): string {
   )`;
 }
 
-function requestsTable(ctx: ModuleContext): string {
+function requestsTable(ctx: BlockSqlContext): string {
   if (!ownsRequests(ctx)) {
     return "";
   }
@@ -256,8 +253,8 @@ alter table ${requests} enable row level security;
 ${revokeTable(requests)}
 grant select on ${requests} to service_role;
 -- The requester reads their own requests; platform staff read every one.
-drop policy if exists bs_support_requests_read on ${requests};
-create policy bs_support_requests_read on ${requests} for select to authenticated
+drop policy if exists bsb_support_requests_read on ${requests};
+create policy bsb_support_requests_read on ${requests} for select to authenticated
   using (${c("admin")} = (select auth.uid())
     or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${requests} to authenticated;
@@ -271,8 +268,8 @@ grant select on ${requests} to authenticated;
  * refused before this runs.
  */
 function approverOf(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
   row: string,
 ): string {
   const c = (logical: string) => `${row}.${ctx.col("requests", logical)}`;
@@ -299,7 +296,7 @@ function approverOf(
  * never the admin, whatever the table holds.
  */
 function usableRequest(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   values: {
     readonly admin: string;
     readonly target: string;
@@ -323,7 +320,10 @@ function usableRequest(
 }
 
 /** `request_support_session`, `approve_support_request` and their reads. */
-function requestFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
+function requestFunctions(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   if (!ctx.hasTable("requests")) {
     return "";
   }
@@ -568,7 +568,7 @@ $$;`;
  * under the catalog model. Claims your access token hook adds from elsewhere
  * are not seen here.
  */
-function platformTarget(ctx: ModuleContext): string {
+function platformTarget(ctx: BlockSqlContext): string {
   const claim = sqlString(
     ctx.modules.access?.platformClaim ?? "platform_permissions",
   );
@@ -613,7 +613,7 @@ function platformTarget(ctx: ModuleContext): string {
  * `start_support_session`: the admin is the caller, or `admin_id` for the
  * service role.
  */
-function start(ctx: ModuleContext): string {
+function start(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const id = ctx.idType;
@@ -771,7 +771,7 @@ end;
 $$;`;
 }
 
-function end(ctx: ModuleContext): string {
+function end(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
@@ -849,7 +849,7 @@ $$;`;
  * through `end_support_session(id, 'expired')`, so each one records
  * `support.ended`, and returns the sessions it ended. Service role only.
  */
-function expire(ctx: ModuleContext): string {
+function expire(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
 
@@ -881,7 +881,7 @@ end;
 $$;`;
 }
 
-function reads(ctx: ModuleContext): string {
+function reads(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
@@ -943,7 +943,7 @@ $$;`;
  * builds them from a synthetic event, so the session sees exactly what the user
  * sees and none of the admin's claims.
  */
-function claims(ctx: ModuleContext): string {
+function claims(ctx: BlockSqlContext): string {
   const hook = ctx.text("claimsHook", "");
 
   const apply =
@@ -986,7 +986,7 @@ end;
 $$;`;
 }
 
-function grants(ctx: ModuleContext): string {
+function grants(ctx: BlockSqlContext): string {
   const id = ctx.idType;
 
   const shared = [
@@ -1014,26 +1014,7 @@ function grants(ctx: ModuleContext): string {
   );
 }
 
-/** `options.approval`: `distinct` (the default) or `none`. */
-function approvalMode(ctx: ModuleContext): ApprovalMode {
-  const mode = ctx.text("approval", "distinct");
-
-  if (!isApprovalMode(mode)) {
-    throw new TypeError(
-      `blocks.support-sessions.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
-    );
-  }
-
-  if (mode === "distinct" && !ctx.hasTable("requests")) {
-    throw new TypeError(
-      'blocks.support-sessions.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
-    );
-  }
-
-  return mode;
-}
-
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1062,7 +1043,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   ].join("\n\n");
 }
 
-export const SUPPORT_SESSIONS: ModuleDefinition = {
+export const SUPPORT_SESSIONS: BlockSqlDefinition = {
   name: "support-sessions",
   scopes: ["tenant"],
   title: "Support sessions",

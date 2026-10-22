@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { customContracts, renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (modules: readonly string[], layout: Layout = {}): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === "signatures")
     .map((file) => file.contents)
     .join("\n");

@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createSla } from "../../src/blocks/sla/index.ts";
@@ -29,7 +29,7 @@ create policy tickets_member on sla_it.tickets for all to authenticated
 grant usage on schema sla_it to authenticated;
 grant select, insert, update on sla_it.tickets to authenticated;`;
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: {
     ticket: { table: "sla_it.tickets", idType: "uuid" },
     ...withBlockSubjects({}, ["deals"], {}),

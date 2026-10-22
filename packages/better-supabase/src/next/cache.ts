@@ -11,9 +11,9 @@ import type {
 
 import { cacheTagsOf, tagFor } from "../core/tags.ts";
 
-/** The tag `bs.cached()` adds to entries rendered in a support session. */
+/** The tag `bsb.cached()` adds to entries rendered in a support session. */
 export function supportTag(sessionId: string): string {
-  return `bs:support:${sessionId}`;
+  return `bsb:support:${sessionId}`;
 }
 
 /** The shortest time the Next.js client router keeps a prefetched entry. */
@@ -68,9 +68,9 @@ export function sessionStale(
   }
 }
 
-/** The tag `bs.cached()` puts on a user's entries. */
+/** The tag `bsb.cached()` puts on a user's entries. */
 export function sessionTag(userId: string): string {
-  return `bs:session:${userId}`;
+  return `bsb:session:${userId}`;
 }
 
 /**
@@ -125,9 +125,9 @@ export function invalidateAll(
 }
 
 /**
- * Invalidates `bs:<table>` for every table in the target, the tenant's
- * `bs:<table>@<tenant>` (every tenant's `bs:<table>@*` when the mutation has no
- * tenant) and `bs:<table>:<id>` for the changed rows. Reads another tenant
+ * Invalidates `bsb:<table>` for every table in the target, the tenant's
+ * `bsb:<table>@<tenant>` (every tenant's `bsb:<table>@*` when the mutation has
+ * no tenant) and `bsb:<table>:<id>` for the changed rows. Reads another tenant
  * tagged stay cached. `createNext` attaches it unless `cacheTags: false`.
  */
 export function nextCache(options: NextCacheOptions = {}): CacheAdapter {

@@ -418,7 +418,7 @@ long the log is, and it reads an adopted log and the version 3 columns
 (`actorLabel`, `summary`, `requestId` and the rest) like `list` does:
 
 ```ts title="app/api/audit/export/route.ts"
-export const GET = bs.handler(async (request, ctx) => {
+export const GET = bsb.handler(async (request, ctx) => {
   const audit = createAudit({
     transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
   });

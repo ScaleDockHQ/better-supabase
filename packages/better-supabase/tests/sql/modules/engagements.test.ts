@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { customContracts, renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},
   extra: readonly string[] = [],
 ): string =>
-  renderModules(["engagements", ...extra], {
+  renderBlocks(["engagements", ...extra], {
     subjects: {
       deal: { table: "public.deals" },
       note: { table: "public.notes", tenant: false },
@@ -45,7 +45,7 @@ describe("engagements module", () => {
 describe("engagements module, layouts", () => {
   it("renders nothing in custom mode and refuses every subject without a registry", () => {
     expect(
-      renderModules(["engagements"], {
+      renderBlocks(["engagements"], {
         modules: { engagements: { mode: "custom" } },
       })
         .filter((file) => file.module === "engagements")
@@ -53,7 +53,7 @@ describe("engagements module, layouts", () => {
         .join(""),
     ).not.toContain("log_engagement");
 
-    const sql = renderModules(["engagements"], {})
+    const sql = renderBlocks(["engagements"], {})
       .filter((file) => file.module === "engagements")
       .map((file) => file.contents)
       .join("\n");
@@ -102,7 +102,7 @@ describe("engagements module, recordings", () => {
 
   it("needs a managed ai-files block", () => {
     expect(() =>
-      renderModules(["engagements"], {
+      renderBlocks(["engagements"], {
         modules: {
           engagements: { options: { recordings: true } },
           "ai-files": { mode: "custom" },
@@ -136,7 +136,7 @@ describe("engagements module, bookings", () => {
     extra: readonly string[] = ["bookings"],
     bookings: Record<string, unknown> = {},
   ): string =>
-    renderModules(["engagements", ...extra], {
+    renderBlocks(["engagements", ...extra], {
       modules: { engagements: { options }, bookings },
     })
       .filter((file) => file.module === "engagements")
@@ -144,7 +144,7 @@ describe("engagements module, bookings", () => {
       .join("\n");
 
   it("logs no bookings unless the option is on", () => {
-    expect(withBookings({})).not.toContain("bs_booking_engagement");
+    expect(withBookings({})).not.toContain("bsb_booking_engagement");
   });
 
   it("needs the bookings block and the meeting type", () => {

@@ -10,14 +10,14 @@ import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
 import type {
   AnyFunctions,
   AnyModels,
-  SubjectRef,
+  RecordRef,
   TableKey,
   TableMeta,
 } from "../../schema/types.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { defineListQuery } from "../../list/list-query.ts";
@@ -61,7 +61,7 @@ export interface ActivityEntry {
   readonly organizationId: string;
   readonly type: string;
   readonly actorId: string | undefined;
-  readonly subject: SubjectRef | undefined;
+  readonly subject: RecordRef | undefined;
   readonly summary: string | undefined;
   readonly data: Readonly<Record<string, unknown>>;
   readonly occurredAt: Temporal.Instant;
@@ -100,7 +100,7 @@ export interface Activity {
    * read policy allows).
    */
   list(
-    subject?: SubjectRef | null,
+    subject?: RecordRef | null,
     options?: ActivityListOptions,
   ): AsyncResult<readonly ActivityEntry[]>;
 }
@@ -114,7 +114,7 @@ function activityOf(value: unknown): ActivityEntry {
     organizationId: textOf(row["organization_id"]),
     type: textOf(row["type"]),
     actorId: optionalText(row["actor_id"]),
-    subject: optionalSubjectRefOf(row["subject_type"], row["subject_id"]),
+    subject: optionalRecordRefOf(row["subject_type"], row["subject_id"]),
     summary: optionalText(row["summary"]),
     data: isRecord(row["data"]) ? row["data"] : {},
     occurredAt: toInstant(textOf(row["occurred_at"])),

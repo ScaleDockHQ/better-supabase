@@ -1,11 +1,11 @@
 import type { SequencesEvents } from "../../blocks/sequences/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
@@ -26,7 +26,7 @@ const MEMBER_PAYLOAD = [
   "reason",
 ] as const;
 
-const EVENTS: ModuleEvents<SequencesEvents> = {
+const EVENTS: BlockSqlEvents<SequencesEvents> = {
   "sequence.saved": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
   "sequence.deleted": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
   "sequence_enrollment.created": {
@@ -55,7 +55,7 @@ const EVENTS: ModuleEvents<SequencesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     sequence: { table: "sequences", singular: "sequence", primary: true },
     sequence_enrollment: { table: "members", singular: "sequence_enrollment" },
@@ -110,7 +110,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function sequenceTables(ctx: ModuleContext): string {
+function sequenceTables(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { s, r, mail } = q;
   const sequences = q.sequences;
@@ -197,7 +197,7 @@ create policy ${name("members", "read")} on ${members} for select to authenticat
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -211,7 +211,7 @@ ${sequenceFunctions(ctx)}
 ${sequenceRunner(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_sequence", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "list_sequences", args: ["{id}", "text"], returns: "jsonb" },
@@ -246,7 +246,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SEQUENCES: ModuleDefinition = {
+export const SEQUENCES: BlockSqlDefinition = {
   internal: [
     "sequence_member_json",
     "sequence_place",

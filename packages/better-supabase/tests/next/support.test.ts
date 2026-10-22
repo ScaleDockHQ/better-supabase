@@ -68,7 +68,7 @@ function setup() {
 
   const store = memorySupportStore();
 
-  const bs = createNext(defineSupabase(schema), {
+  const bsb = createNext(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     postgres,
@@ -80,7 +80,7 @@ function setup() {
     }),
   });
 
-  return { bs, store, claims };
+  return { bsb, store, claims };
 }
 
 beforeEach(() => {
@@ -90,9 +90,9 @@ beforeEach(() => {
 
 describe("support sessions in Next.js", () => {
   it("starts, renders as the target and stops", async () => {
-    const { bs, claims } = setup();
+    const { bsb, claims } = setup();
 
-    const started = await bs.startSupport({
+    const started = await bsb.startSupport({
       targetUserId: TARGET,
       reason: "ticket 4",
     });
@@ -103,7 +103,7 @@ describe("support sessions in Next.js", () => {
       targetUserId: TARGET,
       readOnly: true,
     });
-    expect(mocks.setCookie).toHaveBeenCalledWith("bs-support", id, {
+    expect(mocks.setCookie).toHaveBeenCalledWith("bsb-support", id, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
@@ -112,11 +112,11 @@ describe("support sessions in Next.js", () => {
     });
     expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(ADMIN));
 
-    mocks.headers.set("cookie", `bs-support=${id}`);
-    const view = await bs.session();
+    mocks.headers.set("cookie", `bsb-support=${id}`);
+    const view = await bsb.session();
     expect(view.kind === "user" && view.user.id).toBe(TARGET);
     expect(supportOf(view)).toMatchObject({ sessionId: id, adminId: ADMIN });
-    const cached = await bs.cached();
+    const cached = await bsb.cached();
     expect(mocks.cacheTag).toHaveBeenCalledWith(
       sessionTag(TARGET),
       supportTag(id),
@@ -124,40 +124,40 @@ describe("support sessions in Next.js", () => {
     await cached.db.customers.findMany({ select: ["id"] }).orThrow();
     expect(claims[0]).toMatchObject({ sub: TARGET, act: { sub: ADMIN } });
 
-    const action = bs.action(
+    const action = bsb.action(
       {},
       (_input, ctx) => ctx.auth.kind === "user" && ctx.auth.user.id,
     );
 
     expect((await action(undefined)).data).toBe(TARGET);
 
-    const stopped = await bs.stopSupport();
+    const stopped = await bsb.stopSupport();
     expect(stopped).toEqual({ ok: true, data: { ended: true }, error: null });
     expect(mocks.deleteCookie).toHaveBeenCalledWith({
-      name: "bs-support",
+      name: "bsb-support",
       path: "/",
     });
     expect(mocks.updateTag).toHaveBeenCalledWith(supportTag(id));
   });
 
   it("returns the refusal as an ActionResult", async () => {
-    const { bs } = setup();
-    const refused = await bs.startSupport({ targetUserId: TARGET });
+    const { bsb } = setup();
+    const refused = await bsb.startSupport({ targetUserId: TARGET });
     expect(refused.ok).toBe(false);
     expect(refused.error?.code).toBe("SUPPORT_REASON_REQUIRED");
     expect(mocks.setCookie).not.toHaveBeenCalled();
   });
 
   it("stops without a cookie, and reports a store failure", async () => {
-    const { bs, store } = setup();
-    expect(await bs.stopSupport()).toEqual({
+    const { bsb, store } = setup();
+    expect(await bsb.stopSupport()).toEqual({
       ok: true,
       data: { ended: false },
       error: null,
     });
     store.get = () => Promise.reject(new Error("down"));
-    mocks.headers.set("cookie", "bs-support=x");
-    const failed = await bs.stopSupport();
+    mocks.headers.set("cookie", "bsb-support=x");
+    const failed = await bsb.stopSupport();
     expect(failed.ok).toBe(false);
   });
 });

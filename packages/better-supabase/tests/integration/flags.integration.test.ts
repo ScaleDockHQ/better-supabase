@@ -47,7 +47,7 @@ describe.skipIf(!live)("flags", () => {
 
   it("serves a service-role server through the API schema wrappers", async () => {
     const s = await BlockSession.open(pool);
-    const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+    const api = `bsb_api_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.install(["flags", "announcements"], {
@@ -92,7 +92,7 @@ describe.skipIf(!live)("flags", () => {
 
   it("lets platform staff manage flags through the API schema", async () => {
     const s = await BlockSession.open(pool);
-    const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+    const api = `bsb_api_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.install(["organizations", "flags"], {

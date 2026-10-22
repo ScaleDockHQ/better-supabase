@@ -1,7 +1,7 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleTableSpec,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlTableSpec,
 } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -26,7 +26,7 @@ export const RETENTION_KINDS = [
   "scim_sync_log",
 ] as const;
 
-export const RETENTION_TABLES: Readonly<Record<string, ModuleTableSpec>> = {
+export const RETENTION_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
   policies: {
     name: "retention_policies",
     columns: {
@@ -54,7 +54,7 @@ export const RETENTION_TABLES: Readonly<Record<string, ModuleTableSpec>> = {
   },
 };
 
-export const RETENTION_CONTRACT: readonly ModuleContractFunction[] = [
+export const RETENTION_CONTRACT: readonly BlockSqlContractFunction[] = [
   { name: "retention_for", args: ["text", "text"], returns: "interval" },
   { name: "retention_floor", args: ["text"], returns: "interval" },
   { name: "is_held", args: ["text", "text"], returns: "boolean" },
@@ -88,7 +88,7 @@ export const RETENTION_CONTRACT: readonly ModuleContractFunction[] = [
  * holds, which the modules' purges read through `ctx.retention` and `ctx.held`,
  * and `purge_organization` checks.
  */
-export function retentionSql(ctx: ModuleContext): string {
+export function retentionSql(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const p = ctx.table("policies");
   const h = ctx.table("holds");

@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { WorkflowGraph } from "../../src/blocks/workflow-builder/index.ts";
 import type { AutomationRef } from "../../src/core/contracts/authorization-hooks.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createWorkflowBuilder,
@@ -32,7 +32,7 @@ const EMAIL_GRAPH: WorkflowGraph = {
 
 // Admins edit and publish workflows but don't hold crm.read, which the
 // provider's operations table says the crm.lookup step needs.
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   modules: {
     access: {
       roles: {

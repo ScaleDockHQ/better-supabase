@@ -13,7 +13,7 @@ import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { importRunHooks } from "./import-run";
 import { CUSTOMER_IMPORT_FIELDS } from "./imports-fields";
@@ -87,7 +87,7 @@ export interface ImportPreview {
 }
 
 /** Validates every row against the mapping. Nothing is written. */
-export const previewCustomerImport = bs.action(
+export const previewCustomerImport = bsb.action(
   {
     input: Input,
     requireTenant: true,
@@ -121,7 +121,7 @@ export interface ImportOutcome {
  * `finish_import` is granted to the service role only, so it runs as that role
  * after the caller passed `imports.manage`.
  */
-export const runCustomerImport = bs.action(
+export const runCustomerImport = bsb.action(
   {
     input: Input,
     requireTenant: true,

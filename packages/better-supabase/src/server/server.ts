@@ -75,7 +75,7 @@ import { supportStorage } from "./support-storage.ts";
 import { endSessions, suspendAccount } from "./suspend-account.ts";
 
 /** The header `better_supabase.acting_member()` reads for a service caller. */
-const ACTOR_HEADER = "x-bs-actor";
+const ACTOR_HEADER = "x-bsb-actor";
 
 /** The environment as `getEnv` resolves it, one variable at a time. */
 const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
@@ -810,7 +810,7 @@ export function createServer<
         contextOptions.tenant ?? syncTenant(request, resolution.auth),
       ),
     admin: (context = {}, adminOptions = {}) => {
-      // `as` names the member the write is for: the `x-bs-actor` header makes
+      // `as` names the member the write is for: the `x-bsb-actor` header makes
       // `acting_member()` return it, for audit entries and `set_actor()`.
       const client =
         adminOptions.as === undefined
@@ -997,7 +997,7 @@ export function createServer<
       const call = callOf(ctx);
 
       if (call) {
-        call.context = ctx.bs;
+        call.context = ctx.bsb;
       }
 
       return Promise.resolve(new Response(null, { status: 204 }));

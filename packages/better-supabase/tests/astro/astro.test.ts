@@ -10,7 +10,7 @@ import {
   USER,
 } from "../fixtures/test-server.ts";
 
-const bs = createAstro(betterSupabase, {
+const bsb = createAstro(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
@@ -25,7 +25,7 @@ async function render(
 ): Promise<Response> {
   const context = { request, locals };
 
-  return bs.onRequest(context, () => page(context));
+  return bsb.onRequest(context, () => page(context));
 }
 
 describe("createAstro", () => {
@@ -33,10 +33,10 @@ describe("createAstro", () => {
     const response = await render(
       await requestAs({ role: "member" }),
       async (context) => {
-        expect(bs.locals(context).session).toMatchObject({
+        expect(bsb.locals(context).session).toMatchObject({
           user: { id: USER },
         });
-        const refused = await bs.guard(context, { roles: ["admin"] });
+        const refused = await bsb.guard(context, { roles: ["admin"] });
 
         return refused ?? new Response("page");
       },
@@ -46,7 +46,7 @@ describe("createAstro", () => {
 
     const anonymous = await render(
       await requestAs(undefined, { url: "https://app.test/notes" }),
-      async (context) => (await bs.guard(context)) ?? new Response("page"),
+      async (context) => (await bsb.guard(context)) ?? new Response("page"),
     );
 
     expect(anonymous.status).toBe(303);
@@ -57,7 +57,8 @@ describe("createAstro", () => {
     const allowed = await render(
       await requestAs({ role: "admin" }),
       async (context) =>
-        (await bs.guard(context, { roles: ["admin"] })) ?? new Response("page"),
+        (await bsb.guard(context, { roles: ["admin"] })) ??
+        new Response("page"),
     );
 
     expect(await allowed.text()).toBe("page");
@@ -65,10 +66,10 @@ describe("createAstro", () => {
 
   it("require returns the caller or throws the refusal", async () => {
     await render(await requestAs({ role: "member" }), async (context) => {
-      const caller = await bs.require(context);
+      const caller = await bsb.require(context);
       expect(caller.db).toBeDefined();
       await expect(
-        bs.require(context, { requireTenant: true }),
+        bsb.require(context, { requireTenant: true }),
       ).rejects.toBeInstanceOf(Response);
 
       return new Response(null);
@@ -76,7 +77,7 @@ describe("createAstro", () => {
   });
 
   it("runs Actions into ActionResults", async () => {
-    const save = bs.action({}, (input) => ok({ input }));
+    const save = bsb.action({}, (input) => ok({ input }));
     await render(await requestAs({ role: "member" }), async (context) => {
       expect(await save({ title: "Hi" }, context)).toEqual({
         ok: true,
@@ -101,7 +102,7 @@ describe("createAstro", () => {
       runtime: { env: {} },
     });
     expect(() =>
-      bs.locals({ request: new Request("https://app.test/"), locals: {} }),
+      bsb.locals({ request: new Request("https://app.test/"), locals: {} }),
     ).toThrow(/middleware.ts/);
   });
 });

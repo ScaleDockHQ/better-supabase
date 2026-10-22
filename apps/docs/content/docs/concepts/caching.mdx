@@ -68,7 +68,7 @@ Your own adapter implements one method, and `testCacheAdapter` from
 Query options from `createQueries` carry `meta: { bsTables }`. Invalidation
 is a predicate over that meta, so a write to `notes` refetches a
 `customers.findMany` that included notes, and nothing else. Keys stay
-`['bs', table, method, ...args]` for devtools and manual invalidation. See
+`['bsb', table, method, ...args]` for devtools and manual invalidation. See
 [TanStack Query](/docs/frontend/query).
 
 ## Next.js
@@ -80,14 +80,14 @@ In a cached server component, tag the data with what it touched:
 const spec = betterSupabase.spec.customers.findMany({
   include: { notes: true },
 });
-bs.cacheTags(spec); // tags customers and notes
+bsb.cacheTags(spec); // tags customers and notes
 const customers = await db.$run(spec).orThrow();
 ```
 
 Server actions and route handlers that write through `db` revalidate those
 tags automatically (`cacheTags: false` turns it off).
 
-`bs.cacheTags` also takes an array of specs or a
+`bsb.cacheTags` also takes an array of specs or a
 [read set](/docs/repository/read-sets), and tags the union of the tables
 they read.
 

@@ -15,7 +15,7 @@ import { createShareLinks } from "better-supabase/blocks/share-links";
 
 When the rate-limit module is installed, resolve is a place to apply it.
 
-`create(subject, { role, versionId, expiresAt })` takes the subject as a `SubjectRef` (`{ type, id }`) and acts in the block's `tenant`. It takes the role (`view` by default), an optional `Temporal.Instant` after which the link stops resolving and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. An `expiresAt` that is not in the future fails with `SHARE_EXPIRY_INVALID`. `resolve(token)` returns the link's id, `organizationId`, `subject` (a `SubjectRef`), role, `versionId` and `expiresAt`, or `null` when the token is unknown, revoked or expired.
+`create(subject, { role, versionId, expiresAt })` takes the subject as a `RecordRef` (`{ type, id }`) and acts in the block's `tenant`. It takes the role (`view` by default), an optional `Temporal.Instant` after which the link stops resolving and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. An `expiresAt` that is not in the future fails with `SHARE_EXPIRY_INVALID`. `resolve(token)` returns the link's id, `organizationId`, `subject` (a `RecordRef`), role, `versionId` and `expiresAt`, or `null` when the token is unknown, revoked or expired.
 
 ```ts
 const link = await shareLinks

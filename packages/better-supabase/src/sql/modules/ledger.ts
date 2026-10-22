@@ -1,11 +1,11 @@
 import type { LedgerEvents } from "../../blocks/ledger/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble } from "../shared.ts";
@@ -41,7 +41,7 @@ const HOLD_PAYLOAD = [
   "transactionId",
 ] as const;
 
-const EVENTS: ModuleEvents<LedgerEvents> = {
+const EVENTS: BlockSqlEvents<LedgerEvents> = {
   "ledger_account.opened": {
     subject: "ledger-accounts",
     payload: ACCOUNT_PAYLOAD,
@@ -63,7 +63,7 @@ const EVENTS: ModuleEvents<LedgerEvents> = {
   "ledger_hold.released": { subject: "ledger-holds", payload: HOLD_PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     ledger_account: {
       table: "accounts",
@@ -175,7 +175,7 @@ const NAMES: ModuleNames = {
  * renders them, and the upgrade steps of the modules that moved onto the ledger
  * (inventory, leave, invoices) run them before copying their old rows in.
  */
-export function ledgerTables(ctx: ModuleContext): string {
+export function ledgerTables(ctx: BlockSqlContext): string {
   const accounts = ctx.table("accounts");
   const transactions = ctx.table("transactions");
   const entries = ctx.table("entries");
@@ -289,7 +289,7 @@ create index if not exists ${name("holds", "expiry_idx")} on ${holds} (${h("expi
  * SQL that recomputes every balance of the ledger from its entries and active
  * holds, for the upgrade steps that copy rows in without the entry trigger.
  */
-export function ledgerRebalance(ctx: ModuleContext): string {
+export function ledgerRebalance(ctx: BlockSqlContext): string {
   const b = (column: string): string => ctx.col("balances", column);
   const e = (column: string): string => ctx.col("entries", column);
   const h = (column: string): string => ctx.col("holds", column);
@@ -303,7 +303,7 @@ from (
 on conflict (${b("account")}) do update set ${b("balance")} = excluded.${b("balance")}, ${b("held")} = excluded.${b("held")}, ${b("updatedAt")} = now();`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -449,7 +449,7 @@ ${tables}
 ${ledgerFunctions(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   const id = "{id}";
 
   return [
@@ -496,7 +496,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const LEDGER: ModuleDefinition = {
+export const LEDGER: BlockSqlDefinition = {
   internal: [
     "ledger_account_for",
     "ledger_post",

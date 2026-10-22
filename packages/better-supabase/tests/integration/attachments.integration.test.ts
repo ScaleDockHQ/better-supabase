@@ -13,7 +13,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const BUCKET = "bs-it-attachments";
+const BUCKET = "bsb-it-attachments";
 
 /** Signs nothing: the test stores objects through SQL as the caller. */
 const storage = (files = new Map<string, Blob>()): AttachmentStorage => ({
@@ -351,14 +351,14 @@ describe.skipIf(!live)("attachments", () => {
 
     try {
       await s.rows(
-        `create table public.bs_test_cases (
+        `create table public.bsb_test_cases (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            private boolean not null default false
          );
-         alter table public.bs_test_cases enable row level security;
-         grant select on public.bs_test_cases to authenticated;
-         create policy "read" on public.bs_test_cases for select to authenticated
+         alter table public.bsb_test_cases enable row level security;
+         grant select on public.bsb_test_cases to authenticated;
+         create policy "read" on public.bsb_test_cases for select to authenticated
            using (better_supabase.has_organization_role(organization_id) and not private);`,
       );
       await s.install(["organizations", "attachments"], {
@@ -367,7 +367,7 @@ describe.skipIf(!live)("attachments", () => {
             options: {
               bucket: BUCKET,
               requireScan: false,
-              subjects: { case: { table: "bs_test_cases" } },
+              subjects: { case: { table: "bsb_test_cases" } },
             },
           },
         },
@@ -378,7 +378,7 @@ describe.skipIf(!live)("attachments", () => {
       const organization = await s.organization(owner, { member });
 
       const [entry] = await s.rows<{ id: string }>(
-        "insert into public.bs_test_cases (organization_id) values ($1) returning id",
+        "insert into public.bsb_test_cases (organization_id) values ($1) returning id",
         [organization],
       );
 
@@ -416,7 +416,7 @@ describe.skipIf(!live)("attachments", () => {
       expect(await objects()).toBe(0);
       await s.service();
       await s.rows(
-        "update public.bs_test_cases set private = true where id = $1",
+        "update public.bsb_test_cases set private = true where id = $1",
         [entry!.id],
       );
       await s.asRole(owner);
@@ -433,13 +433,13 @@ describe.skipIf(!live)("attachments", () => {
 
     try {
       await s.rows(
-        `create table public.bs_test_notes (
+        `create table public.bsb_test_notes (
            id uuid primary key default gen_random_uuid(),
            user_id uuid not null
          );
-         alter table public.bs_test_notes enable row level security;
-         grant select on public.bs_test_notes to authenticated;
-         create policy "own" on public.bs_test_notes for select to authenticated
+         alter table public.bsb_test_notes enable row level security;
+         grant select on public.bsb_test_notes to authenticated;
+         create policy "own" on public.bsb_test_notes for select to authenticated
            using (user_id = (select auth.uid()));`,
       );
       await s.install(["organizations", "attachments"], {
@@ -448,7 +448,7 @@ describe.skipIf(!live)("attachments", () => {
             options: {
               bucket: BUCKET,
               requireScan: false,
-              subjects: { note: { table: "bs_test_notes", tenant: false } },
+              subjects: { note: { table: "bsb_test_notes", tenant: false } },
             },
           },
         },
@@ -457,7 +457,7 @@ describe.skipIf(!live)("attachments", () => {
       const bob = await s.user("bob");
 
       const [note] = await s.rows<{ id: string }>(
-        "insert into public.bs_test_notes (user_id) values ($1) returning id",
+        "insert into public.bsb_test_notes (user_id) values ($1) returning id",
         [ada.id],
       );
 
@@ -518,19 +518,19 @@ describe.skipIf(!live)("attachments", () => {
 
   it("routes subjects to their buckets and gates any bucket on a scan", async () => {
     const s = await BlockSession.open(pool);
-    const DOCS = "bs-it-docs";
-    const DRIVE = "bs-it-drive";
+    const DOCS = "bsb-it-docs";
+    const DRIVE = "bsb-it-drive";
 
     try {
       await s.rows(
-        `create table public.bs_test_tickets (
+        `create table public.bsb_test_tickets (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            private boolean not null default false
          );
-         alter table public.bs_test_tickets enable row level security;
-         grant select on public.bs_test_tickets to authenticated;
-         create policy "read" on public.bs_test_tickets for select to authenticated
+         alter table public.bsb_test_tickets enable row level security;
+         grant select on public.bsb_test_tickets to authenticated;
+         create policy "read" on public.bsb_test_tickets for select to authenticated
            using (better_supabase.has_organization_role(organization_id) and not private);
          insert into storage.buckets (id, name, public) values ('${DRIVE}', '${DRIVE}', false)
            on conflict (id) do nothing;`,
@@ -544,7 +544,7 @@ describe.skipIf(!live)("attachments", () => {
               scanBuckets: [DRIVE],
               subjects: {
                 ticket: {
-                  table: "bs_test_tickets",
+                  table: "bsb_test_tickets",
                   bucket: DOCS,
                   allowedMimeTypes: ["application/pdf"],
                   cascade: true,
@@ -559,7 +559,7 @@ describe.skipIf(!live)("attachments", () => {
       const organization = await s.organization(owner, { member });
 
       const [open, hidden] = await s.rows<{ id: string }>(
-        "insert into public.bs_test_tickets (organization_id, private) values ($1, false), ($1, true) returning id",
+        "insert into public.bsb_test_tickets (organization_id, private) values ($1, false), ($1, true) returning id",
         [organization],
       );
 
@@ -624,7 +624,7 @@ describe.skipIf(!live)("attachments", () => {
           [DOCS],
         ),
       ).toBe(true);
-      await s.rows("delete from public.bs_test_tickets where id = $1", [
+      await s.rows("delete from public.bsb_test_tickets where id = $1", [
         open!.id,
       ]);
       expect(

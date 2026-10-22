@@ -5,7 +5,7 @@ description: withBetterSupabase as an @supabase/middleware entry, framework brid
 
 ## Middleware entries
 
-`withBetterSupabase(bs)` from `better-supabase/server` is one
+`withBetterSupabase(bsb)` from `better-supabase/server` is one
 `@supabase/middleware` entry that resolves the caller (a bearer token first,
 the session cookie second), enforces a guard and contributes the caller's
 context. It composes by position with other entries, and the type checker
@@ -17,12 +17,12 @@ import { withPostgresClient } from "@supabase/server/middleware/postgres";
 import { createServer, withBetterSupabase } from "better-supabase/server";
 import { betterSupabase } from "./lib/supabase";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 
 export default {
   fetch: pipeline(
     [
-      withBetterSupabase(bs, { allow: ["user"] }),
+      withBetterSupabase(bsb, { allow: ["user"] }),
       withPostgresClient(), // ctx.postgres, raw queries as the caller
     ],
     async (req, ctx) => {
@@ -40,7 +40,7 @@ builds the server from the same options `createServer` takes.
 
 | Key          | What it holds                                                                                              |
 | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `bs`         | the request's `ServerContext`: `auth`, `db`, `actingAs`, `apply` and the rest of `server.context(request)` |
+| `bsb`        | the request's `ServerContext`: `auth`, `db`, `actingAs`, `apply` and the rest of `server.context(request)` |
 | `db`         | the caller's repositories                                                                                  |
 | `sql`        | repositories over direct Postgres when `createServer` has `postgres`, else `undefined`                     |
 | `jwtClaims`  | the verified claims, as `withSupabase` names them                                                          |
@@ -61,7 +61,7 @@ repositories over direct Postgres, pass `postgres: createPostgres()` to
 `createServer`.
 
 On the way out, the entry adds refreshed session cookies, the `no-store`
-headers and `bs-primary-until` after a write, and hands pending event sends
+headers and `bsb-primary-until` after a write, and hands pending event sends
 to `waitUntil`.
 
 | Option                   | What it does                                                                                                               |
@@ -110,7 +110,7 @@ import { createJobs } from "better-supabase/blocks/jobs";
 import { withBetterSupabase, withBlock } from "better-supabase/server";
 
 const entries = [
-  withBetterSupabase(bs, { allow: ["user"] }),
+  withBetterSupabase(bsb, { allow: ["user"] }),
   withPostgresAdminClient(),
   withBlock("jobs", (ctx: { postgresAdmin: PostgresApi }) =>
     createJobs({ sql: ctx.postgresAdmin, queues }),
@@ -205,7 +205,7 @@ since TypeScript checks the config before `pipeline` sees the array.
 
 ## Next.js proxy composition
 
-`bs.proxy(request, options)` owns the session refresh. Other middleware
+`bsb.proxy(request, options)` owns the session refresh. Other middleware
 (i18n, rewrites, A/B buckets) goes in `before` and `after` instead of
 wrapping the proxy, so cookies and forwarded request headers are merged once
 and in the right order:
@@ -213,13 +213,13 @@ and in the right order:
 ```ts title="src/proxy.ts"
 import createMiddleware from "next-intl/middleware";
 import type { NextRequest } from "next/server";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 import { routing } from "@/i18n/routing";
 
 const intl = createMiddleware(routing);
 
 export const proxy = (request: NextRequest) =>
-  bs.proxy(request, {
+  bsb.proxy(request, {
     before: intl,
     protect: (auth, req) => (auth.kind === "user" ? undefined : toLogin(req)),
     after: (response, auth) => {
@@ -286,11 +286,11 @@ until the next page load or action.
 (pinned in `SPEC_PINS.serverTiming`):
 
 ```http
-Server-Timing: bs-proxy;dur=1.4, bs-verify;dur=0.6
+Server-Timing: bsb-proxy;dur=1.4, bsb-verify;dur=0.6
 ```
 
-`bs-verify` is the session check (including a refresh when one ran),
-`bs-proxy` the whole proxy including `before`, `protect` and `after`. Browsers
+`bsb-verify` is the session check (including a refresh when one ran),
+`bsb-proxy` the whole proxy including `before`, `protect` and `after`. Browsers
 show both in the network panel. The header reveals timings only, never
 claims; leave it off in production if even that is too much.
 

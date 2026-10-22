@@ -3,7 +3,7 @@ import type { Result } from "better-supabase";
 import { dbError, err, fromProblem, isProblem, ok } from "better-supabase";
 import * as v from "valibot";
 
-import { bs, supabase } from "./supabase/client.native";
+import { bsb, supabase } from "./supabase/client.native";
 
 const CheckoutStarted = v.object({ url: v.optional(v.string()) });
 
@@ -24,13 +24,13 @@ export async function loadPlanCatalog(
   readonly current: string | undefined;
 }> {
   const [plans, subscription] = await Promise.all([
-    bs.db.plans
+    bsb.db.plans
       .findMany({
         select: ["key", "name", "price_cents"],
         orderBy: { position: "asc" },
       })
       .orThrow(),
-    bs.db.subscriptions
+    bsb.db.subscriptions
       .findFirst({
         select: ["plan_key"],
         where: { organization_id: organizationId },

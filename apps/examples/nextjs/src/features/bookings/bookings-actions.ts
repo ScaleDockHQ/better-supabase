@@ -9,7 +9,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import {
   BOOKING_PAGE_OWNER,
@@ -35,7 +35,7 @@ const notSetUp = () =>
  * service uses, a 30 minute service, weekday hours from 09:00 to 17:00, and the
  * calendar that indexes them.
  */
-export const setUpBookingPage = bs.action(
+export const setUpBookingPage = bsb.action(
   {
     input: v.object({
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
@@ -99,7 +99,7 @@ export const setUpBookingPage = bs.action(
 );
 
 /** Replaces the weekly hours of the member's own booking page. */
-export const saveWeeklyHours = bs.action(
+export const saveWeeklyHours = bsb.action(
   {
     input: v.object({
       hours: v.pipe(
@@ -145,7 +145,7 @@ export const saveWeeklyHours = bs.action(
 );
 
 /** A new public link to the member's booking page. The token shows only once. */
-export const createBookingLink = bs.action(
+export const createBookingLink = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
@@ -178,7 +178,7 @@ export const createBookingLink = bs.action(
 );
 
 /** Books a slot for a visitor of a booking link, signed in or not. */
-export const bookSlot = bs.action(
+export const bookSlot = bsb.action(
   {
     input: v.object({
       token: v.pipe(v.string(), v.regex(/^[0-9a-f]{32,128}$/)),

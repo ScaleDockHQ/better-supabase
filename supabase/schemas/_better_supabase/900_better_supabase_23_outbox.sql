@@ -1,5 +1,5 @@
--- better-supabase module: outbox (0.9.0)
--- @bs-module outbox@5 managed
+-- better-supabase module: outbox
+-- @bsb-block outbox@5 managed
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -476,15 +476,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists "bs_outbox_events" on %s', target);
-  execute format('drop trigger if exists "bs_outbox_events_update" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events_update" on %s', target);
   execute format(
-    'create trigger "bs_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
   -- jsonb, not the row: a row comparison fails on columns without equality (json).
   execute format(
-    'create trigger "bs_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;
@@ -581,13 +581,13 @@ revoke execute on function "api"."purge_outbox"(interval, integer, interval) fro
 grant execute on function "api"."purge_outbox"(interval, integer, interval) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

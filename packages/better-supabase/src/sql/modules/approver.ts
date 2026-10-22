@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
@@ -46,8 +46,8 @@ export interface ApproverCheck {
  * its built-in approver.
  */
 export function approverCheck(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
   request: ApprovalRequestSql,
 ): ApproverCheck | undefined {
   const provider = layout.accessProvider;

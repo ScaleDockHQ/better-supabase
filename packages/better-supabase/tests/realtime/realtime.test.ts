@@ -173,10 +173,10 @@ describe("defineTopic", () => {
   it("generates policies with tenant and owner checks", () => {
     const sql = notifications.sql();
     expect(sql).toContain(
-      'create policy "bs_topic_organization_notifications_receive" on realtime.messages for select to authenticated',
+      'create policy "bsb_topic_organization_notifications_receive" on realtime.messages for select to authenticated',
     );
     expect(sql).toContain(
-      'create policy "bs_topic_organization_notifications_send" on realtime.messages for insert to authenticated',
+      'create policy "bsb_topic_organization_notifications_send" on realtime.messages for insert to authenticated',
     );
     expect(sql).toContain(
       "(select realtime.topic()) ~ '^organization:[^:]+:notifications:[^:]+$'",
@@ -252,13 +252,13 @@ describe("defineTopic", () => {
 
     expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
-      'create or replace function "better_supabase"."bs_broadcast_organization_customers_public_customers"()',
+      'create or replace function "better_supabase"."bsb_broadcast_organization_customers_public_customers"()',
     );
     expect(sql).toContain(
       `vals := jsonb_build_object('organizationId', (rec."organization_id")::text);`,
     );
     expect(sql).toContain(
-      'create trigger "bs_broadcast_organization_customers" after insert or update or delete on "public"."customers"',
+      'create trigger "bsb_broadcast_organization_customers" after insert or update or delete on "public"."customers"',
     );
   });
 
@@ -862,7 +862,7 @@ describe("defineTopic policies", () => {
       "realtime.messages.extension in ('broadcast', 'presence')",
     );
     expect(sql).toContain(
-      '"bs_topic_room_send" on realtime.messages for insert',
+      '"bsb_topic_room_send" on realtime.messages for insert',
     );
   });
 });
@@ -935,7 +935,7 @@ describe("trigger with betterSupabase", () => {
       "jsonb_build_object('old_record', old, 'record', new, 'operation', tg_op, 'table', tg_table_name, 'schema', tg_table_schema)",
     );
     expect(sql).toContain(
-      `comment on function "better_supabase"."bs_broadcast_organization_customers_public_customers"() is 'better-supabase: payload row';`,
+      `comment on function "better_supabase"."bsb_broadcast_organization_customers_public_customers"() is 'better-supabase: payload row';`,
     );
   });
 
@@ -1090,10 +1090,10 @@ describe("trigger with betterSupabase", () => {
     });
 
     expect(sql).toContain(
-      'create or replace function "private"."bs_broadcast_organization_customers_public_customers"()',
+      'create or replace function "private"."bsb_broadcast_organization_customers_public_customers"()',
     );
     expect(sql).toContain(
-      'create trigger "bs_broadcast_organization_customers" after insert on "public"."customers"',
+      'create trigger "bsb_broadcast_organization_customers" after insert on "public"."customers"',
     );
   });
 
@@ -1318,8 +1318,8 @@ describe("trigger", () => {
     expect(quotes.trigger("quotes", { event: "quote.changed" })).toBe(
       [
         "-- better-supabase: broadcast public.quotes changes to organization:{organizationId}:quotes",
-        'drop trigger if exists "bs_broadcast_organization_quotes" on "public"."quotes";',
-        'create trigger "bs_broadcast_organization_quotes" after insert or update or delete on "public"."quotes"',
+        'drop trigger if exists "bsb_broadcast_organization_quotes" on "public"."quotes";',
+        'create trigger "bsb_broadcast_organization_quotes" after insert or update or delete on "public"."quotes"',
         "  for each row execute function better_supabase.broadcast_topic('organization:{organizationId=organization_id}:quotes', 'quote.changed');",
         "",
       ].join("\n"),
@@ -1359,7 +1359,7 @@ describe("trigger", () => {
     });
 
     expect(sql).toContain(
-      'create or replace function "better_supabase"."bs_broadcast_board_public_cards"()',
+      'create or replace function "better_supabase"."bsb_broadcast_board_public_cards"()',
     );
     expect(sql).toContain(
       `vals := jsonb_build_object('boardId', (rec."board_id")::text);`,
@@ -1394,7 +1394,7 @@ describe("trigger", () => {
     });
 
     expect(sql).toContain(
-      'create or replace function "better_supabase"."bs_broadcast_org_inbox_inbox_messages"()',
+      'create or replace function "better_supabase"."bsb_broadcast_org_inbox_inbox_messages"()',
     );
     expect(sql).toContain(
       `select j."org_id", j."owner" into lk_0 from "inbox"."threads" j where j."id" = rec."thread_id" limit 1;`,
@@ -1429,13 +1429,13 @@ describe("trigger", () => {
     const crmSql = board.trigger("crm.items", options);
 
     expect(publicSql).toContain(
-      '"better_supabase"."bs_broadcast_board_public_items"()',
+      '"better_supabase"."bsb_broadcast_board_public_items"()',
     );
     expect(crmSql).toContain(
-      '"better_supabase"."bs_broadcast_board_crm_items"()',
+      '"better_supabase"."bsb_broadcast_board_crm_items"()',
     );
-    expect(publicSql).toContain('create trigger "bs_broadcast_board"');
-    expect(crmSql).toContain('create trigger "bs_broadcast_board"');
+    expect(publicSql).toContain('create trigger "bsb_broadcast_board"');
+    expect(crmSql).toContain('create trigger "bsb_broadcast_board"');
   });
 
   it("rejects a value for no placeholder and a column with braces", () => {

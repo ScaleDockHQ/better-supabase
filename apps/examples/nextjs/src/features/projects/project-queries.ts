@@ -8,7 +8,7 @@ import * as v from "valibot";
 import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
 import { projectRecord } from "@/lib/supabase/features/project/project-server";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type {
   MemberOption,
@@ -96,7 +96,7 @@ export async function getTasks(
   query: Pick<TaskQuery, "q" | "status" | "projectId">,
 ): Promise<readonly TaskRow[] | null> {
   "use cache: private";
-  const { session, db } = await bs.cached();
+  const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
@@ -119,7 +119,7 @@ export async function getProjectOptions(): Promise<
   readonly ProjectOption[] | null
 > {
   "use cache: private";
-  const { session, db } = await bs.cached();
+  const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
@@ -149,7 +149,7 @@ export async function getProject(
   id: string,
 ): Promise<ProjectRecord | undefined | null> {
   "use cache: private";
-  const { session, db } = await bs.cached();
+  const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
@@ -206,7 +206,7 @@ export async function getProjectHistory(
       sections: ["versions"],
       options: { versions: { pageSize: HISTORY_LIMIT } },
     }),
-    bs.cached(),
+    bsb.cached(),
   ]);
 
   const tenant = tenantOf(session);
@@ -250,7 +250,7 @@ export async function getTaskViews(): Promise<
   readonly TaskViewOption[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

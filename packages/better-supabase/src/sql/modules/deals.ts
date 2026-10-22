@@ -1,11 +1,11 @@
 import type { DealsEvents } from "../../blocks/deals/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { DealNames } from "./deals-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -33,7 +33,7 @@ const DEAL = [
   "name",
 ] as const;
 
-const EVENTS: ModuleEvents<DealsEvents> = {
+const EVENTS: BlockSqlEvents<DealsEvents> = {
   "deal.created": { subject: "deals", payload: [...DEAL] },
   "deal.updated": { subject: "deals", payload: [...DEAL, "fields"] },
   "deal.closed": {
@@ -45,7 +45,7 @@ const EVENTS: ModuleEvents<DealsEvents> = {
   "deal.deleted": { subject: "deals", payload: [...DEAL] },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     deal: {
       table: "deals",
@@ -154,7 +154,7 @@ const NAMES: ModuleNames = {
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 
 function names(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   option: "motions" | "priorities",
   fallback: readonly string[],
 ): string {
@@ -169,7 +169,7 @@ function names(
   return `${sqlString(`{${list.join(",")}}`)}::text[]`;
 }
 
-function tables(ctx: ModuleContext, n: DealNames): string {
+function tables(ctx: BlockSqlContext, n: DealNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -283,7 +283,7 @@ using (${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.re
  * stays, and an outcome change stamps or clears closed_at and records
  * deal.closed or deal.reopened.
  */
-function guard(ctx: ModuleContext, n: DealNames): string {
+function guard(ctx: BlockSqlContext, n: DealNames): string {
   const { t, c } = n;
   const d = (column: string): string => c("deals", column);
 
@@ -345,7 +345,7 @@ function guard(ctx: ModuleContext, n: DealNames): string {
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join("\n      or ");
 
-  const guardName = ctx.naming.rename("bs_deal_guard");
+  const guardName = ctx.naming.rename("bsb_deal_guard");
 
   return `
 create or replace function better_supabase.${guardName}()
@@ -404,7 +404,7 @@ for each row execute function better_supabase.${guardName}();
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -435,7 +435,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${guard(ctx, n)}${dealFunctions(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "create_deal", args: ["{id}", "jsonb", "jsonb"], returns: "jsonb" },
     { name: "update_deals", args: ["jsonb"], returns: "jsonb" },
@@ -455,7 +455,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const DEALS: ModuleDefinition = {
+export const DEALS: BlockSqlDefinition = {
   name: "deals",
   scopes: ["tenant"],
   title: "Deals",

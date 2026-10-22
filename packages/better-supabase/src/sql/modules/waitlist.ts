@@ -1,11 +1,11 @@
 import type { WaitlistEvents } from "../../blocks/waitlist/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -30,7 +30,7 @@ import {
 } from "./access-model.ts";
 import { roleValue } from "./organizations-roles.ts";
 
-const EVENTS: ModuleEvents<WaitlistEvents> = {
+const EVENTS: BlockSqlEvents<WaitlistEvents> = {
   "waitlist.approved": {
     subject: "waitlist-entries",
     payload: ["entryId", "email"],
@@ -53,7 +53,7 @@ const EVENTS: ModuleEvents<WaitlistEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["defaultRole", "codeField", "roles", "extraColumns"],
   tables: {
@@ -106,7 +106,7 @@ const FIELD = /^[a-z][a-z0-9_]{0,62}$/;
  * models the roles are not in the config, so codes grant none unless
  * `options.roles` lists them.
  */
-function assignableRoles(ctx: ModuleContext): readonly string[] {
+function assignableRoles(ctx: BlockSqlContext): readonly string[] {
   const owner = ctx.installed("organizations")
     ? ctx.of("organizations").text("ownerRole", "owner")
     : "owner";
@@ -132,7 +132,7 @@ function assignableRoles(ctx: ModuleContext): readonly string[] {
   return roleNames(ctx).filter((role) => role !== owner);
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -594,7 +594,7 @@ grant execute on function ${fn("redeem_for")}(text, uuid) to service_role;
 grant execute on function ${fn("redeem_invite_code")}(text) to authenticated, service_role;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "join_waitlist",
@@ -629,7 +629,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const WAITLIST: ModuleDefinition = {
+export const WAITLIST: BlockSqlDefinition = {
   name: "waitlist",
   scopes: ["tenant"],
   title: "Waitlist and invite codes",

@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { raise, schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
@@ -16,7 +16,7 @@ const ENTRIES = {
   expiresAt: "expires_at",
 } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["maxTtl", "maxBytes"],
   tables: {
     entries: {
@@ -27,7 +27,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const e = columnsOf(ctx, "entries", ENTRIES);
@@ -169,7 +169,7 @@ $$;
 ${serviceGrant(`${fn("purge_ai_cache")}(integer)`)}`;
 }
 
-export const AI_CACHE: ModuleDefinition = {
+export const AI_CACHE: BlockSqlDefinition = {
   name: "ai-cache",
   title: "AI response cache",
   description:

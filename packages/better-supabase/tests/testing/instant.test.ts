@@ -83,8 +83,8 @@ function fakePage(
       url: () => `https://app.test${path}`,
       request: () => ({ headers: () => ({}) }),
       headers: () => ({
-        "x-bs-request-id": id,
-        "x-bs-stats": `/api/bs-stats?id=${id}`,
+        "x-bsb-request-id": id,
+        "x-bsb-stats": `/api/bsb-stats?id=${id}`,
       }),
       finished: () => Promise.resolve(null),
     });
@@ -231,6 +231,6 @@ describe("expectInstant", () => {
         maxCalls: 0,
         settleMs: 10,
       }),
-    ).rejects.toThrow(/no response carried x-bs-request-id/);
+    ).rejects.toThrow(/no response carried x-bsb-request-id/);
   });
 });

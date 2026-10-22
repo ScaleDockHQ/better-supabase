@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { MailNames } from "./mail-sync.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -22,7 +22,7 @@ const internal = (signature: string): string =>
  * Links a thread to the people whose address is on one of its messages, the
  * companies they work at and, with `matchDomains`, companies by domain.
  */
-function matchSql(ctx: ModuleContext, n: MailNames): string {
+function matchSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, m, l } = n;
   const parties = ctx.of("parties");
   const person = parties.naming.rename("person");
@@ -89,7 +89,7 @@ ${internal(`${fn("match_mail_thread")}(uuid)`)}
  * Logs a thread of a mailbox that shares with records as one engagement on its
  * records, updated in place as messages arrive.
  */
-function engagementSql(ctx: ModuleContext, n: MailNames): string {
+function engagementSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
   const log = ctx.of("engagements").fn("log_engagement");
 
@@ -224,7 +224,7 @@ ${internal(`${fn("store_mail_message")}(uuid, jsonb)`)}
 `;
 }
 
-function accountSql(ctx: ModuleContext, n: MailNames): string {
+function accountSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a } = n;
 
   const record = (event: string, row: string): string =>
@@ -430,7 +430,7 @@ ${serviceGrant(`${fn("set_mail_account_status")}(uuid, text, text)`)}
 `;
 }
 
-function messageSql(ctx: ModuleContext, n: MailNames): string {
+function messageSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
 
   const subjects = (thread: string): string =>
@@ -622,7 +622,7 @@ ${userGrant(`${fn("unlink_mail_thread")}(uuid, text, text)`)}
 `;
 }
 
-function readSql(ctx: ModuleContext, n: MailNames): string {
+function readSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, m, l } = n;
 
   const row = (alias: string): string =>
@@ -693,7 +693,7 @@ ${userGrant(`${fn("get_mail_thread")}(uuid)`)}
 }
 
 /** Opens and clicks on tracked messages, and the stats per template version. */
-function trackingSql(ctx: ModuleContext, n: MailNames): string {
+function trackingSql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, m, l, k, e } = n;
 
   const record = (event: string, url: string, key: string): string =>
@@ -798,7 +798,7 @@ ${userGrant(`${fn("mail_template_stats")}(${ctx.idType}, timestamptz)`)}
 }
 
 /** The mail-sync module's functions, after its tables. */
-export function mailSyncFunctions(ctx: ModuleContext, n: MailNames): string {
+export function mailSyncFunctions(ctx: BlockSqlContext, n: MailNames): string {
   return [
     storeSql(n),
     ctx.installed("parties") ? matchSql(ctx, n) : "",

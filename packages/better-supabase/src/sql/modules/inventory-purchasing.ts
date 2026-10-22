@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, userGrant } from "../shared.ts";
@@ -28,7 +28,7 @@ function linesCheck(lines: string, key: string, extra = ""): string {
 
 /** Raises unless every line's `variantId` is a variant of the tenant. */
 function linesVariantCheck(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   lines: string,
   tenant: string,
 ): string {
@@ -44,7 +44,7 @@ function linesVariantCheck(
 }
 
 export function transferFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
   if (!ctx.hasTable("transfers") || !ctx.hasTable("transferLines")) {
@@ -195,7 +195,7 @@ ${userGrant(`${fn("cancel_transfer")}(uuid)`)}
 }
 
 export function purchaseOrderFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: InventoryNames,
 ): string {
   if (!ctx.hasTable("purchaseOrders") || !ctx.hasTable("purchaseOrderLines")) {

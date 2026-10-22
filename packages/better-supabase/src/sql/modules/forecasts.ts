@@ -1,11 +1,11 @@
 import type { ForecastsEvents } from "../../blocks/forecasts/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   fail,
@@ -17,7 +17,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<ForecastsEvents> = {
+const EVENTS: BlockSqlEvents<ForecastsEvents> = {
   "forecast.snapshotted": {
     subject: "forecast-snapshots",
     payload: [
@@ -32,7 +32,7 @@ const EVENTS: ModuleEvents<ForecastsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     snapshot: {
       table: "snapshots",
@@ -93,7 +93,7 @@ interface ForecastNames {
   readonly snapshot: string;
 }
 
-function names(ctx: ModuleContext): ForecastNames {
+function names(ctx: BlockSqlContext): ForecastNames {
   const keys = moduleOperations("forecasts");
   const deals = ctx.of("deals");
   const pipelines = ctx.of("pipelines");
@@ -113,7 +113,7 @@ function names(ctx: ModuleContext): ForecastNames {
   };
 }
 
-function tables(ctx: ModuleContext, n: ForecastNames): string {
+function tables(ctx: BlockSqlContext, n: ForecastNames): string {
   const { t, s, sd, p } = n;
   const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
 
@@ -160,7 +160,7 @@ using (${ctx.scope.check(sd("tenant"), n.read)});
 `;
 }
 
-function functions(ctx: ModuleContext, n: ForecastNames): string {
+function functions(ctx: BlockSqlContext, n: ForecastNames): string {
   const { fn, t, s, sd, d, p } = n;
 
   const json = (row: string): string =>
@@ -356,7 +356,7 @@ ${userGrant(`${fn("forecast_changes")}(uuid, uuid)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const n = names(ctx);
 
   return `${schemaPreamble(ctx)}
@@ -365,7 +365,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${functions(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "take_forecast_snapshot",
@@ -382,7 +382,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const FORECASTS: ModuleDefinition = {
+export const FORECASTS: BlockSqlDefinition = {
   name: "forecasts",
   scopes: ["tenant"],
   title: "Forecasts",

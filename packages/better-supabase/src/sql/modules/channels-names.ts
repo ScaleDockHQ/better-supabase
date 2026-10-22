@@ -1,6 +1,10 @@
 import type { ChannelsEvents } from "../../blocks/channels/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleOperations } from "./access-model.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlOperations } from "./access-model.ts";
 import type { MessagingSql } from "./messaging-names.ts";
 
 import { moduleOperations } from "./access-model.ts";
@@ -17,12 +21,12 @@ const CHANNEL = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents<ChannelsEvents> = {
+const EVENTS: BlockSqlEvents<ChannelsEvents> = {
   "channel.created": { subject: "channels", payload: [...CHANNEL] },
   "channel.updated": { subject: "channels", payload: [...CHANNEL] },
 };
 
-export const CHANNELS_NAMES: ModuleNames = {
+export const CHANNELS_NAMES: BlockSqlNames = {
   events: EVENTS,
   entities: {
     channel: {
@@ -57,11 +61,11 @@ export const CHANNELS_NAMES: ModuleNames = {
   },
 };
 
-type Action = keyof ModuleOperations<"channels">;
+type Action = keyof BlockSqlOperations<"channels">;
 
 /** The helpers the channels SQL shares, over the messaging ones. */
 export interface ChannelsSql {
-  readonly ctx: ModuleContext;
+  readonly ctx: BlockSqlContext;
   readonly m: MessagingSql;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
@@ -78,7 +82,7 @@ export interface ChannelsSql {
   readonly e: (name: string) => string;
 }
 
-export function channelsSql(ctx: ModuleContext): ChannelsSql {
+export function channelsSql(ctx: BlockSqlContext): ChannelsSql {
   const permissions = moduleOperations("channels");
   const messaging = ctx.of("messaging");
 

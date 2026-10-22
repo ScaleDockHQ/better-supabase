@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** The flags `src/flags.ts` defines. */
 const FLAG_KEYS = ["beta-page", "pricing-banner"] as const;
@@ -47,7 +47,7 @@ type FlagValues =
  */
 async function loadFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

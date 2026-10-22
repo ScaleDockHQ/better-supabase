@@ -1,11 +1,11 @@
 import type { DocumentsEvents } from "../../blocks/documents/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -40,7 +40,7 @@ const SUGGESTION_PAYLOAD = [
   "status",
 ] as const;
 
-const EVENTS: ModuleEvents<DocumentsEvents> = {
+const EVENTS: BlockSqlEvents<DocumentsEvents> = {
   "document.created": {
     subject: "documents",
     payload: ["organizationId", "subjectType", "subjectId", "id", "name"],
@@ -58,7 +58,7 @@ const EVENTS: ModuleEvents<DocumentsEvents> = {
 
 const SUGGESTION_STATUSES = ["open", "accepted", "rejected", "withdrawn"];
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     document: {
       table: "documents",
@@ -133,7 +133,7 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.topic`: the realtime topic prefix, `documents` by default. */
-function documentsTopic(ctx: ModuleContext): string {
+function documentsTopic(ctx: BlockSqlContext): string {
   const topic = ctx.text("topic", "documents");
 
   if (!TOPIC.test(topic)) {
@@ -148,7 +148,7 @@ function documentsTopic(ctx: ModuleContext): string {
 const b64 = (bytes: string): string =>
   `replace(encode(${bytes}, 'base64'), E'\\n', '')`;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -827,7 +827,7 @@ ${subjectCascades(ctx, subjects, `delete from ${documents} d where d.${c("subjec
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "open_document",
@@ -848,7 +848,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const DOCUMENTS: ModuleDefinition = {
+export const DOCUMENTS: BlockSqlDefinition = {
   internal: ["document_updates_after"],
   name: "documents",
   scopes: ["tenant"],

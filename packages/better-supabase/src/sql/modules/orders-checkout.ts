@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import {
@@ -32,7 +32,7 @@ const SETTLED = "('succeeded', 'failed', 'canceled')";
  * `order_json(order)`: the order with its lines, payments, fulfillments,
  * returns and refunds.
  */
-function orderJson(ctx: ModuleContext, names: OrdersNames): string {
+function orderJson(ctx: BlockSqlContext, names: OrdersNames): string {
   const o = columns(ctx, "orders");
   const ol = columns(ctx, "orderLines");
   const p = columns(ctx, "payments");
@@ -104,7 +104,7 @@ revoke execute on function ${names.fn("order_json")}(uuid) from public, anon, au
 }
 
 /** The SQL that reserves each tracked line's stock at the best location. */
-function reserveLines(ctx: ModuleContext, minutes: number): string {
+function reserveLines(ctx: BlockSqlContext, minutes: number): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
@@ -150,7 +150,7 @@ function reserveLines(ctx: ModuleContext, minutes: number): string {
  * paid. An expired hold is released and the stock taken directly; a line the
  * stock can't cover any more is marked backordered.
  */
-function commitLines(ctx: ModuleContext): string {
+function commitLines(ctx: BlockSqlContext): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
@@ -179,7 +179,7 @@ function commitLines(ctx: ModuleContext): string {
     end loop;`;
 }
 
-function releaseLines(ctx: ModuleContext): string {
+function releaseLines(ctx: BlockSqlContext): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
@@ -197,7 +197,7 @@ function releaseLines(ctx: ModuleContext): string {
 }
 
 export function checkoutFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: OrdersNames,
 ): string {
   const { fn } = names;

@@ -248,7 +248,7 @@ The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `rem
 
 ## Vue
 
-`better-supabase/blocks/rules/vue` exports `useRuleBuilder`. It takes the options of `createRuleBuilderController` with a `client` from `createRules`; `auth` and `ports` come from `app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
+`better-supabase/blocks/rules/vue` exports `useRuleBuilder`. It takes the options of `createRuleBuilderController` with a `client` from `createRules`; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
@@ -276,7 +276,7 @@ const { state, actions } = useRuleBuilder({
 
 ## Svelte
 
-`better-supabase/blocks/rules/svelte` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `setBetterSupabase(bs)` unless you pass them. The hook returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
+`better-supabase/blocks/rules/svelte` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them. The hook returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
@@ -302,7 +302,7 @@ const { state, actions } = useRuleBuilder({
 
 ## Solid
 
-`better-supabase/blocks/rules/solid` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
+`better-supabase/blocks/rules/solid` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
 
 ```tsx title="Component.tsx"
 import { useSupabase } from "better-supabase/solid";

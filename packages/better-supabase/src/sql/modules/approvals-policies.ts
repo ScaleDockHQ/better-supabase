@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -213,7 +213,7 @@ export function policyOf(
 
 /** `options.policies`: subject type, then action, then the policy. */
 export function approvalPolicies(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly ApprovalPolicy[] {
   const raw = ctx.option("policies");
 
@@ -271,7 +271,7 @@ ${policies
 
 /** Throws when a policy runs a transition or queue whose module is missing. */
 export function validateRuns(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   policies: readonly ApprovalPolicy[],
 ): void {
   for (const policy of policies) {

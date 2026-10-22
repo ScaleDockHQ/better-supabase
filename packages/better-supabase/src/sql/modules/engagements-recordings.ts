@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import {
   fail,
@@ -66,7 +66,7 @@ export const RECORDING_TABLES = {
 } as const;
 
 /** Whether `blocks.engagements.options.recordings` is on. */
-export const recordingsOn = (ctx: ModuleContext): boolean =>
+export const recordingsOn = (ctx: BlockSqlContext): boolean =>
   ctx.flag("recordings", false);
 
 /**
@@ -74,7 +74,7 @@ export const recordingsOn = (ctx: ModuleContext): boolean =>
  * and notes an AI or a member writes about an engagement.
  */
 export function recordingsSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   helpers: {
     /** Whether the caller can edit the engagement row `alias`. */
     readonly editable: (alias: string) => string;
@@ -479,7 +479,7 @@ ${userGrant(`${fn("engagement_notes")}(uuid)`)}
 }
 
 /** The functions `options.recordings` adds. */
-export function recordingsContract(): readonly ModuleContractFunction[] {
+export function recordingsContract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "attach_engagement_recording",

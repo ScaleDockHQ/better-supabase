@@ -1,5 +1,5 @@
 -- better-supabase module: attachments
--- @bs-module-data attachments
+-- @bsb-block-data attachments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -9,7 +9,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do nothing;
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('attachments', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

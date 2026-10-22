@@ -20,7 +20,7 @@ import {
 
 `options.ruleFormat` is `rrule` (the default) or `columns`. The columns format maps `frequency`, `interval_count`, `week_days`, `month_day`, `month_weekday` and `month_ordinal`.
 
-`reminders.save(subject, offsetMinutes)` sets a reminder for the caller, `reminders.list(subject)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The subject is a `SubjectRef`, such as `{ type: "task", id: taskId }`, and `save` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
+`reminders.save(subject, offsetMinutes)` sets a reminder for the caller, `reminders.list(subject)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The subject is a `RecordRef`, such as `{ type: "task", id: taskId }`, and `save` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
 
 `expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
 
@@ -57,7 +57,7 @@ no such policy, it uses `subjectReaders`, so a user who lost read access to
 the subject stops getting its reminders:
 
 ```ts
-createReminders({ ...context, authorization: bs.authorization });
+createReminders({ ...context, authorization: bsb.authorization });
 ```
 
 `reminder.sent` carries `organizationId`, `id`, `subjectType`, `subjectId`

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { raise } from "../shared.ts";
@@ -9,7 +9,7 @@ import { roleNameFrom, roleThrough } from "./tenant.ts";
  * The tenant column of a roles table with tenant custom roles: the
  * `roleThrough` table's `tenant`, or the catalog's mapped `roles.tenant`.
  */
-function rolesTenantColumn(ctx: ModuleContext): string | undefined {
+function rolesTenantColumn(ctx: BlockSqlContext): string | undefined {
   const through = roleThrough(ctx.of("tenant"));
 
   if (through) {
@@ -34,7 +34,7 @@ function rolesTenantColumn(ctx: ModuleContext): string | undefined {
  * tenant's role. Nothing without a tenant or a tenant column.
  */
 export function tenantRoleScope(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenant: string | undefined,
 ): { readonly where: string; readonly order: string } {
   const column = rolesTenantColumn(ctx);
@@ -56,7 +56,7 @@ export function tenantRoleScope(
  * keeps to the rows its `where` accepts unless `tenantRoles` is false.
  */
 export function roleValue(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   expr: string,
   tenant?: string,
   tenantRoles = true,
@@ -91,7 +91,7 @@ export function roleValue(
  * A stored membership role as `can_assign` takes it: the role name with
  * `blocks.tenant.options.roleThrough`, the stored value otherwise.
  */
-export function assignableRole(ctx: ModuleContext, stored: string): string {
+export function assignableRole(ctx: BlockSqlContext, stored: string): string {
   const tenant = ctx.of("tenant");
 
   return roleThrough(tenant) ? roleNameFrom(tenant, stored) : `${stored}::text`;
@@ -99,7 +99,7 @@ export function assignableRole(ctx: ModuleContext, stored: string): string {
 
 /** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
 export function checkRole(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   expr: string,
   tenant: string,
 ): string {

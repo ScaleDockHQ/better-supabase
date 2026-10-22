@@ -63,8 +63,8 @@ as $$
   )
 $$;
 
-drop policy if exists bs_memberships_read on better_supabase.memberships;
-create policy bs_memberships_read on better_supabase.memberships
+drop policy if exists bsb_memberships_read on better_supabase.memberships;
+create policy bsb_memberships_read on better_supabase.memberships
   for select to authenticated
   using (user_id = (select auth.uid()) or org_id in (select better_supabase.member_org_ids()));
 

@@ -93,7 +93,7 @@ export interface BetterSvelteKit<
   readonly Locals: FrameworkLocals<M, F, E, C, P, B>;
   /**
    * The `handle` hook: verifies the caller, refreshes the session cookie on
-   * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and the
+   * navigations and form posts, and puts `db`, `bsb`, `auth`, `tenant` and the
    * serializable `session` on `event.locals`.
    */
   readonly handle: SvelteKitHandle<Partial<FrameworkLocals<M, F, E, C, P, B>>>;
@@ -103,7 +103,7 @@ export interface BetterSvelteKit<
    *
    * ```ts
    * export const load = async (event) => {
-   *   const { db, tenant } = await bs.require(event, {
+   *   const { db, tenant } = await bsb.require(event, {
    *     requireTenant: true,
    *   });
    *   return { customers: await db.customers.findMany().orThrow() };
@@ -151,7 +151,7 @@ export interface BetterSvelteKit<
    */
   handleError(input: { readonly error: unknown }): SvelteKitAppError;
   /**
-   * Registers `bs:<table>` dependencies, so `invalidate(tagFor(table))` reruns
+   * Registers `bsb:<table>` dependencies, so `invalidate(tagFor(table))` reruns
    * the load.
    */
   depends(load: SvelteKitDepends, ...tables: readonly string[]): void;
@@ -180,13 +180,13 @@ export function createSvelteKit<
   const localsFrom = (event: SvelteKitRequestEvent): Locals => {
     const locals: Partial<Locals> = event.locals;
 
-    if (!locals.bs) {
+    if (!locals.bsb) {
       throw new TypeError(
-        "better-supabase: no context on event.locals; export handle = bs.handle from hooks.server.ts",
+        "better-supabase: no context on event.locals; export handle = bsb.handle from hooks.server.ts",
       );
     }
 
-    // SAFETY: handle wrote every key of Locals when it wrote bs.
+    // SAFETY: handle wrote every key of Locals when it wrote bsb.
     return locals as Locals;
   };
 
@@ -239,7 +239,7 @@ export function createSvelteKit<
         const locals = localsFrom(event);
 
         const caller = await requireCaller(
-          locals.bs.auth,
+          locals.bsb.auth,
           requireOptions,
           locals.tenant,
           options.authorizer,
@@ -260,7 +260,7 @@ export function createSvelteKit<
           const input = await actionInput(event.request);
 
           const result = await runAction(
-            locals.bs.auth,
+            locals.bsb.auth,
             actionOptions,
             input,
             locals.tenant,
@@ -298,9 +298,9 @@ export function createSvelteKit<
       },
 
       depends(load, ...tables) {
-        // The same tag as tagFor(table), spelled out for the `bs:${string}` type.
+        // The same tag as tagFor(table), spelled out for the `bsb:${string}` type.
         for (const table of tables) {
-          load.depends(`bs:${table}`);
+          load.depends(`bsb:${table}`);
         }
       },
     },

@@ -1,6 +1,10 @@
 import type { ConnectorsEvents } from "../../blocks/connectors/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -65,7 +69,7 @@ const FINGERPRINTS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents<ConnectorsEvents> = {
+const EVENTS: BlockSqlEvents<ConnectorsEvents> = {
   "connector.saved": {
     subject: "organizations",
     payload: ["organizationId", "serverId", "name"],
@@ -88,7 +92,7 @@ const EVENTS: ModuleEvents<ConnectorsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["allowHttp", "trustFirstUse", "sessionTtl", "extraColumns"],
   tables: {
@@ -127,7 +131,7 @@ const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
  */
 const RESERVED = ["fields", "grant"] as const;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const v = columnsOf(ctx, "servers", SERVERS);
@@ -624,7 +628,7 @@ $$;
 ${serviceGrant(`${fn("purge_connector_sessions")}()`)}`;
 }
 
-export const CONNECTORS: ModuleDefinition = {
+export const CONNECTORS: BlockSqlDefinition = {
   name: "connectors",
   scopes: ["tenant"],
   title: "Connectors",

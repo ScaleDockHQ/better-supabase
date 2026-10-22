@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   profiles: {
@@ -98,10 +98,10 @@ describe("profiles module", () => {
       'new."active_organization_id" is distinct from old."active_organization_id"',
     );
     expect(sql).toContain(
-      'create trigger "bs_profile_sync" after insert on auth.users',
+      'create trigger "bsb_profile_sync" after insert on auth.users',
     );
     expect(sql).toContain(
-      'create trigger "bs_profile_email" after update of email on auth.users',
+      'create trigger "bsb_profile_email" after update of email on auth.users',
     );
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
@@ -137,7 +137,7 @@ describe("profiles module", () => {
       `left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_]+', '', 'g'), 26)`,
     );
     expect(sql).toContain(
-      'drop trigger if exists "bs_profile_sync" on auth.users;',
+      'drop trigger if exists "bsb_profile_sync" on auth.users;',
     );
     expect(sql).toContain(
       `to_regprocedure('"public"."create_contact_profile"(uuid)')`,
@@ -147,7 +147,7 @@ describe("profiles module", () => {
   });
 
   it("adds extra columns and a members read policy", () => {
-    const sql = renderModules(["tenant", "profiles"], {
+    const sql = renderBlocks(["tenant", "profiles"], {
       modules: {
         profiles: {
           options: {
@@ -243,11 +243,11 @@ describe("profiles module", () => {
     expect(sql).toContain(
       'grant update ("full_name", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
-    expect(sql).toContain('drop trigger if exists "bs_profile_guard"');
+    expect(sql).toContain('drop trigger if exists "bsb_profile_guard"');
     expect(sql).not.toContain('allocate_username"(coalesce');
     expect(sql).not.toContain("split_part(nullif");
     expect(sql).toContain(
-      'drop trigger if exists "bs_profile_email" on auth.users;',
+      'drop trigger if exists "bsb_profile_email" on auth.users;',
     );
   });
 
@@ -281,7 +281,7 @@ describe("profiles module", () => {
   });
 
   it("joins metadata names into a username and adds a platform read policy", () => {
-    const sql = renderModules(["profiles"], {
+    const sql = renderBlocks(["profiles"], {
       modules: {
         profiles: {
           options: {
@@ -301,9 +301,9 @@ describe("profiles module", () => {
       "case when nullif(btrim(coalesce(meta ->> 'first_name')), '') is not null and nullif(btrim(coalesce(meta ->> 'last_name')), '') is not null then concat_ws('.',",
     );
     expect(sql).toContain("better_supabase.is_platform('platform.user.read')");
-    expect(sql).toContain("create policy bs_profiles_platform_read");
+    expect(sql).toContain("create policy bsb_profiles_platform_read");
     expect(
-      resolveModules(["profiles"], {
+      resolveBlocks(["profiles"], {
         modules: { profiles: { options: { readPolicy: { platform: "x" } } } },
       }).map((module) => module.name),
     ).toContain("access");
@@ -381,7 +381,7 @@ describe("profiles module", () => {
   });
 
   it("needs no other module", () => {
-    expect(resolveModules(["profiles"]).map((module) => module.name)).toEqual([
+    expect(resolveBlocks(["profiles"]).map((module) => module.name)).toEqual([
       "profiles",
     ]);
   });

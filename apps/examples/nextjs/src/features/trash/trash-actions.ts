@@ -6,12 +6,12 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Restores the whole batch of a trash item, whatever block trashed it. */
-export const restoreTrashItem = bs.action(
+export const restoreTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -31,7 +31,7 @@ export const restoreTrashItem = bs.action(
 );
 
 /** Deletes the batch's rows for good. */
-export const purgeTrashItem = bs.action(
+export const purgeTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,

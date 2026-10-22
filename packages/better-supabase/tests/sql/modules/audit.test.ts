@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockConfig } from "../../../src/config/blocks.ts";
 
 import { moduleContext } from "../../../src/sql/module-context.ts";
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const audit = (config: BlockConfig = {}) =>
@@ -59,9 +59,9 @@ describe("audit module", () => {
       "create or replace function better_supabase.audit_event(",
     );
     expect(sql).toContain("coalesce(source, 'app')");
-    expect(sql).toContain('drop trigger if exists "bs_audit_append_only"');
+    expect(sql).toContain('drop trigger if exists "bsb_audit_append_only"');
     expect(sql).toContain(
-      'drop policy if exists bs_audit_read on "better_supabase"."audit_events";',
+      'drop policy if exists bsb_audit_read on "better_supabase"."audit_events";',
     );
     expect(sql).not.toContain("audit_events_restricted");
     expect(sql).toContain(
@@ -75,7 +75,7 @@ describe("audit module", () => {
     expect(sql).toContain(
       "hint = 'Set blocks.audit.options.restricted to true.'",
     );
-    const [file] = renderModules(["audit"]);
+    const [file] = renderBlocks(["audit"]);
     expect(file!.contents).not.toContain("audit_log;");
   });
 
@@ -93,7 +93,7 @@ describe("audit module", () => {
     expect(sql).toContain("coalesce(source, 'saas')");
     expect(sql).not.toContain("audit_event got restricted details");
     expect(sql).not.toContain("old_record");
-    expect(sql).not.toContain("drop policy if exists bs_audit_read");
+    expect(sql).not.toContain("drop policy if exists bsb_audit_read");
   });
 
   it("guards, scopes and splits entries by option", () => {
@@ -109,7 +109,7 @@ describe("audit module", () => {
     });
 
     expect(sql).toContain(
-      'create trigger "bs_audit_append_only" before update or delete',
+      'create trigger "bsb_audit_append_only" before update or delete',
     );
     expect(sql).toContain("better_supabase.tenant_ids_with('audit.read')");
     expect(sql).toContain("better_supabase.is_platform('platform.audit.read')");
@@ -139,7 +139,7 @@ describe("audit module", () => {
 
   it("needs the access module only for the read policy", () => {
     const names = (config: BlockConfig) =>
-      resolveModules(["audit"], { modules: { audit: config } }).map(
+      resolveBlocks(["audit"], { modules: { audit: config } }).map(
         (module) => module.name,
       );
 
@@ -242,7 +242,7 @@ describe("audit module", () => {
       'alter table "better_supabase"."audit_events" add column if not exists row_hash bytea;',
     );
     expect(sql).toContain(
-      'create trigger "bs_audit_chain" before insert on "better_supabase"."audit_events"',
+      'create trigger "bsb_audit_chain" before insert on "better_supabase"."audit_events"',
     );
     expect(sql).toContain(
       "create or replace function better_supabase.verify_audit_chain(",
@@ -251,7 +251,7 @@ describe("audit module", () => {
       "create table if not exists better_supabase.audit_checkpoints (",
     );
     expect(audit()).toContain(
-      'drop trigger if exists "bs_audit_chain" on "better_supabase"."audit_events";',
+      'drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";',
     );
     expect(audit()).not.toContain("verify_audit_chain");
     expect(audit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
@@ -259,7 +259,7 @@ describe("audit module", () => {
     );
 
     const contract = (config: BlockConfig) =>
-      resolveModules(["audit"]).find((module) => module.name === "audit")!
+      resolveBlocks(["audit"]).find((module) => module.name === "audit")!
         .contract!(moduleContext("audit", { modules: { audit: config } })).map(
         (fn) => fn.name,
       );
@@ -294,7 +294,7 @@ describe("audit module", () => {
   });
 
   it("keeps entries for the data-lifecycle policies and holds", () => {
-    const sql = renderModules(["audit", "data-lifecycle"], {
+    const sql = renderBlocks(["audit", "data-lifecycle"], {
       modules: { audit: { options: { partitioned: true } } },
     })
       .filter((file) => file.module === "audit")
@@ -527,7 +527,7 @@ describe("audit value mapping", () => {
 
 describe("audit revert", () => {
   const sqlOf = (config: BlockConfig = {}, modules = ["access", "audit"]) =>
-    renderModules(modules, { modules: { audit: config } })
+    renderBlocks(modules, { modules: { audit: config } })
       .filter((file) => file.module === "audit")
       .map((file) => file.contents)
       .join("\n");

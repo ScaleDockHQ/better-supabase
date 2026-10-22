@@ -1,5 +1,5 @@
 -- better-supabase module: assets
--- @bs-module assets@1 managed
+-- @bsb-block assets@1 managed
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,8 +167,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bs_asset_locations_parent" on "better_supabase"."asset_locations";
-create trigger "bs_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
+drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
+create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 alter table "better_supabase"."booking_resources" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
 create index if not exists "booking_resources_asset_idx" on "better_supabase"."booking_resources" (asset_id) where asset_id is not null;
@@ -1011,13 +1011,13 @@ revoke execute on function "api"."set_asset_link"(text, uuid, uuid) from public,
 grant execute on function "api"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

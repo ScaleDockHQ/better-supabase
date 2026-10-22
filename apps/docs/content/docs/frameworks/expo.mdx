@@ -7,7 +7,7 @@ description: Server loaders, API routes and middleware that verify the caller an
 import { createExpo } from "better-supabase/expo";
 import { betterSupabase } from "./index";
 
-export const bs = createExpo(betterSupabase);
+export const bsb = createExpo(betterSupabase);
 ```
 
 `createExpo(betterSupabase)` is [`createServer`](/docs/auth/server) plus the
@@ -49,14 +49,14 @@ plugin for [`secureStorage`](/docs/frontend/react-native) on the device; add
 
 ## Loaders
 
-`bs.loader(fn, options)` returns a route `loader` that runs `fn` as the
+`bsb.loader(fn, options)` returns a route `loader` that runs `fn` as the
 caller, so RLS applies to every read:
 
 ```tsx title="src/app/customers/index.tsx"
 import { useLoaderData } from "expo-router";
-import { bs } from "../../lib/supabase/server";
+import { bsb } from "../../lib/supabase/server";
 
-export const loader = bs.loader(
+export const loader = bsb.loader(
   ({ db }) => db.customers.findMany({ select: ["id", "name"] }).orThrow(),
   { allow: ["user"] },
 );
@@ -77,21 +77,21 @@ export default function Customers() {
 - Loader data is serialized to JSON. Select the columns the screen shows, and
   convert Temporal values to strings before returning them.
 
-`bs.request(request, options)` returns the same server context for code that
+`bsb.request(request, options)` returns the same server context for code that
 isn't a loader.
 
 ### With expo-server's loader helpers
 
-`bs.loader` returns an `expo-server` `LoaderFunction`, so it works anywhere a
+`bsb.loader` returns an `expo-server` `LoaderFunction`, so it works anywhere a
 loader does. When a route already uses `createServerLoader`, call
-`bs.request` inside it instead:
+`bsb.request` inside it instead:
 
 ```tsx title="src/app/customers/[id].tsx"
 import { createServerLoader } from "expo-server";
-import { bs } from "../../lib/supabase/server";
+import { bsb } from "../../lib/supabase/server";
 
 export const loader = createServerLoader(async (request, params) => {
-  const { db } = await bs.request(request, { allow: ["user"] });
+  const { db } = await bsb.request(request, { allow: ["user"] });
   const customer = await db.customers
     .findById(String(params.id), { select: ["id", "name"] })
     .orThrow();
@@ -99,22 +99,22 @@ export const loader = createServerLoader(async (request, params) => {
 });
 ```
 
-`bs.request` throws the same `StatusError` for a refused caller. It doesn't
+`bsb.request` throws the same `StatusError` for a refused caller. It doesn't
 map a `DbException` from `.orThrow()`, so a missing row there is a 500 unless
-you catch it; use `bs.loader` when you want that mapping.
+you catch it; use `bsb.loader` when you want that mapping.
 
-To add your own step around every loader, wrap `bs.loader` in a function that
+To add your own step around every loader, wrap `bsb.loader` in a function that
 returns a `LoaderFunction`:
 
 ```ts title="src/lib/supabase/loader.ts"
 import type { LoaderFunction } from "expo-server";
-import { bs } from "./server";
+import { bsb } from "./server";
 
 export function timedLoader<T>(
   name: string,
-  fn: Parameters<typeof bs.loader<T>>[0],
+  fn: Parameters<typeof bsb.loader<T>>[0],
 ): LoaderFunction<T> {
-  const loader = bs.loader(fn, { allow: ["user"] });
+  const loader = bsb.loader(fn, { allow: ["user"] });
   return async (request, params) => {
     const started = performance.now();
     try {
@@ -132,14 +132,14 @@ so it can't run as a caller; read only data that every visitor may see.
 
 ## API routes
 
-`bs.handler(fn, options)` turns a function into an API route handler.
+`bsb.handler(fn, options)` turns a function into an API route handler.
 `Result`s become JSON or [Problem Details](/docs/concepts/results), and
 `undefined` becomes 204:
 
 ```ts title="src/app/api/customers+api.ts"
-import { bs } from "../../lib/supabase/server";
+import { bsb } from "../../lib/supabase/server";
 
-export const GET = bs.handler((_request, { db }) =>
+export const GET = bsb.handler((_request, { db }) =>
   db.customers.findMany({ select: ["id", "name"] }),
 );
 ```
@@ -151,27 +151,27 @@ route parameters, and returns a `Response`:
 ```ts title="src/app/api/notes+api.ts"
 import { toExpo } from "better-supabase/expo";
 import { withBetterSupabase } from "better-supabase/server";
-import { bs } from "../../lib/supabase/server";
+import { bsb } from "../../lib/supabase/server";
 
-export const GET = toExpo([withBetterSupabase(bs)], async (_request, ctx) =>
+export const GET = toExpo([withBetterSupabase(bsb)], async (_request, ctx) =>
   Response.json(await ctx.db.notes.findMany().orThrow()),
 );
 ```
 
 ## Middleware
 
-`bs.middleware()` in `+middleware.ts` refreshes an expired cookie session
+`bsb.middleware()` in `+middleware.ts` refreshes an expired cookie session
 before loaders run and writes the new cookies with `setResponseHeaders`. From
-0.11 it also hands that session to the loaders and `bs.request` calls of the
+0.11 it also hands that session to the loaders and `bsb.request` calls of the
 same request, so they read the refreshed session without calling Auth again,
 even with `refresh: false`. A loader that runs without middleware refreshes on
 its own, so the middleware is optional for routes that only need a loader.
 Either way a request makes at most one Auth call.
 
 ```ts title="src/app/+middleware.ts"
-import { bs } from "../lib/supabase/server";
+import { bsb } from "../lib/supabase/server";
 
-export default bs.middleware({ redirectTo: "/sign-in", allow: ["user"] });
+export default bsb.middleware({ redirectTo: "/sign-in", allow: ["user"] });
 ```
 
 With `redirectTo`, a caller `allow` refuses is sent there with the original

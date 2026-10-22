@@ -33,7 +33,7 @@ export type {
  * `createMessagesController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useMessages(
   options: BlockOptions<MessagesControllerOptions>,
@@ -49,7 +49,7 @@ export function useMessages(
  * `createConversationsController` as a Svelte readable store of the snapshot,
  * with the actions on `.actions`. Call it in a component's script; the work
  * starts on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useConversations(
   options: BlockOptions<ConversationsControllerOptions>,

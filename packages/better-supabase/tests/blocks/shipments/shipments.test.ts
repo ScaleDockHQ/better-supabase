@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ShipmentCarrier } from "../../../src/blocks/shipments/index.ts";
+import type { ShippingProvider } from "../../../src/blocks/shipments/index.ts";
 
 import {
   createShipments,
@@ -314,7 +314,7 @@ describe("createShipments", () => {
 
     expect(!gone.ok && gone.error.kind).toBe("not_found");
 
-    const broken: ShipmentCarrier = {
+    const broken: ShippingProvider = {
       ...carrier(),
       rates: () => AsyncResult.err(dbError("network", "down")),
     };
@@ -384,7 +384,7 @@ describe("createShipments", () => {
 
   it("voids a label it fails to store", async () => {
     const cancel = vi.fn(() => AsyncResult.ok({ cancelled: true as const }));
-    const voiding: ShipmentCarrier = { ...carrier(), cancel };
+    const voiding: ShippingProvider = { ...carrier(), cancel };
 
     const shipments = createShipments({
       transport: fakeTransport({
@@ -408,7 +408,7 @@ describe("createShipments", () => {
   it("logs a label it can neither store nor void", async () => {
     const logger = { ...console, error: vi.fn() };
 
-    const stuck: ShipmentCarrier = {
+    const stuck: ShippingProvider = {
       ...carrier(),
       cancel: () => AsyncResult.err(dbError("network", "down")),
     };
@@ -434,7 +434,7 @@ describe("createShipments", () => {
   });
 
   it("refreshes tracking from the carrier", async () => {
-    const tracked: ShipmentCarrier = {
+    const tracked: ShippingProvider = {
       ...carrier(),
       track: () =>
         AsyncResult.ok([

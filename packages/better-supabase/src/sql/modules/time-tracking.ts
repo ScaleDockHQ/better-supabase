@@ -1,11 +1,11 @@
 import type { TimeTrackingEvents } from "../../blocks/time-tracking/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -55,7 +55,7 @@ const TIMESHEET_PAYLOAD = [
   "approvalId",
 ] as const;
 
-const EVENTS: ModuleEvents<TimeTrackingEvents> = {
+const EVENTS: BlockSqlEvents<TimeTrackingEvents> = {
   "time_entry.started": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "time_entry.recorded": { subject: "time-entries", payload: RECORDED_PAYLOAD },
   "time_entry.updated": { subject: "time-entries", payload: UPDATED_PAYLOAD },
@@ -65,7 +65,7 @@ const EVENTS: ModuleEvents<TimeTrackingEvents> = {
   "timesheet.reopened": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_time_entry_save",
@@ -117,7 +117,7 @@ const NAMES: ModuleNames = {
 /** The keys the entry reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function weekTimeZone(ctx: ModuleContext): string {
+function weekTimeZone(ctx: BlockSqlContext): string {
   const raw = ctx.option("timeZone") ?? "UTC";
 
   if (typeof raw !== "string" || raw.length === 0) {
@@ -134,7 +134,7 @@ function weekTimeZone(ctx: ModuleContext): string {
 }
 
 /** `options.policy` as an approvals policy; defaults to one approver step. */
-function timesheetPolicy(ctx: ModuleContext): string {
+function timesheetPolicy(ctx: BlockSqlContext): string {
   const raw = ctx.option("policy") ?? {
     steps: [
       {
@@ -164,7 +164,7 @@ function timesheetPolicy(ctx: ModuleContext): string {
  * against ISO 4217) and is set exactly when the rate is. Added once, so new and
  * upgraded tables carry the same named checks.
  */
-function rateChecks(ctx: ModuleContext): string {
+function rateChecks(ctx: BlockSqlContext): string {
   const entries = ctx.table("entries");
   const name = ctx.tableName("entries").name;
   const rate = ctx.col("entries", "rate");
@@ -189,7 +189,7 @@ const NUMERIC_SIGNATURES = {
     `${id}, timestamptz, timestamptz, text, text, boolean, numeric, text, uuid`,
 };
 
-function dropNumericSignatures(ctx: ModuleContext): string {
+function dropNumericSignatures(ctx: BlockSqlContext): string {
   return Object.entries(NUMERIC_SIGNATURES)
     .flatMap(([name, types]) => [
       `drop function if exists ${ctx.fn(name)}(${types(ctx.idType)});`,
@@ -203,7 +203,7 @@ function dropNumericSignatures(ctx: ModuleContext): string {
  * decimals become minor units (times 100), and rates stay without a currency
  * until the app sets one; the pair check then warns.
  */
-function upgradeRateToMoney(ctx: ModuleContext): string {
+function upgradeRateToMoney(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return dropNumericSignatures(ctx);
   }
@@ -228,7 +228,7 @@ $$;
 ${rateChecks(ctx)}`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -481,8 +481,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("time_entry_guard")}() from public, anon, authenticated;
-drop trigger if exists bs_time_entry_guard on ${entries};
-create trigger bs_time_entry_guard
+drop trigger if exists bsb_time_entry_guard on ${entries};
+create trigger bsb_time_entry_guard
   before insert or update or delete on ${entries}
   for each row execute function ${fn("time_entry_guard")}();
 
@@ -972,7 +972,7 @@ ${userGrant(`${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date)`
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("entries", RESERVED)).contract;
 
   return [
@@ -1017,7 +1017,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const TIME_TRACKING: ModuleDefinition = {
+export const TIME_TRACKING: BlockSqlDefinition = {
   name: "time-tracking",
   scopes: ["tenant"],
   title: "Time tracking",

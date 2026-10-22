@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 // The SQL of each module that takes `extraColumns` (ADR 0015), with one
 // extra column, next to the default output in render-golden.test.ts. The
@@ -14,7 +14,7 @@ const MODULES = Object.entries(SQL_MODULES)
   .map(([name]) => name);
 
 function render(module: string): string {
-  return renderModules([module], {
+  return renderBlocks([module], {
     modules: { [module]: { options: { extraColumns: EXTRA } } },
   })
     .filter((file) => file.module === module)
@@ -49,7 +49,7 @@ describe("SQL module output with extra columns", () => {
     );
 
     expect(() =>
-      renderModules([module], {
+      renderBlocks([module], {
         modules: {
           [module]: { options: { extraColumns: { [name]: "text" } } },
         },

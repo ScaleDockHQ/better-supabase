@@ -3,7 +3,7 @@
 import { ok } from "better-supabase";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** A notification as plain data, so it crosses the server boundary. */
 export interface NotificationRow {
@@ -17,7 +17,7 @@ export interface NotificationRow {
  * The caller's latest notifications in the active organization, for
  * `useNotifications`.
  */
-export const loadNotifications = bs.action(
+export const loadNotifications = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const items = await blocks(supabase).notifications.list({
@@ -41,14 +41,14 @@ export const loadNotifications = bs.action(
 );
 
 /** The badge numbers, loaded again after each broadcast on the caller's topic. */
-export const loadNotificationCounts = bs.action(
+export const loadNotificationCounts = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) =>
     blocks(supabase).notifications.counts({ tenant }),
 );
 
 /** Marks the caller's notifications in the active organization read. */
-export const markAllRead = bs.action(
+export const markAllRead = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const updated = await blocks(supabase).notifications.markRead({ tenant });

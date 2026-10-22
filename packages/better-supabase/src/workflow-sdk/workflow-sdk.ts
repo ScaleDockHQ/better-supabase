@@ -24,14 +24,14 @@ export type WorkflowFn<
 > = (...args: TArgs) => Promise<TResult>;
 
 export interface WorkflowContextOptions {
-  /** The opaque ticket `bs.forContext` resolves; wins over `context.ticket`. */
+  /** The opaque ticket `bsb.forContext` resolves; wins over `context.ticket`. */
   readonly ticket?: string;
 }
 
 /**
  * The actor, tenant and ticket of `context` as plain data, to pass into a
- * workflow as an argument; inside a step, `bs.forContext(context)` runs as that
- * user with RLS. A delegated token's `client_id`, `scope`,
+ * workflow as an argument; inside a step, `bsb.forContext(context)` runs as
+ * that user with RLS. A delegated token's `client_id`, `scope`,
  * `authorization_details` and `act` chain stay in `claims`, so the step is as
  * narrow as the token; other claims stay out of the run's serialized state.
  * Throws a `TypeError` for an invalid `act` chain or ticket.
@@ -43,7 +43,7 @@ export function workflowContext(
   return unwrap(withContext(null, context, options)).context;
 }
 
-/** The `bs.tenant`, `bs.actor` and `bs.ticket` attributes for `context`. */
+/** The `bsb.tenant`, `bsb.actor` and `bsb.ticket` attributes for `context`. */
 export function contextAttributes(
   context: RequestContext,
   options: WorkflowContextOptions = {},
@@ -72,18 +72,18 @@ export interface StartForOptions {
    */
   readonly idempotencyKey?: string;
   /**
-   * More attributes for the run; `bs.*` keys are set from the context, and
-   * `bs.principal_kind` and `bs.principal` only by `runAs` starts.
+   * More attributes for the run; `bsb.*` keys are set from the context, and
+   * `bsb.principal_kind` and `bsb.principal` only by `runAs` starts.
    */
   readonly attributes?: Readonly<Record<string, string>>;
-  /** The record the run belongs to, stored as `bs.subject`. */
+  /** The record the run belongs to, stored as `bsb.subject`. */
   readonly subject?: WorkflowSubject;
   /** The World to look the key up in. Defaults to the configured one. */
   readonly world?: World;
   /**
-   * An opaque ticket, stored as the `bs.ticket` attribute instead of
+   * An opaque ticket, stored as the `bsb.ticket` attribute instead of
    * `context.ticket`. Pass `workflowContext(context, { ticket })` as an
-   * argument too, so a step's `bs.forContext` resolves it.
+   * argument too, so a step's `bsb.forContext` resolves it.
    */
   readonly ticket?: string;
 }
@@ -109,8 +109,8 @@ export async function runForKey(
 
 /**
  * `start(workflow, args)` for the caller in `context`: the run carries
- * `bs.tenant` and `bs.actor`, so `workflow_runs` lists it to the tenant and the
- * actor under RLS. With `idempotencyKey`, a run that already has the key is
+ * `bsb.tenant` and `bsb.actor`, so `workflow_runs` lists it to the tenant and
+ * the actor under RLS. With `idempotencyKey`, a run that already has the key is
  * returned instead of starting another (the key lookup needs a World with
  * `analytics`, as the Supabase World has).
  */
@@ -130,8 +130,8 @@ const RUN_AS_ATTRIBUTES: ReadonlySet<string> = new Set([
 
 /**
  * `startFor` with `trusted` applied last: a `runAs` start sets the principal
- * and replaces `bs.actor` with the user who triggered it (`undefined` removes a
- * key).
+ * and replaces `bsb.actor` with the user who triggered it (`undefined` removes
+ * a key).
  */
 async function startRun<TArgs extends unknown[], TResult>(
   context: RequestContext,
@@ -187,9 +187,9 @@ async function startRun<TArgs extends unknown[], TResult>(
 /**
  * Who an event or schedule start runs as: the publisher, a user who holds the
  * permissions, and the permission keys its steps may use. A step's
- * `bs.forContext(context)` runs as the publisher, capped to `permissions`, so a
- * publisher who lost one fails the step. The event actor or schedule creator is
- * the run's actor (and `bs.trigger`) and grants nothing; the publisher is
+ * `bsb.forContext(context)` runs as the publisher, capped to `permissions`, so
+ * a publisher who lost one fails the step. The event actor or schedule creator
+ * is the run's actor (and `bsb.trigger`) and grants nothing; the publisher is
  * recorded as the run's principal.
  */
 export interface WorkflowRunAs {
@@ -251,7 +251,7 @@ async function resolveRunAs<T>(
 
 /**
  * The context and attributes of a start that runs as `runAs`; `trusted`
- * replaces the context's `bs.actor` with the trigger and records the
+ * replaces the context's `bsb.actor` with the trigger and records the
  * principal.
  */
 function runAsStart(
@@ -384,7 +384,7 @@ export function hookMetadata(
 ): Record<string, string> {
   return {
     ...contextAttributes(context),
-    ...(permission === undefined ? {} : { "bs.permission": permission }),
+    ...(permission === undefined ? {} : { "bsb.permission": permission }),
   };
 }
 
@@ -441,7 +441,7 @@ export async function authorizeHook(
   }
 
   const tenant = stringField(metadata, WORKFLOW_ATTRIBUTES.tenant);
-  const permission = stringField(metadata, "bs.permission");
+  const permission = stringField(metadata, "bsb.permission");
 
   if (
     actor !== undefined &&
@@ -476,13 +476,13 @@ export interface StartOnEventOptions<TArgs extends unknown[]> {
    */
   readonly args?: (event: OutboxEvent, context: RequestContext) => TArgs;
   /**
-   * The opaque ticket for an event's run, stored as `bs.ticket`; `undefined`
+   * The opaque ticket for an event's run, stored as `bsb.ticket`; `undefined`
    * for none.
    */
   readonly ticket?: (event: OutboxEvent) => string | undefined;
   /**
    * The publisher each run starts as. The event's actor is recorded as
-   * `bs.trigger` and grants nothing; `null` for an event starts nothing.
+   * `bsb.trigger` and grants nothing; `null` for an event starts nothing.
    */
   readonly runAs: WorkflowRunAsFor<OutboxEvent>;
   readonly world?: World;

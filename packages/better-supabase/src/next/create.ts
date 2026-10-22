@@ -82,7 +82,7 @@ import {
  * and cache tags, on top of `createServer`.
  *
  * ```ts
- * export const bs = createNext(betterSupabase);
+ * export const bsb = createNext(betterSupabase);
  * ```
  */
 export function createNext<
@@ -115,8 +115,8 @@ export function createNext<
   }
 
   const debug = options.debug;
-  const statsHeader = debug?.header ?? "x-bs-db-calls";
-  const statsRoute = debug?.route ?? "/api/bs-stats";
+  const statsHeader = debug?.header ?? "x-bsb-db-calls";
+  const statsRoute = debug?.route ?? "/api/bsb-stats";
   const development = process.env["NODE_ENV"] === "development";
 
   const collector = debug?.enabled
@@ -510,8 +510,8 @@ export function createNext<
         response.headers.append(
           "server-timing",
           serverTimingValue({
-            "bs-proxy": performance.now() - started,
-            "bs-verify": verifyMs,
+            "bsb-proxy": performance.now() - started,
+            "bsb-verify": verifyMs,
           }),
         );
       }

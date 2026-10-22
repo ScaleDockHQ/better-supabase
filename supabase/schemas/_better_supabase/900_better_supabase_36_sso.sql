@@ -1,5 +1,5 @@
--- better-supabase module: sso (0.9.0)
--- @bs-module sso@1 managed
+-- better-supabase module: sso
+-- @bsb-block sso@1 managed
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -671,8 +671,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_sso_auth_user" on auth.users;
-create trigger "bs_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_sso_auth_user" on auth.users;
+create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
@@ -1277,13 +1277,13 @@ revoke execute on function "api"."scim_delete_group"(uuid, uuid) from public, an
 grant execute on function "api"."scim_delete_group"(uuid, uuid) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

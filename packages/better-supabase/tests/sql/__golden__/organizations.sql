@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module organizations@1 managed
+-- @bsb-block organizations@1 managed
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,15 +54,15 @@ create table if not exists "better_supabase"."organizations" (
 create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."organizations";
-create trigger bs_updated_at before update on "better_supabase"."organizations"
+drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "better_supabase"."organizations";
-create policy bs_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
+create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -262,8 +262,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -315,8 +315,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -728,33 +728,33 @@ revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."resume_member"(uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module-data organizations
+-- @bsb-block-data organizations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('organizations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module organizations@1 managed
+-- @bsb-block organizations@1 managed
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -808,8 +808,8 @@ create table if not exists "better_supabase"."organizations" (
 create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."organizations";
-create trigger bs_updated_at before update on "better_supabase"."organizations"
+drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- The Stripe customer the entitlements module reads (config.entitlements.customer).
 alter table "better_supabase"."organizations" add column if not exists stripe_customer_id text unique;
@@ -817,8 +817,8 @@ alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "better_supabase"."organizations";
-create policy bs_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
+create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -1059,8 +1059,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -1112,8 +1112,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -1599,33 +1599,33 @@ revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."resume_member"(uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module-data organizations
+-- @bsb-block-data organizations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('organizations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module organizations@1 managed
+-- @bsb-block organizations@1 managed
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1681,15 +1681,15 @@ create table if not exists "app_private"."organizations" (
 create unique index if not exists organizations_slug_idx on "app_private"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "app_private"."organizations" ("created_by");
 alter table "app_private"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."organizations";
-create trigger bs_updated_at before update on "app_private"."organizations"
+drop trigger if exists bsb_updated_at on "app_private"."organizations";
+create trigger bsb_updated_at before update on "app_private"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."organizations" enable row level security;
 revoke all on "app_private"."organizations" from anon, authenticated;
 grant select on "app_private"."organizations" to authenticated;
 grant all on "app_private"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "app_private"."organizations";
-create policy bs_organizations_read on "app_private"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "app_private"."organizations";
+create policy bsb_organizations_read on "app_private"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -1889,8 +1889,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "app_private"."ensure_organization_owner"();
 
@@ -1942,8 +1942,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "app_private"."guard_membership"();
 revoke execute on function "app_private"."guard_membership"() from public, anon, authenticated;
 
@@ -2355,33 +2355,33 @@ revoke execute on function "app_private"."resume_member"(uuid, uuid) from public
 grant execute on function "app_private"."resume_member"(uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module-data organizations
+-- @bsb-block-data organizations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('organizations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module organizations@1 managed
+-- @bsb-block organizations@1 managed
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2435,15 +2435,15 @@ create table if not exists "better_supabase"."organizations" (
 create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."organizations";
-create trigger bs_updated_at before update on "better_supabase"."organizations"
+drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "better_supabase"."organizations";
-create policy bs_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
+create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -2643,8 +2643,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -2696,8 +2696,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -3269,33 +3269,33 @@ revoke execute on function "api"."resume_member"(uuid, uuid) from public, anon;
 grant execute on function "api"."resume_member"(uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module-data organizations
+-- @bsb-block-data organizations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('organizations', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module organizations@1 adopt
+-- @bsb-block organizations@1 adopt
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3518,8 +3518,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -3571,8 +3571,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -3984,26 +3984,26 @@ revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."resume_member"(uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== adopt: data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
--- @bs-module-data organizations
+-- @bsb-block-data organizations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('organizations', 1, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

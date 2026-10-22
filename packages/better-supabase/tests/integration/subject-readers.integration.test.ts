@@ -15,7 +15,7 @@ describe.skipIf(!live)("can_subject_for", () => {
 
     try {
       await s.rows(
-        `create table public.bs_memos (
+        `create table public.bsb_memos (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            title text not null
@@ -24,11 +24,11 @@ describe.skipIf(!live)("can_subject_for", () => {
       await s.install(["access", "organizations", "subjects"], {
         subjects: {
           memo: {
-            table: "public.bs_memos",
+            table: "public.bsb_memos",
             title: "title",
             permissions: { read: "memos.read" },
           },
-          note: { table: "public.bs_memos", tenant: false },
+          note: { table: "public.bsb_memos", tenant: false },
         },
       });
       const owner = await s.user("owner");
@@ -39,7 +39,7 @@ describe.skipIf(!live)("can_subject_for", () => {
       await s.service();
 
       const [row] = await s.rows<{ id: string }>(
-        "insert into public.bs_memos (organization_id, title) values ($1, 'Plan') returning id",
+        "insert into public.bsb_memos (organization_id, title) values ($1, 'Plan') returning id",
         [organization],
       );
 

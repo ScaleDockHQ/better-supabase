@@ -18,7 +18,7 @@ skill.
    needs with `scopes` (see below).
 3. Use `db` from the handler context and return its `Result`, a plain value
    or a `Response`.
-4. For a table exposed as REST, prefer `bs.resource(...)` over hand-written
+4. For a table exposed as REST, prefer `bsb.resource(...)` over hand-written
    routes, and regenerate `openapi.json` with `better-supabase spec emit openapi`.
 5. Add an API test that calls the endpoint as a user and as another tenant,
    and with a delegated token that lacks the scope (the
@@ -36,12 +36,12 @@ and `['service']` for machine callers. Rejected callers get a 401 with a
 
 `scopes` limits what a delegated token may do: a token from the Supabase
 OAuth server (`client_id` and `scope`) or one exchanged for an agent (an
-RFC 8693 `act` chain). The guard options of `bs.route`, `bs.action`,
-`bs.handler` (edge) and `bs.middleware` (Hono, oRPC) take it, next to
+RFC 8693 `act` chain). The guard options of `bsb.route`, `bsb.action`,
+`bsb.handler` (edge) and `bsb.middleware` (Hono, oRPC) take it, next to
 `allow`:
 
 ```ts
-export const GET = bs.route(
+export const GET = bsb.route(
   (request, { db }) => db.customers.findMany({ limit: 20 }),
   { scopes: ["customers:read"] },
 );
@@ -57,21 +57,21 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 
 ## Adapters
 
-| Where                                           | Setup                                                                                                   | Handler                                                                                   |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Next.js                                         | `createNext(betterSupabase)` in `lib/supabase/server.ts`                                                | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)`  |
-| Hono                                            | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`                                         | `c.var.db`; `bs.resource('customers', {...})` for REST                                    |
-| oRPC                                            | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`                                               | `bs.unwrap(context.db.customers.findMany(...))`                                           |
-| Expo Router                                     | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()`                                   | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`        |
-| Edge Functions                                  | `createEdge(betterSupabase, { cors: true })`                                                            | `Deno.serve(bs.handler((req, { db }) => ...))`                                            |
-| MCP                                             | `createMcp(betterSupabase, { name, version, resources })`                                               | `.tool({ name, input, run: (args, { db }) => ... })`                                      |
-| Node, Express, Fastify, Koa                     | `toNodeHandler`, `toExpress`, `toFastify`, `toKoa` from `better-supabase/node`                          | `res.locals.db`, `request.locals.db`, `ctx.state.db`; `guard`, `fastifyGuard`, `koaGuard` |
-| NestJS                                          | `toNestMiddleware(entries)` from `better-supabase/nestjs`                                               | `@Ctx("db") db`, `@UseGuards(guard({ roles }))`, `@UseFilters(problemFilter())`           |
-| Astro                                           | `createAstro(betterSupabase)`, `export const onRequest = bs.onRequest`                                  | `bs.locals(Astro).db`, `bs.guard(Astro, options)`, `bs.action(...)`                       |
-| SolidStart                                      | `createSolidStart(betterSupabase, { getRequestEvent })`, `createMiddleware(bs.middleware)`              | `await bs.require()` in a `"use server"` query, `bs.action(...)`                          |
-| Nuxt, Nitro 2                                   | the `better-supabase/nuxt` module, or `toH3V1(entries)` from `better-supabase/h3/v1`                    | `event.context.db`, `guard(options)`                                                      |
-| H3 2, Nitro 3                                   | `toH3(entries)` from `better-supabase/h3`                                                               | `event.context.db`, `guard(options)`                                                      |
-| TanStack Start, SvelteKit, React Router, Elysia | `withBetterSupabase(server)` in a bridge: `toTanStackStart`, `toSvelteKit`, `toReactRouter`, `toElysia` | the framework's context (`context.db`, `locals.db`, `context.get(key).db`)                |
+| Where                                           | Setup                                                                                                   | Handler                                                                                    |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Next.js                                         | `createNext(betterSupabase)` in `lib/supabase/server.ts`                                                | `bsb.route((req, { db }) => ...)`, `bsb.action({ input: schema }, (input, { db }) => ...)` |
+| Hono                                            | `createHono(betterSupabase)`, `.use('/api/*', bsb.middleware())`                                        | `c.var.db`; `bsb.resource('customers', {...})` for REST                                    |
+| oRPC                                            | `createOrpc(betterSupabase)`, `base.use(bsb.middleware())`                                              | `bsb.unwrap(context.db.customers.findMany(...))`                                           |
+| Expo Router                                     | `createExpo(betterSupabase)`, `+middleware.ts` with `bsb.middleware()`                                  | `export const loader = bsb.loader(({ db }) => ...)`, `bsb.handler(...)` in `+api.ts`       |
+| Edge Functions                                  | `createEdge(betterSupabase, { cors: true })`                                                            | `Deno.serve(bsb.handler((req, { db }) => ...))`                                            |
+| MCP                                             | `createMcp(betterSupabase, { name, version, resources })`                                               | `.tool({ name, input, run: (args, { db }) => ... })`                                       |
+| Node, Express, Fastify, Koa                     | `toNodeHandler`, `toExpress`, `toFastify`, `toKoa` from `better-supabase/node`                          | `res.locals.db`, `request.locals.db`, `ctx.state.db`; `guard`, `fastifyGuard`, `koaGuard`  |
+| NestJS                                          | `toNestMiddleware(entries)` from `better-supabase/nestjs`                                               | `@Ctx("db") db`, `@UseGuards(guard({ roles }))`, `@UseFilters(problemFilter())`            |
+| Astro                                           | `createAstro(betterSupabase)`, `export const onRequest = bsb.onRequest`                                 | `bsb.locals(Astro).db`, `bsb.guard(Astro, options)`, `bsb.action(...)`                     |
+| SolidStart                                      | `createSolidStart(betterSupabase, { getRequestEvent })`, `createMiddleware(bsb.middleware)`             | `await bsb.require()` in a `"use server"` query, `bsb.action(...)`                         |
+| Nuxt, Nitro 2                                   | the `better-supabase/nuxt` module, or `toH3V1(entries)` from `better-supabase/h3/v1`                    | `event.context.db`, `guard(options)`                                                       |
+| H3 2, Nitro 3                                   | `toH3(entries)` from `better-supabase/h3`                                                               | `event.context.db`, `guard(options)`                                                       |
+| TanStack Start, SvelteKit, React Router, Elysia | `withBetterSupabase(server)` in a bridge: `toTanStackStart`, `toSvelteKit`, `toReactRouter`, `toElysia` | the framework's context (`context.db`, `locals.db`, `context.get(key).db`)                 |
 
 Never use `@supabase/server/adapters/*` (deprecated, removed 2026-12-01).
 
@@ -79,7 +79,7 @@ Don't build error JSON by hand; errors become Problem Details.
 
 ## REST resources
 
-`defineResource` / `bs.resource(table, { operations, list, input })` gives you
+`defineResource` / `bsb.resource(table, { operations, list, input })` gives you
 list, get, create, update and delete, with validation and paging (`{ items, page }`).
 `createOpenApi(betterSupabase, { resources })` describes the same routes, and
 `better-supabase spec emit openapi --check` keeps `openapi.json` in sync.
@@ -95,7 +95,7 @@ for lists that clients read page by page: the list takes `after` instead of
 - `authorize(ctx, tool, args)` refuses a call (`{ allowed: false, reason, scopes }`; with `scopes` it is a 403 `insufficient_scope`). `visible(ctx, tool)` hides tools from `tools/list`. Put a permission or a label in a tool's `meta`; clients never see it.
 - `scopes` on `createMcp` only advertises scopes. Refuse calls in `authorize`, reading `toSession(ctx.auth).delegation?.scopes`.
 - Set `allowedOrigins` and `allowedHosts` (every host the server answers on, previews and local included) against DNS rebinding, and `resourceDocumentation` to a page that explains how to connect.
-- On the official MCP SDK, keep its `McpServer`: `createMcpAuth(betterSupabase, { resource })` from `better-supabase/mcp/sdk` verifies the token and serves the metadata (`auth.serve(createMcpHandler(factory))`), and `withBetterSupabaseMcp(server, auth)` gives every `registerTool` callback `db`, `auth` and `bs`. With a permission library that wraps `McpServer`, wrap with it first, then `withBetterSupabaseMcp`.
+- On the official MCP SDK, keep its `McpServer`: `createMcpAuth(betterSupabase, { resource })` from `better-supabase/mcp/sdk` verifies the token and serves the metadata (`auth.serve(createMcpHandler(factory))`), and `withBetterSupabaseMcp(server, auth)` gives every `registerTool` callback `db`, `auth` and `bsb`. With a permission library that wraps `McpServer`, wrap with it first, then `withBetterSupabaseMcp`.
 
 ## AI chat (`add ai-chat`; `ai`, `@ai-sdk/react`, `@ai-sdk/workflow` and `workflow` as optional peers)
 
@@ -128,17 +128,17 @@ tokens behind a `credential_ref` (`better-supabase/credentials`,
 For Expo and React Native, follow [references/expo.md](references/expo.md):
 server loaders for the web, `better-supabase/client/native` on the device.
 To read and write offline, run the same repositories on a PowerSync database
-and upload through `bs.db`, as in [references/powersync.md](references/powersync.md).
+and upload through `bsb.db`, as in [references/powersync.md](references/powersync.md).
 
 ## Background work (`better-supabase/blocks/jobs`, needs `add jobs idempotency webhook-inbox`)
 
-- `createJobs({ sql: postgres.admin, queues: { queue_name: zodSchema } })` runs on Supabase Queues (pgmq): `enqueue(queue, payload, { context: db.$context })` in the request, then `work` or `drain` in a worker, where `const db = await bs.forContext(job.context).orThrow()` runs the work as the enqueuing user with RLS (it fails with `forbidden` for a job without a user; use `bs.admin(job.context)` only for work no user owns). The handler throws to retry. `schedule(name, cron, queue, payload, { timeZone })` uses pg_cron, or with `blocks.jobs.options.scheduler: "drain"` a `jobs.drainRoute({ secret: process.env.CRON_SECRET, handlers })` route that Vercel Cron calls; `blocks.jobs.options.backend: "table"` runs without pgmq. Queue names are lowercase letters, digits and underscores. With a service-role Supabase client instead of SQL, it uses the `pgmq_public` RPCs (no dedupe or schedules).
+- `createJobs({ sql: postgres.admin, queues: { queue_name: zodSchema } })` runs on Supabase Queues (pgmq): `enqueue(queue, payload, { context: db.$context })` in the request, then `work` or `drain` in a worker, where `const db = await bsb.forContext(job.context).orThrow()` runs the work as the enqueuing user with RLS (it fails with `forbidden` for a job without a user; use `bsb.admin(job.context)` only for work no user owns). The handler throws to retry. `schedule(name, cron, queue, payload, { timeZone })` uses pg_cron, or with `blocks.jobs.options.scheduler: "drain"` a `jobs.drainRoute({ secret: process.env.CRON_SECRET, handlers })` route that Vercel Cron calls; `blocks.jobs.options.backend: "table"` runs without pgmq. Queue names are lowercase letters, digits and underscores. With a service-role Supabase client instead of SQL, it uses the `pgmq_public` RPCs (no dedupe or schedules).
 - `createIdempotency({ sql: postgres.admin }).handle(request, handler)` for POST endpoints that clients retry.
 - `createWebhookInbox({ transport: sqlTransport(postgres.admin), source, secrets }).receive(request)` for webhooks; `process(handler)` later. `createInbox` is the conversation inbox (`blocks/inbox`), not this.
 - Times are `Temporal.Instant`: `EnqueueOptions.runAt`, `Job.enqueuedAt`, `Job.visibleUntil`, `WebhookInboxMessage.receivedAt` and webhook timestamps.
 - Schedule cleanup with pg_cron at a quiet hour: `better_supabase.purge_job_archive('<queue>')`, `purge_webhooks()`, `purge_audit_log()`, `purge_idempotency_keys()`, `purge_rate_limits()`, `purge_outbox()`, `purge_notifications()` and `purge_webhook_deliveries()`, for the modules you installed. Only `service_role` can execute them.
 - Audit a table with `better_supabase.audit('public.t', redact => '{secret}', event_prefix => 't')`. Each call replaces all of the table's settings, so a second call without `ignore` and `redact` clears them; read `audit_settings('public.t')` first when another package also registers the table; record non-row events with `better_supabase.audit_event(event_type, ...)` and an `idempotency_key`. For per-tenant retention, write an `audit_retention(tenant)` SQL function or call `purgeAuditLog(sql, { retention })` from `better-supabase/blocks/audit`, which also has `auditListQuery` and `exportAuditLog` (NDJSON or OCSF). `sql sync` writes a pgTAP file per audited table, and doctor BS315 lists tables without the trigger; exempt the rest with `blocks.audit.options.exempt` globs.
-- For a "view as user" support mode, add the `support-sessions` SQL module, pass `support: supportSessions({ store: sqlSupportStore(postgres) })` to `createServer`, call `bs.startSupport({ targetUserId, reason })` and `bs.stopSupport()` from server actions, and show a banner with `useSupportSession()`. Sessions are read-only by default; grant admins the `support.start` platform permission.
+- For a "view as user" support mode, add the `support-sessions` SQL module, pass `support: supportSessions({ store: sqlSupportStore(postgres) })` to `createServer`, call `bsb.startSupport({ targetUserId, reason })` and `bsb.stopSupport()` from server actions, and show a banner with `useSupportSession()`. Sessions are read-only by default; grant admins the `support.start` platform permission.
 - For teams, add the `organizations` and `invitations` SQL modules and call them through `createOrganizations({ transport: sqlTransport(postgres.asUser(claims)), events: betterSupabase.events, onInvite })` from `better-supabase/blocks/organizations`. Send the invitation email in `onInvite`, show `previewInvitation(token)` on the accept page, and switch with `organizations.switch(id)`, refreshing the session when it returns `refresh: true`. Errors carry codes such as `ORGANIZATION_SLUG_TAKEN` in `hint`. Existing tables work with `mode: 'adopt'`.
 - For user profiles, add the `profiles` SQL module: sign-up creates the row from auth metadata with a unique username and mirrors the email; users update only the `updatable` columns. Adopt an existing table with `mode: 'adopt'` and `syncTrigger: false` when your own trigger creates profiles. Use `avatarBucket()` and `organizationLogoBucket()` from `better-supabase/storage` for uploads; `policy: { access: { read, write } }` checks any bucket through the access contract.
 - For events other systems must see, add the `outbox` SQL module and write events with `emit_event(type, payload, subject, tenant, key)` inside the same transaction as the change (the SQL modules emit theirs automatically). Relay them with `createOutbox({ transport: sqlTransport(postgres.admin), source }).relayRoute({ secret, consumers: { name: httpSink(url) } })` from `better-supabase/blocks/outbox` after `outbox.register(name, { types })`. Delivery is at least once; receivers deduplicate on the CloudEvent `id`.

@@ -9,9 +9,9 @@ import type {
   EntityRename,
 } from "../core/entity-naming.ts";
 import type {
-  ModuleEntitySpec,
-  ModuleEntitySubject,
-  ModuleNames,
+  BlockSqlEntitySpec,
+  BlockSqlEntitySubject,
+  BlockSqlNames,
 } from "./context.ts";
 
 import { tenantNameOf } from "../config/blocks.ts";
@@ -39,7 +39,7 @@ export interface ResolvedEntity {
    * What makes the entity a subject, or undefined when it isn't one or the
    * config sets `subject: false`.
    */
-  readonly subject?: ModuleEntitySubject;
+  readonly subject?: BlockSqlEntitySubject;
 }
 
 /**
@@ -65,7 +65,7 @@ const PLACEHOLDER = /\{([^{}]*)\}/g;
 
 function primaryOf(
   where: string,
-  entities: Readonly<Record<string, ModuleEntitySpec>>,
+  entities: Readonly<Record<string, BlockSqlEntitySpec>>,
 ): string {
   const primary = Object.entries(entities).find(([, spec]) => spec.primary);
 
@@ -81,7 +81,7 @@ function primaryOf(
 /** `blocks.<name>.entities` as entity key to its config, shorthand expanded. */
 function configured(
   where: string,
-  entities: Readonly<Record<string, ModuleEntitySpec>>,
+  entities: Readonly<Record<string, BlockSqlEntitySpec>>,
   config: BlockConfig["entities"],
 ): ReadonlyMap<string, EntityConfig> {
   if (config === undefined) {
@@ -154,8 +154,8 @@ function checkNoun(
 function resolveEntity(
   where: string,
   key: string,
-  spec: ModuleEntitySpec,
-  names: ModuleNames,
+  spec: BlockSqlEntitySpec,
+  names: BlockSqlNames,
   config: EntityConfig | undefined,
 ): ResolvedEntity {
   const from = entityNoun(spec.singular, spec.plural);
@@ -200,7 +200,7 @@ function resolveEntity(
  */
 export function resolveNames(
   module: string,
-  names: ModuleNames,
+  names: BlockSqlNames,
   blocks: AnyBlocksConfig = {},
 ): ResolvedNames {
   const where = `blocks.${module}.entities`;

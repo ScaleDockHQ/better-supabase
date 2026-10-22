@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -19,11 +19,11 @@ export interface SequenceSql {
   readonly enrollments: string;
   readonly done: string;
   /** Mail-sync, when it is installed and managed. */
-  readonly mail: ModuleContext | undefined;
+  readonly mail: BlockSqlContext | undefined;
   /** Work-items, when it is installed and managed. */
-  readonly tasks: ModuleContext | undefined;
+  readonly tasks: BlockSqlContext | undefined;
   /** Parties, when it is installed and managed. */
-  readonly parties: ModuleContext | undefined;
+  readonly parties: BlockSqlContext | undefined;
   readonly read: string;
   readonly enroll: string;
   readonly manage: string;
@@ -48,9 +48,9 @@ export interface SequenceSql {
 }
 
 const managed = (
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   module: string,
-): ModuleContext | undefined => {
+): BlockSqlContext | undefined => {
   if (!ctx.installed(module)) {
     return undefined;
   }
@@ -61,7 +61,7 @@ const managed = (
 };
 
 /** The names and helpers the sequences function files build on. */
-export function sequenceSql(ctx: ModuleContext): SequenceSql {
+export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
   const enrolled = ctx.of("enrollments");
 
   if (!enrolled.manages) {

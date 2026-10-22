@@ -1,7 +1,7 @@
 /* oxlint-disable eslint/no-bitwise -- FNV-1a works on 32-bit integers. */
 
 import type { DisabledRow } from "../config/blocks.ts";
-import type { ExtraColumn, ModuleContext } from "./context.ts";
+import type { ExtraColumn, BlockSqlContext } from "./context.ts";
 
 import { MAX_BATCH } from "../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -148,7 +148,7 @@ export const SERVICE_CALLER =
  * every module writes the same payload. Each value is a SQL expression.
  */
 export function memberAddedRecord(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   member: {
     readonly tenant: string;
     readonly user: string;
@@ -172,7 +172,7 @@ export function memberAddedRecord(
  * Creates the module's schema when it isn't `better_supabase`, then the module
  * schema.
  */
-export function schemaPreamble(ctx: ModuleContext): string {
+export function schemaPreamble(ctx: BlockSqlContext): string {
   if (ctx.schemaName === "better_supabase") {
     return SCHEMA;
   }
@@ -327,8 +327,8 @@ $$;`;
  */
 export function updatedAt(table: string, column: string): string {
   return `alter table ${table} add column if not exists ${column} timestamptz not null default now();
-drop trigger if exists bs_updated_at on ${table};
-create trigger bs_updated_at before update on ${table}
+drop trigger if exists bsb_updated_at on ${table};
+create trigger bsb_updated_at before update on ${table}
   for each row execute function better_supabase.set_updated_at(${sqlString(column.replaceAll('"', ""))});`;
 }
 
@@ -336,7 +336,7 @@ create trigger bs_updated_at before update on ${table}
  * Upgrade-step renames for a module table in `schema`. Each runs only while the
  * old name exists and the new one doesn't, so a step can run again.
  */
-export interface ModuleRenames {
+export interface BlockSqlRenames {
   readonly schema: string;
   /** The table's current name; `table` in `tables` renames it first. */
   readonly table: string;
@@ -350,7 +350,7 @@ export interface ModuleRenames {
   ])[];
 }
 
-export function renameSql(renames: ModuleRenames): string {
+export function renameSql(renames: BlockSqlRenames): string {
   const schema = sqlString(renames.schema);
 
   const q = (name: string): string =>
@@ -410,7 +410,7 @@ $$;`;
  * organizations table. False without the organizations module.
  */
 export function organizationMissing(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   organization: string,
 ): string {
   if (!ctx.installed("organizations")) {
@@ -422,7 +422,7 @@ export function organizationMissing(
   return `not exists (select 1 from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${organization})`;
 }
 
-export function membershipDisabledAt(ctx: ModuleContext): string | undefined {
+export function membershipDisabledAt(ctx: BlockSqlContext): string | undefined {
   if (ctx.module !== "tenant" && !ctx.installed("tenant")) {
     return undefined;
   }
@@ -443,14 +443,14 @@ export function membershipDisabledAt(ctx: ModuleContext): string | undefined {
   return tenant.col("memberships", "disabledAt");
 }
 
-export function activeMembership(ctx: ModuleContext, alias: string): string {
+export function activeMembership(ctx: BlockSqlContext, alias: string): string {
   const column = membershipDisabledAt(ctx);
 
   return column === undefined ? "" : ` and ${alias}.${column} is null`;
 }
 
 export function membershipSuspended(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenant: string,
   user: string,
 ): string | undefined {
@@ -470,7 +470,7 @@ export function membershipSuspended(
  * `blocks.access.disabled`. Without a column they return false, so callers
  * don't need to know whether it is configured.
  */
-export function disabledHelpers(ctx: ModuleContext): string {
+export function disabledHelpers(ctx: BlockSqlContext): string {
   const disabled = ctx.modules.access?.disabled ?? {};
   const id = ctx.idType;
   const organizations = managedOrganizations(ctx);
@@ -588,7 +588,7 @@ function disabledCheck(
  * custom mode, and the `tenant` module's file then leaves them out, so each
  * function is defined in one file.
  */
-export function accessDefinesDisabledHelpers(ctx: ModuleContext): boolean {
+export function accessDefinesDisabledHelpers(ctx: BlockSqlContext): boolean {
   const access = ctx.modules.access;
 
   if (!ctx.installed("access") && access === undefined) {
@@ -598,7 +598,7 @@ export function accessDefinesDisabledHelpers(ctx: ModuleContext): boolean {
   return (access?.mode ?? "managed") !== "custom";
 }
 
-export function disabledHelpersNeedLaterTables(ctx: ModuleContext): boolean {
+export function disabledHelpersNeedLaterTables(ctx: BlockSqlContext): boolean {
   return (
     !ctx.modules.access?.disabled?.tenant &&
     managedOrganizations(ctx) !== undefined
@@ -610,7 +610,7 @@ export function disabledHelpersNeedLaterTables(ctx: ModuleContext): boolean {
  * managed.
  */
 function managedOrganizations(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ):
   | {
       readonly table: string;
@@ -749,7 +749,7 @@ $$;`;
  * check.
  */
 function jsonCheckName(check: JsonSchemaCheck): string {
-  const base = `bs_json_${check.column}`;
+  const base = `bsb_json_${check.column}`;
 
   if (!check.where) {
     return base.slice(0, 63);
@@ -1195,7 +1195,7 @@ export const pageSize = (
  * the trigger and its function are dropped.
  */
 export function recordTrigger(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   options: {
     readonly name: string;
     readonly table: string;

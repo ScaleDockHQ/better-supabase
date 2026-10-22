@@ -136,7 +136,7 @@ describe.skipIf(!live)("block fields", () => {
         modules: {
           "ai-files": {
             options: {
-              bucket: "bs-it-ai-file-fields",
+              bucket: "bsb-it-ai-file-fields",
               extraColumns: { label: "text", priority: "integer" },
             },
           },
@@ -385,7 +385,7 @@ describe.skipIf(!live)("block fields", () => {
         modules: {
           attachments: {
             options: {
-              bucket: "bs-it-attachment-fields",
+              bucket: "bsb-it-attachment-fields",
               requireScan: false,
               extraColumns: {
                 label: "text",
@@ -640,7 +640,7 @@ describe.skipIf(!live)("block fields", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      const table = `public.bs_fields_projects_${crypto.randomUUID().slice(0, 8)}`;
+      const table = `public.bsb_fields_projects_${crypto.randomUUID().slice(0, 8)}`;
       await s.rows(
         `create table ${table} (id uuid primary key default gen_random_uuid(), organization_id uuid not null);
          alter table ${table} enable row level security;

@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module dispatch@1 managed
+-- @bsb-block dispatch@1 managed
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -204,7 +204,7 @@ begin
   if v_ends <= v_starts then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || create_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || create_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = create_work_order.tenant and o."technician_id" = create_work_order.technician
@@ -314,7 +314,7 @@ begin
   if v_ends <= schedule_work_order.starts_at then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || schedule_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || schedule_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = v_row."tenant_id" and o."technician_id" = schedule_work_order.technician
@@ -754,33 +754,33 @@ revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from
 grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module-data dispatch
+-- @bsb-block-data dispatch
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('dispatch', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module dispatch@1 managed
+-- @bsb-block dispatch@1 managed
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1103,7 +1103,7 @@ begin
   if v_ends <= v_starts then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || create_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || create_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = create_work_order.tenant and o."technician_id" = create_work_order.technician
@@ -1252,7 +1252,7 @@ begin
   if v_ends <= schedule_work_order.starts_at then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || schedule_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || schedule_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = v_row."tenant_id" and o."technician_id" = schedule_work_order.technician
@@ -1731,33 +1731,33 @@ revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from
 grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module-data dispatch
+-- @bsb-block-data dispatch
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('dispatch', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module dispatch@1 managed
+-- @bsb-block dispatch@1 managed
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1963,7 +1963,7 @@ begin
   if v_ends <= v_starts then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || create_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || create_work_order.technician::text, 0));
   if exists (
     select 1 from "app_private"."work_orders" o
     where o."tenant_id" = create_work_order.tenant and o."technician_id" = create_work_order.technician
@@ -2073,7 +2073,7 @@ begin
   if v_ends <= schedule_work_order.starts_at then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || schedule_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || schedule_work_order.technician::text, 0));
   if exists (
     select 1 from "app_private"."work_orders" o
     where o."tenant_id" = v_row."tenant_id" and o."technician_id" = schedule_work_order.technician
@@ -2513,33 +2513,33 @@ revoke execute on function "app_private"."remove_work_order_part"(uuid) from pub
 grant execute on function "app_private"."remove_work_order_part"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module-data dispatch
+-- @bsb-block-data dispatch
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('dispatch', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module dispatch@1 managed
+-- @bsb-block dispatch@1 managed
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2743,7 +2743,7 @@ begin
   if v_ends <= v_starts then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || create_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || create_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = create_work_order.tenant and o."technician_id" = create_work_order.technician
@@ -2853,7 +2853,7 @@ begin
   if v_ends <= schedule_work_order.starts_at then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || schedule_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || schedule_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = v_row."tenant_id" and o."technician_id" = schedule_work_order.technician
@@ -3435,26 +3435,26 @@ revoke execute on function "api"."remove_work_order_part"(uuid) from public, ano
 grant execute on function "api"."remove_work_order_part"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
--- @bs-module-data dispatch
+-- @bsb-block-data dispatch
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('dispatch', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

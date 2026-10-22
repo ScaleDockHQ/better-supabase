@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { ModuleFile } from "../../sql/index.ts";
+import type { BlockSqlFile } from "../../sql/index.ts";
 import type { SnapshotSource } from "../commands/snapshot.ts";
 import type { FileChange, FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
@@ -11,11 +11,7 @@ import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
 
-import {
-  moduleLayout,
-  renderModules,
-  sameModuleFile,
-} from "../../sql/index.ts";
+import { moduleLayout, renderBlocks, sameBlockFile } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
 import { loadSnapshot } from "../commands/snapshot.ts";
 import {
@@ -63,7 +59,7 @@ export interface GenOptions extends SnapshotSource {
 /** The `read-sets` SQL module file for `config.readSets`, if any are configured. */
 async function readSetFile(
   config: ResolvedConfig,
-): Promise<ModuleFile | undefined> {
+): Promise<BlockSqlFile | undefined> {
   if (config.readSets.length === 0) {
     return undefined;
   }
@@ -78,7 +74,7 @@ async function readSetFile(
     readSets,
   );
 
-  return renderModules(["read-sets"], layout)[0];
+  return renderBlocks(["read-sets"], layout)[0];
 }
 
 /**
@@ -136,7 +132,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   // the manifest never lists: a later run must not remove it.
   const migrations = !options.isolated && (await writesMigrations(config));
 
-  const pathsOf = (readSets: ModuleFile | undefined): string[] =>
+  const pathsOf = (readSets: BlockSqlFile | undefined): string[] =>
     [...files, ...(readSets && !migrations ? [readSets] : [])].map((file) =>
       manifestPath(config.root, file.path),
     );
@@ -145,7 +141,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     .map((line) => `\n${line}`)
     .join("");
 
-  const readSetsOf = (): Promise<ModuleFile | undefined> =>
+  const readSetsOf = (): Promise<BlockSqlFile | undefined> =>
     options.isolated ? Promise.resolve(undefined) : readSetFile(config);
 
   const leftoversOf = (generated: readonly string[]): Promise<string[]> =>
@@ -202,7 +198,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         ? await readFile(path, "utf-8")
         : undefined;
 
-      if (!sameModuleFile(current, readSets.contents)) {
+      if (!sameBlockFile(current, readSets.contents)) {
         compare(readSets, current);
       }
     }
@@ -232,7 +228,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const flags = { "dry-run": options.dryRun, force: options.force };
 
   const plan = (
-    entries: readonly ModuleFile[] | typeof files,
+    entries: readonly BlockSqlFile[] | typeof files,
     remove: readonly string[] = [],
   ): FilePlan => ({
     root: config.root,

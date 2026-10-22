@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createEngagements } from "../../src/blocks/engagements/index.ts";
@@ -30,7 +30,7 @@ const MODULES = [
   "deals",
 ];
 
-const layout = (readAll = true): ModuleLayout => ({
+const layout = (readAll = true): BlockSqlLayout => ({
   subjects: withBlockSubjects({}, ["parties", "deals"], {}),
   modules: { deals: { options: { readAll } } },
 });

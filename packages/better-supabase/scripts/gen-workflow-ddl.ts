@@ -255,7 +255,7 @@ export async function generateDdl(
   dbUrl: string,
   migrations: readonly WorldMigration[],
 ): Promise<string> {
-  const scratch = `bs_workflow_ddl_${process.pid}`;
+  const scratch = `bsb_workflow_ddl_${process.pid}`;
   const admin = new Client({ connectionString: dbUrl });
   await admin.connect();
 

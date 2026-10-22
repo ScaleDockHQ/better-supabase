@@ -1,5 +1,5 @@
 -- better-supabase module: search
--- @bs-module search@2 managed
+-- @bsb-block search@2 managed
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,78 +416,78 @@ end;
 $$;
 revoke execute on function "better_supabase"."search_index_row"() from public, anon, authenticated;
 
-drop trigger if exists "bs_search_message_index" on "better_supabase"."messages";
-create trigger "bs_search_message_index"
+drop trigger if exists "bsb_search_message_index" on "better_supabase"."messages";
+create trigger "bsb_search_message_index"
   after insert or delete or update of "id", "tenant_id", "body", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."search_index_row"('message', 'id');
 
-drop trigger if exists "bs_search_channel_index" on "better_supabase"."channels";
-create trigger "bs_search_channel_index"
+drop trigger if exists "bsb_search_channel_index" on "better_supabase"."channels";
+create trigger "bsb_search_channel_index"
   after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
   for each row execute function "better_supabase"."search_index_row"('channel', 'id');
 
-drop trigger if exists "bs_search_company_index" on "better_supabase"."companies";
-create trigger "bs_search_company_index"
+drop trigger if exists "bsb_search_company_index" on "better_supabase"."companies";
+create trigger "bsb_search_company_index"
   after insert or delete or update of "id", "tenant_id", "name", "domain" on "better_supabase"."companies"
   for each row execute function "better_supabase"."search_index_row"('company', 'id');
 
-drop trigger if exists "bs_search_person_index" on "better_supabase"."people";
-create trigger "bs_search_person_index"
+drop trigger if exists "bsb_search_person_index" on "better_supabase"."people";
+create trigger "bsb_search_person_index"
   after insert or delete or update of "id", "tenant_id", "name", "email", "title" on "better_supabase"."people"
   for each row execute function "better_supabase"."search_index_row"('person', 'id');
 
-drop trigger if exists "bs_search_deal_index" on "better_supabase"."deals";
-create trigger "bs_search_deal_index"
+drop trigger if exists "bsb_search_deal_index" on "better_supabase"."deals";
+create trigger "bsb_search_deal_index"
   after insert or delete or update of "id", "tenant_id", "name", "identifier", "note", "archived_at" on "better_supabase"."deals"
   for each row execute function "better_supabase"."search_index_row"('deal', 'id');
 
-drop trigger if exists "bs_search_course_index" on "better_supabase"."courses";
-create trigger "bs_search_course_index"
+drop trigger if exists "bsb_search_course_index" on "better_supabase"."courses";
+create trigger "bsb_search_course_index"
   after insert or delete or update of "id", "tenant_id", "title", "summary" on "better_supabase"."courses"
   for each row execute function "better_supabase"."search_index_row"('course', 'id');
 
-drop trigger if exists "bs_search_post_index" on "better_supabase"."posts";
-create trigger "bs_search_post_index"
+drop trigger if exists "bsb_search_post_index" on "better_supabase"."posts";
+create trigger "bsb_search_post_index"
   after insert or delete or update of "id", "tenant_id", "title", "body" on "better_supabase"."posts"
   for each row execute function "better_supabase"."search_index_row"('post', 'id');
 
-drop trigger if exists "bs_search_engagement_index" on "better_supabase"."engagements";
-create trigger "bs_search_engagement_index"
+drop trigger if exists "bsb_search_engagement_index" on "better_supabase"."engagements";
+create trigger "bsb_search_engagement_index"
   after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."engagements"
   for each row execute function "better_supabase"."search_index_row"('engagement', 'id');
 
-drop trigger if exists "bs_search_work_item_index" on "better_supabase"."work_items";
-create trigger "bs_search_work_item_index"
+drop trigger if exists "bsb_search_work_item_index" on "better_supabase"."work_items";
+create trigger "bsb_search_work_item_index"
   after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
   for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
 
-drop trigger if exists "bs_search_employee_index" on "better_supabase"."employees";
-create trigger "bs_search_employee_index"
+drop trigger if exists "bsb_search_employee_index" on "better_supabase"."employees";
+create trigger "bsb_search_employee_index"
   after insert or delete or update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"
   for each row execute function "better_supabase"."search_index_row"('employee', 'id');
 
-drop trigger if exists "bs_search_product_index" on "better_supabase"."products";
-create trigger "bs_search_product_index"
+drop trigger if exists "bsb_search_product_index" on "better_supabase"."products";
+create trigger "bsb_search_product_index"
   after insert or delete or update of "id", "tenant_id", "title", "description", "slug" on "better_supabase"."products"
   for each row execute function "better_supabase"."search_index_row"('product', 'id');
 
-drop trigger if exists "bs_search_product_variant_index" on "better_supabase"."product_variants";
-create trigger "bs_search_product_variant_index"
+drop trigger if exists "bsb_search_product_variant_index" on "better_supabase"."product_variants";
+create trigger "bsb_search_product_variant_index"
   after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
 
-drop trigger if exists "bs_search_calendar_event_index" on "better_supabase"."calendar_events";
-create trigger "bs_search_calendar_event_index"
+drop trigger if exists "bsb_search_calendar_event_index" on "better_supabase"."calendar_events";
+create trigger "bsb_search_calendar_event_index"
   after insert or delete or update of "id", "tenant_id", "title", "description", "location" on "better_supabase"."calendar_events"
   for each row execute function "better_supabase"."search_index_row"('calendar_event', 'id');
 
-drop trigger if exists "bs_search_customer_index" on "public"."customers";
-create trigger "bs_search_customer_index"
+drop trigger if exists "bsb_search_customer_index" on "public"."customers";
+create trigger "bsb_search_customer_index"
   after insert or delete or update of "id", "organization_id", "name", "archived_at" on "public"."customers"
   for each row execute function "better_supabase"."search_index_row"('customer', 'id');
 
-drop trigger if exists "bs_search_drive_node_index" on "better_supabase"."drive_nodes";
-create trigger "bs_search_drive_node_index"
+drop trigger if exists "bsb_search_drive_node_index" on "better_supabase"."drive_nodes";
+create trigger "bsb_search_drive_node_index"
   after insert or delete or update of "id", "tenant_id", "name", "deleted_at" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
 
@@ -787,13 +787,13 @@ revoke execute on function "api"."search_star"(text, text, boolean) from public,
 grant execute on function "api"."search_star"(text, text, boolean) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

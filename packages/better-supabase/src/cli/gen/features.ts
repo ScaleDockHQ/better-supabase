@@ -5,7 +5,7 @@ import type { Framework } from "../project/detect.ts";
 
 import { blockSubjectTypes } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import { resolveModule } from "../../sql/index.ts";
+import { resolveBlock } from "../../sql/index.ts";
 import { importPath } from "../core/io.ts";
 import { hasPermissionConstants } from "./block-names.ts";
 import { blockConfigPath, generatorBlocks } from "./blocks.ts";
@@ -83,7 +83,7 @@ function kebab(name: string): string {
  * and the subjects with `versions` set.
  */
 function servedSubjects(config: FeaturesConfig, block: string): Set<string> {
-  const listed = resolveModule(config.blocks[block]).options["subjects"];
+  const listed = resolveBlock(config.blocks[block]).options["subjects"];
   const registry = Object.entries(config.subjects);
 
   const named = Array.isArray(listed)
@@ -241,14 +241,14 @@ function serverFile(
       "",
       'import { recordServer } from "better-supabase/next";',
       "",
-      `import { bs } from ${q(importPath(path, server))};`,
+      `import { bsb } from ${q(importPath(path, server))};`,
       `import { ${name}Feature } from ${q(importPath(path, feature))};`,
       "",
       "/**",
       ` * Loads a ${type}'s sections in a Server Component, outside \`"use cache"\`,`,
       " * and runs its section writes as Server Actions.",
       " */",
-      `export const ${name}Record = recordServer(bs, ${name}Feature);`,
+      `export const ${name}Record = recordServer(bsb, ${name}Feature);`,
       "",
     ].join("\n"),
   };

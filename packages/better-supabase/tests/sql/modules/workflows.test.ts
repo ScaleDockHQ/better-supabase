@@ -6,11 +6,11 @@ import {
   customContracts,
   moduleBody,
   moduleTopics,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 
 const files = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
-  renderModules(names, { modules });
+  renderBlocks(names, { modules });
 
 const schemaOf = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
   files(names, modules)
@@ -62,7 +62,7 @@ describe("workflow-sdk-world module", () => {
     expect(sql).toContain(
       "after insert or update of status, attributes, error on workflow.workflow_runs",
     );
-    expect(sql).toContain("- 'bs.tenant' - 'bs.actor'");
+    expect(sql).toContain("- 'bsb.tenant' - 'bsb.actor'");
     expect(sql).toContain(
       `"better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1))`,
     );

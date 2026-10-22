@@ -3,15 +3,15 @@ import type { PoolClient } from "pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { dbUrl, reachable } from "./block-session.ts";
 import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   modules: {
     "number-sequences": {
       options: {
@@ -30,12 +30,12 @@ const layout: ModuleLayout = {
 
 async function install(
   client: PoolClient,
-  next: ModuleLayout = layout,
+  next: BlockSqlLayout = layout,
 ): Promise<void> {
   await client.query("begin");
 
   try {
-    for (const file of renderModules(["number-sequences"], next)) {
+    for (const file of renderBlocks(["number-sequences"], next)) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

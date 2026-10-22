@@ -70,12 +70,12 @@ export interface BetterSolidStart<
 > extends BetterServer<M, F, E, C, P, B> {
   /**
    * Verifies the caller, refreshes the session cookie on navigations and form
-   * posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
+   * posts, and puts `db`, `bsb`, `auth`, `tenant` and `session` on
    * `event.locals`.
    *
    * ```ts
    * // src/middleware.ts
-   * export default createMiddleware(bs.middleware);
+   * export default createMiddleware(bsb.middleware);
    * ```
    */
   readonly middleware: SolidStartMiddleware;
@@ -89,7 +89,7 @@ export interface BetterSolidStart<
    * ```ts
    * const notes = query(async () => {
    *   "use server";
-   *   const { db } = await bs.require();
+   *   const { db } = await bsb.require();
    *   return db.notes.findMany().orThrow();
    * }, "notes");
    * ```
@@ -146,9 +146,9 @@ export function createSolidStart<
   const eventOf = (): SolidFetchEvent => {
     const event = options.getRequestEvent();
 
-    if (event === undefined || !("bs" in event.locals)) {
+    if (event === undefined || !("bsb" in event.locals)) {
       throw new TypeError(
-        'better-supabase: no request context; add createMiddleware(bs.middleware) in src/middleware.ts and call this inside a "use server" function',
+        'better-supabase: no request context; add createMiddleware(bsb.middleware) in src/middleware.ts and call this inside a "use server" function',
       );
     }
 
@@ -206,7 +206,7 @@ export function createSolidStart<
         const scope = scopeOf(event);
 
         const caller = await requireCaller(
-          scope.bs.auth,
+          scope.bsb.auth,
           requireOptions,
           scope.tenant,
           options.authorizer,
@@ -227,7 +227,7 @@ export function createSolidStart<
           const scope = scopeOf(eventOf());
 
           const result = await runAction(
-            scope.bs.auth,
+            scope.bsb.auth,
             actionOptions,
             input,
             scope.tenant,

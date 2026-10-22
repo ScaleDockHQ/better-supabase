@@ -1,11 +1,11 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { driveCoreSql } from "./drive-core.ts";
 import { driveFilesSql } from "./drive-files.ts";
 import { FILE_EVENTS, NAMES, driveKit, labelTags } from "./drive-kit.ts";
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "drive_role", args: ["uuid"], returns: "text" },
     { name: "drive_can", args: ["uuid", "text"], returns: "boolean" },
@@ -34,7 +34,9 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-function fileContract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function fileContract(
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   if (!ctx.installed("drive") || !ctx.installed("attachments")) {
     return [];
   }
@@ -92,7 +94,7 @@ const INTEGRATES = [
  * subjects (comments, attachments, versions, trash), so `drive_node` can be one
  * of them; `drive-files` adds what needs those modules.
  */
-export const DRIVE: ModuleDefinition = {
+export const DRIVE: BlockSqlDefinition = {
   name: "drive",
   scopes: ["tenant"],
   title: "Drive",
@@ -120,7 +122,7 @@ export const DRIVE: ModuleDefinition = {
 };
 
 /** Installed with `drive`: its files, revisions, bin, stars and links. */
-export const DRIVE_FILES: ModuleDefinition = {
+export const DRIVE_FILES: BlockSqlDefinition = {
   name: "drive-files",
   scopes: ["tenant"],
   title: "Drive files",

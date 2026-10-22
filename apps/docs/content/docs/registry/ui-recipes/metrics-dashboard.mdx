@@ -50,7 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 import { metrics } from "@/metrics";
 
 const DAYS = 30;
@@ -78,7 +78,7 @@ async function loadPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = {

@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { PaymentProvider } from "../../src/commerce/payments.ts";
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createDonations,
@@ -29,7 +29,7 @@ const MODULES = [
   "donations",
 ];
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["parties"], {}),
 };
 

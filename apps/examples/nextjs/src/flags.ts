@@ -11,7 +11,7 @@ import { dedupe, flag } from "flags/next";
 import "server-only";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * `flag_definitions()` lists every override, so only the service role may call
@@ -49,7 +49,7 @@ const identify = dedupe(
         return null;
       }
 
-      const { auth } = await bs.context(
+      const { auth } = await bsb.context(
         new Request("https://flags.invalid/", { headers: { cookie } }),
       );
 

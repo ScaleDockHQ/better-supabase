@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, withExtraFields } from "../shared.ts";
@@ -39,9 +39,9 @@ export interface PostsSql {
   readonly posts: string;
   /** The posts' subject type, after renames, as a SQL literal. */
   readonly subject: string;
-  readonly moderation: ModuleContext;
-  readonly reactions: ModuleContext;
-  readonly messaging: ModuleContext;
+  readonly moderation: BlockSqlContext;
+  readonly reactions: BlockSqlContext;
+  readonly messaging: BlockSqlContext;
   /** "post" publishes a new post at once; "pre" holds it for a moderator. */
   readonly mode: "pre" | "post";
   readonly maxBody: number;
@@ -69,7 +69,7 @@ export interface PostsSql {
   ) => string;
 }
 
-function modeOf(ctx: ModuleContext): "pre" | "post" {
+function modeOf(ctx: BlockSqlContext): "pre" | "post" {
   const mode = ctx.text("moderation", "post");
 
   if (mode !== "pre" && mode !== "post") {
@@ -79,7 +79,7 @@ function modeOf(ctx: ModuleContext): "pre" | "post" {
   return mode;
 }
 
-function maxBodyOf(ctx: ModuleContext): number {
+function maxBodyOf(ctx: BlockSqlContext): number {
   const max = ctx.number("maxBodyLength", 20_000);
 
   if (!Number.isInteger(max) || max < 1 || max > 200_000) {
@@ -91,7 +91,7 @@ function maxBodyOf(ctx: ModuleContext): number {
   return max;
 }
 
-export function postsSql(ctx: ModuleContext): PostsSql {
+export function postsSql(ctx: BlockSqlContext): PostsSql {
   const keys = moduleOperations("posts");
   const b = (column: string): string => ctx.col("boards", column);
   const p = (column: string): string => ctx.col("posts", column);

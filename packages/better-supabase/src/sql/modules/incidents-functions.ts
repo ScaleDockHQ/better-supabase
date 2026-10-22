@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -23,7 +23,7 @@ const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 /** The component, incident, timeline and postmortem functions. */
-export function incidentsFunctions(ctx: ModuleContext): string {
+export function incidentsFunctions(ctx: BlockSqlContext): string {
   const components = ctx.table("components");
   const history = ctx.table("history");
   const incidents = ctx.table("incidents");

@@ -34,7 +34,7 @@ export interface RedisStreamSubscriber {
 }
 
 interface RedisStreamSharedOptions {
-  /** Key and channel prefix. Defaults to `bs:stream`. */
+  /** Key and channel prefix. Defaults to `bsb:stream`. */
   readonly keyPrefix?: string;
   /** How long a stream opened without a `ttl` lives. Defaults to `'1 day'`. */
   readonly ttl?: number | string;
@@ -168,7 +168,7 @@ export function redisStreamStore(
   const redis = async (): Promise<RedisStreamClient> =>
     (await connection()).client;
 
-  const prefix = options.keyPrefix ?? "bs:stream";
+  const prefix = options.keyPrefix ?? "bsb:stream";
   const defaultTtl = ttlSeconds(options.ttl ?? DAY);
   const wakes = "url" in options || options.subscriber !== undefined;
   const pollMs = options.pollMs ?? (wakes ? 2000 : 250);

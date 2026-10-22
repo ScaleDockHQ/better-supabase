@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -101,7 +101,7 @@ export interface Enrollment {
   /** The program key; `onboarding:<checklist>` for an onboarding checklist. */
   readonly program: string;
   readonly programVersion?: number;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly status: EnrollmentStatus;
   /** The program's step ids when it enrolled or last changed. */
   readonly steps: readonly string[];
@@ -118,7 +118,7 @@ export interface Enrollment {
 
 export interface EnrollmentsFilter {
   readonly program?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly status?: EnrollmentStatus;
   /** Default 50, at most 200. */
   readonly pageSize?: number;
@@ -137,11 +137,11 @@ export interface Enrollments {
    * Enrolls a subject. An enrolled subject keeps its enrollment, and a
    * cancelled one starts again with its completed steps.
    */
-  enroll(program: string, subject: SubjectRef): AsyncResult<Enrollment>;
+  enroll(program: string, subject: RecordRef): AsyncResult<Enrollment>;
   /** A subject's enrollment in a program, or `null`. */
   enrollment(
     program: string,
-    subject: SubjectRef,
+    subject: RecordRef,
   ): AsyncResult<Enrollment | null>;
   /**
    * The organization's enrollments, most recently changed first. Without

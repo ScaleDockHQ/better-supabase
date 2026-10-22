@@ -203,14 +203,14 @@ import {
 const postgres = createPostgres({ connectionString: env.SUPABASE_DB_URL });
 const keys = createApiKeys({ transport: sqlTransport(postgres.admin) });
 
-export const bs = createHono(betterSupabase, {
+export const bsb = createHono(betterSupabase, {
   postgres,
   auth: { resolvers: [apiKeyResolver({ keys })] },
 });
 
 app.use(
   "/api/deals/*",
-  bs.middleware({ allow: ["user", "apiKey"], scopes: ["deals:read"] }),
+  bsb.middleware({ allow: ["user", "apiKey"], scopes: ["deals:read"] }),
 );
 ```
 

@@ -1,5 +1,5 @@
--- better-supabase module: organizations (0.8.0)
--- @bs-module organizations@1 adopt
+-- better-supabase module: organizations
+-- @bsb-block organizations@1 adopt
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -241,8 +241,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "centrakit"."organization_users";
-create constraint trigger "bs_organization_owner" after update of "role_id", "organization_id" or delete on "centrakit"."organization_users"
+drop trigger if exists "bsb_organization_owner" on "centrakit"."organization_users";
+create constraint trigger "bsb_organization_owner" after update of "role_id", "organization_id" or delete on "centrakit"."organization_users"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -294,8 +294,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "centrakit"."organization_users";
-create trigger "bs_organization_role_guard" before insert or update on "centrakit"."organization_users"
+drop trigger if exists "bsb_organization_role_guard" on "centrakit"."organization_users";
+create trigger "bsb_organization_role_guard" before insert or update on "centrakit"."organization_users"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -655,13 +655,13 @@ revoke execute on function "better_supabase"."list_organization_invitations"(uui
 grant execute on function "better_supabase"."list_organization_invitations"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

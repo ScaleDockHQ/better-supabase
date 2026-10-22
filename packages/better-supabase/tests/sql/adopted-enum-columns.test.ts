@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { liteStack } from "../../src/testing/lite.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -94,9 +94,7 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 const BOOT = { timeout: 60_000 };
 
 async function run(check: string): Promise<void> {
-  const files = renderModules(["number-sequences", "tags"], {
-    modules: BLOCKS,
-  });
+  const files = renderBlocks(["number-sequences", "tags"], { modules: BLOCKS });
 
   await using stack = await liteStack({
     driver: "pglite",

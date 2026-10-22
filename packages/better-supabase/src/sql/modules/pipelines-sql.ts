@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { Names, PipelineBinding } from "./pipelines-bindings.ts";
 
 import { rankKeys } from "../../core/rank-keys.ts";
@@ -31,7 +31,7 @@ const pipelineFields = (names: Names, alias: string): string =>
  * stage template the first time a record needs one.
  */
 export function defaultPipeline(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   bindings: readonly PipelineBinding[],
 ): string {
@@ -109,7 +109,7 @@ grant execute on function ${self}(${ctx.idType}, text, text) to service_role;
  * history.
  */
 export function stageTrigger(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   binding: PipelineBinding,
 ): string {
@@ -138,7 +138,7 @@ export function stageTrigger(
       ? ""
       : `\n    new.${col(binding.enteredAt)} := now();`;
 
-  const name = `bs_pipeline_${binding.type}`;
+  const name = `bsb_pipeline_${binding.type}`;
 
   const transitions = ctx.hasTable("transitions")
     ? `
@@ -281,7 +281,7 @@ ${statusTrigger(names, binding)}`;
  * separate update so a state-machine trigger on the status column runs.
  */
 function statusTrigger(names: Names, binding: PipelineBinding): string {
-  const name = `bs_pipeline_status_${binding.type}`;
+  const name = `bsb_pipeline_status_${binding.type}`;
   const subject = binding.subject;
 
   if (binding.status === undefined) {
@@ -325,7 +325,7 @@ for each row execute function better_supabase.${name}();`;
 }
 
 export function manageFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   bindings: readonly PipelineBinding[],
 ): string {

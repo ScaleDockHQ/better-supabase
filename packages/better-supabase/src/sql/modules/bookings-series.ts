@@ -1,4 +1,4 @@
-import type { ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContractFunction } from "../context.ts";
 import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -421,7 +421,7 @@ ${userGrant(`${fn("get_booking_series")}(uuid)`)}
 `;
 }
 
-export function seriesContract(): readonly ModuleContractFunction[] {
+export function seriesContract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "book_series",

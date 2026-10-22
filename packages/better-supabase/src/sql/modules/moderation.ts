@@ -1,18 +1,18 @@
 import type { ModerationEvents } from "../../blocks/moderation/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { moderationFunctions } from "./moderation-functions.ts";
 
-const EVENTS: ModuleEvents<ModerationEvents> = {
+const EVENTS: BlockSqlEvents<ModerationEvents> = {
   "moderation_report.created": {
     subject: "moderation-reports",
     payload: [
@@ -48,7 +48,7 @@ const EVENTS: ModuleEvents<ModerationEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     moderation_item: {
       table: "items",
@@ -157,7 +157,7 @@ const actionList = MODERATION_ACTIONS.map((action) => sqlString(action)).join(
  * The moderation tables, for this module and for the upgrades that move other
  * modules' moderation onto them.
  */
-export function moderationTables(ctx: ModuleContext): string {
+export function moderationTables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -238,7 +238,7 @@ create index if not exists ${name("bans", "user_idx")} on ${bans} (${b("user")})
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -282,7 +282,7 @@ ${policies}
 ${moderationFunctions(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "report_content",
@@ -308,7 +308,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const MODERATION: ModuleDefinition = {
+export const MODERATION: BlockSqlDefinition = {
   internal: ["moderation_track", "moderation_apply", "moderation_banned"],
   name: "moderation",
   scopes: ["tenant"],

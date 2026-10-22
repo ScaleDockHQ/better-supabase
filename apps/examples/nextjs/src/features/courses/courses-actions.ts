@@ -6,12 +6,12 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Creates and publishes a one-module course to try the learner flow with. */
-export const createSampleCourse = bs.action(
+export const createSampleCourse = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -75,7 +75,7 @@ export const createSampleCourse = bs.action(
 );
 
 /** Enrolls the caller in a published course. */
-export const enrollInCourse = bs.action(
+export const enrollInCourse = bsb.action(
   {
     input: v.object({ courseId: Id }),
     requireTenant: true,
@@ -95,7 +95,7 @@ export const enrollInCourse = bs.action(
 );
 
 /** Marks a content or video lesson done for the caller. */
-export const completeLesson = bs.action(
+export const completeLesson = bsb.action(
   {
     input: v.object({ lessonId: Id }),
     requireTenant: true,
@@ -122,7 +122,7 @@ const Answer = v.union([
 ]);
 
 /** Submits a quiz; the database grades it, so the client can't set a score. */
-export const submitQuiz = bs.action(
+export const submitQuiz = bsb.action(
   {
     input: v.object({
       lessonId: Id,

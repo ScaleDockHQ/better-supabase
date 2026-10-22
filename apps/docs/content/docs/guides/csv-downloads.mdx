@@ -10,7 +10,7 @@ second CSV library.
 ```ts title="app/api/customers/export/route.ts"
 import { csvResponse } from "better-supabase/server";
 
-export const GET = bs.handler(async (_request, ctx) => {
+export const GET = bsb.handler(async (_request, ctx) => {
   const customers = await ctx.db.customers
     .findMany({ orderBy: { name: "asc" } })
     .orThrow();

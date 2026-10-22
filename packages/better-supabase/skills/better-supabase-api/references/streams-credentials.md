@@ -55,7 +55,7 @@ import {
   vaultCredentials,
 } from "better-supabase/credentials";
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   credentials: vaultCredentials({
     transport: sqlTransport(postgres.asService()),
   }),
@@ -101,7 +101,7 @@ caller before `resumeHook`, `protectWebHandler(handler, key, { can })` refuses c
 `workflows` block to the SDK. Schedules and `startOnEvent` need `runAs`
 (`{ publisher, permissions }`): the run starts as that user, capped to those
 permission keys, and the event actor or schedule creator only lands in
-`bs.trigger`.
+`bsb.trigger`.
 
 Docs: https://bettersupabase.com/docs/blocks/streams.md,
 https://bettersupabase.com/docs/extending/credentials.md and

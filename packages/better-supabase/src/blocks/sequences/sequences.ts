@@ -3,7 +3,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type { MailSendDraft } from "../mail-sync/mail-sync.ts";
 import type { BlockPorts } from "../ports.ts";
-import type { BlockOptions, SubjectRef } from "../shared.ts";
+import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
@@ -167,7 +167,7 @@ export interface SequenceEnrollInput {
 /** What `enrollments` filters on. */
 export interface SequenceEnrollmentsFilter {
   readonly sequenceId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly status?: SequenceEnrollmentStatus;
   /** 1 to 200. Default 50. */
   readonly limit?: number;
@@ -200,7 +200,7 @@ export interface Sequences {
    */
   enroll(
     sequenceId: string,
-    subject: SubjectRef,
+    subject: RecordRef,
     input?: SequenceEnrollInput,
   ): AsyncResult<SequenceEnrollment>;
   pause(enrollmentId: string): AsyncResult<SequenceEnrollment>;

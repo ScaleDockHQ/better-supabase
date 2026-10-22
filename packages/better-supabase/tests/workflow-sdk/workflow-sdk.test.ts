@@ -73,16 +73,16 @@ describe("context", () => {
       user,
     );
     expect(contextAttributes(user)).toEqual({
-      "bs.tenant": "t1",
-      "bs.actor": "u1",
+      "bsb.tenant": "t1",
+      "bsb.actor": "u1",
     });
     expect(
       contextAttributes({ actor: { id: "svc", kind: "service" } }),
     ).toEqual({});
     expect(hookMetadata(user, "invoice.approve")).toEqual({
-      "bs.tenant": "t1",
-      "bs.actor": "u1",
-      "bs.permission": "invoice.approve",
+      "bsb.tenant": "t1",
+      "bsb.actor": "u1",
+      "bsb.permission": "invoice.approve",
     });
     expect(hookMetadata({})).toEqual({});
   });
@@ -102,9 +102,9 @@ describe("context", () => {
       ticket: "tk-1",
     });
     expect(contextAttributes({ ...user, ticket: "tk-1" })).toEqual({
-      "bs.tenant": "t1",
-      "bs.actor": "u1",
-      "bs.ticket": "tk-1",
+      "bsb.tenant": "t1",
+      "bsb.actor": "u1",
+      "bsb.ticket": "tk-1",
     });
     expect(() =>
       workflowContext({ ...user, claims: { act: { kind: "root", sub: "a" } } }),
@@ -116,34 +116,34 @@ describe("startFor", () => {
   it("starts with the context attributes and the key", async () => {
     const run = await startFor(user, approve, ["i1"], {
       idempotencyKey: "k1",
-      attributes: { plan: "pro", "bs.actor": "spoofed" },
+      attributes: { plan: "pro", "bsb.actor": "spoofed" },
     });
 
     expect(run.runId).toBe("wrun_new");
     expect(listRuns).toHaveBeenCalledWith({
-      attributes: { "bs.key": "k1" },
+      attributes: { "bsb.key": "k1" },
       pagination: { limit: 1 },
     });
     expect(start.mock.calls[0]?.[2]).toEqual({
       attributes: {
         plan: "pro",
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.key": "k1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.key": "k1",
       },
     });
   });
 
   it("drops caller principal attributes and stores the subject", async () => {
     await startFor(user, approve, ["i1"], {
-      attributes: { "bs.principal_kind": "system", "bs.principal": "x" },
+      attributes: { "bsb.principal_kind": "system", "bsb.principal": "x" },
       subject: { type: "deal", id: "d1" },
     });
     expect(start.mock.calls[0]?.[2]).toEqual({
       attributes: {
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.subject": "deal/d1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.subject": "deal/d1",
       },
     });
     await expect(
@@ -151,14 +151,18 @@ describe("startFor", () => {
     ).rejects.toThrow(TypeError);
   });
 
-  it("stores the ticket as bs.ticket", async () => {
+  it("stores the ticket as bsb.ticket", async () => {
     await startFor(user, approve, ["i1"], { ticket: "tk-1" });
     expect(start.mock.calls[0]?.[2]).toEqual({
-      attributes: { "bs.tenant": "t1", "bs.actor": "u1", "bs.ticket": "tk-1" },
+      attributes: {
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.ticket": "tk-1",
+      },
     });
     await startFor({ ...user, ticket: "from-context" }, approve, ["i1"]);
     expect(start.mock.calls[1]?.[2]).toMatchObject({
-      attributes: { "bs.ticket": "from-context" },
+      attributes: { "bsb.ticket": "from-context" },
     });
     await expect(
       startFor(user, approve, ["i1"], { ticket: "" }),
@@ -176,7 +180,7 @@ describe("startFor", () => {
     const other = { analytics: undefined } as never;
     await startFor({}, approve, ["i1"], { idempotencyKey: "k", world: other });
     expect(start.mock.calls[0]?.[2]).toEqual({
-      attributes: { "bs.key": "k" },
+      attributes: { "bsb.key": "k" },
       world: other,
     });
     await startFor({}, approve, ["i1"]);
@@ -189,7 +193,7 @@ const publisher = { publisher: "p1", permissions: ["invoice.approve"] };
 const asPublisher = {
   actor: { id: "p1", kind: "user" as const },
   tenant: "t1",
-  claims: { bs_permission_cap: ["invoice.approve"] },
+  claims: { bsb_permission_cap: ["invoice.approve"] },
 };
 
 describe("workflowStarter", () => {
@@ -215,13 +219,13 @@ describe("workflowStarter", () => {
     expect(start.mock.calls[0]?.[1]).toEqual([asPublisher, "i1"]);
     expect(start.mock.calls[0]?.[2]).toEqual({
       attributes: {
-        "bs.publisher": "p1",
-        "bs.trigger": "u1",
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.principal_kind": "user",
-        "bs.principal": "p1",
-        "bs.key": "schedule:s1:x",
+        "bsb.publisher": "p1",
+        "bsb.trigger": "u1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.principal_kind": "user",
+        "bsb.principal": "p1",
+        "bsb.key": "schedule:s1:x",
       },
     });
   });
@@ -263,7 +267,7 @@ describe("workflowStarter", () => {
     });
     expect(start.mock.calls[0]?.[1]).toEqual(["single"]);
     expect(start.mock.calls[0]?.[2]).toMatchObject({
-      attributes: { "bs.actor": "u1", "bs.key": "admission:q1" },
+      attributes: { "bsb.actor": "u1", "bsb.key": "admission:q1" },
     });
     await expect(
       starter({
@@ -347,21 +351,21 @@ describe("startOnEvent", () => {
     expect(start.mock.calls[0]?.[1]).toEqual([{ invoice: "i1" }]);
     expect(start.mock.calls[0]?.[2]).toEqual({
       attributes: {
-        "bs.publisher": "p1",
-        "bs.trigger": "u1",
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.principal_kind": "user",
-        "bs.principal": "p1",
-        "bs.key": "event:e1",
+        "bsb.publisher": "p1",
+        "bsb.trigger": "u1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.principal_kind": "user",
+        "bsb.principal": "p1",
+        "bsb.key": "event:e1",
       },
     });
     expect(start.mock.calls[1]?.[2]).toEqual({
       attributes: {
-        "bs.publisher": "p1",
-        "bs.principal_kind": "user",
-        "bs.principal": "p1",
-        "bs.key": "event:e3",
+        "bsb.publisher": "p1",
+        "bsb.principal_kind": "user",
+        "bsb.principal": "p1",
+        "bsb.key": "event:e3",
       },
     });
   });
@@ -408,14 +412,14 @@ describe("startOnEvent", () => {
     ]);
     expect(start.mock.calls[0]?.[2]).toEqual({
       attributes: {
-        "bs.publisher": "p1",
-        "bs.trigger": "u1",
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.principal_kind": "user",
-        "bs.principal": "p1",
-        "bs.ticket": "ticket:e1",
-        "bs.key": "event:e1",
+        "bsb.publisher": "p1",
+        "bsb.trigger": "u1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.principal_kind": "user",
+        "bsb.principal": "p1",
+        "bsb.ticket": "ticket:e1",
+        "bsb.key": "event:e1",
       },
     });
   });

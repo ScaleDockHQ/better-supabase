@@ -14,7 +14,7 @@ and the same scopes.
 ```ts title="src/server.ts"
 import { accessTokenResolver } from "better-supabase/server";
 
-export const bs = createHono(betterSupabase, {
+export const bsb = createHono(betterSupabase, {
   postgres,
   auth: {
     resolvers: [

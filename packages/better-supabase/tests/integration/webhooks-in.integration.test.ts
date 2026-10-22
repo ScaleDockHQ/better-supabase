@@ -18,7 +18,7 @@ import {
   jobsDestination,
   signWebhook,
 } from "../../src/blocks/webhooks/index.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { testIncomingDestination } from "../../src/testing/index.ts";
 import { BlockSession } from "./block-session.ts";
@@ -94,7 +94,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         );
       }
 
-      for (const file of renderModules(["webhooks-in", "rate-limit"])) {
+      for (const file of renderBlocks(["webhooks-in", "rate-limit"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -586,21 +586,21 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
     try {
       await s.rows(
-        `create table public.bs_test_flows (
+        `create table public.bsb_test_flows (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            private boolean not null default false
          );
-         alter table public.bs_test_flows enable row level security;
-         grant select on public.bs_test_flows to authenticated;
-         create policy "read" on public.bs_test_flows for select to authenticated
+         alter table public.bsb_test_flows enable row level security;
+         grant select on public.bsb_test_flows to authenticated;
+         create policy "read" on public.bsb_test_flows for select to authenticated
            using (better_supabase.has_organization_role(organization_id) and not private);`,
       );
       await s.install(["organizations", "webhooks-in"], {
         modules: {
           "webhooks-in": {
             options: {
-              subjects: { flow: { table: "bs_test_flows", cascade: true } },
+              subjects: { flow: { table: "bsb_test_flows", cascade: true } },
             },
           },
         },
@@ -609,7 +609,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const organization = await s.organization(owner);
 
       const [open, hidden] = await s.rows<{ id: string }>(
-        "insert into public.bs_test_flows (organization_id, private) values ($1, false), ($1, true) returning id",
+        "insert into public.bsb_test_flows (organization_id, private) values ($1, false), ($1, true) returning id",
         [organization],
       );
 
@@ -645,7 +645,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       ).toHaveLength(1);
 
       await s.service();
-      await s.rows("delete from public.bs_test_flows where id = $1", [
+      await s.rows("delete from public.bsb_test_flows where id = $1", [
         open!.id,
       ]);
       expect(
@@ -665,7 +665,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderModules(["webhooks-in"])) {
+      for (const file of renderBlocks(["webhooks-in"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -711,8 +711,8 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     let claims: object = { sub: owner, role: "authenticated" };
     const sql = clientAs(client, () => claims);
     const suffix = owner.slice(0, 8);
-    const hooksTable = `public.bs_hooks_${suffix}`;
-    const inboxTable = `public.bs_inbox_${suffix}`;
+    const hooksTable = `public.bsb_hooks_${suffix}`;
+    const inboxTable = `public.bsb_inbox_${suffix}`;
     const source = `adopted-${suffix}`;
     const queue = `adopted_${suffix}`;
 
@@ -794,7 +794,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
         layout,
       )) {
@@ -907,7 +907,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderModules(["webhook-inbox"])) {
+      for (const file of renderBlocks(["webhook-inbox"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }

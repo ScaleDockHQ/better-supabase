@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { subjectsOption } from "../subjects.ts";
@@ -8,7 +8,7 @@ import { subjectsOption } from "../subjects.ts";
  * record, or its messages join the kept record's conversation when that one
  * exists, and record mentions follow.
  */
-export function messagingSubjectMerge(ctx: ModuleContext): string {
+export function messagingSubjectMerge(ctx: BlockSqlContext): string {
   const subjects = subjectsOption(ctx, [], { registryOnly: true });
   const conversations = ctx.table("conversations");
   const messages = ctx.table("messages");

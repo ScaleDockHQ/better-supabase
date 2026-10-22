@@ -3,7 +3,7 @@ import type { SectionData, SectionResult } from "../blocks/sections.ts";
 import type { ValidationIssue } from "../core/errors.ts";
 import type { FilterField } from "../list/filter-query.ts";
 import type { ListParseOptions, ListSearchParams } from "../list/list-query.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { FeatureBlocks, RecordCan, RecordFeature } from "./feature.ts";
 import type { SectionName, SectionNamed } from "./sections.ts";
 
@@ -58,7 +58,7 @@ export interface RecordListSpec<
 
 /** One row of a record list with its section cells. */
 export interface RecordListRow<Row, Cells> {
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly row: Row;
   readonly cells: Cells;
 }
@@ -136,7 +136,7 @@ export interface RecordList<
  * `column` results use. Inlined so the records entry doesn't load the block
  * helpers.
  */
-function subjectKey(subject: SubjectRef): string {
+function subjectKey(subject: RecordRef): string {
   return `${subject.type}:${subject.id}`;
 }
 
@@ -151,14 +151,14 @@ type Column = AsyncResult<Readonly<Record<string, unknown>>>;
 
 type Load = (
   client: unknown,
-  subject: SubjectRef,
+  subject: RecordRef,
   options: unknown,
 ) => AsyncResult<unknown>;
 
 function loadEach(
   load: Load,
   client: unknown,
-  subjects: readonly SubjectRef[],
+  subjects: readonly RecordRef[],
 ): Column {
   return AsyncResult.from(async () => {
     const results = await Promise.all(
@@ -190,7 +190,7 @@ function columnOf(
   clients: object,
   name: string,
   mode: RecordListColumn,
-  subjects: readonly SubjectRef[],
+  subjects: readonly RecordRef[],
 ): Column {
   const found = findSection(blocks, name);
 
@@ -205,7 +205,7 @@ function columnOf(
     );
   }
 
-  type Many = (client: unknown, subjects: readonly SubjectRef[]) => Column;
+  type Many = (client: unknown, subjects: readonly RecordRef[]) => Column;
 
   // SAFETY: the section's hooks take the client its block's creator made.
   const count = found.section.count as Many | undefined;

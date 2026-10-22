@@ -16,9 +16,9 @@ Write the entries once in a server module:
 import { createServer, withBetterSupabase } from "better-supabase/server";
 import { betterSupabase } from "../lib/supabase";
 
-export const bs = createServer(betterSupabase);
+export const bsb = createServer(betterSupabase);
 export default [
-  withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+  withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
 ];
 ```
 
@@ -32,7 +32,7 @@ export default defineNuxtConfig({
 ```
 
 The module registers the entries as server middleware, so every server route
-reads `db`, `bs`, `auth` and `tenant` from `event.context`, and auto-imports
+reads `db`, `bsb`, `auth` and `tenant` from `event.context`, and auto-imports
 the Vue composables in components. Set `composables: false` to skip them.
 
 ## Without the module

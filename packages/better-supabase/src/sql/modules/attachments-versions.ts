@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, revokeTable } from "../shared.ts";
@@ -54,7 +54,7 @@ export interface AttachmentVersionsSql {
  * restore_attachment_version() swaps one back. No object moves.
  */
 export function attachmentVersionsSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   options: AttachmentVersionsOptions,
 ): AttachmentVersionsSql {
   const t = ctx.table("attachments");

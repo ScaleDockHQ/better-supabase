@@ -62,7 +62,7 @@ describe("blockQueries", () => {
 
     const options = queries.tasks.listTasks({ title: "Write docs" });
     expect(options.queryKey).toEqual([
-      "bs-block",
+      "bsb-block",
       "tasks",
       "listTasks",
       { title: "Write docs" },
@@ -71,7 +71,7 @@ describe("blockQueries", () => {
     await expect(queryClient.query(options)).resolves.toEqual([
       { id: "t1", title: "Write docs" },
     ]);
-    expect(queries.tasks.$key).toEqual(["bs-block", "tasks"]);
+    expect(queries.tasks.$key).toEqual(["bsb-block", "tasks"]);
   });
 
   it("throws a DbException for an error result", async () => {
@@ -109,7 +109,7 @@ describe("blockQueries", () => {
       queries.tasks.moveTask().mutationFn(["t1", 2]),
     ).resolves.toEqual({ id: "t1", position: 2 });
     expect(queries.tasks.issueTask().mutationKey).toEqual([
-      "bs-block",
+      "bsb-block",
       "tasks",
       "issueTask",
     ]);

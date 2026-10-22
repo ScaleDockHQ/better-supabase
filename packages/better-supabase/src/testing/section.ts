@@ -1,6 +1,6 @@
 import type { AnySection } from "../blocks/sections.ts";
 import type { AsyncResult } from "../core/result.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { ConformanceReport } from "./conformance.ts";
 
 import { subjectKey } from "../core/block-subjects.ts";
@@ -10,9 +10,9 @@ export interface TestSectionOptions {
   /** The block client the section reads through, such as a fake. */
   readonly client: unknown;
   /** A record the client holds rows for. */
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   /** Records to count, for a section with `count`. Default: `[subject]`. */
-  readonly subjects?: readonly SubjectRef[];
+  readonly subjects?: readonly RecordRef[];
 }
 
 const callable = (value: unknown): boolean => typeof value === "function";
@@ -34,7 +34,7 @@ export function testSection(
   // which the test passes.
   const load = section.load as (
     client: unknown,
-    subject: SubjectRef,
+    subject: RecordRef,
     options: unknown,
   ) => AsyncResult<unknown>;
 
@@ -42,7 +42,7 @@ export function testSection(
   const count = section.count as
     | ((
         client: unknown,
-        subjects: readonly SubjectRef[],
+        subjects: readonly RecordRef[],
       ) => AsyncResult<Readonly<Record<string, number>>>)
     | undefined;
 

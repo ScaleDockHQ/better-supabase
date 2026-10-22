@@ -1,5 +1,5 @@
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlString } from "../../core/template.ts";
@@ -15,7 +15,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name
+  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name
     || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;
   payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);
   source text;
@@ -64,7 +64,7 @@ declare
   event text := tg_op;
   private boolean := true;
   mode text := 'keys';
-  cache_key text := 'bs_topic.r' || tg_relid::text || '_' || md5(tg_name);
+  cache_key text := 'bsb_topic.r' || tg_relid::text || '_' || md5(tg_name);
   stamp text := statement_timestamp()::text;
   plan jsonb;
   placeholder text;
@@ -172,7 +172,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
--- user_column broadcasts per user (bs:t:<table>:u:<user id>) instead.
+-- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
 drop function if exists better_supabase.track_realtime(regclass, text);
 create or replace function better_supabase.track_realtime(
   target regclass,
@@ -197,27 +197,27 @@ begin
           then 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user'
           else 'Check the column in realtime.users' end;
   end if;
-  execute format('drop trigger if exists bs_realtime on %s', target);
-  execute format('drop trigger if exists bs_realtime_insert on %s', target);
-  execute format('drop trigger if exists bs_realtime_update on %s', target);
-  execute format('drop trigger if exists bs_realtime_delete on %s', target);
+  execute format('drop trigger if exists bsb_realtime on %s', target);
+  execute format('drop trigger if exists bsb_realtime_insert on %s', target);
+  execute format('drop trigger if exists bsb_realtime_update on %s', target);
+  execute format('drop trigger if exists bsb_realtime_delete on %s', target);
   if scope_column is null then
     execute format(
-      'create trigger bs_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',
+      'create trigger bsb_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',
       target
     );
     return;
   end if;
   execute format(
-    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
+    'create trigger bsb_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
     target, scope_column, scope_kind
   );
   execute format(
-    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
+    'create trigger bsb_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
     target, scope_column, scope_kind
   );
   execute format(
-    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
+    'create trigger bsb_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
     target, scope_column, scope_kind
   );
 end;
@@ -229,10 +229,10 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_realtime on %s', target);
-  execute format('drop trigger if exists bs_realtime_insert on %s', target);
-  execute format('drop trigger if exists bs_realtime_update on %s', target);
-  execute format('drop trigger if exists bs_realtime_delete on %s', target);
+  execute format('drop trigger if exists bsb_realtime on %s', target);
+  execute format('drop trigger if exists bsb_realtime_insert on %s', target);
+  execute format('drop trigger if exists bsb_realtime_update on %s', target);
+  execute format('drop trigger if exists bsb_realtime_delete on %s', target);
 end;
 $$;
 
@@ -240,13 +240,13 @@ revoke execute on function better_supabase.track_realtime(regclass, text, text) 
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, topics of their active tenant and
--- their own user topics (bs:t:<table>:u:<user id>).
+-- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
-drop policy if exists bs_realtime_tables_receive on realtime.messages;
-create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
+drop policy if exists bsb_realtime_tables_receive on realtime.messages;
+create policy bsb_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
-    and (select realtime.topic()) like 'bs:t:%'
+    and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
@@ -260,15 +260,15 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
     )
   );`;
 
-export const REALTIME_TABLES: ModuleDefinition = {
+export const REALTIME_TABLES: BlockSqlDefinition = {
   name: "realtime-tables",
   title: "Realtime table changes",
   description:
-    "Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.",
+    "Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.",
   requires: [],
   target: "schema",
   build: (_ctx, layout) => realtimeTablesSql(layout.claims ?? DEFAULT_CLAIMS),
-  topics: () => ["bs:t:*"],
+  topics: () => ["bsb:t:*"],
   extras: (_ctx, layout) =>
     realtimeRegistrations(
       layout.realtimeTables ?? [],

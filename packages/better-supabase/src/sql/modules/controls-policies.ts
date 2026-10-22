@@ -1,11 +1,11 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
 /** The policy and acknowledgement functions of the `controls` module. */
-export function policyFunctions(ctx: ModuleContext): string {
+export function policyFunctions(ctx: BlockSqlContext): string {
   const policies = ctx.table("policies");
   const acks = ctx.table("acknowledgements");
   const p = (column: string): string => ctx.col("policies", column);

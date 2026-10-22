@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
@@ -27,7 +27,7 @@ const MODULES = [
 
 // The shared stack's work_items table references `work_projects` (the Next.js
 // example renames it), and `create table if not exists` keeps that table.
-const layout = (maxAssignees = 0): ModuleLayout => ({
+const layout = (maxAssignees = 0): BlockSqlLayout => ({
   subjects: withBlockSubjects({}, ["work-items"], {}),
   modules: {
     "work-items": {

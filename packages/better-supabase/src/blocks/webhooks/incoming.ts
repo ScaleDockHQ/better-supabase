@@ -34,7 +34,7 @@ import {
 import { inboxDestination } from "./destinations.ts";
 
 /** The header that carries an endpoint's id on stored deliveries. */
-export const INCOMING_ENDPOINT_HEADER = "x-bs-endpoint-id";
+export const INCOMING_ENDPOINT_HEADER = "x-bsb-endpoint-id";
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 

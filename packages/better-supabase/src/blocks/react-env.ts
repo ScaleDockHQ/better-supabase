@@ -16,7 +16,7 @@ export function useBlockEnv(): BlockEnv {
 
   if (!value) {
     throw new Error(
-      "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
+      "better-supabase: wrap your app in <BetterSupabaseProvider client={bsb}>",
     );
   }
 

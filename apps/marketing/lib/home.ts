@@ -32,7 +32,7 @@ export const features: readonly Feature[] = [
   },
   {
     title: "Cache tags that follow writes",
-    body: "Mutations invalidate bs:<table> and bs:<table>:<id>, with read-your-writes inside Next.js server actions.",
+    body: "Mutations invalidate bsb:<table> and bsb:<table>:<id>, with read-your-writes inside Next.js server actions.",
     href: "/docs/concepts/caching",
   },
   {

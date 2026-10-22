@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { ModuleFile, ModuleLayout } from "../../sql/index.ts";
+import type { BlockSqlFile, BlockSqlLayout } from "../../sql/index.ts";
 import type { PlannedFile } from "../core/files.ts";
 import type { NextStep } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
@@ -13,9 +13,9 @@ import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
   moduleTopics,
-  renderModules,
-  resolveModules,
-  sameModuleFile,
+  renderBlocks,
+  resolveBlocks,
+  sameBlockFile,
 } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
@@ -34,7 +34,8 @@ import {
   writeLatestMigration,
 } from "./module-migration.ts";
 
-const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
+const MODULE_TEST_MARKER =
+  /^-- @(?:bsb-block-test|bs-module-test) ([a-z0-9-]+)$/m;
 
 /**
  * Test files a SQL module wrote for an earlier layout (a table that is no
@@ -44,8 +45,8 @@ const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
 export async function staleModuleTests(
   config: ResolvedConfig,
   names: readonly string[],
-  sqlLayout: ModuleLayout,
-  files: readonly ModuleFile[],
+  sqlLayout: BlockSqlLayout,
+  files: readonly BlockSqlFile[],
   appTables = true,
 ): Promise<string[]> {
   const dir = (sqlLayout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
@@ -60,7 +61,7 @@ export async function staleModuleTests(
   const current = new Set(files.map((file) => file.path));
 
   const modules = new Set([
-    ...resolveModules(names, sqlLayout).map((module) => module.name),
+    ...resolveBlocks(names, sqlLayout).map((module) => module.name),
     ...(appTables ? [APP_TABLES_MODULE] : []),
   ]);
 
@@ -89,7 +90,7 @@ export async function staleModuleTests(
 /** The app tables schema file, when `appTables` no longer renders it. */
 async function staleAppTablesSchema(
   config: ResolvedConfig,
-  sqlLayout: ModuleLayout,
+  sqlLayout: BlockSqlLayout,
   current: ReadonlySet<string>,
 ): Promise<string[]> {
   const dir = (sqlLayout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
@@ -103,22 +104,26 @@ async function staleAppTablesSchema(
     () => "",
   );
 
-  return text.split("\n").includes(APP_TABLES_MARKER) ? [path] : [];
+  return text
+    .split("\n")
+    .some((line) => line === APP_TABLES_MARKER || line === "-- @bs-app-tables")
+    ? [path]
+    : [];
 }
 
 /** A rendered module file as a plan entry, compared without its module version. */
-export const moduleFile = (file: ModuleFile): PlannedFile => ({
+export const moduleFile = (file: BlockSqlFile): PlannedFile => ({
   path: file.path,
   contents: file.contents,
   note: file.module,
-  same: sameModuleFile,
+  same: sameBlockFile,
 });
 
 export async function write(
   config: ResolvedConfig,
   args: SqlFlags,
   names: readonly string[],
-  sqlLayout: ModuleLayout,
+  sqlLayout: BlockSqlLayout,
   now: Now,
   only?: readonly string[],
   upgrade: readonly string[] = [],
@@ -127,7 +132,7 @@ export async function write(
   const migrations = workflow === "migrations";
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
-  const rendered = renderModules(names, sqlLayout);
+  const rendered = renderBlocks(names, sqlLayout);
 
   const files = rendered.filter(
     (file) => only === undefined || only.includes(file.module),
@@ -214,7 +219,7 @@ export async function nextStep(config: ResolvedConfig): Promise<NextStep> {
 export async function unlistedModuleFiles(
   config: ResolvedConfig,
   names: readonly string[],
-  sqlLayout: ModuleLayout,
+  sqlLayout: BlockSqlLayout,
 ): Promise<string[]> {
   const toml = await readSupabaseToml(config.root);
   const workflow = sqlWorkflow(config, toml);
@@ -234,7 +239,7 @@ export async function unlistedModuleFiles(
   const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
   const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
 
-  const missing = renderModules(names, sqlLayout)
+  const missing = renderBlocks(names, sqlLayout)
     .filter((file) => file.kind !== "data")
     .map((file) => file.path)
     .filter((path) => path.startsWith(dir) && !listed.has(path));

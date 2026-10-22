@@ -1,5 +1,5 @@
 -- better-supabase module: field-history
--- @bs-module field-history@1 managed
+-- @bsb-block field-history@1 managed
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ create policy field_changes_read on "better_supabase"."field_changes" for select
 using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 -- Keeps the old and new value of each watched column of a deal on update.
-create or replace function better_supabase.bs_field_history_deal()
+create or replace function better_supabase.bsb_field_history_deal()
 returns trigger
 language plpgsql
 security definer
@@ -50,13 +50,13 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_field_history_deal() from public, anon, authenticated;
-drop trigger if exists bs_field_history_deal on "better_supabase"."deals";
-create trigger bs_field_history_deal after update of "amount", "stage_id", "owner_user_id", "expected_close_on" on "better_supabase"."deals"
-for each row execute function better_supabase.bs_field_history_deal();
+revoke execute on function better_supabase.bsb_field_history_deal() from public, anon, authenticated;
+drop trigger if exists bsb_field_history_deal on "better_supabase"."deals";
+create trigger bsb_field_history_deal after update of "amount", "stage_id", "owner_user_id", "expected_close_on" on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_field_history_deal();
 
 -- Keeps the old and new value of each watched column of a company on update.
-create or replace function better_supabase.bs_field_history_company()
+create or replace function better_supabase.bsb_field_history_company()
 returns trigger
 language plpgsql
 security definer
@@ -73,10 +73,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_field_history_company() from public, anon, authenticated;
-drop trigger if exists bs_field_history_company on "better_supabase"."companies";
-create trigger bs_field_history_company after update of "owner_user_id", "lifecycle" on "better_supabase"."companies"
-for each row execute function better_supabase.bs_field_history_company();
+revoke execute on function better_supabase.bsb_field_history_company() from public, anon, authenticated;
+drop trigger if exists bsb_field_history_company on "better_supabase"."companies";
+create trigger bsb_field_history_company after update of "owner_user_id", "lifecycle" on "better_supabase"."companies"
+for each row execute function better_supabase.bsb_field_history_company();
 
 -- A record's changes, newest first, optionally of one field. before is the id
 -- of the last change of the previous page. Needs history.read and read access
@@ -127,13 +127,13 @@ revoke execute on function "api"."field_history"(text, text, text, bigint, integ
 grant execute on function "api"."field_history"(text, text, text, bigint, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

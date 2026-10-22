@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_32_drive.sql
 -- better-supabase module: drive
--- @bs-module drive@1 managed
+-- @bsb-block drive@1 managed
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,11 +83,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bs_drive_grants_role'
+    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
   ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bs_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bs_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bs_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
+    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
+    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
+    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
   end if;
 end;
 $$;
@@ -220,8 +220,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_drive_node_path" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_path"
+drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
@@ -236,8 +236,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_moved" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_moved"
+drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
   execute function "better_supabase"."drive_node_moved"();
@@ -846,26 +846,26 @@ revoke execute on function "better_supabase"."drive_grants"(uuid) from public, a
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_32_drive.sql
 -- better-supabase module: drive
--- @bs-module-data drive
+-- @bsb-block-data drive
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('drive', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

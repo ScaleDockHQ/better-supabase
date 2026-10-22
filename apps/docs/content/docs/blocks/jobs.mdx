@@ -185,14 +185,14 @@ Pass the request context to `enqueue` and the job records its actor and
 tenant next to the payload. The tenant is `context.tenant`, the one
 `tenant()` resolved for the connection, or the `tenant_id` claim (then
 `app_metadata.tenant_id`). The handler gets them back as `job.context`, and
-[`bs.forContext`](/docs/auth/server#explicit-identities) turns that into
+[`bsb.forContext`](/docs/auth/server#explicit-identities) turns that into
 repositories running as that user, in that tenant, over direct Postgres:
 
 ```ts
 await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
 
 await jobs.work("send_invoice", async (payload, job) => {
-  const db = await bs.forContext(job.context).orThrow();
+  const db = await bsb.forContext(job.context).orThrow();
   const invoice = await db.invoices.findById(payload.invoiceId).orThrow();
   // ...
 });
@@ -224,11 +224,11 @@ for a token no client acts with, and for a delegated token only when its
 `scope` claim holds the scope.
 
 `forContext(context, { permissions })` caps the work further. The cap is the
-`bs_permission_cap` claim, a job queued under it keeps it, and a later
+`bsb_permission_cap` claim, a job queued under it keeps it, and a later
 `permissions` only narrows it:
 
 ```ts
-await bs.forContext(job.context, { permissions: ["posts.write"] });
+await bsb.forContext(job.context, { permissions: ["posts.write"] });
 ```
 
 A context whose `act` chain or delegation claims are malformed is refused:
@@ -248,20 +248,20 @@ await jobs.enqueue(
 );
 
 await jobs.work("export_report", async (payload, job) => {
-  const db = await bs.forContext(job.context).orThrow();
+  const db = await bsb.forContext(job.context).orThrow();
 });
 ```
 
 `forContext` resolves a recorded ticket through its `ticket` option, or
 else the provider's `tickets.subject` hook from
-`createServer(bs, { authorization })`, and runs as the context it returns.
+`createServer(bsb, { authorization })`, and runs as the context it returns.
 A ticket without a resolver, a `null` answer and a throw all fail with
 `forbidden`; `forContext` never falls back to the recorded actor or the
 service role.
 
 `forContext` fails with `forbidden` when the job recorded no user, for
 example one enqueued by a cron schedule, and never falls back to the service
-role. Work that no user owns uses `bs.admin(job.context)` on purpose: it
+role. Work that no user owns uses `bsb.admin(job.context)` on purpose: it
 stamps `createdBy` and applies the `tenant()` filter, but bypasses RLS, so
 keep it visible in code review. `admin.$with(job.context)` is the same
 service-role connection and does not apply RLS either. See
@@ -530,31 +530,31 @@ export const GET = jobs.drainRoute({
 ### Queue backends
 
 `createJobs` accepts a SQL connection, a Supabase client, or any
-`QueueBackend` (API version 1). `sqlQueueBackend(sql)`,
-`pgmqPublicBackend(client)` and `vercelQueueBackend(client)` are built in; implement the interface to
-put jobs somewhere else, and prove it with `testQueueBackend` from
+`QueueProvider` (API version 1). `sqlQueueProvider(sql)`,
+`pgmqPublicBackend(client)` and `vercelQueueProvider(client)` are built in; implement the interface to
+put jobs somewhere else, and prove it with `testQueueProvider` from
 [conformance kits](/docs/extending/conformance).
 
 ```ts
-import { createJobs, type QueueBackend } from "better-supabase/blocks/jobs";
+import { createJobs, type QueueProvider } from "better-supabase/blocks/jobs";
 
-const backend: QueueBackend = myQueue;
+const backend: QueueProvider = myQueue;
 const jobs = createJobs({ backend, queues: { send_email: schema } });
 ```
 
 ### Vercel Queues
 
-`vercelQueueBackend(client)` stores jobs on [Vercel Queues](https://vercel.com/docs/queues)
+`vercelQueueProvider(client)` stores jobs on [Vercel Queues](https://vercel.com/docs/queues)
 instead of Postgres. Pass a `PollingQueueClient` from `@vercel/queue` (an
 optional peer, range `>=0.8 <0.9`). Queue names are topic names, so they match
 `[A-Za-z0-9_-]+`.
 
 ```ts
 import { PollingQueueClient } from "@vercel/queue";
-import { createJobs, vercelQueueBackend } from "better-supabase/blocks/jobs";
+import { createJobs, vercelQueueProvider } from "better-supabase/blocks/jobs";
 
 const jobs = createJobs({
-  backend: vercelQueueBackend(new PollingQueueClient({ region: "iad1" })),
+  backend: vercelQueueProvider(new PollingQueueClient({ region: "iad1" })),
   queues: { send_email: schema },
 });
 ```
@@ -564,7 +564,7 @@ alive while a handler runs, and `fail` redelivers the message after the retry
 delay. Vercel Queues keeps no dead letters and has no schedules, so a message
 past `maxAttempts` is acknowledged and dropped, `stats` and `listDead` are
 absent, and `schedule` needs the SQL backend. Job ids are numbers local to the
-process. The backend passes `testQueueBackend`.
+process. The backend passes `testQueueProvider`.
 
 ### Without a database connection
 
@@ -809,19 +809,19 @@ export const GET = async () =>
 A webhook carries no session, so pick the identity in the handler. Look up
 the user and tenant the event belongs to (a Stripe customer id maps to an
 organization and its owner), then run the work with
-`bs.actingAs(userId, { tenant_id })` so RLS applies:
+`bsb.actingAs(userId, { tenant_id })` so RLS applies:
 
 ```ts
 await inbox.process(async (message) => {
   const owner = await ownerOfCustomer(message.payload.customer);
-  const db = bs.actingAs(owner.userId, { tenant_id: owner.organizationId });
+  const db = bsb.actingAs(owner.userId, { tenant_id: owner.organizationId });
   await db.invoices
     .update(message.payload.invoice, { status: "paid" })
     .orThrow();
 });
 ```
 
-Use `bs.admin()` only for events no user owns, such as a provider-wide
+Use `bsb.admin()` only for events no user owns, such as a provider-wide
 status change. See
 [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
 

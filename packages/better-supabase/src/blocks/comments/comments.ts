@@ -5,7 +5,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type {
   Message,
   MessageEdit,
@@ -73,7 +73,7 @@ export interface Comment<
   F extends object = Record<never, never>,
 > extends Message<F> {
   /** The record the comment is on. */
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   /** The work item `assign` turned it into, with the `work-items` block. */
   readonly taskId: string | undefined;
 }
@@ -138,7 +138,7 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
  */
 export interface Comments<F extends object = Record<never, never>> {
   /** Posts a comment on `subject`, opening its conversation the first time. */
-  create(subject: SubjectRef, comment: NewComment<F>): AsyncResult<Comment<F>>;
+  create(subject: RecordRef, comment: NewComment<F>): AsyncResult<Comment<F>>;
   /** One comment, or `not_found` when the caller can't read it. */
   get(id: string): AsyncResult<Comment<F>>;
   /** The top-level comments anchored to a file (`fileAnchor`), oldest first. */
@@ -166,7 +166,7 @@ export interface Comments<F extends object = Record<never, never>> {
    * placeholders.
    */
   list(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: ListCommentsOptions,
   ): AsyncResult<readonly Comment<F>[]>;
   /**
@@ -175,21 +175,21 @@ export interface Comments<F extends object = Record<never, never>> {
    * `subjectKey(subject)` (`type:id`). Subjects without comments are 0.
    */
   counts(
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, number>>>;
   /**
    * Copies a subject's thread to another subject in the tenant, keeping
    * authors, times and replies; returns how many comments it copied. Needs a
    * service-role transport.
    */
-  copy(from: SubjectRef, to: SubjectRef): AsyncResult<number>;
+  copy(from: RecordRef, to: RecordRef): AsyncResult<number>;
   /**
    * The record's conversation id, for Realtime (`conversationTopic`) and for
    * uploads to attach (`attachments` on subject `conversation`). `open` creates
    * it before the first comment; without it, `undefined` until then.
    */
   conversation(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: { readonly open?: boolean },
   ): AsyncResult<string | undefined>;
   /**
@@ -197,7 +197,7 @@ export interface Comments<F extends object = Record<never, never>> {
    * where it is, or `undefined` before the first comment.
    */
   markRead(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: { readonly readAt?: Temporal.Instant },
   ): AsyncResult<Temporal.Instant | undefined>;
 }

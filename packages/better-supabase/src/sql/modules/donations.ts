@@ -1,11 +1,11 @@
 import type { DonationsEvents } from "../../blocks/donations/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -54,7 +54,7 @@ const RECEIPT_PAYLOAD = [
   "currency",
 ] as const;
 
-const EVENTS: ModuleEvents<DonationsEvents> = {
+const EVENTS: BlockSqlEvents<DonationsEvents> = {
   "donation.received": { subject: "donations", payload: GIFT_PAYLOAD },
   "donation.failed": { subject: "donations", payload: GIFT_PAYLOAD },
   "donation.refunded": { subject: "donations", payload: GIFT_PAYLOAD },
@@ -70,7 +70,7 @@ const EVENTS: ModuleEvents<DonationsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     donation: { table: "donations", singular: "donation", primary: true },
     pledge: { table: "pledges", singular: "pledge" },
@@ -177,7 +177,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -309,7 +309,7 @@ create unique index if not exists ${index("donations", "payment_key")} on ${dona
 }
 
 /** Moves a merged donor's gifts, pledges and receipts to the record kept. */
-function donorMerges(ctx: ModuleContext): string {
+function donorMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -335,7 +335,7 @@ function donorMerges(ctx: ModuleContext): string {
   );
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -352,7 +352,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${donationsFunctions(ctx)}${donorMerges(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("donations", GIFT_RESERVED),
   ).contract;
@@ -468,7 +468,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const DONATIONS: ModuleDefinition = {
+export const DONATIONS: BlockSqlDefinition = {
   name: "donations",
   scopes: ["tenant"],
   title: "Donations",

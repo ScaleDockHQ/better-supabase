@@ -1,6 +1,6 @@
 "use client";
 
-import type { SubjectRef } from "../../../schema/types.ts";
+import type { RecordRef } from "../../../schema/types.ts";
 import type {
   TagChange,
   TagInputActions,
@@ -17,7 +17,7 @@ export type { TagChange } from "../client.ts";
 
 export interface UseTagInputOptions {
   /** The subject whose tags to show; the input waits without one. */
-  readonly subject: SubjectRef | null | undefined;
+  readonly subject: RecordRef | null | undefined;
   /** The kind of tags the input offers and creates, such as `customer`. */
   readonly kind: string;
   /** Runs after a tag was added or removed. */

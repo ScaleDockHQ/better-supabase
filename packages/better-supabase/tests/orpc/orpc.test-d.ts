@@ -18,24 +18,24 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 const betterSupabase = defineSupabase(schema);
-const bs = createOrpc(betterSupabase);
+const bsb = createOrpc(betterSupabase);
 const db = betterSupabase.connect(client);
 
 describe("unwrap", () => {
   it("infers the data type of a Result or AsyncResult", () => {
-    expectTypeOf(bs.unwrap(ok({ id: "c1" }))).toEqualTypeOf<
+    expectTypeOf(bsb.unwrap(ok({ id: "c1" }))).toEqualTypeOf<
       Promise<{ id: string }>
     >();
     expectTypeOf(
-      bs.unwrap(db.customers.findById("c1", { select: ["id", "name"] })),
+      bsb.unwrap(db.customers.findById("c1", { select: ["id", "name"] })),
     ).toEqualTypeOf<Promise<{ id: string; name: string }>>();
     expectTypeOf(
-      bs.unwrap<{ id: string }>(err(dbError("conflict", "Taken"))),
+      bsb.unwrap<{ id: string }>(err(dbError("conflict", "Taken"))),
     ).toEqualTypeOf<Promise<{ id: string }>>();
   });
 
   it("passes plain values through", () => {
-    expectTypeOf(bs.unwrap(Promise.resolve(1))).toEqualTypeOf<
+    expectTypeOf(bsb.unwrap(Promise.resolve(1))).toEqualTypeOf<
       Promise<number>
     >();
   });
@@ -52,7 +52,7 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
       .use(typed.middleware())
       .handler(({ context }) => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState<Claims>>();
-        expectTypeOf(context.bs.auth).toEqualTypeOf<AuthState<Claims>>();
+        expectTypeOf(context.bsb.auth).toEqualTypeOf<AuthState<Claims>>();
 
         return null;
       });
@@ -67,10 +67,10 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
 
     const impl = implement(contract)
       .$context<OrpcRequestContext>()
-      .use(bs.middleware());
+      .use(bsb.middleware());
 
     impl.remove
-      .use(bs.middleware({ permission: "customers.delete" }))
+      .use(bsb.middleware({ permission: "customers.delete" }))
       .handler(({ context }) => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState>();
 
@@ -80,7 +80,7 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
 
   it("keeps untyped claims for untyped definitions", () => {
     os.$context<OrpcRequestContext>()
-      .use(bs.middleware())
+      .use(bsb.middleware())
       .handler(({ context }) => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState>();
 

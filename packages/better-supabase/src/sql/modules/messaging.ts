@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { schemaPreamble } from "../shared.ts";
 import { messagingFunctions } from "./messaging-functions.ts";
@@ -9,7 +9,7 @@ import { messagingModeration } from "./messaging-moderation.ts";
 import { MESSAGING_NAMES, messagingSql } from "./messaging-names.ts";
 import { messagingRealtime, messagingTables } from "./messaging-tables.ts";
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -34,8 +34,8 @@ ${messagingInbox(q)}`
   }${messagingModeration(ctx)}${messagingSubjectMerge(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  const functions: ModuleContractFunction[] = [
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const functions: BlockSqlContractFunction[] = [
     { name: "can_conversation", args: ["uuid", "text"], returns: "boolean" },
     {
       name: "open_conversation",
@@ -134,7 +134,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return functions;
 }
 
-export const MESSAGING: ModuleDefinition = {
+export const MESSAGING: BlockSqlDefinition = {
   internal: [
     "is_conversation_member",
     "conversation_topic_allowed",

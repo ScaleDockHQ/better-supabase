@@ -4,7 +4,7 @@ description: Titles and links for any record in config.subjects, resolved in one
 ---
 
 Comments, relations, approvals and the other blocks point at records as a
-`SubjectRef`, `{ type, id }`. `better-supabase/blocks/subjects` turns those
+`RecordRef`, `{ type, id }`. `better-supabase/blocks/subjects` turns those
 refs into a title and a path from the [subject registry](/docs/blocks/sql#subject-registry),
 so a list of rows that each name a record shows a link without a query per
 row.
@@ -82,7 +82,7 @@ costs one round trip. Both expose `error` and `refresh` for a retry.
 
 import { useSubject } from "better-supabase/blocks/subjects/react";
 
-export function SubjectLink({ subject }: { subject: SubjectRef }) {
+export function SubjectLink({ subject }: { subject: RecordRef }) {
   const { subject: resolved } = useSubject(subject);
 
   if (resolved === undefined) return <Skeleton className="h-4 w-32" />;

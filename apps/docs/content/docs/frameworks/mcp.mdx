@@ -9,7 +9,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { customerList, betterSupabase } from "../_shared/supabase.ts";
 
-const bs = createMcp(betterSupabase, {
+const bsb = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   instructions: "Customers and notes of the signed-in user’s organization.",
@@ -25,10 +25,10 @@ const bs = createMcp(betterSupabase, {
   run: ({ id }, { db }) => db.customers.update(id, { status: "archived" }),
 });
 
-Deno.serve(bs.fetch);
+Deno.serve(bsb.fetch);
 ```
 
-`bs.fetch` serves the MCP endpoint (Streamable HTTP, stateless JSON
+`bsb.fetch` serves the MCP endpoint (Streamable HTTP, stateless JSON
 responses) and the RFC 9728 metadata, at
 `/.well-known/oauth-protected-resource/...` and at
 `<endpoint>/oauth-protected-resource`.
@@ -138,7 +138,7 @@ origin is echoed back. `cors: false` turns all of it off.
 
 A tool that starts background work enqueues it with
 `{ context: db.$context }` from `run`'s `db`, and the worker runs it as the
-same user with `bs.forContext(job.context)`. See
+same user with `bsb.forContext(job.context)`. See
 [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
 
 A signed-in caller that `allow` or `requiredScopes` turns away gets a 403 with
@@ -173,7 +173,7 @@ the `scope` the user granted it. `toSession(ctx.auth)` from
 ```ts title="supabase/functions/mcp/index.ts"
 import { toSession } from "better-supabase/server";
 
-const bs = createMcp(betterSupabase, {
+const bsb = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   advertisedScopes: ["openid", "crm.read", "crm.write"],
@@ -228,7 +228,7 @@ resource; unlike a tool's `permission`, they don't hide the tool from
 
 ## Custom tools
 
-`bs.tool(...)` is typed against your repositories. Its input can be any
+`bsb.tool(...)` is typed against your repositories. Its input can be any
 Standard Schema: the tool's JSON Schema comes from Standard JSON Schema
 (zod 4, ArkType, Valibot), or from `inputSchema` if you pass one. The
 arguments are validated before `run`.
@@ -261,7 +261,7 @@ RLS decides which rows a tool reads and writes. To decide whether the caller
 may use a tool at all, pass `authorize` and `visible`:
 
 ```ts title="supabase/functions/mcp/index.ts"
-const bs = createMcp(betterSupabase, {
+const bsb = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   advertisedScopes: ["openid", "crm.read"],
@@ -308,7 +308,7 @@ To check a permission per tool, give the tool a `permission` and pass an
 [authorizer](/docs/extending/authorizers) to `createMcp`:
 
 ```ts title="supabase/functions/mcp/index.ts"
-const bs = createMcp(betterSupabase, {
+const bsb = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   authorizer,
@@ -380,7 +380,7 @@ List every host the server answers on: production, previews and local
 development.
 
 ```ts title="src/mcp.ts"
-export const bs = createMcp(betterSupabase, {
+export const bsb = createMcp(betterSupabase, {
   env,
   name: "crm",
   version: "1.0.0",
@@ -405,7 +405,7 @@ When the server already runs on the official SDK (`@modelcontextprotocol/server`
 2.3 or later), keep its `McpServer` and add better-supabase through
 `better-supabase/mcp/sdk`. `createMcpAuth` verifies the Supabase access token
 locally and serves the RFC 9728 metadata; `withBetterSupabaseMcp` wraps
-`registerTool` so every tool callback gets `db`, `auth` and `bs` for the
+`registerTool` so every tool callback gets `db`, `auth` and `bsb` for the
 verified caller:
 
 ```ts title="src/mcp.ts"

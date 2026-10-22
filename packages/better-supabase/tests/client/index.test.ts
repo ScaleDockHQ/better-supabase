@@ -298,7 +298,7 @@ describe("createClient", () => {
     const { browser, requests } = setup();
     const options = browser.queries.customers.findMany({ select: ["id"] });
     expect(options.queryKey.slice(0, 3)).toEqual([
-      "bs",
+      "bsb",
       "customers",
       "findMany",
     ]);

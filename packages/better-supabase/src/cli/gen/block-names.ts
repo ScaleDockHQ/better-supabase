@@ -7,7 +7,7 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,
   modulePermissionKeys,
-  resolveModule,
+  resolveBlock,
 } from "../../sql/index.ts";
 import { applyCasing } from "./model-types.ts";
 import { prop, q } from "./shared.ts";
@@ -371,7 +371,7 @@ function optionOf(
 ): unknown {
   return config.blockNames.includes(module) ||
     config.blocks[module] !== undefined
-    ? resolveModule(config.blocks[module]).options[option]
+    ? resolveBlock(config.blocks[module]).options[option]
     : undefined;
 }
 

@@ -15,15 +15,15 @@ call.
 import { dbError, err } from "better-supabase";
 
 import { avatars, documents } from "@/lib/buckets";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
-export const deleteMyAccount = bs.action(
+export const deleteMyAccount = bsb.action(
   { aal: "aal2" },
   async (_input, { auth }) => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to delete your account"));
     }
-    return bs.deleteAccount(auth.user.id, {
+    return bsb.deleteAccount(auth.user.id, {
       buckets: [avatars, documents],
       cascades: ["notifications", "memberships"],
     });
@@ -111,7 +111,7 @@ const lastSeen = signIns.orThrow().get(userId)?.lastSignInAt;
 To put that policy on every table, set `options.policies`. `sql sync` reads
 the `create table` and `drop table` statements in your declarative schema
 files (your migrations only when the project has none) and writes
-one `bs_session_active` policy per table in `schemas`, except the
+one `bsb_session_active` policy per table in `schemas`, except the
 `exclude` globs. Run it again after adding a table:
 
 ```ts title="better-supabase.config.ts"
@@ -140,14 +140,14 @@ everywhere:
 ```ts title="src/features/admin/user-actions.ts"
 "use server";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export async function suspendUser(userId: string, suspended: boolean) {
-  return bs.suspendAccount(userId, { suspended });
+  return bsb.suspendAccount(userId, { suspended });
 }
 
 export async function signOutEverywhere(userId: string) {
-  return bs.endSessions(userId);
+  return bsb.endSessions(userId);
 }
 ```
 
@@ -159,7 +159,7 @@ export async function signOutEverywhere(userId: string) {
 `"24h"`, and defaults to 100 years) and keeps the user's sessions. While a
 session exists, Auth answers a refresh or `GET /auth/v1/user` with
 `user_banned`, so [`sessionStatus`](/docs/auth/sessions) returns `"banned"`
-and `bs.proxy({ endedSession })` redirects with `reason=account_banned`. Once
+and `bsb.proxy({ endedSession })` redirects with `reason=account_banned`. Once
 the sessions are deleted, Auth answers `session_not_found` instead and the app
 can only report `"ended"`.
 
@@ -168,7 +168,7 @@ Lifting the ban (`suspended: false`) deletes the user's rows from
 the sessions deleted: `0` on a suspension, and the sessions kept during the
 ban when it is lifted. Both need `SUPABASE_SECRET_KEY` and the server's
 `postgres`, since the Data API roles can't write `auth.sessions`; without
-`postgres` they return an `invalid_request` error. `bs` from `createNext` also
+`postgres` they return an `invalid_request` error. `bsb` from `createNext` also
 drops the user's cached sessions.
 
 Access tokens already issued stay valid until they expire. The
@@ -179,7 +179,7 @@ access token still works against the Data API until it expires, but it can no
 longer be refreshed, and the app sees `"ended"` instead of `"banned"`:
 
 ```ts
-await bs.suspendAccount(userId, { suspended: true, endSessions: true });
+await bsb.suspendAccount(userId, { suspended: true, endSessions: true });
 // { ok: true, data: { userId, suspended: true, ended: 3 } }
 ```
 
@@ -208,7 +208,7 @@ import { createServer } from "better-supabase/server";
 
 const audit = createAudit({ transport: rpcTransport(supabaseAdmin) });
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   postgres,
   audit: audit.sink(),
 });
@@ -245,14 +245,14 @@ nothing; only the server's methods do.
    user id as the row), then a table-wide delete notice for each table in
    `cascades`, so [cache adapters](/docs/concepts/caching) drop the reads the database
    changed behind their back. Sinks and audit forwarders see the delete too.
-5. **Sessions.** `bs.deleteAccount` also calls
-   `bs.invalidateSession(userId)`, so `bs.cached()` entries for the user
+5. **Sessions.** `bsb.deleteAccount` also calls
+   `bsb.invalidateSession(userId)`, so `bsb.cached()` entries for the user
    are gone.
 
 A delete the database refuses (an organization's only owner under the
 organizations module's `ownerInvariant`, say) leaves the objects in place.
 Auth reports such a refusal only as a generic failure, so with
-`sql: postgres.admin` (which `bs.deleteAccount` passes when the server has
+`sql: postgres.admin` (which `bsb.deleteAccount` passes when the server has
 `postgres`) the delete is replayed in a statement that is rolled back, and
 the database's own error comes back instead, with its SQLSTATE and hint
 (`ORGANIZATION_OWNER_REQUIRED`). If removing objects fails after the user is
@@ -302,7 +302,7 @@ await supabase.auth.signOut({ scope: "local" });
 ## Exports and retention
 
 Deletion is often the last step of a GDPR request that starts with an export.
-Run the export first with `bs.admin()` (it bypasses RLS), store it where
+Run the export first with `bsb.admin()` (it bypasses RLS), store it where
 the user can download it, then call `deleteAccount`. Rows kept for legal
 reasons (invoices, audit logs) should reference the user with
 `on delete set null` and keep a copy of what they need, such as the email at

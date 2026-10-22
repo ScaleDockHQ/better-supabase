@@ -5,7 +5,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, money } from "../../commerce/money.ts";
@@ -205,7 +205,7 @@ export interface Ledger {
    * record decides the tenant.
    */
   holderAccounts(
-    holder: SubjectRef,
+    holder: RecordRef,
     options?: { readonly kind?: string },
   ): AsyncResult<readonly LedgerAccount[]>;
   /** Newest first; `before` pages back. */

@@ -16,7 +16,7 @@ const SIGNATURE = [{ returns_set: false, returns_void: false }];
 function overPostgres(answer: () => readonly Record<string, unknown>[]) {
   const fake = fakeSql([
     ["pg_catalog.pg_proc", SIGNATURE],
-    ["bs_call", () => answer()],
+    ["bsb_call", () => answer()],
   ]);
 
   return { fake, db: { $executor: postgresExecutor(fake.sql) } };
@@ -60,9 +60,9 @@ describe("dbTransport over Postgres", () => {
         skipped: undefined,
       }),
     ).toEqual({ id: "org-1" });
-    const call = fake.calls.find((entry) => entry.text.includes("bs_call"));
+    const call = fake.calls.find((entry) => entry.text.includes("bsb_call"));
     expect(call?.text).toBe(
-      'select to_json(bs_call) as value from "better_supabase"."create_organization"("attrs" => $1) as bs_call',
+      'select to_json(bsb_call) as value from "better_supabase"."create_organization"("attrs" => $1) as bsb_call',
     );
     expect(call?.values).toEqual(['{"name":"Acme"}']);
   });

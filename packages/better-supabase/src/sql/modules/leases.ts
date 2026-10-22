@@ -1,11 +1,11 @@
 import type { LeasesEvents } from "../../blocks/leases/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -52,7 +52,7 @@ const MAINTENANCE_PAYLOAD = [
   "status",
 ] as const;
 
-const EVENTS: ModuleEvents<LeasesEvents> = {
+const EVENTS: BlockSqlEvents<LeasesEvents> = {
   "lease.created": { subject: "leases", payload: LEASE_PAYLOAD },
   "lease.activated": { subject: "leases", payload: LEASE_PAYLOAD },
   "lease.renewed": { subject: "leases", payload: LEASE_PAYLOAD },
@@ -72,7 +72,7 @@ const EVENTS: ModuleEvents<LeasesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     lease: {
       table: "leases",
@@ -159,7 +159,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -263,7 +263,7 @@ create policy ${index("maintenance", "read")} on ${maintenance} for select to au
 }
 
 /** Moves the leases of a merged party to the record it merged into. */
-function partyMerges(ctx: ModuleContext): string {
+function partyMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -286,7 +286,7 @@ function partyMerges(ctx: ModuleContext): string {
   );
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -305,7 +305,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${leasesFunctions(ctx)}${partyMerges(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("leases", LEASE_RESERVED),
   ).contract;
@@ -372,7 +372,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const LEASES: ModuleDefinition = {
+export const LEASES: BlockSqlDefinition = {
   name: "leases",
   scopes: ["tenant"],
   title: "Leases",

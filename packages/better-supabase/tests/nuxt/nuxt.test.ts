@@ -70,11 +70,11 @@ describe("better-supabase/nuxt", () => {
   });
 
   it("writes middleware that imports the h3 v1 bridge", () => {
-    expect(middlewareSource("~~/server/bs")).toBe(
+    expect(middlewareSource("~~/server/bsb")).toBe(
       [
         'import { defineEventHandler } from "h3";',
         'import { toH3V1 } from "better-supabase/h3/v1";',
-        'import entries from "~~/server/bs";',
+        'import entries from "~~/server/bsb";',
         "export default defineEventHandler(toH3V1(entries));",
       ].join("\n"),
     );

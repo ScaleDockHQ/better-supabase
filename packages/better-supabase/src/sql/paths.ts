@@ -1,10 +1,10 @@
-import type { ModuleLayout, SqlModule } from "./module-types.ts";
+import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { moduleContext } from "./module-context.ts";
-import { ORDER, checkModules, resolveModules } from "./registry.ts";
+import { ORDER, checkModules, resolveBlocks } from "./registry.ts";
 
-export function modulePath(module: SqlModule, layout: ModuleLayout): string {
+export function modulePath(module: BlockSql, layout: BlockSqlLayout): string {
   const dir = (layout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
   const prefix = layout.prefix ?? CONFIG_DEFAULTS.sql.prefix;
 
@@ -26,15 +26,15 @@ export function modulePath(module: SqlModule, layout: ModuleLayout): string {
 }
 
 /**
- * The schema or test file `renderModules` writes for each of `names` and the
+ * The schema or test file `renderBlocks` writes for each of `names` and the
  * modules they pull in, without rendering: modules in custom mode have none.
  */
 export function moduleFilePaths(
   names: readonly string[],
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): ReadonlyMap<string, string> {
   checkModules(layout.modules);
-  const modules = resolveModules(names, layout);
+  const modules = resolveBlocks(names, layout);
   const installed = modules.map((module) => module.name);
 
   return new Map(
@@ -54,8 +54,8 @@ export function moduleFilePaths(
  * and rejects a managed table that has rows afterwards.
  */
 export function moduleDataPath(
-  module: SqlModule,
-  layout: ModuleLayout,
+  module: BlockSql,
+  layout: BlockSqlLayout,
 ): string {
   const path = modulePath(module, layout);
   const file = path.slice(path.lastIndexOf("/"));

@@ -51,7 +51,7 @@ export type {
  * `createOrganizationsController` as a Vue composable: `state` is a shallow ref
  * of the snapshot. Call it in `setup` or an effect scope; the work starts on
  * mount and the controller is disposed with the scope. `auth` and `ports`
- * default to the client of `app.use(betterSupabase(bs))`.
+ * default to the client of `app.use(betterSupabase(bsb))`.
  */
 export function useOrganizations<
   T extends { readonly id: string } = OrganizationMembership,
@@ -69,7 +69,7 @@ export function useOrganizations<
  * `createMembersController` as a Vue composable: `state` is a shallow ref of
  * the snapshot. Call it in `setup` or an effect scope; the work starts on mount
  * and the controller is disposed with the scope. `auth` and `ports` default to
- * the client of `app.use(betterSupabase(bs))`.
+ * the client of `app.use(betterSupabase(bsb))`.
  */
 export function useMembers<
   T extends { readonly userId: string; readonly role: string } =
@@ -88,7 +88,7 @@ export function useMembers<
  * `createInvitationsController` as a Vue composable: `state` is a shallow ref
  * of the snapshot. Call it in `setup` or an effect scope; the work starts on
  * mount and the controller is disposed with the scope. `auth` and `ports`
- * default to the client of `app.use(betterSupabase(bs))`.
+ * default to the client of `app.use(betterSupabase(bsb))`.
  */
 export function useInvitations<
   T extends { readonly id: string } = OrganizationInvitationRow,

@@ -45,7 +45,7 @@ import { createServer } from "better-supabase/server";
 
 import { betterSupabase } from "./index";
 
-export const bs = createServer(betterSupabase, {
+export const bsb = createServer(betterSupabase, {
   backend: "lite",
   liteDriver: "sqlite-postgres",
 });
@@ -125,13 +125,13 @@ const stack = await liteStack({
 afterAll(() => stack.close());
 
 it("reads notes as a user", async () => {
-  const bs = await stack.asUser(betterSupabase, { sub: crypto.randomUUID() });
-  const notes = await bs.notes.findMany();
+  const bsb = await stack.asUser(betterSupabase, { sub: crypto.randomUUID() });
+  const notes = await bsb.notes.findMany();
   expect(notes.ok).toBe(true);
 });
 
 it("verifies Lite tokens on the server", async () => {
-  const bs = createServer(betterSupabase, {
+  const bsb = createServer(betterSupabase, {
     backend: "lite",
     liteDriver: "pglite",
     env: stack.env,
@@ -140,7 +140,7 @@ it("verifies Lite tokens on the server", async () => {
   const token = await signTestJwt(stack.jwtSecret, {
     sub: crypto.randomUUID(),
   });
-  const ctx = await bs.context(
+  const ctx = await bsb.context(
     new Request("https://app.test/", {
       headers: { authorization: `Bearer ${token}` },
     }),

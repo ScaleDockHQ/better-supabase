@@ -273,14 +273,14 @@ describe("mapDbError", () => {
       {
         code: "23514",
         message:
-          'new row for relation "customers" violates check constraint "bs_json_metadata"',
+          'new row for relation "customers" violates check constraint "bsb_json_metadata"',
       },
       {
         kind: "validation",
         status: 422,
         code: "23514",
         message:
-          'new row for relation "customers" violates check constraint "bs_json_metadata"',
+          'new row for relation "customers" violates check constraint "bsb_json_metadata"',
         issues: [{ message: "The value does not match its JSON Schema" }],
       },
     ],
@@ -290,7 +290,7 @@ describe("mapDbError", () => {
         code: "23514",
         message: "x",
         details: "not json",
-        constraint: "bs_json_value_theme",
+        constraint: "bsb_json_value_theme",
         column: "value",
       },
       {

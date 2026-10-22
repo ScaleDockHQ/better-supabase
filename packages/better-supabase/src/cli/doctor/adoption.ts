@@ -113,7 +113,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "info",
     title: "Tenant foreign key without a same-tenant trigger",
     description:
-      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has no `bs_same_tenant_<column>` trigger. List the reference in `blocks.tenant.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
+      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has no `bsb_same_tenant_<column>` trigger. List the reference in `blocks.tenant.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
     check: (context) => {
       if (!context.config.blockNames.includes("tenant")) {
         return [];

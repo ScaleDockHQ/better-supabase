@@ -1,4 +1,4 @@
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 import { withoutComments } from "./audit-registrations.ts";
 import {
@@ -182,7 +182,7 @@ function declaredForeignKeys(
 export function sameTenantLayout(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
-): Required<Pick<ModuleLayout, "foreignKeys" | "declaredColumns">> {
+): Required<Pick<BlockSqlLayout, "foreignKeys" | "declaredColumns">> {
   return {
     foreignKeys: declaredForeignKeys(files, schemas),
     declaredColumns: Object.fromEntries(

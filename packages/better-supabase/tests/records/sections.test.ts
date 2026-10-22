@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { SectionResult } from "../../src/records/index.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { AsyncResult, ok } from "../../src/core/result.ts";
@@ -15,11 +15,11 @@ import { failed, resolved } from "../fixtures/ports.ts";
 
 interface Notes {
   list(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: { limit?: number },
   ): AsyncResult<readonly string[]>;
   counts(
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, number>>>;
 }
 
@@ -55,7 +55,7 @@ const labelsBlock = defineBlock({
   },
 });
 
-const list = vi.fn((subject: SubjectRef, options?: { limit?: number }) =>
+const list = vi.fn((subject: RecordRef, options?: { limit?: number }) =>
   resolved([`${subject.id}:${options?.limit ?? "all"}`]),
 );
 

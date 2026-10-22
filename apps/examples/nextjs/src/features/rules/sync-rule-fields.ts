@@ -1,7 +1,7 @@
 import { createRulesAdmin, rpcTransport } from "better-supabase/blocks/rules";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { customerRuleFields } from "./rule-fields";
 
@@ -14,7 +14,7 @@ export async function syncRuleFields(): Promise<void> {
   const schema = blockConfig.rules.api;
 
   const admin = createRulesAdmin({
-    transport: rpcTransport(bs.admin().$client, { schema }),
+    transport: rpcTransport(bsb.admin().$client, { schema }),
     schema,
   });
 

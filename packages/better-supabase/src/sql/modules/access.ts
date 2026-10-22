@@ -1,8 +1,8 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type {
-  ModuleAccessProvider,
-  ModuleLayout,
-  ModuleDefinition,
+  BlockSqlAccessProvider,
+  BlockSqlLayout,
+  BlockSqlDefinition,
 } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
@@ -10,13 +10,13 @@ import { sqlString } from "../../core/template.ts";
 import { providerGuestFunctions } from "../guest-sql.ts";
 import {
   activeMembership,
-  addForeignKey,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
   ensureCheck,
   membershipSuspended,
   schemaPreamble,
 } from "../shared.ts";
+import { catalogAudit, membershipRoleKey } from "./access-catalog.ts";
 import { capFor, delegationSql } from "./access-delegation.ts";
 import {
   accessModel,
@@ -69,7 +69,7 @@ const WHILE_DELETING = `
 -- takes while the tenant waits to be purged, such as cancelling the deletion.
 `;
 
-function membershipNames(ctx: ModuleContext): Names {
+function membershipNames(ctx: BlockSqlContext): Names {
   const tenant = ctx.of("tenant");
 
   return {
@@ -84,7 +84,7 @@ function membershipNames(ctx: ModuleContext): Names {
  * Whether membership row `m` grants catalog permission row `p`: deny beats
  * grant beats the role default.
  */
-function catalogEffective(ctx: ModuleContext, n: Names): string {
+function catalogEffective(ctx: BlockSqlContext, n: Names): string {
   const rp = ctx.table("rolePermissions");
   const fallback = `exists (select 1 from ${rp} rp where rp.${ctx.col("rolePermissions", "role")} = m.${n.role} and rp.${ctx.col("rolePermissions", "permission")} = p.${ctx.col("permissions", "id")})`;
 
@@ -104,7 +104,7 @@ function catalogEffective(ctx: ModuleContext, n: Names): string {
 }
 
 /** Whether membership row `m` grants `permission` (an SQL expression). */
-function grants(ctx: ModuleContext, n: Names, permission: string): string {
+function grants(ctx: BlockSqlContext, n: Names, permission: string): string {
   if (accessModel(ctx) === "roles") {
     return `better_supabase.role_grants(${roleNameOf(ctx.of("tenant"), "m")}, ${permission})`;
   }
@@ -112,7 +112,11 @@ function grants(ctx: ModuleContext, n: Names, permission: string): string {
   return `exists (select 1 from ${ctx.table("permissions")} p where p.${ctx.col("permissions", "key")} = ${permission} and ${catalogEffective(ctx, n)})`;
 }
 
-function platformClaim(ctx: ModuleContext, member: string, permission: string) {
+function platformClaim(
+  ctx: BlockSqlContext,
+  member: string,
+  permission: string,
+) {
   const claim = sqlString(
     ctx.modules.access?.platformClaim ?? "platform_permissions",
   );
@@ -128,7 +132,7 @@ function platformClaim(ctx: ModuleContext, member: string, permission: string) {
   ))`;
 }
 
-function rolesFunctions(ctx: ModuleContext): string {
+function rolesFunctions(ctx: BlockSqlContext): string {
   const roles = Object.entries(rolesOf(ctx));
 
   const cases =
@@ -167,7 +171,7 @@ grant execute on function better_supabase.role_permissions(text) to service_role
 grant execute on function better_supabase.role_grants(text, text) to service_role, supabase_auth_admin;`;
 }
 
-function catalogTables(ctx: ModuleContext): string {
+function catalogTables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return `
 -- Adopted catalog: ${[
@@ -248,72 +252,10 @@ $$;${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
 }
 
 /**
- * Registers the catalog tables with the audit log, so role, permission,
- * override and platform-role writes are audited under `access`.
- */
-function catalogAudit(ctx: ModuleContext): string {
-  if (!ctx.installedModules.includes("audit")) {
-    return "";
-  }
-
-  const tables = (
-    [
-      "roles",
-      "permissions",
-      "rolePermissions",
-      "overrides",
-      "platformAssignments",
-    ] as const
-  ).filter((table) => ctx.hasTable(table));
-
-  const call = (table: string): string => {
-    const target = sqlString(ctx.table(table));
-
-    if (!ctx.config.audit) {
-      return `  perform better_supabase.unaudit(${target}::regclass);`;
-    }
-
-    const tenant =
-      table === "overrides"
-        ? sqlString(ctx.col("overrides", "tenant").replaceAll('"', ""))
-        : "null";
-
-    return `  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal(${target}), 'access', ${tenant});`;
-  };
-
-  return `
--- The catalog is written directly by the service role, so a row trigger
--- audits it.
-do $$
-begin
-${tables.map(call).join("\n")}
-end;
-$$;`;
-}
-
-/** A catalog role can't be deleted while a membership still holds it. */
-function membershipRoleKey(ctx: ModuleContext): string {
-  const tenant = ctx.of("tenant");
-
-  if (!tenant.manages) {
-    return "";
-  }
-
-  return `
-${addForeignKey({
-  table: tenant.table("memberships"),
-  name: "memberships_role_fkey",
-  column: tenant.col("memberships", "role"),
-  references: `${ctx.table("roles")} (${ctx.col("roles", "id")})`,
-  onDelete: "restrict",
-})}`;
-}
-
-/**
  * `member_can`, `member_permissions` and `platform_can` for the roles and
  * catalog models.
  */
-function membershipFunctions(ctx: ModuleContext): string {
+function membershipFunctions(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const n = membershipNames(ctx);
   const model = accessModel(ctx);
@@ -485,7 +427,7 @@ $$;`;
 }
 
 /** `platform_can_assign(member, role)`: the platform role ceiling. */
-function platformCanAssign(ctx: ModuleContext): string {
+function platformCanAssign(ctx: BlockSqlContext): string {
   if (!hasPlatformRoles(ctx)) {
     return "";
   }
@@ -524,9 +466,9 @@ grant execute on function better_supabase.platform_can_assign(uuid, text) to ser
  * never gets functions that call functions that don't exist.
  */
 function providerOf(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
-): ModuleAccessProvider {
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): BlockSqlAccessProvider {
   const provider = layout.accessProvider;
 
   if (!provider) {
@@ -546,8 +488,8 @@ function providerOf(
 
 /** A provider template with `{scope}` and `values` filled. */
 function providerSql(
-  provider: ModuleAccessProvider,
-  name: keyof ModuleAccessProvider["functions"],
+  provider: BlockSqlAccessProvider,
+  name: keyof BlockSqlAccessProvider["functions"],
   values: Readonly<Record<string, string>>,
 ): string {
   const template = provider.functions[name];
@@ -562,7 +504,10 @@ function providerSql(
   });
 }
 
-function providerCanAssign(ctx: ModuleContext, layout: ModuleLayout): string {
+function providerCanAssign(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   const template = ctx.modules.access?.functions?.canAssign;
 
   if (template) {
@@ -589,8 +534,8 @@ function providerCanAssign(ctx: ModuleContext, layout: ModuleLayout): string {
  * `permissionsFor`.
  */
 function providerPermissions(
-  ctx: ModuleContext,
-  provider: ModuleAccessProvider,
+  ctx: BlockSqlContext,
+  provider: BlockSqlAccessProvider,
 ): string {
   const id = ctx.idType;
 
@@ -654,7 +599,7 @@ $$;`;
 }
 
 /** Which questions about another user the provider's templates answer. */
-export function providerForUser(layout: ModuleLayout): {
+export function providerForUser(layout: BlockSqlLayout): {
   readonly has: boolean;
   readonly permitted: boolean;
 } {
@@ -673,8 +618,8 @@ export function providerForUser(layout: ModuleLayout): {
  * user's authority.
  */
 function assignAsCheck(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string | undefined {
   const values = {
     user: "can_assign_as.member",
@@ -701,8 +646,8 @@ function assignAsCheck(
 
 /** Whether `can_assign_as` exists for this access model and layout. */
 export function hasCanAssignAs(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): boolean {
   const model = accessModel(ctx);
 
@@ -714,7 +659,10 @@ export function hasCanAssignAs(
 }
 
 /** `can_assign_as` for the provider and custom models, when it has a body. */
-function assignAsFunction(ctx: ModuleContext, layout: ModuleLayout): string {
+function assignAsFunction(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   const check = assignAsCheck(ctx, layout);
 
   if (check === undefined) {
@@ -743,7 +691,7 @@ const CALLER_ONLY = `raise exception 'The provider access model answers for the 
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';`;
 
 function notSuspended(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenant: string,
   user: string,
 ): string {
@@ -752,7 +700,10 @@ function notSuspended(
   return suspended === undefined ? "" : `\n    and not ${suspended}`;
 }
 
-function providerFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
+function providerFunctions(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   const id = ctx.idType;
   const provider = providerOf(ctx, layout);
   const forUser = providerForUser(layout);
@@ -841,7 +792,7 @@ as $$
 $$;`;
 }
 
-function customFunctions(ctx: ModuleContext): string {
+function customFunctions(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const functions = ctx.modules.access?.functions ?? {};
 
@@ -940,7 +891,7 @@ as $$
 $$;`;
 }
 
-function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
+function accessSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const model = accessModel(ctx);
   const forUser = model === "provider" ? providerForUser(layout) : undefined;
@@ -1096,7 +1047,7 @@ ${[
 --     better_supabase.permission_claims((event ->> 'user_id')::uuid));`;
 }
 
-export const ACCESS: ModuleDefinition = {
+export const ACCESS: BlockSqlDefinition = {
   name: "access",
   title: "Access contract",
   description:

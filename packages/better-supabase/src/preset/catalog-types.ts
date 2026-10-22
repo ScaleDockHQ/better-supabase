@@ -1,7 +1,7 @@
 import type { BlockCategory } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
 import type { FieldSpec } from "../core/table-json-schema.ts";
-import type { ModuleEntitySpec, ModuleTableSpec } from "../sql/context.ts";
+import type { BlockSqlEntitySpec, BlockSqlTableSpec } from "../sql/context.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
 
 /** One SQL module in the preset catalog: a key of `blocks` in the config. */
@@ -37,10 +37,10 @@ export interface PresetCatalogBlock {
 
 /** A block's entities as the catalog carries them. */
 export interface PresetCatalogEntities {
-  readonly specs: Readonly<Record<string, ModuleEntitySpec>>;
+  readonly specs: Readonly<Record<string, BlockSqlEntitySpec>>;
   /** The tables that hold them, with their default names and columns. */
   readonly tables: Readonly<
-    Record<string, Pick<ModuleTableSpec, "name" | "columns">>
+    Record<string, Pick<BlockSqlTableSpec, "name" | "columns">>
   >;
   /** The default permission key of each module action. */
   readonly keys: Readonly<Record<string, string>>;

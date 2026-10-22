@@ -36,11 +36,11 @@ contracts.
 - The `latency` project runs `latency.spec.ts` against a second `next start`
   on 3101 with `BS_FETCH_DELAY_MS=3000` (`e2e/serve.ts`). Time page loads to
   `waitUntil: "commit"`; `load` waits for the whole stream. A shared
-  `"use cache"` read that uses `bs.admin()` must sit behind a session read,
+  `"use cache"` read that uses `bsb.admin()` must sit behind a session read,
   or the build prerenders it and fails without `SUPABASE_SECRET_KEY`.
 - Before trusting a GREEN, show that the spec can go RED: remove the cache
   scope the contract depends on (replace `"use cache: private"` and
-  `bs.cached()` in `getCustomers` with `bs.context()`; `bs.cached()` alone
+  `bsb.cached()` in `getCustomers` with `bsb.context()`; `bsb.cached()` alone
   outside a cache scope throws) and watch the rows disappear under the lock. No retries and no timeouts in
   `instant()` specs.
 - Routes you left stay mounted in a hidden `<Activity>`, and a streamed
@@ -52,7 +52,7 @@ contracts.
   the click (the customer rows in `customer-table.tsx`).
 - Data a client component fetches in `useEffect` is never in the prefetch,
   so an `instant` page that does it shows a skeleton on every click. Load it
-  in a `"use cache: private"` function with `bs.cached()` and pass it in as a
+  in a `"use cache: private"` function with `bsb.cached()` and pass it in as a
   prop (`security-queries.ts` for the two-factor and connected agents cards).
   `supabase.auth` is off on the server client, which passes `accessToken`, so
   those reads call the Auth REST endpoints with `auth.token`.
@@ -62,7 +62,7 @@ contracts.
   reaches Auth signs in fresh (`settings.spec.ts`).
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
   entirely from the client cache, because no response carries
-  `x-bs-request-id`. Budget only navigations that reach the server.
+  `x-bsb-request-id`. Budget only navigations that reach the server.
 
 ## Lint needs generated Next types
 

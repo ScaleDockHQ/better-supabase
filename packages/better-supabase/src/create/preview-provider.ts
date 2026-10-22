@@ -1,10 +1,10 @@
 import type { CreateDesign, Preset } from "../preset/index.ts";
-import type { ModuleAccessProvider } from "../sql/index.ts";
+import type { BlockSqlAccessProvider } from "../sql/index.ts";
 import type { PresetMigrationFile } from "./types.ts";
 
 import { resolveConfig } from "../config/index.ts";
 import { designConfig, presetOf, resolvePreset } from "../preset/index.ts";
-import { moduleLayout, renderModules } from "../sql/index.ts";
+import { moduleLayout, renderBlocks } from "../sql/index.ts";
 
 /**
  * A stand-in for the app's authorization provider, so `/create` can render the
@@ -12,7 +12,7 @@ import { moduleLayout, renderModules } from "../sql/index.ts";
  * a `provider` schema that no real project has: the preview says so next to the
  * output.
  */
-export function previewAccessProvider(preset: Preset): ModuleAccessProvider {
+export function previewAccessProvider(preset: Preset): BlockSqlAccessProvider {
   return {
     name: "your authorization provider",
     scope: preset.tenantName,
@@ -49,7 +49,7 @@ export function previewFiles(
   const provider =
     preset.access === "provider" ? previewAccessProvider(preset) : undefined;
 
-  return renderModules(
+  return renderBlocks(
     config.blockNames,
     moduleLayout(config, config.sql.testsDir, [], undefined, provider),
   ).map((file) => ({

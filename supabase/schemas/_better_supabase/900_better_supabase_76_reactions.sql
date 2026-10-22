@@ -1,5 +1,5 @@
 -- better-supabase module: reactions
--- @bs-module reactions@2 managed
+-- @bsb-block reactions@2 managed
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -171,9 +171,9 @@ drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scor
 create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
 
-drop trigger if exists "bs_reactions_check" on "better_supabase"."reactions";
-drop trigger if exists "bs_reactions_tally" on "better_supabase"."reactions";
-drop trigger if exists "bs_reactions_changed" on "better_supabase"."reactions";
+drop trigger if exists "bsb_reactions_check" on "better_supabase"."reactions";
+drop trigger if exists "bsb_reactions_tally" on "better_supabase"."reactions";
+drop trigger if exists "bsb_reactions_changed" on "better_supabase"."reactions";
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -193,7 +193,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reactions_check"() from public, anon, authenticated;
-create trigger "bs_reactions_check"
+create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
@@ -208,7 +208,7 @@ as $$
 declare
   v_row "better_supabase"."reactions"%rowtype;
 begin
-  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bsb_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then
@@ -225,7 +225,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reactions_changed"() from public, anon, authenticated;
-create trigger "bs_reactions_changed"
+create trigger "bsb_reactions_changed"
   after insert or delete on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_changed"();
 
@@ -267,7 +267,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reactions_tally"() from public, anon, authenticated;
-create trigger "bs_reactions_tally"
+create trigger "bsb_reactions_tally"
   after insert or delete on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_tally"();
 
@@ -536,8 +536,8 @@ grant execute on function "better_supabase"."list_custom_emoji"(uuid) to authent
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_reactions_receive" on realtime.messages;
-    create policy "bs_reactions_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_reactions_receive" on realtime.messages;
+    create policy "bsb_reactions_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'reactions:%'
@@ -564,13 +564,13 @@ end;
 $$;
 revoke execute on function "better_supabase"."reactions_subject_deleted"() from public, anon, authenticated;
 
-drop trigger if exists "bs_reactions_product_cascade" on "better_supabase"."products";
-create trigger "bs_reactions_product_cascade"
+drop trigger if exists "bsb_reactions_product_cascade" on "better_supabase"."products";
+create trigger "bsb_reactions_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."reactions_subject_deleted"('product', 'id');
 
-drop trigger if exists "bs_reactions_product_variant_cascade" on "better_supabase"."product_variants";
-create trigger "bs_reactions_product_variant_cascade"
+drop trigger if exists "bsb_reactions_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bsb_reactions_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."reactions_subject_deleted"('product_variant', 'id');
 
@@ -703,13 +703,13 @@ revoke execute on function "api"."list_custom_emoji"(uuid) from public, anon;
 grant execute on function "api"."list_custom_emoji"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

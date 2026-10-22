@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
 import {
   customContracts,
   moduleTopics,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 
-const sqlOf = (names: readonly string[], layout: ModuleLayout = {}): string =>
-  renderModules([...names], layout)
+const sqlOf = (names: readonly string[], layout: BlockSqlLayout = {}): string =>
+  renderBlocks([...names], layout)
     .filter((file) => file.module === "orders")
     .map((file) => file.contents)
     .join("\n");
 
-const SEQUENCES: ModuleLayout = {
+const SEQUENCES: BlockSqlLayout = {
   modules: {
     "number-sequences": {
       options: {
@@ -92,7 +92,7 @@ describe("orders module", () => {
 });
 
 describe("orders module, kitchen", () => {
-  const KITCHEN: ModuleLayout = {
+  const KITCHEN: BlockSqlLayout = {
     modules: { orders: { options: { kitchen: true } } },
   };
 

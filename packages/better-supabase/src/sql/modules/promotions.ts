@@ -1,11 +1,11 @@
 import type { PromotionsEvents } from "../../blocks/promotions/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PromotionsNames } from "./promotions-functions.ts";
 
 import {
@@ -23,7 +23,7 @@ import {
   promotionFunctions,
 } from "./promotions-functions.ts";
 
-const EVENTS: ModuleEvents<PromotionsEvents> = {
+const EVENTS: BlockSqlEvents<PromotionsEvents> = {
   "promotion.redeemed": {
     subject: "promotion-redemptions",
     payload: [
@@ -40,7 +40,7 @@ const EVENTS: ModuleEvents<PromotionsEvents> = {
 
 const tenantExport = { tenant: "tenant", export: true } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_promotion_save",
@@ -121,7 +121,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, names: PromotionsNames): string {
+function tables(ctx: BlockSqlContext, names: PromotionsNames): string {
   const orders = ctx.of("orders");
   const t = (name: string): string => ctx.table(name);
   const p = columns(ctx, "promotions");
@@ -225,7 +225,7 @@ ${policy("redemptions", `${tenantRead("redemptions")} or ${r("customer")} = (sel
 `;
 }
 
-function namesOf(ctx: ModuleContext): PromotionsNames {
+function namesOf(ctx: BlockSqlContext): PromotionsNames {
   return {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
@@ -234,7 +234,7 @@ function namesOf(ctx: ModuleContext): PromotionsNames {
   };
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -247,7 +247,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}${promotionFunctions(ctx, names)}${codeFunctions(ctx, names)}${discountFunctions(ctx, names)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_promotion",
@@ -280,7 +280,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const PROMOTIONS: ModuleDefinition = {
+export const PROMOTIONS: BlockSqlDefinition = {
   name: "promotions",
   scopes: ["tenant"],
   title: "Promotions",

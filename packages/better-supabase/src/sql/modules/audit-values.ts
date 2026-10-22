@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { columnRef } from "../shared.ts";
@@ -27,7 +27,7 @@ export const isAuditValueColumn = (key: string): key is AuditValueColumn =>
  * column, such as `{ scope: { tenant: "organization" } }`.
  */
 function valueMaps(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): ReadonlyMap<AuditValueColumn, ReadonlyMap<string, string>> {
   const where = "blocks.audit.options.values";
   const configured = ctx.option("values");
@@ -78,7 +78,7 @@ function valueMaps(
 
 /** `expression` with the module's values replaced by the adopted log's. */
 export function auditWrite(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   column: AuditValueColumn,
   expression: string,
 ): string {
@@ -97,7 +97,7 @@ export function auditWrite(
 
 /** A stored value read back as the module's value. */
 export function auditRead(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   column: AuditValueColumn,
   expression: string,
 ): string {
@@ -119,7 +119,7 @@ export function auditRead(
  * (`schema.table.column`, matched on `tenantLabelKey`, `id` by default), else
  * the organizations module's name column, else null.
  */
-export function tenantLabel(ctx: ModuleContext, tenant: string): string {
+export function tenantLabel(ctx: BlockSqlContext, tenant: string): string {
   const configured = ctx.option("tenantLabel");
 
   if (configured !== undefined) {

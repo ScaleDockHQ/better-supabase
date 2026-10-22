@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (
   module: string,
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
   extra: readonly string[] = [],
 ): string =>
-  renderModules([module, ...extra], layout)
+  renderBlocks([module, ...extra], layout)
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -59,7 +59,7 @@ describe("sla module", () => {
     });
 
     expect(sql).toContain(
-      'create trigger bs_sla_ticket after insert or update of "status", "priority" on "public"."tickets"',
+      'create trigger bsb_sla_ticket after insert or update of "status", "priority" on "public"."tickets"',
     );
     expect(sql).toContain("'{\"waiting\"}'::text[]");
 

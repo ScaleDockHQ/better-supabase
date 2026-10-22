@@ -15,20 +15,20 @@ import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const bs = createServer(defineSupabase(schema));
+const bsb = createServer(defineSupabase(schema));
 
 type Server =
-  typeof bs extends BetterServer<infer M, infer F, infer E>
+  typeof bsb extends BetterServer<infer M, infer F, infer E>
     ? { M: M; F: F; E: E }
     : never;
 
 describe("createServer forContext", () => {
   it("resolves to the same Postgres repositories as actingAs", () => {
-    expectTypeOf(bs.forContext({})).toEqualTypeOf<
+    expectTypeOf(bsb.forContext({})).toEqualTypeOf<
       AsyncResult<Db<Server["M"], Server["F"], Server["E"], undefined>>
     >();
-    expectTypeOf(bs.forContext({}).orThrow()).resolves.toEqualTypeOf<
-      ReturnType<typeof bs.actingAs>
+    expectTypeOf(bsb.forContext({}).orThrow()).resolves.toEqualTypeOf<
+      ReturnType<typeof bsb.actingAs>
     >();
   });
 

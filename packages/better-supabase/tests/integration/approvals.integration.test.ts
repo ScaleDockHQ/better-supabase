@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createApprovals,
@@ -32,7 +32,7 @@ const MODULES = [
   "approvals",
 ];
 
-const layoutFor = (finance: string): ModuleLayout => ({
+const layoutFor = (finance: string): BlockSqlLayout => ({
   subjects: { invoice: { table: "approvals_it.invoices", idType: "uuid" } },
   modules: {
     approvals: {

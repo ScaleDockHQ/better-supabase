@@ -9,7 +9,7 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import type { RecordServerHost } from "../../src/next/feature.ts";
 import type { createNext } from "../../src/next/index.ts";
 import type { RecordListQuery } from "../../src/records/index.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 import type { ActionResult } from "../../src/server/kit.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
@@ -40,8 +40,8 @@ interface Note {
 }
 
 interface Notes {
-  list(subject: SubjectRef): AsyncResult<readonly Note[]>;
-  add(subject: SubjectRef, body: string): AsyncResult<Note>;
+  list(subject: RecordRef): AsyncResult<readonly Note[]>;
+  add(subject: RecordRef, body: string): AsyncResult<Note>;
   remove(id: string): AsyncResult<boolean>;
 }
 
@@ -78,7 +78,7 @@ const notesBlock = defineBlock({
           }),
           run: (
             client: Notes,
-            subject: SubjectRef,
+            subject: RecordRef,
             input: { readonly body: string },
           ) => client.add(subject, input.body),
         },
@@ -87,7 +87,7 @@ const notesBlock = defineBlock({
           input: sectionRowInput,
           run: (
             client: Notes,
-            _subject: SubjectRef,
+            _subject: RecordRef,
             { id }: { readonly id: string },
           ) => client.remove(id),
         },
@@ -216,8 +216,8 @@ describe("recordServer", () => {
       error: null,
     });
     expect(mocks.updateTag.mock.calls).toEqual([
-      ["bs:record@org:customer:7#notes"],
-      ["bs:record@org:customer:7"],
+      ["bsb:record@org:customer:7#notes"],
+      ["bsb:record@org:customer:7"],
     ]);
 
     mocks.updateTag.mockClear();
@@ -243,12 +243,12 @@ describe("recordServer", () => {
 
   it("lists the record's cache tags", () => {
     expect(customer.tags("7", "org")).toEqual([
-      "bs:record@org:customer:7",
-      "bs:record@org:customer:7#notes",
+      "bsb:record@org:customer:7",
+      "bsb:record@org:customer:7#notes",
     ]);
   });
 
-  it("accepts the bs that createNext returns", () => {
+  it("accepts the bsb that createNext returns", () => {
     expectTypeOf<ReturnType<typeof createNext>>().toExtend<RecordServerHost>();
   });
 });

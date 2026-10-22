@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 /** A rows-to-authors lookup that a list function joins into its rows. */
 export interface AuthorLookup {
@@ -35,7 +35,7 @@ export interface AuthorSource {
  * only the authors of rows the caller may read.
  */
 export function authorLookup(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   source: AuthorSource,
 ): AuthorLookup | undefined {
   if (!ctx.installed("profiles")) {

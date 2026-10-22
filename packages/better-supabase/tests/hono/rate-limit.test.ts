@@ -31,13 +31,13 @@ describe("createHono().rateLimit", () => {
     },
   };
 
-  const bs = createHono(defineSupabase(schema), { env });
+  const bsb = createHono(defineSupabase(schema), { env });
 
-  const app = bs
+  const app = bsb
     .app()
     .use(
       "/api/*",
-      bs.rateLimit({
+      bsb.rateLimit({
         limiter,
         scope: "api",
         key: (c) => c.req.header("x-api-key"),

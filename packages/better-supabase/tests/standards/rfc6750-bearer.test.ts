@@ -94,7 +94,7 @@ describe("RFC 6750 Bearer token challenges", () => {
   it("reads the token from the Authorization header with the Bearer scheme (section 2.1)", async () => {
     const betterSupabase = defineSupabase(schema);
 
-    const bs = createHono(betterSupabase, {
+    const bsb = createHono(betterSupabase, {
       env: {
         url: PROJECT_URL,
         publishableKey: "sb_publishable_test",
@@ -104,8 +104,8 @@ describe("RFC 6750 Bearer token challenges", () => {
     });
 
     const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-      .onError(bs.onError)
-      .use("/api/*", bs.middleware())
+      .onError(bsb.onError)
+      .use("/api/*", bsb.middleware())
       .get("/api/me", (c) => c.json({ ok: true }));
 
     const token = await signer.sign({

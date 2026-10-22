@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module invitations@2 managed
+-- @bsb-block invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,8 +64,8 @@ create unique index if not exists invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
 create index if not exists invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
 alter table "better_supabase"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."invitations";
-create trigger bs_updated_at before update on "better_supabase"."invitations"
+drop trigger if exists bsb_updated_at on "better_supabase"."invitations";
+create trigger bsb_updated_at before update on "better_supabase"."invitations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 create index if not exists invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index if not exists invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
@@ -94,8 +94,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bs_invitations_read on "better_supabase"."invitations";
-create policy bs_invitations_read on "better_supabase"."invitations" for select to authenticated
+drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
+create policy bsb_invitations_read on "better_supabase"."invitations" for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
@@ -699,33 +699,33 @@ revoke execute on function "better_supabase"."my_invitations"() from public, ano
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module-data invitations
+-- @bsb-block-data invitations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('invitations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module invitations@2 managed
+-- @bsb-block invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -789,8 +789,8 @@ create unique index if not exists invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
 create index if not exists invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
 alter table "better_supabase"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."invitations";
-create trigger bs_updated_at before update on "better_supabase"."invitations"
+drop trigger if exists bsb_updated_at on "better_supabase"."invitations";
+create trigger bsb_updated_at before update on "better_supabase"."invitations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 create index if not exists invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index if not exists invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
@@ -819,8 +819,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bs_invitations_read on "better_supabase"."invitations";
-create policy bs_invitations_read on "better_supabase"."invitations" for select to authenticated
+drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
+create policy bsb_invitations_read on "better_supabase"."invitations" for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
@@ -1517,33 +1517,33 @@ revoke execute on function "better_supabase"."my_invitations"() from public, ano
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module-data invitations
+-- @bsb-block-data invitations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('invitations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module invitations@2 managed
+-- @bsb-block invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1609,8 +1609,8 @@ create unique index if not exists invitations_open_email_idx
   on "app_private"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
 create index if not exists invitations_tenant_created_idx on "app_private"."invitations" ("organization_id", "created_at");
 alter table "app_private"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."invitations";
-create trigger bs_updated_at before update on "app_private"."invitations"
+drop trigger if exists bsb_updated_at on "app_private"."invitations";
+create trigger bsb_updated_at before update on "app_private"."invitations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 create index if not exists invitations_invited_by_idx on "app_private"."invitations" ("invited_by");
 create index if not exists invitations_accepted_by_idx on "app_private"."invitations" ("accepted_by");
@@ -1639,8 +1639,8 @@ end;
 $$;
 revoke execute on function "app_private"."invitation_tenant_ids"() from public, anon;
 grant execute on function "app_private"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bs_invitations_read on "app_private"."invitations";
-create policy bs_invitations_read on "app_private"."invitations" for select to authenticated
+drop policy if exists bsb_invitations_read on "app_private"."invitations";
+create policy bsb_invitations_read on "app_private"."invitations" for select to authenticated
   using ("organization_id" in (select "app_private"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
@@ -2244,33 +2244,33 @@ revoke execute on function "app_private"."my_invitations"() from public, anon;
 grant execute on function "app_private"."my_invitations"() to authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module-data invitations
+-- @bsb-block-data invitations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('invitations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module invitations@2 managed
+-- @bsb-block invitations@2 managed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2334,8 +2334,8 @@ create unique index if not exists invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
 create index if not exists invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
 alter table "better_supabase"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."invitations";
-create trigger bs_updated_at before update on "better_supabase"."invitations"
+drop trigger if exists bsb_updated_at on "better_supabase"."invitations";
+create trigger bsb_updated_at before update on "better_supabase"."invitations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 create index if not exists invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index if not exists invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
@@ -2364,8 +2364,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bs_invitations_read on "better_supabase"."invitations";
-create policy bs_invitations_read on "better_supabase"."invitations" for select to authenticated
+drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
+create policy bsb_invitations_read on "better_supabase"."invitations" for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
@@ -3096,33 +3096,33 @@ revoke execute on function "api"."my_invitations"() from public, anon, service_r
 grant execute on function "api"."my_invitations"() to authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module-data invitations
+-- @bsb-block-data invitations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('invitations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module invitations@2 adopt
+-- @bsb-block invitations@2 adopt
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3771,26 +3771,26 @@ revoke execute on function "better_supabase"."my_invitations"() from public, ano
 grant execute on function "better_supabase"."my_invitations"() to authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== adopt: data supabase/better-supabase-data/900_better_supabase_05_invitations.sql
 -- better-supabase module: invitations
--- @bs-module-data invitations
+-- @bsb-block-data invitations
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('invitations', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

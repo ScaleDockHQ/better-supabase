@@ -1,5 +1,5 @@
--- better-supabase module: tenant (0.8.0)
--- @bs-module tenant@2 adopt
+-- better-supabase module: tenant
+-- @bsb-block tenant@2 adopt
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,8 +32,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."membership_role_scope"() from public, anon, authenticated;
-drop trigger if exists "bs_role_scope" on "centrakit"."organization_users";
-create trigger "bs_role_scope" before insert or update of "role_id" on "centrakit"."organization_users"
+drop trigger if exists "bsb_role_scope" on "centrakit"."organization_users";
+create trigger "bsb_role_scope" before insert or update of "role_id" on "centrakit"."organization_users"
   for each row execute function "better_supabase"."membership_role_scope"();
 
 -- blocks.tenant.options.sameTenant: a row may reference only a row of
@@ -75,29 +75,29 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.same_tenant() from public, anon, authenticated;
-drop trigger if exists "bs_same_tenant_project_id" on "centrakit"."tasks";
-create trigger "bs_same_tenant_project_id" before insert or update of "project_id", "organization_id" on "centrakit"."tasks"
+drop trigger if exists "bsb_same_tenant_project_id" on "centrakit"."tasks";
+create trigger "bsb_same_tenant_project_id" before insert or update of "project_id", "organization_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('project_id', 'organization_id', '"centrakit"."projects"', 'id', 'organization_id');
-drop trigger if exists "bs_same_tenant_customer_id" on "centrakit"."customer_contacts";
-create trigger "bs_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "centrakit"."customer_contacts"
+drop trigger if exists "bsb_same_tenant_customer_id" on "centrakit"."customer_contacts";
+create trigger "bsb_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "centrakit"."customer_contacts"
   for each row execute function better_supabase.same_tenant('customer_id', 'organization_id', '"centrakit"."customers"', 'id', 'organization_id');
-drop trigger if exists "bs_same_tenant_contact_id" on "centrakit"."tasks";
-create trigger "bs_same_tenant_contact_id" before insert or update of "contact_id", "organization_id", "customer_id" on "centrakit"."tasks"
+drop trigger if exists "bsb_same_tenant_contact_id" on "centrakit"."tasks";
+create trigger "bsb_same_tenant_contact_id" before insert or update of "contact_id", "organization_id", "customer_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('contact_id', 'organization_id', '"centrakit"."customer_contacts"', 'id', 'organization_id', '', 'customer_id', 'customer_id');
-drop trigger if exists "bs_same_tenant_customer_id" on "centrakit"."tasks";
-create trigger "bs_same_tenant_customer_id" before insert or update of "customer_id", "organization_id", "project_id" on "centrakit"."tasks"
+drop trigger if exists "bsb_same_tenant_customer_id" on "centrakit"."tasks";
+create trigger "bsb_same_tenant_customer_id" before insert or update of "customer_id", "organization_id", "project_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('customer_id', 'organization_id', '"centrakit"."customers"', 'id', 'organization_id', 'p."id" is not distinct from (select h."customer_id" from "centrakit"."projects" h where h."id" = ($1)."project_id")');
-drop trigger if exists "bs_same_tenant_label_id" on "centrakit"."tasks";
-create trigger "bs_same_tenant_label_id" before insert or update of "label_id", "organization_id" on "centrakit"."tasks"
+drop trigger if exists "bsb_same_tenant_label_id" on "centrakit"."tasks";
+create trigger "bsb_same_tenant_label_id" before insert or update of "label_id", "organization_id" on "centrakit"."tasks"
   for each row execute function better_supabase.same_tenant('label_id', 'organization_id', '"centrakit"."organization_tags"', 'id', 'tenant_id', 'p.kind = ''task''');
-drop trigger if exists "bs_same_tenant_team_id" on "centrakit"."file_node_grant";
-create trigger "bs_same_tenant_team_id" before insert or update of "team_id", "organization_id" on "centrakit"."file_node_grant"
+drop trigger if exists "bsb_same_tenant_team_id" on "centrakit"."file_node_grant";
+create trigger "bsb_same_tenant_team_id" before insert or update of "team_id", "organization_id" on "centrakit"."file_node_grant"
   for each row execute function better_supabase.same_tenant('team_id', 'organization_id', '"centrakit"."teams"', 'id', 'tenant_id');
-drop trigger if exists "bs_same_tenant_department_team_id" on "centrakit"."employees";
-create trigger "bs_same_tenant_department_team_id" before insert or update of "department_team_id", "organization_id" on "centrakit"."employees"
+drop trigger if exists "bsb_same_tenant_department_team_id" on "centrakit"."employees";
+create trigger "bsb_same_tenant_department_team_id" before insert or update of "department_team_id", "organization_id" on "centrakit"."employees"
   for each row execute function better_supabase.same_tenant('department_team_id', 'organization_id', '"centrakit"."teams"', 'id', 'tenant_id');
-drop trigger if exists "bs_same_tenant_destination_id" on "centrakit"."webhook_deliveries";
-create trigger "bs_same_tenant_destination_id" before insert or update of "destination_id", "organization_id" on "centrakit"."webhook_deliveries"
+drop trigger if exists "bsb_same_tenant_destination_id" on "centrakit"."webhook_deliveries";
+create trigger "bsb_same_tenant_destination_id" before insert or update of "destination_id", "organization_id" on "centrakit"."webhook_deliveries"
   for each row execute function better_supabase.same_tenant('destination_id', 'organization_id', '"centrakit"."webhook_destinations"', 'id', 'organization_id');
 
 
@@ -209,13 +209,13 @@ grant execute on function better_supabase.membership_claims(uuid) to service_rol
 reset check_function_bodies;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

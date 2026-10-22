@@ -1,12 +1,12 @@
 import type { InventoryEvents } from "../../blocks/inventory/events.ts";
 import type { CommerceEventData } from "../../core/block-events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
@@ -35,7 +35,7 @@ const stockEvent = (
   payload: ["organizationId", "id", ...payload],
 });
 
-const EVENTS: ModuleEvents<InventoryEvents> = {
+const EVENTS: BlockSqlEvents<InventoryEvents> = {
   "stock.adjusted": stockEvent("stock-movements", [
     "variantId",
     "locationId",
@@ -96,7 +96,7 @@ const EVENTS: ModuleEvents<InventoryEvents> = {
 
 const tenantExport = { tenant: "tenant", export: true } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["extraColumns"],
   hooks: [
@@ -215,7 +215,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, names: InventoryNames): string {
+function tables(ctx: BlockSqlContext, names: InventoryNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -390,7 +390,7 @@ const counterCase = (reason: string, index: 0 | 1): string =>
  * its reason (suppliers, customers, in transit, adjustments). Levels stay a
  * projection the movement updates in the same transaction.
  */
-function stockLedger(ctx: ModuleContext, names: InventoryNames): string {
+function stockLedger(ctx: BlockSqlContext, names: InventoryNames): string {
   const { fn } = names;
   const ledger = ctx.of("ledger");
   const levels = ctx.table("levels");
@@ -463,7 +463,7 @@ revoke execute on function ${fn("move_stock")}(${ctx.idType}, uuid, uuid, intege
 }
 
 /** Copies `stock_movements` into the ledger, keeping each movement's id. */
-function stockMovementsUpgrade(ctx: ModuleContext): string {
+function stockMovementsUpgrade(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -510,7 +510,7 @@ end;
 $upgrade$;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -531,7 +531,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}${stockLedger(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
 
   const orders =
@@ -613,7 +613,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const INVENTORY: ModuleDefinition = {
+export const INVENTORY: BlockSqlDefinition = {
   name: "inventory",
   scopes: ["tenant"],
   title: "Inventory",

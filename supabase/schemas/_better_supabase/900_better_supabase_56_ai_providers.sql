@@ -1,5 +1,5 @@
--- better-supabase module: ai-providers (0.9.0)
--- @bs-module ai-providers@2 managed
+-- better-supabase module: ai-providers
+-- @bsb-block ai-providers@2 managed
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -570,13 +570,13 @@ revoke execute on function "api"."list_ai_batch_items"(uuid, text, integer) from
 grant execute on function "api"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;

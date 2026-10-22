@@ -105,7 +105,7 @@ It returns these entities:
 | `brand`, ...   | `{ id }` for each custom context, named as in `blocks.flags.options.contexts` |
 
 `claims` must return claims you verified locally, such as from
-`getClaims()` or `bs.context()`; `identify` runs for every flag and never
+`getClaims()` or `bsb.context()`; `identify` runs for every flag and never
 calls the Auth server. `tenant` picks the active tenant when the claims
 don't carry it, and `contexts` adds custom context values from a header,
 the host or a cookie. `contextClaims` from `flagContext` also works, such as

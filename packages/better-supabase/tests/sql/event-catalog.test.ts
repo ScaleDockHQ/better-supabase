@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { BLOCK_EVENT_RENAMES } from "../../src/core/block-events.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 const source = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf-8");
@@ -23,7 +23,7 @@ const OWNER = new Map(
 
 /** Rendered with every module, so each optional event path is on. */
 const RECORDED = (() => {
-  const files = renderModules(Object.keys(SQL_MODULES), {
+  const files = renderBlocks(Object.keys(SQL_MODULES), {
     modules: {
       audit: { options: { restricted: true } },
       bookings: { options: { recurring: true } },

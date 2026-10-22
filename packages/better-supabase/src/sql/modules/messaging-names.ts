@@ -1,7 +1,11 @@
 import type { MessagingEvents } from "../../blocks/messaging/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleAccessProvider } from "../module-types.ts";
-import type { ModuleOperations } from "./access-model.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlAccessProvider } from "../module-types.ts";
+import type { BlockSqlOperations } from "./access-model.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
@@ -30,7 +34,7 @@ const MESSAGE = [
   "recordId",
 ] as const;
 
-const EVENTS: ModuleEvents<MessagingEvents> = {
+const EVENTS: BlockSqlEvents<MessagingEvents> = {
   "conversation.created": {
     subject: "conversations",
     payload: [...CONVERSATION, "recordType", "recordId"],
@@ -60,7 +64,7 @@ const EVENTS: ModuleEvents<MessagingEvents> = {
   },
 };
 
-export const MESSAGING_NAMES: ModuleNames = {
+export const MESSAGING_NAMES: BlockSqlNames = {
   events: EVENTS,
   entities: {
     message: {
@@ -218,14 +222,14 @@ export const MESSAGING_NAMES: ModuleNames = {
   },
 };
 
-type Action = keyof ModuleOperations<"messaging">;
+type Action = keyof BlockSqlOperations<"messaging">;
 
 const NAME = /^[a-z][a-z0-9_-]{0,30}$/;
 const QUEUE = /^[a-z][a-z0-9_]{0,40}$/;
 
 /** The table, column and permission helpers the messaging SQL shares. */
 export interface MessagingSql {
-  readonly ctx: ModuleContext;
+  readonly ctx: BlockSqlContext;
   readonly id: string;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
@@ -257,8 +261,8 @@ export interface MessagingSql {
 }
 
 export function messagingSql(
-  ctx: ModuleContext,
-  provider?: ModuleAccessProvider,
+  ctx: BlockSqlContext,
+  provider?: BlockSqlAccessProvider,
 ): MessagingSql {
   const permissions = moduleOperations("messaging");
 

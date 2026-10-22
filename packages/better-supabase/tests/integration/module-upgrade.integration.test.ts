@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
@@ -38,7 +38,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
 
   it("renames the 0.4.0 tables and columns and keeps rows and triggers, and drops the old view", async () => {
     const client = await pool.connect();
-    const table = `public.bs_upgrade_${crypto.randomUUID().slice(0, 8)}`;
+    const table = `public.bsb_upgrade_${crypto.randomUUID().slice(0, 8)}`;
     const organization = crypto.randomUUID();
 
     try {
@@ -85,7 +85,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
         }
       }
 
-      for (const file of renderModules(MODULES)) {
+      for (const file of renderBlocks(MODULES)) {
         if (file.kind !== "test") {
           await client.query(file.contents);
         }

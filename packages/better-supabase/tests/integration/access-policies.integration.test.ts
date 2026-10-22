@@ -25,7 +25,7 @@ const USER = "00000000-0000-4000-8000-0000000000fe";
 /** An id with hex letters, so its uppercase form differs. */
 const HEX = "abcdef00-0000-4000-8000-0000000000ab";
 const RUN = String(Date.now());
-const SCHEMA = `bs_authz_${RUN}`;
+const SCHEMA = `bsb_authz_${RUN}`;
 
 async function reachable(): Promise<boolean> {
   try {
@@ -63,7 +63,7 @@ const SQL = {
 };
 
 const files = defineBucket({
-  id: `bs-it-pd-${RUN}`,
+  id: `bsb-it-pd-${RUN}`,
   path: "{organizationId}/{file}",
   policy: {
     access: { read: "files.read", list: "files.list", write: "files.write" },
@@ -137,12 +137,12 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
 
     const objects = ["select", "list", "insert", "update", "delete"].map(
       (suffix) =>
-        `drop policy if exists "bs_bs_it_pd_${RUN}_${suffix}" on storage.objects;`,
+        `drop policy if exists "bsb_bs_it_pd_${RUN}_${suffix}" on storage.objects;`,
     );
 
     const topics = ["receive", "send"].map(
       (suffix) =>
-        `drop policy if exists "bs_topic_pd_board_${RUN}_${suffix}" on realtime.messages;`,
+        `drop policy if exists "bsb_topic_pd_board_${RUN}_${suffix}" on realtime.messages;`,
     );
 
     await pool.query(

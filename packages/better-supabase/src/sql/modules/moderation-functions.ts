@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER } from "../shared.ts";
@@ -17,7 +17,7 @@ const DEFAULT_REASONS = [
   "other",
 ] as const;
 
-function thresholdOf(ctx: ModuleContext): number {
+function thresholdOf(ctx: BlockSqlContext): number {
   const value = ctx.number("autoHideThreshold", 3);
 
   if (!Number.isInteger(value) || value < 0 || value > 1000) {
@@ -29,7 +29,7 @@ function thresholdOf(ctx: ModuleContext): number {
   return value;
 }
 
-function reasonsOf(ctx: ModuleContext): readonly string[] {
+function reasonsOf(ctx: BlockSqlContext): readonly string[] {
   const reasons = ctx.list("reasons", DEFAULT_REASONS);
 
   if (
@@ -45,7 +45,7 @@ function reasonsOf(ctx: ModuleContext): readonly string[] {
 }
 
 /** The moderation module's functions. */
-export function moderationFunctions(ctx: ModuleContext): string {
+export function moderationFunctions(ctx: BlockSqlContext): string {
   const items = ctx.table("items");
   const reports = ctx.table("reports");
   const actions = ctx.table("actions");
@@ -593,7 +593,7 @@ ${moderationHidden(ctx)}`;
  * Whether a moderator hid, removed or holds back a subject, for the messages
  * read policy the messaging module adds.
  */
-function moderationHidden(ctx: ModuleContext): string {
+function moderationHidden(ctx: BlockSqlContext): string {
   if (moderatedMessageType(ctx) === undefined) {
     return "";
   }

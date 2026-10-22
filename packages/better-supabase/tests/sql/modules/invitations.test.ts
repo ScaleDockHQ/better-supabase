@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
-import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
+import type { BlockSqlAccessProvider } from "../../../src/sql/module-types.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import {
   callerOnlyProvider,
@@ -12,7 +12,7 @@ import {
 
 const body = (
   modules: AnyBlocksConfig,
-  accessProvider: ModuleAccessProvider = callerOnlyProvider,
+  accessProvider: BlockSqlAccessProvider = callerOnlyProvider,
 ) => moduleBody("invitations", { modules, accessProvider })!;
 
 describe("invitations module", () => {
@@ -159,7 +159,7 @@ describe("invitations module", () => {
 
   it("skips the inviter re-check when the provider answers for the caller only", () => {
     const accept = (modules: AnyBlocksConfig) =>
-      renderModules(["access", "invitations"], {
+      renderBlocks(["access", "invitations"], {
         modules,
         accessProvider: callerOnlyProvider,
       })
@@ -340,7 +340,7 @@ describe("platform invitations under the provider model", () => {
     ).toContain(tenantOnly);
   });
 
-  it("checks every write to the roles tables against where with bs_role_scope", () => {
+  it("checks every write to the roles tables against where with bsb_role_scope", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
 
     const modules = (where: boolean): AnyBlocksConfig => ({
@@ -377,7 +377,7 @@ describe("platform invitations under the provider model", () => {
     );
     expect(tenant).toContain("hint = 'MEMBERSHIP_ROLE_SCOPE'");
     expect(tenant).toContain(
-      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."team_members"`,
+      `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."team_members"`,
     );
     const platform = body(modules(true));
     expect(platform).toContain(
@@ -385,20 +385,20 @@ describe("platform invitations under the provider model", () => {
     );
     expect(platform).toContain("hint = 'PLATFORM_ROLE_SCOPE'");
     expect(platform).toContain(
-      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
+      `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
     );
     const unscoped = moduleBody("tenant", { modules: modules(false) })!;
     expect(unscoped).toContain(
-      `drop trigger if exists "bs_role_scope" on "public"."team_members";`,
+      `drop trigger if exists "bsb_role_scope" on "public"."team_members";`,
     );
-    expect(unscoped).not.toContain('create trigger "bs_role_scope"');
+    expect(unscoped).not.toContain('create trigger "bsb_role_scope"');
     const unscopedPlatform = body(modules(false));
     expect(unscopedPlatform).toContain(
-      `drop trigger if exists "bs_role_scope" on "public"."user_roles";`,
+      `drop trigger if exists "bsb_role_scope" on "public"."user_roles";`,
     );
     expect(unscopedPlatform).not.toContain("PLATFORM_ROLE_SCOPE");
     expect(moduleBody("tenant", { modules: {} })).not.toContain(
-      "bs_role_scope",
+      "bsb_role_scope",
     );
   });
 
@@ -497,7 +497,7 @@ describe("invitation_preview_extra", () => {
 
     expect(sql).not.toContain("'inviter'");
 
-    const withProfiles = renderModules(["profiles", "invitations"], {}).find(
+    const withProfiles = renderBlocks(["profiles", "invitations"], {}).find(
       (file) => file.module === "invitations" && file.kind === "schema",
     )!.contents;
 
@@ -529,7 +529,7 @@ describe("invitation_preview_extra", () => {
 
     expect(own).toContain("tenant_ids_with('member.view')");
 
-    const listing = renderModules(["organizations", "invitations"], {
+    const listing = renderBlocks(["organizations", "invitations"], {
       modules: { invitations: { permissions: { invite: "member.invite" } } },
       accessProvider: moduleProvider,
     })

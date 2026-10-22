@@ -22,7 +22,7 @@ import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { renderModules, moduleLayout } from "../../../src/sql/index.ts";
+import { renderBlocks, moduleLayout } from "../../../src/sql/index.ts";
 import { stubProvider } from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
@@ -572,10 +572,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", rooted())).toEqual([]);
     const ctx = rooted({ blocks: ["updated-at", "audit"] });
 
-    const files = renderModules(
-      ctx.config.blockNames,
-      moduleLayout(ctx.config),
-    );
+    const files = renderBlocks(ctx.config.blockNames, moduleLayout(ctx.config));
 
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.target)).toEqual(
@@ -642,7 +639,7 @@ describe("generated and module files (BS303, BS304)", () => {
           `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
       ),
     );
-    const files = renderModules(["tenant", "mfa"], moduleLayout(ctx.config));
+    const files = renderBlocks(["tenant", "mfa"], moduleLayout(ctx.config));
 
     const name =
       "supabase/migrations/20200101000000_better_supabase_modules.sql";
@@ -653,7 +650,7 @@ describe("generated and module files (BS303, BS304)", () => {
         .filter((file) => file.kind !== "test")
         .map((file) => file.contents)
         .join("\n")
-        .replace(/^-- @bs-module tenant@2/m, "-- @bs-module tenant@1"),
+        .replace(/^-- @bsb-block tenant@2/m, "-- @bsb-block tenant@1"),
     );
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
@@ -666,7 +663,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("still checks the pgTAP files under the migrations workflow", async () => {
     const ctx = rooted({ sql: { workflow: "migrations" }, blocks: ["pgtap"] });
-    const files = renderModules(["pgtap"], moduleLayout(ctx.config));
+    const files = renderBlocks(["pgtap"], moduleLayout(ctx.config));
     const test = files.find((file) => file.kind === "test");
     expect(test).toBeDefined();
     await write(
@@ -685,7 +682,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ blocks: ["tenant"] });
-    const files = renderModules(["tenant"], moduleLayout(ctx.config));
+    const files = renderBlocks(["tenant"], moduleLayout(ctx.config));
 
     for (const module of files) {
       await write(module.path, module.contents);
@@ -695,7 +692,7 @@ describe("generated and module files (BS303, BS304)", () => {
       (module) => module.module === "tenant" && module.kind === "schema",
     );
 
-    await write(file!.path, file!.contents.replace(/^-- @bs-module .*\n/m, ""));
+    await write(file!.path, file!.contents.replace(/^-- @bsb-block .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
       expect.objectContaining({
@@ -736,7 +733,7 @@ describe("generated and module files (BS303, BS304)", () => {
       ),
     ).toEqual([
       expect.objectContaining({
-        target: "better_supabase.modules.tenant",
+        target: "better_supabase.blocks.tenant",
         message: expect.stringContaining(
           "The database has tenant version 1; this release ships version 2.",
         ),
@@ -757,7 +754,7 @@ describe("generated and module files (BS303, BS304)", () => {
         (finding) => finding.target,
       ),
     ).toEqual(
-      renderModules(["read-sets"], moduleLayout(ctx.config)).map(
+      renderBlocks(["read-sets"], moduleLayout(ctx.config)).map(
         (file) => file.path,
       ),
     );
@@ -799,7 +796,7 @@ describe("module upgrades (BS309, BS310)", () => {
             },
             {
               path: "supabase/schemas/900_better_supabase_04_tenant.sql",
-              text: "-- @bs-module tenant@2 managed\nselect better_supabase.current_org_id();",
+              text: "-- @bsb-block tenant@2 managed\nselect better_supabase.current_org_id();",
             },
           ],
         },
@@ -887,9 +884,9 @@ describe("module upgrades (BS309, BS310)", () => {
 
     const snap = snapshot((tables) => {
       table(tables, "notes").triggers = [
-        trigger("bs_updated_at", "better_supabase.set_updated_at"),
+        trigger("bsb_updated_at", "better_supabase.set_updated_at"),
         trigger("handle_updated_at", "extensions.moddatetime"),
-        trigger("bs_audit", "better_supabase.audit_trigger"),
+        trigger("bsb_audit", "better_supabase.audit_trigger"),
         trigger("notify", "public.notify_change"),
       ];
       table(tables, "tags").triggers = [trigger("touch", "public.touch_row")];
@@ -1899,15 +1896,15 @@ describe("module event triggers (BS323)", () => {
   it("reports the module event triggers the database lacks", async () => {
     const findings = await run(
       "BS323",
-      context(base, { database: live([{ name: "bs_ensure_rls" }]) }, modules),
+      context(base, { database: live([{ name: "bsb_ensure_rls" }]) }, modules),
     );
 
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
-        target: "bs_audit_forget_dropped",
+        target: "bsb_audit_forget_dropped",
         message: expect.stringContaining(
-          "The database has no event trigger bs_audit_forget_dropped, which the audit module creates.",
+          "The database has no event trigger bsb_audit_forget_dropped, which the audit module creates.",
         ),
       }),
     ]);
@@ -1919,8 +1916,8 @@ describe("module event triggers (BS323)", () => {
           base,
           {
             database: live([
-              { name: "bs_ensure_rls" },
-              { name: "bs_audit_forget_dropped" },
+              { name: "bsb_ensure_rls" },
+              { name: "bsb_audit_forget_dropped" },
             ]),
           },
           modules,
@@ -1950,10 +1947,10 @@ describe("module event triggers (BS323)", () => {
           sqlFiles: [
             {
               path: "supabase/schemas/audit.sql",
-              text: "create event trigger bs_audit_forget_dropped on sql_drop execute function f();",
+              text: "create event trigger bsb_audit_forget_dropped on sql_drop execute function f();",
             },
             migration(
-              'create event trigger "bs_ensure_rls" on ddl_command_end execute function g();',
+              'create event trigger "bsb_ensure_rls" on ddl_command_end execute function g();',
             ),
           ],
         },
@@ -1962,7 +1959,7 @@ describe("module event triggers (BS323)", () => {
     );
 
     expect(findings.map((finding) => finding.target)).toEqual([
-      "bs_audit_forget_dropped",
+      "bsb_audit_forget_dropped",
     ]);
     expect(findings[0]!.message).toContain("No migration creates");
     expect(
@@ -2104,11 +2101,11 @@ describe("tables without an audit trigger (BS315)", () => {
     )
     .map((entry) => `public.${entry.name}`);
 
-  it("lists tables in schemas without the bs_audit trigger", async () => {
+  it("lists tables in schemas without the bsb_audit trigger", async () => {
     const audited = snapshot((tables) => {
       table(tables, "customers").triggers = [
         {
-          name: "bs_audit",
+          name: "bsb_audit",
           timing: "after",
           events: ["insert", "update", "delete"],
           level: "row",
@@ -2308,7 +2305,7 @@ describe("tables without the session policy (BS320)", () => {
       // The repo's stack turns blocks.sessions.options.policies on.
       for (const entry of tables) {
         entry.policies = entry.policies.filter(
-          (policy) => policy.name !== "bs_session_active",
+          (policy) => policy.name !== "bsb_session_active",
         );
       }
 
@@ -2316,7 +2313,7 @@ describe("tables without the session policy (BS320)", () => {
       customers.policies = [
         ...customers.policies,
         {
-          name: "bs_session_active",
+          name: "bsb_session_active",
           command: "all",
           roles: ["authenticated"],
           permissive: false,
@@ -2514,7 +2511,7 @@ describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
       notes.triggers = trigger
         ? [
             {
-              name: "bs_same_tenant_tag_id",
+              name: "bsb_same_tenant_tag_id",
               timing: "before",
               events: ["insert", "update"],
               level: "row",
@@ -2639,11 +2636,11 @@ describe("secret columns in data exports (BS341)", () => {
 
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
-    name: "bs_broadcast_org",
+    name: "bsb_broadcast_org",
     timing: "after" as const,
     events: ["insert" as const],
     level: "row" as const,
-    function: "better_supabase.bs_broadcast_org_public_notes",
+    function: "better_supabase.bsb_broadcast_org_public_notes",
     source,
     ...(comment === undefined ? {} : { comment }),
   });
@@ -2660,17 +2657,17 @@ describe("whole-row broadcast triggers (BS337)", () => {
           ...trigger(
             "begin perform realtime.send(jsonb_build_object('old_record', old, 'record', new), tg_op, 't', true); end;",
           ),
-          name: "bs_broadcast_tags",
+          name: "bsb_broadcast_tags",
         },
       ];
     });
 
     expect(await run("BS337", context(snap))).toMatchObject([
       {
-        target: "public.notes.bs_broadcast_org",
+        target: "public.notes.bsb_broadcast_org",
         message: expect.stringContaining('pass `payload: "row"`'),
       },
-      { target: "public.tags.bs_broadcast_tags" },
+      { target: "public.tags.bsb_broadcast_tags" },
     ]);
   });
 
@@ -2688,7 +2685,7 @@ describe("whole-row broadcast triggers (BS337)", () => {
           "begin\n-- realtime.broadcast_changes(topic, tg_op, tg_op, t, s, new, old)\nreturn null; end;",
         ),
         {
-          name: "bs_broadcast_topic",
+          name: "bsb_broadcast_topic",
           timing: "after",
           events: ["insert"],
           level: "row",
@@ -2707,7 +2704,7 @@ describe("realtime and auth.users (BS305, BS306, BS406)", () => {
     const snap = snapshot((tables, catalog) => {
       table(tables, "notes").triggers = [
         {
-          name: "bs_realtime_notes",
+          name: "bsb_realtime_notes",
           timing: "after",
           events: ["insert"],
           level: "statement",
@@ -2869,7 +2866,7 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
 
   const rpc = {
     path: "src/actions.ts",
-    text: 'import { bs } from "./bs";\n\nawait bs.$rpc("note_count");',
+    text: 'import { bsb } from "./bsb";\n\nawait bsb.$rpc("note_count");',
   };
 
   const realtime = {
@@ -2931,7 +2928,7 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
 describe("session cookie encoding (BS412)", () => {
   const browser = (encode?: string) => ({
     path: "src/lib/client.ts",
-    text: `import { createClient } from "better-supabase/client";\nexport const bs = createClient(betterSupabase, {\n  env,${encode ? `\n  cookies: { encode: "${encode}" },` : ""}\n});`,
+    text: `import { createClient } from "better-supabase/client";\nexport const bsb = createClient(betterSupabase, {\n  env,${encode ? `\n  cookies: { encode: "${encode}" },` : ""}\n});`,
   });
 
   const server = (encode?: string) => ({
@@ -3044,7 +3041,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
           configToml: pgdelta,
           sqlFiles: [
             file(grants.text, "supabase/migrations/1_init.sql"),
-            file(`-- @bs-module grants@1 managed\n${grants.text}`),
+            file(`-- @bsb-block grants@1 managed\n${grants.text}`),
           ],
         }),
       ),
@@ -3090,7 +3087,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
 
   it("flags extensions the schema files create that no migration does", async () => {
     const jobs = file(
-      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
+      "-- @bsb-block jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
       "supabase/schemas/900_better_supabase_07_jobs.sql",
     );
 
@@ -3121,7 +3118,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     );
 
     const data = file(
-      '-- @bs-module-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
+      '-- @bsb-block-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
       "supabase/migrations/20260101000001_better_supabase_module_data.sql",
     );
 

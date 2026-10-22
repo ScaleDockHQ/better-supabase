@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module webhooks-in@4 managed
+-- @bsb-block webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,8 +81,8 @@ create index if not exists incoming_webhooks_tenant_idx on "better_supabase"."in
 create index if not exists incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
 create index if not exists incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
 alter table "better_supabase"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."incoming_webhooks";
-create trigger bs_updated_at before update on "better_supabase"."incoming_webhooks"
+drop trigger if exists bsb_updated_at on "better_supabase"."incoming_webhooks";
+create trigger bsb_updated_at before update on "better_supabase"."incoming_webhooks"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()
@@ -97,8 +97,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
-create trigger "bs_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
+drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
+create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
 revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
@@ -133,8 +133,8 @@ $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bs_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bs_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
+drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
   using (
     tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
@@ -489,33 +489,33 @@ revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, int
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module-data webhooks-in
+-- @bsb-block-data webhooks-in
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('webhooks-in', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module webhooks-in@4 managed
+-- @bsb-block webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -596,8 +596,8 @@ create index if not exists incoming_webhooks_tenant_idx on "better_supabase"."in
 create index if not exists incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
 create index if not exists incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
 alter table "better_supabase"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."incoming_webhooks";
-create trigger bs_updated_at before update on "better_supabase"."incoming_webhooks"
+drop trigger if exists bsb_updated_at on "better_supabase"."incoming_webhooks";
+create trigger bsb_updated_at before update on "better_supabase"."incoming_webhooks"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()
@@ -612,8 +612,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
-create trigger "bs_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
+drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
+create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
 revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
@@ -648,8 +648,8 @@ $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bs_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bs_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
+drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
   using (
     tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
@@ -1052,33 +1052,33 @@ revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, int
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module-data webhooks-in
+-- @bsb-block-data webhooks-in
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('webhooks-in', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module webhooks-in@4 managed
+-- @bsb-block webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1161,8 +1161,8 @@ create index if not exists incoming_webhooks_tenant_idx on "app_private"."incomi
 create index if not exists incoming_webhooks_subject_idx on "app_private"."incoming_webhooks" (tenant, subject_type, subject_id);
 create index if not exists incoming_webhooks_created_by_idx on "app_private"."incoming_webhooks" (created_by) where created_by is not null;
 alter table "app_private"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."incoming_webhooks";
-create trigger bs_updated_at before update on "app_private"."incoming_webhooks"
+drop trigger if exists bsb_updated_at on "app_private"."incoming_webhooks";
+create trigger bsb_updated_at before update on "app_private"."incoming_webhooks"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "app_private"."drop_incoming_webhook_secret"()
@@ -1177,8 +1177,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_incoming_webhook_vault" on "app_private"."incoming_webhooks";
-create trigger "bs_incoming_webhook_vault" after delete on "app_private"."incoming_webhooks"
+drop trigger if exists "bsb_incoming_webhook_vault" on "app_private"."incoming_webhooks";
+create trigger "bsb_incoming_webhook_vault" after delete on "app_private"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "app_private"."drop_incoming_webhook_secret"();
 alter table "app_private"."incoming_webhooks" enable row level security;
 revoke all on "app_private"."incoming_webhooks" from anon, authenticated;
@@ -1213,8 +1213,8 @@ $$;
 revoke execute on function "app_private"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "app_private"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bs_incoming_webhooks_read on "app_private"."incoming_webhooks";
-create policy bs_incoming_webhooks_read on "app_private"."incoming_webhooks" for select to authenticated
+drop policy if exists bsb_incoming_webhooks_read on "app_private"."incoming_webhooks";
+create policy bsb_incoming_webhooks_read on "app_private"."incoming_webhooks" for select to authenticated
   using (
     tenant in (select "app_private"."incoming_webhook_tenant_ids"())
     and "app_private"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
@@ -1569,33 +1569,33 @@ revoke execute on function "app_private"."record_incoming_webhook"(uuid, integer
 grant execute on function "app_private"."record_incoming_webhook"(uuid, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module-data webhooks-in
+-- @bsb-block-data webhooks-in
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('webhooks-in', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module webhooks-in@4 managed
+-- @bsb-block webhooks-in@4 managed
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1676,8 +1676,8 @@ create index if not exists incoming_webhooks_tenant_idx on "better_supabase"."in
 create index if not exists incoming_webhooks_subject_idx on "better_supabase"."incoming_webhooks" (tenant, subject_type, subject_id);
 create index if not exists incoming_webhooks_created_by_idx on "better_supabase"."incoming_webhooks" (created_by) where created_by is not null;
 alter table "better_supabase"."incoming_webhooks" add column if not exists updated_at timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."incoming_webhooks";
-create trigger bs_updated_at before update on "better_supabase"."incoming_webhooks"
+drop trigger if exists bsb_updated_at on "better_supabase"."incoming_webhooks";
+create trigger bsb_updated_at before update on "better_supabase"."incoming_webhooks"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
 create or replace function "better_supabase"."drop_incoming_webhook_secret"()
@@ -1692,8 +1692,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
-create trigger "bs_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
+drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
+create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 alter table "better_supabase"."incoming_webhooks" enable row level security;
 revoke all on "better_supabase"."incoming_webhooks" from anon, authenticated;
@@ -1728,8 +1728,8 @@ $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists bs_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
-create policy bs_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
+drop policy if exists bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks";
+create policy bsb_incoming_webhooks_read on "better_supabase"."incoming_webhooks" for select to authenticated
   using (
     tenant in (select "better_supabase"."incoming_webhook_tenant_ids"())
     and "better_supabase"."incoming_webhook_subject_readable"(subject_type, subject_id, tenant)
@@ -2194,33 +2194,33 @@ revoke execute on function "api"."record_incoming_webhook"(uuid, integer) from p
 grant execute on function "api"."record_incoming_webhook"(uuid, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module-data webhooks-in
+-- @bsb-block-data webhooks-in
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('webhooks-in', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module webhooks-in@4 adopt
+-- @bsb-block webhooks-in@4 adopt
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2276,8 +2276,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
-create trigger "bs_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
+drop trigger if exists "bsb_incoming_webhook_vault" on "better_supabase"."incoming_webhooks";
+create trigger "bsb_incoming_webhook_vault" after delete on "better_supabase"."incoming_webhooks"
   for each row when (old."secret_id" is not null or old."previous_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 
 create or replace function "better_supabase"."incoming_webhook_tenant_ids"()
@@ -2657,26 +2657,26 @@ revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, int
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== adopt: data supabase/better-supabase-data/900_better_supabase_27_webhooks_in.sql
 -- better-supabase module: webhooks-in
--- @bs-module-data webhooks-in
+-- @bsb-block-data webhooks-in
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('webhooks-in', 4, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

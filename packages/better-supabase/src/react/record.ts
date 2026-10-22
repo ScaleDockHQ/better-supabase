@@ -20,7 +20,7 @@ import type {
   SectionWritesOf,
 } from "../records/feature.ts";
 import type { SectionName } from "../records/sections.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 
 import { createBlocks } from "../blocks/create-blocks.ts";
 import { useController } from "../blocks/react-controller.ts";
@@ -78,7 +78,7 @@ export interface RecordProviderProps<
 }
 
 export interface RecordState<B extends FeatureBlocks, N extends string> {
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   /** Each section settled, with Temporal values as ISO strings. */
   readonly sections: Partial<PlainSections<B, N>>;
   /** What the caller may do; every flag is `true` without `initial.can`. */

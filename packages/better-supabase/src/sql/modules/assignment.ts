@@ -1,11 +1,11 @@
 import type { AssignmentEvents } from "../../blocks/assignment/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   activeMembership,
@@ -18,7 +18,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<AssignmentEvents> = {
+const EVENTS: BlockSqlEvents<AssignmentEvents> = {
   "subject.assigned": {
     subject: "assignment-queues",
     payload: [
@@ -33,7 +33,7 @@ const EVENTS: ModuleEvents<AssignmentEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     assignment_queue: {
       table: "queues",
@@ -101,7 +101,7 @@ interface AssignmentNames {
   readonly assign: string;
 }
 
-function names(ctx: ModuleContext): AssignmentNames {
+function names(ctx: BlockSqlContext): AssignmentNames {
   const keys = moduleOperations("assignment");
 
   return {
@@ -116,7 +116,7 @@ function names(ctx: ModuleContext): AssignmentNames {
   };
 }
 
-function tables(ctx: ModuleContext, n: AssignmentNames): string {
+function tables(ctx: BlockSqlContext, n: AssignmentNames): string {
   const { t, q, u, g } = n;
   const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
 
@@ -173,7 +173,7 @@ using (${ctx.scope.check(g("tenant"), n.read)});
 `;
 }
 
-function functions(ctx: ModuleContext, n: AssignmentNames): string {
+function functions(ctx: BlockSqlContext, n: AssignmentNames): string {
   const { fn, t, q, u, g } = n;
   const rules = ctx.of("rules");
   const tenant = ctx.of("tenant");
@@ -455,7 +455,7 @@ ${userGrant(`${fn("assignment_history")}(${ctx.idType}, text, text, integer)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const n = names(ctx);
 
   return `${schemaPreamble(ctx)}
@@ -464,7 +464,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${functions(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_assignment_queue",
@@ -495,7 +495,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ASSIGNMENT: ModuleDefinition = {
+export const ASSIGNMENT: BlockSqlDefinition = {
   name: "assignment",
   scopes: ["tenant"],
   title: "Assignment",

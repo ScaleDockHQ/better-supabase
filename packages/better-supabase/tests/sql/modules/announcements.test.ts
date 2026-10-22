@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],
   modules: AnyBlocksConfig = {},
 ): string =>
-  renderModules(names, { modules })
+  renderBlocks(names, { modules })
     .filter((file) => file.contents.includes("announcement_dismissals"))
     .map((file) => file.contents)
     .join("\n");

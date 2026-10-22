@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (layout: Layout = {}): string =>
-  renderModules(["versions"], layout)
+  renderBlocks(["versions"], layout)
     .filter((file) => file.module === "versions")
     .map((file) => file.contents)
     .join("\n");
@@ -91,7 +91,7 @@ describe("versions module", () => {
 
   it("writes nothing in custom mode", () => {
     expect(
-      renderModules(["versions"], {
+      renderBlocks(["versions"], {
         modules: { versions: { mode: "custom" } },
       }).find((file) => file.module === "versions")?.contents ?? "",
     ).not.toContain("create or replace function");

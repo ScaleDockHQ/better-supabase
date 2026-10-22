@@ -4,10 +4,10 @@ import {
   assistant,
   assistantContext,
 } from "../../../features/assistant/assistant-server";
-import { bs } from "../../../lib/supabase/server";
+import { bsb } from "../../../lib/supabase/server";
 
 /** `POST /api/chat`: stores the user's message and streams the answer. */
-export const POST = bs.route(
+export const POST = bsb.route(
   (request, { session, tenant, supabase }) =>
     session.kind === "user"
       ? assistant().respond(

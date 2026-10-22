@@ -142,13 +142,89 @@ function check(file: string): Finding[] {
   return findings;
 }
 
-const files: string[] = [];
+// Retired names are checked in code too, so they count fenced blocks and
+// example sources. The pages that document the rename keep the old name.
+const retiredRoots = [
+  "apps/docs/content",
+  "packages/better-supabase/skills",
+  "packages/better-supabase/README.md",
+  "apps/examples",
+];
 
-for (const root of argv.length > 2 ? argv.slice(2) : roots) {
-  collect(root, files);
+const retiredExempt =
+  /CHANGELOG\.md$|\/migration\/|concepts\/naming\.mdx$|cli\/codemod\.mdx$|\/src\/lib\/supabase\//u;
+
+const retired: readonly (readonly [RegExp, string])[] = [
+  [
+    /(?<![\w$.:/-])bs\.(?=[a-z$])|\b(?:const|let|var)\s+bs\b|\{\s*bs\s*[,}]/u,
+    "retired instance name `bs`; the runtime instance is `bsb`",
+  ],
+  [
+    // API keys keep the `bs` prefix, so `bs_bad_key` is a key, not an object.
+    /\bbs_(?!bad_key\b)[a-z][a-z0-9_]*/u,
+    "retired `bs_` object name; installed triggers, policies and functions start with `bsb_`",
+  ],
+  [
+    /@bs-(?:module|entities|app-tables|upgrade)/u,
+    "retired marker; block files carry `@bsb-block`, `@bsb-names` and `@bsb-tables`",
+  ],
+];
+
+function collectSources(path: string, into: string[]): void {
+  let stats;
+
+  try {
+    stats = statSync(path);
+  } catch {
+    return;
+  }
+
+  if (stats.isFile()) {
+    if (/\.(mdx?|tsx?)$/u.test(path) && !retiredExempt.test(path)) {
+      into.push(path);
+    }
+
+    return;
+  }
+
+  for (const entry of readdirSync(path)) {
+    if (entry === "node_modules" || entry.startsWith(".") || entry === "dist") {
+      continue;
+    }
+
+    collectSources(join(path, entry), into);
+  }
 }
 
-const findings = files.flatMap(check);
+function checkRetired(file: string): Finding[] {
+  return readFileSync(file, "utf-8")
+    .split("\n")
+    .flatMap((raw, index) =>
+      retired
+        .filter(([pattern]) => pattern.test(raw))
+        .map(([, message]) => ({ file, line: index + 1, message })),
+    );
+}
+
+const files: string[] = [];
+const sources: string[] = [];
+
+if (argv.length > 2) {
+  for (const root of argv.slice(2)) {
+    collect(root, files);
+    collectSources(root, sources);
+  }
+} else {
+  for (const root of roots) {
+    collect(root, files);
+  }
+
+  for (const root of retiredRoots) {
+    collectSources(root, sources);
+  }
+}
+
+const findings = [...files.flatMap(check), ...sources.flatMap(checkRetired)];
 
 for (const { file, line, message } of findings) {
   console.error(`${relative(cwd(), file)}:${line}: ${message}`);

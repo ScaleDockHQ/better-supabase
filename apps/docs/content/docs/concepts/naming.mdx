@@ -52,15 +52,15 @@ only means a feature flag.
 `betterSupabase` is the definition from `defineSupabase`. It holds the schema
 and the configuration, no secrets, and is safe to import anywhere.
 
-`bs` is the runtime instance an adapter creates from it: `createNext`,
+`bsb` is the runtime instance an adapter creates from it: `createNext`,
 `createServer`, `createClient`, `createHono`, `createOrpc`, `createEdge` or
-`createMcp`. Each file that creates one exports it as `bs`, so a call reads
+`createMcp`. Each file that creates one exports it as `bsb`, so a call reads
 the same in every framework:
 
 ```ts
-const { db } = await bs.context(); // Next.js Server Component
-app.use("/api/*", bs.middleware()); // Hono
-Deno.serve(bs.handler(fn)); // Edge Function
+const { db } = await bsb.context(); // Next.js Server Component
+app.use("/api/*", bsb.middleware()); // Hono
+Deno.serve(bsb.handler(fn)); // Edge Function
 ```
 
 ## Files
@@ -71,13 +71,13 @@ Supabase uses for its own `utils/supabase/server.ts` and `client.ts`:
 | File                        | Exports          | Runs on                                         |
 | --------------------------- | ---------------- | ----------------------------------------------- |
 | `lib/supabase/index.ts`     | `betterSupabase` | both, imported as `@/lib/supabase`              |
-| `lib/supabase/server.ts`    | `bs`             | the server; Next.js adds `import "server-only"` |
-| `lib/supabase/client.ts`    | `bs`             | the browser                                     |
+| `lib/supabase/server.ts`    | `bsb`            | the server; Next.js adds `import "server-only"` |
+| `lib/supabase/client.ts`    | `bsb`            | the browser                                     |
 | `lib/supabase/generated.ts` | `schema`         | both, written by `better-supabase gen`          |
 
-Hono and oRPC starters create `bs` in the app's entry (`src/server.ts`,
+Hono and oRPC starters create `bsb` in the app's entry (`src/server.ts`,
 `src/router.ts`), which only runs on the server. Edge Functions import the
-definition from `supabase/functions/_shared/supabase.ts` and create `bs` in
+definition from `supabase/functions/_shared/supabase.ts` and create `bsb` in
 the function's own `server.ts`.
 
 ## Types
@@ -96,6 +96,9 @@ Supabase's own cookie and header names keep their `sb-` prefix
 library.
 
 ## Renames
+
+From 0.15 the runtime instance is `bsb`, not `bs`, matching the CLI's short
+name; [`better-supabase codemod 0.15`](/docs/cli/codemod) renames it.
 
 These names changed in 0.4. There are no aliases:
 [`better-supabase codemod 0.4`](/docs/cli/codemod) renames the imports,

@@ -94,7 +94,7 @@ function sampleModel(): ApiModel {
       channels: [
         {
           id: "customers",
-          address: "bs:t:public.customers",
+          address: "bsb:t:public.customers",
           protocol: "ws",
           messages: ["customerChanged"],
           operations: [{ id: "onCustomerChanged", action: "receive" }],

@@ -1,4 +1,4 @@
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 const VECTOR_SCHEMA = /^[a-z_][a-z0-9_]{0,62}$/;
 
@@ -6,7 +6,7 @@ const VECTOR_SCHEMA = /^[a-z_][a-z0-9_]{0,62}$/;
  * The schema pgvector is installed in: `blocks.vector-search.options.schema`,
  * then `vectorSchema`.
  */
-export function vectorSchemaOf(layout: ModuleLayout): string {
+export function vectorSchemaOf(layout: BlockSqlLayout): string {
   const option = layout.modules?.["vector-search"]?.options?.["schema"];
 
   const schema =

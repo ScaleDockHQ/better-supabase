@@ -2,11 +2,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { ModuleExtension, ModuleFile } from "../../sql/index.ts";
+import type { BlockSqlExtension, BlockSqlFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import { moduleSchemaExtensions, renderModules } from "../../sql/index.ts";
+import { moduleSchemaExtensions, renderBlocks } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
@@ -57,8 +57,8 @@ const MIGRATION_EXTENSION =
 
 async function unmigratedExtensions(
   config: ResolvedConfig,
-  files: readonly ModuleFile[],
-): Promise<{ dir: string; existing: string[]; missing: ModuleExtension[] }> {
+  files: readonly BlockSqlFile[],
+): Promise<{ dir: string; existing: string[]; missing: BlockSqlExtension[] }> {
   const dir = migrationsDir(config);
 
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
@@ -90,7 +90,7 @@ async function unmigratedExtensions(
 
 export async function writeExtensionsMigration(
   config: ResolvedConfig,
-  files: readonly ModuleFile[],
+  files: readonly BlockSqlFile[],
   dryRun: boolean,
   now: Now,
 ): Promise<string[]> {
@@ -159,7 +159,7 @@ export async function dataMigration(
     };
   }
 
-  const rendered = renderModules(
+  const rendered = renderBlocks(
     config.blockNames,
     await layoutFor(config, args, config.blockNames),
   );

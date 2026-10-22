@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -54,7 +54,7 @@ const DETAILS: readonly Detail[] = [
  * employee and holders of employees.view_sensitive read them.
  */
 export function sensitiveFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: EmployeeNames,
 ): string {
   const e = (column: string): string => n.c("employees", column);
@@ -77,7 +77,7 @@ type Reader = (alias: string) => string;
 type Loader = (fnName: string, arg: string, allowed: string) => string;
 
 function privateSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: EmployeeNames,
   reader: Reader,
   load: Loader,
@@ -159,7 +159,7 @@ ${userGrant(`${n.fn("save_employee_private_details")}(uuid, jsonb)`)}
 }
 
 function contractsSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: EmployeeNames,
   reader: Reader,
   load: Loader,

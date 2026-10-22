@@ -91,7 +91,7 @@ describe("defineBucket", () => {
       "values ('customer-logos', 'customer-logos', false, 5242880, array['image/png', 'image/*'])",
     );
     expect(sql).toContain(
-      'drop policy if exists "bs_customer_logos_insert" on storage.objects;',
+      'drop policy if exists "bsb_customer_logos_insert" on storage.objects;',
     );
 
     const tenant =
@@ -187,10 +187,10 @@ describe("defineBucket", () => {
       "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
 
     expect(sql).toContain(
-      `create policy "bs_organization_files_select" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and not ${listing} and ${ids("files.read")});`,
+      `create policy "bsb_organization_files_select" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and not ${listing} and ${ids("files.read")});`,
     );
     expect(sql).toContain(
-      `create policy "bs_organization_files_list" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and ${listing} and ${ids("files.list")});`,
+      `create policy "bsb_organization_files_list" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and ${listing} and ${ids("files.list")});`,
     );
     expect(sql).toContain(
       `with check (bucket_id = 'organization-files' and ${ids("files.write")} and name ~`,
@@ -218,7 +218,7 @@ describe("defineBucket", () => {
       `using (bucket_id = 'docs' and (select authz.is_platform('docs.read')));`,
     );
     expect(global).toContain(`(select authz.is_platform('docs.delete'))`);
-    expect(global).toContain('drop policy if exists "bs_docs_list"');
+    expect(global).toContain('drop policy if exists "bsb_docs_list"');
     expect(global).not.toContain("allow_any_operation");
     expect(global).not.toContain("service_role");
   });

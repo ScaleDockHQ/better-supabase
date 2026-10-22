@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleUpgrade } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -22,7 +22,7 @@ import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["follow", "mentionGroups", "notify"],
   tables: {
     tasks: {
@@ -51,7 +51,7 @@ interface MentionGroups {
 
 const MENTION_GROUP_KEYS = new Set(["table", "group", "member", "tenant"]);
 
-function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
+function mentionGroupsOf(ctx: BlockSqlContext): MentionGroups | undefined {
   const option = ctx.option("mentionGroups");
 
   if (option === undefined) {
@@ -108,7 +108,7 @@ const key = (column: string): string => sqlString(column.replaceAll('"', ""));
  * ones the message's own notifications reached. Empty without notifications, or
  * with neither `follow` nor `notify`.
  */
-function afterSend(ctx: ModuleContext): string {
+function afterSend(ctx: BlockSqlContext): string {
   if (!ctx.installed("notifications")) {
     return "";
   }
@@ -205,7 +205,7 @@ ${userGrant(`${fn("comment_sent")}(uuid)`)}`;
 }
 
 /** `assign_comment`, with the work-items module. */
-function assignSql(ctx: ModuleContext): string {
+function assignSql(ctx: BlockSqlContext): string {
   if (!ctx.installed("work-items")) {
     return "";
   }
@@ -256,7 +256,7 @@ $$;
 ${userGrant(`${fn("assign_comment")}(uuid, uuid, jsonb)`)}`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -583,7 +583,7 @@ ${assignSql(ctx)}${subjectCascades(
   )}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "comment_conversation",
@@ -632,7 +632,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 }
 
 /** Version 7 kept comments in their own table; version 8 moves them. */
-const TO_MESSAGING: ModuleUpgrade = {
+const TO_MESSAGING: BlockSqlUpgrade = {
   from: 7,
   description:
     "Comments move onto the messaging core: each record's comments become its subject conversation, comments become messages with the same ids, reactions and files on a comment move to the message, and the comments table and its functions go. The activity feed moves to the activity module with its table.",
@@ -749,7 +749,7 @@ drop function if exists ${fn("comments_after_write")}();`;
   },
 };
 
-export const COMMENTS: ModuleDefinition = {
+export const COMMENTS: BlockSqlDefinition = {
   internal: ["comment_message_readable", "comments_json", "comment_sent"],
   name: "comments",
   scopes: ["tenant"],

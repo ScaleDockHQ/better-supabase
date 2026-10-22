@@ -5,10 +5,10 @@ description: REST resources that serve and document the same routes, with hooks 
 
 A resource serves a table as REST routes, and `defineApi` documents the same
 object, so the routes and the spec can't drift. The adapters mount them:
-[Hono](/docs/frameworks/hono#resources) with `bs.resource(table, options)`,
+[Hono](/docs/frameworks/hono#resources) with `bsb.resource(table, options)`,
 [Edge Functions](/docs/frameworks/edge#rest-resources) and
 [Next.js](/docs/frameworks/next#rest-resources) with
-`bs.resources(map, options)`, and [MCP](/docs/frameworks/mcp#table-tools)
+`bsb.resources(map, options)`, and [MCP](/docs/frameworks/mcp#table-tools)
 as table tools.
 
 ```ts title="src/api/customers.ts"
@@ -38,7 +38,7 @@ export const customers = {
 ```
 
 ```ts title="src/server.ts"
-app.route("/api/customers", bs.resource("customers", customers));
+app.route("/api/customers", bsb.resource("customers", customers));
 
 export const api = defineApi(betterSupabase, {
   info: { title: "CRM API", version: "1.0.0" },

@@ -89,12 +89,12 @@ Draft posture: **build**, pinned to the Draft Community Group Report of 30 Septe
 Status uses the publishing body's own maturity term. Checked is the date the source was last read.
 
 - [WebMCP (published report)](https://webmachinelearning.github.io/webmcp/): Draft Community Group Report (W3C Web Machine Learning CG), 30 September 2026, checked 2026-10-02. Draft posture: build.
-- [WebMCP spec source, index.bs](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/index.bs): Draft Community Group Report, commit d61d0e6 (2026-09-30), checked 2026-10-05. Draft posture: build.
+- [WebMCP spec source, index.bsb](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/index.bsb): Draft Community Group Report, commit d61d0e6 (2026-09-30), checked 2026-10-05. Draft posture: build.
 - [WebMCP explainer, README.md](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/README.md): Explainer (non-normative), commit d61d0e6 (2026-09-30), checked 2026-10-02.
 - [WebMCP implementation status](https://raw.githubusercontent.com/webmachinelearning/webmcp/d61d0e6d297ddb6bff3510b1330dbb215c6ef43c/implementation-status.md): Informative, commit d61d0e6 (2026-09-30), checked 2026-10-02.
 - [WebMCP pull request #184: Move the modelContext getter to Document](https://github.com/webmachinelearning/webmcp/pull/184): Merged change, commit c7b5c70 (2026-05-27), checked 2026-10-05.
-- [WebMCP spec source, index.bs, last navigator.modelContext commit](https://raw.githubusercontent.com/webmachinelearning/webmcp/a816d2e91d762adb9f3a07e1d5ce81f462ccd45a/index.bs): Draft Community Group Report (superseded), commit a816d2e (2026-05-20), checked 2026-10-05.
-- [WebMCP index.bs commit history](https://github.com/webmachinelearning/webmcp/commits/main/index.bs): Repository history, 2026-01-26 to d61d0e6 (2026-09-30); main at 6891d0e (2026-10-02) changes only an explainer, checked 2026-10-05.
+- [WebMCP spec source, index.bsb, last navigator.modelContext commit](https://raw.githubusercontent.com/webmachinelearning/webmcp/a816d2e91d762adb9f3a07e1d5ce81f462ccd45a/index.bsb): Draft Community Group Report (superseded), commit a816d2e (2026-05-20), checked 2026-10-05.
+- [WebMCP index.bsb commit history](https://github.com/webmachinelearning/webmcp/commits/main/index.bsb): Repository history, 2026-01-26 to d61d0e6 (2026-09-30); main at 6891d0e (2026-10-02) changes only an explainer, checked 2026-10-05.
 - [Chrome for Developers: WebMCP](https://developer.chrome.com/docs/ai/webmcp): Origin trial documentation, last updated 2026-10-01, checked 2026-10-02.
 - [Chrome for Developers: WebMCP Imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api): Origin trial documentation, last updated 2026-09-21, checked 2026-10-02.
 - [Chrome for Developers: WebMCP tool security](https://developer.chrome.com/docs/ai/webmcp/secure-tools): Origin trial documentation, last updated 2026-09-01, checked 2026-10-02.

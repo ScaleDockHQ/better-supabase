@@ -10,7 +10,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { WorkItemSort } from "./work-types";
 
@@ -61,7 +61,7 @@ async function applyChanges(
  * pipeline the work-items module puts it on the organization's default one,
  * which it seeds on first use.
  */
-export const createWorkItem = bs.action(
+export const createWorkItem = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -132,7 +132,7 @@ export const createWorkItem = bs.action(
  * goes through the rank block, between the cards it landed between. `ordered:
  * false` means the stage changed but the position wasn't saved.
  */
-export const moveWorkItem = bs.action(
+export const moveWorkItem = bsb.action(
   {
     input: v.object({
       id: Id,
@@ -174,7 +174,7 @@ export const moveWorkItem = bs.action(
 );
 
 /** An inline edit of the grid's status column. */
-export const setWorkItemStage = bs.action(
+export const setWorkItemStage = bsb.action(
   {
     input: v.object({ id: Id, stageId: Id }),
     requireTenant: true,
@@ -196,7 +196,7 @@ export const setWorkItemStage = bs.action(
 );
 
 /** An inline edit of the grid's assignee column; `null` unassigns. */
-export const setWorkItemAssignee = bs.action(
+export const setWorkItemAssignee = bsb.action(
   {
     input: v.object({ id: Id, userId: OptionalId }),
     requireTenant: true,
@@ -219,7 +219,7 @@ export const setWorkItemAssignee = bs.action(
 );
 
 /** Creates a team, from the team picker's empty state. */
-export const createTeam = bs.action(
+export const createTeam = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -241,7 +241,7 @@ export const createTeam = bs.action(
 );
 
 /** Saves the grid's filters and sort as one of the caller's views. */
-export const saveWorkView = bs.action(
+export const saveWorkView = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -280,7 +280,7 @@ export const saveWorkView = bs.action(
   },
 );
 
-export const deleteWorkView = bs.action(
+export const deleteWorkView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -303,7 +303,7 @@ export const deleteWorkView = bs.action(
  * Runs one bulk action on the selected items, each row on its own, and returns
  * the per-row results so the bar can report the failures.
  */
-export const runWorkBulkAction = bs.action(
+export const runWorkBulkAction = bsb.action(
   {
     input: v.variant("action", [
       v.object({

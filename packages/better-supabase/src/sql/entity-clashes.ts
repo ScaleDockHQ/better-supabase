@@ -1,10 +1,10 @@
-import type { SqlModule } from "./module-types.ts";
+import type { BlockSql } from "./module-types.ts";
 
 import { tenantNames } from "../core/entity-naming.ts";
 
 const isDefault = (name: string): boolean => name.includes("organization");
 
-function defaultNames(module: SqlModule): readonly string[] {
+function defaultNames(module: BlockSql): readonly string[] {
   return Object.values(module.names?.tables ?? {}).flatMap((table) => [
     table.name,
     ...Object.values(table.columns),
@@ -19,9 +19,9 @@ function defaultNames(module: SqlModule): readonly string[] {
  * result.
  */
 export function tenantNameClashes(
-  module: SqlModule,
+  module: BlockSql,
   tenant: string,
-  modules: Readonly<Record<string, SqlModule>>,
+  modules: Readonly<Record<string, BlockSql>>,
 ): readonly string[] {
   const names = tenantNames(tenant);
 

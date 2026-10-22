@@ -1,12 +1,12 @@
-import type { ModuleContext } from "./context.ts";
-import type { SqlModule } from "./module-types.ts";
+import type { BlockSqlContext } from "./context.ts";
+import type { BlockSql } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { isOperationModule, moduleOperations } from "./modules/access-model.ts";
-import { resolveModules } from "./registry.ts";
+import { resolveBlocks } from "./registry.ts";
 
 /** The names a module's config keys accept, read from its definition. */
-export interface ModuleNameSet {
+export interface BlockSqlNameSet {
   readonly name: string;
   readonly tables: Readonly<Record<string, readonly string[]>>;
   readonly functions: readonly string[];
@@ -21,16 +21,16 @@ export interface ModuleNameSet {
  * The function names `module` writes under the default layout: every name it
  * passes to `fn` or `fnName` while it builds, plus its contract.
  */
-function functionsOf(module: SqlModule): string[] {
+function functionsOf(module: BlockSql): string[] {
   const ctx = moduleContext(
     module.name,
     {},
-    resolveModules([module.name], {}).map((each) => each.name),
+    resolveBlocks([module.name], {}).map((each) => each.name),
   );
 
   const found = new Set<string>();
 
-  const probe: ModuleContext = {
+  const probe: BlockSqlContext = {
     ...ctx,
     fn: (name) => {
       found.add(name);
@@ -54,7 +54,7 @@ function functionsOf(module: SqlModule): string[] {
   return [...found].toSorted();
 }
 
-export function moduleNameSet(module: SqlModule): ModuleNameSet {
+export function moduleNameSet(module: BlockSql): BlockSqlNameSet {
   const names = module.names;
   const entities = Object.entries(names?.entities ?? {});
 
@@ -104,7 +104,7 @@ function entityLines(
 }
 
 /** `src/blocks/name-registry.generated.ts` for `modules`. */
-export function formatNameRegistry(modules: readonly SqlModule[]): string {
+export function formatNameRegistry(modules: readonly BlockSql[]): string {
   const entries = modules
     .map(moduleNameSet)
     .toSorted((a, b) => a.name.localeCompare(b.name))

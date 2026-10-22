@@ -1,11 +1,11 @@
 import type { SharedSignalsEvents } from "../../blocks/shared-signals/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SSF_POLL, SSF_PUSH } from "../../blocks/shared-signals/methods.ts";
 import { sqlString } from "../../core/template.ts";
@@ -18,7 +18,7 @@ import {
   updatedAt,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents<SharedSignalsEvents> = {
+const EVENTS: BlockSqlEvents<SharedSignalsEvents> = {
   "ssf_stream.created": {
     subject: "shared-signals",
     payload: ["streamId", "receiver", "tenant", "method"],
@@ -33,7 +33,7 @@ const EVENTS: ModuleEvents<SharedSignalsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["retention"],
   tables: {
@@ -83,7 +83,7 @@ type StreamEvent =
   | "ssf_stream.deleted";
 
 function streamEvent(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: StreamEvent,
   row: string,
 ): string {
@@ -118,7 +118,7 @@ interface PushNames {
   readonly dispatch: string;
 }
 
-function pushNames(ctx: ModuleContext): PushNames | undefined {
+function pushNames(ctx: BlockSqlContext): PushNames | undefined {
   if (!ctx.installed("webhooks-out")) {
     return undefined;
   }
@@ -140,7 +140,7 @@ function pushNames(ctx: ModuleContext): PushNames | undefined {
   };
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -602,7 +602,7 @@ $$;
 ${serviceGrant(`${fn("purge_shared_signals")}(interval)`)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_ssf_stream",
@@ -647,7 +647,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SHARED_SIGNALS: ModuleDefinition = {
+export const SHARED_SIGNALS: BlockSqlDefinition = {
   name: "shared-signals",
   title: "Shared signals",
   description:

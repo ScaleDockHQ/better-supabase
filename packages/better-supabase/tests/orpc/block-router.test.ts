@@ -41,8 +41,8 @@ const invoices = {
   },
 };
 
-describe("bs.blockRouter", () => {
-  const bs = createOrpc(defineSupabase(schema), {
+describe("bsb.blockRouter", () => {
+  const bsb = createOrpc(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });
@@ -50,7 +50,7 @@ describe("bs.blockRouter", () => {
   const invoicesFor = (_supabase: unknown) => invoices;
 
   // A callback that reads the context, so TypeScript infers the client late.
-  const block = bs.blockRouter(({ supabase }) => invoicesFor(supabase), {
+  const block = bsb.blockRouter(({ supabase }) => invoicesFor(supabase), {
     name: "invoices",
     methods: ["create", "issue"],
     schemas: { create: v.object({ total: v.number() }) },
@@ -63,7 +63,7 @@ describe("bs.blockRouter", () => {
     .$context<OrpcRequestContext>()
     .router({ invoices: block.procedures });
 
-  const handle = bs.fetchHandler(new OpenAPIHandler(router), {
+  const handle = bsb.fetchHandler(new OpenAPIHandler(router), {
     prefix: "/api",
   });
 

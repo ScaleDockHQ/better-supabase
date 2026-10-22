@@ -1,6 +1,6 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
--- @bs-module pgtap@1 managed
+-- @bsb-block pgtap@1 managed
 -- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,7 +163,7 @@ as $$
           from pg_catalog.pg_trigger t
           join pg_catalog.pg_proc f on f.oid = t.tgfoid
           where t.tgrelid = c.oid and not t.tgisinternal
-            and (left(t.tgname, 8) = 'bs_audit' or f.proname = 'audit_row_change')
+            and (left(t.tgname, 8) = 'bsb_audit' or f.proname = 'audit_row_change')
         )
     ),
     '{}'::text[],
@@ -205,7 +205,7 @@ select * from extensions.finish();
 
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
--- @bs-module pgtap@1 managed
+-- @bsb-block pgtap@1 managed
 -- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -368,7 +368,7 @@ as $$
           from pg_catalog.pg_trigger t
           join pg_catalog.pg_proc f on f.oid = t.tgfoid
           where t.tgrelid = c.oid and not t.tgisinternal
-            and (left(t.tgname, 8) = 'bs_audit' or f.proname = 'audit_row_change')
+            and (left(t.tgname, 8) = 'bsb_audit' or f.proname = 'audit_row_change')
         )
     ),
     '{}'::text[],
@@ -410,7 +410,7 @@ select * from extensions.finish();
 
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
--- @bs-module pgtap@1 managed
+-- @bsb-block pgtap@1 managed
 -- tests.create_user, tests.authenticate_as and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -573,7 +573,7 @@ as $$
           from pg_catalog.pg_trigger t
           join pg_catalog.pg_proc f on f.oid = t.tgfoid
           where t.tgrelid = c.oid and not t.tgisinternal
-            and (left(t.tgname, 8) = 'bs_audit' or f.proname = 'audit_row_change')
+            and (left(t.tgname, 8) = 'bsb_audit' or f.proname = 'audit_row_change')
         )
     ),
     '{}'::text[],

@@ -6,13 +6,13 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { NotificationMessage } from "../../src/blocks/notifications/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createNotifications,
   sqlTransport,
 } from "../../src/blocks/notifications/index.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -48,7 +48,7 @@ type Who = keyof typeof USERS;
 
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   modules: {
     notifications: {
       options: {
@@ -145,7 +145,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "notifications"],
         LAYOUT,
       )) {
@@ -549,7 +549,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(["organizations", "notifications"], {
+      for (const file of renderBlocks(["organizations", "notifications"], {
         modules: { notifications: { columns: { events: { key: null } } } },
       })) {
         await client.query(file.contents);
@@ -618,19 +618,19 @@ describe.skipIf(!live)("notifications", () => {
       }
 
       await client.query(
-        `create table public.bs_test_time_off_requests (
+        `create table public.bsb_test_time_off_requests (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null
          )`,
       );
 
-      for (const file of renderModules(["organizations", "notifications"], {
+      for (const file of renderBlocks(["organizations", "notifications"], {
         modules: {
           notifications: {
             options: {
               subjects: {
                 "time-off-request": {
-                  table: "bs_test_time_off_requests",
+                  table: "bsb_test_time_off_requests",
                   cascade: true,
                 },
               },
@@ -654,7 +654,7 @@ describe.skipIf(!live)("notifications", () => {
       );
 
       const { rows } = await client.query<{ id: string }>(
-        "insert into public.bs_test_time_off_requests (organization_id) values ($1), ($1) returning id",
+        "insert into public.bsb_test_time_off_requests (organization_id) values ($1), ($1) returning id",
         [organization],
       );
 
@@ -681,7 +681,7 @@ describe.skipIf(!live)("notifications", () => {
 
       await s.as("service");
       await client.query(
-        "delete from public.bs_test_time_off_requests where id = $1",
+        "delete from public.bsb_test_time_off_requests where id = $1",
         [deleted],
       );
 
@@ -757,7 +757,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "profiles", "notifications"],
         LAYOUT,
       )) {
@@ -901,7 +901,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "notifications"],
         LAYOUT,
       )) {

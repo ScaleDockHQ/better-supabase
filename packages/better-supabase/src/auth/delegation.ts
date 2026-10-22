@@ -37,7 +37,7 @@ export type DelegatedClaimsOutcome =
  * may use. `better_supabase.cap_allows` refuses every other key, and a job
  * queued under a cap keeps it.
  */
-export const PERMISSION_CAP_CLAIM = "bs_permission_cap";
+export const PERMISSION_CAP_CLAIM = "bsb_permission_cap";
 
 /**
  * The claims a delegated token adds; `contextClaims` never takes them from

@@ -1,6 +1,10 @@
 import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -28,7 +32,7 @@ import { attachmentsContract } from "./attachments-contract.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 
-const EVENTS: ModuleEvents<AttachmentsEvents> = {
+const EVENTS: BlockSqlEvents<AttachmentsEvents> = {
   "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
   "attachment.uploaded": {
     subject: "attachments",
@@ -73,7 +77,7 @@ const EVENTS: ModuleEvents<AttachmentsEvents> = {
 /** The keys the attachment reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     attachment: { table: "attachments", singular: "attachment", primary: true },
   },
@@ -165,13 +169,13 @@ const PATH_PARTS: Readonly<Record<string, string>> = {
  * `options.path`: the object path template, default
  * `{organization_id}/attachments/{id}`, as the generated column's expression.
  */
-const pathTemplate = (ctx: ModuleContext): string =>
+const pathTemplate = (ctx: BlockSqlContext): string =>
   ctx.text("path", "{organization_id}/attachments/{id}");
 
 /** Version 2 and later of a file live at its path plus `-v<version>`. */
 const VERSION_SUFFIX = /-v\d+$/;
 
-function pathExpression(ctx: ModuleContext, tenantless = false): string {
+function pathExpression(ctx: BlockSqlContext, tenantless = false): string {
   const template = pathTemplate(ctx);
   const where = "blocks.attachments.options.path";
 
@@ -279,7 +283,7 @@ const mimeMatch = (column: string, types: readonly string[]): string =>
     .join(" or ");
 
 /** `options.scanBuckets`: buckets whose new objects get a pending scan row. */
-function scanBucketsOf(ctx: ModuleContext): readonly string[] {
+function scanBucketsOf(ctx: BlockSqlContext): readonly string[] {
   const buckets = ctx.list("scanBuckets", []);
 
   for (const bucket of buckets) {
@@ -298,7 +302,7 @@ const CREATE_ARGS = (id: string): string =>
   `${id}, text, text, bigint, text, text, jsonb, integer, integer, integer`;
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -485,10 +489,10 @@ end;`;
 
   const mimeCheck =
     mimeRules.length === 0
-      ? `alter table ${t} drop constraint if exists bs_attachments_mime_type;`
+      ? `alter table ${t} drop constraint if exists bsb_attachments_mime_type;`
       : ensureCheck(
           t,
-          "bs_attachments_mime_type",
+          "bsb_attachments_mime_type",
           mimeRules.map((rule) => `(${rule})`).join(" and "),
         );
 
@@ -558,7 +562,7 @@ end;`;
     mayVersion: `(v_row.${c("uploadedBy")} = auth.uid() and ${inTenant("v_row", "upload")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
   });
 
-  const policy = (name: string): string => sqlIdent(`bs_attachments_${name}`);
+  const policy = (name: string): string => sqlIdent(`bsb_attachments_${name}`);
 
   return `${schemaPreamble(ctx)}
 -- Files linked to records. Each object lives at options.path (default
@@ -618,12 +622,12 @@ ${
   tenantless.length === 0
     ? ""
     : `alter table ${t} alter column ${c("tenant")} drop not null;
-${ensureCheck(t, "bs_attachments_tenant", `${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false)`)}
+${ensureCheck(t, "bsb_attachments_tenant", `${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false)`)}
 `
 }comment on column ${t}.${c("path")} is ${sqlString(pathComment)};
 alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
-${ensureCheck(t, "bs_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
-${ensureCheck(t, "bs_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
+${ensureCheck(t, "bsb_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
+${ensureCheck(t, "bsb_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
 ${mimeCheck}
 create unique index if not exists ${ctx.naming.rename("attachments_object_idx")} on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists ${ctx.naming.rename("attachments_subject_idx")} on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
@@ -965,7 +969,7 @@ end;
 $$;
 ${
   scanBuckets.length === 0
-    ? `drop trigger if exists bs_object_scan_pending on storage.objects;`
+    ? `drop trigger if exists bsb_object_scan_pending on storage.objects;`
     : `
 create or replace function ${fn("object_scan_pending")}()
 returns trigger
@@ -982,8 +986,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("object_scan_pending")}() from public, anon, authenticated;
-drop trigger if exists bs_object_scan_pending on storage.objects;
-create trigger bs_object_scan_pending
+drop trigger if exists bsb_object_scan_pending on storage.objects;
+create trigger bsb_object_scan_pending
   after insert or update of version on storage.objects
   for each row when (new.bucket_id in (${scanBuckets.map(sqlString).join(", ")}))
   execute function ${fn("object_scan_pending")}();`
@@ -1010,7 +1014,7 @@ grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, ser
 }
 
 // An existing bucket keeps its settings.
-function data(ctx: ModuleContext): string {
+function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1048,7 +1052,7 @@ values ${values.join(",\n  ")}
 on conflict (id) do nothing;`;
 }
 
-export const ATTACHMENTS: ModuleDefinition = {
+export const ATTACHMENTS: BlockSqlDefinition = {
   internal: [
     "attachment_authors",
     "attachment_subject_readable",

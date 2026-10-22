@@ -3,9 +3,9 @@ import type { PoolClient } from "pg";
 import { Pool } from "pg";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 export const dbUrl: string = stackDbUrl();
@@ -62,9 +62,9 @@ export class BlockSession {
 
   async install(
     names: readonly string[],
-    layout: ModuleLayout = {},
+    layout: BlockSqlLayout = {},
   ): Promise<void> {
-    for (const file of renderModules(names, layout)) {
+    for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
         await this.client.query(file.contents);
       }

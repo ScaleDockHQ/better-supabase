@@ -20,13 +20,13 @@ import {
 import { toReactRouter } from "better-supabase/react-router";
 import { betterSupabase, type Functions, type Models } from "./index";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 
 export const supabase =
   createContext<BetterSupabaseContributions<Models, Functions, unknown>>();
 
 export const supabaseMiddleware = toReactRouter(
-  [withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] })],
+  [withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] })],
   supabase,
 );
 ```

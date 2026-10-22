@@ -1,4 +1,4 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
@@ -41,7 +41,7 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
-export const RATE_LIMIT: ModuleDefinition = {
+export const RATE_LIMIT: BlockSqlDefinition = {
   name: "rate-limit",
   names: { tables: {}, options: ["preRequest"] },
   data: (ctx) =>

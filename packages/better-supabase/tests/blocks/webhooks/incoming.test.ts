@@ -84,7 +84,7 @@ describe("createIncomingWebhooks", () => {
     expect(stored.values[3]).toBe('{"body":"hello"}');
     expect(JSON.parse(String(stored.values[4]))).toEqual({
       "x-request-id": "r1",
-      "x-bs-endpoint-id": "e1",
+      "x-bsb-endpoint-id": "e1",
     });
     expect(stored.values[5]).toBe("t1");
     await hooks.receive(post(""), "tok");
@@ -333,7 +333,7 @@ describe("createIncomingWebhooks", () => {
 
     expect(stored[0]).toEqual({
       "x-request-id": "r1",
-      "x-bs-endpoint-id": "e1",
+      "x-bsb-endpoint-id": "e1",
     });
     expect(JSON.stringify(stored)).not.toContain("s3cret");
     expect(JSON.stringify(stored)).not.toContain('"old"');

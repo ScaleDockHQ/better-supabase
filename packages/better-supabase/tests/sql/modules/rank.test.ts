@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SubjectsConfig } from "../../../src/config/index.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const SUBJECTS: SubjectsConfig = {
   deal: {
@@ -15,7 +15,7 @@ const SUBJECTS: SubjectsConfig = {
 };
 
 const sqlOf = (modules: readonly string[]): string =>
-  renderModules(modules, { subjects: SUBJECTS })
+  renderBlocks(modules, { subjects: SUBJECTS })
     .filter((file) => file.module === "rank")
     .map((file) => file.contents)
     .join("\n");
@@ -23,9 +23,7 @@ const sqlOf = (modules: readonly string[]): string =>
 describe("rank module", () => {
   it("installs subjects and access with it", () => {
     const modules = new Set(
-      renderModules(["rank"], { subjects: SUBJECTS }).map(
-        (file) => file.module,
-      ),
+      renderBlocks(["rank"], { subjects: SUBJECTS }).map((file) => file.module),
     );
 
     expect(modules).toContain("subjects");
@@ -78,7 +76,7 @@ describe("rank module", () => {
   });
 
   it("renders only the unknown-subject branch without ranked subjects", () => {
-    const sql = renderModules(["rank"])
+    const sql = renderBlocks(["rank"])
       .filter((file) => file.module === "rank")
       .map((file) => file.contents)
       .join("\n");

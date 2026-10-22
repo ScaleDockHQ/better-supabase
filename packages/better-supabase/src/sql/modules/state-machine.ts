@@ -1,12 +1,12 @@
 import type { StateMachineEvents } from "../../blocks/state-machine/events.ts";
 import type { SubjectsConfig } from "../../config/types/subjects.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -21,7 +21,7 @@ import {
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents<StateMachineEvents> = {
+const EVENTS: BlockSqlEvents<StateMachineEvents> = {
   "status.changed": {
     subject: "statuses",
     payload: [...SUBJECT, "from", "to"],
@@ -37,7 +37,7 @@ const EVENTS: ModuleEvents<StateMachineEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_status_transition", "after_status_transition"],
   options: ["machines"],
@@ -141,7 +141,7 @@ interface Machine {
   };
 }
 
-function machines(ctx: ModuleContext): readonly Machine[] {
+function machines(ctx: BlockSqlContext): readonly Machine[] {
   const raw = ctx.option("machines");
 
   if (raw === undefined) {
@@ -444,7 +444,7 @@ const textArray = (items: readonly string[]): string =>
   `${sqlString(`{${items.join(",")}}`)}::text[]`;
 
 function stageWrite(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   item: Machine,
   kind: "open" | "advance",
 ): string {
@@ -477,7 +477,7 @@ function stageWrite(
       where s.${tenant} = ${newTenant} and s.${subjectType} = ${sqlString(item.name)} and s.${subjectId} = new.${id}::text), 0) + 1);`;
 }
 
-function approvalGate(ctx: ModuleContext, item: Machine): string {
+function approvalGate(ctx: BlockSqlContext, item: Machine): string {
   const gated = Object.entries(item.requiresApproval).filter(
     ([, to]) => to.length > 0,
   );
@@ -524,7 +524,7 @@ function subjectPayload(item: Machine): string {
 }
 
 function lifecycleRecord(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   item: Machine,
   type: "status.paused" | "status.resumed" | "status.flagged",
   extra: string,
@@ -544,7 +544,7 @@ function lifecycleRecord(
  * itself as the caller, so the subject table's policies decide, and pass the
  * change in a transaction setting the trigger reads here.
  */
-function lifecycleOps(ctx: ModuleContext, item: Machine): string {
+function lifecycleOps(ctx: BlockSqlContext, item: Machine): string {
   if (!item.lifecycle) {
     return "";
   }
@@ -606,7 +606,7 @@ function lifecycleOps(ctx: ModuleContext, item: Machine): string {
 }
 
 /** The trigger check that refuses a transition while the record is paused. */
-function pauseGate(ctx: ModuleContext, item: Machine): string {
+function pauseGate(ctx: BlockSqlContext, item: Machine): string {
   if (!item.lifecycle) {
     return "";
   }
@@ -627,7 +627,7 @@ function pauseGate(ctx: ModuleContext, item: Machine): string {
   end if;`;
 }
 
-function lifecycleInsert(ctx: ModuleContext, item: Machine): string {
+function lifecycleInsert(ctx: BlockSqlContext, item: Machine): string {
   if (!item.lifecycle) {
     return "";
   }
@@ -639,7 +639,7 @@ function lifecycleInsert(ctx: ModuleContext, item: Machine): string {
     on conflict (${l("subjectType")}, ${l("subjectId")}) do nothing;`;
 }
 
-function trigger(ctx: ModuleContext, item: Machine): string {
+function trigger(ctx: BlockSqlContext, item: Machine): string {
   const history = ctx.table("history");
 
   const allowed = Object.entries(item.transitions)
@@ -671,7 +671,7 @@ function trigger(ctx: ModuleContext, item: Machine): string {
     : "";
 
   return `
-create or replace function better_supabase.bs_transition_${item.name}()
+create or replace function better_supabase.bsb_transition_${item.name}()
 returns trigger
 language plpgsql
 security definer
@@ -704,9 +704,9 @@ ${declare}begin
   return new;
 end;
 $$;
-drop trigger if exists bs_transition_${item.name} on ${target};
-create trigger bs_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
-for each row execute function better_supabase.bs_transition_${item.name}();`;
+drop trigger if exists bsb_transition_${item.name} on ${target};
+create trigger bsb_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
+for each row execute function better_supabase.bsb_transition_${item.name}();`;
 }
 
 /** A `case subject_type` over the machines, with `unknown` for any other name. */
@@ -758,7 +758,7 @@ create policy ${name} on ${table} for select to authenticated
   using (${visible});`;
 }
 
-function tables(ctx: ModuleContext, list: readonly Machine[]): string {
+function tables(ctx: BlockSqlContext, list: readonly Machine[]): string {
   if (!ctx.manages) {
     return "";
   }
@@ -864,7 +864,7 @@ begin
 end;`;
 }
 
-function readers(ctx: ModuleContext, list: readonly Machine[]): string {
+function readers(ctx: BlockSqlContext, list: readonly Machine[]): string {
   const visible = (item: Machine, fn: string): string =>
     `      if not exists (select 1 from ${quotedTable(item.table)} s where ${idMatches(item, "s", `${fn}.subject_id`)}) then
         ${NOT_FOUND}
@@ -1009,7 +1009,7 @@ ${userGrant(`${ctx.fn("list_status_stages")}(text, text)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1111,7 +1111,7 @@ ${userGrant(`${ctx.fn("set_lifecycle_flag")}(text, text, text, boolean)`)}
 ${readers(ctx, list)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "transition",
@@ -1139,7 +1139,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const STATE_MACHINE: ModuleDefinition = {
+export const STATE_MACHINE: BlockSqlDefinition = {
   name: "state-machine",
   scopes: ["tenant"],
   title: "State machine",

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { moduleOperations } from "./access-model.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
@@ -47,7 +47,7 @@ export interface InvoiceLedger {
  * payment moves the amount from the receivable to cash; the payment id is the
  * ledger transaction id.
  */
-export function invoiceLedger(ctx: ModuleContext): InvoiceLedger {
+export function invoiceLedger(ctx: BlockSqlContext): InvoiceLedger {
   const ledger = ctx.of("ledger");
   const accounts = ledger.table("accounts");
   const transactions = ledger.table("transactions");
@@ -96,7 +96,7 @@ export function invoiceLedger(ctx: ModuleContext): InvoiceLedger {
  * Moves the rows of `invoice_payments` (invoices version 1) onto the ledger,
  * keeping each payment's id as its transaction id, then drops the table.
  */
-export function invoicePaymentsUpgrade(ctx: ModuleContext): string {
+export function invoicePaymentsUpgrade(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }

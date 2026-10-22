@@ -1,11 +1,11 @@
 import type { VersionsEvents } from "../../blocks/versions/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -35,7 +35,7 @@ import { OPERATIONS } from "./access-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents<VersionsEvents> = {
+const EVENTS: BlockSqlEvents<VersionsEvents> = {
   "version.created": {
     subject: "versions",
     payload: [...SUBJECT_PAYLOAD, "id", "number", "label", "source"],
@@ -50,7 +50,7 @@ const EVENTS: ModuleEvents<VersionsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_version_snapshot",
@@ -99,7 +99,7 @@ interface Versioned {
   readonly freeze?: { readonly column: string; readonly values: string[] };
 }
 
-function versioned(ctx: ModuleContext): readonly Versioned[] {
+function versioned(ctx: BlockSqlContext): readonly Versioned[] {
   const where = "blocks.versions.options.subjects";
 
   return subjectsOption(
@@ -284,7 +284,7 @@ ${whens.join("\n")}
 }
 
 function captureTriggers(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   list: readonly Versioned[],
 ): string {
   const capture = ctx.fn("versions_capture");
@@ -330,7 +330,7 @@ create trigger ${trigger}
     .join("\n\n");
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -806,7 +806,7 @@ ${captureTriggers(ctx, list)}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("versions", ["fields", "content"]),
   ).contract;
@@ -837,7 +837,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const VERSIONS: ModuleDefinition = {
+export const VERSIONS: BlockSqlDefinition = {
   name: "versions",
   scopes: ["tenant"],
   title: "Versions",

@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
 
 /**
@@ -22,7 +22,7 @@ export async function installWorld(pool: Pool): Promise<void> {
   try {
     await client.query("begin");
 
-    for (const file of renderModules(["workflow-sdk-world"])) {
+    for (const file of renderBlocks(["workflow-sdk-world"])) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -110,7 +110,7 @@ create index if not exists webhook_inbox_dead_idx
 ${lockTable("better_supabase.webhook_inbox")}
 `;
 
-function webhookInboxSql(ctx: ModuleContext): string {
+function webhookInboxSql(ctx: BlockSqlContext): string {
   const managed = ctx.manages;
   const renamed = Object.keys(ctx.config.columns["messages"] ?? {});
 
@@ -494,7 +494,7 @@ ${serviceOnly([
 ])}`;
 }
 
-export const WEBHOOK_INBOX: ModuleDefinition = {
+export const WEBHOOK_INBOX: BlockSqlDefinition = {
   name: "webhook-inbox",
   title: "Webhook inbox",
   description:
