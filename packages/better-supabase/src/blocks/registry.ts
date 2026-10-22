@@ -36,6 +36,7 @@ import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
 import { formsBlock, signaturesBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
+import { guestsBlock } from "./guests/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
 import { identitiesBlock } from "./identities/manifest.ts";
 import { importsBlock } from "./imports/manifest.ts";
@@ -148,6 +149,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   reviewsBlock,
   leaveBlock,
   ledgerBlock,
+  guestsBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

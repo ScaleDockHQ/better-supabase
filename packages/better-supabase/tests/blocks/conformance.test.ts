@@ -62,6 +62,8 @@ const NO_FIELDS: readonly string[] = [
   "documents",
   // A hostname row is routing state the proxy reads; the organization holds app data.
   "domains",
+  // Guests and grants are access rows; who the guest is lives in their party.
+  "guests",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.

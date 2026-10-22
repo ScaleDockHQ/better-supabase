@@ -469,6 +469,20 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "guests": {
+    readonly tables: {
+      readonly "guests": "id" | "tenant" | "email" | "name" | "user" | "partyType" | "partyId" | "status" | "tokenHash" | "invitedBy" | "expiresAt" | "acceptedAt" | "revokedAt" | "createdAt" | "updatedAt";
+      readonly "grants": "id" | "tenant" | "guest" | "subjectType" | "subjectId" | "actions" | "grantedBy" | "expiresAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "accept_guest_invite" | "grant_guest_access" | "guest_can" | "invite_guest" | "list_guest_grants" | "list_guests" | "my_guest_access" | "revoke_guest" | "revoke_guest_access";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "guest": "id" | "tenant_id" | "email" | "name" | "user_id" | "party_type" | "party_id" | "status" | "token_hash" | "invited_by" | "expires_at" | "accepted_at" | "revoked_at" | "created_at" | "updated_at";
+      readonly "guest_grant": "id" | "tenant_id" | "guest_id" | "subject_type" | "subject_id" | "actions" | "granted_by" | "expires_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "guest";
+  };
   readonly "hiring": {
     readonly tables: {
       readonly "jobs": "id" | "tenant" | "title" | "team" | "location" | "employmentType" | "description" | "hiringManager" | "status" | "openedAt" | "closedAt" | "createdAt" | "updatedAt";

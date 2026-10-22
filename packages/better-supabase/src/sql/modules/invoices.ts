@@ -8,6 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 import type { InvoiceNames } from "./invoices-functions.ts";
 
+import { guestOr } from "../guest-sql.ts";
 import {
   lineTableSpec,
   TOTAL_COLUMNS,
@@ -156,7 +157,11 @@ create index if not exists invoices_company_idx on ${t("invoices")} (${i("compan
 ${lockTable(t("invoices"), { read: true })}
 drop policy if exists invoices_read on ${t("invoices")};
 create policy invoices_read on ${t("invoices")} for select to authenticated
-using (${ctx.scope.check(i("tenant"), n.read)});
+using (${guestOr(ctx.scope.check(i("tenant"), n.read), [
+    ctx.scope.guest(i("tenant"), "'invoice'", `${i("id")}::text`, "read"),
+    ctx.scope.guestParty(i("tenant"), i("companyType"), i("companyId")),
+    ctx.scope.guestParty(i("tenant"), i("contactType"), i("contactId")),
+  ])});
 
 `;
 }

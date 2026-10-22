@@ -971,6 +971,11 @@
       "types": "./dist/blocks/ledger/index.d.ts",
       "default": "./dist/blocks/ledger/index.js"
     },
+    "./blocks/guests": {
+      "@better-supabase/source": "./src/blocks/guests/index.ts",
+      "types": "./dist/blocks/guests/index.d.ts",
+      "default": "./dist/blocks/guests/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2311,6 +2316,10 @@
       "./blocks/ledger": {
         "types": "./dist/blocks/ledger/index.d.ts",
         "default": "./dist/blocks/ledger/index.js"
+      },
+      "./blocks/guests": {
+        "types": "./dist/blocks/guests/index.d.ts",
+        "default": "./dist/blocks/guests/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

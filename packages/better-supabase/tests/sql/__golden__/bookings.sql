@@ -907,7 +907,7 @@ grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
 drop policy if exists bookings_read on "better_supabase"."bookings";
 create policy bookings_read on "better_supabase"."bookings" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()));
+using (("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid())) or (("tenant_id")::text, ('booking')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g));
 
 create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
 returns jsonb

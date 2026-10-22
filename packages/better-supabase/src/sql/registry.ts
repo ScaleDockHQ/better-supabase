@@ -46,6 +46,7 @@ import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
+import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
@@ -309,6 +310,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RULES),
       built(VERCEL_MARKETPLACE),
       built(LEDGER),
+      built(GUESTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

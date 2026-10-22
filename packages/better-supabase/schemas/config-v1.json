@@ -883,6 +883,12 @@
             },
             "permitted": {
               "type": "string"
+            },
+            "portalSubjects": {
+              "type": "string"
+            },
+            "portalParties": {
+              "type": "string"
             }
           },
           "required": ["idsWith", "isPlatform"],
@@ -1792,6 +1798,7 @@
               "flags",
               "forms",
               "grants",
+              "guests",
               "hiring",
               "idempotency",
               "identities",
@@ -1987,6 +1994,9 @@
             },
             "grants": {
               "$ref": "#/$defs/blocks/grants"
+            },
+            "guests": {
+              "$ref": "#/$defs/blocks/guests"
             },
             "hiring": {
               "$ref": "#/$defs/blocks/hiring"
@@ -3954,6 +3964,17 @@
             "properties": {
               "fromPolicies": {}
             }
+          }
+        }
+      },
+      "guests": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

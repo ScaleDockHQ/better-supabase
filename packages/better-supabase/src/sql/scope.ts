@@ -1,5 +1,8 @@
 import type { BlockScope } from "../config/blocks.ts";
+import type { GuestAction } from "../core/guest-actions.ts";
 import type { ModuleIdType } from "./context.ts";
+
+export { GUEST_ACTIONS, type GuestAction } from "../core/guest-actions.ts";
 
 /**
  * How a module checks who may reach a row, for the block's scope. Modules call
@@ -51,6 +54,19 @@ export interface ModuleScope {
   platform(permission: string): string;
   /** A set-returning call of the tenants the caller is a member of. */
   members(): string;
+  /**
+   * True when the caller holds a guest grant for `action` on record `type`/`id`
+   * in tenant `tenant` (ADR 0069). A guest is not a member, so `can` stays
+   * false for them. `false` without the `guests` module and without a provider
+   * that answers for guests, and outside `tenant` scope.
+   */
+  guest(tenant: string, type: string, id: string, action: GuestAction): string;
+  /**
+   * True when the caller is a guest of tenant `tenant` who represents the party
+   * `type`/`id`, such as the customer an invoice is addressed to. `false` where
+   * `guest` is.
+   */
+  guestParty(tenant: string, type: string, id: string): string;
 }
 
 export interface ModuleScopeSource {
@@ -63,6 +79,11 @@ export interface ModuleScopeSource {
   readonly access: boolean;
   /** The tenant module's `member_organization_ids`, as named for the layout. */
   readonly members: () => string;
+  /**
+   * Whether `portal_subjects` and `portal_parties` exist: the `guests` module
+   * is installed, or the authorization provider answers for guests.
+   */
+  readonly guests?: boolean;
 }
 
 const CALLER = "(select auth.uid())";
@@ -70,6 +91,24 @@ const SIGNED_IN = `(${CALLER} is not null)`;
 
 export function moduleScope(source: ModuleScopeSource): ModuleScope {
   const { kind, idType } = source;
+  const guests = kind === "tenant" && source.guests === true;
+
+  // The row form lets Postgres hash the set once per statement (a hashed
+  // SubPlan), so a policy doesn't call the function per row.
+  const guest = (
+    tenant: string,
+    type: string,
+    id: string,
+    action: GuestAction,
+  ): string =>
+    guests
+      ? `((${tenant})::text, (${type})::text, (${id})::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('${action}') g)`
+      : "false";
+
+  const guestParty = (tenant: string, type: string, id: string): string =>
+    guests
+      ? `((${tenant})::text, (${type})::text, (${id})::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)`
+      : "false";
 
   // The sub-select lets Postgres run the call once per statement (an
   // initPlan) when a policy uses it, instead of once per row.
@@ -96,6 +135,8 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         eq: (a, b) => `${a} = ${b}`,
         platform,
         members: () => `${source.members()}()`,
+        guest,
+        guestParty,
       };
     }
 
@@ -114,6 +155,8 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         eq: (a, b) => `${a} = ${b}`,
         platform,
         members: () => `unnest(array[${CALLER}])`,
+        guest,
+        guestParty,
       };
     }
 
@@ -133,6 +176,8 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         eq: (a, b) => `${a} is not distinct from ${b}`,
         platform,
         members: () => none,
+        guest,
+        guestParty,
       };
     }
 

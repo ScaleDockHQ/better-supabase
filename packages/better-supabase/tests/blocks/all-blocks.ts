@@ -38,6 +38,7 @@ import type {
   signaturesBlock,
 } from "../../src/blocks/forms/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
+import type { guestsBlock } from "../../src/blocks/guests/manifest.ts";
 import type { hiringBlock } from "../../src/blocks/hiring/manifest.ts";
 import type { identitiesBlock } from "../../src/blocks/identities/manifest.ts";
 import type { importsBlock } from "../../src/blocks/imports/manifest.ts";
@@ -166,6 +167,7 @@ export type AllBlocks = {
   readonly jobs: typeof jobsBlock;
   readonly rateLimit: typeof rateLimitBlock;
   readonly webhookInbox: typeof webhookInboxBlock;
+  readonly guests: typeof guestsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

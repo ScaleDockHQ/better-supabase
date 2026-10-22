@@ -2662,6 +2662,80 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "guests",
+      "title": "Guests",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invoices",
+        "bookings",
+        "parties"
+      ],
+      "manifest": "guests",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "guest": {
+            "table": "guests",
+            "singular": "guest",
+            "primary": true
+          },
+          "guest_grant": {
+            "table": "grants",
+            "singular": "guest_grant"
+          }
+        },
+        "tables": {
+          "guests": {
+            "name": "guests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "email": "email",
+              "name": "name",
+              "user": "user_id",
+              "partyType": "party_type",
+              "partyId": "party_id",
+              "status": "status",
+              "tokenHash": "token_hash",
+              "invitedBy": "invited_by",
+              "expiresAt": "expires_at",
+              "acceptedAt": "accepted_at",
+              "revokedAt": "revoked_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "grants": {
+            "name": "guest_grants",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "guest": "guest_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "actions": "actions",
+              "grantedBy": "granted_by",
+              "expiresAt": "expires_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "guests.read",
+          "manage": "guests.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -4465,6 +4539,197 @@ export const PRESET_CATALOG: PresetCatalog = {
           "ledger_hold.placed",
           "ledger_hold.captured",
           "ledger_hold.released"
+        ]
+      }
+    },
+    {
+      "name": "guests",
+      "sql": [
+        "guests"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "guestsBlock",
+        "subpath": "better-supabase/blocks/guests"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Guest"
+        },
+        {
+          "name": "GuestAcceptedEventData"
+        },
+        {
+          "name": "GuestAction"
+        },
+        {
+          "name": "GuestGrant"
+        },
+        {
+          "name": "GuestGrantEventData"
+        },
+        {
+          "name": "GuestGrantInput"
+        },
+        {
+          "name": "GuestInvite"
+        },
+        {
+          "name": "GuestInvitedEventData"
+        },
+        {
+          "name": "GuestInviteInput"
+        },
+        {
+          "name": "GuestListOptions"
+        },
+        {
+          "name": "GuestMembership"
+        },
+        {
+          "name": "GuestRevokedEventData"
+        },
+        {
+          "name": "Guests"
+        },
+        {
+          "name": "GuestSectionGrantInput"
+        },
+        {
+          "name": "GuestsEvents"
+        },
+        {
+          "name": "GuestsOptions"
+        },
+        {
+          "name": "GuestStatus"
+        },
+        {
+          "name": "GuestsWrites"
+        },
+        {
+          "name": "RecordGuestGrant"
+        }
+      ],
+      "entitySchemas": {
+        "guest": {
+          "input": {
+            "title": "GuestInviteInput",
+            "fields": {
+              "email": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "party": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the guest acts for: `{ type, id }`."
+              },
+              "expiresAt": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GuestInviteInput",
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "party": {
+                  "description": "The record the guest acts for: `{ type, id }`."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "email"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "guest_grant": {
+          "input": {
+            "title": "GuestGrantInput",
+            "fields": {
+              "actions": {
+                "kind": "enum",
+                "values": [
+                  "read",
+                  "comment",
+                  "upload"
+                ],
+                "optional": true,
+                "array": true,
+                "description": "`read` is always added."
+              },
+              "expiresAt": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GuestGrantInput",
+              "type": "object",
+              "properties": {
+                "actions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "comment",
+                      "upload"
+                    ]
+                  },
+                  "description": "`read` is always added."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "guests": [
+          "grant",
+          "revoke"
+        ]
+      },
+      "events": {
+        "type": "GuestsEvents",
+        "types": [
+          "guest.invited",
+          "guest.accepted",
+          "guest.revoked",
+          "guest_grant.created",
+          "guest_grant.revoked"
         ]
       }
     },

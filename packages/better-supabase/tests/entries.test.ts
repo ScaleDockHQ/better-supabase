@@ -49,6 +49,7 @@ const PURE_BARRELS = [
   "blocks/reviews",
   "blocks/leave",
   "blocks/ledger",
+  "blocks/guests",
   "blocks/shared-signals",
   "blocks/reminders",
   "blocks/imports",
