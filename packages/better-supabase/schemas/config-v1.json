@@ -1790,7 +1790,9 @@
               "enrichment",
               "ensure-rls",
               "entitlements",
+              "field-history",
               "flags",
+              "forecasts",
               "forms",
               "grants",
               "hiring",
@@ -1994,8 +1996,14 @@
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
             },
+            "field-history": {
+              "$ref": "#/$defs/blocks/field-history"
+            },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
+            },
+            "forecasts": {
+              "$ref": "#/$defs/blocks/forecasts"
             },
             "forms": {
               "$ref": "#/$defs/blocks/forms"
@@ -3965,6 +3973,19 @@
           }
         }
       },
+      "field-history": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
       "flags": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3976,6 +3997,17 @@
               "contexts": {},
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "forecasts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
