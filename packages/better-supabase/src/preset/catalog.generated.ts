@@ -1889,7 +1889,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "notifications"
+        "notifications",
+        "bookings",
+        "parties"
       ],
       "manifest": "engagements",
       "scopes": [

@@ -20,6 +20,7 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
+import { bookingEngagementsSql, logsBookings } from "./engagements-bookings.ts";
 
 /** The engagement types `options.types` falls back to. */
 const ENGAGEMENT_TYPES = ["call", "email", "meeting", "note", "task"] as const;
@@ -54,7 +55,7 @@ const NAMES: ModuleNames = {
   },
   events: EVENTS,
   hooks: ["before_engagement_log", "after_engagement_log"],
-  options: ["types", "extraColumns"],
+  options: ["types", "extraColumns", "bookings"],
   tables: {
     engagements: {
       name: "engagements",
@@ -466,7 +467,7 @@ as $$
   ) p
 $$;
 ${userGrant(`${fn("open_engagements")}(${ctx.idType}, uuid, timestamptz, integer)`)}
-`;
+${logsBookings(ctx, types(ctx)) ? bookingEngagementsSql(ctx) : ""}`;
 }
 
 function contract(): readonly ModuleContractFunction[] {
@@ -508,7 +509,7 @@ export const ENGAGEMENTS: ModuleDefinition = {
   description:
     "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",
   requires: ["tenant", "access", "subjects"],
-  integrates: ["outbox", "notifications"],
+  integrates: ["outbox", "notifications", "bookings", "parties"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,
