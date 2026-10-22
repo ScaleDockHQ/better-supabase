@@ -23,10 +23,13 @@ describe("inventory module", () => {
     );
   });
 
-  it("keeps the movement ledger append-only and applies it with a trigger", () => {
+  it("posts every stock movement to the ledger through move_stock", () => {
     const sql = sqlOf("inventory");
-    expect(sql).toContain("INVENTORY_LEDGER_APPEND_ONLY");
-    expect(sql).toContain("apply_stock_movement");
+    expect(sql).toContain(
+      `"better_supabase"."ledger_post"(move_stock.tenant, 'stock.' || move_stock.reason`,
+    );
+    expect(sql).not.toContain("stock_movements (");
+    expect(sql).not.toContain("apply_stock_movement()");
   });
 
   it("lets only the service role expire reservations", () => {

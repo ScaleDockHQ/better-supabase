@@ -1,5 +1,6 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -9,6 +10,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   bigintOf,
@@ -24,7 +26,8 @@ import {
   textOf,
 } from "../shared.ts";
 
-export interface LedgerOptions extends BlockTemporalOptions {
+export interface LedgerOptions
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -189,19 +192,18 @@ export interface LedgerAccountListOptions {
 }
 
 export interface Ledger {
-  /** Needs `ledger.manage`. */
-  openAccount(
-    organizationId: string,
-    input: LedgerAccountInput,
-  ): AsyncResult<LedgerAccount>;
+  /** Opens an account in the block's tenant. Needs `ledger.manage`. */
+  openAccount(input: LedgerAccountInput): AsyncResult<LedgerAccount>;
   /** Needs `ledger.manage`; the balance must be zero with no active holds. */
   closeAccount(accountId: string): AsyncResult<LedgerAccount>;
-  /** The accounts the caller can read, by kind or holder. */
+  /** The tenant's accounts the caller can read, by kind or holder. */
   accounts(
-    organizationId: string,
     options?: LedgerAccountListOptions,
   ): AsyncResult<readonly LedgerAccount[]>;
-  /** A record's accounts the caller can read, such as a party's credits. */
+  /**
+   * A record's accounts the caller can read, such as a party's credits. The
+   * record decides the tenant.
+   */
   holderAccounts(
     holder: SubjectRef,
     options?: { readonly kind?: string },
@@ -216,13 +218,10 @@ export interface Ledger {
   ): AsyncResult<readonly LedgerAccountEntry[]>;
   transaction(transactionId: string): AsyncResult<LedgerTransaction>;
   /**
-   * Posts a balanced transaction. Needs `ledger.post`; accounts another module
-   * manages refuse it.
+   * Posts a balanced transaction in the block's tenant. Needs `ledger.post`;
+   * accounts another module manages refuse it.
    */
-  post(
-    organizationId: string,
-    input: LedgerTransactionInput,
-  ): AsyncResult<LedgerTransaction>;
+  post(input: LedgerTransactionInput): AsyncResult<LedgerTransaction>;
   /** Posts the opposite entries. A transaction reverses once. */
   reverse(
     transactionId: string,
@@ -364,45 +363,50 @@ function holdOf(value: unknown, fn: string): LedgerHold {
 export function createLedger(options: LedgerOptions): Ledger {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: Ledger = {
-    openAccount: (organizationId, input) =>
-      call(
-        "open_ledger_account",
-        {
-          tenant: organizationId,
-          kind: input.kind,
-          code: input.code,
-          name: input.name,
-          unit: input.unit,
-          scale: input.scale ?? 0,
-          holder_type: input.holder?.type ?? null,
-          holder_id: input.holder?.id ?? null,
-          owner_id: input.ownerId ?? null,
-          allow_negative: input.allowNegative ?? false,
-          read_permission: input.readPermission ?? null,
-          metadata: input.metadata ?? null,
-        },
-        (value) => accountOf(value, "open_ledger_account"),
+    openAccount: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "open_ledger_account",
+          {
+            tenant: organizationId,
+            kind: input.kind,
+            code: input.code,
+            name: input.name,
+            unit: input.unit,
+            scale: input.scale ?? 0,
+            holder_type: input.holder?.type ?? null,
+            holder_id: input.holder?.id ?? null,
+            owner_id: input.ownerId ?? null,
+            allow_negative: input.allowNegative ?? false,
+            read_permission: input.readPermission ?? null,
+            metadata: input.metadata ?? null,
+          },
+          (value) => accountOf(value, "open_ledger_account"),
+        ),
       ),
     closeAccount: (accountId) =>
       call("close_ledger_account", { account_id: accountId }, (value) =>
         accountOf(value, "close_ledger_account"),
       ),
-    accounts: (organizationId, list = {}) =>
-      call(
-        "list_ledger_accounts",
-        {
-          tenant: organizationId,
-          kind: list.kind ?? null,
-          holder_type: list.holder?.type ?? null,
-          holder_id: list.holder?.id ?? null,
-          page_size: list.pageSize ?? null,
-        },
-        (value) =>
-          recordsOf(value, "list_ledger_accounts").map((row) =>
-            accountOf(row, "list_ledger_accounts"),
-          ),
+    accounts: (list = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_ledger_accounts",
+          {
+            tenant: organizationId,
+            kind: list.kind ?? null,
+            holder_type: list.holder?.type ?? null,
+            holder_id: list.holder?.id ?? null,
+            page_size: list.pageSize ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_ledger_accounts").map((row) =>
+              accountOf(row, "list_ledger_accounts"),
+            ),
+        ),
       ),
     holderAccounts: (holder, list = {}) =>
       call(
@@ -438,24 +442,26 @@ export function createLedger(options: LedgerOptions): Ledger {
         { transaction_id: transactionId },
         (value) => transactionOf(value, "get_ledger_transaction"),
       ),
-    post: (organizationId, input) =>
-      call(
-        "post_ledger_transaction",
-        {
-          tenant: organizationId,
-          kind: input.kind,
-          lines: input.lines.map((line) => ({
-            account: line.accountId,
-            amount: amountArg(line.amount),
-          })),
-          reference_type: input.reference?.type ?? null,
-          reference_id: input.reference?.id ?? null,
-          memo: input.memo ?? null,
-          idempotency_key: input.idempotencyKey ?? null,
-          effective_at: instantArg(input.effectiveAt),
-          metadata: input.metadata ?? null,
-        },
-        (value) => transactionOf(value, "post_ledger_transaction"),
+    post: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "post_ledger_transaction",
+          {
+            tenant: organizationId,
+            kind: input.kind,
+            lines: input.lines.map((line) => ({
+              account: line.accountId,
+              amount: amountArg(line.amount),
+            })),
+            reference_type: input.reference?.type ?? null,
+            reference_id: input.reference?.id ?? null,
+            memo: input.memo ?? null,
+            idempotency_key: input.idempotencyKey ?? null,
+            effective_at: instantArg(input.effectiveAt),
+            metadata: input.metadata ?? null,
+          },
+          (value) => transactionOf(value, "post_ledger_transaction"),
+        ),
       ),
     reverse: (transactionId, reverse = {}) =>
       call(

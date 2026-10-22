@@ -72,6 +72,9 @@ const NO_FIELDS: readonly string[] = [
   "incoming-webhooks",
   // Documents carry app data in metadata, which search filters on.
   "knowledge",
+  // Accounts and entries are double-entry bookkeeping other blocks post to;
+  // per-account data goes in `metadata`.
+  "ledger",
   // The model writes memories through memory commands, which carry no app columns.
   "memory",
   // Points are metric samples written by the sink.

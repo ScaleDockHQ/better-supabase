@@ -4,6 +4,7 @@ import { accessBlock } from "better-supabase/blocks/access";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
+import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { slaBlock } from "better-supabase/blocks/sla";
@@ -20,6 +21,7 @@ export const engagementFeature = defineRecordFeature({
   blocks: {
     attachments: attachmentsBlock,
     comments: commentsBlock,
+    ledger: ledgerBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

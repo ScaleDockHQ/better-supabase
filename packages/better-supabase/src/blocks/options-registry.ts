@@ -263,6 +263,7 @@ export interface BlockOptionsRegistry {
   readonly "jsonb-schemas": None;
   readonly knowledge: KnowledgeSqlOptions;
   readonly leave: LeaveSqlOptions;
+  readonly ledger: None;
   readonly memory: MemorySqlOptions;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -383,6 +384,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "jsonb-schemas": NO_OPTIONS,
   knowledge: knowledgeSqlOptions,
   leave: leaveSqlOptions,
+  ledger: NO_OPTIONS,
   memory: memorySqlOptions,
   metrics: metricsSqlOptions,
   mfa: NO_OPTIONS,

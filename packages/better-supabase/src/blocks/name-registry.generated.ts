@@ -566,7 +566,6 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "invoices": "id" | "tenant" | "kind" | "number" | "identifier" | "original" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "currency" | "status" | "termsDays" | "issuedOn" | "dueOn" | "paidTotal" | "creditedTotal" | "paidAt" | "voidedAt" | "voidReason" | "note" | "originType" | "originId" | "depositBps" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
-      readonly "payments": "id" | "tenant" | "invoice" | "amount" | "paidAt" | "method" | "reference" | "recordedBy" | "createdAt";
     };
     readonly functions: "create_invoice" | "credit_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "void_invoice" | "write_off_invoice";
     readonly actions: "read" | "write" | "manage";
@@ -605,9 +604,8 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "types": "id" | "tenant" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryoverMax" | "color" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "requests": "id" | "tenant" | "user" | "type" | "startsOn" | "endsOn" | "partial" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt";
-      readonly "ledger": "id" | "tenant" | "user" | "type" | "kind" | "amount" | "period" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "leave_available" | "leave_balances" | "leave_ledger_entries" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "leave_available" | "leave_balances" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type";
     readonly actions: "request" | "read" | "approve" | "manage";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {};
@@ -621,7 +619,7 @@ export interface BlockNameRegistry {
       readonly "balances": "account" | "tenant" | "balance" | "held" | "available" | "updatedAt";
       readonly "holds": "id" | "tenant" | "account" | "amount" | "status" | "referenceType" | "referenceId" | "expiresAt" | "transaction" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_check_balanced" | "ledger_post" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
+    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_check_balanced" | "ledger_post" | "ledger_read_grants" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
     readonly actions: "read" | "manage" | "post";
     readonly hooks: "before_ledger_transaction_post" | "after_ledger_transaction_post";
     readonly entities: {

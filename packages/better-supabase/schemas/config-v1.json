@@ -1804,6 +1804,7 @@
               "jsonb-schemas",
               "knowledge",
               "leave",
+              "ledger",
               "memory",
               "metrics",
               "mfa",
@@ -2022,6 +2023,9 @@
             },
             "leave": {
               "$ref": "#/$defs/blocks/leave"
+            },
+            "ledger": {
+              "$ref": "#/$defs/blocks/ledger"
             },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
@@ -4214,6 +4218,17 @@
               },
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "ledger": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

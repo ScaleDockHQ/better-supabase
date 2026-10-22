@@ -5810,6 +5810,45 @@
       "RpcClient"
     ]
   },
+  "./blocks/ledger": {
+    "values": [
+      "createLedger",
+      "dbTransport",
+      "extendBlock",
+      "ledgerBlock",
+      "ledgerEvents",
+      "ledgerMoney",
+      "ledgerSection",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Ledger",
+      "LedgerAccount",
+      "LedgerAccountEntry",
+      "LedgerAccountEventData",
+      "LedgerAccountInput",
+      "LedgerAccountListOptions",
+      "LedgerCaptureInput",
+      "LedgerEntry",
+      "LedgerEvents",
+      "LedgerHold",
+      "LedgerHoldEventData",
+      "LedgerHoldInput",
+      "LedgerHoldStatus",
+      "LedgerLine",
+      "LedgerOptions",
+      "LedgerTransaction",
+      "LedgerTransactionEventData",
+      "LedgerTransactionInput",
+      "RpcClient"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",

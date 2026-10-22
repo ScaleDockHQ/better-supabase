@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_109_leave.sql
 -- better-supabase module: leave
--- @bs-module leave@1 managed
+-- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,34 +101,309 @@ drop policy if exists "leave_requests_read" on "better_supabase"."leave_requests
 create policy "leave_requests_read" on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_ledger" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "user_id" uuid not null,
-  "type_id" uuid not null,
-  "kind" text not null check ("kind" in ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry')),
-  -- Signed: grants add, taken leave subtracts, a cancelled request adds back.
-  "amount" numeric(8, 2) not null check ("amount" <> 0),
-  -- The year the entry counts toward.
-  "period" integer not null check ("period" between 1900 and 9999),
-  "request_id" uuid references "better_supabase"."leave_requests" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
-  "idempotency_key" text,
-  "created_by" uuid,
-  "created_at" timestamptz not null default now(),
-  foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
-);
-create index if not exists "leave_ledger_balance_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
-create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
-create index if not exists "leave_ledger_type_idx" on "better_supabase"."leave_ledger" ("tenant_id", "type_id");
-create index if not exists "leave_ledger_request_idx" on "better_supabase"."leave_ledger" ("request_id") where "request_id" is not null;
-alter table "better_supabase"."leave_ledger" enable row level security;
-revoke all on "better_supabase"."leave_ledger" from anon, authenticated;
-grant select on "better_supabase"."leave_ledger" to authenticated;
-grant all on "better_supabase"."leave_ledger" to service_role;
-drop policy if exists "leave_ledger_read" on "better_supabase"."leave_ledger";
-create policy "leave_ledger_read" on "better_supabase"."leave_ledger" for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
+
+-- Posts one leave movement to a member's account of a type and period:
+-- against the type's taken account for taken leave, the member's account
+-- of to_period for a carryover, else the type's pool. Returns the ledger
+-- transaction; with a key a second post returns the first.
+create or replace function "better_supabase"."leave_post"(tenant uuid, user_id uuid, type_id uuid, kind text, amount numeric, period integer, request_id uuid default null, note text default null, key text default null, to_period integer default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_unit text;
+  v_account uuid;
+  v_counter uuid;
+  v_amount bigint := round(leave_post.amount * 100);
+begin
+  select t."unit" into v_unit from "better_supabase"."leave_types" t where t."id" = leave_post.type_id;
+  v_account := "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period));
+  v_counter := case
+    when leave_post.to_period is not null then
+      "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.to_period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.to_period))
+    else "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave_pool',
+      'leave:' || leave_post.type_id::text || case when leave_post.kind = 'taken' then ':taken' else ':pool' end,
+      case when leave_post.kind = 'taken' then 'Leave taken' else 'Leave pool' end, v_unit, 2::smallint,
+      'leave-types', leave_post.type_id::text, null, true, 'leave.read', 'leave', null)
+  end;
+  return "better_supabase"."ledger_post"(leave_post.tenant, 'leave.' || leave_post.kind,
+    jsonb_build_array(
+      jsonb_build_object('account', v_account, 'amount', v_amount),
+      jsonb_build_object('account', v_counter, 'amount', -v_amount)),
+    case when leave_post.request_id is not null then 'leave-requests' end, leave_post.request_id::text,
+    nullif(trim(leave_post.note), ''),
+    case when leave_post.key is not null then 'leave:' || leave_post.user_id::text || ':' || leave_post.type_id::text || ':' || leave_post.key end,
+    null,
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period, 'kind', leave_post.kind));
+end;
+$$;
+revoke execute on function "better_supabase"."leave_post"(uuid, uuid, uuid, text, numeric, integer, uuid, text, text, integer) from public, anon, authenticated;
+
+-- Whether a member already has the leave movement with this key.
+create or replace function "better_supabase"."leave_posted"(tenant uuid, user_id uuid, type_id uuid, key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from "better_supabase"."ledger_transactions" r where r."tenant_id" = leave_posted.tenant
+    and r."idempotency_key" = 'leave:' || leave_posted.user_id::text || ':' || leave_posted.type_id::text || ':' || leave_posted.key)
+$$;
+revoke execute on function "better_supabase"."leave_posted"(uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- A member's balance of one type for one period: the account's balance,
+-- minus the requests still waiting for approval.
+create or replace function "better_supabase"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select b."balance"::numeric / 100 from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+      where x."tenant_id" = leave_available.tenant and x."code" = 'leave:' || leave_available.type_id::text || ':' || leave_available.user_id::text || ':' || leave_available.period::text), 0)
+    - coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
+        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
+$$;
+revoke execute on function "better_supabase"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
+
+-- A member's balance of each tracked type for one period (default this
+-- year): granted, taken, pending and available.
+create or replace function "better_supabase"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
+  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if v_user is null then
+    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
+      'userId', v_user, 'period', v_period,
+      'granted', (coalesce(b.granted, 0)::numeric / 100)::numeric(10, 2)::text,
+      'taken', (coalesce(b.taken, 0)::numeric / 100)::numeric(10, 2)::text,
+      'pending', w.pending::numeric(10, 2)::text,
+      'available', (coalesce(b.total, 0)::numeric / 100 - w.pending)::numeric(10, 2)::text
+    ) order by t."name"), '[]'::jsonb) into v_rows
+  from "better_supabase"."leave_types" t
+  left join lateral (
+    select sum(y."amount") filter (where r."kind" <> 'leave.taken') as granted,
+      -sum(y."amount") filter (where r."kind" = 'leave.taken') as taken,
+      sum(y."amount") as total
+    from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+    where x."tenant_id" = leave_balances.tenant and x."code" = 'leave:' || t."id"::text || ':' || v_user::text || ':' || v_period::text
+  ) b on true
+  cross join lateral (
+    select coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
+        and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0) as pending
+  ) w
+  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
+
+-- A member's ledger entries of one period, newest first.
+create or replace function "better_supabase"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") order by y."created_at" desc, y."id" desc), '[]'::jsonb) into v_rows
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where x."tenant_id" = leave_ledger_entries.tenant and x."owner_id" = v_user
+    and (leave_ledger_entries.period is null or (x."metadata" ->> 'period')::integer = leave_ledger_entries.period)
+    and (leave_ledger_entries.type_id is null or x."holder_id" = leave_ledger_entries.type_id::text);
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
+
+-- Adds a grant or a manual adjustment (signed) to a member's balance.
+create or replace function "better_supabase"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period integer := coalesce(adjust_leave_balance.period, extract(year from current_date)::integer);
+  v_transaction uuid;
+  v_entry uuid;
+  v_row jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
+    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
+    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
+    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_transaction := "better_supabase"."leave_post"(adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id,
+    coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note);
+  select y."id", jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") into v_entry, v_row
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where y."transaction_id" = v_transaction and x."owner_id" = adjust_leave_balance.user_id;
+  null;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
+
+-- Grants every member (or user_ids) an accrual of one type: amount, or the
+-- type's allowance. With idempotency_key a member gets it once, so a
+-- scheduled job can run it again safely. Returns how many entries it wrote.
+create or replace function "better_supabase"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_type "better_supabase"."leave_types"%rowtype;
+  v_amount numeric;
+  v_user uuid;
+  v_count integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
+  if v_amount is null or v_amount <= 0 then
+    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_user in
+    select m."user_id" from "better_supabase"."memberships" m
+    where m."organization_id" = accrue_leave.tenant
+      and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
+  loop
+    continue when accrue_leave.idempotency_key is not null
+      and "better_supabase"."leave_posted"(accrue_leave.tenant, v_user, v_type."id", accrue_leave.idempotency_key);
+    perform "better_supabase"."leave_post"(accrue_leave.tenant, v_user, v_type."id", 'accrual', v_amount,
+      coalesce(accrue_leave.period, extract(year from current_date)::integer), null, accrue_leave.note, accrue_leave.idempotency_key);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
+
+-- Closes a period: each member's positive balance of each tracked type
+-- carries into the next period up to the type's carryover_max, and the rest
+-- expires. Run once per period; a second run writes nothing. Returns how
+-- many entries on members' accounts it wrote.
+create or replace function "better_supabase"."close_leave_year"(tenant uuid, period integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := 'close:' || close_leave_year.period::text;
+  v_row record;
+  v_written integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if close_leave_year.period is null then
+    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_row in
+    select x."owner_id" as user_id, t."id" as type_id, b."balance"::numeric / 100 as balance,
+      least(b."balance"::numeric / 100, coalesce(t."carryover_max", b."balance"::numeric / 100)) as carry
+    from "better_supabase"."ledger_accounts" x
+    join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+    join "better_supabase"."leave_types" t on t."id"::text = x."holder_id" and t."tracked"
+    where x."tenant_id" = close_leave_year.tenant and x."managed_by" = 'leave' and x."kind" = 'leave'
+      and (x."metadata" ->> 'period')::integer = close_leave_year.period and b."balance" > 0
+  loop
+    if v_row.carry <> 0 and not "better_supabase"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':carryover:' || close_leave_year.period::text) then
+      perform "better_supabase"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'carryover', -v_row.carry, close_leave_year.period,
+        null, null, v_key || ':carryover:' || close_leave_year.period::text, close_leave_year.period + 1);
+      v_written := v_written + 2;
+    end if;
+    if v_row.balance - v_row.carry <> 0 and not "better_supabase"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':expiry:' || close_leave_year.period::text) then
+      perform "better_supabase"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'expiry', -(v_row.balance - v_row.carry), close_leave_year.period,
+        null, null, v_key || ':expiry:' || close_leave_year.period::text);
+      v_written := v_written + 1;
+    end if;
+  end loop;
+  return v_written;
+end;
+$$;
+revoke execute on function "better_supabase"."close_leave_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_leave_year"(uuid, integer) to authenticated, service_role;
 
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function "better_supabase"."leave_working_days"(starts_on date, ends_on date)
@@ -143,26 +418,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."leave_working_days"(date, date) from public, anon;
 grant execute on function "better_supabase"."leave_working_days"(date, date) to authenticated, service_role;
-
--- A member's balance of one type for one period: every ledger entry, minus
--- the requests still waiting for approval.
-create or replace function "better_supabase"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
-returns numeric
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select sum(x."amount") from "better_supabase"."leave_ledger" x
-      where x."tenant_id" = leave_available.tenant and x."user_id" = leave_available.user_id
-        and x."type_id" = leave_available.type_id and x."period" = leave_available.period), 0)
-    - coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
-      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
-        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
-        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
-$$;
-revoke execute on function "better_supabase"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
 
 -- Creates or updates a leave type by key.
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
@@ -366,8 +621,7 @@ begin
   if not found then
     return;
   end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id")
-  select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id"
+  perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
   from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   null;
 end;
@@ -408,8 +662,7 @@ begin
   update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
     where p."id" = v_row."approval_id" and p."status" = 'pending';
   if v_row."approved_at" is not null then
-    insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id", "note", "created_by")
-    select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled', auth.uid()
+    perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled')
     from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   end if;
   update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = auth.uid(), "updated_at" = now()
@@ -466,220 +719,6 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
--- A member's balance of each tracked type for one period (default this
--- year): granted, taken, pending and available.
-create or replace function "better_supabase"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
-  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if v_user is null then
-    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
-      'userId', v_user, 'period', v_period,
-      'granted', coalesce(b.granted, 0)::text,
-      'taken', coalesce(b.taken, 0)::text,
-      'pending', coalesce(w.pending, 0)::text,
-      'available', (coalesce(b.total, 0) - coalesce(w.pending, 0))::text
-    ) order by t."name"), '[]'::jsonb) into v_rows
-  from "better_supabase"."leave_types" t
-  left join lateral (
-    select sum(x."amount") filter (where x."kind" <> 'taken') as granted,
-      -sum(x."amount") filter (where x."kind" = 'taken') as taken,
-      sum(x."amount") as total
-    from "better_supabase"."leave_ledger" x
-    where x."tenant_id" = leave_balances.tenant and x."user_id" = v_user
-      and x."type_id" = t."id" and x."period" = v_period
-  ) b on true
-  left join lateral (
-    select sum(r."amount") as pending
-    from "better_supabase"."leave_requests" r
-    left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-    where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
-      and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'
-  ) w on true
-  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) from public, anon;
-grant execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
-
--- A member's ledger entries of one period, newest first.
-create or replace function "better_supabase"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'kind', x."kind", 'amount', x."amount"::text, 'period', x."period", 'requestId', x."request_id", 'note', x."note", 'createdAt', x."created_at") order by x."created_at" desc, x."id" desc), '[]'::jsonb) into v_rows
-  from "better_supabase"."leave_ledger" x
-  where x."tenant_id" = leave_ledger_entries.tenant and x."user_id" = v_user
-    and (leave_ledger_entries.period is null or x."period" = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or x."type_id" = leave_ledger_entries.type_id);
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
-
--- Adds a grant or a manual adjustment (signed) to a member's balance.
-create or replace function "better_supabase"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."leave_ledger"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
-    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
-    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
-    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "note", "created_by")
-  values (adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id, coalesce(adjust_leave_balance.kind, 'adjustment'),
-    adjust_leave_balance.amount, coalesce(adjust_leave_balance.period, extract(year from current_date)::integer), nullif(trim(adjust_leave_balance.note), ''), auth.uid())
-  returning * into v_row;
-  null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'kind', v_row."kind", 'amount', v_row."amount"::text, 'period', v_row."period", 'requestId', v_row."request_id", 'note', v_row."note", 'createdAt', v_row."created_at");
-end;
-$$;
-revoke execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
-
--- Grants every member (or user_ids) an accrual of one type: amount, or the
--- type's allowance. With idempotency_key a member gets it once, so a
--- scheduled job can run it again safely. Returns how many entries it wrote.
-create or replace function "better_supabase"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_type "better_supabase"."leave_types"%rowtype;
-  v_amount numeric;
-  v_count integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
-  if not found then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
-  if v_amount is null or v_amount <= 0 then
-    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "note", "created_by")
-  select accrue_leave.tenant, m."user_id", v_type."id", 'accrual', v_amount,
-    coalesce(accrue_leave.period, extract(year from current_date)::integer), accrue_leave.idempotency_key, nullif(trim(accrue_leave.note), ''), auth.uid()
-  from "better_supabase"."memberships" m
-  where m."organization_id" = accrue_leave.tenant
-    and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-revoke execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
-grant execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
-
--- Closes a period: each member's positive balance of each tracked type
--- carries into the next period up to the type's carryover_max, and the rest
--- expires. Run once per period; a second run writes nothing. Returns how
--- many entries it wrote.
-create or replace function "better_supabase"."close_leave_year"(tenant uuid, period integer)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_key text := 'close:' || close_leave_year.period::text;
-  v_written integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if close_leave_year.period is null then
-    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  with balances as (
-    select x."user_id" as user_id, x."type_id" as type_id, sum(x."amount") as balance,
-      least(sum(x."amount"), coalesce(t."carryover_max", sum(x."amount"))) as carry
-    from "better_supabase"."leave_ledger" x
-    join "better_supabase"."leave_types" t on t."id" = x."type_id" and t."tracked"
-    where x."tenant_id" = close_leave_year.tenant and x."period" = close_leave_year.period
-    group by x."user_id", x."type_id", t."carryover_max"
-    having sum(x."amount") > 0
-  )
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "created_by")
-  select close_leave_year.tenant, b.user_id, b.type_id, e.kind, e.amount, e.period, v_key || ':' || e.kind || ':' || e.period::text, auth.uid()
-  from balances b
-  cross join lateral (values
-    ('carryover', -b.carry, close_leave_year.period),
-    ('carryover', b.carry, close_leave_year.period + 1),
-    ('expiry', -(b.balance - b.carry), close_leave_year.period)
-  ) as e(kind, amount, period)
-  where e.amount <> 0
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_written = row_count;
-  return v_written;
-end;
-$$;
-revoke execute on function "better_supabase"."close_leave_year"(uuid, integer) from public, anon;
-grant execute on function "better_supabase"."close_leave_year"(uuid, integer) to authenticated, service_role;
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -701,13 +740,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('leave', 1, 'managed')
+values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_leave.sql
 -- better-supabase module: leave
--- @bs-module leave@1 managed
+-- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -808,34 +847,318 @@ drop policy if exists "leave_requests_read" on "better_supabase"."leave_requests
 create policy "leave_requests_read" on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_ledger" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "user_id" uuid not null,
-  "type_id" uuid not null,
-  "kind" text not null check ("kind" in ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry')),
-  -- Signed: grants add, taken leave subtracts, a cancelled request adds back.
-  "amount" numeric(8, 2) not null check ("amount" <> 0),
-  -- The year the entry counts toward.
-  "period" integer not null check ("period" between 1900 and 9999),
-  "request_id" uuid references "better_supabase"."leave_requests" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
-  "idempotency_key" text,
-  "created_by" uuid,
-  "created_at" timestamptz not null default now(),
-  foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
-);
-create index if not exists "leave_ledger_balance_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
-create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
-create index if not exists "leave_ledger_type_idx" on "better_supabase"."leave_ledger" ("tenant_id", "type_id");
-create index if not exists "leave_ledger_request_idx" on "better_supabase"."leave_ledger" ("request_id") where "request_id" is not null;
-alter table "better_supabase"."leave_ledger" enable row level security;
-revoke all on "better_supabase"."leave_ledger" from anon, authenticated;
-grant select on "better_supabase"."leave_ledger" to authenticated;
-grant all on "better_supabase"."leave_ledger" to service_role;
-drop policy if exists "leave_ledger_read" on "better_supabase"."leave_ledger";
-create policy "leave_ledger_read" on "better_supabase"."leave_ledger" for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
+
+-- Posts one leave movement to a member's account of a type and period:
+-- against the type's taken account for taken leave, the member's account
+-- of to_period for a carryover, else the type's pool. Returns the ledger
+-- transaction; with a key a second post returns the first.
+create or replace function "better_supabase"."leave_post"(tenant uuid, user_id uuid, type_id uuid, kind text, amount numeric, period integer, request_id uuid default null, note text default null, key text default null, to_period integer default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_unit text;
+  v_account uuid;
+  v_counter uuid;
+  v_amount bigint := round(leave_post.amount * 100);
+begin
+  select t."unit" into v_unit from "better_supabase"."leave_types" t where t."id" = leave_post.type_id;
+  v_account := "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period));
+  v_counter := case
+    when leave_post.to_period is not null then
+      "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.to_period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.to_period))
+    else "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave_pool',
+      'leave:' || leave_post.type_id::text || case when leave_post.kind = 'taken' then ':taken' else ':pool' end,
+      case when leave_post.kind = 'taken' then 'Leave taken' else 'Leave pool' end, v_unit, 2::smallint,
+      'leave-types', leave_post.type_id::text, null, true, 'leave.read', 'leave', null)
+  end;
+  return "better_supabase"."ledger_post"(leave_post.tenant, 'leave.' || leave_post.kind,
+    jsonb_build_array(
+      jsonb_build_object('account', v_account, 'amount', v_amount),
+      jsonb_build_object('account', v_counter, 'amount', -v_amount)),
+    case when leave_post.request_id is not null then 'leave-requests' end, leave_post.request_id::text,
+    nullif(trim(leave_post.note), ''),
+    case when leave_post.key is not null then 'leave:' || leave_post.user_id::text || ':' || leave_post.type_id::text || ':' || leave_post.key end,
+    null,
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period, 'kind', leave_post.kind));
+end;
+$$;
+revoke execute on function "better_supabase"."leave_post"(uuid, uuid, uuid, text, numeric, integer, uuid, text, text, integer) from public, anon, authenticated;
+
+-- Whether a member already has the leave movement with this key.
+create or replace function "better_supabase"."leave_posted"(tenant uuid, user_id uuid, type_id uuid, key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from "better_supabase"."ledger_transactions" r where r."tenant_id" = leave_posted.tenant
+    and r."idempotency_key" = 'leave:' || leave_posted.user_id::text || ':' || leave_posted.type_id::text || ':' || leave_posted.key)
+$$;
+revoke execute on function "better_supabase"."leave_posted"(uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- A member's balance of one type for one period: the account's balance,
+-- minus the requests still waiting for approval.
+create or replace function "better_supabase"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select b."balance"::numeric / 100 from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+      where x."tenant_id" = leave_available.tenant and x."code" = 'leave:' || leave_available.type_id::text || ':' || leave_available.user_id::text || ':' || leave_available.period::text), 0)
+    - coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
+        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
+$$;
+revoke execute on function "better_supabase"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
+
+-- A member's balance of each tracked type for one period (default this
+-- year): granted, taken, pending and available.
+create or replace function "better_supabase"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
+  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if v_user is null then
+    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
+      'userId', v_user, 'period', v_period,
+      'granted', (coalesce(b.granted, 0)::numeric / 100)::numeric(10, 2)::text,
+      'taken', (coalesce(b.taken, 0)::numeric / 100)::numeric(10, 2)::text,
+      'pending', w.pending::numeric(10, 2)::text,
+      'available', (coalesce(b.total, 0)::numeric / 100 - w.pending)::numeric(10, 2)::text
+    ) order by t."name"), '[]'::jsonb) into v_rows
+  from "better_supabase"."leave_types" t
+  left join lateral (
+    select sum(y."amount") filter (where r."kind" <> 'leave.taken') as granted,
+      -sum(y."amount") filter (where r."kind" = 'leave.taken') as taken,
+      sum(y."amount") as total
+    from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+    where x."tenant_id" = leave_balances.tenant and x."code" = 'leave:' || t."id"::text || ':' || v_user::text || ':' || v_period::text
+  ) b on true
+  cross join lateral (
+    select coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
+        and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0) as pending
+  ) w
+  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
+
+-- A member's ledger entries of one period, newest first.
+create or replace function "better_supabase"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") order by y."created_at" desc, y."id" desc), '[]'::jsonb) into v_rows
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where x."tenant_id" = leave_ledger_entries.tenant and x."owner_id" = v_user
+    and (leave_ledger_entries.period is null or (x."metadata" ->> 'period')::integer = leave_ledger_entries.period)
+    and (leave_ledger_entries.type_id is null or x."holder_id" = leave_ledger_entries.type_id::text);
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
+
+-- Adds a grant or a manual adjustment (signed) to a member's balance.
+create or replace function "better_supabase"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period integer := coalesce(adjust_leave_balance.period, extract(year from current_date)::integer);
+  v_transaction uuid;
+  v_entry uuid;
+  v_row jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
+    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
+    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
+    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_transaction := "better_supabase"."leave_post"(adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id,
+    coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note);
+  select y."id", jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") into v_entry, v_row
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where y."transaction_id" = v_transaction and x."owner_id" = adjust_leave_balance.user_id;
+  perform "better_supabase".emit_event('leave.adjusted', jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', adjust_leave_balance.user_id, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period), 'leave-ledger-entries/' || v_entry::text, (adjust_leave_balance.tenant)::text, null, 'better-supabase/leave');
+  perform better_supabase.audit_event(
+    event_type => 'leave.adjusted',
+    category => 'data',
+    target_type => 'leave_balance',
+    record_id => v_entry::text,
+    summary => 'adjusted a leave balance by ' || adjust_leave_balance.amount::numeric(8, 2)::text,
+    tenant => (adjust_leave_balance.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', adjust_leave_balance.user_id, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period)
+  );
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
+
+-- Grants every member (or user_ids) an accrual of one type: amount, or the
+-- type's allowance. With idempotency_key a member gets it once, so a
+-- scheduled job can run it again safely. Returns how many entries it wrote.
+create or replace function "better_supabase"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_type "better_supabase"."leave_types"%rowtype;
+  v_amount numeric;
+  v_user uuid;
+  v_count integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
+  if v_amount is null or v_amount <= 0 then
+    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_user in
+    select m."user_id" from "better_supabase"."memberships" m
+    where m."organization_id" = accrue_leave.tenant
+      and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
+  loop
+    continue when accrue_leave.idempotency_key is not null
+      and "better_supabase"."leave_posted"(accrue_leave.tenant, v_user, v_type."id", accrue_leave.idempotency_key);
+    perform "better_supabase"."leave_post"(accrue_leave.tenant, v_user, v_type."id", 'accrual', v_amount,
+      coalesce(accrue_leave.period, extract(year from current_date)::integer), null, accrue_leave.note, accrue_leave.idempotency_key);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
+
+-- Closes a period: each member's positive balance of each tracked type
+-- carries into the next period up to the type's carryover_max, and the rest
+-- expires. Run once per period; a second run writes nothing. Returns how
+-- many entries on members' accounts it wrote.
+create or replace function "better_supabase"."close_leave_year"(tenant uuid, period integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := 'close:' || close_leave_year.period::text;
+  v_row record;
+  v_written integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if close_leave_year.period is null then
+    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_row in
+    select x."owner_id" as user_id, t."id" as type_id, b."balance"::numeric / 100 as balance,
+      least(b."balance"::numeric / 100, coalesce(t."carryover_max", b."balance"::numeric / 100)) as carry
+    from "better_supabase"."ledger_accounts" x
+    join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+    join "better_supabase"."leave_types" t on t."id"::text = x."holder_id" and t."tracked"
+    where x."tenant_id" = close_leave_year.tenant and x."managed_by" = 'leave' and x."kind" = 'leave'
+      and (x."metadata" ->> 'period')::integer = close_leave_year.period and b."balance" > 0
+  loop
+    if v_row.carry <> 0 and not "better_supabase"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':carryover:' || close_leave_year.period::text) then
+      perform "better_supabase"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'carryover', -v_row.carry, close_leave_year.period,
+        null, null, v_key || ':carryover:' || close_leave_year.period::text, close_leave_year.period + 1);
+      v_written := v_written + 2;
+    end if;
+    if v_row.balance - v_row.carry <> 0 and not "better_supabase"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':expiry:' || close_leave_year.period::text) then
+      perform "better_supabase"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'expiry', -(v_row.balance - v_row.carry), close_leave_year.period,
+        null, null, v_key || ':expiry:' || close_leave_year.period::text);
+      v_written := v_written + 1;
+    end if;
+  end loop;
+  return v_written;
+end;
+$$;
+revoke execute on function "better_supabase"."close_leave_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_leave_year"(uuid, integer) to authenticated, service_role;
 
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function "better_supabase"."leave_working_days"(starts_on date, ends_on date)
@@ -850,26 +1173,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."leave_working_days"(date, date) from public, anon;
 grant execute on function "better_supabase"."leave_working_days"(date, date) to authenticated, service_role;
-
--- A member's balance of one type for one period: every ledger entry, minus
--- the requests still waiting for approval.
-create or replace function "better_supabase"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
-returns numeric
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select sum(x."amount") from "better_supabase"."leave_ledger" x
-      where x."tenant_id" = leave_available.tenant and x."user_id" = leave_available.user_id
-        and x."type_id" = leave_available.type_id and x."period" = leave_available.period), 0)
-    - coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
-      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
-        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
-        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
-$$;
-revoke execute on function "better_supabase"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
 
 -- Creates or updates a leave type by key.
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
@@ -1082,8 +1385,7 @@ begin
   if not found then
     return;
   end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id")
-  select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id"
+  perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
   from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   perform "better_supabase".emit_event('leave.approved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
@@ -1133,8 +1435,7 @@ begin
   update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
     where p."id" = v_row."approval_id" and p."status" = 'pending';
   if v_row."approved_at" is not null then
-    insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id", "note", "created_by")
-    select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled', auth.uid()
+    perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled')
     from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   end if;
   update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = auth.uid(), "updated_at" = now()
@@ -1200,229 +1501,6 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
--- A member's balance of each tracked type for one period (default this
--- year): granted, taken, pending and available.
-create or replace function "better_supabase"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
-  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if v_user is null then
-    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
-      'userId', v_user, 'period', v_period,
-      'granted', coalesce(b.granted, 0)::text,
-      'taken', coalesce(b.taken, 0)::text,
-      'pending', coalesce(w.pending, 0)::text,
-      'available', (coalesce(b.total, 0) - coalesce(w.pending, 0))::text
-    ) order by t."name"), '[]'::jsonb) into v_rows
-  from "better_supabase"."leave_types" t
-  left join lateral (
-    select sum(x."amount") filter (where x."kind" <> 'taken') as granted,
-      -sum(x."amount") filter (where x."kind" = 'taken') as taken,
-      sum(x."amount") as total
-    from "better_supabase"."leave_ledger" x
-    where x."tenant_id" = leave_balances.tenant and x."user_id" = v_user
-      and x."type_id" = t."id" and x."period" = v_period
-  ) b on true
-  left join lateral (
-    select sum(r."amount") as pending
-    from "better_supabase"."leave_requests" r
-    left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-    where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
-      and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'
-  ) w on true
-  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) from public, anon;
-grant execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
-
--- A member's ledger entries of one period, newest first.
-create or replace function "better_supabase"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'kind', x."kind", 'amount', x."amount"::text, 'period', x."period", 'requestId', x."request_id", 'note', x."note", 'createdAt', x."created_at") order by x."created_at" desc, x."id" desc), '[]'::jsonb) into v_rows
-  from "better_supabase"."leave_ledger" x
-  where x."tenant_id" = leave_ledger_entries.tenant and x."user_id" = v_user
-    and (leave_ledger_entries.period is null or x."period" = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or x."type_id" = leave_ledger_entries.type_id);
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
-
--- Adds a grant or a manual adjustment (signed) to a member's balance.
-create or replace function "better_supabase"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."leave_ledger"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
-    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
-    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
-    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "note", "created_by")
-  values (adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id, coalesce(adjust_leave_balance.kind, 'adjustment'),
-    adjust_leave_balance.amount, coalesce(adjust_leave_balance.period, extract(year from current_date)::integer), nullif(trim(adjust_leave_balance.note), ''), auth.uid())
-  returning * into v_row;
-  perform "better_supabase".emit_event('leave.adjusted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'kind', v_row."kind", 'amount', v_row."amount"::text, 'period', v_row."period"), 'leave-ledger-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
-  perform better_supabase.audit_event(
-    event_type => 'leave.adjusted',
-    category => 'data',
-    target_type => 'leave_balance',
-    record_id => v_row."id"::text,
-    summary => 'adjusted a leave balance by ' || v_row."amount"::text,
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'kind', v_row."kind", 'amount', v_row."amount"::text, 'period', v_row."period")
-  );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'kind', v_row."kind", 'amount', v_row."amount"::text, 'period', v_row."period", 'requestId', v_row."request_id", 'note', v_row."note", 'createdAt', v_row."created_at");
-end;
-$$;
-revoke execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
-
--- Grants every member (or user_ids) an accrual of one type: amount, or the
--- type's allowance. With idempotency_key a member gets it once, so a
--- scheduled job can run it again safely. Returns how many entries it wrote.
-create or replace function "better_supabase"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_type "better_supabase"."leave_types"%rowtype;
-  v_amount numeric;
-  v_count integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
-  if not found then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
-  if v_amount is null or v_amount <= 0 then
-    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "note", "created_by")
-  select accrue_leave.tenant, m."user_id", v_type."id", 'accrual', v_amount,
-    coalesce(accrue_leave.period, extract(year from current_date)::integer), accrue_leave.idempotency_key, nullif(trim(accrue_leave.note), ''), auth.uid()
-  from "better_supabase"."memberships" m
-  where m."organization_id" = accrue_leave.tenant
-    and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-revoke execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
-grant execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
-
--- Closes a period: each member's positive balance of each tracked type
--- carries into the next period up to the type's carryover_max, and the rest
--- expires. Run once per period; a second run writes nothing. Returns how
--- many entries it wrote.
-create or replace function "better_supabase"."close_leave_year"(tenant uuid, period integer)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_key text := 'close:' || close_leave_year.period::text;
-  v_written integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if close_leave_year.period is null then
-    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  with balances as (
-    select x."user_id" as user_id, x."type_id" as type_id, sum(x."amount") as balance,
-      least(sum(x."amount"), coalesce(t."carryover_max", sum(x."amount"))) as carry
-    from "better_supabase"."leave_ledger" x
-    join "better_supabase"."leave_types" t on t."id" = x."type_id" and t."tracked"
-    where x."tenant_id" = close_leave_year.tenant and x."period" = close_leave_year.period
-    group by x."user_id", x."type_id", t."carryover_max"
-    having sum(x."amount") > 0
-  )
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "created_by")
-  select close_leave_year.tenant, b.user_id, b.type_id, e.kind, e.amount, e.period, v_key || ':' || e.kind || ':' || e.period::text, auth.uid()
-  from balances b
-  cross join lateral (values
-    ('carryover', -b.carry, close_leave_year.period),
-    ('carryover', b.carry, close_leave_year.period + 1),
-    ('expiry', -(b.balance - b.carry), close_leave_year.period)
-  ) as e(kind, amount, period)
-  where e.amount <> 0
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_written = row_count;
-  return v_written;
-end;
-$$;
-revoke execute on function "better_supabase"."close_leave_year"(uuid, integer) from public, anon;
-grant execute on function "better_supabase"."close_leave_year"(uuid, integer) to authenticated, service_role;
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1444,13 +1522,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('leave', 1, 'managed')
+values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_109_leave.sql
 -- better-supabase module: leave
--- @bs-module leave@1 managed
+-- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1553,34 +1631,309 @@ drop policy if exists "leave_requests_read" on "app_private"."leave_requests";
 create policy "leave_requests_read" on "app_private"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "app_private"."leave_ledger" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "user_id" uuid not null,
-  "type_id" uuid not null,
-  "kind" text not null check ("kind" in ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry')),
-  -- Signed: grants add, taken leave subtracts, a cancelled request adds back.
-  "amount" numeric(8, 2) not null check ("amount" <> 0),
-  -- The year the entry counts toward.
-  "period" integer not null check ("period" between 1900 and 9999),
-  "request_id" uuid references "app_private"."leave_requests" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
-  "idempotency_key" text,
-  "created_by" uuid,
-  "created_at" timestamptz not null default now(),
-  foreign key ("tenant_id", "type_id") references "app_private"."leave_types" ("tenant_id", "id") on delete restrict
-);
-create index if not exists "leave_ledger_balance_idx" on "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
-create unique index if not exists "leave_ledger_key_idx" on "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
-create index if not exists "leave_ledger_type_idx" on "app_private"."leave_ledger" ("tenant_id", "type_id");
-create index if not exists "leave_ledger_request_idx" on "app_private"."leave_ledger" ("request_id") where "request_id" is not null;
-alter table "app_private"."leave_ledger" enable row level security;
-revoke all on "app_private"."leave_ledger" from anon, authenticated;
-grant select on "app_private"."leave_ledger" to authenticated;
-grant all on "app_private"."leave_ledger" to service_role;
-drop policy if exists "leave_ledger_read" on "app_private"."leave_ledger";
-create policy "leave_ledger_read" on "app_private"."leave_ledger" for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
+
+-- Posts one leave movement to a member's account of a type and period:
+-- against the type's taken account for taken leave, the member's account
+-- of to_period for a carryover, else the type's pool. Returns the ledger
+-- transaction; with a key a second post returns the first.
+create or replace function "app_private"."leave_post"(tenant uuid, user_id uuid, type_id uuid, kind text, amount numeric, period integer, request_id uuid default null, note text default null, key text default null, to_period integer default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_unit text;
+  v_account uuid;
+  v_counter uuid;
+  v_amount bigint := round(leave_post.amount * 100);
+begin
+  select t."unit" into v_unit from "app_private"."leave_types" t where t."id" = leave_post.type_id;
+  v_account := "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period));
+  v_counter := case
+    when leave_post.to_period is not null then
+      "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.to_period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.to_period))
+    else "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave_pool',
+      'leave:' || leave_post.type_id::text || case when leave_post.kind = 'taken' then ':taken' else ':pool' end,
+      case when leave_post.kind = 'taken' then 'Leave taken' else 'Leave pool' end, v_unit, 2::smallint,
+      'leave-types', leave_post.type_id::text, null, true, 'leave.read', 'leave', null)
+  end;
+  return "better_supabase"."ledger_post"(leave_post.tenant, 'leave.' || leave_post.kind,
+    jsonb_build_array(
+      jsonb_build_object('account', v_account, 'amount', v_amount),
+      jsonb_build_object('account', v_counter, 'amount', -v_amount)),
+    case when leave_post.request_id is not null then 'leave-requests' end, leave_post.request_id::text,
+    nullif(trim(leave_post.note), ''),
+    case when leave_post.key is not null then 'leave:' || leave_post.user_id::text || ':' || leave_post.type_id::text || ':' || leave_post.key end,
+    null,
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period, 'kind', leave_post.kind));
+end;
+$$;
+revoke execute on function "app_private"."leave_post"(uuid, uuid, uuid, text, numeric, integer, uuid, text, text, integer) from public, anon, authenticated;
+
+-- Whether a member already has the leave movement with this key.
+create or replace function "app_private"."leave_posted"(tenant uuid, user_id uuid, type_id uuid, key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from "better_supabase"."ledger_transactions" r where r."tenant_id" = leave_posted.tenant
+    and r."idempotency_key" = 'leave:' || leave_posted.user_id::text || ':' || leave_posted.type_id::text || ':' || leave_posted.key)
+$$;
+revoke execute on function "app_private"."leave_posted"(uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- A member's balance of one type for one period: the account's balance,
+-- minus the requests still waiting for approval.
+create or replace function "app_private"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select b."balance"::numeric / 100 from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+      where x."tenant_id" = leave_available.tenant and x."code" = 'leave:' || leave_available.type_id::text || ':' || leave_available.user_id::text || ':' || leave_available.period::text), 0)
+    - coalesce((select sum(r."amount") from "app_private"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
+        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
+$$;
+revoke execute on function "app_private"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
+
+-- A member's balance of each tracked type for one period (default this
+-- year): granted, taken, pending and available.
+create or replace function "app_private"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
+  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if v_user is null then
+    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
+      'userId', v_user, 'period', v_period,
+      'granted', (coalesce(b.granted, 0)::numeric / 100)::numeric(10, 2)::text,
+      'taken', (coalesce(b.taken, 0)::numeric / 100)::numeric(10, 2)::text,
+      'pending', w.pending::numeric(10, 2)::text,
+      'available', (coalesce(b.total, 0)::numeric / 100 - w.pending)::numeric(10, 2)::text
+    ) order by t."name"), '[]'::jsonb) into v_rows
+  from "app_private"."leave_types" t
+  left join lateral (
+    select sum(y."amount") filter (where r."kind" <> 'leave.taken') as granted,
+      -sum(y."amount") filter (where r."kind" = 'leave.taken') as taken,
+      sum(y."amount") as total
+    from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+    where x."tenant_id" = leave_balances.tenant and x."code" = 'leave:' || t."id"::text || ':' || v_user::text || ':' || v_period::text
+  ) b on true
+  cross join lateral (
+    select coalesce((select sum(r."amount") from "app_private"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
+        and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0) as pending
+  ) w
+  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
+  return v_rows;
+end;
+$$;
+revoke execute on function "app_private"."leave_balances"(uuid, uuid, integer) from public, anon;
+grant execute on function "app_private"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
+
+-- A member's ledger entries of one period, newest first.
+create or replace function "app_private"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") order by y."created_at" desc, y."id" desc), '[]'::jsonb) into v_rows
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where x."tenant_id" = leave_ledger_entries.tenant and x."owner_id" = v_user
+    and (leave_ledger_entries.period is null or (x."metadata" ->> 'period')::integer = leave_ledger_entries.period)
+    and (leave_ledger_entries.type_id is null or x."holder_id" = leave_ledger_entries.type_id::text);
+  return v_rows;
+end;
+$$;
+revoke execute on function "app_private"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
+grant execute on function "app_private"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
+
+-- Adds a grant or a manual adjustment (signed) to a member's balance.
+create or replace function "app_private"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period integer := coalesce(adjust_leave_balance.period, extract(year from current_date)::integer);
+  v_transaction uuid;
+  v_entry uuid;
+  v_row jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
+    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
+    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
+    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "app_private"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_transaction := "app_private"."leave_post"(adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id,
+    coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note);
+  select y."id", jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") into v_entry, v_row
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where y."transaction_id" = v_transaction and x."owner_id" = adjust_leave_balance.user_id;
+  null;
+  return v_row;
+end;
+$$;
+revoke execute on function "app_private"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
+grant execute on function "app_private"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
+
+-- Grants every member (or user_ids) an accrual of one type: amount, or the
+-- type's allowance. With idempotency_key a member gets it once, so a
+-- scheduled job can run it again safely. Returns how many entries it wrote.
+create or replace function "app_private"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_type "app_private"."leave_types"%rowtype;
+  v_amount numeric;
+  v_user uuid;
+  v_count integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select * into v_type from "app_private"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
+  if v_amount is null or v_amount <= 0 then
+    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_user in
+    select m."user_id" from "better_supabase"."memberships" m
+    where m."organization_id" = accrue_leave.tenant
+      and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
+  loop
+    continue when accrue_leave.idempotency_key is not null
+      and "app_private"."leave_posted"(accrue_leave.tenant, v_user, v_type."id", accrue_leave.idempotency_key);
+    perform "app_private"."leave_post"(accrue_leave.tenant, v_user, v_type."id", 'accrual', v_amount,
+      coalesce(accrue_leave.period, extract(year from current_date)::integer), null, accrue_leave.note, accrue_leave.idempotency_key);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "app_private"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
+grant execute on function "app_private"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
+
+-- Closes a period: each member's positive balance of each tracked type
+-- carries into the next period up to the type's carryover_max, and the rest
+-- expires. Run once per period; a second run writes nothing. Returns how
+-- many entries on members' accounts it wrote.
+create or replace function "app_private"."close_leave_year"(tenant uuid, period integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := 'close:' || close_leave_year.period::text;
+  v_row record;
+  v_written integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if close_leave_year.period is null then
+    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_row in
+    select x."owner_id" as user_id, t."id" as type_id, b."balance"::numeric / 100 as balance,
+      least(b."balance"::numeric / 100, coalesce(t."carryover_max", b."balance"::numeric / 100)) as carry
+    from "better_supabase"."ledger_accounts" x
+    join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+    join "app_private"."leave_types" t on t."id"::text = x."holder_id" and t."tracked"
+    where x."tenant_id" = close_leave_year.tenant and x."managed_by" = 'leave' and x."kind" = 'leave'
+      and (x."metadata" ->> 'period')::integer = close_leave_year.period and b."balance" > 0
+  loop
+    if v_row.carry <> 0 and not "app_private"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':carryover:' || close_leave_year.period::text) then
+      perform "app_private"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'carryover', -v_row.carry, close_leave_year.period,
+        null, null, v_key || ':carryover:' || close_leave_year.period::text, close_leave_year.period + 1);
+      v_written := v_written + 2;
+    end if;
+    if v_row.balance - v_row.carry <> 0 and not "app_private"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':expiry:' || close_leave_year.period::text) then
+      perform "app_private"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'expiry', -(v_row.balance - v_row.carry), close_leave_year.period,
+        null, null, v_key || ':expiry:' || close_leave_year.period::text);
+      v_written := v_written + 1;
+    end if;
+  end loop;
+  return v_written;
+end;
+$$;
+revoke execute on function "app_private"."close_leave_year"(uuid, integer) from public, anon;
+grant execute on function "app_private"."close_leave_year"(uuid, integer) to authenticated, service_role;
 
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function "app_private"."leave_working_days"(starts_on date, ends_on date)
@@ -1595,26 +1948,6 @@ as $$
 $$;
 revoke execute on function "app_private"."leave_working_days"(date, date) from public, anon;
 grant execute on function "app_private"."leave_working_days"(date, date) to authenticated, service_role;
-
--- A member's balance of one type for one period: every ledger entry, minus
--- the requests still waiting for approval.
-create or replace function "app_private"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
-returns numeric
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select sum(x."amount") from "app_private"."leave_ledger" x
-      where x."tenant_id" = leave_available.tenant and x."user_id" = leave_available.user_id
-        and x."type_id" = leave_available.type_id and x."period" = leave_available.period), 0)
-    - coalesce((select sum(r."amount") from "app_private"."leave_requests" r
-      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
-        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
-        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
-$$;
-revoke execute on function "app_private"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
 
 -- Creates or updates a leave type by key.
 create or replace function "app_private"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
@@ -1818,8 +2151,7 @@ begin
   if not found then
     return;
   end if;
-  insert into "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id")
-  select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id"
+  perform "app_private"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
   from "app_private"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   null;
 end;
@@ -1860,8 +2192,7 @@ begin
   update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
     where p."id" = v_row."approval_id" and p."status" = 'pending';
   if v_row."approved_at" is not null then
-    insert into "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id", "note", "created_by")
-    select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled', auth.uid()
+    perform "app_private"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled')
     from "app_private"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   end if;
   update "app_private"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = auth.uid(), "updated_at" = now()
@@ -1918,220 +2249,6 @@ $$;
 revoke execute on function "app_private"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "app_private"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
--- A member's balance of each tracked type for one period (default this
--- year): granted, taken, pending and available.
-create or replace function "app_private"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
-  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if v_user is null then
-    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
-      'userId', v_user, 'period', v_period,
-      'granted', coalesce(b.granted, 0)::text,
-      'taken', coalesce(b.taken, 0)::text,
-      'pending', coalesce(w.pending, 0)::text,
-      'available', (coalesce(b.total, 0) - coalesce(w.pending, 0))::text
-    ) order by t."name"), '[]'::jsonb) into v_rows
-  from "app_private"."leave_types" t
-  left join lateral (
-    select sum(x."amount") filter (where x."kind" <> 'taken') as granted,
-      -sum(x."amount") filter (where x."kind" = 'taken') as taken,
-      sum(x."amount") as total
-    from "app_private"."leave_ledger" x
-    where x."tenant_id" = leave_balances.tenant and x."user_id" = v_user
-      and x."type_id" = t."id" and x."period" = v_period
-  ) b on true
-  left join lateral (
-    select sum(r."amount") as pending
-    from "app_private"."leave_requests" r
-    left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-    where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
-      and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'
-  ) w on true
-  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
-  return v_rows;
-end;
-$$;
-revoke execute on function "app_private"."leave_balances"(uuid, uuid, integer) from public, anon;
-grant execute on function "app_private"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
-
--- A member's ledger entries of one period, newest first.
-create or replace function "app_private"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'kind', x."kind", 'amount', x."amount"::text, 'period', x."period", 'requestId', x."request_id", 'note', x."note", 'createdAt', x."created_at") order by x."created_at" desc, x."id" desc), '[]'::jsonb) into v_rows
-  from "app_private"."leave_ledger" x
-  where x."tenant_id" = leave_ledger_entries.tenant and x."user_id" = v_user
-    and (leave_ledger_entries.period is null or x."period" = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or x."type_id" = leave_ledger_entries.type_id);
-  return v_rows;
-end;
-$$;
-revoke execute on function "app_private"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
-grant execute on function "app_private"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
-
--- Adds a grant or a manual adjustment (signed) to a member's balance.
-create or replace function "app_private"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "app_private"."leave_ledger"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
-    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
-    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
-    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "app_private"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  insert into "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "note", "created_by")
-  values (adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id, coalesce(adjust_leave_balance.kind, 'adjustment'),
-    adjust_leave_balance.amount, coalesce(adjust_leave_balance.period, extract(year from current_date)::integer), nullif(trim(adjust_leave_balance.note), ''), auth.uid())
-  returning * into v_row;
-  null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'kind', v_row."kind", 'amount', v_row."amount"::text, 'period', v_row."period", 'requestId', v_row."request_id", 'note', v_row."note", 'createdAt', v_row."created_at");
-end;
-$$;
-revoke execute on function "app_private"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
-grant execute on function "app_private"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
-
--- Grants every member (or user_ids) an accrual of one type: amount, or the
--- type's allowance. With idempotency_key a member gets it once, so a
--- scheduled job can run it again safely. Returns how many entries it wrote.
-create or replace function "app_private"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_type "app_private"."leave_types"%rowtype;
-  v_amount numeric;
-  v_count integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select * into v_type from "app_private"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
-  if not found then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
-  if v_amount is null or v_amount <= 0 then
-    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  insert into "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "note", "created_by")
-  select accrue_leave.tenant, m."user_id", v_type."id", 'accrual', v_amount,
-    coalesce(accrue_leave.period, extract(year from current_date)::integer), accrue_leave.idempotency_key, nullif(trim(accrue_leave.note), ''), auth.uid()
-  from "better_supabase"."memberships" m
-  where m."organization_id" = accrue_leave.tenant
-    and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-revoke execute on function "app_private"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
-grant execute on function "app_private"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
-
--- Closes a period: each member's positive balance of each tracked type
--- carries into the next period up to the type's carryover_max, and the rest
--- expires. Run once per period; a second run writes nothing. Returns how
--- many entries it wrote.
-create or replace function "app_private"."close_leave_year"(tenant uuid, period integer)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_key text := 'close:' || close_leave_year.period::text;
-  v_written integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if close_leave_year.period is null then
-    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  with balances as (
-    select x."user_id" as user_id, x."type_id" as type_id, sum(x."amount") as balance,
-      least(sum(x."amount"), coalesce(t."carryover_max", sum(x."amount"))) as carry
-    from "app_private"."leave_ledger" x
-    join "app_private"."leave_types" t on t."id" = x."type_id" and t."tracked"
-    where x."tenant_id" = close_leave_year.tenant and x."period" = close_leave_year.period
-    group by x."user_id", x."type_id", t."carryover_max"
-    having sum(x."amount") > 0
-  )
-  insert into "app_private"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "created_by")
-  select close_leave_year.tenant, b.user_id, b.type_id, e.kind, e.amount, e.period, v_key || ':' || e.kind || ':' || e.period::text, auth.uid()
-  from balances b
-  cross join lateral (values
-    ('carryover', -b.carry, close_leave_year.period),
-    ('carryover', b.carry, close_leave_year.period + 1),
-    ('expiry', -(b.balance - b.carry), close_leave_year.period)
-  ) as e(kind, amount, period)
-  where e.amount <> 0
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_written = row_count;
-  return v_written;
-end;
-$$;
-revoke execute on function "app_private"."close_leave_year"(uuid, integer) from public, anon;
-grant execute on function "app_private"."close_leave_year"(uuid, integer) to authenticated, service_role;
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -2153,13 +2270,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('leave', 1, 'managed')
+values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_109_leave.sql
 -- better-supabase module: leave
--- @bs-module leave@1 managed
+-- @bs-module leave@2 managed
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2260,34 +2377,309 @@ drop policy if exists "leave_requests_read" on "better_supabase"."leave_requests
 create policy "leave_requests_read" on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
-create table if not exists "better_supabase"."leave_ledger" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "user_id" uuid not null,
-  "type_id" uuid not null,
-  "kind" text not null check ("kind" in ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry')),
-  -- Signed: grants add, taken leave subtracts, a cancelled request adds back.
-  "amount" numeric(8, 2) not null check ("amount" <> 0),
-  -- The year the entry counts toward.
-  "period" integer not null check ("period" between 1900 and 9999),
-  "request_id" uuid references "better_supabase"."leave_requests" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
-  "idempotency_key" text,
-  "created_by" uuid,
-  "created_at" timestamptz not null default now(),
-  foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
-);
-create index if not exists "leave_ledger_balance_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "period");
-create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;
-create index if not exists "leave_ledger_type_idx" on "better_supabase"."leave_ledger" ("tenant_id", "type_id");
-create index if not exists "leave_ledger_request_idx" on "better_supabase"."leave_ledger" ("request_id") where "request_id" is not null;
-alter table "better_supabase"."leave_ledger" enable row level security;
-revoke all on "better_supabase"."leave_ledger" from anon, authenticated;
-grant select on "better_supabase"."leave_ledger" to authenticated;
-grant all on "better_supabase"."leave_ledger" to service_role;
-drop policy if exists "leave_ledger_read" on "better_supabase"."leave_ledger";
-create policy "leave_ledger_read" on "better_supabase"."leave_ledger" for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
+
+-- Posts one leave movement to a member's account of a type and period:
+-- against the type's taken account for taken leave, the member's account
+-- of to_period for a carryover, else the type's pool. Returns the ledger
+-- transaction; with a key a second post returns the first.
+create or replace function "better_supabase"."leave_post"(tenant uuid, user_id uuid, type_id uuid, kind text, amount numeric, period integer, request_id uuid default null, note text default null, key text default null, to_period integer default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_unit text;
+  v_account uuid;
+  v_counter uuid;
+  v_amount bigint := round(leave_post.amount * 100);
+begin
+  select t."unit" into v_unit from "better_supabase"."leave_types" t where t."id" = leave_post.type_id;
+  v_account := "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period));
+  v_counter := case
+    when leave_post.to_period is not null then
+      "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave', 'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.to_period::text, 'Leave', v_unit, 2::smallint,
+    'leave-types', leave_post.type_id::text, leave_post.user_id, true, 'leave.read', 'leave',
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.to_period))
+    else "better_supabase"."ledger_account_for"(leave_post.tenant, 'leave_pool',
+      'leave:' || leave_post.type_id::text || case when leave_post.kind = 'taken' then ':taken' else ':pool' end,
+      case when leave_post.kind = 'taken' then 'Leave taken' else 'Leave pool' end, v_unit, 2::smallint,
+      'leave-types', leave_post.type_id::text, null, true, 'leave.read', 'leave', null)
+  end;
+  return "better_supabase"."ledger_post"(leave_post.tenant, 'leave.' || leave_post.kind,
+    jsonb_build_array(
+      jsonb_build_object('account', v_account, 'amount', v_amount),
+      jsonb_build_object('account', v_counter, 'amount', -v_amount)),
+    case when leave_post.request_id is not null then 'leave-requests' end, leave_post.request_id::text,
+    nullif(trim(leave_post.note), ''),
+    case when leave_post.key is not null then 'leave:' || leave_post.user_id::text || ':' || leave_post.type_id::text || ':' || leave_post.key end,
+    null,
+    jsonb_build_object('userId', leave_post.user_id, 'typeId', leave_post.type_id, 'period', leave_post.period, 'kind', leave_post.kind));
+end;
+$$;
+revoke execute on function "better_supabase"."leave_post"(uuid, uuid, uuid, text, numeric, integer, uuid, text, text, integer) from public, anon, authenticated;
+
+-- Whether a member already has the leave movement with this key.
+create or replace function "better_supabase"."leave_posted"(tenant uuid, user_id uuid, type_id uuid, key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from "better_supabase"."ledger_transactions" r where r."tenant_id" = leave_posted.tenant
+    and r."idempotency_key" = 'leave:' || leave_posted.user_id::text || ':' || leave_posted.type_id::text || ':' || leave_posted.key)
+$$;
+revoke execute on function "better_supabase"."leave_posted"(uuid, uuid, uuid, text) from public, anon, authenticated;
+
+-- A member's balance of one type for one period: the account's balance,
+-- minus the requests still waiting for approval.
+create or replace function "better_supabase"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
+returns numeric
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select b."balance"::numeric / 100 from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+      where x."tenant_id" = leave_available.tenant and x."code" = 'leave:' || leave_available.type_id::text || ':' || leave_available.user_id::text || ':' || leave_available.period::text), 0)
+    - coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
+        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
+$$;
+revoke execute on function "better_supabase"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
+
+-- A member's balance of each tracked type for one period (default this
+-- year): granted, taken, pending and available.
+create or replace function "better_supabase"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
+  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if v_user is null then
+    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
+      'userId', v_user, 'period', v_period,
+      'granted', (coalesce(b.granted, 0)::numeric / 100)::numeric(10, 2)::text,
+      'taken', (coalesce(b.taken, 0)::numeric / 100)::numeric(10, 2)::text,
+      'pending', w.pending::numeric(10, 2)::text,
+      'available', (coalesce(b.total, 0)::numeric / 100 - w.pending)::numeric(10, 2)::text
+    ) order by t."name"), '[]'::jsonb) into v_rows
+  from "better_supabase"."leave_types" t
+  left join lateral (
+    select sum(y."amount") filter (where r."kind" <> 'leave.taken') as granted,
+      -sum(y."amount") filter (where r."kind" = 'leave.taken') as taken,
+      sum(y."amount") as total
+    from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+    where x."tenant_id" = leave_balances.tenant and x."code" = 'leave:' || t."id"::text || ':' || v_user::text || ':' || v_period::text
+  ) b on true
+  cross join lateral (
+    select coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
+      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
+      where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
+        and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period
+        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0) as pending
+  ) w
+  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
+
+-- A member's ledger entries of one period, newest first.
+create or replace function "better_supabase"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
+  v_rows jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
+    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
+    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") order by y."created_at" desc, y."id" desc), '[]'::jsonb) into v_rows
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where x."tenant_id" = leave_ledger_entries.tenant and x."owner_id" = v_user
+    and (leave_ledger_entries.period is null or (x."metadata" ->> 'period')::integer = leave_ledger_entries.period)
+    and (leave_ledger_entries.type_id is null or x."holder_id" = leave_ledger_entries.type_id::text);
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
+
+-- Adds a grant or a manual adjustment (signed) to a member's balance.
+create or replace function "better_supabase"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period integer := coalesce(adjust_leave_balance.period, extract(year from current_date)::integer);
+  v_transaction uuid;
+  v_entry uuid;
+  v_row jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
+    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
+    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
+    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_transaction := "better_supabase"."leave_post"(adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id,
+    coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note);
+  select y."id", jsonb_build_object('id', y."id", 'organizationId', x."tenant_id", 'userId', x."owner_id",
+      'typeId', (x."metadata" ->> 'typeId')::uuid, 'kind', substr(r."kind", 7), 'amount', (y."amount"::numeric / 100)::numeric(10, 2)::text,
+      'period', (x."metadata" ->> 'period')::integer,
+      'requestId', case when r."reference_type" = 'leave-requests' then r."reference_id"::uuid end,
+      'note', r."memo", 'createdAt', y."created_at") into v_entry, v_row
+  from "better_supabase"."ledger_entries" y
+    join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
+    join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
+  where y."transaction_id" = v_transaction and x."owner_id" = adjust_leave_balance.user_id;
+  null;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
+
+-- Grants every member (or user_ids) an accrual of one type: amount, or the
+-- type's allowance. With idempotency_key a member gets it once, so a
+-- scheduled job can run it again safely. Returns how many entries it wrote.
+create or replace function "better_supabase"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_type "better_supabase"."leave_types"%rowtype;
+  v_amount numeric;
+  v_user uuid;
+  v_count integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
+  if v_amount is null or v_amount <= 0 then
+    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_user in
+    select m."user_id" from "better_supabase"."memberships" m
+    where m."organization_id" = accrue_leave.tenant
+      and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
+  loop
+    continue when accrue_leave.idempotency_key is not null
+      and "better_supabase"."leave_posted"(accrue_leave.tenant, v_user, v_type."id", accrue_leave.idempotency_key);
+    perform "better_supabase"."leave_post"(accrue_leave.tenant, v_user, v_type."id", 'accrual', v_amount,
+      coalesce(accrue_leave.period, extract(year from current_date)::integer), null, accrue_leave.note, accrue_leave.idempotency_key);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
+grant execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
+
+-- Closes a period: each member's positive balance of each tracked type
+-- carries into the next period up to the type's carryover_max, and the rest
+-- expires. Run once per period; a second run writes nothing. Returns how
+-- many entries on members' accounts it wrote.
+create or replace function "better_supabase"."close_leave_year"(tenant uuid, period integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := 'close:' || close_leave_year.period::text;
+  v_row record;
+  v_written integer := 0;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
+    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  if close_leave_year.period is null then
+    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
+  end if;
+  for v_row in
+    select x."owner_id" as user_id, t."id" as type_id, b."balance"::numeric / 100 as balance,
+      least(b."balance"::numeric / 100, coalesce(t."carryover_max", b."balance"::numeric / 100)) as carry
+    from "better_supabase"."ledger_accounts" x
+    join "better_supabase"."ledger_balances" b on b."account_id" = x."id"
+    join "better_supabase"."leave_types" t on t."id"::text = x."holder_id" and t."tracked"
+    where x."tenant_id" = close_leave_year.tenant and x."managed_by" = 'leave' and x."kind" = 'leave'
+      and (x."metadata" ->> 'period')::integer = close_leave_year.period and b."balance" > 0
+  loop
+    if v_row.carry <> 0 and not "better_supabase"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':carryover:' || close_leave_year.period::text) then
+      perform "better_supabase"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'carryover', -v_row.carry, close_leave_year.period,
+        null, null, v_key || ':carryover:' || close_leave_year.period::text, close_leave_year.period + 1);
+      v_written := v_written + 2;
+    end if;
+    if v_row.balance - v_row.carry <> 0 and not "better_supabase"."leave_posted"(close_leave_year.tenant, v_row.user_id, v_row.type_id, v_key || ':expiry:' || close_leave_year.period::text) then
+      perform "better_supabase"."leave_post"(close_leave_year.tenant, v_row.user_id, v_row.type_id, 'expiry', -(v_row.balance - v_row.carry), close_leave_year.period,
+        null, null, v_key || ':expiry:' || close_leave_year.period::text);
+      v_written := v_written + 1;
+    end if;
+  end loop;
+  return v_written;
+end;
+$$;
+revoke execute on function "better_supabase"."close_leave_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_leave_year"(uuid, integer) to authenticated, service_role;
 
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function "better_supabase"."leave_working_days"(starts_on date, ends_on date)
@@ -2302,26 +2694,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."leave_working_days"(date, date) from public, anon;
 grant execute on function "better_supabase"."leave_working_days"(date, date) to authenticated, service_role;
-
--- A member's balance of one type for one period: every ledger entry, minus
--- the requests still waiting for approval.
-create or replace function "better_supabase"."leave_available"(tenant uuid, user_id uuid, type_id uuid, period integer)
-returns numeric
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select sum(x."amount") from "better_supabase"."leave_ledger" x
-      where x."tenant_id" = leave_available.tenant and x."user_id" = leave_available.user_id
-        and x."type_id" = leave_available.type_id and x."period" = leave_available.period), 0)
-    - coalesce((select sum(r."amount") from "better_supabase"."leave_requests" r
-      left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-      where r."tenant_id" = leave_available.tenant and r."user_id" = leave_available.user_id
-        and r."type_id" = leave_available.type_id and extract(year from r."starts_on")::integer = leave_available.period
-        and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'), 0)
-$$;
-revoke execute on function "better_supabase"."leave_available"(uuid, uuid, uuid, integer) from public, anon, authenticated;
 
 -- Creates or updates a leave type by key.
 create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
@@ -2525,8 +2897,7 @@ begin
   if not found then
     return;
   end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id")
-  select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id"
+  perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
   from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   null;
 end;
@@ -2567,8 +2938,7 @@ begin
   update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
     where p."id" = v_row."approval_id" and p."status" = 'pending';
   if v_row."approved_at" is not null then
-    insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "request_id", "note", "created_by")
-    select v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled', auth.uid()
+    perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id", 'cancelled')
     from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   end if;
   update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = auth.uid(), "updated_at" = now()
@@ -2625,220 +2995,6 @@ $$;
 revoke execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
--- A member's balance of each tracked type for one period (default this
--- year): granted, taken, pending and available.
-create or replace function "better_supabase"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
-  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_balances.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if v_user is null then
-    raise exception 'name user_id' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'typeId', t."id", 'key', t."key", 'name', t."name", 'unit', t."unit",
-      'userId', v_user, 'period', v_period,
-      'granted', coalesce(b.granted, 0)::text,
-      'taken', coalesce(b.taken, 0)::text,
-      'pending', coalesce(w.pending, 0)::text,
-      'available', (coalesce(b.total, 0) - coalesce(w.pending, 0))::text
-    ) order by t."name"), '[]'::jsonb) into v_rows
-  from "better_supabase"."leave_types" t
-  left join lateral (
-    select sum(x."amount") filter (where x."kind" <> 'taken') as granted,
-      -sum(x."amount") filter (where x."kind" = 'taken') as taken,
-      sum(x."amount") as total
-    from "better_supabase"."leave_ledger" x
-    where x."tenant_id" = leave_balances.tenant and x."user_id" = v_user
-      and x."type_id" = t."id" and x."period" = v_period
-  ) b on true
-  left join lateral (
-    select sum(r."amount") as pending
-    from "better_supabase"."leave_requests" r
-    left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
-    where r."tenant_id" = leave_balances.tenant and r."user_id" = v_user
-      and r."type_id" = t."id" and extract(year from r."starts_on")::integer = v_period and r."cancelled_at" is null and r."approved_at" is null and p."status" = 'pending'
-  ) w on true
-  where t."tenant_id" = leave_balances.tenant and t."tracked" and t."archived_at" is null;
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) from public, anon;
-grant execute on function "better_supabase"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
-
--- A member's ledger entries of one period, newest first.
-create or replace function "better_supabase"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
-  v_rows jsonb;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.read'), false)
-    or (v_user = auth.uid() and coalesce(better_supabase.can('tenant', leave_ledger_entries.tenant, 'leave.request'), false))) then
-    raise exception 'not allowed to read this member''s leave balance' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'kind', x."kind", 'amount', x."amount"::text, 'period', x."period", 'requestId', x."request_id", 'note', x."note", 'createdAt', x."created_at") order by x."created_at" desc, x."id" desc), '[]'::jsonb) into v_rows
-  from "better_supabase"."leave_ledger" x
-  where x."tenant_id" = leave_ledger_entries.tenant and x."user_id" = v_user
-    and (leave_ledger_entries.period is null or x."period" = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or x."type_id" = leave_ledger_entries.type_id);
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
-
--- Adds a grant or a manual adjustment (signed) to a member's balance.
-create or replace function "better_supabase"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."leave_ledger"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', adjust_leave_balance.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to adjust leave balances' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
-    raise exception 'kind must be grant or adjustment' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
-    raise exception 'amount must not be zero' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = adjust_leave_balance.tenant and m."user_id" = adjust_leave_balance.user_id) then
-    raise exception 'the user is not a member of this organization' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  if not exists (select 1 from "better_supabase"."leave_types" t where t."id" = adjust_leave_balance.type_id and t."tenant_id" = adjust_leave_balance.tenant) then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "note", "created_by")
-  values (adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id, coalesce(adjust_leave_balance.kind, 'adjustment'),
-    adjust_leave_balance.amount, coalesce(adjust_leave_balance.period, extract(year from current_date)::integer), nullif(trim(adjust_leave_balance.note), ''), auth.uid())
-  returning * into v_row;
-  null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'kind', v_row."kind", 'amount', v_row."amount"::text, 'period', v_row."period", 'requestId', v_row."request_id", 'note', v_row."note", 'createdAt', v_row."created_at");
-end;
-$$;
-revoke execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
-
--- Grants every member (or user_ids) an accrual of one type: amount, or the
--- type's allowance. With idempotency_key a member gets it once, so a
--- scheduled job can run it again safely. Returns how many entries it wrote.
-create or replace function "better_supabase"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_type "better_supabase"."leave_types"%rowtype;
-  v_amount numeric;
-  v_count integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accrue_leave.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to accrue leave' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  select * into v_type from "better_supabase"."leave_types" t where t."id" = accrue_leave.type_id and t."tenant_id" = accrue_leave.tenant;
-  if not found then
-    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
-  end if;
-  v_amount := coalesce(accrue_leave.amount, v_type."allowance");
-  if v_amount is null or v_amount <= 0 then
-    raise exception 'name an amount, or give the type an allowance' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "note", "created_by")
-  select accrue_leave.tenant, m."user_id", v_type."id", 'accrual', v_amount,
-    coalesce(accrue_leave.period, extract(year from current_date)::integer), accrue_leave.idempotency_key, nullif(trim(accrue_leave.note), ''), auth.uid()
-  from "better_supabase"."memberships" m
-  where m."organization_id" = accrue_leave.tenant
-    and (accrue_leave.user_ids is null or m."user_id" = any (accrue_leave.user_ids))
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-revoke execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
-grant execute on function "better_supabase"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
-
--- Closes a period: each member's positive balance of each tracked type
--- carries into the next period up to the type's carryover_max, and the rest
--- expires. Run once per period; a second run writes nothing. Returns how
--- many entries it wrote.
-create or replace function "better_supabase"."close_leave_year"(tenant uuid, period integer)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_key text := 'close:' || close_leave_year.period::text;
-  v_written integer;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_leave_year.tenant, 'leave.manage'), false)) then
-    raise exception 'not allowed to close leave periods' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
-  end if;
-  if close_leave_year.period is null then
-    raise exception 'name the period to close' using errcode = '22023', hint = 'LEAVE_INVALID';
-  end if;
-  with balances as (
-    select x."user_id" as user_id, x."type_id" as type_id, sum(x."amount") as balance,
-      least(sum(x."amount"), coalesce(t."carryover_max", sum(x."amount"))) as carry
-    from "better_supabase"."leave_ledger" x
-    join "better_supabase"."leave_types" t on t."id" = x."type_id" and t."tracked"
-    where x."tenant_id" = close_leave_year.tenant and x."period" = close_leave_year.period
-    group by x."user_id", x."type_id", t."carryover_max"
-    having sum(x."amount") > 0
-  )
-  insert into "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "kind", "amount", "period", "idempotency_key", "created_by")
-  select close_leave_year.tenant, b.user_id, b.type_id, e.kind, e.amount, e.period, v_key || ':' || e.kind || ':' || e.period::text, auth.uid()
-  from balances b
-  cross join lateral (values
-    ('carryover', -b.carry, close_leave_year.period),
-    ('carryover', b.carry, close_leave_year.period + 1),
-    ('expiry', -(b.balance - b.carry), close_leave_year.period)
-  ) as e(kind, amount, period)
-  where e.amount <> 0
-  on conflict ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null do nothing;
-  get diagnostics v_written = row_count;
-  return v_written;
-end;
-$$;
-revoke execute on function "better_supabase"."close_leave_year"(uuid, integer) from public, anon;
-grant execute on function "better_supabase"."close_leave_year"(uuid, integer) to authenticated, service_role;
-
 -- blocks.leave.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -2862,6 +3018,51 @@ set search_path = ''
 as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."leave_balances"($1, $2, $3) $$;
+revoke execute on function "api"."leave_balances"(uuid, uuid, integer) from public, anon;
+grant execute on function "api"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."leave_ledger_entries"($1, $2, $3, $4) $$;
+revoke execute on function "api"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
+grant execute on function "api"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
+
+create or replace function "api"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."adjust_leave_balance"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
+grant execute on function "api"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
+
+create or replace function "api"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accrue_leave"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
+grant execute on function "api"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
+
+create or replace function "api"."close_leave_year"(tenant uuid, period integer)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."close_leave_year"($1, $2) $$;
+revoke execute on function "api"."close_leave_year"(uuid, integer) from public, anon;
+grant execute on function "api"."close_leave_year"(uuid, integer) to authenticated, service_role;
 
 create or replace function "api"."leave_working_days"(starts_on date, ends_on date)
 returns integer
@@ -2926,51 +3127,6 @@ as $$ select "better_supabase"."list_leave_requests"($1, $2, $3, $4, $5, $6, $7)
 revoke execute on function "api"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) from public, anon;
 grant execute on function "api"."list_leave_requests"(uuid, uuid, text, date, date, boolean, integer) to authenticated, service_role;
 
-create or replace function "api"."leave_balances"(tenant uuid, user_id uuid default null, period integer default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."leave_balances"($1, $2, $3) $$;
-revoke execute on function "api"."leave_balances"(uuid, uuid, integer) from public, anon;
-grant execute on function "api"."leave_balances"(uuid, uuid, integer) to authenticated, service_role;
-
-create or replace function "api"."leave_ledger_entries"(tenant uuid, user_id uuid default null, period integer default null, type_id uuid default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."leave_ledger_entries"($1, $2, $3, $4) $$;
-revoke execute on function "api"."leave_ledger_entries"(uuid, uuid, integer, uuid) from public, anon;
-grant execute on function "api"."leave_ledger_entries"(uuid, uuid, integer, uuid) to authenticated, service_role;
-
-create or replace function "api"."adjust_leave_balance"(tenant uuid, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."adjust_leave_balance"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) from public, anon;
-grant execute on function "api"."adjust_leave_balance"(uuid, uuid, uuid, numeric, integer, text, text) to authenticated, service_role;
-
-create or replace function "api"."accrue_leave"(tenant uuid, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
-returns integer
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."accrue_leave"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) from public, anon;
-grant execute on function "api"."accrue_leave"(uuid, uuid, numeric, integer, uuid[], text, text) to authenticated, service_role;
-
-create or replace function "api"."close_leave_year"(tenant uuid, period integer)
-returns integer
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."close_leave_year"($1, $2) $$;
-revoke execute on function "api"."close_leave_year"(uuid, integer) from public, anon;
-grant execute on function "api"."close_leave_year"(uuid, integer) to authenticated, service_role;
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -2992,6 +3148,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('leave', 1, 'managed')
+values ('leave', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -2,7 +2,6 @@ import type { BlockOf } from "../define-block.ts";
 import type { LedgerEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
-import { NO_OPTIONS } from "../options.ts";
 import { ledgerEvents } from "./events.ts";
 import { createLedger } from "./ledger.ts";
 import { ledgerSection } from "./section.ts";
@@ -18,7 +17,7 @@ export const ledgerBlock: BlockOf<
 > = defineBlock({
   name: "ledger",
   sql: ["ledger"],
-  options: { ledger: NO_OPTIONS },
+  options: {},
   events: ledgerEvents,
   create: createLedger,
   sections: { ledger: ledgerSection },

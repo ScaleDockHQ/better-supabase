@@ -2260,7 +2260,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "tenant",
         "access",
-        "subjects"
+        "subjects",
+        "ledger"
       ],
       "integrates": [
         "outbox",
@@ -2515,7 +2516,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "tenant",
         "access",
-        "approvals"
+        "approvals",
+        "ledger"
       ],
       "integrates": [
         "outbox",
@@ -4412,8 +4414,58 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "LedgerAccount"
+        },
+        {
+          "name": "LedgerAccountEntry"
+        },
+        {
+          "name": "LedgerAccountEventData"
+        },
+        {
+          "name": "LedgerAccountInput"
+        },
+        {
+          "name": "LedgerAccountListOptions"
+        },
+        {
+          "name": "LedgerHold"
+        },
+        {
+          "name": "LedgerHoldEventData"
+        },
+        {
+          "name": "LedgerHoldInput"
+        },
+        {
+          "name": "LedgerHoldStatus"
+        },
+        {
+          "name": "LedgerTransaction"
+        },
+        {
+          "name": "LedgerTransactionEventData"
+        },
+        {
+          "name": "LedgerTransactionInput"
+        }
+      ],
       "sections": {
         "ledger": []
+      },
+      "events": {
+        "type": "LedgerEvents",
+        "types": [
+          "ledger_account.opened",
+          "ledger_account.closed",
+          "ledger_transaction.posted",
+          "ledger_transaction.reversed",
+          "ledger_hold.placed",
+          "ledger_hold.captured",
+          "ledger_hold.released"
+        ]
       }
     },
     {

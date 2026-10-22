@@ -327,11 +327,33 @@ function build(ctx: ModuleContext): string {
   const tables = ctx.manages
     ? `${ledgerTables(ctx)}
 ${lockTable(accounts, { read: true })}
+create index if not exists ${sqlIdent(`${ctx.tableName("accounts").name}_read_permission_idx`)} on ${accounts} (${a("tenant")}, ${a("readPermission")}) where ${a("readPermission")} is not null;
+-- The (tenant, permission) pairs of account read permissions the caller
+-- holds, so the policy checks each pair once per statement, not per row.
+create or replace function ${fn("ledger_read_grants")}()
+returns table (tenant ${ctx.idType}, permission text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  select p.tenant, p.permission from (
+    select distinct x.${a("tenant")} as tenant, x.${a("readPermission")} as permission
+    from ${accounts} x
+    where x.${a("readPermission")} is not null and x.${a("tenant")} in (select ${ctx.scope.members()})
+  ) p
+  where ${ctx.scope.can("p.tenant", "p.permission")};
+end;
+$$;
+revoke execute on function ${fn("ledger_read_grants")}() from public, anon;
+grant execute on function ${fn("ledger_read_grants")}() to authenticated, service_role;
 drop policy if exists ${policyName("accounts")} on ${accounts};
 create policy ${policyName("accounts")} on ${accounts} for select to authenticated
   using (${ctx.scope.check(a("tenant"), read)}
     or ${a("owner")} = (select auth.uid())
-    or (${a("readPermission")} is not null and ${ctx.scope.can(a("tenant"), a("readPermission"))}));
+    or (${a("tenant")}, ${a("readPermission")}) in (select g.tenant, g.permission from ${fn("ledger_read_grants")}() g));
 ${lockTable(transactions, { read: true })}
 drop policy if exists ${policyName("transactions")} on ${transactions};
 create policy ${policyName("transactions")} on ${transactions} for select to authenticated
@@ -474,7 +496,7 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 export const LEDGER: ModuleDefinition = {
-  internal: ["ledger_account_for", "ledger_post"],
+  internal: ["ledger_account_for", "ledger_post", "ledger_read_grants"],
   name: "ledger",
   scopes: ["tenant"],
   title: "Ledger",

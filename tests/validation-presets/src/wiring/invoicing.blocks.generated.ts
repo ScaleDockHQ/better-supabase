@@ -7,6 +7,7 @@ import {
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
+import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { NumberSequencesEvents } from "better-supabase/blocks/number-sequences";
@@ -35,6 +36,10 @@ export const blockConfig = {
     options: {},
   },
   billing: {
+    schema: "better_supabase",
+    options: {},
+  },
+  ledger: {
     schema: "better_supabase",
     options: {},
   },
@@ -136,6 +141,15 @@ export const permissions = {
     write: "invoices.write",
     manage: "invoices.manage",
   },
+  ledger: {
+    read: "ledger.read",
+    manage: "ledger.manage",
+    post: "ledger.post",
+  },
+  ledger_account: {
+    read: "ledger.read",
+    write: "ledger.manage",
+  },
   notifications: {
     send: "notifications.send",
     read: "notifications.read",
@@ -185,13 +199,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & InvoicesEvents & NotificationsEvents & NumberSequencesEvents & OrganizationsEvents & PartiesEvents & QuotesEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & LedgerEvents & InvoicesEvents & NotificationsEvents & NumberSequencesEvents & OrganizationsEvents & PartiesEvents & QuotesEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -229,6 +243,13 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.payment_recorded",
     "invoice.uncollected",
     "invoice.voided",
+    "ledger_account.closed",
+    "ledger_account.opened",
+    "ledger_hold.captured",
+    "ledger_hold.placed",
+    "ledger_hold.released",
+    "ledger_transaction.posted",
+    "ledger_transaction.reversed",
     "notification.bounced",
     "notification.clicked",
     "notification.complained",
@@ -309,6 +330,13 @@ export const blockEventSchemas = {
   "invoice.payment_recorded": true,
   "invoice.uncollected": true,
   "invoice.voided": true,
+  "ledger_account.closed": true,
+  "ledger_account.opened": true,
+  "ledger_hold.captured": true,
+  "ledger_hold.placed": true,
+  "ledger_hold.released": true,
+  "ledger_transaction.posted": true,
+  "ledger_transaction.reversed": true,
   "notification.bounced": true,
   "notification.clicked": true,
   "notification.complained": true,
