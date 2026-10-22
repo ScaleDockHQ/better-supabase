@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { ModuleContext } from "../../../src/sql/context.ts";
+
+import { INCIDENTS } from "../../../src/sql/modules/incidents.ts";
 import { customContracts, renderModules } from "../../../src/sql/render.ts";
 
 type Layout = Parameters<typeof renderModules>[1];
@@ -32,6 +35,9 @@ describe("incidents module", () => {
   it("renders nothing in custom mode and lists the functions to implement", () => {
     const custom: Layout = { modules: { incidents: { mode: "custom" } } };
     expect(sqlOf(custom).trim()).toBe("");
+    // SAFETY: custom mode returns before reading anything else on the context.
+    const context = { mode: "custom" } as unknown as ModuleContext;
+    expect(INCIDENTS.build(context, {})).toBe("");
     const [contract] = customContracts(["incidents"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
