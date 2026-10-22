@@ -194,6 +194,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0082: shipments go through a versioned `ShipmentCarrier`; tracking arrives by a signed, idempotent webhook ingest.
 - 0084: the public status page is one security definer function anon may call, returning only public fields.
 - 0085: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
+- 0086: recurring bookings place each occurrence through `place_booking`; class credits are a ledger refunded on early cancel.
 
 ## Pre-release pins
 

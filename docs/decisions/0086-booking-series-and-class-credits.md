@@ -1,4 +1,4 @@
-# 00XX: Book series one occurrence at a time, and pay for classes from a credit ledger
+# 0086: Book series one occurrence at a time, and pay for classes from a credit ledger
 
 - Status: accepted
 - Date: 2026-10-22
