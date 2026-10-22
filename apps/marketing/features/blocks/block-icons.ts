@@ -42,6 +42,7 @@ import {
   GaugeIcon,
   GlobeIcon,
   HandCoinsIcon,
+  HourglassIcon,
   HandshakeIcon,
   HardDriveIcon,
   HashIcon,
@@ -200,6 +201,7 @@ export const BLOCK_ICONS = {
   calendar: CalendarDaysIcon,
   bookings: CalendarCheckIcon,
   passes: TicketIcon,
+  "billable-time": HourglassIcon,
   // Content & files
   imports: FileUpIcon,
   versions: HistoryIcon,
