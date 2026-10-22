@@ -17,6 +17,7 @@ export { expenseReportFeature } from "./expense-report/expense-report-feature.ts
 export { incidentFeature } from "./incident/incident-feature.ts";
 export { personFeature } from "./person/person-feature.ts";
 export { policyFeature } from "./policy/policy-feature.ts";
+export { postFeature } from "./post/post-feature.ts";
 export { productFeature } from "./product/product-feature.ts";
 export { productVariantFeature } from "./product-variant/product-variant-feature.ts";
 export { projectFeature } from "./project/project-feature.ts";

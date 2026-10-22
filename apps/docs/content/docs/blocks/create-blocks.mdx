@@ -305,6 +305,7 @@ port or a missing `required` one.
 | `files`       | `ai-files`      | knowledge                                                                |
 | `attachments` | `attachments`   | drive, which downloads files through it                                  |
 | `workflows`   | `workflows`     | workflow-builder, which writes schedule triggers' schedules through it   |
+| `mailer`      | `mail-sync`     | sequences, which sends email steps through it                            |
 | `sink`        | search, metrics | none: each one lands in `sinks`, keyed like the block (see Outbox sinks) |
 
 With a `notification` type, ai-tasks sends it to the task's user in the

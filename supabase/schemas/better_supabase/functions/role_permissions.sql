@@ -9,7 +9,7 @@
 -- Members also read every recipe block and do the everyday writes (react,
 -- upload, track time, request approval, report content, file maintenance
 -- requests, submit expense reports, work the dispatch jobs scheduled for
--- them); managing a block
+-- them, enroll records in sequences, post and vote on boards); managing a block
 -- is for admins.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
@@ -80,7 +80,9 @@ as $$
       'segments.read', 'segments.edit',
       'assignment.read', 'assignment.manage', 'assignment.assign',
       'enrichment.read', 'enrichment.run',
-      'forecasts.read', 'forecasts.snapshot', 'history.read'
+      'forecasts.read', 'forecasts.snapshot', 'history.read',
+      'sequences.read', 'sequences.enroll', 'sequences.manage',
+      'posts.read', 'posts.write', 'posts.moderate', 'posts.manage'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -109,7 +111,8 @@ as $$
       'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read',
       'messages.read', 'messages.send', 'channels.create',
       'mail.read', 'mail.connect', 'mail.send', 'segments.read', 'assignment.read',
-      'enrichment.read', 'forecasts.read', 'history.read'
+      'enrichment.read', 'forecasts.read', 'history.read',
+      'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write'
     ]
     else array[]::text[]
   end

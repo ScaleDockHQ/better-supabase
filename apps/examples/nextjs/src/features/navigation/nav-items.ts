@@ -16,6 +16,7 @@ export type NavId =
   | "rules"
   | "contacts"
   | "deals"
+  | "sequences"
   | "quotes"
   | "shop"
   | "inventory"
@@ -27,6 +28,7 @@ export type NavId =
   | "documents"
   | "forms"
   | "courses"
+  | "community"
   | "templates"
   | "imports"
   | "trash"
@@ -132,6 +134,12 @@ export const navItems: readonly NavItem[] = [
     requires: "deals.read",
   },
   {
+    id: "sequences",
+    href: "/crm/sequences",
+    group: "workspace",
+    requires: "sequences.read",
+  },
+  {
     id: "quotes",
     href: "/crm/quotes",
     group: "workspace",
@@ -181,6 +189,12 @@ export const navItems: readonly NavItem[] = [
     href: "/courses",
     group: "workspace",
     requires: "courses.read",
+  },
+  {
+    id: "community",
+    href: "/community",
+    group: "workspace",
+    requires: "posts.read",
   },
   {
     id: "templates",

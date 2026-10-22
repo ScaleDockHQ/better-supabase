@@ -61,3 +61,4 @@ controls
 incidents
 courses
 messaging
+posts

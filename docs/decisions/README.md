@@ -93,3 +93,5 @@ add one, and link it from the code or config it explains.
 | [0085](0085-courses-on-enrollments.md)                    | Courses enroll learners through enrollments; quizzes are graded by forms in SQL                                                           |
 | [0086](0086-booking-series-and-class-credits.md)          | Recurring bookings place every occurrence through place_booking; class credits are a ledger with a refund on an early cancellation        |
 | [0090](0090-bookings-as-engagements.md)                   | Confirmed bookings become meeting engagements through a trigger on the bookings table                                                     |
+| [0091](0091-sequences-on-enrollments-and-mail-sync.md)    | Sequences run on enrollments and send email steps through a `mailer` port that mail-sync provides                                         |
+| [0092](0092-posts-on-shared-primitives.md)                | Posts keep only boards and posts; votes, replies and moderation stay in reactions, comments and moderation                                |

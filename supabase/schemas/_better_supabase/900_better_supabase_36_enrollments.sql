@@ -593,6 +593,10 @@ begin
   if v_row."program" like 'course:%' then
     raise exception 'this enrollment belongs to a course; complete its lessons through courses' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
+  -- A sequence's steps run on its schedule, so only its runner marks them.
+  if v_row."program" like 'sequence:%' then
+    raise exception 'this enrollment belongs to a sequence; its steps run on the sequence''s schedule' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
+  end if;
   perform "better_supabase"."enrollment_mark"(v_row."id", enrollment_step.step, enrollment_step.done, auth.uid());
   return "better_supabase"."enrollment_json"(v_row."id");
 end;

@@ -1826,6 +1826,7 @@
               "jobs",
               "jsonb-schemas",
               "knowledge",
+              "lead-scoring",
               "leases",
               "leave",
               "ledger",
@@ -1846,6 +1847,7 @@
               "passes",
               "pgtap",
               "pipelines",
+              "posts",
               "profiles",
               "promotions",
               "push",
@@ -1864,6 +1866,7 @@
               "scores",
               "search",
               "segments",
+              "sequences",
               "service-principals",
               "sessions",
               "settings",
@@ -2103,6 +2106,9 @@
             "knowledge": {
               "$ref": "#/$defs/blocks/knowledge"
             },
+            "lead-scoring": {
+              "$ref": "#/$defs/blocks/lead-scoring"
+            },
             "leases": {
               "$ref": "#/$defs/blocks/leases"
             },
@@ -2163,6 +2169,9 @@
             "pipelines": {
               "$ref": "#/$defs/blocks/pipelines"
             },
+            "posts": {
+              "$ref": "#/$defs/blocks/posts"
+            },
             "profiles": {
               "$ref": "#/$defs/blocks/profiles"
             },
@@ -2216,6 +2225,9 @@
             },
             "segments": {
               "$ref": "#/$defs/blocks/segments"
+            },
+            "sequences": {
+              "$ref": "#/$defs/blocks/sequences"
             },
             "service-principals": {
               "$ref": "#/$defs/blocks/service-principals"
@@ -4528,6 +4540,30 @@
           }
         }
       },
+      "lead-scoring": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "personModel": {
+                "type": "string",
+                "default": "lead"
+              },
+              "companyModel": {
+                "type": "string",
+                "default": ""
+              },
+              "rescoreAfterHours": {
+                "type": "number",
+                "default": 24
+              }
+            }
+          }
+        }
+      },
       "leases": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4984,6 +5020,27 @@
           }
         }
       },
+      "posts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "moderation": {
+                "type": "string",
+                "default": "post"
+              },
+              "maxBodyLength": {
+                "type": "number",
+                "default": 20000
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "profiles": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -5342,6 +5399,26 @@
             "properties": {
               "maxMembers": {
                 "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "sequences": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxAttempts": {
+                "type": "number",
+                "default": 3
+              },
+              "retryMinutes": {
+                "type": "number",
+                "default": 15
               }
             }
           }

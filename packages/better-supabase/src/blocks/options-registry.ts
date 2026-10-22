@@ -52,6 +52,7 @@ import type {
   WebhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
+import type { LeadScoringSqlOptions } from "./lead-scoring/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
@@ -73,6 +74,7 @@ import type { OutboxSqlOptions } from "./outbox/options.ts";
 import type { PartiesSqlOptions } from "./parties/options.ts";
 import type { PassesSqlOptions } from "./passes/options.ts";
 import type { PipelinesSqlOptions } from "./pipelines/options.ts";
+import type { PostsSqlOptions } from "./posts/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
 import type { PromotionsSqlOptions } from "./promotions/options.ts";
 import type { PushSqlOptions } from "./push/options.ts";
@@ -87,6 +89,7 @@ import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
 import type { ScoresSqlOptions } from "./scores/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
 import type { SegmentsSqlOptions } from "./segments/options.ts";
+import type { SequencesSqlOptions } from "./sequences/options.ts";
 import type { ServicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
@@ -174,6 +177,7 @@ import {
   webhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
+import { leadScoringSqlOptions } from "./lead-scoring/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { mailSyncSqlOptions } from "./mail-sync/options.ts";
@@ -195,6 +199,7 @@ import { outboxSqlOptions } from "./outbox/options.ts";
 import { partiesSqlOptions } from "./parties/options.ts";
 import { passesSqlOptions } from "./passes/options.ts";
 import { pipelinesSqlOptions } from "./pipelines/options.ts";
+import { postsSqlOptions } from "./posts/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
 import { promotionsSqlOptions } from "./promotions/options.ts";
 import { pushSqlOptions } from "./push/options.ts";
@@ -209,6 +214,7 @@ import { savedViewsSqlOptions } from "./saved-views/options.ts";
 import { scoresSqlOptions } from "./scores/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
 import { segmentsSqlOptions } from "./segments/options.ts";
+import { sequencesSqlOptions } from "./sequences/options.ts";
 import { servicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
@@ -334,6 +340,9 @@ export interface BlockOptionsRegistry {
   readonly controls: ControlsSqlOptions;
   readonly incidents: IncidentsSqlOptions;
   readonly courses: CoursesSqlOptions;
+  readonly sequences: SequencesSqlOptions;
+  readonly "lead-scoring": LeadScoringSqlOptions;
+  readonly posts: PostsSqlOptions;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -480,6 +489,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   controls: controlsSqlOptions,
   incidents: incidentsSqlOptions,
   courses: coursesSqlOptions,
+  sequences: sequencesSqlOptions,
+  "lead-scoring": leadScoringSqlOptions,
+  posts: postsSqlOptions,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,
