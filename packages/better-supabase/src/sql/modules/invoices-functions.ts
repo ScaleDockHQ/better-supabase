@@ -6,6 +6,7 @@ import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
 import { createdFromLink } from "./quotes-functions.ts";
 
 export interface InvoiceNames {
@@ -30,7 +31,7 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
   const { fn, t, c } = n;
   const i = (column: string): string => c("invoices", column);
   const l = (column: string): string => c("lines", column);
-  const p = (column: string): string => c("payments", column);
+  const ledger = invoiceLedger(ctx);
 
   const can = (alias: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, permission)})`;
@@ -50,7 +51,7 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
       'balance', ${balance(alias)}::text,
       'overdue', ${alias}.${i("status")} in ('issued', 'partially_paid') and ${alias}.${i("dueOn")} < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', il.${l("discountBps")}, 'taxRateBps', il.${l("taxRateBps")}, 'taxCode', il.${l("taxCode")}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
-      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', ip.${p("id")}, 'amount', ip.${p("amount")}::text, 'paidAt', ip.${p("paidAt")}, 'method', ip.${p("method")}, 'reference', ip.${p("reference")}) order by ip.${p("paidAt")}) from ${t("payments")} ip where ip.${p("invoice")} = ${alias}.${i("id")}), '[]'::jsonb))`;
+      'payments', ${ledger.payments(alias)})`;
 
   const record = (
     type: string,
@@ -86,7 +87,7 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
 
   const settle = (alias: string): string => `
   update ${t("invoices")} x set
-    ${i("paidTotal")} = coalesce((select sum(y.${p("amount")}) from ${t("payments")} y where y.${p("invoice")} = x.${i("id")}), 0),
+    ${i("paidTotal")} = ${ledger.paidTotal("x")},
     ${i("updatedAt")} = now()
   where x.${i("id")} = ${alias}.${i("id")}
   returning * into ${alias};
@@ -288,8 +289,9 @@ $$;
 ${userGrant(`${fn("issue_invoice")}(uuid, date)`)}
 
 -- Records a payment (a negative amount is a refund) in the invoice's
--- currency. A reference, such as a bank or payment provider id, is unique
--- per organization, so recording the same payment twice adds it once.
+-- currency as a ledger transaction from the invoice's receivable account to
+-- cash. A reference, such as a bank or payment provider id, is unique per
+-- organization, so recording the same payment twice adds it once.
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, timestamptz, text, text);
 create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
@@ -300,6 +302,7 @@ as $$
 declare
   v_row ${t("invoices")};
   v_payment uuid;
+  v_reference text;
   v_was text;
 begin
   select * into v_row from ${t("invoices")} x where x.${i("id")} = record_invoice_payment.invoice and ${can("x", n.write)} for update;
@@ -316,10 +319,14 @@ begin
     ${fail("INVOICE_CURRENCY_MISMATCH", "a payment must be in the invoice's currency", "22023")}
   end if;
   -- A recorded reference is a replay that adds nothing, so it skips the check.
-  if record_invoice_payment.amount < 0 and v_row.${i("paidTotal")} + record_invoice_payment.amount < 0 and not exists (
-    select 1 from ${t("payments")} y
-    where y.${p("tenant")} = v_row.${i("tenant")} and y.${p("reference")} = nullif(trim(record_invoice_payment.reference), '')
+  v_reference := nullif(trim(record_invoice_payment.reference), '');
+  if v_reference is not null and exists (
+    select 1 from ${ledger.transactions} y
+    where y.${ledger.tx("tenant")} = v_row.${i("tenant")} and y.${ledger.tx("key")} = ${paymentKey("v_reference")}
   ) then
+    return ${row("v_row")};
+  end if;
+  if record_invoice_payment.amount < 0 and v_row.${i("paidTotal")} + record_invoice_payment.amount < 0 then
     ${fail("INVOICE_REFUND_TOO_LARGE", "a refund can't exceed what was paid", "23514")}
   end if;
   ${ctx.hook("before_invoice_payment", [
@@ -327,14 +334,7 @@ begin
     ["bigint", "record_invoice_payment.amount"],
   ])}
   v_was := v_row.${i("status")};
-  insert into ${t("payments")} (${p("tenant")}, ${p("invoice")}, ${p("amount")}, ${p("paidAt")}, ${p("method")}, ${p("reference")}, ${p("recordedBy")})
-  values (v_row.${i("tenant")}, v_row.${i("id")}, record_invoice_payment.amount, coalesce(record_invoice_payment.paid_at, now()),
-    record_invoice_payment.method, nullif(trim(record_invoice_payment.reference), ''), auth.uid())
-  on conflict do nothing
-  returning ${p("id")} into v_payment;
-  if v_payment is null then
-    return ${row("v_row")};
-  end if;${settle("v_row")}
+  v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference")};${settle("v_row")}
   ${record("invoice.payment_recorded", "v_row", `, 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', ${balance("v_row")}::text`)}
   if v_row.${i("status")} = 'paid' and v_was <> 'paid' then
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
