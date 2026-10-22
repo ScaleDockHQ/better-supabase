@@ -1,6 +1,7 @@
+export { bookingOf } from "./rows.ts";
+
 export {
   BOOKING_EXPIRE_QUEUE,
-  bookingOf,
   createBookings,
   type Booking,
   type BookingCustomer,
@@ -18,6 +19,18 @@ export {
   type PublicBookingService,
   type WeeklyHours,
 } from "./bookings.ts";
+
+export {
+  bookingSeriesOf,
+  formatRecurrence,
+  parseRecurrence,
+  type BookedSeries,
+  type BookingRecurrence,
+  type BookingSeries,
+  type BookingSeriesScope,
+  type BookingSeriesStatus,
+  type BookingWeekday,
+} from "./series.ts";
 
 export {
   slotsByDay,

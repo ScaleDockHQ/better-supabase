@@ -22,6 +22,14 @@ export const setRateEmployeeBillableTime = employeeRecord.actions.billableTime.s
 
 export const invoiceEmployeeBillableTime = employeeRecord.actions.billableTime.invoice;
 
+export const createEmployeeDispatch = employeeRecord.actions.dispatch.create;
+
+export const cancelEmployeeDispatch = employeeRecord.actions.dispatch.cancel;
+
+export const createEmployeeShipments = employeeRecord.actions.shipments.create;
+
+export const cancelEmployeeShipments = employeeRecord.actions.shipments.cancel;
+
 export const linkEmployeeRelations = employeeRecord.actions.relations.link;
 
 export const unlinkEmployeeRelations = employeeRecord.actions.relations.unlink;

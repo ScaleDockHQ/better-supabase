@@ -22,6 +22,14 @@ export const setRateCustomerBillableTime = customerRecord.actions.billableTime.s
 
 export const invoiceCustomerBillableTime = customerRecord.actions.billableTime.invoice;
 
+export const createCustomerDispatch = customerRecord.actions.dispatch.create;
+
+export const cancelCustomerDispatch = customerRecord.actions.dispatch.cancel;
+
+export const createCustomerShipments = customerRecord.actions.shipments.create;
+
+export const cancelCustomerShipments = customerRecord.actions.shipments.cancel;
+
 export const linkCustomerRelations = customerRecord.actions.relations.link;
 
 export const unlinkCustomerRelations = customerRecord.actions.relations.unlink;

@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_120_field_encryption.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module field-encryption@1 managed
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
@@ -141,7 +141,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_120_field_encryption.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module-data field-encryption
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -156,7 +156,7 @@ values ('field-encryption', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_120_field_encryption.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module field-encryption@1 managed
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
@@ -306,7 +306,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_120_field_encryption.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module-data field-encryption
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -321,7 +321,7 @@ values ('field-encryption', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_field_encryption.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module field-encryption@1 managed
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
@@ -466,7 +466,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_120_field_encryption.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module-data field-encryption
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -481,7 +481,7 @@ values ('field-encryption', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_120_field_encryption.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module field-encryption@1 managed
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
@@ -655,7 +655,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_120_field_encryption.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_129_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bs-module-data field-encryption
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

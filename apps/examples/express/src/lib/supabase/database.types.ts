@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_notes: {
+        Row: {
+          birth_date: string | null
+          client_name: string
+          created_at: string
+          diagnosis: string | null
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          birth_date?: string | null
+          client_name: string
+          created_at?: string
+          diagnosis?: string | null
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string | null
+          client_name?: string
+          created_at?: string
+          diagnosis?: string | null
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           created_at: string
@@ -674,6 +713,14 @@ export type Database = {
           tenant: string
         }
         Returns: undefined
+      }
+      client_notes_reveal: {
+        Args: { ids: string[] }
+        Returns: {
+          birth_date: string
+          diagnosis: string
+          id: string
+        }[]
       }
       customer_note_counts: {
         Args: { p_customer_ids?: string[] }

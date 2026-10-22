@@ -5,6 +5,7 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Jwks } from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { SubjectRef } from "../../schema/types.ts";
+import type { Booking } from "../bookings/bookings.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { Signer } from "../signing-keys/signing-keys.ts";
 
@@ -14,6 +15,7 @@ import { dbError } from "../../core/errors.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { bookingOf } from "../bookings/rows.ts";
 import {
   applyTemporal,
   blockCall,
@@ -239,6 +241,46 @@ export interface Passes {
   ): AsyncResult<readonly PassCheckIn[]>;
   /** How full a resource is now. Needs the bookings block. */
   occupancy(resourceId: string): AsyncResult<PassOccupancy>;
+  /**
+   * Books a class with one credit of a pass with a number of uses
+   * (`options.credits`): its holder, or a passes manager for the holder. The
+   * booking is confirmed; cancelling it before `creditRefundBefore` gives the
+   * credit back.
+   */
+  bookWithCredit(
+    passId: string,
+    input: PassCreditBookingInput,
+  ): AsyncResult<PassCreditBooking>;
+  /** A pass's credit ledger, newest first. */
+  credits(passId: string): AsyncResult<readonly PassCreditEntry[]>;
+}
+
+export interface PassCreditBookingInput {
+  readonly serviceId: string;
+  readonly resourceId: string;
+  readonly startsAt: Temporal.Instant;
+  /** Overrides the holder's name and email on the booking. */
+  readonly customer?: { readonly name?: string; readonly email?: string };
+}
+
+/** A booking a credit paid for. */
+export interface PassCreditBooking extends Booking {
+  readonly passId: string;
+  /** The uses the pass has left after this booking. */
+  readonly creditsLeft: number;
+}
+
+/** One movement in a pass's credit ledger. */
+export interface PassCreditEntry {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly passId: string;
+  /** `-1` for a booking, `1` for a refund. */
+  readonly delta: -1 | 1;
+  readonly reason: "booking" | "refund";
+  readonly createdAt: Temporal.Instant;
+  readonly bookingId?: string;
+  readonly createdBy?: string;
 }
 
 const STATUSES: readonly PassStatus[] = ["active", "revoked"];
@@ -342,6 +384,23 @@ function checkInOf(value: unknown, fn: string): PassCheckIn {
         : enumOrThrow(reason, REJECTIONS, "pass rejection"),
     ),
     ...optional("checkedInBy", optionalText(row["checkedInBy"])),
+  };
+}
+
+const CREDIT_REASONS = ["booking", "refund"] as const;
+
+function creditEntryOf(value: unknown): PassCreditEntry {
+  const row = recordOf(value, "list_pass_credits");
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    passId: textOf(row["passId"]),
+    delta: row["delta"] === 1 ? 1 : -1,
+    reason: enumOrThrow(row["reason"], CREDIT_REASONS, "credit reason"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("bookingId", optionalText(row["bookingId"])),
+    ...optional("createdBy", optionalText(row["createdBy"])),
   };
 }
 
@@ -582,6 +641,30 @@ export function createPasses(options: PassesOptions): Passes {
           free: countOf(row["free"], "free"),
         };
       }),
+    bookWithCredit: (passId, input) =>
+      call(
+        "book_with_credit",
+        {
+          pass_id: passId,
+          service: input.serviceId,
+          resource: input.resourceId,
+          starts_at: String(input.startsAt),
+          customer: input.customer ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "book_with_credit");
+
+          return {
+            ...bookingOf(row),
+            passId: textOf(row["passId"]),
+            creditsLeft: countOf(row["creditsLeft"], "creditsLeft"),
+          };
+        },
+      ),
+    credits: (passId) =>
+      call("list_pass_credits", { pass_id: passId }, (value) =>
+        recordsOf(value, "list_pass_credits").map(creditEntryOf),
+      ),
   };
 
   return withBlockHooks(client, options.hooks, {

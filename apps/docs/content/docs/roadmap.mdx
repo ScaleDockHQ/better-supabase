@@ -33,6 +33,10 @@ Shipping in 0.9.
   crosses PostgREST as text and decodes strictly, and doctor BS223 flags
   functions that return a bare `bigint` or `numeric`. See
   [ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md).
+- **Courses and scored forms** (`better-supabase/blocks/courses` and
+  `better-supabase/blocks/forms`): courses of modules and lessons on
+  enrollments, quizzes graded in SQL, certificates, and NPS rollups per form.
+  See [Courses](/docs/blocks/courses).
 
 ## Next
 
@@ -135,9 +139,8 @@ verticals become thin blocks and presets on top of them.
 15. **Shared primitives (breaking where they absorb existing tables):**
     ledger, assets and locations, votes and scores, moderation, enrollments,
     guest and portal access, merge, file anchors, passes and billable time.
-16. **Vertical blocks and presets:** leases, dispatch, expenses, contracts,
-    courses, posts, shipments, donations, incidents and controls, field
-    encryption, and nineteen vertical presets.
+16. **Vertical blocks and presets:** dispatch, posts, shipments,
+    field encryption, and nineteen vertical presets.
 
 ## Later
 

@@ -6,6 +6,9 @@ export {
   type PassCheckIn,
   type PassCheckInListOptions,
   type PassCheckInOptions,
+  type PassCreditBooking,
+  type PassCreditBookingInput,
+  type PassCreditEntry,
   type Passes,
   type PassesOptions,
   type PassInput,
@@ -54,6 +57,7 @@ export { passesEvents } from "./events.ts";
 
 export type {
   PassAdmittedEventData,
+  PassCreditEventData,
   PassesEvents,
   PassIssuedEventData,
   PassRejectedEventData,

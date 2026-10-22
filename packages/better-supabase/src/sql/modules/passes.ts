@@ -21,6 +21,12 @@ import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
+import {
+  CREDIT_TABLES,
+  creditsContract,
+  creditsOn,
+  creditsSql,
+} from "./passes-credits.ts";
 
 /** Why `check_in_pass` turned a pass away. */
 const PASS_REJECTIONS = [
@@ -46,6 +52,13 @@ const CHECK_IN_PAYLOAD = [
   "bookingId",
 ] as const;
 
+const CREDIT_PAYLOAD = [
+  "organizationId",
+  "id",
+  "entryId",
+  "bookingId",
+] as const;
+
 const EVENTS: ModuleEvents<PassesEvents> = {
   "pass.issued": {
     subject: "passes",
@@ -57,6 +70,8 @@ const EVENTS: ModuleEvents<PassesEvents> = {
     subject: "passes",
     payload: [...CHECK_IN_PAYLOAD, "reason"],
   },
+  "pass.credit_used": { subject: "passes", payload: CREDIT_PAYLOAD },
+  "pass.credit_refunded": { subject: "passes", payload: CREDIT_PAYLOAD },
 };
 
 const NAMES: ModuleNames = {
@@ -70,7 +85,7 @@ const NAMES: ModuleNames = {
     pass_check_in: { table: "checkIns", singular: "pass_check_in" },
   },
   events: EVENTS,
-  options: ["checkInOpens", "dropInLength"],
+  options: ["checkInOpens", "dropInLength", "credits", "creditRefundBefore"],
   tables: {
     passes: {
       name: "passes",
@@ -115,6 +130,7 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
       },
     },
+    ...CREDIT_TABLES,
   },
 };
 
@@ -648,7 +664,7 @@ function build(ctx: ModuleContext): string {
   return `${schemaPreamble(ctx)}
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
-${tables(ctx)}${functions(ctx)}${passMerges(ctx)}`;
+${tables(ctx)}${functions(ctx)}${passMerges(ctx)}${creditsOn(ctx) ? creditsSql(ctx) : ""}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -692,6 +708,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     ...(ctx.installed("bookings")
       ? [{ name: "pass_occupancy", args: ["uuid"], returns: "jsonb" }]
       : []),
+    ...(creditsOn(ctx) ? creditsContract() : []),
   ];
 }
 
@@ -700,7 +717,7 @@ export const PASSES: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Passes",
   description:
-    "Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, and drop-ins counted against the resource's capacity with its bookings.",
+    "Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.",
   requires: ["tenant", "access"],
   integrates: ["outbox", "audit", "bookings", "signing-keys"],
   target: "schema",

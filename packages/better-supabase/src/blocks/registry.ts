@@ -24,18 +24,24 @@ import { catalogBlock } from "./catalog/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
 import { commentsBlock } from "./comments/manifest.ts";
 import { connectorsBlock } from "./connectors/manifest.ts";
+import { contractsBlock } from "./contracts/manifest.ts";
+import { controlsBlock } from "./controls/manifest.ts";
+import { coursesBlock } from "./courses/manifest.ts";
 import { credentialsBlock } from "./credentials/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
+import { dispatchBlock } from "./dispatch/manifest.ts";
 import { documentsBlock } from "./documents/manifest.ts";
 import { domainsBlock } from "./domains/manifest.ts";
+import { donationsBlock } from "./donations/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { engagementsBlock } from "./engagements/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
 import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
+import { expensesBlock } from "./expenses/manifest.ts";
 import { fieldEncryptionBlock } from "./field-encryption/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
 import { formsBlock, signaturesBlock } from "./forms/manifest.ts";
@@ -45,6 +51,7 @@ import { hiringBlock } from "./hiring/manifest.ts";
 import { identitiesBlock } from "./identities/manifest.ts";
 import { importsBlock } from "./imports/manifest.ts";
 import { inboxBlock } from "./inbox/manifest.ts";
+import { incidentsBlock } from "./incidents/manifest.ts";
 import { inventoryBlock } from "./inventory/manifest.ts";
 import { invoicesBlock } from "./invoices/manifest.ts";
 import {
@@ -55,6 +62,7 @@ import {
 } from "./jobs/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
+import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
@@ -93,6 +101,7 @@ import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
 import { sharedSignalsBlock } from "./shared-signals/manifest.ts";
+import { shipmentsBlock } from "./shipments/manifest.ts";
 import { signingKeysBlock } from "./signing-keys/manifest.ts";
 import { slaBlock } from "./sla/manifest.ts";
 import { ssoBlock } from "./sso/manifest.ts";
@@ -163,6 +172,15 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   guestsBlock,
   passesBlock,
   billableTimeBlock,
+  leasesBlock,
+  expensesBlock,
+  donationsBlock,
+  dispatchBlock,
+  shipmentsBlock,
+  contractsBlock,
+  controlsBlock,
+  incidentsBlock,
+  coursesBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

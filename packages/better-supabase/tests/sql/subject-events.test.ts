@@ -52,6 +52,9 @@ const SUBJECT_EVENTS = [
   "engagement.updated",
   "engagement.completed",
   "engagement.deleted",
+  "engagement.recorded",
+  "engagement.transcribed",
+  "engagement.summarized",
   "collection.entry_added",
   "collection.entry_removed",
   "pipeline.stage_changed",
@@ -103,6 +106,8 @@ const SUBJECT_EVENTS = [
   "fulfillment.delivered",
   "return.requested",
   "return.received",
+  "order.prepared",
+  "order.served",
   "form_submission.submitted",
   "form_submission.reviewed",
   "form_submission.deleted",
@@ -159,6 +164,8 @@ const OPTIONAL_SUBJECT = new Set([
   "workflow_run.completed",
   "workflow_run.failed",
   "workflow_run.cancelled",
+  "work_order.created",
+  "shipment.created",
 ]);
 
 interface CatalogEntry {

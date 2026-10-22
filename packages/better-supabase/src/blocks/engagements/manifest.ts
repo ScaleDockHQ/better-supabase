@@ -11,12 +11,14 @@ import { engagementChangeSchema, engagementInputSchema } from "./schemas.ts";
 export const engagementsBlock: BlockOf<
   "engagements",
   typeof createEngagements,
-  EngagementsEvents
+  EngagementsEvents,
+  { readonly files: "optional" }
 > = defineBlock({
   name: "engagements",
   sql: ["engagements"],
   options: { engagements: engagementsSqlOptions },
   events: engagementsEvents,
+  consumes: { files: "optional" },
   schemas: {
     engagement: {
       input: engagementInputSchema,

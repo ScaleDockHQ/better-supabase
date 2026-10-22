@@ -104,6 +104,7 @@
     "domains",
     "moderation",
     "enrollments",
+    "courses",
     "reviews",
     "leave",
     "rules",
@@ -111,6 +112,14 @@
     "vercel-marketplace",
     "guests",
     "passes",
-    "billable-time"
+    "billable-time",
+    "dispatch",
+    "shipments",
+    "leases",
+    "expenses",
+    "donations",
+    "contracts",
+    "controls",
+    "incidents"
   ]
 }

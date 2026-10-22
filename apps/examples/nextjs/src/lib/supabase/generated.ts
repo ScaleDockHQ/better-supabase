@@ -47,6 +47,45 @@ export const tasksStatusValues = ["todo", "doing", "done"] as const;
 export type TasksStatus = (typeof tasksStatusValues)[number];
 
 export type Models = {
+  clientNotes: {
+    Row: {
+      id: string;
+      organizationId: string;
+      createdAt: string;
+      updatedAt: string;
+      clientName: string;
+      diagnosis?: string | null;
+      birthDate?: string | null;
+    };
+    Insert: {
+      id?: string;
+      organizationId: string;
+      createdAt?: string;
+      updatedAt?: string;
+      clientName: string;
+      diagnosis?: string | null;
+      birthDate?: string | null;
+    };
+    Update: {
+      id?: string;
+      organizationId?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      clientName?: string;
+      diagnosis?: string | null;
+      birthDate?: string | null;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "client_notes_organization_id_fkey";
+    Flags: {
+      tenant: "organizationId";
+    };
+  };
   contacts: {
     Row: {
       id: string;
@@ -331,6 +370,7 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
+      clientNotes: { table: "clientNotes"; kind: "many"; nullable: true };
       contacts: { table: "contacts"; kind: "many"; nullable: true };
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
       customers: { table: "customers"; kind: "many"; nullable: true };
@@ -690,6 +730,12 @@ export type Functions = {
     };
     Returns: undefined;
   };
+  client_notes_reveal: {
+    Args: {
+      ids: string[] | null;
+    };
+    Returns: { "birthDate": string | null; "diagnosis": string | null; "id": string | null }[];
+  };
   customer_note_counts: {
     Args: {
       p_customer_ids?: string[] | null | undefined;
@@ -807,7 +853,7 @@ export const buckets = {
 } as const;
 
 /** The app's subject types, from `config.subjects`. */
-export const subjectTypes = ["comment", "company", "person", "deal", "engagement", "work_item", "employee", "ledger_account", "product", "product_variant", "calendar_event", "asset", "asset_location", "document", "customer", "drive_node", "application", "project", "task"] as const;
+export const subjectTypes = ["comment", "course", "company", "person", "deal", "engagement", "work_item", "employee", "ledger_account", "product", "product_variant", "calendar_event", "asset", "asset_location", "lease", "maintenance_request", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "policy", "incident", "document", "customer", "drive_node", "application", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

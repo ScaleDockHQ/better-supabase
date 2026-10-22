@@ -16,6 +16,10 @@ import {
   revokeTaskPasses,
   setRateTaskBillableTime,
   invoiceTaskBillableTime,
+  createTaskDispatch,
+  cancelTaskDispatch,
+  createTaskShipments,
+  cancelTaskShipments,
   linkTaskRelations,
   unlinkTaskRelations,
   createTaskShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateTaskBillableTime,
     invoice: invoiceTaskBillableTime,
+  },
+  dispatch: {
+    create: createTaskDispatch,
+    cancel: cancelTaskDispatch,
+  },
+  shipments: {
+    create: createTaskShipments,
+    cancel: cancelTaskShipments,
   },
   relations: {
     link: linkTaskRelations,

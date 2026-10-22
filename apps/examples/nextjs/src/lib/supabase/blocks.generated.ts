@@ -34,11 +34,21 @@ import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { GuestsEvents } from "better-supabase/blocks/guests";
 import type { PassesEvents } from "better-supabase/blocks/passes";
 import type { BillableTimeEvents } from "better-supabase/blocks/billable-time";
+import type { LeasesEvents } from "better-supabase/blocks/leases";
+import type { ExpensesEvents } from "better-supabase/blocks/expenses";
+import type { DonationsEvents } from "better-supabase/blocks/donations";
+import type { DispatchEvents } from "better-supabase/blocks/dispatch";
+import type { ShipmentsEvents } from "better-supabase/blocks/shipments";
+import type { ContractsEvents } from "better-supabase/blocks/contracts";
+import type { ControlsEvents } from "better-supabase/blocks/controls";
+import type { IncidentsEvents } from "better-supabase/blocks/incidents";
+import type { CoursesEvents } from "better-supabase/blocks/courses";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
 import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { FormsEvents } from "better-supabase/blocks/forms";
+import type { SignaturesEvents } from "better-supabase/blocks/forms";
 import type { HiringEvents } from "better-supabase/blocks/hiring";
 import type { ImportsEvents } from "better-supabase/blocks/imports";
 import type { InboxEvents } from "better-supabase/blocks/inbox";
@@ -250,6 +260,53 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  leases: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  expenses: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  donations: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  dispatch: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      timeZone: "UTC",
+    },
+  },
+  shipments: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  contracts: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  controls: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  incidents: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  courses: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   drive: {
     schema: "better_supabase",
     api: "api",
@@ -281,6 +338,11 @@ export const blockConfig = {
     options: {},
   },
   forms: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  signatures: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -728,6 +790,34 @@ export const permissions = {
     use: "ai.create",
     manage: "ai.admin",
   },
+  contract: {
+    read: "contracts.read",
+    write: "contracts.write",
+  },
+  contracts: {
+    read: "contracts.read",
+    write: "contracts.write",
+    manage: "contracts.manage",
+  },
+  control: {
+    read: "controls.read",
+    write: "controls.manage",
+  },
+  controls: {
+    read: "controls.read",
+    manage: "controls.manage",
+    collect: "controls.collect",
+    acknowledge: "controls.acknowledge",
+  },
+  course: {
+    read: "courses.read",
+    write: "courses.manage",
+  },
+  courses: {
+    read: "courses.read",
+    enroll: "courses.enroll",
+    manage: "courses.manage",
+  },
   "custom-fields": {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
@@ -751,6 +841,11 @@ export const permissions = {
     write: "deals.write",
     manage: "deals.manage",
   },
+  dispatch: {
+    read: "dispatch.read",
+    manage: "dispatch.manage",
+    work: "dispatch.work",
+  },
   document: {
     read: "documents.read",
     write: "documents.write",
@@ -759,6 +854,14 @@ export const permissions = {
     read: "documents.read",
     write: "documents.write",
     manage: "documents.manage",
+  },
+  donation_fund: {
+    read: "donations.read",
+    write: "donations.manage",
+  },
+  donations: {
+    read: "donations.read",
+    manage: "donations.manage",
   },
   drive: {
     read: "drive.read",
@@ -792,6 +895,21 @@ export const permissions = {
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
   },
+  expense_line: {
+    read: "expenses.read",
+    write: "expenses.manage",
+    upload: "expenses.submit",
+  },
+  expense_report: {
+    read: "expenses.read",
+    write: "expenses.manage",
+  },
+  expenses: {
+    read: "expenses.read",
+    submit: "expenses.submit",
+    approve: "expenses.approve",
+    manage: "expenses.manage",
+  },
   flags: {
     manage: "flags.manage",
   },
@@ -819,6 +937,15 @@ export const permissions = {
     assign: "inbox.assign",
     manage: "inbox.manage",
   },
+  incident: {
+    read: "incidents.read",
+    write: "incidents.write",
+  },
+  incidents: {
+    read: "incidents.read",
+    write: "incidents.write",
+    manage: "incidents.manage",
+  },
   inventory: {
     manage: "inventory.manage",
     read: "inventory.read",
@@ -840,6 +967,15 @@ export const permissions = {
     write: "ai.create",
     manage: "ai.admin",
   },
+  lease: {
+    read: "leases.read",
+    write: "leases.manage",
+  },
+  leases: {
+    read: "leases.read",
+    manage: "leases.manage",
+    maintain: "leases.maintain",
+  },
   ledger: {
     read: "ledger.read",
     manage: "ledger.manage",
@@ -848,6 +984,10 @@ export const permissions = {
   ledger_account: {
     read: "ledger.read",
     write: "ledger.manage",
+  },
+  maintenance_request: {
+    read: "leases.read",
+    write: "leases.maintain",
   },
   memory: {
     read: "ai.read",
@@ -874,6 +1014,7 @@ export const permissions = {
   orders: {
     manage: "orders.manage",
     read: "orders.read",
+    prepare: "orders.prepare",
   },
   organizations: {
     update: "organization.update",
@@ -900,6 +1041,10 @@ export const permissions = {
   pipelines: {
     read: "pipelines.read",
     manage: "pipelines.manage",
+  },
+  policy: {
+    read: "controls.read",
+    write: "controls.manage",
   },
   product: {
     read: "catalog.read",
@@ -962,6 +1107,19 @@ export const permissions = {
     create: "share_links.create",
     read: "share_links.read",
   },
+  shipment: {
+    read: "shipments.read",
+    write: "shipments.manage",
+  },
+  shipments: {
+    read: "shipments.read",
+    manage: "shipments.manage",
+  },
+  signatures: {
+    read: "signatures.read",
+    request: "signatures.request",
+    manage: "signatures.manage",
+  },
   sla: {
     read: "sla.read",
     manage: "sla.manage",
@@ -1021,6 +1179,10 @@ export const permissions = {
     read: "work_items.read",
     write: "work_items.write",
   },
+  work_order: {
+    read: "dispatch.read",
+    write: "dispatch.manage",
+  },
   "work-items": {
     read: "work_items.read",
     write: "work_items.write",
@@ -1045,13 +1207,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "comments.create" | "comments.moderate" | "comments.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "documents.manage" | "documents.read" | "documents.write" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "comments.create" | "comments.moderate" | "comments.read" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ControlsEvents & IncidentsEvents & CoursesEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1103,6 +1265,7 @@ export const blockEvents: Events<BlockEvents> = {
     "booking.cancelled",
     "booking.confirmed",
     "booking.expired",
+    "booking.rescheduled",
     "booking.reserved",
     "bulk_run.completed",
     "calendar.created",
@@ -1124,6 +1287,20 @@ export const blockEvents: Events<BlockEvents> = {
     "connector.saved",
     "connector_grant.created",
     "connector_grant.revoked",
+    "contract.created",
+    "contract.renewed",
+    "contract.status_changed",
+    "contract.updated",
+    "control.evidence_added",
+    "control.saved",
+    "course.completed",
+    "course.deleted",
+    "course.enrolled",
+    "course.saved",
+    "course.unenrolled",
+    "course_certificate.issued",
+    "course_certificate.revoked",
+    "course_lesson.completed",
     "custom_field.deleted",
     "custom_field.saved",
     "data_export.completed",
@@ -1135,7 +1312,13 @@ export const blockEvents: Events<BlockEvents> = {
     "deal.deleted",
     "deal.reopened",
     "deal.updated",
+    "dispatch_route.planned",
     "document.created",
+    "donation.failed",
+    "donation.received",
+    "donation.refunded",
+    "donation_receipt.issued",
+    "donation_receipt.voided",
     "drive.node_created",
     "drive.node_moved",
     "drive.node_purged",
@@ -1149,6 +1332,9 @@ export const blockEvents: Events<BlockEvents> = {
     "engagement.completed",
     "engagement.deleted",
     "engagement.logged",
+    "engagement.recorded",
+    "engagement.summarized",
+    "engagement.transcribed",
     "engagement.updated",
     "enrollment.cancelled",
     "enrollment.completed",
@@ -1156,6 +1342,12 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment.step_completed",
     "enrollment_program.deleted",
     "enrollment_program.saved",
+    "evidence_task.missed",
+    "expense_report.approved",
+    "expense_report.cancelled",
+    "expense_report.created",
+    "expense_report.reimbursed",
+    "expense_report.submitted",
     "field_value.set",
     "field_value.viewed",
     "flag.deleted",
@@ -1180,6 +1372,9 @@ export const blockEvents: Events<BlockEvents> = {
     "inbox_conversation.reopened",
     "inbox_conversation.resolved",
     "inbox_message.received",
+    "incident.opened",
+    "incident.resolved",
+    "incident.updated",
     "interview.scheduled",
     "invitation.accepted",
     "invitation.created",
@@ -1198,6 +1393,12 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.voided",
     "job.closed",
     "job.opened",
+    "lease.activated",
+    "lease.charged",
+    "lease.created",
+    "lease.paid",
+    "lease.renewed",
+    "lease.terminated",
     "ledger_account.closed",
     "ledger_account.opened",
     "ledger_hold.captured",
@@ -1207,6 +1408,8 @@ export const blockEvents: Events<BlockEvents> = {
     "ledger_transaction.reversed",
     "legal_hold.placed",
     "legal_hold.released",
+    "maintenance_request.filed",
+    "maintenance_request.updated",
     "moderation_ban.created",
     "moderation_ban.lifted",
     "moderation_item.decided",
@@ -1220,12 +1423,16 @@ export const blockEvents: Events<BlockEvents> = {
     "notification.failed",
     "notification.opened",
     "object.uploaded",
+    "obligation.saved",
+    "obligation.status_changed",
     "order.cancelled",
     "order.completed",
     "order.fulfilled",
     "order.paid",
     "order.placed",
+    "order.prepared",
     "order.refunded",
+    "order.served",
     "organization.created",
     "organization.deleted",
     "organization.deletion_cancelled",
@@ -1247,6 +1454,8 @@ export const blockEvents: Events<BlockEvents> = {
     "organization_setting.reset",
     "organization_setting.updated",
     "pass.admitted",
+    "pass.credit_refunded",
+    "pass.credit_used",
     "pass.issued",
     "pass.rejected",
     "pass.revoked",
@@ -1262,6 +1471,11 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.saved",
     "platform_setting.reset",
     "platform_setting.updated",
+    "pledge.created",
+    "pledge.updated",
+    "policy.acknowledged",
+    "policy.published",
+    "postmortem.published",
     "product.created",
     "product.deleted",
     "product.status_changed",
@@ -1309,6 +1523,15 @@ export const blockEvents: Events<BlockEvents> = {
     "service_principal.role_changed",
     "share_link.created",
     "share_link.revoked",
+    "shipment.cancelled",
+    "shipment.created",
+    "shipment.labeled",
+    "shipment.status_changed",
+    "signature.cancelled",
+    "signature.completed",
+    "signature.declined",
+    "signature.requested",
+    "signature.signed",
     "signing_key.created",
     "signing_key.retired",
     "sla.breached",
@@ -1320,6 +1543,7 @@ export const blockEvents: Events<BlockEvents> = {
     "status.flagged",
     "status.paused",
     "status.resumed",
+    "status_component.changed",
     "stock.adjusted",
     "stock.reorder_point_reached",
     "storefront.published",
@@ -1373,6 +1597,12 @@ export const blockEvents: Events<BlockEvents> = {
     "work_item.deleted",
     "work_item.reopened",
     "work_item.updated",
+    "work_order.created",
+    "work_order.part_used",
+    "work_order.scheduled",
+    "work_order.status_changed",
+    "work_order.unscheduled",
+    "work_order.updated",
     "workflow.published",
     "workflow_alert.triggered",
     "workflow_run.cancelled",
@@ -1429,6 +1659,7 @@ export const blockEventSchemas = {
   "booking.cancelled": true,
   "booking.confirmed": true,
   "booking.expired": true,
+  "booking.rescheduled": true,
   "booking.reserved": true,
   "bulk_run.completed": true,
   "calendar.created": true,
@@ -1450,6 +1681,20 @@ export const blockEventSchemas = {
   "connector.saved": true,
   "connector_grant.created": true,
   "connector_grant.revoked": true,
+  "contract.created": true,
+  "contract.renewed": true,
+  "contract.status_changed": true,
+  "contract.updated": true,
+  "control.evidence_added": true,
+  "control.saved": true,
+  "course.completed": true,
+  "course.deleted": true,
+  "course.enrolled": true,
+  "course.saved": true,
+  "course.unenrolled": true,
+  "course_certificate.issued": true,
+  "course_certificate.revoked": true,
+  "course_lesson.completed": true,
   "custom_field.deleted": true,
   "custom_field.saved": true,
   "data_export.completed": true,
@@ -1461,7 +1706,13 @@ export const blockEventSchemas = {
   "deal.deleted": true,
   "deal.reopened": true,
   "deal.updated": true,
+  "dispatch_route.planned": true,
   "document.created": true,
+  "donation.failed": true,
+  "donation.received": true,
+  "donation.refunded": true,
+  "donation_receipt.issued": true,
+  "donation_receipt.voided": true,
   "drive.node_created": true,
   "drive.node_moved": true,
   "drive.node_purged": true,
@@ -1475,6 +1726,9 @@ export const blockEventSchemas = {
   "engagement.completed": true,
   "engagement.deleted": true,
   "engagement.logged": true,
+  "engagement.recorded": true,
+  "engagement.summarized": true,
+  "engagement.transcribed": true,
   "engagement.updated": true,
   "enrollment.cancelled": true,
   "enrollment.completed": true,
@@ -1482,6 +1736,12 @@ export const blockEventSchemas = {
   "enrollment.step_completed": true,
   "enrollment_program.deleted": true,
   "enrollment_program.saved": true,
+  "evidence_task.missed": true,
+  "expense_report.approved": true,
+  "expense_report.cancelled": true,
+  "expense_report.created": true,
+  "expense_report.reimbursed": true,
+  "expense_report.submitted": true,
   "field_value.set": true,
   "field_value.viewed": true,
   "flag.deleted": true,
@@ -1506,6 +1766,9 @@ export const blockEventSchemas = {
   "inbox_conversation.reopened": true,
   "inbox_conversation.resolved": true,
   "inbox_message.received": true,
+  "incident.opened": true,
+  "incident.resolved": true,
+  "incident.updated": true,
   "interview.scheduled": true,
   "invitation.accepted": true,
   "invitation.created": true,
@@ -1524,6 +1787,12 @@ export const blockEventSchemas = {
   "invoice.voided": true,
   "job.closed": true,
   "job.opened": true,
+  "lease.activated": true,
+  "lease.charged": true,
+  "lease.created": true,
+  "lease.paid": true,
+  "lease.renewed": true,
+  "lease.terminated": true,
   "ledger_account.closed": true,
   "ledger_account.opened": true,
   "ledger_hold.captured": true,
@@ -1533,6 +1802,8 @@ export const blockEventSchemas = {
   "ledger_transaction.reversed": true,
   "legal_hold.placed": true,
   "legal_hold.released": true,
+  "maintenance_request.filed": true,
+  "maintenance_request.updated": true,
   "moderation_ban.created": true,
   "moderation_ban.lifted": true,
   "moderation_item.decided": true,
@@ -1546,12 +1817,16 @@ export const blockEventSchemas = {
   "notification.failed": true,
   "notification.opened": true,
   "object.uploaded": true,
+  "obligation.saved": true,
+  "obligation.status_changed": true,
   "order.cancelled": true,
   "order.completed": true,
   "order.fulfilled": true,
   "order.paid": true,
   "order.placed": true,
+  "order.prepared": true,
   "order.refunded": true,
+  "order.served": true,
   "organization.created": true,
   "organization.deleted": true,
   "organization.deletion_cancelled": true,
@@ -1573,6 +1848,8 @@ export const blockEventSchemas = {
   "organization_setting.reset": true,
   "organization_setting.updated": true,
   "pass.admitted": true,
+  "pass.credit_refunded": true,
+  "pass.credit_used": true,
   "pass.issued": true,
   "pass.rejected": true,
   "pass.revoked": true,
@@ -1588,6 +1865,11 @@ export const blockEventSchemas = {
   "pipeline_stage.saved": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "pledge.created": true,
+  "pledge.updated": true,
+  "policy.acknowledged": true,
+  "policy.published": true,
+  "postmortem.published": true,
   "product.created": true,
   "product.deleted": true,
   "product.status_changed": true,
@@ -1635,6 +1917,15 @@ export const blockEventSchemas = {
   "service_principal.role_changed": true,
   "share_link.created": true,
   "share_link.revoked": true,
+  "shipment.cancelled": true,
+  "shipment.created": true,
+  "shipment.labeled": true,
+  "shipment.status_changed": true,
+  "signature.cancelled": true,
+  "signature.completed": true,
+  "signature.declined": true,
+  "signature.requested": true,
+  "signature.signed": true,
   "signing_key.created": true,
   "signing_key.retired": true,
   "sla.breached": true,
@@ -1646,6 +1937,7 @@ export const blockEventSchemas = {
   "status.flagged": true,
   "status.paused": true,
   "status.resumed": true,
+  "status_component.changed": true,
   "stock.adjusted": true,
   "stock.reorder_point_reached": true,
   "storefront.published": true,
@@ -1699,6 +1991,12 @@ export const blockEventSchemas = {
   "work_item.deleted": true,
   "work_item.reopened": true,
   "work_item.updated": true,
+  "work_order.created": true,
+  "work_order.part_used": true,
+  "work_order.scheduled": true,
+  "work_order.status_changed": true,
+  "work_order.unscheduled": true,
+  "work_order.updated": true,
   "workflow.published": true,
   "workflow_alert.triggered": true,
   "workflow_run.cancelled": true,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_73_bookings.sql
 -- better-supabase module: bookings
 -- @bs-module bookings@1 managed
--- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
+-- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

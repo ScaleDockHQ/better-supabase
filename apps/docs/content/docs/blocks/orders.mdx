@@ -40,10 +40,11 @@ are optional, and without `payments` only free orders can be placed.
 
 ## Permissions
 
-| Key             | What it allows                                                       |
-| --------------- | -------------------------------------------------------------------- |
-| `orders.read`   | Read every cart and order in the organization                        |
-| `orders.manage` | Shipping rates, fulfillments, returns, refunds and cancelling orders |
+| Key              | What it allows                                                                 |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `orders.read`    | Read every cart and order in the organization                                  |
+| `orders.manage`  | Shipping rates, fulfillments, returns, refunds, cancelling orders and stations |
+| `orders.prepare` | Send orders to the kitchen and move their lines through the preparation states |
 
 Shoppers need neither key: a user reads and edits their own carts and reads
 their own orders. Placing an order, recording a payment, merging carts and
@@ -204,6 +205,71 @@ the whole total moves the order to `refunded`.
 To change these rules, register a [state machine](/docs/blocks/state-machine)
 on the orders `status` column; the module then leaves the check to it.
 
+## Kitchen
+
+With `options.kitchen`, each order line gets a preparation state at a
+station, for a kitchen display and an order board. The option is off by
+default and adds three tables: `kitchen_stations`, `kitchen_routes` (which
+station prepares a product) and `order_line_preparations`.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { orders: { options: { kitchen: true } } },
+});
+```
+
+```ts
+const grill = await orders.kitchen
+  .saveStation(organizationId, {
+    key: "grill",
+    name: "Grill",
+    default: true,
+    productIds: [burgerId],
+  })
+  .orThrow();
+
+await orders.kitchen.send(orderId, { [lineId]: "no onions" }).orThrow();
+
+const tickets = await orders.kitchen
+  .queue(organizationId, { stationId: grill.id })
+  .orThrow();
+// [{ orderId, number, sentAt, lines: [{ lineId, title, quantity, state, note }] }]
+
+await orders.kitchen.setState(lineId, "preparing").orThrow();
+await orders.kitchen.bump(orderId, "ready", grill.id).orThrow(); // every line at the grill
+
+const cards = await orders.kitchen.board(organizationId).orThrow();
+// [{ orderId, number, state, counts: { queued, preparing, ready, served } }]
+```
+
+`send` queues each line of a paid or placed order at the station its product
+is routed to, or at the default station, and skips lines already sent, so
+calling it again is safe. A cancelled or refunded order can't be sent
+(`ORDERS_KITCHEN_CLOSED`). A line moves through `queued`, `preparing`,
+`ready` and `served`; `setState` can also move it back, which clears the
+later timestamps. `bump` moves every line of the order (or of one station)
+up to a state and leaves lines that are further along. The board shows the
+orders sent since a day ago by the state of their least advanced line.
+
+Each change broadcasts a `preparation` message with `{ lineId, orderId,
+stationId, state }` on the private Realtime topic `kitchen:<organizationId>`,
+which members with `orders.read` or `orders.prepare` can receive. The
+`KITCHEN_EVENT` and `kitchenTopic(organizationId)` exports name them:
+
+```tsx
+const kitchen = defineTopic("kitchen:{organizationId}");
+
+useBroadcast(
+  kitchen,
+  { organizationId },
+  { [KITCHEN_EVENT]: () => router.refresh() },
+);
+```
+
+The [kitchen display](/docs/registry/ui-recipes#kitchen-display) and
+[order state board](/docs/registry/ui-recipes#order-state-board) recipes
+build both screens from this API.
+
 ## Events
 
 | Event                                          | When                                       |
@@ -215,6 +281,8 @@ on the orders `status` column; the module then leaves the check to it.
 | `order.refunded`                               | A refund succeeds                          |
 | `fulfillment.shipped`, `fulfillment.delivered` | A fulfillment step                         |
 | `return.requested`, `return.received`          | A return step                              |
+| `order.prepared`                               | Every kitchen line is ready or served      |
+| `order.served`                                 | Every kitchen line is served               |
 
 They are subject events on the `order` subject (`organizationId`,
 `subjectType` and `subjectId`), so the

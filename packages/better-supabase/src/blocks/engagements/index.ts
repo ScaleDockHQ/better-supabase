@@ -8,6 +8,22 @@ export {
 } from "./engagements.ts";
 
 export {
+  ENGAGEMENT_TRANSCRIBE_QUEUE,
+  type EngagementActionItem,
+  type EngagementNotes,
+  type EngagementNotesInput,
+  type EngagementRecording,
+  type EngagementRecordingStatus,
+  type NoteTaker,
+  type NoteTakerInput,
+  type Transcriber,
+  type TranscriberInput,
+  type Transcript,
+  type TranscriptSegment,
+  type TranscriptSegmentInput,
+} from "./recordings.ts";
+
+export {
   extendBlock,
   withBlockHooks,
   wrapTransport,

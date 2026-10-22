@@ -23,7 +23,8 @@ import {
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { DURATION } from "./approvals-policies.ts";
-import { formSchemaFunctions } from "./forms-schema.ts";
+import { formNpsFunction } from "./forms-nps.ts";
+import { formSchemaFunctions, formScoringFunctions } from "./forms-schema.ts";
 import { liveShareLink } from "./share-links.ts";
 
 /** The share-links subject type of a public form link. */
@@ -46,7 +47,16 @@ const EVENTS: ModuleEvents<FormsEvents> = {
   },
   "form_submission.submitted": {
     subject: "form-submissions",
-    payload: [...SUBJECT_PAYLOAD, "id", "formId", "versionId", "source"],
+    payload: [
+      ...SUBJECT_PAYLOAD,
+      "id",
+      "formId",
+      "versionId",
+      "source",
+      "score",
+      "maxScore",
+      "passed",
+    ],
   },
   "form_submission.reviewed": {
     subject: "form-submissions",
@@ -118,10 +128,28 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
         submittedAt: "submitted_at",
         updatedAt: "updated_at",
+        score: "score",
+        maxScore: "max_score",
+        passed: "passed",
       },
+      optional: ["score", "maxScore", "passed"],
+    },
+    answerKeys: {
+      name: "form_answer_keys",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        version: "version_id",
+        tenant: "tenant_id",
+        answers: "answers",
+        createdAt: "created_at",
+      },
+      optionalTable: true,
+      adoptOnlyWhenMapped: true,
     },
   },
 };
+
+/** The buckets `form_nps` groups periods by. */
 
 const FORM_KEY = /^[a-z][a-z0-9_-]{0,62}$/;
 const FUNCTION = /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)?$/;
@@ -204,6 +232,24 @@ function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
 }
 
 /**
+ * Scoring needs the answer key table and the score columns: always when
+ * managed, and when the app maps them on adopted tables.
+ */
+function scoringOn(ctx: ModuleContext): boolean {
+  const keys = ctx.manages
+    ? true
+    : ctx.config.tables["answerKeys"] !== undefined &&
+      ctx.hasTable("answerKeys");
+
+  return (
+    keys &&
+    ["score", "maxScore", "passed"].every((column) =>
+      ctx.has("submissions", column),
+    )
+  );
+}
+
+/**
  * PL/pgSQL that raises 23514 with the schema errors, as the jsonb-schemas
  * checks do.
  */
@@ -232,6 +278,9 @@ function build(ctx: ModuleContext): string {
   const limit = publicLimitOf(ctx);
   const shares = ctx.installed("share-links");
   const extras = ctx.extraColumns("forms", ["version"]);
+  const scoring = scoringOn(ctx);
+  const keys = scoring ? ctx.table("answerKeys") : "";
+  const k = (column: string): string => ctx.col("answerKeys", column);
   const notFound = fail("FORM_NOT_FOUND", "form not found", "P0002");
 
   const submissionNotFound = fail(
@@ -243,11 +292,27 @@ function build(ctx: ModuleContext): string {
   const formJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'title', ${row}.${f("title")}, 'description', ${row}.${f("description")}, 'status', ${row}.${f("status")}, 'currentVersionId', ${row}.${f("currentVersion")}, 'createdBy', ${row}.${f("createdBy")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")}${extraFieldsJson(row, extras)})`;
 
-  const versionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${v("id")}, 'formId', ${row}.${v("form")}, 'number', ${row}.${v("number")}, 'definition', ${row}.${v("definition")}, 'schema', ${row}.${v("schema")}, 'createdBy', ${row}.${v("createdBy")}, 'createdAt', ${row}.${v("createdAt")})`;
+  /**
+   * The definition of version `row`: with its answer key put back when
+   * `managers` and the caller manages forms, without it otherwise.
+   */
+  const definitionOf = (row: string, managers: boolean): string =>
+    scoring && managers
+      ? `case when ${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${v("tenant")}`, manage)}
+        then ${fn("form_answer_merge")}(${row}.${v("definition")}, (select a.${k("answers")} from ${keys} a where a.${k("version")} = ${row}.${v("id")}))
+        else ${row}.${v("definition")} end`
+      : `${row}.${v("definition")}`;
+
+  const versionJson = (row: string, managers = true): string =>
+    `jsonb_build_object('id', ${row}.${v("id")}, 'formId', ${row}.${v("form")}, 'number', ${row}.${v("number")}, 'definition', ${definitionOf(row, managers)}, 'schema', ${row}.${v("schema")}, 'createdBy', ${row}.${v("createdBy")}, 'createdAt', ${row}.${v("createdAt")})`;
+
+  const scoreJson = (row: string): string =>
+    scoring
+      ? `, 'score', ${row}.${s("score")}, 'maxScore', ${row}.${s("maxScore")}, 'passed', ${row}.${s("passed")}`
+      : "";
 
   const submissionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'formId', ${row}.${s("form")}, 'versionId', ${row}.${s("version")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'respondentId', ${row}.${s("respondent")}, 'answers', ${row}.${s("answers")}, 'status', ${row}.${s("status")}, 'source', ${row}.${s("source")}, 'reviewedBy', ${row}.${s("reviewedBy")}, 'reviewedAt', ${row}.${s("reviewedAt")}, 'createdAt', ${row}.${s("createdAt")}, 'submittedAt', ${row}.${s("submittedAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'formId', ${row}.${s("form")}, 'versionId', ${row}.${s("version")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'respondentId', ${row}.${s("respondent")}, 'answers', ${row}.${s("answers")}, 'status', ${row}.${s("status")}, 'source', ${row}.${s("source")}, 'reviewedBy', ${row}.${s("reviewedBy")}, 'reviewedAt', ${row}.${s("reviewedAt")}, 'createdAt', ${row}.${s("createdAt")}, 'submittedAt', ${row}.${s("submittedAt")}, 'updatedAt', ${row}.${s("updatedAt")}${scoreJson(row)})`;
 
   const subjectOf = (row: string): string =>
     `'subjectType', coalesce(${row}.${s("subjectType")}, ${sqlString(FORM_SUBJECT)}), 'subjectId', coalesce(${row}.${s("subjectId")}, ${row}.${s("form")}::text)`;
@@ -392,12 +457,25 @@ ${lockTable(submissions, { read: true })}
 drop policy if exists "form_submissions_read" on ${submissions};
 create policy "form_submissions_read" on ${submissions} for select to authenticated
   using (${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid()));
+alter table ${submissions} add column if not exists ${s("score")} numeric;
+alter table ${submissions} add column if not exists ${s("maxScore")} numeric;
+alter table ${submissions} add column if not exists ${s("passed")} boolean;
+
+-- The correct answers of a scored version, which only definer functions read.
+create table if not exists ${keys} (
+  ${k("version")} uuid primary key references ${versions} (${v("id")}) on delete cascade,
+  ${k("tenant")} ${ctx.idType} not null,
+  ${k("answers")} jsonb not null check (jsonb_typeof(${k("answers")}) = 'object'),
+  ${k("createdAt")} timestamptz not null default now()
+);
+${lockTable(keys)}
 `
     : "";
 
   return `${schemaPreamble(ctx)}
 ${tables}
 ${formSchemaFunctions(ctx)}
+${formScoringFunctions(ctx)}
 -- Creates a draft form. fields sets the extra columns by name.
 drop function if exists ${fn("create_form")}(${ctx.idType}, text, text, text);
 create or replace function ${fn("create_form")}(tenant ${ctx.idType}, key text, title text, description text default null, fields jsonb default null)
@@ -486,6 +564,7 @@ as $$
 declare
   v_form ${forms}%rowtype;
   v_resolved jsonb;
+  v_split jsonb;
   v_number integer;
   v_row ${versions}%rowtype;
 begin
@@ -501,10 +580,30 @@ begin
     ["jsonb", "publish_form_version.definition"],
   ])}
   v_resolved := ${fn("form_resolve")}(v_form.${f("tenant")}, publish_form_version.definition);
+  v_split := ${fn("form_answer_split")}(v_resolved);
+  if v_split -> 'key' <> '{}'::jsonb then
+    ${
+      scoring
+        ? "v_resolved := v_split -> 'definition';"
+        : fail(
+            "FORM_SCORING_UNAVAILABLE",
+            "scoring needs the form_answer_keys table and the score columns on form_submissions",
+            "0A000",
+          )
+    }
+  end if;
   select coalesce(max(x.${v("number")}), 0) + 1 into v_number from ${versions} x where x.${v("form")} = v_form.${f("id")};
   insert into ${versions} (${v("tenant")}, ${v("form")}, ${v("number")}, ${v("definition")}, ${v("schema")}, ${v("createdBy")})
   values (v_form.${f("tenant")}, v_form.${f("id")}, v_number, v_resolved, ${fn("form_schema")}(v_resolved), auth.uid())
-  returning * into v_row;
+  returning * into v_row;${
+    scoring
+      ? `
+  if v_split -> 'key' <> '{}'::jsonb then
+    insert into ${keys} (${k("version")}, ${k("tenant")}, ${k("answers")})
+    values (v_row.${v("id")}, v_row.${v("tenant")}, v_split -> 'key');
+  end if;`
+      : ""
+  }
   update ${forms} x set
     ${f("currentVersion")} = v_row.${v("id")},
     ${f("status")} = case when x.${f("status")} = 'draft' then 'open' else x.${f("status")} end,
@@ -607,7 +706,13 @@ set search_path = ''
 as $$
 declare
   v_form ${forms}%rowtype;
-  v_schema jsonb;
+  v_schema jsonb;${
+    scoring
+      ? `
+  v_definition jsonb;
+  v_grade jsonb;`
+      : ""
+  }
   v_errors text[];
   v_row ${submissions}%rowtype;
   v_link jsonb;
@@ -627,11 +732,16 @@ begin
     ["jsonb", "form_submission_save.answers"],
   ])}
   if not form_submission_save.draft then
-    select x.${v("schema")} into v_schema from ${versions} x where x.${v("id")} = v_form.${f("currentVersion")};
+    select x.${v("schema")}${scoring ? `, x.${v("definition")}` : ""} into v_schema${scoring ? ", v_definition" : ""} from ${versions} x where x.${v("id")} = v_form.${f("currentVersion")};
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, form_submission_save.answers::json);
     if cardinality(v_errors) > 0 then
       ${answersInvalid(ctx.tableName("submissions").name)}
-    end if;
+    end if;${
+      scoring
+        ? `
+    v_grade := ${fn("form_score")}(v_definition, (select a.${k("answers")} from ${keys} a where a.${k("version")} = v_form.${f("currentVersion")}), form_submission_save.answers);`
+        : ""
+    }
   end if;
   if form_submission_save.submission_id is not null then
     select * into v_row from ${submissions} x where x.${s("id")} = form_submission_save.submission_id for update;
@@ -647,19 +757,26 @@ begin
       ${s("status")} = case when form_submission_save.draft then 'draft' else 'submitted' end,
       ${s("submittedAt")} = case when form_submission_save.draft then null else now() end,
       ${s("subjectType")} = coalesce(form_submission_save.subject_type, x.${s("subjectType")}),
-      ${s("subjectId")} = coalesce(form_submission_save.subject_id, x.${s("subjectId")}),
+      ${s("subjectId")} = coalesce(form_submission_save.subject_id, x.${s("subjectId")}),${
+        scoring
+          ? `
+      ${s("score")} = (v_grade ->> 'score')::numeric,
+      ${s("maxScore")} = (v_grade ->> 'maxScore')::numeric,
+      ${s("passed")} = (v_grade ->> 'passed')::boolean,`
+          : ""
+      }
       ${s("updatedAt")} = now()
     where x.${s("id")} = form_submission_save.submission_id
     returning * into v_row;
   else
-    insert into ${submissions} (${s("tenant")}, ${s("form")}, ${s("version")}, ${s("subjectType")}, ${s("subjectId")}, ${s("respondent")}, ${s("answers")}, ${s("status")}, ${s("source")}, ${s("submittedAt")})
+    insert into ${submissions} (${s("tenant")}, ${s("form")}, ${s("version")}, ${s("subjectType")}, ${s("subjectId")}, ${s("respondent")}, ${s("answers")}, ${s("status")}, ${s("source")}, ${s("submittedAt")}${scoring ? `, ${s("score")}, ${s("maxScore")}, ${s("passed")}` : ""})
     values (v_form.${f("tenant")}, v_form.${f("id")}, v_form.${f("currentVersion")}, form_submission_save.subject_type, form_submission_save.subject_id, form_submission_save.respondent, form_submission_save.answers,
       case when form_submission_save.draft then 'draft' else 'submitted' end, form_submission_save.source,
-      case when form_submission_save.draft then null else now() end)
+      case when form_submission_save.draft then null else now() end${scoring ? ", (v_grade ->> 'score')::numeric, (v_grade ->> 'maxScore')::numeric, (v_grade ->> 'passed')::boolean" : ""})
     returning * into v_row;
   end if;
   if not form_submission_save.draft then${handlerCase}
-    ${submissionRecord("form_submission.submitted", "v_row", `, 'versionId', v_row.${s("version")}, 'source', v_row.${s("source")}`, false)}
+    ${submissionRecord("form_submission.submitted", "v_row", `, 'versionId', v_row.${s("version")}, 'source', v_row.${s("source")}${scoring ? `, 'score', v_row.${s("score")}, 'maxScore', v_row.${s("maxScore")}, 'passed', v_row.${s("passed")}` : ", 'score', null, 'maxScore', null, 'passed', null"}`, false)}
     ${ctx.hook("after_form_submission", [["uuid", `v_row.${s("id")}`]])}
   end if;
   return ${submissionJson("v_row")};
@@ -720,7 +837,7 @@ begin
     ${fail("FORM_CLOSED", "this form isn't taking submissions", "55000")}
   end if;
   select * into v_version from ${versions} x where x.${v("id")} = v_row.${f("currentVersion")};
-  return jsonb_build_object('id', v_row.${f("id")}, 'title', v_row.${f("title")}, 'description', v_row.${f("description")}, 'version', ${versionJson("v_version")} - 'createdBy');
+  return jsonb_build_object('id', v_row.${f("id")}, 'title', v_row.${f("title")}, 'description', v_row.${f("description")}, 'version', ${versionJson("v_version", false)} - 'createdBy');
 end;
 $$;
 revoke all on function ${fn("get_public_form")}(text) from public;
@@ -814,6 +931,8 @@ end;
 $$;
 ${userGrant(`${fn("list_form_submissions")}(uuid, text, integer, timestamptz)`)}
 
+${formNpsFunction(ctx)}
+
 create or replace function ${fn("review_form_submission")}(submission_id uuid, status text)
 returns jsonb
 language plpgsql
@@ -899,12 +1018,20 @@ export const FORMS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Forms",
   description:
-    "Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record.",
+    "Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.",
   requires: ["tenant", "access", "jsonb-schemas"],
   integrates: ["custom-fields", "share-links", "rate-limit", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Scored forms: a field's correct answer and points, a pass mark, a score on each submission, the nps field type and form_nps.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

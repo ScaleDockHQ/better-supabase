@@ -3,6 +3,7 @@ export {
   type Form,
   type FormDetail,
   type FormInput,
+  type FormNps,
   type Forms,
   type FormsOptions,
   type FormStatus,
@@ -11,6 +12,10 @@ export {
   type FormSubmissionStatus,
   type FormUpdate,
   type FormVersion,
+  type NpsBucket,
+  type NpsCounts,
+  type NpsOptions,
+  type NpsPeriod,
   type PublicForm,
   type PublicSubmission,
   type PublicSubmitOptions,
@@ -51,6 +56,14 @@ export {
 } from "./signatures.ts";
 
 export {
+  formScore,
+  npsCategory,
+  npsScore,
+  type FormScore,
+  type NpsCategory,
+} from "./scoring.ts";
+
+export {
   answersSchema,
   type FormAnswers,
   validateAnswers,
@@ -60,6 +73,8 @@ export {
   FORM_DEFINITION_SCHEMA,
   FORM_FIELD_TYPES,
   FORM_SCHEMA_DIALECT,
+  NPS_MAX,
+  UNSCORED_FIELD_TYPES,
   formDefinitionProblems,
   formSchema,
   isFormDefinition,
@@ -70,6 +85,7 @@ export {
   type FormJson,
   type FormJsonSchema,
   type FormOption,
+  type FormScoring,
   type FormStep,
 } from "../../core/contracts/form-definition.ts";
 

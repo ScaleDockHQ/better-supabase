@@ -24,7 +24,13 @@ const OWNER = new Map(
 /** Rendered with every module, so each optional event path is on. */
 const RECORDED = (() => {
   const files = renderModules(Object.keys(SQL_MODULES), {
-    modules: { audit: { options: { restricted: true } } },
+    modules: {
+      audit: { options: { restricted: true } },
+      bookings: { options: { recurring: true } },
+      engagements: { options: { recordings: true } },
+      orders: { options: { kitchen: true } },
+      passes: { options: { credits: true } },
+    },
   });
 
   const byModule = new Map<string, Set<string>>();

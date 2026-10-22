@@ -22,6 +22,14 @@ export const setRateEngagementBillableTime = engagementRecord.actions.billableTi
 
 export const invoiceEngagementBillableTime = engagementRecord.actions.billableTime.invoice;
 
+export const createEngagementDispatch = engagementRecord.actions.dispatch.create;
+
+export const cancelEngagementDispatch = engagementRecord.actions.dispatch.cancel;
+
+export const createEngagementShipments = engagementRecord.actions.shipments.create;
+
+export const cancelEngagementShipments = engagementRecord.actions.shipments.cancel;
+
 export const linkEngagementRelations = engagementRecord.actions.relations.link;
 
 export const unlinkEngagementRelations = engagementRecord.actions.relations.unlink;

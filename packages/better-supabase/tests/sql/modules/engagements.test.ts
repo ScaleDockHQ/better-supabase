@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},
@@ -59,5 +59,73 @@ describe("engagements module, layouts", () => {
       .join("\n");
 
     expect(sql).toContain("if not false then");
+  });
+});
+
+describe("engagements module, recordings", () => {
+  it("adds nothing by default", () => {
+    const sql = sqlOf();
+    expect(sql).not.toContain("engagement_recordings");
+    expect(sql).not.toContain("save_engagement_notes");
+  });
+
+  it("stores recordings on ai-files with transcripts and notes", () => {
+    const sql = sqlOf({ recordings: true });
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."engagement_recordings"',
+    );
+    expect(sql).toContain('references "better_supabase"."ai_files"');
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."engagement_transcript_segments"',
+    );
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."engagement_notes"',
+    );
+    expect(sql).toContain(
+      'function "better_supabase"."attach_engagement_recording"',
+    );
+    expect(sql).not.toContain("engagements.transcribe:");
+  });
+
+  it("emits recording events with outbox installed", () => {
+    const sql = sqlOf({ recordings: true }, ["outbox"]);
+    expect(sql).toContain("'engagement.recorded'");
+    expect(sql).toContain("'engagement.transcribed'");
+    expect(sql).toContain("'engagement.summarized'");
+  });
+
+  it("queues a transcription with jobs installed", () => {
+    expect(sqlOf({ recordings: true }, ["jobs"])).toContain(
+      "'engagements.transcribe:' || v_recording::text",
+    );
+  });
+
+  it("needs a managed ai-files block", () => {
+    expect(() =>
+      renderModules(["engagements"], {
+        modules: {
+          engagements: { options: { recordings: true } },
+          "ai-files": { mode: "custom" },
+        },
+      }),
+    ).toThrow(/ai-files/);
+  });
+
+  it("lists the recording functions in the contract only when on", () => {
+    const names = (options: Record<string, unknown>) =>
+      customContracts(["engagements"], {
+        modules: { engagements: { mode: "custom", options } },
+      })
+        .find((contract) => contract.module === "engagements")
+        ?.functions.map((fn) => fn.name);
+
+    expect(names({})).not.toContain("save_engagement_notes");
+    expect(names({ recordings: true })).toEqual(
+      expect.arrayContaining([
+        "attach_engagement_recording",
+        "save_engagement_transcript",
+        "save_engagement_notes",
+      ]),
+    );
   });
 });

@@ -22,6 +22,14 @@ export const setRatePersonBillableTime = personRecord.actions.billableTime.setRa
 
 export const invoicePersonBillableTime = personRecord.actions.billableTime.invoice;
 
+export const createPersonDispatch = personRecord.actions.dispatch.create;
+
+export const cancelPersonDispatch = personRecord.actions.dispatch.cancel;
+
+export const createPersonShipments = personRecord.actions.shipments.create;
+
+export const cancelPersonShipments = personRecord.actions.shipments.cancel;
+
 export const linkPersonRelations = personRecord.actions.relations.link;
 
 export const unlinkPersonRelations = personRecord.actions.relations.unlink;

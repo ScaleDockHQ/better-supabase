@@ -72,6 +72,7 @@ A definition is a list of steps, and each step a list of fields. `publish(formId
 | `option`               | one of `options[].value`                 | `options`                           |
 | `multi`                | distinct values from `options`           | `options`, `min`, `max` (items)     |
 | `json`                 | any JSON value                           |                                     |
+| `nps`                  | an integer from 0 to 10                  |                                     |
 
 `required: true` asks for the field, and for a non-empty string or list. A `showIf` on a step or field is `{ field, equals }`, `{ field, in }` or `{ field, filled: true }`, naming an earlier field. A hidden field is never required, so its `required` becomes an `if`/`then` in the schema. A field with `customField: "<definition id>"` copies its label, type and `required` from a [custom field](/docs/blocks/custom-fields) when the version is published; give an option field its `options` in the form.
 
@@ -119,6 +120,63 @@ await forms.review(page[0]!.id, "accepted").orThrow();
 ```
 
 `draft: true` saves answers without checking them, and a later `submit` with `submissionId` finishes the draft against the current version. Pass `subjectType` and `subjectId` to link a submission to a record the caller can read, such as a deal. `listSubmissions` returns the newest first, 50 to a page by default; pass the last `createdAt` as `before` for the next page.
+
+## Scores and quizzes
+
+Give a field a `correct` answer to score it, and `points` to weigh it (1 by default). `scoring.passMark` is the percentage of the points a submission needs to pass. Every field type takes a correct answer except `consent`, `json` and `nps`, and the answer has to be one the field accepts.
+
+```ts
+await forms
+  .publish(form.id, {
+    scoring: { passMark: 70 },
+    steps: [
+      {
+        key: "quiz",
+        fields: [
+          {
+            key: "capital",
+            type: "text",
+            label: "Capital of France",
+            correct: "Paris",
+          },
+          {
+            key: "giants",
+            type: "multi",
+            label: "Gas giants",
+            options: [
+              { value: "jupiter", label: "Jupiter" },
+              { value: "mars", label: "Mars" },
+              { value: "saturn", label: "Saturn" },
+            ],
+            correct: ["jupiter", "saturn"],
+            points: 2,
+          },
+        ],
+      },
+    ],
+  })
+  .orThrow();
+```
+
+`publish` moves the correct answers into the `form_answer_keys` table, which no client role can read. Respondents get the definition without them; callers with `forms.manage` get them merged back. When a submission is final, Postgres scores it inside `submit` and stores `score`, `maxScore` and `passed` on the row, so a client can't send its own grade. Text answers match without case and surrounding spaces, a `multi` answer matches as a set, and other answers match as the same JSON value. A field hidden by its `showIf` (or its step's) counts toward neither score. `passed` is absent without a pass mark, and `score` is absent on drafts and unscored versions.
+
+`formScore(definition, answers)` computes the same grade in the app, for a preview from a definition that still holds its correct answers. On adopted tables, scoring needs `tables.answerKeys` and the `score`, `maxScore` and `passed` columns mapped; without them, `publish` refuses a correct answer with `FORM_SCORING_UNAVAILABLE`.
+
+## Net Promoter Score
+
+An `nps` field takes an integer from 0 to 10. `nps(formId, options)` counts the submitted and accepted answers: 9 and 10 are promoters, 7 and 8 passives, 0 to 6 detractors, and `score` is the promoters' share minus the detractors', from -100 to 100 to one decimal. It needs `forms.review`.
+
+```ts
+const nps = await forms
+  .nps(form.id, {
+    since: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+    bucket: "month",
+  })
+  .orThrow();
+// { field: "nps", responses: 40, promoters: 22, passives: 10, detractors: 8, score: 35, periods: [...] }
+```
+
+`field` picks the field (the current version's first `nps` field by default, `FORM_NPS_FIELD_MISSING` without one). `since` and `until` bound `submittedAt`, and `bucket` (`day`, `week`, `month`, `quarter` or `year`, in UTC) adds a row per period. `npsCategory(answer)` and `npsScore(counts)` give the same buckets and score in the app.
 
 ## Turn a submission into a record
 

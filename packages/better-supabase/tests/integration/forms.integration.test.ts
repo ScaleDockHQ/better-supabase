@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { FormDefinition } from "../../src/core/contracts/form-definition.ts";
 
+import { formScore, npsScore } from "../../src/blocks/forms/scoring.ts";
 import { formSchema } from "../../src/core/contracts/form-definition.ts";
 import { SIGNUP } from "../blocks/forms/fixtures.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -50,6 +51,31 @@ const DEFINITION = {
           required: true,
         },
         { key: "terms", label: "Terms", type: "consent", required: true },
+      ],
+    },
+  ],
+};
+
+const QUIZ: FormDefinition = {
+  scoring: { passMark: 60 },
+  steps: [
+    {
+      key: "quiz",
+      fields: [
+        { key: "capital", label: "Capital", type: "text", correct: "Paris" },
+        {
+          key: "giants",
+          label: "Gas giants",
+          type: "multi",
+          options: [
+            { value: "jupiter", label: "Jupiter" },
+            { value: "mars", label: "Mars" },
+            { value: "saturn", label: "Saturn" },
+          ],
+          correct: ["jupiter", "saturn"],
+          points: 2,
+        },
+        { key: "nps", label: "Recommend us?", type: "nps" },
       ],
     },
   ],
@@ -195,6 +221,148 @@ describe.skipIf(!live)("forms", () => {
           { type: "form_submission.reviewed" },
         ]),
       );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("scores submissions in Postgres against a hidden answer key and rolls up NPS", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      await s.install(MODULES);
+      const tenant = await s.organization(owner, { member });
+      await s.asRole(owner);
+
+      const form = await s.value<{ id: string }>(
+        "better_supabase.create_form($1, 'quiz', 'Quiz')",
+        [tenant],
+      );
+
+      const published = await s.value<{ definition: FormDefinition }>(
+        "better_supabase.publish_form_version($1, $2)",
+        [form.id, QUIZ],
+      );
+
+      expect(published.definition).toEqual(QUIZ);
+      expect(
+        await s.hint("better_supabase.publish_form_version($1, $2)", [
+          form.id,
+          {
+            steps: [
+              {
+                key: "q",
+                fields: [{ key: "x", label: "X", type: "nps", correct: 9 }],
+              },
+            ],
+          },
+        ]),
+      ).toBe("FORM_DEFINITION_INVALID");
+      await s.value("better_supabase.update_form($1, null, null, 'open')", [
+        form.id,
+      ]);
+
+      await s.asRole(member);
+
+      const seen = await s.value<{ version: { definition: FormDefinition } }>(
+        "better_supabase.get_form($1)",
+        [form.id],
+      );
+
+      expect(JSON.stringify(seen.version.definition)).not.toContain("correct");
+      expect(
+        await s.hint("select * from better_supabase.form_answer_keys"),
+      ).toMatch(/GRANT SELECT ON better_supabase\.form_answer_keys/);
+
+      const answers = [
+        { capital: " paris", giants: ["saturn", "jupiter"], nps: 10 },
+        { capital: "Lyon", giants: ["jupiter"], nps: 9 },
+        { capital: "Paris", giants: ["mars"], nps: 3 },
+      ];
+
+      const graded: unknown[] = [];
+
+      for (const answer of answers) {
+        const row = await s.value<{ id: string }>(
+          "better_supabase.submit_form($1, $2)",
+          [form.id, answer],
+        );
+
+        const read = await s.value<{
+          score: number;
+          maxScore: number;
+          passed: boolean;
+        }>("better_supabase.get_form_submission($1)", [row.id]);
+
+        graded.push({
+          score: read.score,
+          maxScore: read.maxScore,
+          passed: read.passed,
+        });
+      }
+
+      expect(graded).toEqual(answers.map((answer) => formScore(QUIZ, answer)));
+
+      const draft = await s.value<{ id: string }>(
+        "better_supabase.submit_form($1, $2, null, null, null, true)",
+        [form.id, { capital: "Paris" }],
+      );
+
+      const unscored = await s.value<{ score: unknown }>(
+        "better_supabase.get_form_submission($1)",
+        [draft.id],
+      );
+
+      expect(unscored.score).toBeNull();
+      expect(await s.hint("better_supabase.form_nps($1)", [form.id])).toBe(
+        "FORM_FORBIDDEN",
+      );
+
+      await s.asRole(owner);
+
+      const nps = await s.value<Record<string, unknown>>(
+        "better_supabase.form_nps($1, null, null, null, 'month')",
+        [form.id],
+      );
+
+      expect(nps).toMatchObject({
+        field: "nps",
+        responses: 3,
+        promoters: 2,
+        passives: 0,
+        detractors: 1,
+        score: npsScore({ promoters: 2, passives: 0, detractors: 1 }),
+      });
+      expect(nps["periods"]).toHaveLength(1);
+      expect(
+        await s.hint("better_supabase.form_nps($1, null, null, null, 'hour')", [
+          form.id,
+        ]),
+      ).toBe("FORM_NPS_BUCKET_INVALID");
+      expect(
+        await s.value(
+          "better_supabase.form_nps($1, 'nps', now() + interval '1 day')",
+          [form.id],
+        ),
+      ).toMatchObject({ responses: 0, score: null, periods: [] });
+
+      await s.service();
+      expect(
+        await s.rows<{ payload: { score: number } }>(
+          `select payload from better_supabase.outbox_events where type = 'form_submission.submitted' and payload ->> 'formId' = $1 order by created_at limit 1`,
+          [form.id],
+        ),
+      ).toEqual([
+        {
+          payload: expect.objectContaining({
+            score: 3,
+            maxScore: 3,
+            passed: true,
+          }),
+        },
+      ]);
     } finally {
       await s.close();
     }

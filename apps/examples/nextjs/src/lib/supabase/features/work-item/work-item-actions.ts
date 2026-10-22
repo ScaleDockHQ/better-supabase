@@ -22,6 +22,14 @@ export const setRateWorkItemBillableTime = workItemRecord.actions.billableTime.s
 
 export const invoiceWorkItemBillableTime = workItemRecord.actions.billableTime.invoice;
 
+export const createWorkItemDispatch = workItemRecord.actions.dispatch.create;
+
+export const cancelWorkItemDispatch = workItemRecord.actions.dispatch.cancel;
+
+export const createWorkItemShipments = workItemRecord.actions.shipments.create;
+
+export const cancelWorkItemShipments = workItemRecord.actions.shipments.cancel;
+
 export const linkWorkItemRelations = workItemRecord.actions.relations.link;
 
 export const unlinkWorkItemRelations = workItemRecord.actions.relations.unlink;

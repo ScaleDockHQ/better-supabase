@@ -601,6 +601,14 @@ export interface FormSubmissionEventData extends SubjectEventData {
   readonly source?: string;
   /** For `form_submission.reviewed`: `submitted`, `accepted` or `rejected`. */
   readonly status?: string;
+  /**
+   * For `form_submission.submitted` on a scored form: the points earned, out of
+   * `maxScore`.
+   */
+  readonly score?: number;
+  readonly maxScore?: number;
+  /** Against the pass mark; absent without one. */
+  readonly passed?: boolean;
 }
 
 /**
@@ -873,6 +881,7 @@ export type {
   EmployeeEventData,
   DealEventData,
   EngagementEventData,
+  EngagementRecordingEventData,
   InvoiceEventData,
   JobEventData,
   PartyEventData,
