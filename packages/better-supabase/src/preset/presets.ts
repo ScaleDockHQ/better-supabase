@@ -84,6 +84,8 @@ export type PresetName =
   | "compliance"
   | "construction"
   | "claims"
+  | "community"
+  | "feedback"
   | "ai"
   | "ai-chat"
   | "ai-agents"
@@ -551,6 +553,43 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "comments",
     ],
   },
+  community: {
+    name: "community",
+    title: "Community",
+    description:
+      "SaaS plus forum boards of posts with votes and replies, chat channels, reactions, moderation with reports and bans, post scores from votes, tags and search.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "posts",
+      "messaging",
+      "channels",
+      "comments",
+      "reactions",
+      "moderation",
+      "scores",
+      "tags",
+      "search",
+    ],
+  },
+  feedback: {
+    name: "feedback",
+    title: "Product feedback",
+    description:
+      "SaaS plus feedback boards of voted ideas with roadmap statuses, replies, moderation, ideas linked to the work items that ship them, tags and search.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "posts",
+      "comments",
+      "reactions",
+      "moderation",
+      "work-items",
+      "relations",
+      "tags",
+      "search",
+    ],
+  },
   ai: {
     name: "ai",
     title: "AI workspace",
@@ -698,6 +737,8 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "compliance",
   "construction",
   "claims",
+  "community",
+  "feedback",
   "ai",
   "ai-chat",
   "ai-agents",

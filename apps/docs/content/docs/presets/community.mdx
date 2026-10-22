@@ -1,0 +1,71 @@
+---
+title: Community
+description: The community preset installs forum boards of voted posts with replies, chat channels, reactions, moderation with reports and bans, post scores, tags and search.
+---
+
+The `community` preset is for an app in the style of Discourse or Circle.
+Members ask questions and start discussions on forum boards, vote on the
+posts they find useful, reply in threads and talk in channels. Moderators
+work through reported content and ban members who break the rules.
+
+## Config
+
+Hold new posts and edits for review with the posts block's `moderation`
+option; posts show at once by default, so the preset leaves it to your
+config:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: "community",
+  blocks: { posts: { options: { moderation: "pre" } } },
+});
+```
+
+`npx better-supabase init --preset community` starts a new project from it,
+and `npx better-supabase apply --preset community` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                 | Role in the app                                         |
+| ------------------------------------- | ------------------------------------------------------- |
+| [posts](/docs/blocks/posts)           | Forum boards of posts, pinned and locked by moderators  |
+| [messaging](/docs/blocks/messaging)   | The core under replies, channels and direct messages    |
+| [channels](/docs/blocks/channels)     | Public and private chat channels                        |
+| [comments](/docs/blocks/comments)     | Threaded replies on a post                              |
+| [reactions](/docs/blocks/reactions)   | Up and down votes on posts, emoji on messages           |
+| [moderation](/docs/blocks/moderation) | Reports, the review queue, hiding and bans              |
+| [scores](/docs/blocks/scores)         | A score per post from its votes, with bands such as hot |
+| [tags](/docs/blocks/tags)             | Topics on posts                                         |
+| [search](/docs/blocks/search)         | Search over posts and channels for a Cmd+K dialog       |
+
+## How the blocks connect
+
+A forum is a posts board of kind `forum`. `posts.vote(postId, value)` stores
+the vote as a reaction, and `list({ sort: "top" })` orders a board by it.
+Replies are comments on the subject `post`, so they are messages on the
+messaging core, with mentions and reactions of their own
+([posts](/docs/blocks/posts)).
+
+Every post, reply and channel message is moderated through the same queue. A
+report hides the content once it reaches the moderation block's
+`autoHideThreshold`, a moderator's decision hides, removes or restores it,
+and a banned member can't post, reply or report until the ban ends
+([moderation](/docs/blocks/moderation)).
+
+A scoring model over the `post` subject type can weigh a post's vote score
+(a `votes` metric), and its bands name the hot posts that `scores.top` lists
+for a front page. Compute it from an outbox sink on the post events
+([scores](/docs/blocks/scores)).
+
+## With ReUI
+
+- The [post board](/docs/registry/ui-recipes#post-board) recipe for a board
+  sorted by votes, with an upvote toggle and a New post dialog.
+- Data Grid for the moderation queue, with Filters on status and reason.
+- A channel sidebar with unread counts as a Badge.

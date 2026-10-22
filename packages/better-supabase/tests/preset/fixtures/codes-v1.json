@@ -1495,6 +1495,81 @@
           "sla"
         ]
       }
+    },
+    {
+      "name": "community",
+      "code": "1eEdb2I7FWdXeA43s3JC07wnsAbuR9M",
+      "preset": {
+        "framework": "next",
+        "platforms": "web",
+        "casing": "snake",
+        "idType": "uuid",
+        "scope": "tenant",
+        "tenantName": "organization",
+        "access": "roles",
+        "api": "none",
+        "integrations": [],
+        "blocks": [
+          "audit",
+          "invitations",
+          "entitlements",
+          "organizations",
+          "profiles",
+          "outbox",
+          "notifications",
+          "api-keys",
+          "settings",
+          "billing",
+          "comments",
+          "onboarding",
+          "teams",
+          "tags",
+          "search",
+          "reactions",
+          "scores",
+          "moderation",
+          "messaging",
+          "channels",
+          "posts"
+        ]
+      }
+    },
+    {
+      "name": "feedback",
+      "code": "1eAzMTsNtq64bHTqo3HQphLLsPnBupk",
+      "preset": {
+        "framework": "next",
+        "platforms": "web",
+        "casing": "snake",
+        "idType": "uuid",
+        "scope": "tenant",
+        "tenantName": "organization",
+        "access": "roles",
+        "api": "none",
+        "integrations": [],
+        "blocks": [
+          "audit",
+          "invitations",
+          "entitlements",
+          "organizations",
+          "profiles",
+          "outbox",
+          "notifications",
+          "api-keys",
+          "settings",
+          "billing",
+          "comments",
+          "onboarding",
+          "teams",
+          "tags",
+          "relations",
+          "search",
+          "reactions",
+          "work-items",
+          "moderation",
+          "posts"
+        ]
+      }
     }
   ]
 }

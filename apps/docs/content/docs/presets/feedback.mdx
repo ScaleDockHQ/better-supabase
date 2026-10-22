@@ -1,0 +1,60 @@
+---
+title: Product feedback
+description: The feedback preset installs feedback boards of voted ideas with roadmap statuses, replies, moderation, links from ideas to the work items that ship them, tags and search.
+---
+
+The `feedback` preset is for an app in the style of Canny or Productboard.
+Customers post ideas and vote on them, the product team merges duplicates,
+moves the ideas it takes on through a public roadmap and links each one to
+the work items that build it.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "feedback" });
+```
+
+`npx better-supabase init --preset feedback` starts a new project from it,
+and `npx better-supabase apply --preset feedback` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                 | Role in the app                                            |
+| ------------------------------------- | ---------------------------------------------------------- |
+| [posts](/docs/blocks/posts)           | Feedback boards of ideas, with roadmap statuses and merges |
+| [comments](/docs/blocks/comments)     | Replies on an idea, from customers and the team            |
+| [reactions](/docs/blocks/reactions)   | The votes on each idea                                     |
+| [moderation](/docs/blocks/moderation) | Reports on spam or abuse, hiding and bans                  |
+| [work-items](/docs/blocks/work-items) | The issues the team builds on its own board                |
+| [relations](/docs/blocks/relations)   | Links from an idea to the work items that ship it          |
+| [tags](/docs/blocks/tags)             | Product areas on ideas                                     |
+| [search](/docs/blocks/search)         | Finding an existing idea before posting a duplicate        |
+
+## How the blocks connect
+
+A feedback board is a posts board of kind `feedback`, and `list({ sort:
+"top" })` orders its ideas by votes. The roadmap is the post status: the
+team moves an idea from `open` through `under_review`, `planned` and
+`in_progress` to `done`, so a roadmap page lists a board by status. Merging a
+duplicate with `posts.merge` closes it and moves its votes to the idea it
+keeps ([posts](/docs/blocks/posts)).
+
+When the team takes an idea on, it creates a work item and links the two with
+the relations block's `created_from` kind, so the item names the idea it came
+from and the idea lists the items it was `converted_to`
+([relations](/docs/blocks/relations)). When the work ships, an outbox sink on
+`work_item.updated` can set the idea to `done`, and one on
+`post.status_changed` can notify its author.
+
+## With ReUI
+
+- The [post board](/docs/registry/ui-recipes#post-board) recipe for ideas
+  sorted by votes, with an upvote toggle and a New post dialog.
+- Kanban for the roadmap, one column per status.
+- A Badge with each idea's status, and the linked work items as chips.
