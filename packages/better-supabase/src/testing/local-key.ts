@@ -45,7 +45,7 @@ const isSigningKey = (value: unknown): value is SigningJwk =>
 
 /**
  * The key the local stack signs with: the first entry of the file
- * `better-supabase keys` wrote. `path` defaults to
+ * `better-supabase dev keys` wrote. `path` defaults to
  * `$SUPABASE_SIGNING_KEYS_PATH`, then `signing_keys_path` from the nearest
  * `supabase/config.toml`.
  */
@@ -57,7 +57,7 @@ export async function localSigningKey(path?: string): Promise<SigningJwk> {
 
   if (!file || !existsSync(file)) {
     throw new TypeError(
-      'No local signing key. Run `better-supabase keys`, set `signing_keys_path` in supabase/config.toml and restart the stack, or pass { alg: "HS256" } to sign with the local JWT secret.',
+      'No local signing key. Run `better-supabase dev keys`, set `signing_keys_path` in supabase/config.toml and restart the stack, or pass { alg: "HS256" } to sign with the local JWT secret.',
     );
   }
 

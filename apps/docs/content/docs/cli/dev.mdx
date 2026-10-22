@@ -1,15 +1,20 @@
 ---
-title: Local development
-description: Env files, signing keys and typed seeds for the local stack.
+title: dev
+description: Env files, a command with the stack's env, signing keys, and the local stacks.
 ---
+
+The `dev` commands set up and inspect local development: `dev env` writes
+the env files from the running stack, `dev run` runs a command with them,
+`dev keys` writes a signing key, and `dev stack` lists and prunes the local
+stacks.
 
 ## env
 
 ```bash
-pnpm better-supabase env
+pnpm better-supabase dev env
 ```
 
-`env` reads `supabase status` and writes the URL and keys to `.env.local`.
+`dev env` reads `supabase status` and writes the URL and keys to `.env.local`.
 It updates the variables it manages in place and keeps every other line.
 Server code reads the plain names. The browser copies get your framework's
 prefix (`NEXT_PUBLIC_`, `VITE_`, `EXPO_PUBLIC_`), or the one you pass with
@@ -33,39 +38,39 @@ bundled into client code ([BS501](/docs/cli/doctor#bs501)).
 
 Values are never printed unless you pass `--write -`, which prints the
 variables on stdout instead of writing a file. The file is readable by
-your user only (mode `0600`), even when its contents didn't change. `env`
+your user only (mode `0600`), even when its contents didn't change. `dev env`
 warns when the file isn't in `.gitignore`, and when your Supabase CLI only
 prints legacy keys.
 `--write <file>` (or its older name `--out`) writes another file than
 `.env.local` (`env.output` in the config sets it for every run, and
 `env.prefix` the prefix), and
 `--status-file <file>` reads saved `supabase status -o json` output instead of running the
-Supabase CLI. Both paths must stay inside the project root: `env` refuses an
+Supabase CLI. Both paths must stay inside the project root: `dev env` refuses an
 absolute path elsewhere or one that climbs out with `..`, so the secret key
 never lands outside the project. `--dry-run` and `--check` name the file
 without showing the keys ([writing files](/docs/cli#writing-files)).
 
 ```bash
-pnpm better-supabase env --write .env.supabase.local --prefix next
+pnpm better-supabase dev env --write .env.supabase.local --prefix next
 ```
 
 A separate file keeps the stack's values apart from the ones you edit. In
 Next.js, `.env.supabase.local` is not one of the files it loads, so load it
-with `run` below or a dotenv loader. If you write to `.env.local`, Next.js
+with `dev run` below or a dotenv loader. If you write to `.env.local`, Next.js
 loads it after `.env.development.local` and before `.env.development` and
 `.env`, and a variable from the first file that sets it wins. It skips
 `.env.local` under `NODE_ENV=test`.
 
 The Supabase CLI's native stack (`[experimental] stack = true` in
 `supabase/config.toml`, or `SUPABASE_EXPERIMENTAL_STACK=1`) runs without a
-Docker daemon and rejects `supabase status -o json`. `env` then reads
+Docker daemon and rejects `supabase status -o json`. `dev env` then reads
 `supabase status --env` instead. That output has no `JWT_SECRET`, so
 `SUPABASE_JWT_SECRET` is left out, and HS256 test tokens use the CLI's default
 secret.
 
 The native stack starts one stack per checkout and branch, and each running
 Postgres holds a System V shared memory segment. When segments run out,
-[`stack prune`](/docs/cli/stack) removes the stacks of deleted worktrees and
+[`dev stack prune`](#prune) removes the stacks of deleted worktrees and
 branches, and [`db diff`](/docs/cli/db#diff) diffs the declarative schema
 without a shadow database.
 
@@ -74,19 +79,19 @@ Side effects: Writes files.
 ## run
 
 ```bash
-pnpm better-supabase run -- next dev
+pnpm better-supabase dev run -- next dev
 ```
 
-`run` reads `supabase status` and starts the command after `--` with the
-stack's variables (the ones `env` writes) set, so the app always talks to
+`dev run` reads `supabase status` and starts the command after `--` with the
+stack's variables (the ones `dev env` writes) set, so the app always talks to
 the stack this worktree is running. It passes the child's output and exit
 code through, forwards Ctrl+C (`SIGINT`) and `SIGTERM` to it, and
-`--prefix` picks the browser prefix the same way `env` does. Nothing is
+`--prefix` picks the browser prefix the same way `dev env` does. Nothing is
 written to disk.
 
 Each variable is resolved in this order, first one set wins:
 
-1. The running stack, through `run`.
+1. The running stack, through `dev run`.
 2. Your shell's exported variables.
 3. The framework's env files (`.env.local` and the rest). Next.js, Vite and
    dotenv never override a variable that is already set, so the first two
@@ -94,7 +99,7 @@ Each variable is resolved in this order, first one set wins:
 
 A `SUPABASE_*` variable exported in your shell (left over from another
 project or a hosted one) would otherwise point the app at the wrong stack.
-`run` uses the stack's value and warns, naming the variable. The warning
+`dev run` uses the stack's value and warns, naming the variable. The warning
 shows only the host and port of a URL, and a `sha256:` fingerprint of a key,
 never the key itself:
 
@@ -110,120 +115,72 @@ Side effects: Runs the command you pass.
 ## keys
 
 ```bash
-pnpm better-supabase keys
+pnpm better-supabase dev keys
 ```
 
 This writes an ES256 key to `supabase/signing_keys.json` with mode `0600`.
 Point `[auth] signing_keys_path` at it, and local tokens are then signed the way
 your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
-existing tokens still verify. `keys` refuses to overwrite an existing file
+existing tokens still verify. `dev keys` refuses to overwrite an existing file
 unless you pass `--force`, and `--out <file>` (or `tooling.keys.output` in the
 config) writes somewhere else. `--dry-run` writes nothing.
 
 Side effects: Writes files.
 
-## seed
+## stack
 
-Define fixtures once, in app casing, checked against your Insert types:
+The Supabase CLI's stack engine (`[experimental] stack = true`) starts one
+local stack per checkout and branch. Stacks outlive the worktrees and branches
+they were started for, and every running Postgres holds one System V shared
+memory segment. macOS allows 32 segments by default (`kern.sysv.shmmni`), so a
+machine with many stacks runs out, and the next shadow database fails with
+`could not create shared memory segment: No space left on device`. `dev stack ls`
+and `dev stack prune` show which stacks hold segments and remove the ones you no longer
+need.
 
-```ts title="supabase/seed.ts"
-import { defineSeed } from "better-supabase/testing";
-import { betterSupabase } from "../src/lib/supabase/index.ts";
-
-export const ACME = "00000000-0000-4000-8000-000000000001";
-
-export const seed = defineSeed(betterSupabase, {
-  organizations: { acme: { id: ACME, name: "Acme", slug: "acme" } },
-  customers: {
-    first: {
-      organizationId: ACME,
-      name: "First customer",
-      metadata: { tier: "pro" },
-    },
-  },
-});
-```
+### ls
 
 ```bash
-pnpm better-supabase seed          # writes supabase/seeds/000_better_supabase.sql
-pnpm better-supabase seed --check  # fails in CI when the SQL is stale
-pnpm better-supabase seed --apply  # also inserts into the local database
+pnpm better-supabase dev stack ls
 ```
 
-`--entry <file>` and `--out <file>` override `database.seed.entry` and
-`database.seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
-`--check` runs `--apply`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
-to seed another database, pipe its connection string in with
-`--db-url-stdin`.
+`dev stack ls` lists every stack from `supabase stack list` with its branch, its
+project root and whether it is running. It marks the stack of this checkout,
+a stack whose worktree is gone and a stack whose branch is deleted, and
+counts the shared memory segments each stack's postmaster holds. The last
+line shows how many segments are in use out of the system limit. The JSON
+envelope has the stacks in `data.stacks` and the totals in
+`data.sharedMemory`; `unattributed` counts segments no managed stack holds.
 
-- Tables are inserted parents first, following foreign keys.
-- Missing columns use their defaults, and every insert is
-  `on conflict do nothing`, so a seed can run twice.
-- Unknown tables and columns are type errors. A column you leave out that
-  has no default fails in the editor, not at `db reset`.
-- Add the file to `[db.seed] sql_paths` in `supabase/config.toml`. `seed`
-  prints the line when it's missing, and it never overwrites a file it
-  didn't write.
+Side effects: Reads the local stacks.
 
-Tests import the same rows: `seed.rows.customers.first`, and
-`await seed.insert(sql)` in a `beforeAll`. Node loads `seed.ts` directly,
-so use `.ts` extensions in its relative imports.
-
-### Seeds per tenant
-
-A tenant seed builds rows from a tenant, so every organization can start
-with the same demo data. Put it in `database.seed.perTenant`
-(`supabase/seed.tenant.ts` by default):
-
-```ts title="supabase/seed.tenant.ts"
-import { defineTenantSeed } from "better-supabase/testing";
-import { betterSupabase } from "../src/lib/supabase/index.ts";
-
-export const seed = defineTenantSeed(betterSupabase, (tenant) => ({
-  customers: { demo: { organizationId: tenant.id, name: "Demo customer" } },
-}));
-```
+### prune
 
 ```bash
-pnpm better-supabase seed --tenant acme  # one organization, by slug or id
-pnpm better-supabase seed --tenant '*'   # every organization
+pnpm better-supabase dev stack prune --dry-run
+pnpm better-supabase dev stack prune --stop-idle
 ```
 
-`--tenant` looks organizations up in the
-[organizations block](/docs/blocks/organizations) and inserts the rows for
-all of them in one transaction, so a failure leaves none behind. `--entry`
-overrides `database.seed.perTenant`. The database and consent rules are the ones
-`--apply` follows: the local stack needs no consent, any other database
-does, and `--dry-run` connects to nothing. `tenant.slug` and `tenant.name`
-are set when the organization has them. Every insert is
-`on conflict do nothing`, so give rows a key when the seed may run twice
-for the same tenant; a row whose id comes from a default is inserted again.
+`dev stack prune` destroys each stack whose worktree no longer exists or whose
+branch was deleted, with `supabase stack destroy`, which also removes its
+data. It never touches the stack of this checkout and branch.
 
-To seed each organization as it's created in development, register the
-seed once on the server with a service-role client:
+| Flag          | Effect                                                                           |
+| ------------- | -------------------------------------------------------------------------------- |
+| `--stop-idle` | Also stops the running stacks of other branches and checkouts. Their data stays. |
+| `--dry-run`   | Prints the stacks it would destroy or stop, and changes nothing.                 |
 
-```ts title="src/lib/supabase/dev-seed.ts"
-import { createPostgres } from "better-supabase/postgres";
-import { seedTenantOnCreate } from "better-supabase/testing";
-import { seed } from "../../../supabase/seed.tenant.ts";
-import { betterSupabase } from "./index.ts";
+In agent mode, destroying a stack needs the user's consent first
+([Agent mode](/docs/cli/agent-mode)). Stopping a stack frees its segment, and
+`supabase start` in that checkout starts it again with its data. Run
+`better-supabase doctor` to see the segment use as a finding (BS700).
 
-const postgres = createPostgres({
-  connectionString: process.env.SUPABASE_DB_URL,
-});
-
-seedTenantOnCreate(betterSupabase, seed, { sql: postgres.admin });
-```
-
-It listens for `organization.created` and runs only when `NODE_ENV` is
-`development` (pass `enabled` to decide yourself). The seed runs after the
-create call has returned, so it can't change its result; a failed seed goes
-to `onError`, or to `console.error` by default.
+Side effects: Stops or destroys local stacks.
 
 ### One stack per purpose
 
-`seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
+`db seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
 `supabase/config.toml`. To keep a second stack for tests or a demo, give it
 its own `[db] port` in `supabase/stacks/<name>/config.toml` and pass
 `--stack <name>` or set `BSB_STACK=<name>`. Without a port there, the
@@ -242,24 +199,9 @@ machine (`sysctl kern.sysv.shmmni`). Once they are used up, the next
 `supabase start` fails because its Postgres can't get a segment. `ipcs -m`
 lists the segments in use.
 
-Stop the stacks you aren't using. [`stack ls`](/docs/cli/stack) shows every
+Stop the stacks you aren't using. [`dev stack ls`](#ls) shows every
 stack on the machine with its branch and whether its worktree still exists,
-and `stack prune` destroys the stacks of deleted worktrees and merged
+and `dev stack prune` destroys the stacks of deleted worktrees and merged
 branches (`--stop-idle` also stops the idle ones). `supabase stop --stack-id`
 with a stack's id stops that stack without deleting its data. `doctor`
 reports the segment use as BS700 before it runs out.
-
-Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`.
-
-## OpenAPI files
-
-`openapi emit` is now [`spec emit openapi`](/docs/cli/spec). It reads a
-module that exports a [`createOpenApi`](/docs/standards/openapi) document as
-`openapi` or default (or a function that returns it), as well as a
-`defineApi` module. The `openapi` config key is a deprecated alias of
-`specs`: when `specs` is unset, `spec` reads `api.openapi.entry` and
-`api.openapi.output`.
-
-```bash
-pnpm better-supabase spec emit openapi --check
-```

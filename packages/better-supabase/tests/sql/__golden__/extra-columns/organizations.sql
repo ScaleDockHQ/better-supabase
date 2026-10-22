@@ -752,7 +752,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_21_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block-data organizations
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

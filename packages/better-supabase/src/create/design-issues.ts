@@ -51,7 +51,7 @@ export interface DesignIssue {
 }
 
 /**
- * What would stop `sql sync` from writing the design: a table name a block
+ * What would stop `upgrade` from writing the design: a table name a block
  * already uses, a reference to a table the preset no longer installs, a
  * set-null delete on a required column, a composite key on a column the table
  * doesn't have, and extra columns for a block that is gone or no longer takes

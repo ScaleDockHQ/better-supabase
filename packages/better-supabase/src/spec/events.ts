@@ -67,7 +67,7 @@ export interface TopicInput<Ref = string> {
 
 /**
  * Whether a value is a `defineTopic()` result: a template string and the `sql`,
- * `trigger` and `subscribe` methods. `better-supabase sql sync` and `spec` use
+ * `trigger` and `subscribe` methods. `better-supabase upgrade` and `spec` use
  * the same check.
  */
 function isTopicLike(

@@ -4,7 +4,7 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- List tables and functions in `expose` (better-supabase.config.ts); `sql sync` rewrites the grants below.
+-- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
 

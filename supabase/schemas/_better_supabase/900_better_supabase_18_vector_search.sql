@@ -6,7 +6,7 @@
 
 create extension if not exists vector with schema extensions;
 
--- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `sql sync` rewrites them.
+-- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `upgrade` rewrites them.
 -- They are security invoker, so RLS (a tenant policy, say) filters inside the
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.

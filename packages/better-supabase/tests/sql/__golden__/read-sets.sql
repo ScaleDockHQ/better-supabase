@@ -5,7 +5,7 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `sql sync` rewrite them.
+-- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `upgrade` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.
 
 create schema if not exists better_supabase;
@@ -23,7 +23,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_14_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block-data read-sets
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,7 +40,7 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `sql sync` rewrite them.
+-- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `upgrade` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.
 
 create schema if not exists better_supabase;
@@ -58,7 +58,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_14_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block-data read-sets
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `sql sync` rewrite them.
+-- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `upgrade` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.
 
 create schema if not exists better_supabase;
@@ -93,7 +93,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_14_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block-data read-sets
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,7 +110,7 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `sql sync` rewrite them.
+-- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `upgrade` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.
 
 create schema if not exists better_supabase;
@@ -128,7 +128,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_14_read_sets.sql
 -- better-supabase module: read-sets
 -- @bsb-block-data read-sets
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

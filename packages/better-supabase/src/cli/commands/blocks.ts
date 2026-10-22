@@ -4,11 +4,19 @@ import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { BLOCK_CATEGORIES } from "../../blocks/index.ts";
-import { glueCommand, PRESET_CATALOG } from "../../preset/index.ts";
+import {
+  glueCommand,
+  PRESET_CATALOG,
+  PRESET_NAMES,
+} from "../../preset/index.ts";
 import { SQL_MODULES } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { SQL_ARGS } from "../sql/args.ts";
+import { listModules } from "../sql/list.ts";
+import { printModule } from "../sql/print.ts";
+import { decodePresetInput } from "./preset.ts";
 
 const LIST_ARGS = {
   category: {
@@ -16,6 +24,18 @@ const LIST_ARGS = {
     description: `One category: ${BLOCK_CATEGORIES.join(", ")}`,
     valueHint: "name",
   },
+  installed: {
+    type: "boolean",
+    description:
+      "Every block's SQL with whether this project installed it and lists it in blocks",
+  },
+  preset: {
+    type: "string",
+    description:
+      "The blocks and conventions of a preset name, a preset code or a /create URL",
+    valueHint: "name|code|url",
+  },
+  "tests-dir": SQL_ARGS["tests-dir"],
 } as const;
 
 const VIEW_ARGS = {
@@ -24,6 +44,12 @@ const VIEW_ARGS = {
     required: true,
     description: "The block to show",
   },
+  sql: {
+    type: "boolean",
+    description:
+      "Print the block's SQL as this project's config renders it, instead of its summary",
+  },
+  "tests-dir": SQL_ARGS["tests-dir"],
 } as const;
 
 const SEARCH_ARGS = {
@@ -180,15 +206,30 @@ export function searchBlocks(text: string | undefined): CommandResult {
 export const blocksListCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("blocks list"),
   args: LIST_ARGS,
-  completions: { category: () => BLOCK_CATEGORIES },
-  run: (args) => Promise.resolve(listBlocks(args.category)),
+  completions: { category: () => BLOCK_CATEGORIES, preset: () => PRESET_NAMES },
+  run: (args, { config }) => {
+    if (args.preset !== undefined && args.installed === true) {
+      throw new CliError("usage", "Pass --preset or --installed, not both.");
+    }
+
+    if (args.preset !== undefined) {
+      return Promise.resolve(decodePresetInput(args.preset));
+    }
+
+    return args.installed === true
+      ? listModules(config, args)
+      : Promise.resolve(listBlocks(args.category));
+  },
 });
 
 export const blocksViewCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("blocks view"),
   args: VIEW_ARGS,
   completions: { block: blockNames },
-  run: (args) => Promise.resolve(viewBlock(args.block)),
+  run: (args, { config }) =>
+    args.sql === true
+      ? printModule(config, args, [args.block])
+      : Promise.resolve(viewBlock(args.block)),
 });
 
 export const blocksSearchCommand: AnyCommand = defineCliCommand({

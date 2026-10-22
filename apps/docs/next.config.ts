@@ -30,6 +30,21 @@ const config = createNextConfig({
         destination: "/docs/blocks/:slug",
         permanent: true,
       },
+      {
+        source: "/docs/cli/local",
+        destination: "/docs/cli/dev",
+        permanent: true,
+      },
+      {
+        source: "/docs/cli/stack",
+        destination: "/docs/cli/dev",
+        permanent: true,
+      },
+      {
+        source: "/docs/cli/introspect",
+        destination: "/docs/cli/gen",
+        permanent: true,
+      },
     ]);
   },
   rewrites() {

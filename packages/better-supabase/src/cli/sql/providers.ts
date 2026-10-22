@@ -35,7 +35,8 @@ export const providerOwnsMemberships = (config: ResolvedConfig): boolean =>
  * The provider's memberships for the `entitlements` module. When `names`
  * resolve to that module, an invalid mode (no provider, a scope it lacks, an
  * unknown id type) throws instead of falling back to the tenant module. Without
- * `names` (`sql list`) it only describes the modules, so it doesn't.
+ * `names` (`blocks list --installed`) it only describes the modules, so it
+ * doesn't.
  */
 function entitlementsProviderFor(
   config: ResolvedConfig,
@@ -76,8 +77,8 @@ function entitlementsProviderFor(
 /**
  * The provider for the `access` module's `provider` model. When `names` resolve
  * to `access`, an invalid mode throws, and so does a module permission key the
- * provider doesn't mark `sqlComplete: true`. `sql list` (no `names`) doesn't
- * render, so it doesn't throw.
+ * provider doesn't mark `sqlComplete: true`. `blocks list --installed` (no
+ * `names`) doesn't render, so it doesn't throw.
  */
 function accessProviderFor(
   config: ResolvedConfig,

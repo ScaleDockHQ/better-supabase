@@ -55,7 +55,7 @@ workflow; this page is the checklist for a new block.
   keys and client methods derive from the singular, so a rename reaches all
   of them; `tests/core/entity-naming.test.ts` and
   `tests/sql/resolved-names.test.ts` cover the renamer.
-- `sql upgrade` renames an installed block's objects when its entities
+- `upgrade` renames an installed block's objects when its entities
   change (`src/sql/entity-upgrade.ts`): it renders the module under both
   names and pairs the created objects by position, so a module whose object
   list depends on the entity name gets refused. Keep the order of created

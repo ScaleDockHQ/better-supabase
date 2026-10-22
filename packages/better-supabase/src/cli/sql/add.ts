@@ -108,7 +108,7 @@ export async function addModules(
 }
 
 /**
- * Lists `untracked` in `blocks` of the config file, so `sql sync --check` keeps
+ * Lists `untracked` in `blocks` of the config file, so `upgrade --check` keeps
  * them current, or prints the snippet when the file isn't a literal object the
  * edit can follow.
  */
@@ -121,7 +121,7 @@ async function listInConfig(
 
   if (file === undefined) {
     return [
-      "Add them to blocks in better-supabase.config.ts so `sql sync --check` keeps them current:",
+      "Add them to blocks in better-supabase.config.ts so `upgrade --check` keeps them current:",
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
@@ -135,7 +135,7 @@ async function listInConfig(
   if (!edit.ok) {
     return [
       `${basename(file)} wasn't changed: ${edit.reason}.`,
-      "Add them to blocks so `sql sync --check` keeps them current:",
+      "Add them to blocks so `upgrade --check` keeps them current:",
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
@@ -143,7 +143,7 @@ async function listInConfig(
   await applyPlan(
     {
       root: dirname(file),
-      regenerate: "better-supabase sql add",
+      regenerate: "better-supabase add",
       files: [{ path: file, contents: edit.text, policy: "edit" }],
     },
     { "dry-run": args["dry-run"] },

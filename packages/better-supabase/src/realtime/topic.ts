@@ -441,7 +441,7 @@ export interface Topic<
   /**
    * `realtime.messages` policies for this topic. Idempotent. An access policy
    * with `sql: "provider"` needs the provider's templates in
-   * `options.functions`; `better-supabase sql sync` passes them.
+   * `options.functions`; `better-supabase upgrade` passes them.
    */
   sql(options?: TopicSqlOptions): string;
   /**

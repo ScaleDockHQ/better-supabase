@@ -167,7 +167,7 @@ async function moduleVersionsBehind(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const findings: FindingInput[] = [];
-  const upgrade = "Run `better-supabase sql upgrade`";
+  const upgrade = "Run `better-supabase upgrade`";
 
   for (const { file, path, installed, behind } of await moduleFiles(context)) {
     if (!behind || installed === undefined) {
@@ -769,7 +769,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "SQL module files are out of date",
     description:
-      "A module listed in `blocks` differs from the version in this release. Same check as `sql sync --check`.",
+      "A module listed in `blocks` differs from the version in this release. Same check as `upgrade --check`.",
     check: async (context) => {
       const stale: FindingInput[] = [];
       const workflow = workflowOf(context);
@@ -790,8 +790,8 @@ const OWN_RULES: readonly Rule[] = [
 
         const next =
           file.kind === "data" && !migrated
-            ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
-            : `Run \`better-supabase sql sync\`, then \`${migrationCommand(workflow)}\`.`;
+            ? "Run `better-supabase upgrade`, which also writes the rows into a migration, since a schema diff skips them."
+            : `Run \`better-supabase upgrade\`, then \`${migrationCommand(workflow)}\`.`;
 
         const subject = migrated
           ? `${file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
@@ -929,7 +929,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "SQL module behind its current version",
     description:
-      "A block file or `better_supabase.blocks` records an older module version than this release ships. Same check as `sql upgrade --check`.",
+      "A block file or `better_supabase.blocks` records an older module version than this release ships. Same check as `upgrade --check`.",
     check: moduleVersionsBehind,
   },
   {
@@ -1016,7 +1016,7 @@ const OWN_RULES: readonly Rule[] = [
       return [
         {
           message:
-            "No [auth] signing_keys_path. Run `better-supabase keys` to sign local tokens with ES256.",
+            "No [auth] signing_keys_path. Run `better-supabase dev keys` to sign local tokens with ES256.",
           target: "[auth] signing_keys_path",
           ...(location ? { location } : {}),
         },

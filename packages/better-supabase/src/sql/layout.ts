@@ -7,7 +7,7 @@ import type {
 
 import { resolveJsonSchema } from "../config/json.ts";
 
-/** Where and how `sql add` writes module files for this config. */
+/** Where and how `add` writes module files for this config. */
 export function moduleLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,

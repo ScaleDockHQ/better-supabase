@@ -162,7 +162,7 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
 
         return [
           {
-            message: `${file.path} creates the extension ${name}, but no migration creates it. pg-delta can leave an extension that owns its own schema out of the generated migration, and a database built from the migrations then lacks it. ${module ? "Run `better-supabase sql sync`: it writes the extension into a migration that runs before the schema migration." : `Add \`create extension if not exists ${name};\` to a migration that runs before the one that uses it.`}`,
+            message: `${file.path} creates the extension ${name}, but no migration creates it. pg-delta can leave an extension that owns its own schema out of the generated migration, and a database built from the migrations then lacks it. ${module ? "Run `better-supabase upgrade`: it writes the extension into a migration that runs before the schema migration." : `Add \`create extension if not exists ${name};\` to a migration that runs before the one that uses it.`}`,
             target: file.path,
             location: { file: file.path, line: lineAt(text, match.index) },
           },

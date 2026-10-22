@@ -7,7 +7,7 @@
 
 create extension if not exists vector with schema extensions;
 
--- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `sql sync` rewrites them.
+-- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `upgrade` rewrites them.
 -- They are security invoker, so RLS (a tenant policy, say) filters inside the
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.
@@ -27,7 +27,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_18_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block-data vector-search
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ on conflict (name) do update
 
 create extension if not exists vector with schema extensions;
 
--- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `sql sync` rewrites them.
+-- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `upgrade` rewrites them.
 -- They are security invoker, so RLS (a tenant policy, say) filters inside the
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.
@@ -68,7 +68,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_18_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block-data vector-search
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,7 @@ on conflict (name) do update
 
 create extension if not exists vector with schema extensions;
 
--- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `sql sync` rewrites them.
+-- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `upgrade` rewrites them.
 -- They are security invoker, so RLS (a tenant policy, say) filters inside the
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.
@@ -109,7 +109,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_18_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block-data vector-search
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,7 +130,7 @@ on conflict (name) do update
 
 create extension if not exists vector with schema extensions;
 
--- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `sql sync` rewrites them.
+-- Functions for the tables in `vectorSearch` (better-supabase.config.ts); `upgrade` rewrites them.
 -- They are security invoker, so RLS (a tenant policy, say) filters inside the
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.
@@ -150,7 +150,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_18_vector_search.sql
 -- better-supabase module: vector-search
 -- @bsb-block-data vector-search
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

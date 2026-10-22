@@ -25,8 +25,8 @@ export interface LocalStack {
   /** Defaults to `$SUPABASE_PUBLISHABLE_KEY`, then `$SUPABASE_ANON_KEY`. */
   readonly publishableKey?: string;
   /**
-   * `ES256` (default) signs with the key `better-supabase keys` wrote, as the
-   * hosted project's asymmetric keys do. `HS256` signs with the shared JWT
+   * `ES256` (default) signs with the key `better-supabase dev keys` wrote, as
+   * the hosted project's asymmetric keys do. `HS256` signs with the shared JWT
    * secret and only works against a local stack.
    */
   readonly alg?: "ES256" | "HS256";
@@ -137,7 +137,7 @@ async function signFor(
     case "HS256": {
       if (!LOCAL_HOSTS.has(new URL(url).hostname)) {
         throw new TypeError(
-          `asUser signs HS256 tokens only for a local stack, not ${url}. Use the ES256 key from \`better-supabase keys\`.`,
+          `asUser signs HS256 tokens only for a local stack, not ${url}. Use the ES256 key from \`better-supabase dev keys\`.`,
         );
       }
 
@@ -157,8 +157,8 @@ async function signFor(
 /**
  * A test user against the local stack: a signed token and repositories that run
  * as that user, for live RLS tests. The token is ES256-signed with the key from
- * `better-supabase keys`; pass `{ alg: 'HS256' }` for a stack that still uses
- * the shared JWT secret.
+ * `better-supabase dev keys`; pass `{ alg: 'HS256' }` for a stack that still
+ * uses the shared JWT secret.
  *
  * ```ts
  * const alice = await asUser(betterSupabase, {
@@ -182,7 +182,7 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   if (!publishableKey) {
     throw new TypeError(
-      "asUser needs publishableKey or $SUPABASE_PUBLISHABLE_KEY. Run `better-supabase env` to write it to .env.local.",
+      "asUser needs publishableKey or $SUPABASE_PUBLISHABLE_KEY. Run `better-supabase dev env` to write it to .env.local.",
     );
   }
 

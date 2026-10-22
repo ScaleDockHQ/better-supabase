@@ -107,78 +107,90 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "add",
     description:
-      "Adds blocks with what they require, or glue for an integration with --integration",
+      "Adds blocks with what they require, a preset with --preset, existing tables with --adopt, or glue for an integration with --integration",
     group: "setup",
     docs: "/docs/cli/init#add",
     examples: [
       {
         command: "better-supabase add organizations billing",
-        description: "Installs two blocks and the modules they require",
+        description: "Installs two blocks and the blocks they require",
+      },
+      {
+        command: "better-supabase add --preset saas",
+        description:
+          "Applies a preset to the config, shows the diff and writes the blocks' SQL",
+      },
+      {
+        command: "better-supabase add teams --adopt --tables public.teams",
+        description: "Maps the teams block onto a table the app already has",
       },
       {
         command: "better-supabase add --integration hono",
         description: "Adds the Hono glue",
       },
     ],
-    effects: [FILES],
-  },
-  {
-    name: "apply",
-    description:
-      "Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules",
-    group: "setup",
-    docs: "/docs/cli/presets#apply",
     effects: [FILES, { ...READS_DATABASE, when: "--adopt" }, MANAGEMENT_API],
   },
   {
-    name: "adopt",
+    name: "remove",
     description:
-      "Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map",
+      "Removes blocks: their config entries, their clients in lib/blocks.ts and the SQL files no other block needs",
     group: "setup",
-    docs: "/docs/cli/presets#adopt",
-    effects: [FILES, READS_DATABASE, MANAGEMENT_API],
-  },
-  {
-    name: "preset",
-    description:
-      "Decodes a preset code, or shows the config's preset and how the config differs from it",
-    group: "setup",
-    docs: "/docs/cli/presets#preset",
-    effects: [],
-    subcommands: [
+    docs: "/docs/cli/init#remove",
+    examples: [
       {
-        name: "decode",
+        command: "better-supabase remove comments",
         description:
-          "Prints the blocks, auth and settings a preset code or Create URL holds",
-        docs: "/docs/cli/presets#preset",
-        effects: [],
-      },
-      {
-        name: "info",
-        description:
-          "Shows the config's preset and how the config differs from it",
-        docs: "/docs/cli/presets#preset",
-        effects: [],
+          "Removes the block, then names the db diff that drops its tables",
       },
     ],
+    effects: [FILES],
+  },
+  {
+    name: "upgrade",
+    description:
+      "Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files",
+    group: "setup",
+    docs: "/docs/cli/init#upgrade",
+    examples: [
+      {
+        command: "better-supabase upgrade",
+        description: "Writes the upgrade steps and the blocks' SQL files",
+      },
+      {
+        command: "better-supabase upgrade --check",
+        description:
+          "Exits 1 when a block is behind or a SQL file is out of date",
+      },
+    ],
+    effects: [FILES],
   },
   {
     name: "blocks",
-    description: "Lists, shows and searches the blocks you can add",
+    description:
+      "Lists, shows and searches the blocks you can add, and decodes presets",
     group: "setup",
     docs: "/docs/cli/presets#blocks",
     effects: [],
     subcommands: [
       {
         name: "list",
-        description: "Lists the blocks, optionally in one category",
+        description:
+          "Lists the blocks, the ones this project installed with --installed, or a preset's with --preset",
         docs: "/docs/cli/presets#blocks",
+        examples: [
+          {
+            command: "better-supabase blocks list --preset saas",
+            description:
+              "Prints the blocks, auth and settings a preset, code or Create URL holds",
+          },
+        ],
         effects: [],
       },
       {
         name: "view",
         description:
-          "Shows a block: its tables, the blocks it requires and its options",
+          "Shows a block: the blocks it requires, its modes and its client, or its SQL with --sql",
         docs: "/docs/cli/presets#blocks",
         effects: [],
       },
@@ -243,14 +255,11 @@ export const COMMANDS: readonly CommandSpec[] = [
         command: "better-supabase gen --check",
         description: "Exits 1 when a generated file is out of date",
       },
+      {
+        command: "better-supabase gen --save-snapshot",
+        description: "Saves the database schema as a snapshot for offline gen",
+      },
     ],
-    effects: [FILES, READS_DATABASE, MANAGEMENT_API],
-  },
-  {
-    name: "introspect",
-    description: "Saves the database schema as a snapshot for offline gen",
-    group: "generate",
-    docs: "/docs/cli/introspect",
     effects: [FILES, READS_DATABASE, MANAGEMENT_API],
   },
   {
@@ -312,89 +321,84 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
-    name: "env",
+    name: "dev",
     description:
-      "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
+      "Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine",
     group: "local",
-    docs: "/docs/cli/local#env",
-    effects: [FILES],
-    examples: [
-      {
-        command:
-          "better-supabase env --write .env.supabase.local --prefix next",
-        description:
-          "Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_",
-      },
-    ],
-  },
-  {
-    name: "run",
-    description:
-      "Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files",
-    group: "local",
-    docs: "/docs/cli/local#run",
-    effects: [{ kind: "process" }],
-    examples: [
-      {
-        command: "better-supabase run -- next dev",
-        description: "Start Next.js against this worktree's stack",
-      },
-    ],
-  },
-  {
-    name: "keys",
-    description:
-      "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
-    group: "local",
-    docs: "/docs/cli/local#keys",
-    effects: [FILES],
-  },
-  {
-    name: "stack",
-    description:
-      "Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone",
-    group: "local",
-    docs: "/docs/cli/stack",
-    effects: [{ kind: "stacks", access: "write" }],
+    docs: "/docs/cli/dev",
+    effects: [FILES, { kind: "process" }, { kind: "stacks", access: "write" }],
     subcommands: [
       {
-        name: "ls",
+        name: "env",
         description:
-          "Lists every managed stack with its branch, worktree, running state and shared memory segments",
-        docs: "/docs/cli/stack#ls",
-        effects: [{ kind: "stacks", access: "read" }],
-      },
-      {
-        name: "prune",
-        description:
-          "Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks",
-        docs: "/docs/cli/stack#prune",
+          "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
+        docs: "/docs/cli/dev#env",
+        effects: [FILES],
         examples: [
           {
-            command: "better-supabase stack prune --stop-idle --dry-run",
-            description: "Print what it would destroy and stop",
+            command:
+              "better-supabase dev env --write .env.supabase.local --prefix next",
+            description:
+              "Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_",
           },
         ],
-        effects: [{ kind: "stacks", access: "write" }],
       },
-    ],
-  },
-  {
-    name: "seed",
-    description:
-      "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
-    group: "local",
-    docs: "/docs/cli/local#seed",
-    effects: [
-      FILES,
-      { kind: "database", access: "write", when: "--apply" },
-      { kind: "database", access: "write", when: "--tenant" },
+      {
+        name: "run",
+        description:
+          "Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files",
+        docs: "/docs/cli/dev#run",
+        effects: [{ kind: "process" }],
+        examples: [
+          {
+            command: "better-supabase dev run -- next dev",
+            description: "Start Next.js against this worktree's stack",
+          },
+        ],
+      },
+      {
+        name: "keys",
+        description:
+          "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
+        docs: "/docs/cli/dev#keys",
+        effects: [FILES],
+      },
+      {
+        name: "stack",
+        description:
+          "Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone",
+        docs: "/docs/cli/dev#stack",
+        effects: [{ kind: "stacks", access: "write" }],
+        subcommands: [
+          {
+            name: "ls",
+            description:
+              "Lists every managed stack with its branch, worktree, running state and shared memory segments",
+            docs: "/docs/cli/dev#ls",
+            effects: [{ kind: "stacks", access: "read" }],
+          },
+          {
+            name: "prune",
+            description:
+              "Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks",
+            docs: "/docs/cli/dev#prune",
+            examples: [
+              {
+                command:
+                  "better-supabase dev stack prune --stop-idle --dry-run",
+                description: "Print what it would destroy and stop",
+              },
+            ],
+            effects: [{ kind: "stacks", access: "write" }],
+          },
+        ],
+      },
     ],
   },
   {
     name: "db",
     description:
-      "Runs SQL files against the database: the local stack by default, or the one in the connection string",
+      "Runs SQL files and seeds against the database, and diffs the declarative schema: the local stack by default, or the one in the connection string",
     group: "local",
     docs: "/docs/cli/db",
     effects: [{ kind: "database", access: "write" }],
@@ -434,6 +438,17 @@ export const COMMANDS: readonly CommandSpec[] = [
           { kind: "files", when: "--file" },
         ],
       },
+      {
+        name: "seed",
+        description:
+          "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply",
+        docs: "/docs/cli/db#seed",
+        effects: [
+          FILES,
+          { kind: "database", access: "write", when: "--apply" },
+          { kind: "database", access: "write", when: "--tenant" },
+        ],
+      },
     ],
   },
   {
@@ -461,7 +476,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "config",
     description:
-      "Prints the resolved config: the file it came from, the active environment and every option with its default",
+      "Prints the resolved config: the file it came from, the active environment and every option with its default, or the preset it names with --preset",
     group: "inspect",
     docs: "/docs/cli/config#print-the-resolved-config",
     effects: [],
@@ -481,59 +496,10 @@ export const COMMANDS: readonly CommandSpec[] = [
       {
         command: "better-supabase mcp --allow-writes",
         description:
-          "Adds gen, sql_sync, apply and add, each behind a consent token",
+          "Adds gen, upgrade, add and remove, each behind a consent token",
       },
     ],
     effects: [READS_DATABASE, { kind: "files", when: "--allow-writes" }],
-  },
-  {
-    name: "sql",
-    description:
-      "Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration",
-    group: "maintain",
-    docs: "/docs/blocks/sql",
-    effects: [FILES],
-    subcommands: [
-      {
-        name: "list",
-        description: "Lists the SQL modules and which ones the project has",
-        docs: "/docs/blocks/sql",
-        effects: [],
-      },
-      {
-        name: "add",
-        description:
-          "Writes module files and their pgTAP tests, and adds the modules to the config",
-        docs: "/docs/blocks/sql",
-        effects: [FILES],
-      },
-      {
-        name: "sync",
-        description:
-          "Writes the files for the modules the config lists and removes the ones it no longer lists",
-        docs: "/docs/blocks/sql",
-        effects: [FILES],
-      },
-      {
-        name: "upgrade",
-        description:
-          "Rewrites module files to this version's SQL, or exits 1 when one is behind with --check",
-        docs: "/docs/blocks/sql",
-        effects: [FILES],
-      },
-      {
-        name: "data",
-        description: "Writes the data migration for blocks in adopt mode",
-        docs: "/docs/blocks/sql",
-        effects: [FILES],
-      },
-      {
-        name: "print",
-        description: "Prints a module's SQL on stdout",
-        docs: "/docs/blocks/sql",
-        effects: [],
-      },
-    ],
   },
   {
     name: "codemod",
@@ -578,7 +544,7 @@ export const COMMANDS: readonly CommandSpec[] = [
       {
         name: "0.15",
         description:
-          "Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, and module, subject, carrier and backend exports take their block, record and provider names",
+          "Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, and CLI calls use the new commands",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

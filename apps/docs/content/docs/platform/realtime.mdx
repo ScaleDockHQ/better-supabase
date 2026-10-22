@@ -73,7 +73,7 @@ export const board = defineTopic("organization:{organizationId}:board", {
 });
 ```
 
-`better-supabase sql sync` fills in the config's `authorization.functions`.
+`better-supabase upgrade` fills in the config's `authorization.functions`.
 Anywhere else, pass them to `topic.sql({ functions })`; without them it
 throws. An object with `idsWith` and `isPlatform` copies the templates
 instead.
@@ -125,7 +125,7 @@ segment. The check adds to the tenant and owner checks.
 [authorization provider](/docs/extending/authorization-providers), the policy
 calls its `permitted` template with `{permission}`, `{id}` (the instance
 segment), `{tenant}` (the tenant segment, or `null` without one),
-`{resource}` and `{scope}`; a `null` answer denies. `better-supabase sql sync`
+`{resource}` and `{scope}`; a `null` answer denies. `better-supabase upgrade`
 passes the config's `authorization.functions`; anywhere else pass them to
 `topic.sql({ functions })`. Without `permitted`, the policy falls back to the
 [access contract](/docs/blocks/access): the caller needs the permission in
@@ -135,9 +135,9 @@ instance from another, and a topic without a tenant segment throws.
 ### Writing the policies to a file
 
 `realtime.policies` keeps the generated policies in a schema file:
-`better-supabase sql sync` imports the modules in `from`, collects every
+`better-supabase upgrade` imports the modules in `from`, collects every
 topic they export, and writes their `sql()` to `output`, and
-`sql sync --check` fails when the file no longer matches, for example in CI:
+`upgrade --check` fails when the file no longer matches, for example in CI:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -160,7 +160,7 @@ Some SQL modules write the receive policy of their own topics: `notifications`
 `broadcast`), `announcements` (its `topic` option, `announcements` by
 default) and `realtime-tables` (every topic that starts with `bsb:t:`). When a
 module in `blocks` covers a topic you export, for example to subscribe
-to it with the typed client, `sql sync` leaves that topic out of `output` and
+to it with the typed client, `upgrade` leaves that topic out of `output` and
 names the module in a comment at the top of the file, so the database doesn't
 get two equivalent policies. Templates match by their literal parts, so
 `notifications:{user}` matches `notifications:{userId}`. A topic that also
@@ -362,9 +362,9 @@ statement-level `track_realtime`) instead.
 
 ### From the config
 
-`database.realtime.triggers` makes `sql sync` write them to the `realtime.policies`
+`database.realtime.triggers` makes `upgrade` write them to the `realtime.policies`
 output after the policies. Each entry names a topic that `from` exports by its
-template, and `sql sync` passes the rest to that topic's `trigger()` without
+template, and `upgrade` passes the rest to that topic's `trigger()` without
 `betterSupabase`, so the config writes the same SQL as the call. An entry
 takes `values`, `events`, `event`, `payload`, `topics`, `when` and `functionSchema`,
 with database names in values and lookups:
@@ -430,7 +430,7 @@ export default defineConfig({
 `topics` names each extra topic by its template, which a module in `from`
 also exports, and takes its own `values`.
 
-`sql sync` refuses `database.realtime.triggers` without `realtime.policies`, or for a
+`upgrade` refuses `database.realtime.triggers` without `realtime.policies`, or for a
 template no module in `from` exports. A trigger that calls
 `better_supabase.broadcast_topic()` also needs `realtime-tables` in `blocks`;
 one with a function of its own does not.

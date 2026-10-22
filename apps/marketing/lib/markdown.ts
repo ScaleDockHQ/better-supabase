@@ -40,7 +40,7 @@ export function blockMarkdown(
   block: CatalogBlock,
   options: {
     readonly site: MarkdownSite;
-    /** The modules `sql add` installs, dependencies first. */
+    /** The modules `add` installs, dependencies first. */
     readonly installed: readonly string[];
     readonly recipes: readonly Recipe[];
   },

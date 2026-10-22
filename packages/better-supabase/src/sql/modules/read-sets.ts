@@ -8,7 +8,7 @@ export const READ_SETS: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   build:
-    () => `-- Functions for the read sets in \`readSets\` (better-supabase.config.ts); \`gen\` and \`sql sync\` rewrite them.
+    () => `-- Functions for the read sets in \`readSets\` (better-supabase.config.ts); \`gen\` and \`upgrade\` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.`,
   extras: (_ctx, layout) => {
     const sets = layout.readSets ?? [];

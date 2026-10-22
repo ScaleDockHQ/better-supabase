@@ -153,7 +153,7 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 --   with check ((select better_supabase.session_active()));
 
 -- blocks.sessions.options.policies: every table in the schema files,
--- except blocks.sessions.options.exclude. `sql sync` rewrites these.
+-- except blocks.sessions.options.exclude. `upgrade` rewrites these.
 drop policy if exists bsb_session_active on "public"."projects";
 create policy bsb_session_active on "public"."projects" as restrictive
   for all to authenticated

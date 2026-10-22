@@ -91,7 +91,7 @@ export async function liteSource(
     case "sqlite": {
       throw new CliError(
         "config_invalid",
-        'gen reads Postgres DDL, and the bare sqlite driver takes native SQLite DDL. Switch to [db] driver = "sqlite-postgres" or "pglite", or save a snapshot with `better-supabase introspect`.',
+        'gen reads Postgres DDL, and the bare sqlite driver takes native SQLite DDL. Switch to [db] driver = "sqlite-postgres" or "pglite", or save a snapshot with `better-supabase gen --save-snapshot`.',
         { flag: "[db] driver" },
       );
     }

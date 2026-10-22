@@ -106,7 +106,7 @@ describe("presetInstallCommand and presetApplyCommand", () => {
       `npx better-supabase init --preset ${encodePreset(preset)}`,
     );
     expect(presetApplyCommand(resolved)).toBe(
-      `npx better-supabase apply --preset ${encodePreset(preset)}`,
+      `npx better-supabase add --preset ${encodePreset(preset)}`,
     );
   });
 });

@@ -41,8 +41,8 @@ blocks: {
 | `ai-providers` | tenant keys, batches and sandboxes                                    | [AI providers](/docs/blocks/ai-providers) |
 | `ai-cache`     | repeated model calls answered from Postgres                           | [AI cache](/docs/blocks/ai-cache)         |
 
-Run `better-supabase sql sync`, generate a migration with
-`supabase db schema declarative sync`, then `better-supabase sql data`.
+Run `better-supabase upgrade`, generate a migration with
+`supabase db schema declarative sync`, then `better-supabase add --adopt`.
 
 <Steps>
 

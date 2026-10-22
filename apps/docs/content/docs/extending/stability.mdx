@@ -87,7 +87,7 @@ rename breaks the database, not the build. They follow these rules:
 1. Each module has a version, recorded in its file's `@bsb-block` line and in
    `better_supabase.blocks`. A change the schema diff can't follow (a
    renamed column, a backfill) raises the version and ships a forward step
-   for `better-supabase sql upgrade`.
+   for `better-supabase upgrade`.
 2. A renamed function keeps a wrapper under the old name for at least one
    minor release, with a `comment on function ... is 'deprecated: use X'`.
    A renamed table keeps a view under the old name, with the old column

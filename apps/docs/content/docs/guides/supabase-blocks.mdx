@@ -28,7 +28,7 @@ it supplies asymmetric signing keys locally and passes the function slug to
 the Edge Function, so the URLs in the OAuth metadata are the public ones.
 
 - Asymmetric signing keys (ES256 or RS256). Locally, run
-  [`better-supabase keys`](/docs/cli/local#keys) and point
+  [`better-supabase dev keys`](/docs/cli/dev#keys) and point
   `[auth] signing_keys_path` at the file; on the hosted project, rotate to an
   asymmetric key under JWT Keys.
 - The gateway's JWT check turned off for the function. The function verifies

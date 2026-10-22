@@ -84,7 +84,7 @@ describe("local ES256 signing", () => {
   it("says how to create a key when there is none", async () => {
     await expect(
       localSigningKey(join(tmpdir(), "missing.json")),
-    ).rejects.toThrow(/better-supabase keys/);
+    ).rejects.toThrow(/better-supabase dev keys/);
   });
 });
 

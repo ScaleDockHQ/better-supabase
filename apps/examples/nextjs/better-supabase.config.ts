@@ -121,7 +121,7 @@ export default defineConfig({
       rank: { column: "rank", group: "stage_id" },
     },
   },
-  // Tables only this app has. `sql sync` writes them with the organization
+  // Tables only this app has. `upgrade` writes them with the organization
   // column (or `user_id`), row level security and a pgTAP test.
   tables: {
     projects: {

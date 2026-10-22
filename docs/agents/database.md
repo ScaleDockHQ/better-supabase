@@ -43,9 +43,9 @@ comments. Put these in a hand-written migration instead:
   statement inside `supabase/schemas` is an error.
 - Role settings (`alter role ... set`) and `notify pgrst`.
 - Extensions in a schema pg-delta doesn't manage (`pgmq`, or `extensions`).
-  `sql sync` writes a module's extensions that no migration creates into a
+  `upgrade` writes a module's extensions that no migration creates into a
   `_better_supabase_extensions.sql` migration stamped before the schema
-  migration you generate next, and `sql data` refuses to run while one is
+  migration you generate next, and `add --adopt` refuses to run while one is
   missing. Doctor BS321 warns about an extension no migration creates.
 - Event triggers under `-s <schemas>`: they belong to no schema, so a
   filtered sync drops them. The module data files repeat them, and doctor
@@ -59,18 +59,18 @@ comments. Put these in a hand-written migration instead:
 pg-delta also loads `supabase/schemas/_custom/` into its shadow database and
 then rejects any managed table that has rows, so `_custom/` can't hold data
 either. The SQL modules write their rows and role settings to
-`supabase/better-supabase-data/` instead, and `better-supabase sql data`
+`supabase/better-supabase-data/` instead, and `better-supabase add --adopt`
 turns them into a migration stamped after the newest one.
 `tests/integration/pgdelta-roundtrip.integration.test.ts` runs every block
 module through the sync on a second, legacy Docker stack (ports 56420 to 56422) when the Supabase CLI and Docker are available.
 
 The `900_better_supabase_*` files in `supabase/schemas/_better_supabase` and
-`supabase/better-supabase-data` are SQL modules that `better-supabase sql sync`
+`supabase/better-supabase-data` are SQL modules that `better-supabase upgrade`
 writes from `apps/examples/nextjs` (its `sql.dir` points at
 `supabase/schemas/_better_supabase`). Never
 edit them by hand. When a change touches one of those modules, run
-`pnpm --filter @better-supabase/example-nextjs exec better-supabase sql sync`,
-then `pnpm supabase:diff <name>`, and `sql data` from the same folder when the
+`pnpm --filter @better-supabase/example-nextjs exec better-supabase upgrade`,
+then `pnpm supabase:diff <name>`, and `add --adopt` from the same folder when the
 data files changed. The example's `gen:check` fails while they are stale.
 
 `supabase/snapshot.json` is the only snapshot: the CLI and generator tests
@@ -79,7 +79,7 @@ and `scripts/gen-fixtures.ts` read it. Refresh it from a freshly reset stack
 `node packages/better-supabase/src/cli/bin.ts introspect --cwd .`), never after
 the integration tests, which install every SQL module into the same database.
 Then run `pnpm --filter better-supabase gen:fixtures`. The database workflow
-runs `introspect --check` on its fresh stack, and the library's `gen:check`
+runs `gen --save-snapshot --check` on its fresh stack, and the library's `gen:check`
 fails while the fixtures are stale.
 
 Managed block defaults follow the repo standard (hashed tokens, Vault secrets,

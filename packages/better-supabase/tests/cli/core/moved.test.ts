@@ -21,15 +21,14 @@ describe("migrateCliCall", () => {
   it("renames every moved flag of a command, keeping values", () => {
     expect(
       migrateCliCall(["gen", "--tasks=types,client", "--out", "src/lib"]),
-    ).toEqual(["gen", "--only=types,client", "--out-dir", "src/lib"]);
+    ).toEqual(["gen", "--only=types,client", "--out", "src/lib"]);
     expect(
       migrateCliCall(["skills", "install", "--agent", "cursor,claude"]),
     ).toEqual(["skills", "install", "--for", "cursor,claude"]);
     expect(migrateCliCall(["sql", "add", "tenant", "--force"])).toEqual([
-      "sql",
       "add",
       "tenant",
-      "--allow-hook-overlap",
+      "--force",
     ]);
   });
 
@@ -39,7 +38,42 @@ describe("migrateCliCall", () => {
       "--fail-on",
       "warning",
     ]);
-    expect(migrateCliCall(["env", "--print"])).toEqual(["env", "--out", "-"]);
+    expect(migrateCliCall(["env", "--print"])).toEqual([
+      "dev",
+      "env",
+      "--out",
+      "-",
+    ]);
+  });
+
+  it("folds the 0.15 commands into add, upgrade, gen, db and dev", () => {
+    expect(migrateCliCall(["apply", "--preset", "saas"])).toEqual([
+      "add",
+      "--preset",
+      "saas",
+    ]);
+    expect(migrateCliCall(["adopt", "teams", "--from", "a"])).toEqual([
+      "add",
+      "--adopt",
+      "teams",
+      "--tables",
+      "a",
+    ]);
+    expect(migrateCliCall(["sql", "sync", "--check"])).toEqual([
+      "upgrade",
+      "--check",
+    ]);
+    expect(migrateCliCall(["introspect", "--format", "snapshot"])).toEqual([
+      "gen",
+      "--save-snapshot",
+      "--kind",
+      "snapshot",
+    ]);
+    expect(migrateCliCall(["stack", "prune"])).toEqual([
+      "dev",
+      "stack",
+      "prune",
+    ]);
   });
 
   it("leaves current calls and flags after -- alone", () => {

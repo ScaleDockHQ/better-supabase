@@ -200,7 +200,7 @@ export async function runStackPrune(
 }
 
 export const stackLsCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("stack ls"),
+  meta: commandMeta("dev stack ls"),
   args: {},
   run: (_args, { config, env, log }) =>
     log.progress("Reading the managed stacks", () =>
@@ -209,7 +209,7 @@ export const stackLsCommand: AnyCommand = defineCliCommand({
 });
 
 export const stackPruneCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("stack prune"),
+  meta: commandMeta("dev stack prune"),
   args: PRUNE_ARGS,
   run: (args, { config, env, log, requireConsent }) =>
     log.progress("Pruning the managed stacks", () =>

@@ -59,8 +59,8 @@ export async function runWithStackEnv(
   if (command === undefined) {
     throw new CliError(
       "usage",
-      "Name the command to run after --, e.g. better-supabase run -- next dev.",
-      { suggestion: "better-supabase run -- next dev" },
+      "Name the command to run after --, e.g. better-supabase dev run -- next dev.",
+      { suggestion: "better-supabase dev run -- next dev" },
     );
   }
 
@@ -93,7 +93,7 @@ export async function runWithStackEnv(
 }
 
 export const runCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("run"),
+  meta: commandMeta("dev run"),
   args: ARGS,
   run: (args, { config, cwd, env, log, signal }) =>
     runWithStackEnv(config, args, { cwd, env, log, signal }),

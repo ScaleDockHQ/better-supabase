@@ -17,7 +17,7 @@ type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
 const provider = centrakitProvider();
 
-// What `sql add` derives from config.authorization for the access module; the
+// What `add` derives from config.authorization for the access module; the
 // extra modules a test installs render against the same provider.
 const accessProvider: Writable<BlockSqlAccessProvider> = {
   name: provider.name,
@@ -94,7 +94,7 @@ const SEED = `insert into centrakit.roles (id, scope, key, name, system) values
 
 const SUPABASE = new URL("../supabase/", import.meta.url);
 
-/** The files `sql sync` wrote in `dir`, in the order a reset applies them. */
+/** The files `upgrade` wrote in `dir`, in the order a reset applies them. */
 async function generated(dir: string): Promise<string[]> {
   const url = new URL(`${dir}/`, SUPABASE);
 

@@ -1129,7 +1129,7 @@ export function appTablesFiles(
   const title = "-- better-supabase module: app-tables";
 
   const managed = [
-    "-- Managed by `better-supabase sql sync`; re-running it overwrites this file.",
+    "-- Managed by `better-supabase upgrade`; re-running it overwrites this file.",
     "-- Change it through `appTables` in better-supabase.config.ts.",
   ];
 

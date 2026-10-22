@@ -4,7 +4,7 @@
  * the codemod scanner, so strings and comments never count as code, and inserts
  * the names in the form the config already uses: `name: {}` in an object,
  * `"name"` in a list. Anything that isn't a literal object it can follow is
- * refused with a reason, and `sql add` prints the snippet instead.
+ * refused with a reason, and `add` prints the snippet instead.
  */
 
 import { codeRanges } from "../code-ranges.ts";
@@ -553,6 +553,51 @@ export interface WiredBlock {
 }
 
 /**
+ * The blocks object passed to `defineBlocks(blockConfig, { ... })` or
+ * `createBlocks(options, { ... })` in `lib/blocks.ts`, with its entries.
+ */
+export function wiringBlocks(
+  source: string,
+  code: string,
+):
+  | {
+      readonly ok: true;
+      readonly open: number;
+      readonly listed: readonly Property[];
+    }
+  | { readonly ok: false; readonly reason: string } {
+  const call = /\b(createBlocks|defineBlocks)\s*(?:<[^>]*>)?\s*\(/.exec(code);
+
+  if (!call) {
+    return {
+      ok: false,
+      reason: "it doesn't call defineBlocks() or createBlocks()",
+    };
+  }
+
+  const callee = call[1] ?? "defineBlocks";
+  const first = skipSpace(code, call.index + call[0].length);
+  const firstEnd = valueEnd(code, first);
+  const comma = skipSpace(code, firstEnd);
+  const open = code[comma] === "," ? skipSpace(code, comma + 1) : -1;
+
+  if (open === -1 || code[open] !== "{") {
+    return {
+      ok: false,
+      reason: `${callee}() isn't passed an object literal of blocks`,
+    };
+  }
+
+  const listed = properties(source, code, open);
+
+  if (!listed) {
+    return { ok: false, reason: "its blocks object can't be read" };
+  }
+
+  return { ok: true, open, listed };
+}
+
+/**
  * `lib/blocks.ts` with `blocks` imported and added to the blocks object passed
  * to `defineBlocks(blockConfig, { ... })` or `createBlocks(options, { ... })`.
  * A block whose export the file already names is left out.
@@ -571,38 +616,18 @@ export function addBlocksToWiring(
     return { ok: true, text: source };
   }
 
-  const call = /\b(createBlocks|defineBlocks)\s*(?:<[^>]*>)?\s*\(/.exec(code);
+  const found = wiringBlocks(source, code);
 
-  if (!call) {
-    return {
-      ok: false,
-      reason: "it doesn't call defineBlocks() or createBlocks()",
-    };
+  if (!found.ok) {
+    return found;
   }
 
-  const callee = call[1] ?? "defineBlocks";
-  const first = skipSpace(code, call.index + call[0].length);
-  const firstEnd = valueEnd(code, first);
-  const comma = skipSpace(code, firstEnd);
-  const second = code[comma] === "," ? skipSpace(code, comma + 1) : -1;
-
-  if (second === -1 || code[second] !== "{") {
-    return {
-      ok: false,
-      reason: `${callee}() isn't passed an object literal of blocks`,
-    };
-  }
-
-  const listed = properties(source, code, second);
-
-  if (!listed) {
-    return { ok: false, reason: "its blocks object can't be read" };
-  }
+  const { open, listed } = found;
 
   const change = append(
     source,
     code,
-    second,
+    open,
     lastOf(listed),
     missing.map((block) => `${keyText(block.key)}: ${block.export}`),
   );

@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- Owners and admins invite by email; the invitee accepts with a one-time token and becomes a member.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;

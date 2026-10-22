@@ -17,7 +17,7 @@ pnpm sql:check
 
 `pnpm sql:check` fails when the committed `supabase/schemas/900_*` files and
 `supabase/better-supabase-data` drift from `better-supabase.config.ts`. Run
-`better-supabase sql sync` and `better-supabase sql data` to regenerate them;
+`better-supabase upgrade` and `better-supabase add --adopt` to regenerate them;
 never edit them by hand. `src/sync-check.test.ts` runs the same check and
 doctor against the live schema, and expects only the five BS314 warnings for
 tables that carry user data without a lifecycle rule.

@@ -24,7 +24,7 @@ export interface LoadedTriggerOptions extends Omit<
   }[];
 }
 
-/** A `defineTopic` result, as `sql sync` and `spec` read it. */
+/** A `defineTopic` result, as `upgrade` and `spec` read it. */
 export interface LoadedTopic extends TopicInput {
   readonly params: readonly string[];
   readonly private: boolean;

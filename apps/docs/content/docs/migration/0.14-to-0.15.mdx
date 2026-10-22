@@ -1,13 +1,13 @@
 ---
 title: From 0.14 to 0.15
-description: What to change when upgrading to better-supabase 0.15, where the config is grouped, the runtime instance is bsb and the SQL engine says block.
+description: What to change when upgrading to better-supabase 0.15, where the config is grouped, the runtime instance is bsb, the SQL engine says block and the CLI has one command per job.
 ---
 
-0.15 groups the config file, renames the runtime instance to `bsb` and moves
-the SQL engine's names from module to block. `better-supabase codemod 0.15`
-makes the changes below in your config and source files. Run it, review the
-diff, then run `better-supabase sql upgrade` and `better-supabase sql sync`
-and generate a migration.
+0.15 groups the config file, renames the runtime instance to `bsb`, moves
+the SQL engine's names from module to block and gives the CLI one command per
+job. `better-supabase codemod 0.15` makes the changes below in your config,
+source files, `package.json` scripts and GitHub workflows. Run it, review the
+diff, then run `better-supabase upgrade` and generate a migration.
 
 ```sh
 npx better-supabase codemod 0.15
@@ -73,7 +73,7 @@ The instance `createBetterSupabase` returns is called `bsb` in the docs, the
 templates and the request contexts: `ctx.bsb`, `c.var.bsb`, `locals.bsb` and
 `context.bsb`. The codemod renames `bs` where a file creates, imports or
 destructures it. Database objects better-supabase installs use the `bsb_`
-prefix; `sql upgrade` renames the old `bs_` ones.
+prefix; `upgrade` renames the old `bs_` ones.
 
 ## The SQL engine says block
 
@@ -81,5 +81,35 @@ prefix; `sql upgrade` renames the old `bs_` ones.
 the other `Module*` types from `better-supabase/sql` are `BlockSql*`.
 `SubjectRef` is `RecordRef`, `entityForm` is `recordForm`, `ShipmentCarrier`
 is `ShippingProvider` and `QueueBackend` is `QueueProvider`. Installed
-versions live in `better_supabase.blocks`; `sql upgrade` copies the rows of
+versions live in `better_supabase.blocks`; `upgrade` copies the rows of
 `better_supabase.modules` before the schema diff drops it.
+
+## The CLI has one command per job
+
+The CLI keeps one command for each job: `init`, `add`, `remove`, `upgrade`,
+`gen`, `doctor`, `db`, `dev`, `blocks`, `spec`, `mcp` and the helpers. The
+commands below moved. Running an old one exits 2 and names the new one, and
+the codemod rewrites them in `package.json` scripts and GitHub workflows.
+
+| 0.14                          | 0.15                                          |
+| ----------------------------- | --------------------------------------------- |
+| `apply --preset <p>`          | `add --preset <p>`                            |
+| `adopt <block>`               | `add --adopt <block>`                         |
+| `sql add <block>`             | `add <block>`                                 |
+| `sql sync`, `sql upgrade`     | `upgrade`                                     |
+| `sql data`                    | `add --adopt`                                 |
+| `sql list`                    | `blocks list --installed`                     |
+| `sql print <block>`           | `blocks view <block> --sql`                   |
+| `preset decode <code>`        | `blocks list --preset <code>`                 |
+| `preset info`                 | `config --preset`                             |
+| `introspect`                  | `gen --save-snapshot`                         |
+| `seed`                        | `db seed`                                     |
+| `env`, `run`, `keys`, `stack` | `dev env`, `dev run`, `dev keys`, `dev stack` |
+
+`gen --out <file>` now names the file `gen --save-snapshot` writes;
+the generated code still goes to `--out-dir`. `add --force` overwrites
+files that exist, so a block whose hooks overlap the authorization provider's
+needs `--allow-hook-overlap`. `remove` is new: it
+takes blocks out of the config and `lib/blocks.ts` and deletes their module
+files, and [`db diff`](/docs/cli/db#diff) writes the migration that drops
+their tables. See the [CLI reference](/docs/cli) for every command.

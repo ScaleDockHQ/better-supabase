@@ -4,7 +4,7 @@ import { betterSupabase } from "../../lib/supabase/index.ts";
 
 /**
  * Demo rows every new organization starts with in development, and what
- * `better-supabase seed --tenant <slug>` inserts into an existing one. Node
+ * `better-supabase db seed --tenant <slug>` inserts into an existing one. Node
  * loads this file for the CLI, so its imports are relative with `.ts`.
  */
 export const seed = defineTenantSeed(betterSupabase, (tenant) => ({

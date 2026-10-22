@@ -276,7 +276,7 @@ export async function runDbDiff(
 
     fellBack = true;
     deps.log(
-      "The Supabase CLI could not start its shadow database (no shared memory segment left), so db diff diffs inside the running stack. better-supabase stack prune frees segments.",
+      "The Supabase CLI could not start its shadow database (no shared memory segment left), so db diff diffs inside the running stack. better-supabase dev stack prune frees segments.",
     );
   }
 

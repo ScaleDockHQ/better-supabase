@@ -31,14 +31,14 @@ the steps to switch (see [BS316](/docs/cli/doctor#bs316)).
 pnpm better-supabase init --workflow migrations
 ```
 
-| `--workflow`         | What `init` does                                                                                |
-| -------------------- | ----------------------------------------------------------------------------------------------- |
-| `pg-delta` (default) | Turns pg-delta on in `supabase/config.toml` and writes no `database.sql.workflow`               |
-| `migra`              | Writes `sql: { workflow: 'migra' }` and leaves `config.toml` alone, for declarative schemas 1.0 |
-| `migrations`         | Writes `sql: { workflow: 'migrations' }`: the `sql` commands write the modules into a migration |
+| `--workflow`         | What `init` does                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `pg-delta` (default) | Turns pg-delta on in `supabase/config.toml` and writes no `database.sql.workflow`                |
+| `migra`              | Writes `sql: { workflow: 'migra' }` and leaves `config.toml` alone, for declarative schemas 1.0  |
+| `migrations`         | Writes `sql: { workflow: 'migrations' }`: `add` and `upgrade` write the modules into a migration |
 
 It then prints the next steps: the install command for your package manager,
-`supabase start`, `better-supabase env` and `better-supabase gen`. Files that
+`supabase start`, `better-supabase dev env` and `better-supabase gen`. Files that
 already exist are never overwritten unless you pass `--force` or confirm the
 prompt. `--dry-run` shows what would be written, and `--check` exits 1 when a
 file is missing or differs ([writing files](/docs/cli#writing-files)). The names and the layout are described in [Naming](/docs/concepts/naming).
@@ -90,7 +90,7 @@ that points you at the `authorization` key.
 With `--preset`, each flag overrides that convention of the preset, and
 `init` writes the changed preset code. A code stores the tenant names Create
 offers (`organization`, `workspace`, `team`), so for another name leave
-`--tenant-name` out and set `blocks.tenant.names.organization` in the config. `apply` takes
+`--tenant-name` out and set `blocks.tenant.names.organization` in the config. `add --preset` takes
 the same flags.
 
 ```bash
@@ -116,7 +116,7 @@ also:
 - adds the preset's integrations and its framework's integration to the
   ones it found
 - writes the module files of every block the preset installs, as
-  `better-supabase sql sync` does
+  `better-supabase upgrade` does
 - writes `lib/blocks.ts`, which wires the blocks that have a TypeScript
   client with `defineBlocks`
 - prints the `npx shadcn@latest add @better-supabase/...` command for the
@@ -127,7 +127,7 @@ A preset that can't install, such as one whose blocks need tenants under
 scope `user`, stops `init` with the reason. In a terminal without
 `--preset`, a convention flag or `--integration`, `init` first asks for a preset; None
 keeps the steps above out. To apply a preset to a project that already has
-a config, use [`apply`](/docs/cli/presets#apply).
+a config, use [`add --preset`](/docs/cli/presets#applying-a-preseting-a-preset).
 
 ### A design from Create
 
@@ -155,7 +155,7 @@ npx better-supabase init --preset ./better-supabase.design.json
 The file holds the preset code and the design as JSON, with no length limit,
 and `init` reads it like a URL: the same checks, the same config keys and the
 same module files. A path ending in `.json` is read as a design file, relative
-to `--cwd`. [`apply`](/docs/cli/presets#apply) takes the same file. The format
+to `--cwd`. [`add --preset`](/docs/cli/presets#applying-a-preseting-a-preset) takes the same file. The format
 is on [Preset codes](/docs/presets/codes#design-files).
 
 ## Supabase Lite
@@ -192,9 +192,9 @@ the config and the glue there, and prints next steps that target it:
 packages; `--package .` writes at the root as before.
 
 On [Create](https://app.bettersupabase.com/create), turn on Monorepo and enter
-the package path (`apps/web` by default): the install and apply commands then
+the package path (`apps/web` by default): the install and `add` commands then
 end in `--package <dir>`. A Create URL carries it as `&package=`, so `init`
-and `apply` take it from a URL you pass to `--preset`. The migrations stay in the root `supabase/` folder. See
+and `add --preset` take it from a URL you pass to `--preset`. The migrations stay in the root `supabase/` folder. See
 [monorepos](/docs/guides/monorepo) for how to split the runtime from domain
 packages.
 
@@ -206,17 +206,27 @@ pnpm better-supabase add --integration hono,mcp
 ```
 
 `add` with block names is how you install blocks. It lists them in `blocks`
-of the config and writes their module files and the modules they require
-(`--allow-hook-overlap`, `--dry-run`, `--check` and `--tests-dir` work as in
-[`sql add`](/docs/blocks/sql#low-level-sql-add), the low-level command that
-stops after the SQL). It also wires the blocks that have a TypeScript client into
-`lib/blocks.ts`: an import and an entry in the object passed to
-`defineBlocks` (or `createBlocks`). When the file is missing or calls neither
-with an object literal, `add` prints the lines to add instead. Last, it prints the
+of the config and writes their module files and the modules they require,
+rendered next to the blocks you already have, so a block sees what is
+installed. `--dry-run` prints what it would write, `--check` exits 1 when a
+file is out of date, `--tests-dir <dir>` writes the pgTAP files somewhere
+other than `database.sql.testsDir`, and `--allow-hook-overlap` installs a
+block whose hooks overlap another's ([SQL modules](/docs/blocks/sql)). It
+also wires the blocks that have a TypeScript client into `lib/blocks.ts`:
+an import and an entry in the object passed to `defineBlocks` (or
+`createBlocks`). When the file is missing or calls neither with an object
+literal, `add` prints the lines to add instead. Last, it prints the
 `npx shadcn@latest add @better-supabase/...` command for the registry glue
-of those blocks that fits the frameworks in the config or `package.json`.
+of those blocks that fits the frameworks in the config or `package.json`,
+and the command that turns the files into a migration.
 `better-supabase blocks list` shows the names. `--force` overwrites files
 that exist.
+
+`add --preset <name|code|url>` applies a preset to the config you have
+(`--only`, `--package` and `--allow-breaking`), and `add --adopt <block>
+--tables <schema.table>` maps a block onto tables you already have. Both read
+the database through `--snapshot`, `--db-url-stdin` or `--project-ref` when
+they need it, and [Presets and blocks](/docs/cli/presets) describes them.
 
 `--integration` adds glue for integrations instead. `add` without an argument
 or `--integration` sets up every integration in the config's
@@ -241,5 +251,40 @@ Relative imports follow your `tsconfig.json`: they keep `.ts` when
 Edge Functions always use `.ts` and get a `deno.json` import map. CI
 typechecks every template against the library, so the files compile as
 written. The names and the layout are described in [Naming](/docs/concepts/naming).
+
+Side effects: Writes files, reads the database with `--adopt`, calls the Supabase Management API with `--project-ref`.
+
+## remove
+
+```bash
+pnpm better-supabase remove comments --dry-run
+pnpm better-supabase remove comments tags
+```
+
+`remove` takes blocks out of `blocks` in the config and out of
+`lib/blocks.ts`, and deletes the module files only they wrote. It refuses a
+block another installed block requires; remove both together. It writes no
+migration: [`db diff -f remove_comments`](/docs/cli/db#diff) writes the one
+that drops their tables, so you can read the `drop` statements before they
+run. `--dry-run` prints what it would change, and `--check` exits 1 while
+the files still differ.
+
+Side effects: Writes files.
+
+## upgrade
+
+```bash
+pnpm better-supabase upgrade
+pnpm better-supabase upgrade --check
+```
+
+`upgrade` writes the module files of every block in the config again, with
+the current library and config. When an installed block's version in the
+database files is older, it first writes the upgrade steps between the two
+versions into a migration stamped before the next schema migration, then
+the files. Run it after you bump `better-supabase` or change a block's
+options. `--check` exits 1 when a file differs and is the CI check,
+`--dry-run` prints the diff, and `--tests-dir <dir>` writes the pgTAP files
+somewhere other than `database.sql.testsDir`.
 
 Side effects: Writes files.

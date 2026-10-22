@@ -211,7 +211,7 @@ database has each one, and the conformance block checks the list is complete.
 `permissions` lists the keys the provider knows. `sqlComplete: true` says its
 SQL functions answer the key completely: a grant has no row condition beyond
 the scope. Bucket and topic policies and the SQL modules check by role and
-scope only, so `gen`, `sql add` and doctor (BS214, BS411) refuse a key that
+scope only, so `gen`, `add` and doctor (BS214, BS411) refuse a key that
 isn't marked. Leave row-conditioned keys to the provider's table policies.
 
 ### Token hook
@@ -222,7 +222,7 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 | ------------------ | ----------------------------------------------------------------------------------------- |
 | `function`         | BS404 checks its grants, BS405 its shape                                                  |
 | `tenantClaim`      | BS409 compares it with `auth.organization.claim`                                          |
-| `ownedClaims`      | BS407 reports another hook that writes them; `sql add tenant` stops on `memberships`      |
+| `ownedClaims`      | BS407 reports another hook that writes them; `add tenant` stops on `memberships`          |
 | `registeredClaims` | BS407 accepts these claims from the functions named, such as `features`                   |
 | `budget`           | BS405 measures the claims it lists against `bytes` for `doctor --as`                      |
 | `markers`          | comment lines in the provider's files, so doctor recognises its hook and grants migration |
@@ -369,7 +369,7 @@ An `access` policy calls the access contract (`tenant_ids_with`,
 `is_platform`) by default. Give it the provider's templates in `sql`, and it
 calls those instead, for any scope they take. `sql: "provider"` uses the
 provider's `idsWith` and `isPlatform`: `better-supabase gen` writes them into
-the generated bucket meta, and `better-supabase sql sync` passes them to each
+the generated bucket meta, and `better-supabase upgrade` passes them to each
 topic's `sql()`. A copy of the templates also works, so the bucket module
 doesn't import the config; doctor (BS214) warns when the copy differs from the
 provider.
@@ -389,7 +389,7 @@ export const documents = defineBucket({
 ```
 
 A topic with `sql: "provider"` throws when its `sql()` runs without
-templates. Pass them yourself outside `sql sync`:
+templates. Pass them yourself outside `upgrade`:
 
 ```ts
 topic.sql({ functions: config.authorization.functions });

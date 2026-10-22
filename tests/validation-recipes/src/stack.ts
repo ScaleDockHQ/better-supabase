@@ -33,7 +33,7 @@ export async function reachable(): Promise<boolean> {
   }
 }
 
-/** The module files `sql add` writes for the recipe, schema files first. */
+/** The module files `add` writes for the recipe, schema files first. */
 export function moduleFiles(recipe: Recipe) {
   const config = resolveConfig(recipe.config, process.cwd());
   const files = renderBlocks(config.blockNames, moduleLayout(config));

@@ -1,36 +1,37 @@
 ---
-title: apply, adopt, preset and blocks
+title: Presets and blocks
 description: Apply a preset to an existing project, map blocks onto tables it already has, read a preset code, and find the blocks to add.
 ---
 
-These commands work with [presets](/docs/presets) and the block catalog. To
-start a new project from a preset, use
-[`init --preset`](/docs/cli/init#starting-from-a-preset).
+[`add --preset`](/docs/cli/init#add) applies a [preset](/docs/presets) to
+the project you have, `add --adopt` maps a block onto tables you already
+have, and `blocks` reads the block catalog. To start a new project from a
+preset, use [`init --preset`](/docs/cli/init#starting-from-a-preset).
 
-## apply
+## Applying a preset
 
 ```bash
-pnpm better-supabase apply --preset crm
-pnpm better-supabase apply --preset 1pWEF3d578B1iGt16 --dry-run
-pnpm better-supabase apply --preset crm --only blocks
+pnpm better-supabase add --preset crm
+pnpm better-supabase add --preset 1pWEF3d578B1iGt16 --dry-run
+pnpm better-supabase add --preset crm --only blocks
 ```
 
-`apply` edits the config file you have. By default it sets `preset` to the
+`add --preset` edits the config file you have. By default it sets `preset` to the
 named preset or the code, replacing the one the config has, so
 `defineConfig` expands it into `blocks` and the conventions while your own
 keys keep winning. It prints the diff of the config file, then loads the
 config again and writes the module files of every block it now holds, as
-`better-supabase sql sync` does. `--dry-run` prints the diff and writes
+`better-supabase upgrade` does. `--dry-run` prints the diff and writes
 nothing, and `--check` exits 1 with the diff when the config doesn't hold the
 preset yet.
 
-| `--only`      | What `apply` changes                                                                         |
-| ------------- | -------------------------------------------------------------------------------------------- |
-| unset         | `preset`: the preset's blocks and its conventions                                            |
-| `blocks`      | `blocks`: the preset's blocks and what they require, listed by name; `preset` stays as it is |
-| `conventions` | `preset`: a code with the preset's conventions and no blocks                                 |
+| Value of `--only` | What `add --preset` changes                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| unset             | `preset`: the preset's blocks and its conventions                                            |
+| `blocks`          | `blocks`: the preset's blocks and what they require, listed by name; `preset` stays as it is |
+| `conventions`     | `preset`: a code with the preset's conventions and no blocks                                 |
 
-With a Create URL that holds a design (`&design=`), `apply` also merges the
+With a Create URL that holds a design (`&design=`), `add --preset` also merges the
 design into the config: each table in `tables`, replacing a table of the
 same name and keeping the others, and each block's extra columns over the
 `options.extraColumns` it already has. Quote the URL. `--only conventions`
@@ -38,30 +39,28 @@ leaves the design out. A design too large for a URL comes as a design file
 from Create; pass its path instead of the URL:
 
 ```bash
-pnpm better-supabase apply --preset ./better-supabase.design.json
+pnpm better-supabase add --preset ./better-supabase.design.json
 ```
 
 See [init](/docs/cli/init#a-design-from-create) for what a design holds.
 
 The [convention flags](/docs/cli/init#conventions) (`--casing`, `--scope`,
 `--tenant-name`, `--access`, `--id-type` and `--api`) override that
-convention of the preset, and `apply` writes the changed code. `--only
+convention of the preset, and `add --preset` writes the changed code. `--only
 blocks` takes none of them.
 
 In a workspace, `--package <dir>` edits the config of that package instead
 of the one at `--cwd`; a Create URL with `&package=` sets it too. A URL with
-`&authz=` makes `apply` print a note: the authorization library you picked on
+`&authz=` makes `add --preset` print a note: the authorization library you picked on
 Create isn't part of the preset, so set it up from Get code.
 
 ```bash
-pnpm better-supabase apply --preset crm --scope user --api api
+pnpm better-supabase add --preset crm --scope user --api api
 ```
-
-Side effects: Writes files, reads the database with `--adopt`, calls the Supabase Management API with `--project-ref`.
 
 ### Breaking changes
 
-Before it writes a design, `apply` compares its tables with `tables`.
+Before it writes a design, `add --preset` compares its tables with `tables`.
 Adding a table, an optional column, an index, a comment or a subject title
 is safe, and so is a looser rule or a new `onDelete`. These break rows
 already in the database or app code that reads them:
@@ -75,7 +74,7 @@ already in the database or app code that reads them:
 - a new `scope`, or removing `timestamps`, `rank` or `softDelete`, which
   drops the columns they add.
 
-`apply` lists each breaking change with the expand-and-contract steps that
+`add --preset` lists each breaking change with the expand-and-contract steps that
 make it safe, writes nothing and exits 1:
 
 ```txt
@@ -89,11 +88,11 @@ Breaking changes to app tables:
 Pass `--allow-breaking` to write the design anyway, for example on a project
 without data. `--dry-run` prints the list and the diff without it. A table
 or column with the same definition under a new name counts as a rename.
-With `--allow-breaking`, `apply` prints the `alter table ... rename`
-statements to run in a migration before `sql sync`, so the rows move to the
+With `--allow-breaking`, `add --preset` prints the `alter table ... rename`
+statements to run in a migration before `upgrade`, so the rows move to the
 new name (`data.renames` under `--json`).
 
-A table in `tables` that the design doesn't name is kept, and `apply`
+A table in `tables` that the design doesn't name is kept, and `add --preset`
 reports it (`data.kept`). Remove it from `tables` yourself to drop it.
 `diffAppTables` and `diffDesigns` from `better-supabase/preset` return the
 same changes, and Create shows them on the Changes tab of Get code.
@@ -103,10 +102,10 @@ nullability in the database has drifted from `tables`.
 ### Adopting existing tables
 
 ```bash
-pnpm better-supabase apply --preset crm --only blocks --adopt --dry-run
+pnpm better-supabase add --preset crm --only blocks --adopt --dry-run
 ```
 
-With `--adopt`, `apply` reads the tables in the database and looks for each
+With `--adopt`, `add --preset` reads the tables in the database and looks for each
 block's tables under their default names (`teams` and `team_members` for
 `teams`). For every block it finds there, it writes `blocks.<block>` in
 [adopt mode](/docs/blocks/sql#existing-tables-managed-adopt-and-custom) instead of letting the managed block skip the
@@ -117,27 +116,27 @@ The proposed mapping of each block is printed before the diff, so
 block whose config already sets a mode keeps it.
 
 When a block has a table under a default name that can't be adopted as it
-is, for example because a column the block needs is missing, `apply`
+is, for example because a column the block needs is missing, `add --preset`
 writes nothing and prints what is missing. Add the column, map the block
-with `better-supabase adopt`, or leave the block out of the preset.
-`--adopt` reads the tables where `introspect` does: the config's `source`,
+with `better-supabase add --adopt`, or leave the block out of the preset.
+`--adopt` reads the tables where `gen` does: the config's `source`,
 `$DATABASE_URL`, `$SUPABASE_DB_URL` or the local stack, or `--snapshot`,
 `--db-url-stdin` and `--project-ref`.
 
-A preset that can't install stops `apply` with the reason. When the config
-isn't an object literal `apply` can follow, it changes nothing and prints the
-`preset` entry to set yourself. Without a config file, `apply` points to
+A preset that can't install stops `add --preset` with the reason. When the config
+isn't an object literal `add --preset` can follow, it changes nothing and prints the
+`preset` entry to set yourself. Without a config file, `add --preset` points to
 `init --preset`.
 
-## adopt
+## Adopting tables
 
 ```bash
-pnpm better-supabase adopt teams --tables public.squads --dry-run
-pnpm better-supabase adopt audit --tables public.audit_logs
-pnpm better-supabase adopt tags --tables app.labels,app.label_links --json
+pnpm better-supabase add --adopt teams --tables public.squads --dry-run
+pnpm better-supabase add --adopt audit --tables public.audit_logs
+pnpm better-supabase add --adopt tags --tables app.labels,app.label_links --json
 ```
 
-`adopt` maps one block onto tables the app already has and writes the
+`add --adopt <block>` maps one block onto tables the app already has and writes the
 proposed `blocks.<block>` entry in adopt mode. Each table in `--tables`
 (`table` or `schema.table`, comma-separated or repeated) goes to the block's
 logical table whose columns it matches best; the block's other tables are
@@ -151,40 +150,39 @@ too.
 The output lists every logical table and column with what it maps to, then
 a report like doctor's: errors for what can't map (a missing table, a
 required column the table lacks, a value the module refuses) and warnings
-for the migration-only options the entry keeps. With an error `adopt` exits
+for the migration-only options the entry keeps. With an error `add --adopt` exits
 1 and writes nothing. Otherwise it prints the diff of the config and writes
 it; `--dry-run` writes nothing, and `--check` exits 1 when the config doesn't
-hold the mapping yet. Run `better-supabase sql sync` afterwards to
+hold the mapping yet. Run `better-supabase upgrade` afterwards to
 write the block's module over the adopted tables. `--json` prints the entry,
-the mapping and the report as data. The tables are read like `introspect`
+the mapping and the report as data. The tables are read like `gen`
 reads them, with `--snapshot`, `--db-url-stdin` and `--project-ref`.
 
 Only blocks with an adopt mode can be adopted; `blocks view <name>` lists a
 block's modes.
 
-Side effects: Writes files, reads the database, calls the Supabase Management API with `--project-ref`.
+Without a block, `add --adopt` writes the data migration instead: the rows
+and settings of the installed blocks that a schema diff skips
+([SQL modules](/docs/blocks/sql)).
 
-## preset
+## Reading a preset
 
 ```bash
-pnpm better-supabase preset decode 1pWEF3d578B1iGt16
-pnpm better-supabase preset decode "https://app.bettersupabase.com/create?preset=1pWEF3d578B1iGt16"
-pnpm better-supabase preset info
+pnpm better-supabase blocks list --preset 1pWEF3d578B1iGt16
+pnpm better-supabase blocks list --preset "https://app.bettersupabase.com/create?preset=1pWEF3d578B1iGt16"
+pnpm better-supabase config --preset
 ```
 
-`preset decode` takes a name, a code or a `/create` URL and prints the
+`blocks list --preset` takes a name, a code or a `/create` URL and prints the
 conventions, every block the preset installs with the reason it is there,
 and anything that can't install, which exits 1. A code from an older
 version also lists the fields it predates, which decode at their defaults.
 
-`preset info` reads the `preset` of the config and prints the same, then
+`config --preset` reads the `preset` of the config and prints the same, then
 how the config differs from it: the blocks it adds (`+`), a casing that
 differs, and the preset blocks it gives settings of its own (`~`).
 
-| Command         | Side effects |
-| --------------- | ------------ |
-| `preset decode` | None.        |
-| `preset info`   | None.        |
+Neither command changes anything.
 
 ## blocks
 
@@ -204,6 +202,18 @@ subpath, the `better-supabase add` command and its registry glue.
 `blocks search` matches the name, the title and the description. Each one
 reads the same catalog as [/blocks](https://bettersupabase.com/blocks) and
 `--json` prints it as data.
+
+```bash
+pnpm better-supabase blocks list --installed
+pnpm better-supabase blocks view audit --sql
+```
+
+`blocks list --installed` lists the blocks in your config with the version
+each one has in the database files and whether `upgrade` has steps for it.
+`--tests-dir <dir>` reads the pgTAP files from another folder than
+`database.sql.testsDir`. `blocks view --sql` prints the SQL `add` would write
+for the block with your config, and writes nothing. `blocks list --preset`
+reads a preset, as above.
 
 | Command         | Side effects |
 | --------------- | ------------ |

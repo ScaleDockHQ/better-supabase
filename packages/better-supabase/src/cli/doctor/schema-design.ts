@@ -594,7 +594,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
                 ? []
                 : [
                     {
-                      message: `public.${table}.${name} ${drift.join(", and ")}. Change appTables to match the database, or regenerate the migration with \`better-supabase sql sync\` and apply it. Follow the expand-and-contract steps from \`better-supabase apply\` when rows depend on the old shape.`,
+                      message: `public.${table}.${name} ${drift.join(", and ")}. Change appTables to match the database, or regenerate the migration with \`better-supabase upgrade\` and apply it. Follow the expand-and-contract steps from \`better-supabase add\` when rows depend on the old shape.`,
                       target: `public.${table}.${name}`,
                       object: { kind: "table", schema: "public", name: table },
                     },

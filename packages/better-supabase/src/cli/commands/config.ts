@@ -5,6 +5,7 @@ import { defineCliCommand } from "../core/command.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { redact, redactUrl } from "../core/redact.ts";
+import { presetInfo } from "./preset.ts";
 
 /**
  * The resolved config as JSON: generators by name and version, every credential
@@ -26,8 +27,18 @@ export function printableConfig(config: ResolvedConfig): unknown {
 
 export const configCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("config"),
-  args: {},
-  run: (_args, context) => {
+  args: {
+    preset: {
+      type: "boolean",
+      description:
+        "The preset the config names, what it resolves to, and how the config differs from it",
+    },
+  },
+  run: (args, context) => {
+    if (args.preset === true) {
+      return Promise.resolve(presetInfo(context.config));
+    }
+
     const config = printableConfig(context.config);
 
     const file = context.configFile

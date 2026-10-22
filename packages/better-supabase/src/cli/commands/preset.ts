@@ -4,7 +4,6 @@ import type {
   PresetFieldKey,
   ResolvedPreset,
 } from "../../preset/index.ts";
-import type { AnyCommand } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import {
@@ -17,17 +16,7 @@ import {
   presetOf,
   resolvePreset,
 } from "../../preset/index.ts";
-import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
-import { commandMeta } from "../core/manifest.ts";
-
-const DECODE_ARGS = {
-  preset: {
-    type: "positional",
-    required: true,
-    description: "A preset name, a preset code or a /create URL",
-  },
-} as const;
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -175,7 +164,7 @@ export function presetInfo(config: ResolvedConfig): CommandResult {
     return {
       code: 0,
       output:
-        "The config names no preset. Start one with `better-supabase apply --preset <name|code>`.",
+        "The config names no preset. Start one with `better-supabase add --preset <name|code>`.",
       data: { preset: null },
     };
   }
@@ -209,15 +198,3 @@ export function presetInfo(config: ResolvedConfig): CommandResult {
     data: { name: config.preset, ...presetData(resolved), added, changed },
   };
 }
-
-export const presetDecodeCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("preset decode"),
-  args: DECODE_ARGS,
-  run: (args) => Promise.resolve(decodePresetInput(args.preset)),
-});
-
-export const presetInfoCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("preset info"),
-  args: {},
-  run: (_args, { config }) => Promise.resolve(presetInfo(config)),
-});

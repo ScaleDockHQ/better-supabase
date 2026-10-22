@@ -22,7 +22,10 @@ export interface DevMcpOptions {
   /** The project directory every command runs in. */
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
-  /** Adds the tools that write files: `gen`, `sql_sync`, `apply` and `add`. */
+  /**
+   * Adds the tools that write files: `gen`, `upgrade`, `add`, `add_preset` and
+   * `remove`.
+   */
   readonly allowWrites?: boolean;
   /** Global flags passed to every command, such as `--config` or `--env`. */
   readonly globals?: readonly string[];
@@ -139,16 +142,16 @@ const TOOLS: readonly DevTool[] = [
     () => ["config"],
   ),
   read(
-    "preset_info",
+    "config_preset",
     "Shows the config's preset and how the config differs from it.",
     schema({}),
-    () => ["preset", "info"],
+    () => ["config", "--preset"],
   ),
   read(
-    "sql_list",
-    "Lists the SQL modules and which ones the project has.",
+    "blocks_installed",
+    "Lists every block's SQL and whether the project installed it.",
     schema({}),
-    () => ["sql", "list"],
+    () => ["blocks", "list", "--installed"],
   ),
   read(
     "gen_check",
@@ -157,10 +160,10 @@ const TOOLS: readonly DevTool[] = [
     () => ["gen", "--check"],
   ),
   read(
-    "apply_dry_run",
+    "add_preset_dry_run",
     "Shows the config diff and the design changes a preset or Create URL makes, with their severity, writing nothing.",
     schema({ preset: PRESET }, ["preset"]),
-    ({ preset }) => ["apply", "--preset", preset ?? "", "--dry-run"],
+    ({ preset }) => ["add", "--preset", preset ?? "", "--dry-run"],
   ),
   write(
     "gen",
@@ -170,15 +173,15 @@ const TOOLS: readonly DevTool[] = [
     () => ["gen"],
   ),
   write(
-    "sql_sync",
-    "Writes the SQL module files for the blocks the config lists and removes the others.",
+    "upgrade",
+    "Writes the upgrade steps of blocks behind their current version, then the SQL files of every block the config lists.",
     {},
     [],
-    () => ["sql", "sync"],
+    () => ["upgrade"],
   ),
   write(
-    "apply",
-    "Applies a preset or Create URL: edits the config and writes the blocks' modules.",
+    "add_preset",
+    "Applies a preset or Create URL: edits the config and writes the blocks' SQL.",
     {
       preset: PRESET,
       allow_breaking: {
@@ -188,7 +191,7 @@ const TOOLS: readonly DevTool[] = [
     },
     ["preset"],
     ({ preset, allow_breaking: allowBreaking }) => [
-      "apply",
+      "add",
       "--preset",
       preset ?? "",
       ...(allowBreaking === true ? ["--allow-breaking"] : []),
@@ -200,6 +203,13 @@ const TOOLS: readonly DevTool[] = [
     { blocks: { type: "array", items: { type: "string" }, minItems: 1 } },
     ["blocks"],
     ({ blocks }) => ["add", ...(blocks ?? [])],
+  ),
+  write(
+    "remove",
+    "Removes blocks: their config entries, their clients and the SQL files no other block needs.",
+    { blocks: { type: "array", items: { type: "string" }, minItems: 1 } },
+    ["blocks"],
+    ({ blocks }) => ["remove", ...(blocks ?? [])],
   ),
 ];
 

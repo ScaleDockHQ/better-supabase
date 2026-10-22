@@ -211,7 +211,7 @@ export async function parseSnapshot(
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
     throw new CliError(
       "invalid_input",
-      `${label} is not a version 2 snapshot. Run \`better-supabase introspect\` to refresh it.`,
+      `${label} is not a version 2 snapshot. Run \`better-supabase gen --save-snapshot\` to refresh it.`,
     );
   }
 

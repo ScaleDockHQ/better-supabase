@@ -5,7 +5,7 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- List tables and functions in `expose` (better-supabase.config.ts); `sql sync` rewrites the grants below.
+-- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
 
@@ -24,7 +24,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- List tables and functions in `expose` (better-supabase.config.ts); `sql sync` rewrites the grants below.
+-- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
 
@@ -60,7 +60,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- List tables and functions in `expose` (better-supabase.config.ts); `sql sync` rewrites the grants below.
+-- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
 
@@ -96,7 +96,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ on conflict (name) do update
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- List tables and functions in `expose` (better-supabase.config.ts); `sql sync` rewrites the grants below.
+-- List tables and functions in `expose` (better-supabase.config.ts); `upgrade` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.
 
@@ -132,7 +132,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_13_grants.sql
 -- better-supabase module: grants
 -- @bsb-block-data grants
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

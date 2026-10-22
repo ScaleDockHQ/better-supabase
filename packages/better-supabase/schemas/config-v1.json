@@ -321,7 +321,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase sql add realtime-tables`."
+              "description": "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase add realtime-tables`."
             },
             "global": {
               "type": "array",
@@ -352,7 +352,7 @@
               },
               "required": ["from", "output"],
               "additionalProperties": false,
-              "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale."
+              "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `upgrade`; `upgrade --check` fails when the file is stale."
             },
             "triggers": {
               "type": "array",
@@ -479,7 +479,7 @@
                 "required": ["topic", "table"],
                 "additionalProperties": false
               },
-              "description": "Broadcast triggers `sql sync` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
+              "description": "Broadcast triggers `upgrade` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
             }
           },
           "additionalProperties": false,
@@ -1615,7 +1615,7 @@
         },
         "additionalProperties": false
       },
-      "description": "Tables the app owns, keyed by name, created in public by `better-supabase sql sync` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040."
+      "description": "Tables the app owns, keyed by name, created in public by `better-supabase upgrade` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040."
     },
     "blocks": {
       "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
@@ -2617,14 +2617,14 @@
             }
           },
           "additionalProperties": false,
-          "description": "The env file better-supabase env writes."
+          "description": "The env file better-supabase dev env writes."
         },
         "keys": {
           "type": "object",
           "properties": {
             "output": {
               "type": "string",
-              "description": "Signing key file better-supabase keys writes. Defaults to supabase/signing_keys.json."
+              "description": "Signing key file better-supabase dev keys writes. Defaults to supabase/signing_keys.json."
             }
           },
           "additionalProperties": false

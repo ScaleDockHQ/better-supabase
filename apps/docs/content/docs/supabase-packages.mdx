@@ -60,7 +60,7 @@ stack, and better-supabase works next to it rather than wrapping it:
   `supabase gen types`, through `@supabase/postgrest-typegen`, and adds its
   own files next to it. It reads the schema over `pg`, so it doesn't call the
   Supabase CLI.
-- `better-supabase env` runs `supabase status` to read the local URLs and
+- `better-supabase dev env` runs `supabase status` to read the local URLs and
   keys. It uses `$SUPABASE_BIN` when set, then the project's
   `node_modules/.bin/supabase`, then `supabase` on the `PATH`. It never
   downloads the CLI; without one it fails with
@@ -68,4 +68,4 @@ stack, and better-supabase works next to it rather than wrapping it:
 - `better-supabase init` prints the `supabase` commands to run next
   (`supabase start`, `supabase db reset`).
 
-See [Local development](/docs/cli/local) for the commands and their output.
+See [Local development](/docs/cli/dev) for the commands and their output.

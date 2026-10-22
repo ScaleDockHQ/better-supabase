@@ -18,8 +18,8 @@ The `better-supabase` command ships in the `better-supabase` package. `pg` and
 `@supabase/postgrest-typegen` are optional peers that only the CLI loads: `pg`
 reads your database schema, and postgrest-typegen writes `database.types.ts`.
 Keep postgrest-typegen at the version above, which the CLI's output is tested
-against; `gen` prints a notice for any other release, and without it, `gen`,
-`introspect` and `doctor` stop with the install command. Every other peer is
+against; `gen` prints a notice for any other release, and without it, `gen`
+and `doctor` stop with the install command. Every other peer is
 optional too; [Peers](/docs/getting-started/peers) lists which subpath needs
 which one. TypeScript 6 and 7 are
 supported, with `nodenext` or
@@ -69,7 +69,7 @@ Start your local stack and generate:
 
 ```bash
 supabase start
-pnpm better-supabase env   # URL and keys into .env.local
+pnpm better-supabase dev env   # URL and keys into .env.local
 pnpm better-supabase gen
 ```
 

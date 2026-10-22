@@ -12,8 +12,8 @@ const live = await reachable();
 const fixture = fileURLToPath(new URL("..", import.meta.url));
 
 describe("the committed module files", () => {
-  it("are what sql sync writes for the config and the provider snapshot", async () => {
-    const result = await run(["sql", "sync", "--check", "--cwd", fixture]);
+  it("are what upgrade writes for the config and the provider snapshot", async () => {
+    const result = await run(["upgrade", "--check", "--cwd", fixture]);
 
     expect(result).toMatchObject({ code: 0, stderr: "" });
   });

@@ -142,7 +142,7 @@ export async function write(
 
   const applied = await applyPlan(
     sqlPlan(config, {
-      regenerate: "better-supabase sql sync",
+      regenerate: "better-supabase upgrade",
       files: written.map((file) => moduleFile(file)),
       remove: await staleModuleTests(
         config,

@@ -32,8 +32,8 @@ export async function reachable(): Promise<boolean> {
 }
 
 /**
- * The module files `sql add` writes for a config with only `preset`: schema
- * files, then data files, then the pgTAP files with `tests`.
+ * The module files `add` writes for a config with only `preset`: schema files,
+ * then data files, then the pgTAP files with `tests`.
  */
 export function presetFiles(
   preset: PresetName,

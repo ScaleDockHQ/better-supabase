@@ -14,7 +14,7 @@ inside the test process on in-memory SQLite or PGlite, with the same
 
 ## Signing key
 
-Create the key once with `better-supabase keys`. It writes
+Create the key once with `better-supabase dev keys`. It writes
 `supabase/signing_keys.json` and warns until the file is in `.gitignore`.
 Point `supabase/config.toml` at it and restart the stack, so Auth signs with
 it and the JWKS publishes it:
@@ -25,7 +25,7 @@ signing_keys_path = "./signing_keys.json"
 ```
 
 ```bash
-pnpm better-supabase keys
+pnpm better-supabase dev keys
 supabase stop && supabase start
 ```
 
@@ -46,7 +46,7 @@ await alice.supabase.storage.from("customer-logos").list(acme);
 ```
 
 `asUser` reads the URL and publishable key from the environment, with or
-without a framework prefix, just as [`better-supabase env`](/docs/cli/local#env)
+without a framework prefix, just as [`better-supabase dev env`](/docs/cli/dev#env)
 writes them. It signs with the first key in the file `signing_keys_path`
 points to (or `$SUPABASE_SIGNING_KEYS_PATH`); pass `signingKey` to use
 another. `db` goes through PostgREST, and `sql` goes through direct Postgres
@@ -196,7 +196,7 @@ example in `setupFiles` with the ones from `node:util`. The same applies to
 ## Fixtures
 
 Share rows between `supabase db reset` and your tests with a
-[typed seed](/docs/cli/local#seed):
+[typed seed](/docs/cli/db#seed):
 
 ```ts
 import { seed } from "../supabase/seed.ts";
@@ -209,7 +209,7 @@ const alice = await asUser(betterSupabase, {
 });
 ```
 
-A [tenant seed](/docs/cli/local#seeds-per-tenant) fills one tenant from its
+A [tenant seed](/docs/cli/db#seeds-per-tenant) fills one tenant from its
 id, so a test can give each organization it creates the same rows:
 
 ```ts
@@ -513,5 +513,5 @@ rollback;
 
 The helpers stay installed after the run, so `supabase db advisors` sees
 them too. Each one sets its own `search_path`, so the advisors report no
-`function_search_path_mutable` warning for them; run `sql sync` after
+`function_search_path_mutable` warning for them; run `upgrade` after
 upgrading to rewrite a module file from an earlier version.

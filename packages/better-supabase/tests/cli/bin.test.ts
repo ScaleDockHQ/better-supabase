@@ -61,7 +61,7 @@ describe("the built bin", () => {
   });
 
   it("reads the connection string from stdin", async () => {
-    const result = await spawn(["seed", "--db-url-stdin", "--json"], dir);
+    const result = await spawn(["db", "seed", "--db-url-stdin", "--json"], dir);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({
       error: { code: "missing_value", flag: "--db-url-stdin" },

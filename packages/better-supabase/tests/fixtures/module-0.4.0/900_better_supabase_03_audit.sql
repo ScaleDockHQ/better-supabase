@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- Records inserts, updates and deletes with the actor and changed columns, for tables you register.
--- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;

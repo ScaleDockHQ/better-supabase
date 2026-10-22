@@ -543,7 +543,7 @@ describe("$search", () => {
         (await betterSupabase.connect(executor).$search("notes", { vector }))
           .error?.hint,
       ).toBe(
-        'Add "public.notes" to vectorSearch in better-supabase.config.ts (with prefilter or hybrid for filter and text) and run `better-supabase sql sync`.',
+        'Add "public.notes" to vectorSearch in better-supabase.config.ts (with prefilter or hybrid for filter and text) and run `better-supabase upgrade`.',
       );
     },
   );

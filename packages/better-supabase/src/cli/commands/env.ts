@@ -164,7 +164,7 @@ export function mergeEnv(
       merged.push("");
     }
 
-    merged.push("# Local Supabase stack (better-supabase env)");
+    merged.push("# Local Supabase stack (better-supabase dev env)");
 
     for (const [key, value] of pending) {
       merged.push(`${key}=${value}`);
@@ -212,7 +212,7 @@ export async function runEnv(
 
   const plan: FilePlan = {
     root: config.root,
-    regenerate: "better-supabase env",
+    regenerate: "better-supabase dev env",
     files: [
       {
         path,
@@ -269,7 +269,7 @@ export async function runEnv(
 }
 
 export const envCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("env"),
+  meta: commandMeta("dev env"),
   args: { ...ARGS, ...ENV_PLAN_ARGS },
   run: (args, { config, env, signal }) => runEnv(config, args, env, signal),
 });

@@ -139,7 +139,7 @@ export async function upgrade(
             ]
           : []),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
-        "Run `better-supabase sql upgrade`.",
+        "Run `better-supabase upgrade`.",
       ].join("\n"),
     };
   }
@@ -191,11 +191,11 @@ export async function upgrade(
 
   if (steps.length > 0 && !migrations) {
     const path = `${migrationsDir(config)}/${migrationStamp(now())}_better_supabase_block_upgrade.sql`;
-    const contents = `-- better-supabase sql upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
+    const contents = `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
 
     const applied = await applyPlan(
       sqlPlan(config, {
-        regenerate: "better-supabase sql upgrade",
+        regenerate: "better-supabase upgrade",
         files: [{ path, contents }],
       }),
       { "dry-run": dryRun },

@@ -40,7 +40,7 @@ export interface InstalledBlock {
   readonly version: number;
 }
 
-/** What `sql upgrade` runs for one module behind the current version. */
+/** What `upgrade` runs for one module behind the current version. */
 export interface BlockSqlUpgradePlan {
   readonly module: string;
   readonly from: number;

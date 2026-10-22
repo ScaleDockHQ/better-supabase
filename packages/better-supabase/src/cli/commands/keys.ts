@@ -109,7 +109,7 @@ export async function runKeys(
           ? resolve(config.root, dir, "..")
           : config.root,
       base: config.root,
-      regenerate: "better-supabase keys --rotate",
+      regenerate: "better-supabase dev keys --rotate",
       files: [
         {
           path,
@@ -182,7 +182,7 @@ export async function runKeys(
 }
 
 export const keysCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("keys"),
+  meta: commandMeta("dev keys"),
   args: ARGS,
   run: (args, { config }) => runKeys(config, args),
 });

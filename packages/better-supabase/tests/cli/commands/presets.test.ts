@@ -171,7 +171,7 @@ describe("apply", () => {
     await files({
       "better-supabase.config.json": json({ blocks: { tags: {} } }),
     });
-    const result = await run(["apply", "--preset", "minimal", "--cwd", dir]);
+    const result = await run(["add", "--preset", "minimal", "--cwd", dir]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('+  "preset": "minimal"');
     expect(
@@ -185,7 +185,7 @@ describe("apply", () => {
       ),
     ).toBe(true);
     expect(
-      (await run(["apply", "--preset", "minimal", "--cwd", dir])).stdout,
+      (await run(["add", "--preset", "minimal", "--cwd", dir])).stdout,
     ).toContain("already holds the preset");
   });
 
@@ -193,7 +193,7 @@ describe("apply", () => {
     await files({ "better-supabase.config.json": json({}) });
 
     const dry = await run([
-      "apply",
+      "add",
       "--preset",
       "minimal",
       "--dry-run",
@@ -207,7 +207,7 @@ describe("apply", () => {
     ).toBe(json({}));
 
     const blocks = await run([
-      "apply",
+      "add",
       "--preset",
       encodePreset({ blocks: ["comments"] }),
       "--only",
@@ -262,7 +262,7 @@ describe("apply", () => {
     await files({ "better-supabase.config.json": json({}) });
 
     const result = await run([
-      "apply",
+      "add",
       "--preset",
       "minimal",
       "--scope",
@@ -317,7 +317,7 @@ describe("apply", () => {
     });
     const url = `https://bettersupabase.com/create?preset=${encodePreset(namedPreset("minimal"))}&authz=acme&package=apps/web`;
 
-    const result = await run(["apply", "--preset", url, "--cwd", dir]);
+    const result = await run(["add", "--preset", url, "--cwd", dir]);
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
@@ -334,7 +334,7 @@ describe("apply", () => {
     expect(
       (
         await run([
-          "apply",
+          "add",
           "--preset",
           "minimal",
           "--package",
@@ -392,7 +392,7 @@ describe("apply with a design", () => {
     });
 
     const result = await run([
-      "apply",
+      "add",
       "--preset",
       await designUrl(),
       "--cwd",
@@ -445,7 +445,7 @@ describe("apply with a design", () => {
     const url = await designUrl();
 
     const damaged = await run([
-      "apply",
+      "add",
       "--preset",
       `${url.slice(0, -4)}!!!!`,
       "--cwd",
@@ -455,7 +455,7 @@ describe("apply with a design", () => {
     expect(damaged.code).toBe(2);
 
     const stray = await run([
-      "apply",
+      "add",
       "--preset",
       await designUrl({ extraColumns: { organizations: { tier: "text" } } }),
       "--cwd",
@@ -482,7 +482,7 @@ describe("apply with a design", () => {
     await files({ "better-supabase.config.json": before });
     const url = await designUrl({ appTables: design.appTables ?? {} });
 
-    const refused = await run(["apply", "--preset", url, "--cwd", dir]);
+    const refused = await run(["add", "--preset", url, "--cwd", dir]);
 
     expect(refused.code).toBe(1);
     expect(refused.stdout).toContain("Breaking changes to app tables:");
@@ -495,20 +495,13 @@ describe("apply with a design", () => {
       await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
     ).toBe(before);
 
-    const dry = await run([
-      "apply",
-      "--preset",
-      url,
-      "--dry-run",
-      "--cwd",
-      dir,
-    ]);
+    const dry = await run(["add", "--preset", url, "--dry-run", "--cwd", dir]);
 
     expect(dry.code).toBe(0);
     expect(dry.stdout).toContain("Breaking changes to app tables:");
 
     const allowed = await run([
-      "apply",
+      "add",
       "--preset",
       url,
       "--allow-breaking",
@@ -537,7 +530,7 @@ describe("apply with a design", () => {
     await files({ "better-supabase.config.json": before });
     const url = await designUrl({ appTables: design.appTables ?? {} });
 
-    const refused = await run(["apply", "--preset", url, "--cwd", dir]);
+    const refused = await run(["add", "--preset", url, "--cwd", dir]);
 
     expect(refused.code).toBe(1);
     expect(refused.stdout).toContain("Renames table memos to notes.");
@@ -546,7 +539,7 @@ describe("apply with a design", () => {
     ).toBe(before);
 
     const allowed = await run([
-      "apply",
+      "add",
       "--preset",
       url,
       "--allow-breaking",
@@ -577,7 +570,7 @@ describe("apply with a design", () => {
     });
 
     const allowed = await run([
-      "apply",
+      "add",
       "--preset",
       await designUrl({ appTables: design.appTables ?? {} }),
       "--allow-breaking",
@@ -601,7 +594,7 @@ describe("apply with a design", () => {
     await files({ "better-supabase.config.json": json({}) });
 
     const result = await run([
-      "apply",
+      "add",
       "--preset",
       await designUrl(),
       "--only",
@@ -961,7 +954,7 @@ describe("apply with a design file", () => {
       ),
     });
 
-    const result = await run(["apply", "--preset", DESIGN_FILE, "--cwd", dir]);
+    const result = await run(["add", "--preset", DESIGN_FILE, "--cwd", dir]);
 
     expect(result.stderr).toBe("");
     expect(result.code).toBe(0);

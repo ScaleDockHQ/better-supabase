@@ -2,9 +2,11 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { ResolvedPreset } from "../../preset/index.ts";
 import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
+import type { WiredBlock } from "../sql/config-edit.ts";
 import type { TemplateContext } from "../templates.ts";
 import type { SqlDeps } from "./sql.ts";
 
@@ -13,8 +15,10 @@ import {
   glueCommand,
   PRESET_CATALOG,
   PRESET_FRAMEWORKS,
+  PRESET_NAMES,
   resolvePreset,
 } from "../../preset/index.ts";
+import { CONVENTION_ARGS, CONVENTION_COMPLETIONS } from "../conventions.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
@@ -38,6 +42,7 @@ import {
 import { detectProject, installCommand } from "../project/detect.ts";
 import { addModules } from "../sql/add.ts";
 import { addBlocksToWiring } from "../sql/config-edit.ts";
+import { dataMigration } from "../sql/migrations.ts";
 import {
   importFrom,
   INTEGRATIONS,
@@ -46,7 +51,10 @@ import {
   resolveIntegrations,
   TEMPLATES,
 } from "../templates.ts";
+import { ADOPT_ARGS, runAdopt, snapshotTables } from "./adopt.ts";
+import { APPLY_ARGS, runApply } from "./apply.ts";
 import { blockNames } from "./blocks.ts";
+import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
 const ADD_ARGS = {
   block: {
@@ -82,8 +90,8 @@ export type AddArgs = CliArgs<
 
 /**
  * Adds blocks: lists them in `blocks`, writes their modules and what they
- * require (`sql add`), wires the ones with a client into `lib/blocks.ts`, and
- * names the registry glue for the project's frameworks.
+ * require (`add`), wires the ones with a client into `lib/blocks.ts`, and names
+ * the registry glue for the project's frameworks.
  */
 async function addBlocks(
   config: ResolvedConfig,
@@ -117,18 +125,8 @@ async function addBlocks(
     ),
   );
 
-  const clients = resolved.manifests.flatMap((manifest) =>
-    manifest.client === null || !wanted.has(manifest.name)
-      ? []
-      : [
-          {
-            key: manifest.name.replaceAll(/-([a-z0-9])/g, (_, letter: string) =>
-              letter.toUpperCase(),
-            ),
-            export: manifest.client.export,
-            subpath: manifest.client.subpath,
-          },
-        ],
+  const clients = blockClients(
+    resolved.manifests.filter((manifest) => wanted.has(manifest.name)),
   );
 
   if (clients.length > 0) {
@@ -198,7 +196,27 @@ async function addBlocks(
       clients: clients.map((client) => client.key),
       ...(glueLine === undefined ? {} : { glue: glueLine }),
     },
+    ...(added.next === undefined ? {} : { next: added.next }),
   };
+}
+
+/** The clients `lib/blocks.ts` wires for `manifests`, keyed in camelCase. */
+export function blockClients(
+  manifests: ResolvedPreset["manifests"],
+): WiredBlock[] {
+  return manifests.flatMap((manifest) =>
+    manifest.client === null
+      ? []
+      : [
+          {
+            key: manifest.name.replaceAll(/-([a-z0-9])/g, (_, letter: string) =>
+              letter.toUpperCase(),
+            ),
+            export: manifest.client.export,
+            subpath: manifest.client.subpath,
+          },
+        ],
+  );
 }
 
 /** `lib/blocks.ts` next to `lib/supabase/`. */
@@ -365,18 +383,99 @@ async function addIntegrations(
   };
 }
 
+const ADD_COMMAND_ARGS = {
+  ...ADD_ARGS,
+  ...APPLY_ARGS,
+  tables: ADOPT_ARGS.tables,
+  ...CONVENTION_ARGS,
+  ...SOURCE_ARGS,
+  "dry-run": PLAN_ARGS["dry-run"],
+  check: PLAN_ARGS.check,
+} as const;
+
+/** The flags only `--preset` reads, and the flags only `--adopt` reads. */
+const PRESET_ONLY = [
+  "package",
+  "only",
+  "allow-breaking",
+  ...Object.keys(CONVENTION_ARGS),
+] as const;
+
+/** A usage error for the first flag in `flags` that `args` sets. */
+function unexpected(
+  args: Readonly<Record<string, unknown>>,
+  flags: readonly string[],
+  needs: string,
+): void {
+  const flag = flags.find((name) => args[name] !== undefined);
+
+  if (flag !== undefined) {
+    throw new CliError("usage", `--${flag} works with ${needs}.`, {
+      flag: `--${flag}`,
+    });
+  }
+}
+
 export const addCommand: AnyCommand = defineCliCommand({
   meta: commandMeta("add"),
-  args: {
-    ...ADD_ARGS,
-    "dry-run": PLAN_ARGS["dry-run"],
-    check: PLAN_ARGS.check,
+  args: ADD_COMMAND_ARGS,
+  lists: ["integration", "tables"],
+  completions: {
+    ...CONVENTION_COMPLETIONS,
+    block: blockNames,
+    preset: () => PRESET_NAMES,
+    only: () => ["blocks", "conventions"],
   },
-  lists: ["integration"],
-  completions: { block: blockNames },
-  run: (args, { config, configFile, io }) =>
-    runAdd(config, args, io.prompts, {
-      ...SYSTEM_DEPS,
-      ...(configFile === undefined ? {} : { configFile }),
-    }),
+  run: async (args, { config, configFile, env, io, log, paint, signal }) => {
+    const deps = configFile === undefined ? {} : { configFile };
+
+    const tables = snapshotTables(config, env, {
+      ...(await sourceArgs(args, io)),
+      ...(signal ? { signal } : {}),
+    });
+
+    if (args.preset !== undefined) {
+      if (args._.length > 0) {
+        throw new CliError(
+          "usage",
+          "Pass blocks or --preset, not both: a preset names its own blocks.",
+        );
+      }
+
+      return runApply(config, args, {
+        now: SYSTEM_DEPS.now,
+        paint,
+        tables,
+        ...deps,
+      });
+    }
+
+    unexpected(args, PRESET_ONLY, "--preset");
+
+    if (args.adopt === true) {
+      if (args._.length === 0) {
+        unexpected(args, ["tables"], "--adopt and one block");
+
+        return dataMigration(config, args, SYSTEM_DEPS.now);
+      }
+
+      if (args._.length > 1) {
+        throw new CliError("usage", "Adopt one block at a time.");
+      }
+
+      return runAdopt(
+        config,
+        { ...args, block: args._[0] },
+        {
+          paint,
+          tables: () => log.progress("Reading the schema", tables),
+          ...deps,
+        },
+      );
+    }
+
+    unexpected(args, ["tables"], "--adopt");
+
+    return runAdd(config, args, io.prompts, { ...SYSTEM_DEPS, ...deps });
+  },
 });

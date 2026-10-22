@@ -37,7 +37,7 @@ export async function writesMigrations(
 /** What goes into one module migration. */
 export interface BlockSqlMigrationParts {
   readonly files: readonly BlockSqlFile[];
-  /** `sql upgrade` steps, already commented, that run before the schema bodies. */
+  /** `upgrade` steps, already commented, that run before the schema bodies. */
   readonly upgrade?: readonly string[];
   /** The `realtime.policies` file. */
   readonly topics?: string;
@@ -58,8 +58,8 @@ export function renderModuleMigration(parts: BlockSqlMigrationParts): string {
 
   const sections = [
     [
-      `-- better-supabase sql: ${modules.length > 0 ? `the SQL modules ${modules.join(", ")}` : "the realtime topic policies"}, in one migration (sql.workflow: 'migrations').`,
-      "-- Managed by `better-supabase sql`, which writes a new migration when they change.",
+      `-- better-supabase sql: ${modules.length > 0 ? `the SQL modules ${modules.join(", ")}` : "the realtime topic policies"}, in one migration (database.sql.workflow: 'migrations').`,
+      "-- Managed by `better-supabase add` and `better-supabase upgrade`, which write a new migration when they change.",
       "-- Change them through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
     ].join("\n"),
     ...(extensions.length > 0
@@ -182,7 +182,7 @@ export async function writeLatestMigration(
 
   const applied = await applyPlan(
     sqlPlan(config, {
-      regenerate: "better-supabase sql sync",
+      regenerate: "better-supabase upgrade",
       files: [{ path, contents }],
     }),
     { "dry-run": options.dryRun },

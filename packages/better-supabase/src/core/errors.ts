@@ -342,7 +342,7 @@ const JSON_SCHEMA_HINT = "JSON_SCHEMA_INVALID";
 
 /**
  * The prefix of the `jsonb-schemas` check constraints and triggers. `bs_json_`
- * is the name before 0.15, which databases keep until `sql upgrade` runs.
+ * is the name before 0.15, which databases keep until `upgrade` runs.
  */
 const JSON_SCHEMA_CONSTRAINT = /^bsb?_json_/;
 const JSON_SCHEMA_COLUMN = /^[\w$]+\.([\w$]+) does not match its JSON Schema/;

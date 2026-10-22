@@ -315,7 +315,7 @@ export default defineConfig({
 });
 ```
 
-`sql add` refuses, instead of guessing, when the config has no
+`add` refuses, instead of guessing, when the config has no
 `authorization`, or when `blocks.access.idType` disagrees with the tenant
 scope's `idType`.
 
@@ -326,7 +326,7 @@ the provider declares both as scopes and picks the tenant level with
 
 The provider's functions check role and scope, never row conditions. Every
 permission key a SQL module checks must be `sqlComplete: true` in the
-provider's `permissions`, or `sql add` and [doctor](/docs/cli/doctor#bs411)
+provider's `permissions`, or `add` and [doctor](/docs/cli/doctor#bs411)
 stop. Map an action to another key with `blocks.<module>.permissions`.
 
 `can_assign()` calls the provider's `canAssign`, and
@@ -387,7 +387,7 @@ export default defineConfig({
 ```
 
 With `mode: "custom"` instead, the block writes nothing at all and you write the
-contract functions under those names yourself. `better-supabase sql print
+contract functions under those names yourself. `better-supabase blocks view --sql
 access` lists their signatures, and [doctor](/docs/cli/doctor#bs307) checks
 them.
 
@@ -446,7 +446,7 @@ The invitations module does the same on `platformRoles.table` with
 writes only; rows stored before you set `where` stay until they change.
 Removing `where` drops the trigger.
 
-Under the provider model, `sql add` reads the setting from the provider's
+Under the provider model, `add` reads the setting from the provider's
 `roleSources`: when one of them is the adopted memberships table, the tenant
 module uses its `role.through` lookup. An explicit `roleThrough` wins; set one
 to add `where`, which `roleSources` doesn't carry.
@@ -550,7 +550,7 @@ tenant column of a referenced row. Rows stored before you add an entry are
 checked when they change. The triggers are written in managed and adopt
 mode; in custom mode the module writes no SQL.
 
-`sql sync` can derive the entries from the foreign keys in the schema files
+`upgrade` can derive the entries from the foreign keys in the schema files
 instead. With `sameTenant: { auto: true }`, every single-column foreign key
 from a table with the tenant column to another table with it gets an entry,
 unless the key already includes the tenant column. The scan reads
@@ -670,7 +670,7 @@ disabled: {
 },
 ```
 
-Under the provider model, `sql add` and `sql sync` read both from the
+Under the provider model, `add` and `upgrade` read both from the
 provider's `suspension`. A subject set in
 `blocks.access.disabled` keeps its own setting. The data-lifecycle
 module disables a tenant awaiting deletion by setting the `disabledAt`

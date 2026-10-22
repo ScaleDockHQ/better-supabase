@@ -48,21 +48,21 @@ at start.
 
 The read-only tools run by default:
 
-| Tool            | Command                             |
-| --------------- | ----------------------------------- |
-| `doctor`        | `doctor`                            |
-| `blocks_list`   | `blocks list`, with `category`      |
-| `blocks_view`   | `blocks view <block>`               |
-| `blocks_search` | `blocks search <text>`              |
-| `config`        | `config`                            |
-| `preset_info`   | `preset info`                       |
-| `sql_list`      | `sql list`                          |
-| `gen_check`     | `gen --check`                       |
-| `apply_dry_run` | `apply --preset <preset> --dry-run` |
+| Tool                 | Command                           |
+| -------------------- | --------------------------------- |
+| `doctor`             | `doctor`                          |
+| `blocks_list`        | `blocks list`, with `category`    |
+| `blocks_view`        | `blocks view <block>`             |
+| `blocks_search`      | `blocks search <text>`            |
+| `config`             | `config`                          |
+| `config_preset`      | `config --preset`                 |
+| `blocks_installed`   | `blocks list --installed`         |
+| `gen_check`          | `gen --check`                     |
+| `add_preset_dry_run` | `add --preset <preset> --dry-run` |
 
-`--allow-writes` adds the tools that write files: `gen`, `sql_sync` (`sql
-sync`), `apply` (with `preset` and `allow_breaking`) and `add` (with
-`blocks`).
+`--allow-writes` adds the tools that write files: `gen`, `upgrade`,
+`add_preset` (`add --preset`, with `preset` and `allow_breaking`), `add`
+(with `blocks`) and `remove` (with `blocks`).
 
 ## Consent for writes
 

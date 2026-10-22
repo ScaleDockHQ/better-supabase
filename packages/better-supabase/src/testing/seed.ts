@@ -255,7 +255,7 @@ function statementsOf(
 
 /**
  * Typed fixtures shared by `supabase/seeds` and your tests. Rows use app casing
- * and Insert types; `better-supabase seed` renders them to SQL.
+ * and Insert types; `better-supabase db seed` renders them to SQL.
  *
  * ```ts
  * export const seed = defineSeed(betterSupabase, {
@@ -316,9 +316,9 @@ export function isTenantSeed(value: unknown): value is TenantSeed {
 }
 
 /**
- * Fixtures for one tenant, built from its id. `better-supabase seed --tenant`
- * applies them to existing tenants, and `seedTenantOnCreate` to each tenant
- * created in development.
+ * Fixtures for one tenant, built from its id. `better-supabase db seed
+ * --tenant` applies them to existing tenants, and `seedTenantOnCreate` to each
+ * tenant created in development.
  *
  * ```ts
  * export const seed = defineTenantSeed(betterSupabase, (tenant) => ({

@@ -1,10 +1,10 @@
 ---
 title: App tables
-description: Declare the tables your app owns in tables, and better-supabase sql sync writes them with the scope column, row level security, grants and a pgTAP test.
+description: Declare the tables your app owns in tables, and better-supabase upgrade writes them with the scope column, row level security, grants and a pgTAP test.
 ---
 
 Blocks cover the tables every app needs. The tables only your app has, such
-as `projects` and `tasks`, go in `tables`. `better-supabase sql sync`
+as `projects` and `tasks`, go in `tables`. `better-supabase upgrade`
 writes them into one schema file next to the block files, with the scope
 column, row level security, grants, indexes and a pgTAP test, so they follow
 the same rules as the blocks around them.
@@ -141,7 +141,7 @@ tables: {
 },
 ```
 
-Once a column sets `access`, `sql sync` revokes the table-wide grants from
+Once a column sets `access`, `upgrade` revokes the table-wide grants from
 `authenticated` and grants `select` on the readable columns, and `insert` and
 `update` on the writable ones, by name. A query that names a hidden column
 fails with `42501` (permission denied), even with `where false`, because
@@ -300,7 +300,7 @@ tables: {
 
 A set can name any column the table has, including `id`, the scope column
 and the timestamps. A column a set names that the table doesn't have fails
-`sql sync` with the table and the column.
+`upgrade` with the table and the column.
 
 ## Record features
 
@@ -339,7 +339,7 @@ tables: {
 
 The subject's tenant column is the table's tenant column when the table is
 scoped to the tenant, and none otherwise. A user column named `rank` or
-`deleted_at` fails `sql sync` when the subject adds that column. Search
+`deleted_at` fails `upgrade` when the subject adds that column. Search
 triggers for app tables are written into the app tables file, which runs
 after the `search` block.
 
@@ -390,7 +390,7 @@ The decision is ADR 0048.
 
 Set `subject.versions` and the [versions](/docs/blocks/versions) block keeps a
 version of the row each time one of its columns changes, through a trigger on
-the table. The table needs the versions block; `sql sync` names it when it is
+the table. The table needs the versions block; `upgrade` names it when it is
 missing. On [Create](https://app.bettersupabase.com/create), the Versions feature of a table sets it.
 
 ```ts title="better-supabase.config.ts"
@@ -421,7 +421,7 @@ fields each one changed and a restore per field.
 `appTableImport` from `better-supabase/blocks/imports` imports a CSV into an
 app table and updates the rows that already exist, matched on one of the
 table's `unique` sets. See [imports](/docs/blocks/imports#upsert-into-an-app-table).
-With the [bulk](/docs/blocks/bulk) block installed, `sql sync` also writes
+With the [bulk](/docs/blocks/bulk) block installed, `upgrade` also writes
 `app_table_set`, which the built-in `appTables.set` bulk action calls to set
 columns on the selected rows of any app table that is a subject.
 
@@ -473,7 +473,7 @@ tables: {
 | `lookups.*.via`       | a column of this table that references another app table                                                                  |
 | `lookups.*.column`    | the column of the referenced row to read, including `created_at` and `updated_at`                                         |
 
-`sql sync` writes `public.<table>_view`: every column of the table, then one
+`upgrade` writes `public.<table>_view`: every column of the table, then one
 column per rollup and lookup. The view is `security_invoker`, so it reads
 the table and the linked tables with the caller's row level security, and a
 rollup counts only the rows the caller can read. `authenticated` can read it
@@ -493,7 +493,7 @@ const projects = await db.projectsView
 ```
 
 A name already used by a column of the table, or a table named
-`<table>_view`, fails `sql sync`. Each rollup runs one subquery per row read,
+`<table>_view`, fails `upgrade`. Each rollup runs one subquery per row read,
 using the index on the reference column, so page long lists. Adding or
 removing a rollup or lookup is a safe change on the Changes tab, since the
 view keeps no rows. For a formula these keys can't express, write your own
@@ -506,7 +506,7 @@ view.
 | `supabase/schemas/900_better_supabase_app_tables.sql`    | the tables, the columns (`add column if not exists`), RLS, policies, grants, checks, unique keys, indexes, comments, triggers and the `<table>_view` of each table with rollups or lookups            |
 | `supabase/tests/900_better_supabase_app_tables.test.sql` | pgTAP: each table exists, has RLS, its policies, checks, unique keys and indexes, and a stranger can't read or insert outside their scope; each view runs as the invoker and shows a stranger no rows |
 
-`sql sync --check` fails when the files are stale, and removing the last
+`upgrade --check` fails when the files are stale, and removing the last
 app table removes them. A table listed in `expose` keeps the grants
 `expose` gives it.
 

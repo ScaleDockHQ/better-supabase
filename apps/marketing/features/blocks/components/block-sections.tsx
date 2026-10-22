@@ -65,7 +65,7 @@ function lineCount(contents: string): number {
   return contents.replace(/\n$/, "").split("\n").length;
 }
 
-/** The files `sql add` writes, highlighted here and switched on the client. */
+/** The files `add` writes, highlighted here and switched on the client. */
 export async function MigrationFiles({
   block,
   migrations,

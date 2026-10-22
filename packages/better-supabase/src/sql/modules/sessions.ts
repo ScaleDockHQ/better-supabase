@@ -45,7 +45,7 @@ create policy bsb_session_active on ${target} as restrictive
   return `
 
 -- blocks.sessions.options.policies: every table in the schema files,
--- except blocks.sessions.options.exclude. \`sql sync\` rewrites these.
+-- except blocks.sessions.options.exclude. \`upgrade\` rewrites these.
 ${statements.join("\n")}`;
 }
 

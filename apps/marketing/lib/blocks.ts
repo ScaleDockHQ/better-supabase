@@ -300,7 +300,7 @@ const configKey = (name: string): string =>
 
 /**
  * The `blocks` entries in `better-supabase.config.ts` for `block` and the
- * modules `sql add` installs with it (`installed`, dependencies first).
+ * modules `add` installs with it (`installed`, dependencies first).
  */
 export function configSnippet(
   block: CatalogBlock,

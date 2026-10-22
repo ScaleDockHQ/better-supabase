@@ -112,7 +112,7 @@ function renameEach(
 }
 
 /** The range to cut for `props[index]`, with its comma and line. */
-function cutRange(
+export function cutRange(
   source: string,
   code: string,
   open: number,
@@ -497,8 +497,13 @@ function regroup(
 }
 
 /** Removes the `, }` an inline regroup leaves before the object's brace. */
-function tidyInline(text: string, open: number): string {
+export function tidyInline(text: string, open: number): string {
   const close = closingIndex(mask(text), open);
+
+  if (text.slice(open + 1, close).trim() === "") {
+    return `${text.slice(0, open + 1)}${text.slice(close)}`;
+  }
+
   const head = text.slice(0, close).replace(/,\s*$/, " ");
 
   return head + text.slice(close);

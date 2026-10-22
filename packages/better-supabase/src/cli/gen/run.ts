@@ -66,7 +66,7 @@ async function readSetFile(
 
   const readSets = await compiledReadSets(config);
 
-  // `sql sync` writes the app tables; rendering them here would check their
+  // `upgrade` writes the app tables; rendering them here would check their
   // scope against a module list that holds only `read-sets`.
   const { appTables: _appTables, ...layout } = moduleLayout(
     config,

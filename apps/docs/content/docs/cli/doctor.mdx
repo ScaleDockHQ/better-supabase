@@ -262,7 +262,7 @@ covers the functions policies call, and the functions those call.
 **Warning: table without a policy still granted to the Data API.** A table
 with RLS on and no permissive policy for `anon` or `authenticated` answers
 every request with no rows or a denied write, yet a grant lists it in the API
-schema. With `blocks.grants.options.fromPolicies`, `better-supabase sql sync`
+schema. With `blocks.grants.options.fromPolicies`, `better-supabase upgrade`
 revokes `anon`, `authenticated` and `public` on every table in `schemas` with
 RLS on that no `expose` entry and no permissive policy reaches, and keeps the privileges
 of `service_role`. Until the migration is applied, doctor reports the grants
@@ -354,7 +354,7 @@ with the current `work_mem`. When `pg_stat_statements` is installed, the
 message lists the five statements that wrote the most temporary blocks.
 Statements run by Supabase's service roles (PostgREST's schema cache query as
 `authenticator`, Auth and Storage) are left out, and so are better-supabase's
-own catalog reads from `introspect`, `gen` and `doctor`, which start with the
+own catalog reads from `gen` and `doctor`, which start with the
 comment `/* better-supabase */`. When only those spilled, there is no finding. Add indexes so large sorts go away, or raise `work_mem`
 for the role that runs them. Needs a database; saved snapshots skip it.
 
@@ -669,7 +669,7 @@ table has a different type or nullability in the database than
 [`tables`](/docs/blocks/app-tables) gives it, usually after an edit by
 hand or a migration that wasn't regenerated. `gen` types the column from
 `tables`, so the app reads values the database doesn't hold. Change
-`tables` to match the database, or run `better-supabase sql sync` and
+`tables` to match the database, or run `better-supabase upgrade` and
 apply the migration it generates. When rows depend on the old shape, follow
 the expand-and-contract steps that `apply --preset` prints for a breaking
 change. A table or column the database doesn't have yet is left out, since
@@ -682,7 +682,7 @@ migrations that haven't run yet, statement by statement, and flag the ones
 that lock a table that already holds rows. With `--db-url`, doctor checks the
 migrations missing from `supabase_migrations.schema_migrations`. Offline, it
 checks the migrations after `tooling.doctor.migrationSafety.since`, or only the newest
-migration when `since` is unset; `init` and `adopt` set `since` to the latest
+migration when `since` is unset; `init` and `add --adopt` set `since` to the latest
 migration so older files aren't reported. Tables a migration creates are
 skipped, since nothing reads them yet.
 
@@ -770,11 +770,11 @@ is the same check as `gen --check`.
 
 **Warning: SQL module files are out of date.** A module in `blocks` differs from
 the version this release ships. Doctor renders the files with the same layout
-as `sql sync` (grants from policies, session policies, audited tables and the
-vector schema), so the two agree on what is out of date. Run `better-supabase sql sync`, then
+as `upgrade` (grants from policies, session policies, audited tables and the
+vector schema), so the two agree on what is out of date. Run `better-supabase upgrade`, then
 `supabase db schema declarative sync` (`supabase db diff` on migra) to create
 a migration. Under `database.sql.workflow: 'migrations'`, doctor compares against the
-newest `*_better_supabase_modules.sql` migration instead, and `sql sync`
+newest `*_better_supabase_modules.sql` migration instead, and `upgrade`
 writes the new one; apply it with `supabase migration up`.
 
 For the `read-sets` module, doctor imports the modules in `readSets` and
@@ -803,8 +803,8 @@ primary key, or run `alter table ... replica identity full`.
 TypeScript APIs call. With a database connection, doctor compares each
 function's argument and return types with the contract; without one, it looks
 for a `create function` in `supabase/schemas` and the migrations. Write the
-function, or switch the module to `adopt` or `managed`. `better-supabase sql
-print <module>` lists the signatures.
+function, or switch the module to `adopt` or `managed`. `better-supabase blocks
+view <module> --sql` lists the signatures.
 
 ### BS308
 
@@ -854,7 +854,7 @@ sets. Block schemas hold internal tables and helpers that `authenticated` can
 execute so policies can call them; exposing the schema makes them callable over
 REST and RPC as well. Remove the schema from `[api] schemas` and from the
 exposed schemas in the dashboard, and set `blocks.<module>.api` to an
-exposed schema such as `api`: `sql add` writes `security invoker` entry points
+exposed schema such as `api`: `add` writes `security invoker` entry points
 there for the module's client functions, and `rpcTransport(supabase, { schema:
 "api" })` calls them. Doctor reads `[api] schemas` for every exposure check and falls
 back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
@@ -865,7 +865,7 @@ back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
 `blocks`, but on the live database `pgrst.db_pre_request` for the
 `authenticator` role is unset, or names a function whose body doesn't call
 `better_supabase.check_request()`, so Data API writes are never counted. Apply
-the migration `better-supabase sql data` writes, which sets the hook when no
+the migration `better-supabase add --adopt` writes, which sets the hook when no
 other one is set, or call `check_request()` from your own pre-request
 function. Doctor needs a database connection for this check. With
 `blocks["rate-limit"].options.preRequest` set to `false`, the app calls
@@ -989,7 +989,7 @@ your own role for anything else.
 that calls `better_supabase.session_active()`, so a token whose session was
 signed out, or whose user was banned or deleted, keeps reaching the table
 until it expires. Set `blocks.sessions.options.policies` to `true` and
-run `better-supabase sql sync` to write the policy on every table, or add it
+run `better-supabase upgrade` to write the policy on every table, or add it
 by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
 other tables in `blocks.sessions.options.exclude` as `schema.table`
 globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
@@ -1002,7 +1002,7 @@ no migration in `supabase/migrations` repeats. pg-delta can leave an
 extension that owns its own schema, such as `pgmq`, out of the generated
 migration, so a database built from the migrations (a branch, CI or
 production) lacks it. For a module that owns such an extension, run
-`better-supabase sql sync`: it writes the extension into a migration that
+`better-supabase upgrade`: it writes the extension into a migration that
 runs before the schema migration. For your own schema files, add
 `create extension if not exists <name>;` to a migration that runs before the
 one that uses it. The rule stays quiet until the project has a migration.
@@ -1013,8 +1013,8 @@ one that uses it. The rule stays quiet until the project has a migration.
 `blocks`, and `better_supabase.audited_tables` on the live database has
 a row whose table no longer exists. Since the module installs the
 `bsb_audit_forget_dropped` event trigger, dropping a table deletes its row,
-but a table dropped before that keeps it. Run `better-supabase sql sync`
-and apply the migration `better-supabase sql data` writes: the module's data
+but a table dropped before that keeps it. Run `better-supabase upgrade`
+and apply the migration `better-supabase add --adopt` writes: the module's data
 file deletes registrations whose table is gone. Doctor checks this only
 against a database.
 
@@ -1027,7 +1027,7 @@ a database, that no migration in `supabase/migrations` creates. Event
 triggers belong to no schema, so a schema diff limited to some schemas
 (`supabase db schema declarative sync -s ...`) leaves them out of the
 migration, and dropped tables keep their audit registrations or new tables
-get no RLS. Run `better-supabase sql sync`, then `better-supabase sql data`:
+get no RLS. Run `better-supabase upgrade`, then `better-supabase add --adopt`:
 the module's data file repeats its event triggers, so the data migration
 creates them. Run the declarative sync without `-s` from then on.
 
@@ -1097,7 +1097,7 @@ them (the notifications `deliveryEvents` and `suppressions`, the audit
 `restricted` table and the invitations `platformInvitations`) are checked
 once they are mapped, and skipped otherwise, as the generated SQL skips them.
 Map the logical column to the column that holds it, map it to `null` when
-the module allows that, or add the column. `better-supabase sql sync`
+the module allows that, or add the column. `better-supabase upgrade`
 refuses an optional column that the `create table` in `supabase/schemas`
 lacks; this check compares every column with the live database. Needs a
 database.
@@ -1232,8 +1232,8 @@ that the snapshot declares as an enum; string literals are fine. Postgres has
 no implicit cast from text to an enum, so the module's functions fail when
 they run. Change the column to text with a check constraint on its values.
 The columns the module casts to their declared type may stay enums: the tags
-`kind` and `subjectType`, and the number-sequences `entity`. `sql sync` and
-`better-supabase adopt` refuse the same columns when the schema files declare
+`kind` and `subjectType`, and the number-sequences `entity`. `upgrade` and
+`better-supabase add --adopt` refuse the same columns when the schema files declare
 the enum. See
 [existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom).
 
@@ -1260,7 +1260,7 @@ gets `defaultFormat`, whose default changed from the 0.8 body (`standard`)
 to `cloudevents` in 0.9, so receivers built for the old body break with no
 change to the config. The message says whether the table has no `format`
 column or has one the config doesn't map. Set `defaultFormat` to the body
-your receivers expect, or map `columns.endpoints.format`. `sql sync` refuses
+your receivers expect, or map `columns.endpoints.format`. `upgrade` refuses
 the same config; doctor reports it for configs it loads without that check.
 See [connectors](/docs/blocks/webhooks-out#connectors).
 
@@ -1305,7 +1305,7 @@ for you.
 ### BS403
 
 **Info: local stack signs tokens with a shared secret.** Hosted projects sign
-with asymmetric keys. Run [`better-supabase keys`](/docs/cli/local#keys) so
+with asymmetric keys. Run [`better-supabase dev keys`](/docs/cli/dev#keys) so
 local tokens verify through JWKS, the same as in production.
 
 ### BS404
@@ -1367,7 +1367,7 @@ no entry matches.
 
 A hook whose function doesn't exist is reported at its `config.toml` line,
 because every sign-in fails until it does. Snapshots taken before the hook
-was configured skip it; run `better-supabase introspect` again.
+was configured skip it; run `better-supabase gen --save-snapshot` again.
 
 ### BS405
 
@@ -1479,7 +1479,7 @@ finding; verify the request there with `authHook` from
 **Error: the provider access model can't use the authorization provider.**
 With `blocks.access.model: "provider"`, `can()` and the SQL modules fill
 the provider's `idsWith` template for tenant checks and `isPlatform` for
-platform checks, at its `tenantScope`. Doctor reports, and `sql add` refuses:
+platform checks, at its `tenantScope`. Doctor reports, and `add` refuses:
 
 - a config without `authorization`;
 - a `tenantScope` the provider doesn't declare, a scope `idType` other than
@@ -1596,7 +1596,7 @@ over from another worktree, has another value than the local stack. The app
 then talks to the wrong stack, because frameworks never override a variable
 that is already set. The finding names the variable and both values, redacted:
 the host and port for a URL, and a SHA-256 fingerprint for a key. Unset the
-variable, or start the app with `better-supabase run -- <cmd>`, which sets the
+variable, or start the app with `better-supabase dev run -- <cmd>`, which sets the
 stack's values over the shell's. Doctor only checks this when the shell
 exports a `SUPABASE_*` variable and the local stack is running.
 
@@ -1628,7 +1628,7 @@ macOS allows 32 (`kern.sysv.shmmni`). When they run out, the next stack or
 shadow database fails with `could not create shared memory segment: No space
 left on device`, which is how `supabase db diff` and `declarative sync` fail
 on a machine with many worktrees. The finding names the stacks that hold
-segments. Run [`stack prune --stop-idle`](/docs/cli/stack#prune) to destroy
+segments. Run [`stack prune --stop-idle`](/docs/cli/dev#prune) to destroy
 the stacks of deleted worktrees and branches and stop the others, or raise
 the limit. [`db diff`](/docs/cli/db#diff) needs no shadow database.
 

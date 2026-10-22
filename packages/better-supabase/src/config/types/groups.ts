@@ -241,7 +241,7 @@ export interface BetterSupabaseConfig {
   readonly records?: SubjectsConfig;
   /**
    * Tables the app owns, keyed by name, created in `public` by `better-supabase
-   * sql sync`. ADR 0040.
+   * upgrade`. ADR 0040.
    */
   readonly tables?: AppTablesInput;
   /**

@@ -26,25 +26,19 @@ describe("__complete", () => {
   it("offers the commands, then the subcommands, from the manifest", async () => {
     const top = await values("");
     expect(top).toEqual(
-      expect.arrayContaining(["init", "gen", "completion", "sql"]),
+      expect.arrayContaining([
+        "init",
+        "add",
+        "remove",
+        "upgrade",
+        "gen",
+        "dev",
+      ]),
     );
     expect(top).not.toContain("__complete");
-    expect(await values("s")).toEqual([
-      "skills",
-      "spec",
-      "scaffold",
-      "stack",
-      "seed",
-      "sql",
-    ]);
-    expect(await values("sql", "")).toEqual([
-      "list",
-      "add",
-      "sync",
-      "upgrade",
-      "data",
-      "print",
-    ]);
+    expect(await values("s")).toEqual(["skills", "spec", "scaffold"]);
+    expect(await values("dev", "")).toEqual(["env", "run", "keys", "stack"]);
+    expect(await values("db", "")).toEqual(["query", "diff", "seed"]);
     expect(await values("codemod", "0.")).toEqual([
       "0.4",
       "0.5",
@@ -91,8 +85,8 @@ describe("__complete", () => {
     ]);
   });
 
-  it("offers the convention values for init and apply, and block categories", async () => {
-    for (const command of ["init", "apply"]) {
+  it("offers the convention values for init and add, and block categories", async () => {
+    for (const command of ["init", "add"]) {
       expect(await values(command, "--casing", "")).toEqual(["snake", "camel"]);
       expect(await values(command, "--scope", "")).toEqual([
         "tenant",
@@ -107,8 +101,8 @@ describe("__complete", () => {
       expect(await values(command, "--api", "")).toEqual(["none", "api"]);
     }
 
-    expect(await values("apply", "--preset", "")).toEqual([...PRESET_NAMES]);
-    expect(await values("apply", "--only", "")).toEqual([
+    expect(await values("add", "--preset", "")).toEqual([...PRESET_NAMES]);
+    expect(await values("add", "--only", "")).toEqual([
       "blocks",
       "conventions",
     ]);
@@ -135,8 +129,8 @@ describe("__complete", () => {
       blocks,
     );
     expect(await values("blocks", "view", "")).toEqual(blocks);
-    expect(await values("adopt", "")).toEqual(blocks);
-    expect(await values("adopt", blocks[0] ?? "", "")).toEqual([]);
+    expect(await values("remove", "")).toEqual(blocks);
+    expect(await values("add", "--adopt", "")).toEqual(blocks);
   });
 
   it("asks the shell for file names for free-form values", async () => {
@@ -146,7 +140,7 @@ describe("__complete", () => {
   });
 
   it("skips the value of a global option when it finds the command", async () => {
-    expect(await values("--cwd", "apps/web", "sql", "")).toContain("list");
+    expect(await values("--cwd", "apps/web", "dev", "")).toContain("env");
   });
 
   it("offers nothing after a command it does not know", async () => {

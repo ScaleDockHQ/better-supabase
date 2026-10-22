@@ -3,7 +3,8 @@ import { posix, resolve } from "node:path";
 
 import type { BlockConfig, ResolvedConfig } from "../../config/index.ts";
 import type { CreateDesign, DesignChange, Preset } from "../../preset/index.ts";
-import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CONVENTION_ARGS } from "../conventions.ts";
+import type { CliOptions } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { AdoptProposal, ExistingTable } from "../sql/adopt.ts";
@@ -17,22 +18,17 @@ import {
   diffAppTables,
   encodePreset,
   isPresetName,
-  PRESET_NAMES,
   resolvePreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
 import {
-  CONVENTION_ARGS,
-  CONVENTION_COMPLETIONS,
   conventionFlags,
   hasConventionFlags,
   withConventions,
 } from "../conventions.ts";
-import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
-import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { ident as sqlIdent } from "../doctor/live.ts";
 import { readPresetInput } from "../preset-input.ts";
@@ -51,10 +47,9 @@ import {
 import { writeDesign } from "../sql/design-edit.ts";
 import { syncModules } from "../sql/sync.ts";
 import { plain } from "../style.ts";
-import { adoptSchemas, snapshotTables, withAdoptedBlock } from "./adopt.ts";
-import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
+import { adoptSchemas, withAdoptedBlock } from "./adopt.ts";
 
-const APPLY_ARGS = {
+export const APPLY_ARGS = {
   preset: {
     type: "string",
     description:
@@ -76,7 +71,7 @@ const APPLY_ARGS = {
   adopt: {
     type: "boolean",
     description:
-      "Map the preset's blocks onto tables the database already has under their default names (adopt mode)",
+      "Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for adopted blocks",
   },
   "allow-breaking": {
     type: "boolean",
@@ -252,7 +247,7 @@ function renameStatements(changes: readonly DesignChange[]): string[] {
   });
 }
 
-/** How to run `renames` before `sql sync` creates the new names. */
+/** How to run `renames` before `upgrade` creates the new names. */
 function describeRenames(
   renames: readonly string[],
   renamedTables: readonly string[],
@@ -261,7 +256,7 @@ function describeRenames(
   return renames.length === 0
     ? []
     : [
-        "Run these in a migration before `better-supabase sql sync`, so the renamed tables and columns keep their rows:",
+        "Run these in a migration before `better-supabase upgrade`, so the renamed tables and columns keep their rows:",
         ...renames.map((statement) => `  ${statement}`),
         ...(renamedTables.length === 0
           ? []
@@ -522,7 +517,7 @@ export async function runApply(
             ]),
           ),
         },
-        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --tables <schema.table>\`, or leave the block out of the preset.`,
+        error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase add --adopt <block> --tables <schema.table>\`, or leave the block out of the preset.`,
       };
     }
 
@@ -561,7 +556,7 @@ export async function runApply(
 
   const plan: FilePlan = {
     root: config.root,
-    regenerate: "better-supabase apply",
+    regenerate: "better-supabase add",
     files: [{ path: file, contents: text, policy: "edit" }],
   };
 
@@ -596,23 +591,3 @@ export async function runApply(
     data: { ...data, written: true },
   };
 }
-
-export const applyCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("apply"),
-  args: { ...APPLY_ARGS, ...CONVENTION_ARGS, ...SOURCE_ARGS },
-  completions: {
-    ...CONVENTION_COMPLETIONS,
-    preset: () => PRESET_NAMES,
-    only: () => ["blocks", "conventions"],
-  },
-  run: async (args, { config, configFile, env, io, paint, signal }) =>
-    runApply(config, args, {
-      now: () => new Date(),
-      paint,
-      tables: snapshotTables(config, env, {
-        ...(await sourceArgs(args, io)),
-        ...(signal ? { signal } : {}),
-      }),
-      ...(configFile === undefined ? {} : { configFile }),
-    }),
-});

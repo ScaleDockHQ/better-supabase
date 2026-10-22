@@ -22,7 +22,10 @@ export interface SourceConfig {
    * `$SUPABASE_ACCESS_TOKEN`; prefer the env var over committing a token.
    */
   readonly accessToken?: string;
-  /** Read a saved `better-supabase introspect` snapshot instead of connecting. */
+  /**
+   * Read a saved `better-supabase gen --save-snapshot` snapshot instead of
+   * connecting.
+   */
   readonly snapshot?: string;
   /**
    * Read a Supabase Lite project's schema the way Lite runs it, from `[db]

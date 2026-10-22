@@ -2,7 +2,7 @@
 -- better-supabase module: app-tables
 -- @bsb-tables
 -- The tables the app owns, from `appTables`, in public.
--- Managed by `better-supabase sql sync`; re-running it overwrites this file.
+-- Managed by `better-supabase upgrade`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 create table if not exists "public"."projects" (
@@ -96,7 +96,7 @@ comment on view "public"."tasks_view" is 'The rollups and lookups of public.task
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- Managed by `better-supabase sql sync`; re-running it overwrites this file.
+-- Managed by `better-supabase upgrade`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 begin;

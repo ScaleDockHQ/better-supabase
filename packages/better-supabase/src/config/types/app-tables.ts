@@ -109,7 +109,7 @@ export const APP_COLUMN_ACCESS = ["read", "server"] as const;
 export type AppColumnAccess = (typeof APP_COLUMN_ACCESS)[number];
 
 /**
- * A table the app owns, created in `public` by `better-supabase sql sync` next
+ * A table the app owns, created in `public` by `better-supabase upgrade` next
  * to the block files. Every table gets `id`, the scope column and (unless
  * `timestamps: false`) `created_at` and `updated_at`.
  */

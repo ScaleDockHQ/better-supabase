@@ -15,7 +15,7 @@ pnpm better-supabase add organizations invitations
 ```
 
 Both modules need `tenant` (the memberships table) and `access` (the
-[access contract](/docs/blocks/access)), so `sql add` pulls those in too.
+[access contract](/docs/blocks/access)), so `add` pulls those in too.
 Permissions are checked with `member_can()`, so the same functions work with
 the default roles, your own role and permission tables, an authorization
 provider or your own functions.
@@ -158,7 +158,7 @@ export async function inviteMember(organizationId: string, email: string) {
 `better_supabase` or a `blocks.<module>.schema` to `[api] schemas`: those
 schemas hold internal helpers that policies call, and doctor reports exposing
 them as BS312. Set `api: "api"` on the `organizations` and `invitations`
-modules instead: `sql add` writes a `security invoker` entry point in `api` for
+modules instead: `add` writes a `security invoker` entry point in `api` for
 each function the modules grant to `authenticated`, with the same name and
 arguments. Add `api` to `[api] schemas` and pass
 `rpcTransport(ctx.supabase, { schema: "api" })`, or `schema: "api"` to

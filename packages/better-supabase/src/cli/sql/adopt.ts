@@ -2,7 +2,7 @@
  * Proposes an adopt-mode entry for a block from tables the app already has:
  * each logical table of the module gets an existing table, and each logical
  * column the column that most likely holds it. The proposal is checked the way
- * `sql sync` and doctor check a config, so what can't map is reported before
+ * `upgrade` and doctor check a config, so what can't map is reported before
  * anything is written.
  */
 

@@ -26,7 +26,7 @@ import {
 } from "./rename-sql.ts";
 import { renderBlocks } from "./render.ts";
 
-/** One statement `sql upgrade` runs to move an installed block to new names. */
+/** One statement `upgrade` runs to move an installed block to new names. */
 export interface EntityRenameStep {
   readonly module: string;
   readonly description: string;

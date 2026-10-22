@@ -150,9 +150,9 @@ export interface BlockSqlNames {
    */
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
   /**
-   * Tables and columns the module renamed between versions. `sql upgrade`
-   * renames them on installs below `from + 1`, after the config's entity and
-   * table renames, so a declared move needs no hand-written upgrade step.
+   * Tables and columns the module renamed between versions. `upgrade` renames
+   * them on installs below `from + 1`, after the config's entity and table
+   * renames, so a declared move needs no hand-written upgrade step.
    */
   readonly migrations?: readonly BlockSqlNameMigration[];
 }

@@ -3,7 +3,7 @@ import type { BlockSqlUpgrade } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { renameSql } from "../shared.ts";
 
-/** The audit module's `sql upgrade` steps, from each installed version. */
+/** The audit module's `upgrade` steps, from each installed version. */
 export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
   {
     from: 1,

@@ -449,6 +449,7 @@ describe("env", () => {
     );
 
     const result = await run([
+      "dev",
       "env",
       "--status-file",
       "status.json",
@@ -469,7 +470,8 @@ describe("env", () => {
     expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
     await chmod(join(dir, ".env.local"), 0o644);
     expect(
-      (await run(["env", "--status-file", "status.json", "--cwd", dir])).stdout,
+      (await run(["dev", "env", "--status-file", "status.json", "--cwd", dir]))
+        .stdout,
     ).toContain("Unchanged");
     expect((await stat(join(dir, ".env.local"))).mode & 0o777).toBe(0o600);
   });
@@ -484,7 +486,7 @@ describe("env", () => {
     await chmod(bin, 0o755);
 
     const result = await run(
-      ["env", "--out", "-", "--prefix", "VITE_", "--cwd", dir],
+      ["dev", "env", "--out", "-", "--prefix", "VITE_", "--cwd", dir],
       {
         env: { SUPABASE_BIN: bin },
         io: { stdout: () => {}, stderr: () => {} },
@@ -504,7 +506,7 @@ describe("env", () => {
     );
     await chmod(bin, 0o755);
 
-    const result = await run(["env", "--out", "-", "--cwd", dir], {
+    const result = await run(["dev", "env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
@@ -517,7 +519,7 @@ describe("env", () => {
     await project({}, { "status.txt": "Stopped\n" });
 
     const result = await run(
-      ["env", "--status-file", "status.txt", "--cwd", dir],
+      ["dev", "env", "--status-file", "status.txt", "--cwd", dir],
       { io: { stdout: () => {}, stderr: () => {} } },
     );
 
@@ -532,6 +534,7 @@ describe("env", () => {
 
     const result = await run(
       [
+        "dev",
         "env",
         "--status-file",
         "status.json",
@@ -571,8 +574,17 @@ describe("env", () => {
 
     const args =
       flag === "--status-file"
-        ? ["env", "--status-file", path, "--cwd", dir]
-        : ["env", "--status-file", "status.json", "--out", path, "--cwd", dir];
+        ? ["dev", "env", "--status-file", path, "--cwd", dir]
+        : [
+            "dev",
+            "env",
+            "--status-file",
+            "status.json",
+            "--out",
+            path,
+            "--cwd",
+            dir,
+          ];
 
     const result = await run(args, {
       io: { stdout: () => {}, stderr: () => {} },
@@ -592,7 +604,7 @@ describe("env", () => {
     await writeFile(bin, "#!/bin/sh\nexit 2\n");
     await chmod(bin, 0o755);
 
-    const result = await run(["env", "--out", "-", "--cwd", dir], {
+    const result = await run(["dev", "env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
@@ -603,7 +615,7 @@ describe("env", () => {
 
   it("keeps comments and export lines when merging", () => {
     expect(mergeEnv("# mine\nexport A=1\n", { A: "2", B: "3" })).toBe(
-      "# mine\nA=2\n\n# Local Supabase stack (better-supabase env)\nB=3\n",
+      "# mine\nA=2\n\n# Local Supabase stack (better-supabase dev env)\nB=3\n",
     );
   });
 });
@@ -611,7 +623,7 @@ describe("env", () => {
 describe("keys", () => {
   it("writes a private ES256 key that signs, and rotates", async () => {
     await project({}, { "supabase/config.toml": "[auth]\n" });
-    const first = await run(["keys", "--cwd", dir]);
+    const first = await run(["dev", "keys", "--cwd", dir]);
     expect(first.code).toBe(0);
     expect(first.stdout).toContain('signing_keys_path = "./signing_keys.json"');
     const path = join(dir, "supabase/signing_keys.json");
@@ -635,8 +647,8 @@ describe("keys", () => {
 
     expect(signature.byteLength).toBe(64);
 
-    expect((await run(["keys", "--cwd", dir])).code).toBe(1);
-    const rotated = await run(["keys", "--rotate", "--cwd", dir]);
+    expect((await run(["dev", "keys", "--cwd", dir])).code).toBe(1);
+    const rotated = await run(["dev", "keys", "--rotate", "--cwd", dir]);
     expect(rotated.stdout).toContain("1 older key kept");
     const keys = JSON.parse(await readFile(path, "utf-8")) as { kid: string }[];
     expect(keys).toHaveLength(2);
@@ -650,7 +662,7 @@ describe("keys in a monorepo package", () => {
       {},
       { "supabase/config.toml": "[auth]\n", "apps/web/package.json": "{}" },
     );
-    const result = await run(["keys", "--cwd", join(dir, "apps/web")]);
+    const result = await run(["dev", "keys", "--cwd", join(dir, "apps/web")]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Add it to ../../supabase/config.toml");
     expect(result.stdout).toContain(
@@ -681,7 +693,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
         "src/read-sets.ts": readSetModule,
       },
     );
-    const added = await run(["sql", "add", "read-sets", "--cwd", dir]);
+    const added = await run(["add", "read-sets", "--cwd", dir]);
     expect(added.stderr).toBe("");
 
     const path = join(
@@ -694,10 +706,10 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
       "create or replace function public.rs_chrome(p jsonb)",
     );
     expect(sql).toContain("((p->>'organizationId')::uuid)");
-    expect((await run(["sql", "sync", "--check", "--cwd", dir])).code).toBe(0);
+    expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
 
     await writeFile(path, sql.replace("'active'", "'lead'"));
-    const stale = await run(["sql", "sync", "--check", "--cwd", dir]);
+    const stale = await run(["upgrade", "--check", "--cwd", dir]);
     expect(stale.code).toBe(1);
     expect(stale.stderr).toContain("read_sets");
   });
@@ -720,7 +732,7 @@ export const seed = defineSeed(defineSupabase(schema), {
 `,
       },
     );
-    const result = await run(["seed", "--cwd", dir]);
+    const result = await run(["db", "seed", "--cwd", dir]);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain(
       "Created supabase/seeds/000_better_supabase.sql (2 tables)",
@@ -738,18 +750,18 @@ export const seed = defineSeed(defineSupabase(schema), {
       sql.indexOf('"customers"'),
     );
     expect(sql).toContain("'Acme''s'");
-    expect((await run(["seed", "--check", "--cwd", dir])).code).toBe(0);
+    expect((await run(["db", "seed", "--check", "--cwd", dir])).code).toBe(0);
     await writeFile(
       join(dir, "supabase/seeds/000_better_supabase.sql"),
       "-- hand written\n",
     );
-    const drift = await run(["seed", "--check", "--cwd", dir]);
+    const drift = await run(["db", "seed", "--check", "--cwd", dir]);
     expect(drift.code).toBe(1);
     expect(drift.stdout).toContain(
       "--- supabase/seeds/000_better_supabase.sql",
     );
     expect(drift.stdout).toContain("--- hand written");
-    const refused = await run(["seed", "--cwd", dir]);
+    const refused = await run(["db", "seed", "--cwd", dir]);
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain("not generated by better-supabase");
   });
@@ -909,13 +921,15 @@ describe("flags from the config", () => {
       tooling: { env: { output: ".env.development.local", prefix: "VITE_" } },
     });
     expect(
-      (await run(["env", "--status-file", "status.json", "--cwd", dir])).code,
+      (await run(["dev", "env", "--status-file", "status.json", "--cwd", dir]))
+        .code,
     ).toBe(0);
     expect(
       await readFile(join(dir, ".env.development.local"), "utf-8"),
     ).toContain("VITE_SUPABASE_URL=http://127.0.0.1:54321");
     expect(existsSync(join(dir, ".env.local"))).toBe(false);
     await run([
+      "dev",
       "env",
       "--status-file",
       "status.json",
@@ -934,7 +948,7 @@ describe("flags from the config", () => {
     await configure({
       tooling: { keys: { output: "supabase/keys/local.json" } },
     });
-    expect((await run(["keys", "--cwd", dir])).code).toBe(0);
+    expect((await run(["dev", "keys", "--cwd", dir])).code).toBe(0);
     expect(existsSync(join(dir, "supabase/keys/local.json"))).toBe(true);
   });
 

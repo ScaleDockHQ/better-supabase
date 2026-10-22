@@ -92,8 +92,8 @@ grant select on better_supabase.blocks to service_role;
 `;
 
 /**
- * Records the module in `better_supabase.blocks`, which `sql upgrade` and
- * doctor read.
+ * Records the module in `better_supabase.blocks`, which `upgrade` and doctor
+ * read.
  */
 function moduleRow(module: BlockSql, mode: BlockMode): string {
   return `insert into better_supabase.blocks (name, version, mode)
@@ -103,11 +103,11 @@ on conflict (name) do update
 }
 
 /**
- * The files `sql add` writes for these modules. Modules in `custom` mode write
+ * The files `add` writes for these modules. Modules in `custom` mode write
  * nothing: the app implements their contract. A schema module's rows, role
  * settings and other statements a schema diff can't capture go to a second file
- * in `better-supabase-data/` (`kind: 'data'`), which `sql data` writes into a
- * migration.
+ * in `better-supabase-data/` (`kind: 'data'`), which `add --adopt` writes into
+ * a migration.
  */
 export function renderBlocks(
   names: readonly string[],
@@ -195,7 +195,7 @@ export function renderBlocks(
     const dataHeader = [
       title,
       `-- @bsb-block-data ${module.name}`,
-      "-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`",
+      "-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`",
       "-- after the schema migration to put them in a migration.",
       ...managed,
     ].join("\n");

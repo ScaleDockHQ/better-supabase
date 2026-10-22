@@ -490,7 +490,7 @@ describe("design config", () => {
       `npx better-supabase init --preset "${CREATE}&design=${code}"`,
     );
     expect(designApplyCommand(crm, code)).toBe(
-      `npx better-supabase apply --preset "${CREATE}&design=${code}"`,
+      `npx better-supabase add --preset "${CREATE}&design=${code}"`,
     );
     expect(designInstallCommand(crm, "")).toBe(presetInstallCommand(crm));
   });

@@ -108,7 +108,7 @@ const signIns = await lastSignIns(
 const lastSeen = signIns.orThrow().get(userId)?.lastSignInAt;
 ```
 
-To put that policy on every table, set `options.policies`. `sql sync` reads
+To put that policy on every table, set `options.policies`. `upgrade` reads
 the `create table` and `drop table` statements in your declarative schema
 files (your migrations only when the project has none) and writes
 one `bsb_session_active` policy per table in `schemas`, except the

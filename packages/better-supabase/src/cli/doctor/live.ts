@@ -269,7 +269,7 @@ export const LIVE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Queries spill to temporary files",
     description:
-      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`. When every statement that spilled ran as a Supabase service role (PostgREST's schema cache query as `authenticator`, Auth or Storage) or came from better-supabase's own catalog reads (`introspect`, `gen`, `doctor`), there is no finding.",
+      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`. When every statement that spilled ran as a Supabase service role (PostgREST's schema cache query as `authenticator`, Auth or Storage) or came from better-supabase's own catalog reads (`gen`, `doctor`), there is no finding.",
     async check(context) {
       const db = live(context);
 
