@@ -1,0 +1,53 @@
+---
+title: Courses and learning
+description: The lms preset installs courses with modules, lessons and quizzes graded by forms, enrollments with progress, certificates, comments and attachments.
+---
+
+The `lms` preset is for an app in the style of Teachable or Canvas. An
+instructor builds a course from modules and lessons, some of them quizzes,
+learners enroll and work through it, quizzes are graded in the database, and
+a completed course can issue a certificate anyone can verify.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "lms" });
+```
+
+`npx better-supabase init --preset lms` starts a new project from it, and
+`npx better-supabase apply --preset lms` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                        |
+| --------------------------------------- | ------------------------------------------------------ |
+| [courses](/docs/blocks/courses)         | Courses, modules, lessons, completion and certificates |
+| [enrollments](/docs/blocks/enrollments) | Each learner's enrollment, with progress per lesson    |
+| [forms](/docs/blocks/forms)             | Quiz lessons, scored against a pass mark               |
+| [comments](/docs/blocks/comments)       | Questions and discussion on a lesson                   |
+| [attachments](/docs/blocks/attachments) | Lesson files and assignment uploads                    |
+
+The `entitlements` block from `saas` can decide who may enroll in a paid
+course.
+
+## How the blocks connect
+
+A course's required lessons are the steps of its enrollment program, so a
+learner's progress is enrollment progress, and finishing the last required
+lesson completes the enrollment. A quiz lesson is a form: Postgres scores
+the submission inside `submit` against answer keys no client can read, so a
+learner can't send their own grade. When the course issues certificates,
+completion creates one with a random code, and `verifyCertificate(code)`
+checks it for anyone, signed in or not ([courses](/docs/blocks/courses)).
+
+## With ReUI
+
+- Progress and Stepper for a learner's way through a course.
+- Data Grid for the enrollments of a course, with Filters on progress.
+- Card grid for the course catalog.

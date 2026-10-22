@@ -3,6 +3,28 @@
 import type { LoaderFunction, SingleParserBuilder } from "nuqs/server";
 import { createLoader, createSearchParamsCache, createSerializer, parseAsInteger, parseAsString, parseAsStringLiteral } from "nuqs/server";
 
+/** Search params for a list of `clientNotes`: filters, order, cursor and page size. */
+export const clientNotesSearchParams: {
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "createdAt" | "updatedAt" | "clientName" | "diagnosis" | "birthDate">;
+  readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
+  readonly cursor: SingleParserBuilder<string>;
+  readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
+} = {
+  orderBy: parseAsStringLiteral(["id", "organizationId", "createdAt", "updatedAt", "clientName", "diagnosis", "birthDate"] as const),
+  direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
+  cursor: parseAsString,
+  limit: parseAsInteger.withDefault(25),
+};
+
+/** Reads `clientNotesSearchParams` once per request in Server Components. */
+export const clientNotesSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof clientNotesSearchParams>> = createSearchParamsCache(clientNotesSearchParams);
+
+/** Parses `clientNotesSearchParams` from a URL, a `Request` or `searchParams`. */
+export const loadClientNotesSearchParams: LoaderFunction<typeof clientNotesSearchParams> = createLoader(clientNotesSearchParams);
+
+/** Writes `clientNotesSearchParams` into a URL, for links. */
+export const serializeClientNotesSearchParams: ReturnType<typeof createSerializer<typeof clientNotesSearchParams>> = createSerializer(clientNotesSearchParams);
+
 /** Search params for a list of `contacts`: filters, order, cursor and page size. */
 export const contactsSearchParams: {
   readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "createdAt" | "updatedAt">;

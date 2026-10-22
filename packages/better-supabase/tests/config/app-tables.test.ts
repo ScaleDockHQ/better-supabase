@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { isAppDefault } from "../../src/config/app-defaults.ts";
 import {
   appTablesOf,
-  isAppDefault,
   withAppTableSubjects,
 } from "../../src/config/app-tables.ts";
 import { resolveConfig } from "../../src/config/index.ts";

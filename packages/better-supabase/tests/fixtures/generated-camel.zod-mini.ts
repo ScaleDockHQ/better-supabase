@@ -4,6 +4,34 @@ import { z } from "zod/mini";
 
 import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
+export const clientNotesRow: z.ZodMiniType<RowOf<'clientNotes'>> = z.object({
+  id: z.guid(),
+  organizationId: z.guid(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  clientName: z.string(),
+  diagnosis: z.nullable(z.string()),
+  birthDate: z.nullable(z.string()),
+}).check(z.meta({ title: "Client notes" }));
+export const clientNotesInsert: z.ZodMiniType<InsertOf<'clientNotes'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.guid(),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  clientName: z.string(),
+  diagnosis: z.exactOptional(z.nullable(z.string())),
+  birthDate: z.exactOptional(z.nullable(z.string())),
+}).check(z.meta({ title: "Client notes insert" }));
+export const clientNotesUpdate: z.ZodMiniType<UpdateOf<'clientNotes'>> = z.object({
+  id: z.exactOptional(z.guid()),
+  organizationId: z.exactOptional(z.guid()),
+  createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
+  clientName: z.exactOptional(z.string()),
+  diagnosis: z.exactOptional(z.nullable(z.string())),
+  birthDate: z.exactOptional(z.nullable(z.string())),
+}).check(z.meta({ title: "Client notes update" }));
+
 export const contactsRow: z.ZodMiniType<RowOf<'contacts'>> = z.object({
   id: z.guid(),
   organizationId: z.guid(),
@@ -428,6 +456,7 @@ export const tasksViewRow: z.ZodMiniType<RowOf<'tasksView'>> = z.object({
 
 /** Write validators for the validation plugin. */
 export const validators: {
+  readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
@@ -443,6 +472,7 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
   readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
+  clientNotes: { insert: clientNotesInsert, update: clientNotesUpdate },
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   customers: { insert: customersInsert, update: customersUpdate },
@@ -465,6 +495,10 @@ export const appTableSetArgs: z.ZodMiniType<{ args: Json; subject_id: string; su
   subject_type: z.string(),
   tenant: z.guid(),
 }).check(z.meta({ title: "app_table_set arguments" }));
+
+export const clientNotesRevealArgs: z.ZodMiniType<{ ids: string[] }> = z.object({
+  ids: z.array(z.guid()),
+}).check(z.meta({ title: "client_notes_reveal arguments" }));
 
 export const customerNoteCountsArgs: z.ZodMiniType<{ p_customer_ids?: string[] }> = z.object({
   p_customer_ids: z.exactOptional(z.array(z.guid())),

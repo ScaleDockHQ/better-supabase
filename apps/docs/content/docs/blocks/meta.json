@@ -108,6 +108,7 @@
     "identities",
     "service-principals",
     "signing-keys",
+    "field-encryption",
     "shared-signals",
     "oauth-server",
     "domains",

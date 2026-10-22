@@ -1,4 +1,4 @@
--- better-supabase module: sessions (0.8.0)
+-- better-supabase module: sessions
 -- @bs-module sessions@1 managed
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -161,6 +161,11 @@ create policy bs_session_active on "public"."projects" as restrictive
   with check ((select better_supabase.session_active()));
 drop policy if exists bs_session_active on "public"."tasks";
 create policy bs_session_active on "public"."tasks" as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+drop policy if exists bs_session_active on "public"."client_notes";
+create policy bs_session_active on "public"."client_notes" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));

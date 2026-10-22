@@ -1,0 +1,52 @@
+---
+title: Compliance
+description: The compliance preset installs frameworks and controls with recurring evidence tasks, evidence files, versioned policies that members acknowledge and a posture per framework.
+---
+
+The `compliance` preset is for an app in the style of Vanta or Drata. A
+company maps its controls to a framework, collects evidence for each control
+on a schedule, publishes policies that every employee acknowledges, and
+shows an auditor the evidence trail.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "compliance" });
+```
+
+`npx better-supabase init --preset compliance` starts a new project from it,
+and `npx better-supabase apply --preset compliance` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                             |
+| --------------------------------------- | ----------------------------------------------------------- |
+| [controls](/docs/blocks/controls)       | Frameworks, controls, evidence tasks and versioned policies |
+| [attachments](/docs/blocks/attachments) | Evidence files                                              |
+
+The controls block requires [versions](/docs/blocks/versions), which the
+preset installs with it, and the `audit` block from `saas` keeps who changed
+a control or its evidence.
+
+## How the blocks connect
+
+A control belongs to a framework such as SOC 2 or ISO 27001. `addEvidence`
+attaches a file or a note to it, valid until a date, and `saveEvidenceTask`
+plans evidence that has to be collected again every `intervalDays`, with an
+assignee. A control's status follows from its evidence and tasks: it fails
+when a task is overdue or all its evidence has lapsed, and `posture` rolls
+the statuses up per framework. `publishPolicy` freezes a policy as a version,
+and each member acknowledges that version with `acknowledgePolicy`
+([controls](/docs/blocks/controls)).
+
+## With ReUI
+
+- Data Grid for controls, with their status as a Badge and Filters on framework.
+- Progress for each framework's readiness.
+- Timeline for a control's evidence.

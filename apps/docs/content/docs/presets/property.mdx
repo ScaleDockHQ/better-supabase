@@ -1,0 +1,60 @@
+---
+title: Property management
+description: The property preset installs units in assets, leases with rent and deposits on the ledger, maintenance requests, tenants with a portal and attachments.
+---
+
+The `property` preset is for an app in the style of AppFolio or Buildium. A
+property manager keeps buildings and units, lets units to tenants, posts the
+rent every period, files maintenance requests on a unit, and gives each
+tenant a portal with the records granted to them.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "property" });
+```
+
+`npx better-supabase init --preset property` starts a new project from it,
+and `npx better-supabase apply --preset property` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                                     |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| [assets](/docs/blocks/assets)           | Sites, buildings and units as a location hierarchy                  |
+| [leases](/docs/blocks/leases)           | Leases on units, rent per period, deposits and maintenance requests |
+| [ledger](/docs/blocks/ledger)           | The receivable account each lease posts its rent and payments to    |
+| [parties](/docs/blocks/parties)         | Tenants and owners                                                  |
+| [guests](/docs/blocks/guests)           | The tenant portal, limited to the records you grant                 |
+| [comments](/docs/blocks/comments)       | Questions and updates on a lease or a request                       |
+| [attachments](/docs/blocks/attachments) | Signed leases and inspection photos                                 |
+| [reminders](/docs/blocks/reminders)     | Inspections and lease ends                                          |
+
+## How the blocks connect
+
+A lease lets a unit from `assets` to a party. `postDueRent` posts each rent
+period on the ledger once, and `recordPayment` settles it, so the balance
+due is the lease's ledger balance and never a second copy. The deposit is a
+ledger hold while the lease runs; `terminate` captures the deduction and
+releases the rest. Run `postDueRent` from a scheduled job or cron route; a
+second run posts nothing new.
+
+`fileMaintenance` opens a request on the unit, which moves from `open`
+through `in_progress` to `resolved`. A tenant is a guest, never a member:
+invite them and grant their lease, and they comment on it and upload files
+to it through the comments and attachments blocks. The
+[guests](/docs/blocks/guests#grant-records) page lists which blocks honor a
+grant; read the rest of the portal (the lease terms, the balance due) in
+server code after checking the tenant's grants with `guests.mine()`.
+
+## With ReUI
+
+- Data Grid for units and leases, with Filters on status and the lease end.
+- Kanban for maintenance requests by status.
+- Timeline for a lease's rent postings and payments, newest first.

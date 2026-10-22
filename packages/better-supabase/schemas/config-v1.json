@@ -11,7 +11,7 @@
     "preset": {
       "type": "string",
       "minLength": 1,
-      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, chat, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
+      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, chat, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, property, field-service, clinic, lms, events, legal, spend, contracts, customer-success, logistics, pos, fitness, nonprofit, itsm, compliance, construction, claims, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
     },
     "source": {
       "type": "object",
@@ -1535,6 +1535,9 @@
                 "access": {
                   "enum": ["read", "server"],
                   "type": "string"
+                },
+                "encrypted": {
+                  "type": "boolean"
                 }
               },
               "required": ["type"],
@@ -1580,6 +1583,9 @@
           },
           "comment": {
             "type": "string"
+          },
+          "auditReads": {
+            "type": "boolean"
           },
           "subject": {
             "type": "object",
@@ -1808,6 +1814,7 @@
               "ensure-rls",
               "entitlements",
               "expenses",
+              "field-encryption",
               "field-history",
               "flags",
               "forecasts",
@@ -2048,6 +2055,9 @@
             },
             "expenses": {
               "$ref": "#/$defs/blocks/expenses"
+            },
+            "field-encryption": {
+              "$ref": "#/$defs/blocks/field-encryption"
             },
             "field-history": {
               "$ref": "#/$defs/blocks/field-history"
@@ -3905,6 +3915,10 @@
               "layout": {
                 "type": "string",
                 "default": "normalized"
+              },
+              "auditReads": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -4194,6 +4208,17 @@
             "properties": {
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "field-encryption": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

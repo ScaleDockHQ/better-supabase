@@ -31,6 +31,7 @@ export type DesignChangeKind =
   | "column.format"
   | "column.reference"
   | "column.access"
+  | "column.encrypted"
   | "column.changed";
 
 export interface DesignChange {
@@ -45,7 +46,8 @@ export interface DesignChange {
    * True when existing rows or app code can break: a dropped or renamed table
    * or column, a type change, a column made required without a default, a new
    * or tighter constraint (unique, options, bounds, format, a reference
-   * target), tighter column access, a new scope, or removed generated columns.
+   * target), tighter column access, encryption turned on or off, a new scope,
+   * or removed generated columns.
    */
   readonly breaking: boolean;
   readonly summary: string;
@@ -254,6 +256,28 @@ function constraintChanges(
           `Move every client ${after.access === "server" ? "read and write" : "write"} of ${at} to server code that uses the service role, then deploy.`,
           `Change the access of ${at}.`,
         ],
+        name,
+      ),
+    );
+  }
+
+  if ((before.encrypted === true) !== (after.encrypted === true)) {
+    changes.push(
+      breakingChange(
+        "column.encrypted",
+        table,
+        after.encrypted === true
+          ? `Encrypts ${at}, so client reads of it fail; they go through ${table}_reveal instead.`
+          : `Stops encrypting ${at}, which still holds ciphertext.`,
+        after.encrypted === true
+          ? [
+              `Move every client read of ${at} to ${table}_reveal, then deploy.`,
+              `Encrypt ${at}, then run update ${table} set ${name} = ${name} to encrypt the rows it already has.`,
+            ]
+          : [
+              `Reveal ${at} with the service role and write each value to a new column.`,
+              `Move app code to the new column, then drop ${at}.`,
+            ],
         name,
       ),
     );

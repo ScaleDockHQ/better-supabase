@@ -1,4 +1,4 @@
--- better-supabase module: app-tables (0.9.0)
+-- better-supabase module: app-tables
 -- @bs-app-tables
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
@@ -12,6 +12,13 @@ create table if not exists "public"."projects" (
 );
 
 create table if not exists "public"."tasks" (
+  id uuid primary key default gen_random_uuid(),
+  "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists "public"."client_notes" (
   id uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
   created_at timestamptz not null default now(),
@@ -40,6 +47,10 @@ alter table "public"."tasks" add column if not exists "due_on" date;
 alter table "public"."tasks" add column if not exists "assignee_id" uuid references auth.users (id) on delete set null;
 alter table "public"."tasks" add column if not exists "project_id" uuid not null;
 alter table "public"."tasks" add column if not exists "rank" text collate "C" not null default 'V';
+
+alter table "public"."client_notes" add column if not exists "client_name" text not null;
+alter table "public"."client_notes" add column if not exists "diagnosis" text;
+alter table "public"."client_notes" add column if not exists "birth_date" text;
 
 alter table "public"."saved_views" add column if not exists "name" text not null;
 alter table "public"."saved_views" add column if not exists "filters" jsonb not null default '{}';
@@ -125,6 +136,114 @@ revoke all on function "better_supabase"."tasks_emit_event"() from public, anon,
 drop trigger if exists "bs_emit_event" on "public"."tasks";
 create trigger "bs_emit_event" after insert or update or delete on "public"."tasks"
   for each row execute function "better_supabase"."tasks_emit_event"();
+
+alter table "public"."client_notes" enable row level security;
+revoke all on "public"."client_notes" from anon, authenticated;
+grant select ("id", "organization_id", "created_at", "updated_at", "client_name") on "public"."client_notes" to authenticated;
+grant insert ("id", "organization_id", "created_at", "updated_at", "client_name", "diagnosis", "birth_date"), update ("id", "organization_id", "created_at", "updated_at", "client_name", "diagnosis", "birth_date") on "public"."client_notes" to authenticated;
+grant delete on "public"."client_notes" to authenticated;
+grant all on "public"."client_notes" to service_role;
+drop policy if exists "client_notes_select" on "public"."client_notes";
+create policy "client_notes_select" on "public"."client_notes" for select to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists "client_notes_insert" on "public"."client_notes";
+create policy "client_notes_insert" on "public"."client_notes" for insert to authenticated with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists "client_notes_update" on "public"."client_notes";
+create policy "client_notes_update" on "public"."client_notes" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists "client_notes_delete" on "public"."client_notes";
+create policy "client_notes_delete" on "public"."client_notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+create index if not exists "client_notes_organization_id_idx" on "public"."client_notes" ("organization_id");
+drop trigger if exists "bs_updated_at" on "public"."client_notes";
+create trigger "bs_updated_at" before update on "public"."client_notes"
+  for each row execute function better_supabase.set_updated_at();
+-- Encrypts diagnosis, birth_date with the row's data key before the row is written.
+create or replace function "better_supabase"."client_notes_seal"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_owner text := 'tenant:' || (new."organization_id")::text;
+  v_old_owner text;
+  v_moved boolean := false;
+  v_key text;
+begin
+  if tg_op = 'UPDATE' then
+    v_old_owner := 'tenant:' || (old."organization_id")::text;
+    v_moved := v_owner is distinct from v_old_owner;
+  end if;
+  if new."diagnosis" is not null and (case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end or left(new."diagnosis", 5) <> 'bsf1:') then
+    v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
+    new."diagnosis" := "better_supabase"."field_seal"(v_key, new."diagnosis");
+  elsif new."diagnosis" is not null and v_moved then
+    v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
+    new."diagnosis" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."diagnosis"));
+  end if;
+  if new."birth_date" is not null and (case when tg_op = 'INSERT' then true else new."birth_date" is distinct from old."birth_date" end or left(new."birth_date", 5) <> 'bsf1:') then
+    new."birth_date" := ((new."birth_date")::date)::text;
+    v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
+    new."birth_date" := "better_supabase"."field_seal"(v_key, new."birth_date");
+  elsif new."birth_date" is not null and v_moved then
+    v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
+    new."birth_date" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."birth_date"));
+  end if;
+  return new;
+end;
+$$;
+revoke all on function "better_supabase"."client_notes_seal"() from public, anon, authenticated;
+drop trigger if exists "bs_seal_fields" on "public"."client_notes";
+create trigger "bs_seal_fields" before insert or update of "organization_id", "diagnosis", "birth_date" on "public"."client_notes"
+  for each row execute function "better_supabase"."client_notes_seal"();
+-- Decrypts diagnosis, birth_date for the rows the caller reaches, as the table's policies do.
+create or replace function "public"."client_notes_reveal"(ids uuid[])
+returns table (id uuid, "diagnosis" text, "birth_date" date)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_read record;
+begin
+  if (select auth.uid()) is null and not v_service then
+    raise exception 'only signed-in users and the service role reveal client_notes' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';
+  end if;
+  if coalesce(cardinality(client_notes_reveal.ids), 0) > 500 then
+    raise exception 'reveal at most 500 rows of client_notes per call' using errcode = '22023', hint = 'APP_REVEAL_TOO_MANY';
+  end if;
+  for v_read in
+    select t."organization_id" as tenant, jsonb_agg(t.id order by t.id) as ids
+    from "public"."client_notes" t
+    where t.id = any (client_notes_reveal.ids) and (v_service or ("organization_id" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))
+    group by 1
+  loop
+    perform better_supabase.audit_event(
+    event_type => 'client_notes.viewed',
+    category => 'read',
+    target_type => 'client_notes',
+    record_id => case when jsonb_array_length(v_read.ids) = 1 then v_read.ids ->> 0 end,
+    summary => 'Revealed ' || jsonb_array_length(v_read.ids)::text || ' ' || 'client_notes' || ' record(s)',
+    tenant => (v_read.tenant)::uuid,
+    metadata => jsonb_build_object('ids', v_read.ids, 'columns', '["diagnosis","birth_date"]'::jsonb)
+  );
+  end loop;
+  return query
+    with r as materialized (
+      select t.id, 'tenant:' || (t."organization_id")::text as bs_owner, t."diagnosis", t."birth_date"
+      from "public"."client_notes" t
+      where t.id = any (client_notes_reveal.ids) and (v_service or ("organization_id" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))
+    ),
+    k as materialized (
+      select o.bs_owner, "better_supabase"."field_key"(o.bs_owner, false) as bs_key
+      from (select distinct r.bs_owner from r) o
+    )
+    select r.id, ("better_supabase"."field_open"(k.bs_key, r."diagnosis"))::text, ("better_supabase"."field_open"(k.bs_key, r."birth_date"))::date
+    from r join k on k.bs_owner = r.bs_owner;
+end;
+$$;
+revoke execute on function "public"."client_notes_reveal"(uuid[]) from public, anon;
+grant execute on function "public"."client_notes_reveal"(uuid[]) to authenticated, service_role;
 
 alter table "public"."saved_views" enable row level security;
 revoke all on "public"."saved_views" from anon, authenticated;

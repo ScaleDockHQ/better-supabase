@@ -1,0 +1,81 @@
+---
+title: Clinic and therapy
+description: The clinic preset installs appointments, intake forms, note templates, consent signatures, field encryption for sensitive values, a client portal and reminders.
+---
+
+The `clinic` preset is for an app in the style of Jane or SimplePractice. A
+client books an appointment, fills in the intake form and signs the consent,
+the practitioner writes session notes from a template, and the client reads
+their own records in a portal. Sensitive values are encrypted at rest with a
+key per organization, and reads of them can go to the audit log.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "clinic" });
+```
+
+`npx better-supabase init --preset clinic` starts a new project from it, and
+`npx better-supabase apply --preset clinic` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                             | Role in the app                                                 |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| [calendar](/docs/blocks/calendar)                 | Practitioners' calendars and availability                       |
+| [bookings](/docs/blocks/bookings)                 | Appointments on practitioners and rooms, with no double booking |
+| [forms](/docs/blocks/forms)                       | Intake and assessment forms                                     |
+| [templates](/docs/blocks/templates)               | Session note templates each clinic forks                        |
+| signatures                                        | Consent records, signed on a frozen version                     |
+| [custom-fields](/docs/blocks/custom-fields)       | Client fields, with sensitive ones encrypted                    |
+| [field-encryption](/docs/blocks/field-encryption) | Data keys in Vault that encrypt columns and custom fields       |
+| [guests](/docs/blocks/guests)                     | The client portal                                               |
+| [reminders](/docs/blocks/reminders)               | Appointment reminders                                           |
+
+The `audit` block from `saas` records who changed what.
+
+## Encryption and read audits
+
+The preset installs `field-encryption`; what to encrypt and which reads to
+log stay in your config, because they name your own tables and fields. Mark
+a sensitive app table column `encrypted: true` and set `auditReads` on the
+table, and turn on `auditReads` for custom fields:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: "clinic",
+  blocks: { "custom-fields": { options: { auditReads: true } } },
+});
+```
+
+A custom field definition is encrypted with `encryptDefinition(id)`, and its
+values are read back through `readValues`. Each read with `auditReads` writes
+one `read` entry to the audit log per tenant and call, with the ids read
+([field encryption](/docs/blocks/field-encryption),
+[encrypted columns](/docs/blocks/app-tables#encrypted-columns)). Encrypted
+values have no searchable equality, so keep a separate non-sensitive column
+for lookups.
+
+## How the blocks connect
+
+An appointment is a booking on a practitioner's resource. The intake form
+and the consent are linked to the client's record, and the consent
+signature keeps the exact version the client signed. A client is a guest,
+never a member: grant them their bookings and they read those in the portal.
+The [guests](/docs/blocks/guests#grant-records) page lists which blocks
+honor a grant; show the rest of the client's record from server code after
+checking their grants with `guests.mine()`.
+
+## With ReUI
+
+- Event Calendar for the practitioners' day and week views.
+- Stepper for intake: form, consent, booking.
+- Data Grid for the client list, with Filters on practitioner and status.

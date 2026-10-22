@@ -1,0 +1,52 @@
+---
+title: Nonprofit fundraising
+description: The nonprofit preset installs donors, gifts and pledges posted on the ledger per fund, numbered tax receipts, campaign targets and saved views for donor segments.
+---
+
+The `nonprofit` preset is for an app in the style of Bloomerang. A
+fundraiser keeps donors, records one-off gifts, charges monthly pledges
+through a payments provider, follows each fund towards its goal and issues
+numbered tax receipts.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "nonprofit" });
+```
+
+`npx better-supabase init --preset nonprofit` starts a new project from it,
+and `npx better-supabase apply --preset nonprofit` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                             | Role in the app                                 |
+| ------------------------------------------------- | ----------------------------------------------- |
+| [parties](/docs/blocks/parties)                   | Donors, households and organizations            |
+| [donations](/docs/blocks/donations)               | Funds, gifts, pledges and tax receipts          |
+| [ledger](/docs/blocks/ledger)                     | The income account each gift posts to, per fund |
+| [number-sequences](/docs/blocks/number-sequences) | Receipt numbers in your own format              |
+| [targets](/docs/blocks/targets)                   | Fundraising targets per team or period          |
+| [saved-views](/docs/blocks/saved-views)           | Donor segments, such as lapsed or major donors  |
+
+## How the blocks connect
+
+A gift names its donor, any record in `config.subjects` such as a party, and
+posts on the ledger to its fund, so what a fund raised is a ledger balance
+and `funds()` returns it next to the goal. A pledge repeats a gift every
+week, month, quarter or year: run `chargeDuePledges` from a scheduled job and
+it charges each due installment once through the versioned `PaymentProvider`
+interface, and the provider's webhook settles the gift. `issueGiftReceipt`
+and `issueYearlyReceipt` number receipts with the `donation_receipt` format
+from number-sequences ([donations](/docs/blocks/donations)).
+
+## With ReUI
+
+- Data Grid for donors and gifts, with Filters for segments.
+- Progress for each fund towards its goal.
+- Statistic cards for the year's total, donors and average gift.

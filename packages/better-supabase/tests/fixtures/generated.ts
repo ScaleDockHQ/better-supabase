@@ -48,6 +48,46 @@ export const tasksStatusValues = ["todo", "doing", "done"] as const;
 export type TasksStatus = (typeof tasksStatusValues)[number];
 
 export type Models = {
+  client_notes: {
+    Row: {
+      id: string;
+      organization_id: string;
+      created_at: string;
+      updated_at: string;
+      client_name: string;
+      diagnosis: string | null;
+      birth_date: string | null;
+    };
+    Insert: {
+      id?: string;
+      organization_id: string;
+      created_at?: string;
+      updated_at?: string;
+      client_name: string;
+      diagnosis?: string | null;
+      birth_date?: string | null;
+    };
+    Update: {
+      id?: string;
+      organization_id?: string;
+      created_at?: string;
+      updated_at?: string;
+      client_name?: string;
+      diagnosis?: string | null;
+      birth_date?: string | null;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "client_notes_organization_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organization_id";
+    };
+  };
   contacts: {
     Row: {
       id: string;
@@ -339,6 +379,7 @@ export type Models = {
       updated_at?: string;
     };
     Relations: {
+      client_notes: { table: "client_notes"; kind: "many"; nullable: true };
       contacts: { table: "contacts"; kind: "many"; nullable: true };
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
       customers: { table: "customers"; kind: "many"; nullable: true };
@@ -706,6 +747,12 @@ export type Functions = {
       tenant: string | null;
     };
     Returns: undefined;
+  };
+  client_notes_reveal: {
+    Args: {
+      ids: string[] | null;
+    };
+    Returns: { "birth_date": string | null; "diagnosis": string | null; "id": string | null }[];
   };
   customer_note_counts: {
     Args: {

@@ -45,6 +45,7 @@ import type { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts"
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
 import type { expensesBlock } from "../../src/blocks/expenses/manifest.ts";
+import type { fieldEncryptionBlock } from "../../src/blocks/field-encryption/manifest.ts";
 import type { fieldHistoryBlock } from "../../src/blocks/field-history/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
 import type { forecastsBlock } from "../../src/blocks/forecasts/manifest.ts";
@@ -183,6 +184,7 @@ export type AllBlocks = {
   readonly forecasts: typeof forecastsBlock;
   readonly ensureRls: typeof ensureRlsBlock;
   readonly entitlements: typeof entitlementsBlock;
+  readonly fieldEncryption: typeof fieldEncryptionBlock;
   readonly flags: typeof flagsBlock;
   readonly forms: typeof formsBlock;
   readonly signatures: typeof signaturesBlock;

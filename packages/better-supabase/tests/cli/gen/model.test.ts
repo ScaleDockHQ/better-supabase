@@ -507,6 +507,21 @@ describe("buildModel comments", () => {
       /\bname\?: string;/u,
     );
   });
+
+  it("types an encrypted app table column as its configured type", async () => {
+    const built = await model(() => ({}), {
+      appTables: {
+        customers: { columns: { name: { type: "integer", encrypted: true } } },
+      },
+    });
+
+    const customers = built.tables.find((table) => table.key === "customers")!;
+
+    expect(customers.meta.columns["name"]?.selectable).toBe(false);
+    expect(emitModule(built, { importPathFor: (from) => from })).toMatch(
+      /\bname\??: number( \| null)?;/u,
+    );
+  });
 });
 
 describe("views", () => {

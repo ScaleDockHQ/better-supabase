@@ -321,6 +321,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  "field-encryption": {
+    schema: "better_supabase",
+    options: {},
+  },
   flags: {
     schema: "better_supabase",
     options: {},
@@ -1442,6 +1446,7 @@ export const blockEvents: Events<BlockEvents> = {
     "expense_report.reimbursed",
     "expense_report.submitted",
     "field_value.set",
+    "field_value.viewed",
     "flag.deleted",
     "flag.override_set",
     "flag.saved",
@@ -1895,6 +1900,7 @@ export const blockEventSchemas = {
   "expense_report.reimbursed": true,
   "expense_report.submitted": true,
   "field_value.set": true,
+  "field_value.viewed": true,
   "flag.deleted": true,
   "flag.override_set": true,
   "flag.saved": true,
