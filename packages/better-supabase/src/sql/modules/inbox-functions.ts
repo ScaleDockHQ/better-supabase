@@ -464,6 +464,7 @@ begin
   insert into ${core.t("messages")} (${cm("tenant")}, ${cm("conversation")}, ${cm("author")}, ${cm("kind")}, ${cm("body")}, ${cm("mentions")}, ${cm("sentAt")}, ${cm("createdAt")})
   values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, inbox_add_message.author, v_kind, v_body, v_mentions, v_at, v_at)
   returning ${cm("id")} into v_id;
+  perform ${core.fn("index_record_mentions")}(v_id);
   insert into ${T("details")} (${dt("message")}, ${dt("tenant")}, ${dt("conversation")}, ${dt("direction")}, ${dt("authorType")}, ${dt("format")}, ${dt("externalId")}, ${dt("replyTo")}, ${dt("metadata")})
   values (
     v_id, v_conv.${cv("tenant")}, v_conv.${cv("id")}, inbox_add_message.direction, inbox_add_message.author_type,
@@ -959,6 +960,7 @@ begin
     ${cm("deletedAt")} = case when coalesce(remove, false) then now() end,
     ${cm("editedAt")} = case when coalesce(remove, false) then ${cm("editedAt")} else now() end
   where ${cm("id")} = v_msg.${cm("id")};
+  perform ${core.fn("index_record_mentions")}(v_msg.${cm("id")});
   if coalesce(remove, false) then
     delete from ${at.table("attachments")} x where x.${a("subjectType")} = ${core.message} and x.${a("subjectId")} = v_msg.${cm("id")}::text;
   end if;

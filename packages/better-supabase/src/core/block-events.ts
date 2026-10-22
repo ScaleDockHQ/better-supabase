@@ -855,6 +855,7 @@ export type {
   ChannelEventData,
   CollectionEntryEventData,
   CollectionEventData,
+  SavedItemEventData,
   ConversationEventData,
   EmployeeEventData,
   DealEventData,

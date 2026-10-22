@@ -221,6 +221,19 @@ export interface MessageListOptions {
   readonly limit?: number;
 }
 
+/** A sent message that mentions a record, from `recordMentions`. */
+export interface RecordMention<F extends object = Record<never, never>> {
+  readonly message: Message<F>;
+  /** The message's conversation: a channel, a direct message, a record's thread. */
+  readonly conversation: {
+    readonly id: string;
+    readonly kind: ConversationKind;
+    readonly title: string | undefined;
+    /** The record of a `subject` conversation. */
+    readonly subject: SubjectRef | undefined;
+  };
+}
+
 export interface UnreadCount {
   readonly unread: number;
   readonly mentions: number;
@@ -296,6 +309,15 @@ export interface Messaging<F extends object = Record<never, never>> {
   get(messageId: string): AsyncResult<Message<F> | undefined>;
   edits(messageId: string): AsyncResult<MessageEdit[]>;
   pinned(conversationId: string): AsyncResult<Message<F>[]>;
+  /**
+   * The sent messages that mention a record (`@[Name](subject:<type>/<id>)`),
+   * newest first: its backlinks. Only the messages the caller reads, and none
+   * when they can't read the record.
+   */
+  recordMentions(
+    subject: SubjectRef,
+    options?: { readonly before?: MessageCursor; readonly limit?: number },
+  ): AsyncResult<RecordMention<F>[]>;
   /** The service role sends the scheduled messages that are due. */
   publishDue(limit?: number): AsyncResult<number>;
 }
@@ -349,6 +371,26 @@ function summaryOf(value: unknown): ConversationSummary {
     mentions: num(row["mentions"]),
     lastReadAt: optionalInstant(row["lastReadAt"]),
     notify: enumOrThrow(row["notify"] ?? "all", NOTIFY, "notify level"),
+  };
+}
+
+function mentionOf(value: unknown): RecordMention {
+  const row = recordOf(value, "record mention");
+  const conversation = recordOf(row["conversation"], "conversation");
+  const subjectType = optionalText(conversation["subject_type"]);
+  const subjectId = optionalText(conversation["subject_id"]);
+
+  return {
+    message: messageOf(row["message"]),
+    conversation: {
+      id: textOf(conversation["id"]),
+      kind: enumOrThrow(conversation["kind"], KINDS, "conversation kind"),
+      title: optionalText(conversation["title"]),
+      subject:
+        subjectType === undefined || subjectId === undefined
+          ? undefined
+          : { type: subjectType, id: subjectId },
+    },
   };
 }
 
@@ -590,6 +632,25 @@ export function createMessaging<
       ),
     pinned: (conversationId) =>
       many("list_pinned_messages", { conversation: conversationId }),
+    recordMentions: (subject, list = {}) =>
+      call(
+        "list_record_mentions",
+        {
+          subject_type: subject.type,
+          subject_id: subject.id,
+          ...cursorArgs("before", list.before),
+          max_rows: list.limit ?? null,
+        },
+        (value) => recordsOf(value, "list_record_mentions").map(mentionOf),
+      ).andThen((found) =>
+        fields.rows(found.map((item) => item.message)).map((messages) =>
+          found.map((item, index) => ({
+            conversation: item.conversation,
+            // SAFETY: fields.rows returns one row per message, in order.
+            message: messages[index] as Message<F>,
+          })),
+        ),
+      ),
     publishDue: (limit) =>
       call("publish_due_messages", { max_rows: limit ?? null }, num),
   };

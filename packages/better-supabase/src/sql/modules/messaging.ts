@@ -104,6 +104,11 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     { name: "get_message", args: ["uuid"], returns: "jsonb" },
     { name: "list_message_edits", args: ["uuid"], returns: "jsonb" },
     { name: "list_pinned_messages", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "list_record_mentions",
+      args: ["text", "text", "timestamptz", "uuid", "integer"],
+      returns: "jsonb",
+    },
   ];
 
   if (ctx.installed("notifications")) {
@@ -128,6 +133,7 @@ export const MESSAGING: ModuleDefinition = {
     "messaging_messages_json",
     "message_authors",
     "parse_mentions",
+    "index_record_mentions",
   ],
   // delete_message empties a message and stamps deleted_at; nothing clears it.
   hidingColumns: ["messages.deletedAt"],

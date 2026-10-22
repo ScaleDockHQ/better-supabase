@@ -440,6 +440,66 @@ exception
 end;
 $$;
 ${serviceGrant(`${fn("can_subject_for")}(uuid, text, text, text)`)}
+${presenceSql(ctx)}`;
+}
+
+/** The prefix of a subject's presence topic, `presence:<type>:<id>`. */
+export const PRESENCE_TOPIC_PREFIX = "presence";
+
+/**
+ * Realtime presence on `presence:<type>:<id>`: who has a record open. A caller
+ * who can read the subject joins, tracks and sees the others there.
+ */
+function presenceSql(ctx: ModuleContext): string {
+  const fn = (name: string): string => ctx.fn(name);
+  const receive = ctx.trigger("subject_presence_receive");
+  const send = ctx.trigger("subject_presence_send");
+  const prefix = sqlString(`${PRESENCE_TOPIC_PREFIX}:`);
+
+  const check = `realtime.messages.extension = 'presence'
+        and (select realtime.topic()) like ${prefix} || '%'
+        and ${fn("subject_presence_allowed")}((select realtime.topic()))`;
+
+  return `
+-- Whether the caller may join presence topic \`topic\`
+-- (presence:<type>:<id>): they can read that subject.
+create or replace function ${fn("subject_presence_allowed")}(topic text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^${PRESENCE_TOPIC_PREFIX}:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+begin
+  if v_parts is null then
+    return false;
+  end if;
+  return coalesce(${fn("can_subject")}(v_parts[1], v_parts[2], 'read'), false);
+exception
+  when invalid_text_representation then
+    return false;
+end;
+$$;
+${userGrant(`${fn("subject_presence_allowed")}(text)`)}
+
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists ${receive} on realtime.messages;
+    create policy ${receive} on realtime.messages for select to authenticated
+      using (
+        ${check}
+      );
+    drop policy if exists ${send} on realtime.messages;
+    create policy ${send} on realtime.messages for insert to authenticated
+      with check (
+        ${check}
+      );
+  end if;
+end;
+$$;
 `;
 }
 
@@ -460,6 +520,7 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["uuid", "text", "text", "text"],
       returns: "boolean",
     },
+    { name: "subject_presence_allowed", args: ["text"], returns: "boolean" },
   ];
 }
 
@@ -468,7 +529,7 @@ export const SUBJECTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, and Realtime presence on presence:<type>:<id> for readers of the subject.",
   requires: ["access"],
   integrates: ["comments", "messaging", "attachments"],
   target: "schema",

@@ -54,6 +54,7 @@ const SUBJECT_EVENTS = [
   "engagement.deleted",
   "collection.entry_added",
   "collection.entry_removed",
+  "saved_item.reminded",
   "pipeline.stage_changed",
   "subject.tagged",
   "subject.untagged",

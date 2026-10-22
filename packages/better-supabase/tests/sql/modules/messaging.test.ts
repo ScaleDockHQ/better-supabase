@@ -101,4 +101,21 @@ describe("messaging module", () => {
       moduleBody("messaging", { modules: { messaging: { mode: "custom" } } }),
     ).toBeFalsy();
   });
+
+  it("indexes record mentions on send and lists a record's backlinks", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."message_record_mentions"',
+    );
+    expect(sql).toContain(
+      `perform "better_supabase"."index_record_mentions"(v_msg."id");`,
+    );
+    expect(sql).toContain("limit 20");
+    expect(sql).toContain(
+      `revoke execute on function "better_supabase"."index_record_mentions"(uuid) from public, anon, authenticated;`,
+    );
+    expect(sql).toContain(
+      `"list_record_mentions"(subject_type text, subject_id text`,
+    );
+  });
 });

@@ -1398,6 +1398,7 @@ as $$
     ('user', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.favorites', '"better_supabase"."favorites"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.reviews', '"better_supabase"."reviews"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.leave_ledger', '"better_supabase"."leave_ledger"', 'user_id', true, '{}'::text[], true),
@@ -1602,6 +1603,7 @@ as $$
     ('organization', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.subject_collection_entries', '"better_supabase"."subject_collection_entries"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.favorites', '"better_supabase"."favorites"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.organization_hostnames', '"better_supabase"."organization_hostnames"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.reviews', '"better_supabase"."reviews"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.review_stats', '"better_supabase"."review_stats"', 'tenant_id', true, '{}'::text[], true),
@@ -1616,6 +1618,7 @@ as $$
     ('organization', 'better_supabase.messages', '"better_supabase"."messages"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.message_edits', '"better_supabase"."message_edits"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.thread_reads', '"better_supabase"."thread_reads"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.message_record_mentions', '"better_supabase"."message_record_mentions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.channels', '"better_supabase"."channels"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.activity_entries', '"better_supabase"."activity_entries"', 'organization_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)

@@ -211,6 +211,27 @@ drop policy if exists thread_reads_read on "better_supabase"."thread_reads";
 create policy thread_reads_read on "better_supabase"."thread_reads" for select to authenticated
 using ("user_id" = (select auth.uid()));
 
+-- The records a sent message mentions, for a record's backlinks. A row shows
+-- with its message; list_record_mentions also asks can_subject on the record.
+create table if not exists "better_supabase"."message_record_mentions" (
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."messages" ("id") on delete cascade,
+  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "created_at" timestamptz not null default now(),
+  primary key ("message_id", "subject_type", "subject_id")
+);
+create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+alter table "better_supabase"."message_record_mentions" enable row level security;
+revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
+grant select on "better_supabase"."message_record_mentions" to authenticated;
+grant all on "better_supabase"."message_record_mentions" to service_role;
+
+drop policy if exists message_record_mentions_read on "better_supabase"."message_record_mentions";
+create policy message_record_mentions_read on "better_supabase"."message_record_mentions" for select to authenticated
+using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
+
 -- Keeps the thread root's reply count, last reply and first three repliers,
 -- and the conversation's last message time, as a reply is sent or deleted.
 create or replace function "better_supabase"."messaging_message_written"()
@@ -284,6 +305,7 @@ declare
 begin
   select * into v_msg from "better_supabase"."messages" m where m."id" = messaging_message_sent.message;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id";
+  perform "better_supabase"."index_record_mentions"(v_msg."id");
   null;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_message_send"(uuid)');
@@ -776,6 +798,67 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Stores the records a sent message mentions, at most 20 of registered
+-- subject types, in place of the ones stored before. A deleted or unsent
+-- message keeps none.
+create or replace function "better_supabase"."index_record_mentions"(message uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."message_record_mentions" x where x."message_id" = index_record_mentions.message;
+  insert into "better_supabase"."message_record_mentions" ("tenant_id", "message_id", "conversation_id", "subject_type", "subject_id", "created_at")
+  select m."tenant_id", m."id", m."conversation_id", r.subject_type, r.subject_id, m."sent_at"
+  from "better_supabase"."messages" m
+  cross join lateral (
+    select s ->> 'type' as subject_type, s ->> 'id' as subject_id
+    from jsonb_array_elements("better_supabase"."parse_mentions"(m."body") -> 'subjects') s
+    where s ->> 'type' = any ("better_supabase"."subject_types"())
+    limit 20
+  ) r
+  where m."id" = index_record_mentions.message
+    and m."sent_at" is not null and m."deleted_at" is null
+  on conflict do nothing;
+end;
+$$;
+revoke execute on function "better_supabase"."index_record_mentions"(uuid) from public, anon, authenticated;
+
+-- The sent messages that mention a record, newest first: before
+-- (before, before_id) when given. Each item has the message and its
+-- conversation's id, kind, title and record. Runs as the caller, so it lists
+-- the messages they read, and nothing when they can't read the record.
+create or replace function "better_supabase"."list_record_mentions"(subject_type text, subject_id text, before timestamptz default null, before_id uuid default null, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case when not coalesce("better_supabase"."can_subject"(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
+    then '[]'::jsonb
+    else coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'message', "better_supabase"."messaging_messages_json"(array[p.message]) -> 0,
+        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
+      ) order by p.created_at desc, p.message desc)
+      from (
+        select x."message_id" as message, x."conversation_id" as conversation, x."created_at" as created_at
+        from "better_supabase"."message_record_mentions" x
+        where x."subject_type" = list_record_mentions.subject_type and x."subject_id" = list_record_mentions.subject_id
+          and (list_record_mentions.before is null
+            or (x."created_at", x."message_id") < (list_record_mentions.before, coalesce(list_record_mentions.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
+        order by x."created_at" desc, x."message_id" desc
+        limit least(greatest(coalesce(list_record_mentions.max_rows, 20), 1), 100)
+      ) p
+      join "better_supabase"."conversations" c on c."id" = p.conversation
+    ), '[]'::jsonb)
+  end
+$$;
+revoke execute on function "better_supabase"."list_record_mentions"(text, text, timestamptz, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_record_mentions"(text, text, timestamptz, uuid, integer) to authenticated, service_role;
+
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
 -- body as plain text), anchor (where on the record a top-level message
 -- points, such as a text range), mentions (user ids, merged with the body's
@@ -964,6 +1047,7 @@ begin
   from jsonb_populate_record(null::"better_supabase"."messages", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each((edit_message.attrs -> 'fields')) e where e.key in ('app_note'))) r
   where x."id" = v_msg."id";
   if v_msg."sent_at" is not null then
+    perform "better_supabase"."index_record_mentions"(v_msg."id");
     null;
   end if;
   declare
@@ -1008,6 +1092,7 @@ begin
   where m."id" = v_msg."id"
   returning * into v_msg;
   delete from "better_supabase"."message_edits" x where x."message_id" = v_msg."id";
+  delete from "better_supabase"."message_record_mentions" x where x."message_id" = v_msg."id";
   if v_msg."sent_at" is not null then
     null;
   end if;

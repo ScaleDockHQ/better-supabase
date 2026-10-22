@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bs-module collections@1 managed
--- Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.
+-- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -41,8 +41,9 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Favorites (a member's starred records, ranked for a sidebar) and lists
--- (named, static collections of one subject type) on config.subjects records.
+-- Favorites (a member's starred records, ranked for a sidebar), lists (named,
+-- static collections of one subject type) and saved items (a member's records
+-- to come back to, with a reminder) on config.subjects records.
 
 create table if not exists "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -101,10 +102,31 @@ revoke all on "better_supabase"."favorites" from anon, authenticated;
 grant select on "better_supabase"."favorites" to authenticated;
 grant all on "better_supabase"."favorites" to service_role;
 
+create table if not exists "better_supabase"."saved_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "subject_id" text not null,
+  "note" text check (length("note") <= 1000),
+  "remind_at" timestamptz,
+  "reminded_at" timestamptz,
+  "completed_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("user_id", "subject_type", "subject_id")
+);
+create index if not exists saved_items_user_idx on "better_supabase"."saved_items" ("user_id", "tenant_id", "created_at" desc, "id" desc);
+create index if not exists saved_items_subject_idx on "better_supabase"."saved_items" ("subject_type", "subject_id");
+create index if not exists saved_items_due_idx on "better_supabase"."saved_items" ("remind_at") where "reminded_at" is null and "completed_at" is null;
+alter table "better_supabase"."saved_items" enable row level security;
+revoke all on "better_supabase"."saved_items" from anon, authenticated;
+grant select on "better_supabase"."saved_items" to authenticated;
+grant all on "better_supabase"."saved_items" to service_role;
+
 -- A collection is visible to its owner, its team's members or the whole
 -- tenant. An entry is visible when its collection is and the caller can
 -- read its record, so a shared list never shows a record to someone who
--- can't open it. Stars are the caller's own.
+-- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on "better_supabase"."subject_collections";
 create policy subject_collections_read on "better_supabase"."subject_collections" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read')) and (
@@ -119,6 +141,11 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists favorites_read on "better_supabase"."favorites";
 create policy favorites_read on "better_supabase"."favorites" for select to authenticated
+using ("user_id" = (select auth.uid())
+  and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
+  and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+drop policy if exists saved_items_read on "better_supabase"."saved_items";
+create policy saved_items_read on "better_supabase"."saved_items" for select to authenticated
 using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
@@ -721,6 +748,183 @@ as $$
 $$;
 revoke execute on function "better_supabase"."starred_subjects"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."starred_subjects"(uuid, text) to authenticated, service_role;
+
+-- Saves a record the caller can read for later. Saving it again replaces the
+-- note and reminder and reopens a completed item.
+create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_note text := nullif(btrim(save_for_later.note), '');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_user is null then
+    raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
+  end if;
+  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+    raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
+  end if;
+  if not false then
+    raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'SAVED_ITEM_SUBJECT_FORBIDDEN';
+  end if;
+  if length(v_note) > 1000 then
+    raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
+  end if;
+  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+    raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
+  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  on conflict ("user_id", "subject_type", "subject_id") do update
+    set "note" = excluded."note",
+      "remind_at" = excluded."remind_at",
+      "reminded_at" = null,
+      "completed_at" = null;
+  return (select jsonb_build_object(
+      'id', s."id",
+      'organizationId', s."tenant_id",
+      'userId', s."user_id",
+      'subjectType', s."subject_type",
+      'subjectId', s."subject_id",
+      'note', s."note",
+      'remindAt', s."remind_at",
+      'remindedAt', s."reminded_at",
+      'completedAt', s."completed_at",
+      'createdAt', s."created_at") from "better_supabase"."saved_items" s
+    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+
+-- Marks one of the caller's saved items completed, or open again with
+-- completed false.
+create or replace function "better_supabase"."complete_saved_item"(item uuid, completed boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."saved_items" s
+    set "completed_at" = case when complete_saved_item.completed then coalesce(s."completed_at", now()) end
+    where s."id" = complete_saved_item.item and s."user_id" = auth.uid();
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_saved_item"(item uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."saved_items" s
+    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+
+-- The caller's saved items in a tenant, the newest first, with each record's
+-- title and URL: the open ones, or the completed ones with completed true.
+create or replace function "better_supabase"."list_saved_items"(tenant uuid, completed boolean default false, before timestamptz default null, before_id uuid default null, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(item order by created_at desc, id desc), '[]'::jsonb)
+  from (
+    select s."created_at" as created_at, s."id" as id, jsonb_build_object(
+      'id', s."id",
+      'organizationId', s."tenant_id",
+      'userId', s."user_id",
+      'subjectType', s."subject_type",
+      'subjectId', s."subject_id",
+      'note', s."note",
+      'remindAt', s."remind_at",
+      'remindedAt', s."reminded_at",
+      'completedAt', s."completed_at",
+      'createdAt', s."created_at") || jsonb_build_object(
+        'title', "better_supabase"."subject_title"(s."subject_type", s."subject_id"),
+        'url', "better_supabase"."subject_url"(s."subject_type", s."subject_id")) as item
+    from "better_supabase"."saved_items" s
+    where s."user_id" = (select auth.uid())
+      and s."tenant_id" = list_saved_items.tenant
+      and (s."completed_at" is not null) = coalesce(list_saved_items.completed, false)
+      and (list_saved_items.before is null
+        or (s."created_at", s."id") < (list_saved_items.before, coalesce(list_saved_items.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
+    order by s."created_at" desc, s."id" desc
+    limit least(greatest(coalesce(list_saved_items.max_rows, 50), 1), 200)
+  ) page
+$$;
+revoke execute on function "better_supabase"."list_saved_items"(uuid, boolean, timestamptz, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_saved_items"(uuid, boolean, timestamptz, uuid, integer) to authenticated, service_role;
+
+-- Service role. Claims the open saved items whose reminder time has passed,
+-- records saved_item.reminded for each and returns them. A claimed item is not
+-- returned again until it is saved with a new reminder.
+create or replace function "better_supabase"."remind_due_saved_items"(max_rows integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."saved_items"%rowtype;
+  v_out jsonb := '[]'::jsonb;
+begin
+  if not auth.role() = 'service_role' then
+    raise exception 'only the service role sends saved item reminders' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
+  end if;
+  for v_row in
+    update "better_supabase"."saved_items" s set "reminded_at" = now()
+    where s."id" in (
+      select d."id" from "better_supabase"."saved_items" d
+      where d."remind_at" <= now() and d."reminded_at" is null and d."completed_at" is null
+      order by d."remind_at", d."id"
+      limit least(greatest(coalesce(remind_due_saved_items.max_rows, 100), 1), 500)
+      for update skip locked
+    )
+    returning s.*
+  loop
+    null;
+    v_out := v_out || jsonb_build_array(jsonb_build_object(
+      'id', v_row."id",
+      'organizationId', v_row."tenant_id",
+      'userId', v_row."user_id",
+      'subjectType', v_row."subject_type",
+      'subjectId', v_row."subject_id",
+      'note', v_row."note",
+      'remindAt', v_row."remind_at",
+      'remindedAt', v_row."reminded_at",
+      'completedAt', v_row."completed_at",
+      'createdAt', v_row."created_at"));
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."remind_due_saved_items"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."remind_due_saved_items"(integer) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

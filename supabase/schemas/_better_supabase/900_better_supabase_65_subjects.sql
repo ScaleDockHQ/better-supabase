@@ -1,9 +1,43 @@
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
@@ -709,9 +743,72 @@ $$;
 revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
 
+-- Whether the caller may join presence topic `topic`
+-- (presence:<type>:<id>): they can read that subject.
+create or replace function "better_supabase"."subject_presence_allowed"(topic text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+begin
+  if v_parts is null then
+    return false;
+  end if;
+  return coalesce("better_supabase"."can_subject"(v_parts[1], v_parts[2], 'read'), false);
+exception
+  when invalid_text_representation then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."subject_presence_allowed"(text) from public, anon;
+grant execute on function "better_supabase"."subject_presence_allowed"(text) to authenticated, service_role;
+
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists "bs_subject_presence_receive" on realtime.messages;
+    create policy "bs_subject_presence_receive" on realtime.messages for select to authenticated
+      using (
+        realtime.messages.extension = 'presence'
+        and (select realtime.topic()) like 'presence:' || '%'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
+      );
+    drop policy if exists "bs_subject_presence_send" on realtime.messages;
+    create policy "bs_subject_presence_send" on realtime.messages for insert to authenticated
+      with check ((
+        realtime.messages.extension = 'presence'
+        and (select realtime.topic()) like 'presence:' || '%'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
+      ) and (select better_supabase.actor_may_write()));
+  end if;
+end;
+$$;
+
 -- blocks.subjects.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."subject_types"()
 returns text[]
@@ -775,6 +872,15 @@ set search_path = ''
 as $$ select "better_supabase"."can_subject_for"($1, $2, $3, $4) $$;
 revoke execute on function "api"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."can_subject_for"(uuid, text, text, text) to service_role;
+
+create or replace function "api"."subject_presence_allowed"(topic text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_presence_allowed"($1) $$;
+revoke execute on function "api"."subject_presence_allowed"(text) from public, anon;
+grant execute on function "api"."subject_presence_allowed"(text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

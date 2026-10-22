@@ -714,6 +714,7 @@ begin
   insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "author_id", "kind", "body", "mentions", "sent_at", "created_at")
   values (v_conv."tenant_id", v_conv."id", inbox_add_message.author, v_kind, v_body, v_mentions, v_at, v_at)
   returning "id" into v_id;
+  perform "better_supabase"."index_record_mentions"(v_id);
   insert into "better_supabase"."inbox_message_details" ("message_id", "tenant_id", "conversation_id", "direction", "author_type", "format", "external_id", "reply_to", "metadata")
   values (
     v_id, v_conv."tenant_id", v_conv."id", inbox_add_message.direction, inbox_add_message.author_type,
@@ -1245,6 +1246,7 @@ begin
     "deleted_at" = case when coalesce(remove, false) then now() end,
     "edited_at" = case when coalesce(remove, false) then "edited_at" else now() end
   where "id" = v_msg."id";
+  perform "better_supabase"."index_record_mentions"(v_msg."id");
   if coalesce(remove, false) then
     delete from "better_supabase"."attachments" x where x."subject_type" = 'message' and x."subject_id" = v_msg."id"::text;
   end if;
@@ -2557,6 +2559,7 @@ begin
   insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "author_id", "kind", "body", "mentions", "sent_at", "created_at")
   values (v_conv."tenant_id", v_conv."id", inbox_add_message.author, v_kind, v_body, v_mentions, v_at, v_at)
   returning "id" into v_id;
+  perform "better_supabase"."index_record_mentions"(v_id);
   insert into "better_supabase"."inbox_message_details" ("message_id", "tenant_id", "conversation_id", "direction", "author_type", "format", "external_id", "reply_to", "metadata")
   values (
     v_id, v_conv."tenant_id", v_conv."id", inbox_add_message.direction, inbox_add_message.author_type,
@@ -3192,6 +3195,7 @@ begin
     "deleted_at" = case when coalesce(remove, false) then now() end,
     "edited_at" = case when coalesce(remove, false) then "edited_at" else now() end
   where "id" = v_msg."id";
+  perform "better_supabase"."index_record_mentions"(v_msg."id");
   if coalesce(remove, false) then
     delete from "better_supabase"."attachments" x where x."subject_type" = 'message' and x."subject_id" = v_msg."id"::text;
   end if;
@@ -4507,6 +4511,7 @@ begin
   insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "author_id", "kind", "body", "mentions", "sent_at", "created_at")
   values (v_conv."tenant_id", v_conv."id", inbox_add_message.author, v_kind, v_body, v_mentions, v_at, v_at)
   returning "id" into v_id;
+  perform "better_supabase"."index_record_mentions"(v_id);
   insert into "app_private"."inbox_message_details" ("message_id", "tenant_id", "conversation_id", "direction", "author_type", "format", "external_id", "reply_to", "metadata")
   values (
     v_id, v_conv."tenant_id", v_conv."id", inbox_add_message.direction, inbox_add_message.author_type,
@@ -5038,6 +5043,7 @@ begin
     "deleted_at" = case when coalesce(remove, false) then now() end,
     "edited_at" = case when coalesce(remove, false) then "edited_at" else now() end
   where "id" = v_msg."id";
+  perform "better_supabase"."index_record_mentions"(v_msg."id");
   if coalesce(remove, false) then
     delete from "better_supabase"."attachments" x where x."subject_type" = 'message' and x."subject_id" = v_msg."id"::text;
   end if;
@@ -6349,6 +6355,7 @@ begin
   insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "author_id", "kind", "body", "mentions", "sent_at", "created_at")
   values (v_conv."tenant_id", v_conv."id", inbox_add_message.author, v_kind, v_body, v_mentions, v_at, v_at)
   returning "id" into v_id;
+  perform "better_supabase"."index_record_mentions"(v_id);
   insert into "better_supabase"."inbox_message_details" ("message_id", "tenant_id", "conversation_id", "direction", "author_type", "format", "external_id", "reply_to", "metadata")
   values (
     v_id, v_conv."tenant_id", v_conv."id", inbox_add_message.direction, inbox_add_message.author_type,
@@ -6880,6 +6887,7 @@ begin
     "deleted_at" = case when coalesce(remove, false) then now() end,
     "edited_at" = case when coalesce(remove, false) then "edited_at" else now() end
   where "id" = v_msg."id";
+  perform "better_supabase"."index_record_mentions"(v_msg."id");
   if coalesce(remove, false) then
     delete from "better_supabase"."attachments" x where x."subject_type" = 'message' and x."subject_id" = v_msg."id"::text;
   end if;

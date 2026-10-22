@@ -19,8 +19,19 @@ export {
   type NewMessage,
   type NotifyLevel,
   type OpenConversation,
+  type RecordMention,
   type UnreadCount,
 } from "./messaging.ts";
+
+export {
+  mentionSegments,
+  parseMentions,
+  recordMention,
+  userMention,
+  type MentionScope,
+  type MentionSegment,
+  type ParsedMentions,
+} from "./mentions.ts";
 
 export {
   extendBlock,

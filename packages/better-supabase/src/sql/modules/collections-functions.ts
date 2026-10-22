@@ -553,3 +553,173 @@ $$;
 ${userGrant(`${fn("starred_subjects")}(${ctx.idType}, text)`)}
 `;
 }
+
+/** The most saved items one `remind_due_saved_items` call claims. */
+const MAX_DUE_SAVED_ITEMS = 500;
+
+/**
+ * Save for later: a member's personal list of records to come back to, each
+ * with an optional note and reminder time.
+ */
+export function savedItemFunctions(
+  ctx: ModuleContext,
+  names: CollectionNames,
+): string {
+  const { t, fn } = names;
+  const sv = (column: string): string => names.c("savedItems", column);
+
+  const json = (alias: string): string =>
+    `jsonb_build_object(
+      'id', ${alias}.${sv("id")},
+      'organizationId', ${alias}.${sv("tenant")},
+      'userId', ${alias}.${sv("user")},
+      'subjectType', ${alias}.${sv("subjectType")},
+      'subjectId', ${alias}.${sv("subjectId")},
+      'note', ${alias}.${sv("note")},
+      'remindAt', ${alias}.${sv("remindAt")},
+      'remindedAt', ${alias}.${sv("remindedAt")},
+      'completedAt', ${alias}.${sv("completedAt")},
+      'createdAt', ${alias}.${sv("createdAt")})`;
+
+  return `
+-- Saves a record the caller can read for later. Saving it again replaces the
+-- note and reminder and reopens a completed item.
+create or replace function ${fn("save_for_later")}(tenant ${ctx.idType}, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_user uuid := auth.uid();
+  v_note text := nullif(btrim(save_for_later.note), '');
+begin
+  if v_user is null then
+    ${fail("SAVED_ITEM_INVALID", "saving for later needs a signed-in user", "22023")}
+  end if;
+  if not ${ctx.scope.can("save_for_later.tenant", names.read)} then
+    ${fail("SAVED_ITEM_FORBIDDEN", "not allowed to save records")}
+  end if;
+  if not ${subjectInTenant(ctx, "save_for_later.subject_type", "save_for_later.subject_id", "save_for_later.tenant")} then
+    ${fail("SAVED_ITEM_SUBJECT_FORBIDDEN", "the record is unknown or not readable in this organization")}
+  end if;
+  if length(v_note) > 1000 then
+    ${fail("SAVED_ITEM_INVALID", "a note holds at most 1000 characters", "22023")}
+  end if;
+  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+    ${fail("SAVED_ITEM_INVALID", "the reminder time must be in the future", "22023")}
+  end if;
+  insert into ${t("savedItems")} (${sv("user")}, ${sv("tenant")}, ${sv("subjectType")}, ${sv("subjectId")}, ${sv("note")}, ${sv("remindAt")})
+  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  on conflict (${sv("user")}, ${sv("subjectType")}, ${sv("subjectId")}) do update
+    set ${sv("note")} = excluded.${sv("note")},
+      ${sv("remindAt")} = excluded.${sv("remindAt")},
+      ${sv("remindedAt")} = null,
+      ${sv("completedAt")} = null;
+  return (select ${json("s")} from ${t("savedItems")} s
+    where s.${sv("user")} = v_user and s.${sv("subjectType")} = save_for_later.subject_type and s.${sv("subjectId")} = save_for_later.subject_id);
+end;
+$$;
+${userGrant(`${fn("save_for_later")}(${ctx.idType}, text, text, text, timestamptz)`)}
+
+-- Marks one of the caller's saved items completed, or open again with
+-- completed false.
+create or replace function ${fn("complete_saved_item")}(item uuid, completed boolean default true)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update ${t("savedItems")} s
+    set ${sv("completedAt")} = case when complete_saved_item.completed then coalesce(s.${sv("completedAt")}, now()) end
+    where s.${sv("id")} = complete_saved_item.item and s.${sv("user")} = auth.uid();
+  return found;
+end;
+$$;
+${userGrant(`${fn("complete_saved_item")}(uuid, boolean)`)}
+
+create or replace function ${fn("remove_saved_item")}(item uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from ${t("savedItems")} s
+    where s.${sv("id")} = remove_saved_item.item and s.${sv("user")} = auth.uid();
+  return found;
+end;
+$$;
+${userGrant(`${fn("remove_saved_item")}(uuid)`)}
+
+-- The caller's saved items in a tenant, the newest first, with each record's
+-- title and URL: the open ones, or the completed ones with completed true.
+create or replace function ${fn("list_saved_items")}(tenant ${ctx.idType}, completed boolean default false, before timestamptz default null, before_id uuid default null, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(item order by created_at desc, id desc), '[]'::jsonb)
+  from (
+    select s.${sv("createdAt")} as created_at, s.${sv("id")} as id, ${json("s")} || jsonb_build_object(
+        'title', ${names.subjectTitle}(s.${sv("subjectType")}, s.${sv("subjectId")}),
+        'url', ${names.subjectUrl}(s.${sv("subjectType")}, s.${sv("subjectId")})) as item
+    from ${t("savedItems")} s
+    where s.${sv("user")} = (select auth.uid())
+      and s.${sv("tenant")} = list_saved_items.tenant
+      and (s.${sv("completedAt")} is not null) = coalesce(list_saved_items.completed, false)
+      and (list_saved_items.before is null
+        or (s.${sv("createdAt")}, s.${sv("id")}) < (list_saved_items.before, coalesce(list_saved_items.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
+    order by s.${sv("createdAt")} desc, s.${sv("id")} desc
+    limit ${pageSize("list_saved_items.max_rows", 50, 200)}
+  ) page
+$$;
+${userGrant(`${fn("list_saved_items")}(${ctx.idType}, boolean, timestamptz, uuid, integer)`)}
+
+-- Service role. Claims the open saved items whose reminder time has passed,
+-- records saved_item.reminded for each and returns them. A claimed item is not
+-- returned again until it is saved with a new reminder.
+create or replace function ${fn("remind_due_saved_items")}(max_rows integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("savedItems")}%rowtype;
+  v_out jsonb := '[]'::jsonb;
+begin
+  if not ${SERVICE} then
+    ${fail("SAVED_ITEM_FORBIDDEN", "only the service role sends saved item reminders")}
+  end if;
+  for v_row in
+    update ${t("savedItems")} s set ${sv("remindedAt")} = now()
+    where s.${sv("id")} in (
+      select d.${sv("id")} from ${t("savedItems")} d
+      where d.${sv("remindAt")} <= now() and d.${sv("remindedAt")} is null and d.${sv("completedAt")} is null
+      order by d.${sv("remindAt")}, d.${sv("id")}
+      limit ${pageSize("remind_due_saved_items.max_rows", 100, MAX_DUE_SAVED_ITEMS)}
+      for update skip locked
+    )
+    returning s.*
+  loop
+    ${ctx.record({
+      type: "saved_item.reminded",
+      payload: `jsonb_strip_nulls(jsonb_build_object('organizationId', v_row.${sv("tenant")}, 'savedItemId', v_row.${sv("id")}, 'userId', v_row.${sv("user")}, 'subjectType', v_row.${sv("subjectType")}, 'subjectId', v_row.${sv("subjectId")}, 'note', v_row.${sv("note")}, 'remindAt', v_row.${sv("remindAt")}))`,
+      subject: `'saved-items/' || v_row.${sv("id")}::text`,
+      tenant: `v_row.${sv("tenant")}::text`,
+      audit: false,
+    })}
+    v_out := v_out || jsonb_build_array(${json("v_row")});
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function ${fn("remind_due_saved_items")}(integer) from public, anon, authenticated;
+grant execute on function ${fn("remind_due_saved_items")}(integer) to service_role;
+`;
+}

@@ -18,6 +18,9 @@ import { MESSAGE_RESERVED, conversationReadable } from "./messaging-tables.ts";
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const MAX_UUID = "'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid";
 
+/** The most records one message's mentions index. */
+const MAX_RECORD_MENTIONS = 20;
+
 /** `messaging_messages_json`: messages as the clients read them. */
 function messagesJson(q: MessagingSql): string {
   const { ctx, t, fn } = q;
@@ -117,6 +120,7 @@ function sentEffects(q: MessagingSql): string {
   const ms = q.cols("messages");
   const cv = q.cols("conversations");
   const mb = q.cols("members");
+  const rm = q.cols("recordMentions");
   const message = sqlString(q.e("message"));
   const messageId = sqlString(q.e("messageId"));
   const notifications = ctx.installed("notifications");
@@ -221,7 +225,8 @@ declare
 begin
   select * into v_msg from ${t("messages")} m where m.${ms("id")} = messaging_message_sent.message;
   select * into v_conv from ${t("conversations")} c where c.${cv("id")} = v_msg.${ms("conversation")};
-  ${messageRecord(q, "message.sent", "v_msg", `, 'mentionIds', to_jsonb(v_msg.${ms("mentions")})`)}${effects}
+  perform ${fn("index_record_mentions")}(v_msg.${ms("id")});
+  ${messageRecord(q, "message.sent", "v_msg", `, 'mentionIds', to_jsonb(v_msg.${ms("mentions")}), 'recordMentions', (select coalesce(jsonb_agg(jsonb_build_object('type', x.${rm("subjectType")}, 'id', x.${rm("subjectId")}) order by x.${rm("subjectType")}, x.${rm("subjectId")}), '[]'::jsonb) from ${t("recordMentions")} x where x.${rm("message")} = v_msg.${ms("id")})`)}${effects}
   ${ctx.hook("after_message_send", [["uuid", `v_msg.${ms("id")}`]])}
 end;
 $$;
@@ -319,6 +324,7 @@ function messageFunctions(q: MessagingSql): string {
       : "";
 
   const parse = `${fn("parse_mentions")}(send_message.body)`;
+  const rm = q.cols("recordMentions");
 
   return `
 -- The mentions in a body: @[Name](user:<id>) or @[Name](<id>) users,
@@ -346,6 +352,66 @@ as $$
 $$;
 revoke execute on function ${fn("parse_mentions")}(text) from public, anon;
 grant execute on function ${fn("parse_mentions")}(text) to authenticated, service_role;
+
+-- Stores the records a sent message mentions, at most ${String(MAX_RECORD_MENTIONS)} of registered
+-- subject types, in place of the ones stored before. A deleted or unsent
+-- message keeps none.
+create or replace function ${fn("index_record_mentions")}(message uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from ${t("recordMentions")} x where x.${rm("message")} = index_record_mentions.message;
+  insert into ${t("recordMentions")} (${rm("tenant")}, ${rm("message")}, ${rm("conversation")}, ${rm("subjectType")}, ${rm("subjectId")}, ${rm("createdAt")})
+  select m.${ms("tenant")}, m.${ms("id")}, m.${ms("conversation")}, r.subject_type, r.subject_id, m.${ms("sentAt")}
+  from ${t("messages")} m
+  cross join lateral (
+    select s ->> 'type' as subject_type, s ->> 'id' as subject_id
+    from jsonb_array_elements(${fn("parse_mentions")}(m.${ms("body")}) -> 'subjects') s
+    where s ->> 'type' = any (${ctx.of("subjects").fn("subject_types")}())
+    limit ${String(MAX_RECORD_MENTIONS)}
+  ) r
+  where m.${ms("id")} = index_record_mentions.message
+    and m.${ms("sentAt")} is not null and m.${ms("deletedAt")} is null
+  on conflict do nothing;
+end;
+$$;
+revoke execute on function ${fn("index_record_mentions")}(uuid) from public, anon, authenticated;
+
+-- The sent messages that mention a record, newest first: before
+-- (before, before_id) when given. Each item has the message and its
+-- conversation's id, kind, title and record. Runs as the caller, so it lists
+-- the messages they read, and nothing when they can't read the record.
+create or replace function ${fn("list_record_mentions")}(subject_type text, subject_id text, before timestamptz default null, before_id uuid default null, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case when not coalesce(${ctx.of("subjects").fn("can_subject")}(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
+    then '[]'::jsonb
+    else coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'message', ${fn("messaging_messages_json")}(array[p.message]) -> 0,
+        'conversation', jsonb_build_object('id', c.${cv("id")}, 'kind', c.${cv("kind")}, 'title', c.${cv("title")}, 'subject_type', c.${cv("subjectType")}, 'subject_id', c.${cv("subjectId")})
+      ) order by p.created_at desc, p.message desc)
+      from (
+        select x.${rm("message")} as message, x.${rm("conversation")} as conversation, x.${rm("createdAt")} as created_at
+        from ${t("recordMentions")} x
+        where x.${rm("subjectType")} = list_record_mentions.subject_type and x.${rm("subjectId")} = list_record_mentions.subject_id
+          and (list_record_mentions.before is null
+            or (x.${rm("createdAt")}, x.${rm("message")}) < (list_record_mentions.before, coalesce(list_record_mentions.before_id, ${MAX_UUID})))
+        order by x.${rm("createdAt")} desc, x.${rm("message")} desc
+        limit ${pageSize("list_record_mentions.max_rows", 20, 100)}
+      ) p
+      join ${t("conversations")} c on c.${cv("id")} = p.conversation
+    ), '[]'::jsonb)
+  end
+$$;
+${userGrant(`${fn("list_record_mentions")}(text, text, timestamptz, uuid, integer)`)}
 
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
 -- body as plain text), anchor (where on the record a top-level message
@@ -516,6 +582,7 @@ begin
     ${fail("MESSAGING_MESSAGE_INVALID", "a message field has an invalid value", "22023")}
   end;${writeExtraColumns(t("messages"), extras, "(edit_message.attrs -> 'fields')", `x.${ms("id")} = v_msg.${ms("id")}`)}
   if v_msg.${ms("sentAt")} is not null then
+    perform ${fn("index_record_mentions")}(v_msg.${ms("id")});
     ${messageRecord(q, "message.edited", "v_msg")}
   end if;
   ${ctx.hook("after_message_edit", [["uuid", `v_msg.${ms("id")}`]])}
@@ -548,7 +615,8 @@ begin
     ${ms("pinnedAt")} = null, ${ms("pinnedBy")} = null, ${ms("deletedAt")} = now()
   where m.${ms("id")} = v_msg.${ms("id")}
   returning * into v_msg;
-  delete from ${t("edits")} x where x.${ed("message")} = v_msg.${ms("id")};${detach}
+  delete from ${t("edits")} x where x.${ed("message")} = v_msg.${ms("id")};
+  delete from ${t("recordMentions")} x where x.${rm("message")} = v_msg.${ms("id")};${detach}
   if v_msg.${ms("sentAt")} is not null then
     ${messageRecord(q, "message.deleted", "v_msg")}
   end if;

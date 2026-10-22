@@ -224,6 +224,83 @@ describe("createMessaging", () => {
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toMatchSnapshot();
   });
 
+  it("reads a record's backlinks, a page at a time", async () => {
+    const { transport, call } = fakeTransport({
+      list_record_mentions: [
+        {
+          message: messageRow,
+          conversation: {
+            id: "c1",
+            kind: "channel",
+            title: "launch",
+            subject_type: null,
+            subject_id: null,
+          },
+        },
+        {
+          message: { ...messageRow, id: "m2" },
+          conversation: {
+            id: "c2",
+            kind: "subject",
+            title: null,
+            subject_type: "deal",
+            subject_id: "d1",
+          },
+        },
+      ],
+    });
+
+    const messaging = createMessaging({ transport, tenant: "org" });
+    const deal = { type: "deal", id: "d9" };
+
+    const mentions = await messaging.recordMentions(deal).orThrow();
+
+    expect(mentions.map((mention) => mention.message.id)).toEqual(["m1", "m2"]);
+    expect(mentions[0]?.conversation).toEqual({
+      id: "c1",
+      kind: "channel",
+      title: "launch",
+      subject: undefined,
+    });
+    expect(mentions[1]?.conversation).toEqual({
+      id: "c2",
+      kind: "subject",
+      title: undefined,
+      subject: { type: "deal", id: "d1" },
+    });
+    expect(mentions[0]?.message.fields).toEqual({ priority: "high" });
+
+    await messaging
+      .recordMentions(deal, {
+        before: { sentAt: Temporal.Instant.from(AT), id: "m2" },
+        limit: 5,
+      })
+      .orThrow();
+
+    expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toEqual([
+      [
+        "list_record_mentions",
+        {
+          subject_type: "deal",
+          subject_id: "d9",
+          before: null,
+          before_id: null,
+          max_rows: null,
+        },
+      ],
+      [
+        "list_record_mentions",
+        {
+          subject_type: "deal",
+          subject_id: "d9",
+          before: AT,
+          before_id: "m2",
+          max_rows: 5,
+        },
+      ],
+    ]);
+  });
+
   it("needs a tenant for the calls that take none", async () => {
     const { transport } = fakeTransport(answers);
     const messaging = createMessaging({ transport });

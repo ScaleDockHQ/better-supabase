@@ -41,6 +41,19 @@ export interface CollectionEntryEventData extends SubjectEventData {
   readonly collectionId: string;
 }
 
+/**
+ * `saved_item.reminded`: a record a member saved for later reached its reminder
+ * time.
+ */
+export interface SavedItemEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly savedItemId: string;
+  /** The member who saved it. */
+  readonly userId: string;
+  readonly note?: string;
+  readonly remindAt: string;
+}
+
 /** Events from the deals module. Amounts are minor units as text. */
 export interface DealEventData extends SubjectEventData {
   readonly organizationId: string;
@@ -207,6 +220,14 @@ export interface MessageEventData extends SubjectEventData {
   readonly recordId?: string | null;
   /** For `message.sent`: the users it mentions. */
   readonly mentionIds?: readonly string[];
+  /**
+   * For `message.sent`: the records it mentions
+   * (`@[Name](subject:<type>/<id>)`).
+   */
+  readonly recordMentions?: readonly {
+    readonly type: string;
+    readonly id: string;
+  }[];
   /** For `message.pinned` and `message.resolved`: the new state. */
   readonly pinned?: boolean;
   readonly resolved?: boolean;

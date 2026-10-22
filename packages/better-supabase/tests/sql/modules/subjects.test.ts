@@ -167,4 +167,20 @@ describe("subjectsOption with the registry", () => {
     const sql = sqlOf(["webhooks-in"]);
     expect(sql).not.toContain(`"public"."tasks"`);
   });
+
+  it("authorizes a record's presence topic for its readers", () => {
+    const sql = sqlOf(["subjects"]);
+    expect(sql).toContain(
+      `"better_supabase"."subject_presence_allowed"(topic text)`,
+    );
+    expect(sql).toContain(
+      "regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$')",
+    );
+    expect(sql).toContain(
+      `coalesce("better_supabase"."can_subject"(v_parts[1], v_parts[2], 'read'), false)`,
+    );
+    expect(sql).toContain("realtime.messages.extension = 'presence'");
+    expect(sql).toContain("bs_subject_presence_receive");
+    expect(sql).toContain("bs_subject_presence_send");
+  });
 });

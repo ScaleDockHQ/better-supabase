@@ -3662,7 +3662,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "collectionsBlock",
         "subpath": "better-supabase/blocks/collections"
       },
-      "consumes": {},
+      "consumes": {
+        "notifier": "optional"
+      },
       "provides": [],
       "events": {
         "type": "CollectionsEvents",
@@ -3670,7 +3672,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "collection.created",
           "collection.archived",
           "collection.entry_added",
-          "collection.entry_removed"
+          "collection.entry_removed",
+          "saved_item.reminded"
         ]
       }
     },

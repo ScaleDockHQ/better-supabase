@@ -19,6 +19,7 @@ import { bySubjectType, subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
+import { parseMentions } from "../messaging/mentions.ts";
 import { editOf, messageOf } from "../messaging/rows.ts";
 import {
   applyTemporal,
@@ -195,21 +196,13 @@ export interface Comments<F extends object = Record<never, never>> {
   ): AsyncResult<Temporal.Instant | undefined>;
 }
 
-const MENTION =
-  /@\[[^\]\n]{1,100}\]\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)/gi;
-
 /**
- * The user ids mentioned in a body written as `@[Ada](<user id>)`, the markup
- * mention inputs produce, in order and without repeats.
+ * The user ids mentioned in a body written as `@[Ada](user:<user id>)` or
+ * `@[Ada](<user id>)`, the markup mention inputs produce, in order and without
+ * repeats.
  */
 export function mentionsIn(body: string): readonly string[] {
-  return [
-    ...new Set(
-      [...body.matchAll(MENTION)].flatMap((match) =>
-        match[1] ? [match[1].toLowerCase()] : [],
-      ),
-    ),
-  ];
+  return parseMentions(body).users;
 }
 
 /** A row of `list_comments` or `create_comment`. */

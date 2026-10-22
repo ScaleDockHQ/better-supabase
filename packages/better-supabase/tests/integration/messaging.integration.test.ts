@@ -3,11 +3,25 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   createMessaging,
+  recordMention,
   sqlTransport,
 } from "../../src/blocks/messaging/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
+
+// A subject whose rows only their author reads, so a channel member can see a
+// mention of a record they can't open.
+const MEMOS = `create table if not exists public.messaging_test_memos (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  author uuid not null,
+  title text not null
+);
+alter table public.messaging_test_memos enable row level security;
+grant select on public.messaging_test_memos to authenticated;
+create policy memos_author on public.messaging_test_memos for select to authenticated
+  using (author = (select auth.uid()));`;
 
 const MODULES = [
   "organizations",
@@ -311,6 +325,72 @@ describe.skipIf(!live)("messaging", () => {
         "Later",
       ]);
       expect(published.every((m) => m.sentAt !== undefined)).toBe(true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("lists record mentions as backlinks for the record's readers", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(MEMOS);
+      await s.install([...MODULES, "subjects"], {
+        subjects: {
+          memo: {
+            table: "public.messaging_test_memos",
+            idType: "uuid",
+            title: "title",
+            url: "/memos/{id}",
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+
+      const messaging = createMessaging({
+        transport: sqlTransport(s.sql),
+        tenant: () => organization,
+      });
+
+      await s.service();
+
+      const [memo] = await s.rows<{ id: string }>(
+        "insert into public.messaging_test_memos (organization_id, author, title) values ($1, $2, 'Plan') returning id",
+        [organization, owner.id],
+      );
+
+      await s.asRole(owner);
+
+      const channel = await messaging
+        .open({ kind: "channel", title: "plans", memberIds: [member.id] })
+        .orThrow();
+
+      const message = await messaging
+        .send(channel.id, {
+          body: `See ${recordMention("Plan", { type: "memo", id: memo!.id })}`,
+        })
+        .orThrow();
+
+      const memoRef = { type: "memo", id: memo!.id };
+      const backlinks = await messaging.recordMentions(memoRef).orThrow();
+
+      expect(backlinks).toHaveLength(1);
+      expect(backlinks[0]?.message.id).toBe(message.id);
+      expect(backlinks[0]?.conversation).toMatchObject({
+        id: channel.id,
+        kind: "channel",
+        title: "plans",
+      });
+
+      // The member reads the channel but not the memo.
+      await s.asRole(member);
+      expect(await messaging.recordMentions(memoRef).orThrow()).toEqual([]);
+
+      await s.asRole(owner);
+      await messaging.edit(message.id, { body: "Never mind" }).orThrow();
+      expect(await messaging.recordMentions(memoRef).orThrow()).toEqual([]);
     } finally {
       await s.close();
     }

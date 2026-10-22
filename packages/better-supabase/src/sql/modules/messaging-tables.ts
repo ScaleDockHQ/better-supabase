@@ -69,6 +69,7 @@ interface TableDdl {
   readonly messages: string;
   readonly edits: string;
   readonly reads: string;
+  readonly recordMentions: string;
 }
 
 function tableDdl(q: MessagingSql): TableDdl {
@@ -78,6 +79,7 @@ function tableDdl(q: MessagingSql): TableDdl {
   const ms = q.cols("messages");
   const ed = q.cols("edits");
   const rd = q.cols("reads");
+  const rm = q.cols("recordMentions");
   const idx = (name: string): string => ctx.naming.rename(name);
 
   return {
@@ -171,12 +173,23 @@ ${lockTable(t("edits"), { read: true })}`,
 create index if not exists ${idx("messaging_reads_conversation_idx")} on ${t("reads")} (${rd("conversation")});
 create index if not exists ${idx("messaging_reads_thread_idx")} on ${t("reads")} (${rd("thread")});
 ${lockTable(t("reads"), { read: true })}`,
+    recordMentions: `create table if not exists ${t("recordMentions")} (
+  ${rm("tenant")} ${id} not null,
+  ${rm("message")} uuid not null references ${t("messages")} (${ms("id")}) on delete cascade,
+  ${rm("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
+  ${rm("subjectType")} text not null,
+  ${rm("subjectId")} text not null,
+  ${rm("createdAt")} timestamptz not null default now(),
+  primary key (${rm("message")}, ${rm("subjectType")}, ${rm("subjectId")})
+);
+create index if not exists ${idx("messaging_record_mentions_subject_idx")} on ${t("recordMentions")} (${rm("subjectType")}, ${rm("subjectId")}, ${rm("createdAt")} desc, ${rm("message")});
+${lockTable(t("recordMentions"), { read: true })}`,
   };
 }
 
 /**
- * The five tables and their indexes, without policies, functions or triggers,
- * for an upgrade step that fills them before the module file runs.
+ * The tables and their indexes, without policies, functions or triggers, for an
+ * upgrade step that fills them before the module file runs.
  */
 export function messagingTableDdl(q: MessagingSql): string {
   if (!q.ctx.manages) {
@@ -191,10 +204,11 @@ export function messagingTableDdl(q: MessagingSql): string {
     ddl.messages,
     ddl.edits,
     ddl.reads,
+    ddl.recordMentions,
   ].join("\n\n");
 }
 
-/** The five tables, their policies and the thread and read triggers. */
+/** The tables, their policies and the thread and read triggers. */
 export function messagingTables(q: MessagingSql): string {
   if (!q.ctx.manages) {
     return "";
@@ -207,6 +221,7 @@ export function messagingTables(q: MessagingSql): string {
   const ms = q.cols("messages");
   const ed = q.cols("edits");
   const rd = q.cols("reads");
+  const rm = q.cols("recordMentions");
 
   const policy = (table: string, suffix: string): string =>
     `${ctx.tableName(table).name}_${suffix}`;
@@ -269,6 +284,14 @@ ${ddl.reads}
 drop policy if exists ${policy("reads", "read")} on ${t("reads")};
 create policy ${policy("reads", "read")} on ${t("reads")} for select to authenticated
 using (${rd("user")} = (select auth.uid()));
+
+-- The records a sent message mentions, for a record's backlinks. A row shows
+-- with its message; list_record_mentions also asks can_subject on the record.
+${ddl.recordMentions}
+
+drop policy if exists ${policy("recordMentions", "read")} on ${t("recordMentions")};
+create policy ${policy("recordMentions", "read")} on ${t("recordMentions")} for select to authenticated
+using (exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${rm("message")}));
 
 -- Keeps the thread root's reply count, last reply and first three repliers,
 -- and the conversation's last message time, as a reply is sent or deleted.

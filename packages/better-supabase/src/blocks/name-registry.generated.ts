@@ -291,8 +291,9 @@ export interface BlockNameRegistry {
       readonly "collections": "id" | "tenant" | "subjectType" | "scope" | "owner" | "team" | "name" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "entries": "collection" | "tenant" | "subjectType" | "subjectId" | "rank" | "addedBy" | "addedAt";
       readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt";
+      readonly "savedItems": "id" | "user" | "tenant" | "subjectType" | "subjectId" | "note" | "remindAt" | "remindedAt" | "completedAt" | "createdAt";
     };
-    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "create_collection" | "list_collections" | "rank_collection_entry" | "rank_star" | "remove_collection_entries" | "rename_collection" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
+    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "list_collections" | "list_saved_items" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
     readonly actions: "read" | "write" | "share";
     readonly hooks: "before_collection_create" | "after_collection_create" | "before_collection_add" | "after_collection_add";
     readonly entities: {};
@@ -649,8 +650,9 @@ export interface BlockNameRegistry {
       readonly "messages": "id" | "tenant" | "conversation" | "parent" | "thread" | "author" | "kind" | "body" | "document" | "anchor" | "mentions" | "mentionScope" | "broadcast" | "replyCount" | "lastReplyAt" | "replyUsers" | "pinnedAt" | "pinnedBy" | "resolvedAt" | "resolvedBy" | "scheduledFor" | "sentAt" | "editedAt" | "deletedAt" | "createdAt";
       readonly "edits": "id" | "tenant" | "message" | "body" | "document" | "editor" | "editedAt";
       readonly "reads": "tenant" | "user" | "conversation" | "thread" | "lastReadAt";
+      readonly "recordMentions": "tenant" | "message" | "conversation" | "subjectType" | "subjectId" | "createdAt";
     };
-    readonly functions: "add_conversation_members" | "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "delete_message" | "edit_message" | "get_message" | "is_conversation_member" | "list_conversations" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_replies" | "mark_read" | "messaging_message_broadcast" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "open_conversation" | "parse_mentions" | "pin_message" | "publish_due_messages" | "remove_conversation_member" | "resolve_message" | "send_message" | "set_conversation_notify" | "set_typing" | "unread_counts";
+    readonly functions: "add_conversation_members" | "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "delete_message" | "edit_message" | "get_message" | "index_record_mentions" | "is_conversation_member" | "list_conversations" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_record_mentions" | "list_replies" | "mark_read" | "messaging_message_broadcast" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "open_conversation" | "parse_mentions" | "pin_message" | "publish_due_messages" | "remove_conversation_member" | "resolve_message" | "send_message" | "set_conversation_notify" | "set_typing" | "unread_counts";
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {
@@ -1097,7 +1099,7 @@ export interface BlockNameRegistry {
   };
   readonly "subjects": {
     readonly tables: {};
-    readonly functions: "can_subject" | "can_subject_for" | "record_summary" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "can_subject" | "can_subject_for" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
