@@ -348,3 +348,26 @@ move. An unset `on` still means every type in `config.records`, and doctor
 (BS346) reports a type in `on` that `config.records` doesn't register. The
 rendered SQL changes only in its comments. See
 [Record types](/docs/blocks#record-types).
+
+## Block clients are keyed by instance
+
+`blocks.generated.ts` has an entry for each instance, and a second instance
+gets its own renamed client (`ticketsBlock` for `tickets: { block: "tasks" }`)
+that calls the instance's functions. Pass it to `defineBlocks` or
+`createBlocks` under the instance key; `createBlocks` reads the entry under
+that key before the one under the block's name, and refuses an entry that
+installs another block. `createBlockClient` takes `instance` for the same
+lookup.
+
+Two blocks in one set may now provide the same port (`notifier`, `files`,
+`attachments`, `workflows`, `mailer`). A block that consumes it takes the
+provider its `blocks.<instance>.uses` names, else the one
+`createBlocks({ ports: { notifier: "inbox" } })` names, and fails with both
+keys when neither picks one.
+
+Block queries share the table key space: `blockQueries` keys a read
+`["bsb", instance, method, ...args]` instead of `["bs-block", ...]`, and its
+meta is `{ bsTables: [instance] }` instead of `bsBlock`. One matcher,
+`invalidateTables`, makes table and instance queries stale, and it takes the
+methods to narrow to. The 0.15 codemod rewrites `"bs-block"` literals and
+lists `bsBlock` reads for review.

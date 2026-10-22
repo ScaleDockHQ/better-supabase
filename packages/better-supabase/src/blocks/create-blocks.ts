@@ -14,7 +14,7 @@ import type { DbTransportSource } from "../core/block-transport.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
-import type { GeneratedBlocks } from "./block-config.ts";
+import type { GeneratedBlock, GeneratedBlocks } from "./block-config.ts";
 import type { AnyBlock, ClientOf } from "./define-block.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
@@ -44,10 +44,18 @@ export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
   /**
    * `blockConfig` from `blocks.generated.ts`: each block gets its schema (the
    * API schema when the module has one) and the options its SQL half shares,
-   * such as `attachments.requireScan`, under its own name. Blocks without an
-   * entry use the module defaults.
+   * such as `attachments.requireScan`, from the entry under its key, else the
+   * entry under its block's name. Blocks without an entry use the module
+   * defaults.
    */
   readonly config?: GeneratedBlocks;
+  /**
+   * The key of the block that provides a port (`notifier`, `files`,
+   * `attachments`, `workflows`, `mailer`) when more than one block in the set
+   * provides it and the consumer's `blocks.<instance>.uses` names none of
+   * them.
+   */
+  readonly ports?: Readonly<Partial<Record<UniquePort, string>>>;
   /**
    * Where block events go, such as `auditLog.sink()`. Needs `events`; the
    * forwarding lasts until `close()`, so build these blocks once rather than
@@ -70,6 +78,11 @@ export interface BlockClientOptions extends Omit<
   readonly transport?: BlockContext["transport"];
   /** `blockConfig` from `blocks.generated.ts`; `BlockSet.client` passes it. */
   readonly config?: GeneratedBlocks;
+  /**
+   * The instance in `config` to call when the block is installed under another
+   * key (`blocks.labels.block: "tags"`). Defaults to the block's name.
+   */
+  readonly instance?: string;
 }
 
 /** Blocks keyed by the name the app gives each one. */
@@ -242,23 +255,24 @@ export function createBlockClient<const B extends AnyBlock>(
     readonly hooks?: NoInfer<BlockHooks<ClientOf<B>>>;
   } = {},
 ): ClientOf<B> {
-  const { hooks, ...rest } = options;
+  const { hooks, instance, ...rest } = options;
+  const key = instance ?? block.name;
 
-  // SAFETY: `build` returns the client of the one block passed under its name.
+  // SAFETY: `build` returns the client of the one block passed under `key`.
   return blockBuilder(
     {
       ...clientContext(db, rest),
-      ...(hooks === undefined ? {} : { hooks: { [block.name]: hooks } }),
+      ...(hooks === undefined ? {} : { hooks: { [key]: hooks } }),
     },
-    { [block.name]: block },
-  ).build(block.name) as ClientOf<B>;
+    { [key]: block },
+  ).build(key) as ClientOf<B>;
 }
 
 function clientContext(
   db: BlockClientSource,
   options: BlockClientOptions & { readonly hooks?: object },
 ): CreateBlocksOptions & { readonly hooks?: object } {
-  const { hooks, ...rest } = options;
+  const { hooks, instance: _instance, ...rest } = options;
 
   return {
     tenant: () => db.$context?.tenant,
@@ -268,7 +282,10 @@ function clientContext(
   };
 }
 
-const UNIQUE_PORTS: readonly Exclude<PortName, "sink">[] = [
+/** A port a consumer takes from one provider. */
+export type UniquePort = Exclude<PortName, "sink">;
+
+const UNIQUE_PORTS: readonly UniquePort[] = [
   "notifier",
   "files",
   "attachments",
@@ -305,40 +322,7 @@ function blockBuilder(
   options: CreateBlocksOptions & { readonly hooks?: object },
   blocks: BlockMap,
 ): BlockBuilder {
-  const { audit: _audit, hooks, config, ...shared } = options;
-
-  const providers = new Map<string, string>();
-
-  for (const port of UNIQUE_PORTS) {
-    const keys = Object.keys(blocks).filter(
-      (key) => blocks[key]?.provides[port] !== undefined,
-    );
-
-    if (keys.length > 1) {
-      throw new TypeError(
-        `createBlocks: ${keys.map((key) => `"${key}"`).join(" and ")} both provide the ${port} port; pass one`,
-      );
-    }
-
-    const [key] = keys;
-
-    if (key !== undefined) {
-      providers.set(port, key);
-    }
-  }
-
-  for (const [key, block] of Object.entries(blocks)) {
-    for (const [port, need] of Object.entries(block.consumes)) {
-      if (need === "required" && !providers.has(port)) {
-        throw new TypeError(
-          `createBlocks: "${key}" needs a block that provides the ${port} port`,
-        );
-      }
-    }
-  }
-
-  const built = new Map<string, unknown>();
-  const building = new Set<string>();
+  const { audit: _audit, hooks, config, ports: bound, ...shared } = options;
 
   const blockOf = (key: string): AnyBlock => {
     const block = blocks[key];
@@ -349,6 +333,84 @@ function blockBuilder(
 
     return block;
   };
+
+  /** `key`'s generated entry: under its key, else under its block's name. */
+  const entryOf = (key: string): GeneratedBlock | undefined => {
+    const block = blockOf(key);
+    const own = config?.[key];
+
+    if (own === undefined) {
+      return config?.[block.name];
+    }
+
+    if ((own.block ?? key) !== block.name) {
+      throw new TypeError(
+        `createBlocks: blocks.${key} installs the "${own.block ?? key}" block, not "${block.name}"`,
+      );
+    }
+
+    return own;
+  };
+
+  for (const port of UNIQUE_PORTS) {
+    const key = bound?.[port];
+
+    if (key !== undefined && blocks[key]?.provides[port] === undefined) {
+      throw new TypeError(
+        `createBlocks: ports.${port} names "${key}", which provides no ${port} port`,
+      );
+    }
+  }
+
+  /**
+   * The key of the block `key` takes `port` from: the only other block that
+   * provides it, else the one its `uses` names, else `ports[port]`.
+   */
+  const providerOf = (key: string, port: UniquePort): string | undefined => {
+    const keys = Object.keys(blocks).filter(
+      (each) => each !== key && blocks[each]?.provides[port] !== undefined,
+    );
+
+    if (keys.length <= 1) {
+      return keys[0];
+    }
+
+    const uses = Object.values(entryOf(key)?.uses ?? {});
+    const used = keys.filter((each) => uses.includes(each));
+
+    if (used.length === 1) {
+      return used[0];
+    }
+
+    const named = bound?.[port];
+
+    if (named !== undefined && keys.includes(named)) {
+      return named;
+    }
+
+    throw new TypeError(
+      `createBlocks: ${keys.map((each) => `"${each}"`).join(" and ")} all provide the ${port} port "${key}" consumes; set blocks.${key}.uses or pass ports.${port}`,
+    );
+  };
+
+  for (const [key, block] of Object.entries(blocks)) {
+    for (const port of UNIQUE_PORTS) {
+      const need = block.consumes[port];
+
+      if (need === undefined) {
+        continue;
+      }
+
+      if (providerOf(key, port) === undefined && need === "required") {
+        throw new TypeError(
+          `createBlocks: "${key}" needs a block that provides the ${port} port`,
+        );
+      }
+    }
+  }
+
+  const built = new Map<string, unknown>();
+  const building = new Set<string>();
 
   /**
    * The options `key`'s creator gets: shared, then its generated config, then
@@ -362,9 +424,9 @@ function blockBuilder(
         continue;
       }
 
-      const provider = providers.get(port);
+      const provider = providerOf(key, port);
 
-      if (provider === undefined || provider === key) {
+      if (provider === undefined) {
         continue;
       }
 
@@ -376,7 +438,7 @@ function blockBuilder(
     }
 
     const block = blockOf(key);
-    const entry = config?.[block.name];
+    const entry = entryOf(key);
 
     return {
       ...shared,

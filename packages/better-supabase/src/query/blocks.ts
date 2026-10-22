@@ -1,4 +1,4 @@
-import type { Query, QueryClient, SkipToken } from "@tanstack/query-core";
+import type { QueryClient, SkipToken } from "@tanstack/query-core";
 
 import type { EventHub } from "../core/events.ts";
 import type { Result } from "../core/result.ts";
@@ -9,10 +9,11 @@ import type {
 } from "./queries.ts";
 
 import { DbException } from "../core/errors.ts";
+import { invalidateTables } from "./invalidate.ts";
 import { keyPart } from "./queries.ts";
 
-/** The first key part of every block query. */
-const BLOCK_KEY = "bsb-block";
+/** The first key part of every query, a table's or a block instance's. */
+const BLOCK_KEY = "bsb";
 
 /**
  * Method name prefixes that read: these become query options, every other
@@ -132,12 +133,6 @@ function scopedKey(
   return options.scope === undefined ? key : [...key, { scope: options.scope }];
 }
 
-function isBlockQuery(query: Query, block: string): boolean {
-  const [prefix, key] = query.queryKey;
-
-  return prefix === BLOCK_KEY && key === block;
-}
-
 function clientQueries(
   block: string,
   client: object,
@@ -161,7 +156,7 @@ function clientQueries(
           skip || method === undefined
             ? args[0]
             : () => unwrap(method(...args)),
-        meta: { bsTables: [], bsBlock: block },
+        meta: { bsTables: [block] },
         ...(options.staleTime === undefined
           ? {}
           : { staleTime: options.staleTime }),
@@ -195,10 +190,7 @@ function clientQueries(
         _variables: unknown,
         _result: unknown,
         context: { readonly client: QueryClient },
-      ) =>
-        context.client.invalidateQueries({
-          predicate: (query) => isBlockQuery(query, block),
-        }),
+      ) => invalidateTables(context.client, [block]),
     });
   };
 
@@ -225,11 +217,12 @@ function clientQueries(
 
 /**
  * Query options for each read method of each block client (`get*`, `list*`,
- * `find*`, `search*` and the other `BLOCK_READ_PREFIXES`), keyed `["bsb-block",
- * block, method, ...args]`, and mutation options for every other method. A
- * mutation makes its block's queries stale; `invalidateOnBlockEvents` does the
- * same for block events. Renamed blocks (`renameBlock`) keep their renamed
- * method names. A method that fails throws a `DbException`, like
+ * `find*`, `search*` and the other `BLOCK_READ_PREFIXES`), keyed `["bsb",
+ * instance, method, ...args]` like table queries, and mutation options for
+ * every other method. A mutation makes its instance's queries stale, through
+ * the matcher table writes use (`invalidateTables`); `invalidateOnBlockEvents`
+ * does the same for block events. Renamed blocks (`renameBlock`) keep their
+ * renamed method names. A method that fails throws a `DbException`, like
  * `createQueries`.
  */
 export function blockQueries<const C extends BlockClients>(
@@ -283,13 +276,11 @@ export function invalidateOnBlockEvents(
         .filter(([pattern]) => matches(pattern, event.type))
         .flatMap(([, methods]) => methods);
 
-      const methods = listed.length === 0 ? undefined : new Set(listed);
-
-      void queryClient.invalidateQueries({
-        predicate: (query) =>
-          isBlockQuery(query, key) &&
-          (methods === undefined || methods.has(String(query.queryKey[2]))),
-      });
+      void invalidateTables(
+        queryClient,
+        [key],
+        listed.length === 0 ? undefined : new Set(listed),
+      );
     }
   });
 }

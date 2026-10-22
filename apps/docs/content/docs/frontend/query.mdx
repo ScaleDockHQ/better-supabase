@@ -178,8 +178,10 @@ it. `$rpcMutation` invalidates the tables declared with
 `blockQueries(clients)` gives the block clients the same option factories,
 under their own method names. A read method (`get*`, `list*`, `find*`,
 `search*`, `tree` and the other `BLOCK_READ_PREFIXES`) becomes query options
-keyed `["bsb-block", block, method, ...args]`; every other method becomes
-mutation options that make the block's queries stale when they succeed.
+keyed `["bsb", instance, method, ...args]`, the key space table queries use,
+so `invalidateTables(queryClient, ["tasks"])` makes them stale too. Every
+other method becomes mutation options that make the instance's queries stale
+when they succeed.
 
 ```ts title="lib/block-queries.ts"
 import { blockQueries, invalidateOnBlockEvents } from "better-supabase/query";

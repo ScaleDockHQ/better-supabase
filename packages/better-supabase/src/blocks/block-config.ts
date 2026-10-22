@@ -24,11 +24,23 @@ export interface GeneratedBlock {
    * transport with `blockNames(names)`.
    */
   readonly names?: BlockNaming;
+  /**
+   * The block an instance installs when its key names another
+   * (`blocks.labels.block: "tags"`). `createBlocks` checks that the block
+   * passed under the key is this one.
+   */
+  readonly block?: string;
+  /**
+   * Dependency block to the instance key it uses (`blocks.<instance>.uses`).
+   * `createBlocks` takes a port from that instance when more than one block
+   * provides it.
+   */
+  readonly uses?: Readonly<Record<string, string>>;
 }
 
 /**
- * `blocks.generated.ts`: the installed blocks' generated config, keyed by block
- * name.
+ * `blocks.generated.ts`: the installed blocks' generated config, keyed by
+ * instance: the block's name, or the key that installs it again.
  */
 export type GeneratedBlocks = Readonly<Record<string, GeneratedBlock>>;
 

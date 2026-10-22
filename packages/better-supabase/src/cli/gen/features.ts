@@ -19,6 +19,7 @@ type FeaturesConfig = Pick<
   | "buckets"
   | "casing"
   | "generateFeatures"
+  | "instances"
   | "output"
   | "sql"
   | "subjects"

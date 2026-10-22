@@ -9,6 +9,7 @@ import {
   blockQueries,
   invalidateOnBlockEvents,
 } from "../../src/query/blocks.ts";
+import { invalidateTables } from "../../src/query/invalidate.ts";
 
 interface Task {
   readonly id: string;
@@ -62,16 +63,16 @@ describe("blockQueries", () => {
 
     const options = queries.tasks.listTasks({ title: "Write docs" });
     expect(options.queryKey).toEqual([
-      "bsb-block",
+      "bsb",
       "tasks",
       "listTasks",
       { title: "Write docs" },
     ]);
-    expect(options.meta).toEqual({ bsTables: [], bsBlock: "tasks" });
+    expect(options.meta).toEqual({ bsTables: ["tasks"] });
     await expect(queryClient.query(options)).resolves.toEqual([
       { id: "t1", title: "Write docs" },
     ]);
-    expect(queries.tasks.$key).toEqual(["bsb-block", "tasks"]);
+    expect(queries.tasks.$key).toEqual(["bsb", "tasks"]);
   });
 
   it("throws a DbException for an error result", async () => {
@@ -109,7 +110,7 @@ describe("blockQueries", () => {
       queries.tasks.moveTask().mutationFn(["t1", 2]),
     ).resolves.toEqual({ id: "t1", position: 2 });
     expect(queries.tasks.issueTask().mutationKey).toEqual([
-      "bsb-block",
+      "bsb",
       "tasks",
       "issueTask",
     ]);
@@ -155,5 +156,20 @@ describe("invalidateOnBlockEvents", () => {
     );
     expect(stale(queries.tasks.getTask("t1").queryKey)).toBe(true);
     stop();
+  });
+});
+
+describe("one key space", () => {
+  it("lets invalidateTables reach a block instance's queries", async () => {
+    const queries = blockQueries({ tasks: tasksClient() });
+    const queryClient = new QueryClient();
+
+    await queryClient.query(queries.tasks.listTasks());
+    await invalidateTables(queryClient, ["tasks"]);
+
+    expect(
+      queryClient.getQueryState(queries.tasks.listTasks().queryKey)
+        ?.isInvalidated,
+    ).toBe(true);
   });
 });

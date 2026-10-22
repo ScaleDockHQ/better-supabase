@@ -149,6 +149,58 @@ describe("blocks.generated.ts", () => {
     expect(contents).not.toContain("TasksOptions");
   });
 
+  it("writes an entry and a renamed block for each instance of a block", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          pipelines: {},
+          tasks: { names: { work_item: "task" } },
+          tickets: {
+            block: "tasks",
+            entities: { work_item: "ticket" },
+            uses: { pipelines: "pipelines" },
+          },
+        },
+      },
+      "/project",
+    );
+
+    const entries = blockConfigEntries(config);
+    expect(entries["tickets"]).toMatchObject({
+      block: "tasks",
+      names: {
+        functions: {
+          create_work_item: "create_ticket",
+          save_project: "tickets_save_project",
+        },
+      },
+    });
+    expect(entries["tickets"]?.uses).toBeUndefined();
+
+    const contents = emitBlockConfig(config)?.contents ?? "";
+    expect(contents).toContain(
+      'export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
+    );
+    expect(contents).toContain(
+      'export const ticketsBlock = renameBlock(defaultTasksBlock, blockConfig["tickets"].names);',
+    );
+    expect(contents).toContain(
+      "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultWorkItem<F>, TicketsRenames>;",
+    );
+  });
+
+  it("leaves out the block's own entry when only another name installs it", () => {
+    const entries = blockConfigEntries(
+      resolveConfig(
+        { blocks: { labels: { block: "tags", entities: { tag: "label" } } } },
+        "/project",
+      ),
+    );
+
+    expect(entries["tags"]).toBeUndefined();
+    expect(entries["labels"]?.block).toBe("tags");
+  });
+
   it("writes typed name constants for permissions, roles, events and keys", () => {
     const config = resolveConfig(
       {
