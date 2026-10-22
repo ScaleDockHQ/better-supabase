@@ -74,6 +74,7 @@ import {
   PencilRulerIcon,
   PhoneCallIcon,
   PlugIcon,
+  PresentationIcon,
   RadioIcon,
   ReceiptIcon,
   ReceiptTextIcon,
@@ -210,6 +211,7 @@ export const BLOCK_ICONS = {
   bookings: CalendarCheckIcon,
   passes: TicketIcon,
   "billable-time": HourglassIcon,
+  courses: PresentationIcon,
   // Content & files
   imports: FileUpIcon,
   versions: HistoryIcon,

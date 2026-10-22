@@ -79,3 +79,4 @@ add one, and link it from the code or config it explains.
 | [0074](0074-billable-time-rate-card.md)                   | Billable time prices entries from an hourly rate card into draft invoice lines; billed entries lock until the invoice is voided           |
 | [0076](0076-moderation-items-for-any-subject.md)          | One moderation item per subject with reports, decisions and bans; reviews and comments moderate through it                                |
 | [0077](0077-enrollments-and-onboarding.md)                | Enrollments of any subject in programs of steps; onboarding checklists run on them (breaking)                                             |
+| [00XX](00XX-courses-on-enrollments.md)                    | Courses enroll learners through enrollments; quizzes are graded by forms in SQL                                                           |

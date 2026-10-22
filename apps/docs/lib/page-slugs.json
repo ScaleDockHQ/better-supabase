@@ -50,6 +50,7 @@
   "blocks/comments",
   "blocks/composing-blocks",
   "blocks/connectors",
+  "blocks/courses",
   "blocks/create-blocks",
   "blocks/custom-fields",
   "blocks/data-lifecycle",

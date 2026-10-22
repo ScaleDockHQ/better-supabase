@@ -1,0 +1,208 @@
+---
+title: Courses
+description: Courses of modules and lessons in rank order, quiz lessons graded by forms, per-lesson progress, completion and certificates, with learners enrolled through enrollments.
+---
+
+`courses` lets an organization publish courses and lets its members take
+them. A course holds modules, a module holds lessons, and both sort by
+fractional rank keys, so moving one item rewrites one row. A lesson is
+content, a video, or a quiz that a [Forms](/docs/blocks/forms) form grades in
+the database. Each learner's progress is an
+[Enrollments](/docs/blocks/enrollments) enrollment, so the course completes
+when its required lessons are done and can then issue a certificate.
+
+Reading published courses and taking them needs `courses.read`, enrolling
+other users and reading their progress needs `courses.enroll`, and authoring
+needs `courses.manage`. Admins get all three and members get `courses.read`.
+
+```bash
+better-supabase add courses
+```
+
+The module needs `tenant`, `access` and `enrollments`. With `forms` installed,
+quiz lessons work; without it, saving a quiz lesson fails with
+`COURSE_QUIZ_UNAVAILABLE`. Course changes and learner events go to the outbox,
+and course, enrollment and certificate changes go to the audit log as well.
+
+```ts
+import { createCourses } from "better-supabase/blocks/courses";
+
+const courses = createCourses({ transport, tenant: organizationId });
+
+const course = await courses
+  .save({ key: "security-basics", title: "Security basics" })
+  .orThrow();
+const intro = await courses
+  .saveModule(course.id, { title: "Introduction" })
+  .orThrow();
+
+await courses
+  .saveLesson(course.id, {
+    moduleId: intro.id,
+    title: "Why it matters",
+    body: { text: "Most breaches start with a reused password." },
+    minutes: 5,
+  })
+  .orThrow();
+await courses
+  .saveLesson(course.id, {
+    moduleId: intro.id,
+    title: "Check yourself",
+    kind: "quiz",
+    formId: quizFormId,
+  })
+  .orThrow();
+await courses.save({ id: course.id, status: "published" }).orThrow();
+
+await courses.enroll(course.id).orThrow();
+```
+
+| Option         | Default | What it does                         |
+| -------------- | ------- | ------------------------------------ |
+| `extraColumns` | none    | Extra columns on the `courses` table |
+
+| Table                    | Holds                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `courses`                | One row per course: `key`, `title`, `summary`, `status` and whether it issues certificates |
+| `course_modules`         | One row per module: its course, `title` and `rank`                                         |
+| `course_lessons`         | One row per lesson: its module, `kind`, `body`, `media_url`, `form_id`, `required`, `rank` |
+| `course_lesson_progress` | One row per enrollment and lesson: started, completed, quiz attempts and the last grade    |
+| `course_certificates`    | One row per completed enrollment of a course that issues certificates, with its `code`     |
+
+The block's entities are `course` (the `courses` table, its primary entity),
+`course_module`, `course_lesson` and `course_certificate`. Installing it
+registers `course` as a subject, searchable by title and summary when the
+search module is installed. Rename them with `blocks.courses.entities`, for
+example `{ course: "training" }`; see [Typed blocks](/docs/blocks/typed-blocks).
+`courseInputSchema` and `courseLessonInputSchema` validate what `save` and
+`saveLesson` take.
+
+`blocks.courses.options.extraColumns` adds columns to the `courses` table,
+keyed by column name with their SQL type. Pass `createCourses` a Standard
+Schema for them as `fields`, and `save` takes them under `fields`. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+## Authoring
+
+`save(course)` creates a course, or changes one when you pass its `id`. Keys
+left out keep their value, and a course's `key` (lower-case letters, digits
+and `-`) can't repeat in the organization. A new course is a `draft`: only
+members with `courses.manage` see it until its `status` is `published`.
+`archived` hides it from learners again. `certificate: false` turns
+certificates off for the course. `delete(courseId)` deletes a course with its
+modules, lessons, enrollments, progress and certificates.
+
+`saveModule(courseId, module)` and `saveLesson(courseId, lesson)` create or
+change a module and a lesson. A new item without a `rank` goes last; pass a
+rank key between two neighbours to place it. A quiz lesson names the
+`formId` that grades it, and only quiz lessons take one. `required: false`
+makes a lesson optional, so it doesn't count toward completion.
+`deleteModule` and `deleteLesson` delete an item with what it holds.
+
+`outline(courseId)` returns the course with its modules and lessons in rank
+order, without lesson content, and the caller's progress when they are
+enrolled. `list()` returns the organization's courses by title; readers get
+the published ones.
+
+## Learning
+
+`enroll(courseId)` enrolls the caller in a published course and returns their
+progress. Pass a `userId` with `courses.enroll` to enroll someone else.
+Enrolling again returns the same enrollment, and enrolling a cancelled one
+starts it again with its completed lessons. `unenroll(courseId)` cancels an
+active enrollment and keeps its progress; a completed one can't be cancelled.
+
+`lesson(lessonId)` returns a lesson's content and, for a quiz, its form
+definition without points or correct answers. Only enrolled learners and
+managers read lesson content. `start(lessonId)` records that the learner
+opened a lesson, `complete(lessonId)` marks a content or video lesson done
+and `reset(lessonId)` marks it not done.
+
+`submitQuiz(lessonId, answers)` submits the answers to the quiz form. The
+forms block grades the submission in SQL, so the client can't set its score.
+A passed submission, or any submission to a form without a pass mark,
+completes the lesson; a later failed attempt keeps it complete. Each attempt
+raises `attempts` and records the latest `score` and `maxScore`.
+
+`progress(courseId)` returns the caller's progress, or another user's with
+`courses.enroll`. `learners(courseId)` lists the course's learners, most
+recently changed first, for members with `courses.enroll` or
+`courses.manage`. `courseLearnersSection` loads them for a course page, with
+`enroll` and `unenroll` writes. See [Record sections](/docs/blocks/records).
+
+## Completion and certificates
+
+The course's required lessons, in module and lesson rank order, are the steps
+of its enrollment program. Completing the last one completes the enrollment
+and, when the course issues certificates, creates a certificate with a random
+`code`. Adding a required lesson gives every live enrollment the new step, so
+a completed learner is active again until they finish it; completing it
+keeps their certificate.
+
+`verifyCertificate(code)` tells anyone with the code, signed in or not, the
+course, when the certificate was issued and whether it is still `valid`.
+`revokeCertificate(certificateId)` revokes one for members with
+`courses.manage`.
+
+## Functions
+
+| Function                                                                       | Granted to                              | Does                                        |
+| ------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------- |
+| `save_course(tenant, course)`, `delete_course(course_id)`                      | `authenticated`, `service_role`         | Creates, changes or deletes a course        |
+| `list_courses(tenant, status)`                                                 | `authenticated`, `service_role`         | The organization's courses by title         |
+| `save_course_module(course_id, module)`, `delete_course_module(module_id)`     | `authenticated`, `service_role`         | Creates, changes or deletes a module        |
+| `save_course_lesson(course_id, lesson)`, `delete_course_lesson(lesson_id)`     | `authenticated`, `service_role`         | Creates, changes or deletes a lesson        |
+| `course_outline(course_id)`, `course_lesson(lesson_id)`                        | `authenticated`, `service_role`         | A course's outline, or one lesson to play   |
+| `enroll_in_course(course_id, user_id)`, `unenroll_from_course(course_id, ...)` | `authenticated`, `service_role`         | Enrolls a learner or cancels the enrollment |
+| `start_course_lesson(lesson_id)`, `complete_course_lesson(lesson_id, done)`    | `authenticated`, `service_role`         | Records a lesson opened, done or not done   |
+| `submit_course_quiz(lesson_id, answers)`                                       | `authenticated`, `service_role`         | Submits and grades a quiz                   |
+| `course_progress(course_id, user_id)`, `list_course_learners(course_id, ...)`  | `authenticated`, `service_role`         | One learner's progress, or all of them      |
+| `verify_course_certificate(code)`                                              | `anon`, `authenticated`, `service_role` | Checks a certificate by its code            |
+| `revoke_course_certificate(certificate_id)`                                    | `authenticated`, `service_role`         | Revokes a certificate                       |
+
+## Errors
+
+| Hint                           | Cause                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `COURSE_FORBIDDEN`             | the caller lacks the permission                                               |
+| `COURSE_INVALID`               | an invalid course, module or lesson, or a change the course's state rules out |
+| `COURSE_NOT_FOUND`             | no course the caller can see has this id                                      |
+| `COURSE_EXISTS`                | a course with this key already exists in the organization                     |
+| `COURSE_MODULE_NOT_FOUND`      | no module of the course has this id                                           |
+| `COURSE_LESSON_NOT_FOUND`      | no lesson the caller can see has this id                                      |
+| `COURSE_NOT_PUBLISHED`         | enrolling in a course that isn't published                                    |
+| `COURSE_NOT_ENROLLED`          | reading or completing a lesson of a course the caller isn't enrolled in       |
+| `COURSE_QUIZ_UNAVAILABLE`      | a quiz lesson without the `forms` module installed                            |
+| `COURSE_CERTIFICATE_NOT_FOUND` | no certificate in the organization has this id                                |
+
+## Events
+
+| Event                                                      | Data                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `course.saved`, `course.deleted`                           | `organizationId`, `id`, `key`, `status`                      |
+| `course.enrolled`, `course.unenrolled`, `course.completed` | `organizationId`, `id`, `userId`, `enrollmentId`             |
+| `course_lesson.completed`                                  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId` |
+| `course_certificate.issued`, `course_certificate.revoked`  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId` |
+
+The underlying enrollment emits its own `enrollment.*` events as well. A rule
+on `course.completed` can notify a learner's manager, and a sink on
+`course_certificate.issued` can email the verification link.
+
+## With ReUI
+
+The [Course outline and Lesson player recipes](/docs/registry/ui-recipes)
+render a course's modules with the caller's `Progress` and certificate, and a
+lesson's content or quiz form. List learners in a `data-grid` with a
+`Progress` of `completedLessons` over `totalLessons` and `status` as a
+`Badge`, and reorder modules and lessons in a sortable list that saves the
+moved item's new rank.
+
+## Why it works this way
+
+Progress lives in an enrollment because enrollments already count steps,
+complete, cancel and resume; a course adds lesson content, quiz grades and
+certificates on top. The program key is `course:<id>`, and `enrollments`
+refuses to complete or reset those steps directly, so a quiz lesson completes
+only through a graded submission. Quizzes reuse forms because the
+forms block grades submissions in SQL, which keeps scores out of the
+client's reach.

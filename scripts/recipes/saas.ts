@@ -625,6 +625,51 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "course-outline",
+    title: "Course outline",
+    blocks: ["courses"],
+    kind: "component",
+    description:
+      "A course's modules and lessons in rank order, with the caller's progress, certificate and an Enroll button.",
+    web: {
+      file: `${WEB_APP}/src/features/courses/components/course-outline.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "progress",
+        "skeleton",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "lesson-player",
+    title: "Lesson player",
+    blocks: ["courses"],
+    kind: "screen",
+    description:
+      "One lesson's content with a Mark as done button, or its quiz, which the database grades on submit.",
+    web: {
+      file: `${WEB_APP}/src/features/courses/components/lesson-player.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "checkbox",
+        "field",
+        "input",
+        "select",
+        "skeleton",
+        "textarea",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "csv-import-wizard",
     title: "CSV import wizard",
     blocks: ["imports"],

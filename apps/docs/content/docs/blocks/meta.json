@@ -103,6 +103,7 @@
     "domains",
     "moderation",
     "enrollments",
+    "courses",
     "reviews",
     "leave",
     "rules",
