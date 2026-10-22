@@ -472,7 +472,7 @@ describe.skipIf(!live)("data lifecycle", () => {
            check (project_id is not null)
          );`,
       );
-      await s.install(["tenant", "access", "data-lifecycle"], {
+      await s.install(["memberships", "permissions", "data-lifecycle"], {
         modules: {
           "data-lifecycle": {
             options: {

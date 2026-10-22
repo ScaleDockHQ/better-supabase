@@ -2175,7 +2175,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("runs jobs, idempotency and leases through the api wrappers over rpcTransport", async () => {
     const api = `bsb_api_${RUN}`;
     await pool.query(
-      ["jobs", "idempotency"]
+      ["queue", "idempotency"]
         .map((module) =>
           apiWrappers(
             moduleBody(module)!,
@@ -4662,7 +4662,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         customers: 0,
         notes: [],
         organization: null,
-        busiest: null,
+        busiest: [],
       });
     } finally {
       await pool.query(`drop function if exists public.rs_block_${RUN}(jsonb)`);
