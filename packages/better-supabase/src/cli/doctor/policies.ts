@@ -1,7 +1,6 @@
 import type { CatalogPolicy, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { encryptedColumns } from "../../config/app-access.ts";
 import { configFor } from "../gen/shared.ts";
 import {
   appliesTo,
@@ -415,7 +414,9 @@ export const POLICY_RULES: readonly Rule[] = [
         // grants it to `authenticated` on purpose.
         ...Object.entries(context.config.appTables).flatMap(
           ([table, config]) =>
-            encryptedColumns(config).length > 0
+            Object.values(config.columns ?? {}).some(
+              (column) => column.encrypted === true,
+            )
               ? [`public.${table}_reveal`]
               : [],
         ),
