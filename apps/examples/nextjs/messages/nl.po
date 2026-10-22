@@ -2463,6 +2463,7 @@ msgstr "Kanalen"
 #: src/features/chat/components/channel-sidebar.tsx
 #: src/features/chat/components/message-list.tsx
 #: src/features/chat/components/thread-panel.tsx
+#: src/features/chat/components/thread-summary.tsx
 msgctxt "chat.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
@@ -2697,6 +2698,41 @@ msgstr "Reageren"
 msgctxt "chat.QXhiaM"
 msgid "Reply in the thread"
 msgstr "Reageren in de thread"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.RrCui3"
+msgid "Summary"
+msgstr "Samenvatting"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.SJDV5W"
+msgid "Summarize again"
+msgstr "Opnieuw samenvatten"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.3GDhyi"
+msgid "Summarizing the thread"
+msgstr "Thread samenvatten"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.a3jzLr"
+msgid "{count, plural, one {# message} other {# messages}}"
+msgstr "{count, plural, one {# bericht} other {# berichten}}"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.osuyeD"
+msgid "Out of date"
+msgstr "Verouderd"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat._0i3Qv"
+msgid "Catch up on this thread without reading every reply."
+msgstr "Lees bij zonder elk antwoord te lezen."
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.IQWhFZ"
+msgid "Summarize"
+msgstr "Samenvatten"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx

@@ -20,6 +20,7 @@ import type { OpenChannel } from "./channel-sidebar";
 import { ChannelSidebar } from "./channel-sidebar";
 import { MessageList } from "./message-list";
 import { ThreadPanel } from "./thread-panel";
+import { ThreadSummary } from "./thread-summary";
 
 export function ChatView() {
   const t = useExtracted("chat");
@@ -64,13 +65,18 @@ export function ChatView() {
         </Card>
       )}
       {thread ? (
-        <ThreadPanel
+        <div
           key={thread.id}
-          root={thread}
-          onClose={() => {
-            setThread(null);
-          }}
-        />
+          className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4"
+        >
+          <ThreadSummary threadId={thread.id} />
+          <ThreadPanel
+            root={thread}
+            onClose={() => {
+              setThread(null);
+            }}
+          />
+        </div>
       ) : null}
     </div>
   );

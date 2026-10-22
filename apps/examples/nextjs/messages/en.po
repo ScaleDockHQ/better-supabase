@@ -2463,6 +2463,7 @@ msgstr "Channels"
 #: src/features/chat/components/channel-sidebar.tsx
 #: src/features/chat/components/message-list.tsx
 #: src/features/chat/components/thread-panel.tsx
+#: src/features/chat/components/thread-summary.tsx
 msgctxt "chat.62nsdy"
 msgid "Retry"
 msgstr "Retry"
@@ -2697,6 +2698,41 @@ msgstr "Reply"
 msgctxt "chat.QXhiaM"
 msgid "Reply in the thread"
 msgstr "Reply in the thread"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.RrCui3"
+msgid "Summary"
+msgstr "Summary"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.SJDV5W"
+msgid "Summarize again"
+msgstr "Summarize again"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.3GDhyi"
+msgid "Summarizing the thread"
+msgstr "Summarizing the thread"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.a3jzLr"
+msgid "{count, plural, one {# message} other {# messages}}"
+msgstr "{count, plural, one {# message} other {# messages}}"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.osuyeD"
+msgid "Out of date"
+msgstr "Out of date"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat._0i3Qv"
+msgid "Catch up on this thread without reading every reply."
+msgstr "Catch up on this thread without reading every reply."
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.IQWhFZ"
+msgid "Summarize"
+msgstr "Summarize"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx

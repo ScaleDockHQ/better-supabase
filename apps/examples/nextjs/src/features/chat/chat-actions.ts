@@ -8,6 +8,8 @@ import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
+import { summaryMessaging, threadSummarizer } from "./chat-summaries";
+
 const Id = v.pipe(v.string(), v.uuid());
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
@@ -127,5 +129,38 @@ export const confirmChatUpload = bs.action(
     const confirmed = await customerAttachments(supabase).confirm(id);
 
     return confirmed.ok ? ok(id) : confirmed;
+  },
+);
+
+/** A thread summary as the thread panel shows it. */
+export interface ThreadSummaryRow {
+  readonly summary: string;
+  readonly messageCount: number;
+  readonly stale: boolean;
+}
+
+/**
+ * Summarizes a thread for someone who missed it. A current summary comes back
+ * without a model call; `force` writes a new one.
+ */
+export const summarizeThread = bs.action(
+  {
+    input: v.object({ threadId: Id, force: v.optional(v.boolean(), false) }),
+    requireTenant: true,
+  },
+  async ({ threadId, force }, { tenant, supabase }) => {
+    const summary = await summaryMessaging(supabase, tenant).summarize(
+      { threadId },
+      threadSummarizer(supabase),
+      { force },
+    );
+
+    return summary.ok
+      ? ok({
+          summary: summary.data.summary,
+          messageCount: summary.data.messageCount,
+          stale: summary.data.stale,
+        } satisfies ThreadSummaryRow)
+      : summary;
   },
 );
