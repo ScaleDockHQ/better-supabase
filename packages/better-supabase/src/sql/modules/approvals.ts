@@ -27,6 +27,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { approvalsContract } from "./approvals-contract.ts";
 import {
   approvalPolicies,
   policyCase,
@@ -1040,29 +1041,9 @@ ${subjectCascades(ctx, subjects, `delete from ${requests} r where r.${c("subject
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  const extra = extraFieldsArg(
-    ctx.extraColumns("requests", REQUEST_KEYS),
-  ).contract;
-
-  return [
-    {
-      name: "request_approval",
-      args: ["{id}", "text", "text", "text", "text", "jsonb", ...extra],
-      returns: "jsonb",
-    },
-    {
-      name: "decide_approval",
-      args: ["uuid", "text", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "delegate_approval",
-      args: ["uuid", "uuid", "text"],
-      returns: "jsonb",
-    },
-    { name: "cancel_approval", args: ["uuid"], returns: "jsonb" },
-    { name: "is_approved", args: ["text", "text", "text"], returns: "boolean" },
-  ];
+  return approvalsContract(
+    extraFieldsArg(ctx.extraColumns("requests", REQUEST_KEYS)).contract,
+  );
 }
 
 export const APPROVALS: ModuleDefinition = {

@@ -20,13 +20,13 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
+import { bookingEngagementsSql, logsBookings } from "./engagements-bookings.ts";
 import {
   RECORDING_TABLES,
   recordingsContract,
   recordingsOn,
   recordingsSql,
 } from "./engagements-recordings.ts";
-import { bookingEngagementsSql, logsBookings } from "./engagements-bookings.ts";
 
 /** The engagement types `options.types` falls back to. */
 const ENGAGEMENT_TYPES = ["call", "email", "meeting", "note", "task"] as const;

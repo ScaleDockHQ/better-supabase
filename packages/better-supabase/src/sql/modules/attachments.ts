@@ -23,6 +23,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
+import { BUCKET, bucketOptions } from "./attachments-bucket.ts";
 import { attachmentsContract } from "./attachments-contract.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
@@ -297,8 +298,6 @@ const CREATE_ARGS = (id: string): string =>
   `${id}, text, text, bigint, text, text, jsonb, integer, integer, integer`;
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
-const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
-
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
@@ -1008,32 +1007,6 @@ grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to se
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
 grant execute on function ${fn("get_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, service_role;`;
-}
-
-interface BucketOptions {
-  readonly bucket: string;
-  readonly maxSize: number;
-  readonly mimeTypes: readonly string[];
-}
-
-function bucketOptions(ctx: ModuleContext): BucketOptions {
-  const bucket = ctx.text("bucket", "attachments");
-
-  if (!BUCKET.test(bucket)) {
-    throw new TypeError(
-      "blocks.attachments.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
-    );
-  }
-
-  const maxSize = ctx.number("maxSize", 50 * 1024 * 1024);
-
-  if (!Number.isInteger(maxSize) || maxSize < 1) {
-    throw new TypeError(
-      "blocks.attachments.options.maxSize must be a whole number of bytes above zero",
-    );
-  }
-
-  return { bucket, maxSize, mimeTypes: ctx.list("allowedMimeTypes", []) };
 }
 
 // An existing bucket keeps its settings.
