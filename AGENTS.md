@@ -185,6 +185,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0070: guests reach granted records through `ctx.scope.guest`, never as members; providers answer through `portalSubjects`.
 - 0072: a record merge moves every module's rows through handlers marked `better-supabase:subject-merge`.
 - 0073: admission passes carry a signed token; the database keeps the nonce and decides every scan.
+- 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
 
 ## Pre-release pins
 

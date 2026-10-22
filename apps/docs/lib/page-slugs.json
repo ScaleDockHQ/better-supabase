@@ -39,6 +39,7 @@
   "blocks/approvals",
   "blocks/attachments",
   "blocks/audit",
+  "blocks/billable-time",
   "blocks/billing",
   "blocks/bookings",
   "blocks/bulk",

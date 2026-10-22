@@ -78,6 +78,7 @@
     "ledger",
     "guests",
     "passes",
+    "billable-time",
     "drive",
     "orders",
     "promotions",

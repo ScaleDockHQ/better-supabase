@@ -251,6 +251,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `ledger`             | Double-entry accounts per organization in a currency or a custom unit, append-only transactions whose entries sum to zero per unit, running balances and holds. Credits, loyalty points, gift cards and trust balances are account kinds; inventory, leave and invoices post to it. See [Ledger](/docs/blocks/ledger).                                                                                                                                                             |
 | `guests`             | People outside the organization, invited by email, who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Guests are never members; comments, attachments, invoices and bookings let them in through `ctx.scope.guest`. See [Guests](/docs/blocks/guests).                                                                                                                                                  |
 | `passes`             | Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource. Every scan is logged, and drop-ins count against the resource's capacity with its bookings. See [Passes](/docs/blocks/passes).                                                                                                                                                                                               |
+| `billable-time`      | An hourly rate card per organization, member and record, a preview of unbilled time, and `invoice_from_time`, which bills it as lines on a draft invoice. Billed entries lock until the invoice is voided. See [Billable time](/docs/blocks/billable-time).                                                                                                                                                                                                                        |
 | `templates`          | Versioned templates of a type that create records, system starters kept by key and forked per organization, a default per type and language, the applications each template made, and the workflow-builder workflows each new record starts. See [Templates](/docs/blocks/templates).                                                                                                                                                                                              |
 | `pipelines`          | Tenant-editable pipelines for registered subjects: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency, and a status column set from the stage. See [Pipelines](/docs/blocks/pipelines).                                                                                                                                                                                                                |
 | `parties`            | Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search. See [Parties](/docs/blocks/parties).                                                                                                                                                                                                                                                        |
@@ -1362,15 +1363,16 @@ perform better_supabase.merge_subject_refs('public.customers', keep::text, drop:
 Each module that stores rows per subject installs a handler, and
 `merge_subject_refs` runs them all:
 
-| Module        | What moves                                                                                |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| `comments`    | Comments; the activity feed stays on the dropped record                                   |
-| `attachments` | Attachments                                                                               |
-| `reactions`   | Reactions, except one the same person already left on the kept record with the same emoji |
-| `tags`        | Taggings, except a tag the kept record already has                                        |
-| `relations`   | Links on either end; a link that becomes a self-link or a duplicate is deleted            |
-| `guests`      | Guest grants, except a grant the guest already has on the kept record                     |
-| `passes`      | Passes issued for the record                                                              |
+| Module          | What moves                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `comments`      | Comments; the activity feed stays on the dropped record                                    |
+| `attachments`   | Attachments                                                                                |
+| `reactions`     | Reactions, except one the same person already left on the kept record with the same emoji  |
+| `tags`          | Taggings, except a tag the kept record already has                                         |
+| `relations`     | Links on either end; a link that becomes a self-link or a duplicate is deleted             |
+| `guests`        | Guest grants, except a grant the guest already has on the kept record                      |
+| `passes`        | Passes issued for the record                                                               |
+| `billable-time` | Rates on the record, except a rate the kept record already has for the same member and day |
 
 The function isn't granted to any API role. Call it from your own `security
 definer` function that has already checked the caller, as the parties

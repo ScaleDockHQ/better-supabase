@@ -74,3 +74,4 @@ add one, and link it from the code or config it explains.
 | [0070](0070-guest-and-portal-access.md)                   | Guests reach granted records through `ctx.scope.guest`, never as members; a provider answers through `portalSubjects` and `portalParties` |
 | [0072](0072-subject-merge-handlers.md)                    | A record merge moves every module's rows through handlers marked `better-supabase:subject-merge`                                          |
 | [0073](0073-signed-admission-passes.md)                   | Admission passes carry a token signed with the signing-keys block; the database keeps the nonce and decides every scan                    |
+| [0074](0074-billable-time-rate-card.md)                   | Billable time prices entries from an hourly rate card into draft invoice lines; billed entries lock until the invoice is voided           |
