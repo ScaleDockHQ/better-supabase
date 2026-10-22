@@ -90,23 +90,6 @@ export interface FunctionConfig {
   readonly notNull?: true | readonly string[];
 }
 
-export interface TimestampsConfig {
-  readonly createdAt?: string;
-  readonly updatedAt?: string;
-}
-
-export interface SoftDeleteConfig {
-  readonly column?: string;
-}
-
-export interface TenantConfig {
-  /**
-   * Defaults to `organization_id`, or
-   * `<blocks.memberships.names.organization>_id` when the tenant is renamed.
-   */
-  readonly column?: string;
-}
-
 /** Claim names shared by the SQL modules, codegen and the runtime defaults. */
 export interface ClaimsConfig {
   /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
@@ -126,23 +109,6 @@ export interface ClaimsConfig {
    * writes. Defaults to `memberships`.
    */
   readonly memberships?: string;
-}
-
-export interface ActorConfig {
-  readonly createdBy?: string;
-  readonly updatedBy?: string;
-  /**
-   * Defaults to `impersonated_by`, the column the SQL modules' `track_actor`
-   * fills.
-   */
-  readonly impersonatedBy?: string;
-}
-
-export interface PluginFlagsConfig {
-  readonly timestamps?: boolean | TimestampsConfig;
-  readonly softDelete?: boolean | SoftDeleteConfig;
-  readonly tenant?: boolean | TenantConfig;
-  readonly actor?: boolean | ActorConfig;
 }
 
 /**
@@ -168,6 +134,11 @@ export interface GeneratedFile {
   /** Path relative to the project root. */
   readonly path: string;
   readonly contents: string;
+  /**
+   * The file exports `validators` (`TableValidators`): `gen` imports them into
+   * the generated schema and installs `validation`, so writes are checked.
+   */
+  readonly validators?: boolean;
 }
 
 export interface GeneratorInput {

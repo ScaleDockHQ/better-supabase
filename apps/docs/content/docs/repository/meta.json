@@ -9,6 +9,9 @@
     "pagination",
     "writing",
     "unique-and-errors",
+    "validation",
+    "guards",
+    "lint",
     "powersync",
     "expo-sqlite"
   ]

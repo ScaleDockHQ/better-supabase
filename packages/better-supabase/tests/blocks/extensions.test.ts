@@ -7,13 +7,13 @@ import type {
   Models,
 } from "../fixtures/generated-camel.ts";
 
+import { createdByExtension } from "../../src/blocks/created-by/index.ts";
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { allTenantsContext } from "../../src/core/plugin.ts";
-import { actor } from "../../src/plugins/actor/index.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
-import { validation } from "../../src/plugins/validation/index.ts";
+import { validation } from "../../src/core/validation.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -26,7 +26,7 @@ const USER = "00000000-0000-4000-8000-0000000000aa";
 const base = defineSupabase(schema, { now: () => NOW });
 
 describe("timestamps", () => {
-  const betterSupabase = base.use(timestamps());
+  const betterSupabase = base.use(updatedAtExtension());
 
   it("stamps inserts and updates, keeping explicit values only with override", async () => {
     const { client, requests } = capturingClient(() => ({
@@ -83,10 +83,28 @@ describe("timestamps", () => {
       updated_at: NOW.toString(),
     });
   });
+
+  it("leaves the columns to the database when the runtime has no Temporal", async () => {
+    const { client, last } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+
+    const clockless = defineSupabase(schema, {
+      now: () => {
+        throw new TypeError("Temporal is not available");
+      },
+    }).use(updatedAtExtension());
+
+    await clockless
+      .connect(client)
+      .customers.create({ organizationId: ORG, name: "A" }, { select: ["id"] });
+    expect(last().body).toEqual({ organization_id: ORG, name: "A" });
+  });
 });
 
 describe("softDelete", () => {
-  const betterSupabase = base.use(softDelete());
+  const betterSupabase = base.use(trashExtension());
 
   it("hides deleted rows, with opt-outs for the root table", async () => {
     const { client, requests } = capturingClient();
@@ -131,6 +149,25 @@ describe("softDelete", () => {
     expect(last().body).toEqual({ archived_at: NOW.toString() });
     expect(query(last())).toEqual(["id=eq.c", "archived_at=is.null"]);
     expect(last().headers.get("prefer")).not.toContain("return=representation");
+  });
+
+  it("stamps a soft delete with the system clock when the runtime has no Temporal", async () => {
+    const { client, last } = capturingClient(() => ({
+      status: 204,
+      headers: { "content-range": "*/1" },
+    }));
+
+    const clockless = defineSupabase(schema, {
+      now: () => {
+        throw new TypeError("Temporal is not available");
+      },
+    }).use(trashExtension());
+
+    const result = await clockless.connect(client).customers.delete("c");
+    expect(result.ok).toBe(true);
+    expect(last().body).toEqual({
+      archived_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/),
+    });
   });
 
   it("keeps RETURNING for deleteMany with returning: true", async () => {
@@ -215,13 +252,28 @@ describe("softDelete", () => {
 });
 
 describe("tenant", () => {
-  const betterSupabase = base.use(tenant());
+  const betterSupabase = base.use(membershipsExtension({ onMissing: "error" }));
 
   it("fails closed without a tenant and sends nothing", async () => {
     const { client, requests } = capturingClient();
     const result = await betterSupabase.connect(client).customers.findMany();
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
+  });
+
+  it("leaves the scope to RLS without a tenant by default", async () => {
+    const { client, requests } = capturingClient();
+
+    const result = await base
+      .use(membershipsExtension())
+      .connect(client)
+      .customers.findMany({ select: ["id"] });
+
+    expect(result.error).toBeNull();
+    expect(query(requests[0] ?? (undefined as never))).toEqual([
+      "select=id",
+      "order=id.asc",
+    ]);
   });
 
   it("scopes reads to the tenant from context or claims", async () => {
@@ -377,7 +429,7 @@ describe("tenant", () => {
 
 describe("actor", () => {
   it("stamps createdBy and updatedBy from the context actor", async () => {
-    const betterSupabase = base.use(actor());
+    const betterSupabase = base.use(createdByExtension());
 
     const { client, requests } = capturingClient(() => ({
       status: 201,
@@ -432,7 +484,7 @@ describe("actor", () => {
         },
       }),
       { now: () => NOW },
-    ).use(actor());
+    ).use(createdByExtension());
 
     const { client, requests } = capturingClient(() => ({
       status: 201,
@@ -469,7 +521,7 @@ describe("actor", () => {
   });
 
   it("refuses caller-supplied actor and soft-delete columns without override", async () => {
-    const betterSupabase = base.use(actor()).use(softDelete());
+    const betterSupabase = base.use(createdByExtension()).use(trashExtension());
 
     const { client, requests } = capturingClient(() => ({
       status: 204,
@@ -494,7 +546,7 @@ describe("actor", () => {
   });
 
   it("records who soft-deleted a row", async () => {
-    const betterSupabase = base.use(actor()).use(softDelete());
+    const betterSupabase = base.use(createdByExtension()).use(trashExtension());
 
     const { client, last } = capturingClient(() => ({
       status: 204,
@@ -514,7 +566,7 @@ describe("actor", () => {
 describe("validation", () => {
   const betterSupabase = base
     .use(validation({ schemas: validators }))
-    .use(tenant());
+    .use(membershipsExtension());
 
   it("rejects invalid writes before sending them", async () => {
     const { client, requests } = capturingClient();
@@ -607,7 +659,7 @@ describe("validation", () => {
 
     const result = await base
       .use(validation({ schemas: { customers: { insert: strip } } }))
-      .use(tenant())
+      .use(membershipsExtension())
       .connect(client, { tenant: ORG })
       .customers.create({ name: " A " } as never, { returning: false });
 

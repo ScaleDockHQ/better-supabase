@@ -18,7 +18,6 @@
     "eve",
     "flags-sdk",
     "build",
-    "plugins",
     "testing",
     "examples",
     "presets",

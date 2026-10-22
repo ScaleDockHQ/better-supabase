@@ -24,7 +24,10 @@ export interface FieldOptions {
   /** The key may be left out. A present key never accepts `undefined`. */
   readonly optional?: boolean;
   readonly array?: boolean;
-  /** Filled by a plugin (`timestamps()`, `actor()`, `softDelete()`). */
+  /**
+   * Filled by a block extension (`updatedAtExtension()`,
+   * `createdByExtension()`, `trashExtension()`).
+   */
   readonly readOnly?: boolean;
   readonly description?: string;
   readonly examples?: readonly unknown[];

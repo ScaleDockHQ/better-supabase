@@ -4,8 +4,12 @@ import {
   blockConfigEntries,
   blockConfigPath,
   emitBlockConfig,
+  schemaExtensions,
 } from "../../../src/cli/gen/blocks.ts";
+import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { resolveConfig } from "../../../src/config/resolve.ts";
+import { zod } from "../../../src/generators/zod.ts";
+import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
 describe("blocks.generated.ts", () => {
   it("writes each installed block's schema, API schema and shared options", () => {
@@ -316,5 +320,81 @@ describe("blocks.generated.ts", () => {
 
   it("writes nothing when the config installs no blocks", () => {
     expect(emitBlockConfig(resolveConfig({}, "/project"))).toBeUndefined();
+  });
+});
+
+describe("schemaExtensions", () => {
+  it("lists the repository extension of each installed block", () => {
+    expect(
+      schemaExtensions(
+        resolveConfig(
+          {
+            blocks: {
+              "updated-at": {},
+              trash: { options: { deletedAt: "archived_at" } },
+              comments: {},
+            },
+          },
+          "/project",
+        ),
+      ),
+    ).toEqual([
+      { export: "updatedAtExtension", subpath: "blocks/updated-at", args: "" },
+      { export: "trashExtension", subpath: "blocks/trash", args: "" },
+    ]);
+  });
+
+  it("scopes by the organization column without the memberships block", () => {
+    expect(
+      schemaExtensions(
+        resolveConfig(
+          { auth: { organization: { column: "org_id", onMissing: "error" } } },
+          "/project",
+        ),
+      ),
+    ).toEqual([
+      {
+        export: "membershipsExtension",
+        subpath: "blocks/memberships",
+        args: expect.stringContaining('onMissing: "error"'),
+      },
+    ]);
+    expect(schemaExtensions(resolveConfig({}, "/project"))).toEqual([]);
+  });
+
+  it("puts the extensions and validation on the generated schema", async () => {
+    const config = resolveConfig(
+      {
+        blocks: { trash: { options: { deletedAt: "archived_at" } } },
+        gen: { output: "src/db/generated.ts", generators: [zod()] },
+      },
+      "/project",
+    );
+
+    const snapshot = await loadFixtureSnapshot();
+
+    const main = (await renderFiles(config, snapshot, { frameworks: [] })).find(
+      (file) => file.path === "src/db/generated.ts",
+    )?.contents;
+
+    expect(main).toContain(
+      'import { trashExtension } from "better-supabase/blocks/trash";',
+    );
+    expect(main).toContain('import { validators } from "./generated.zod.ts";');
+    expect(main).toContain(
+      "type Extensions = readonly [ReturnType<typeof trashExtension>, ReturnType<typeof validation>];",
+    );
+    expect(main).toContain(
+      "ExtensionsOf<Extensions>> = defineSchema(meta, extensions);",
+    );
+
+    const bare = (
+      await renderFiles(config, snapshot, { frameworks: [], extensions: false })
+    ).find((file) => file.path === "src/db/generated.ts")?.contents;
+
+    expect(bare).toContain(
+      "export const schema: Schema<Models, Database, Functions> = defineSchema(meta);",
+    );
+    expect(bare).not.toContain("trashExtension");
   });
 });

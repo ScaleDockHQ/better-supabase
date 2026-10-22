@@ -487,8 +487,8 @@ export interface BucketConnectOptions {
   /**
    * The request context (`db.$context`, or what an adapter passes to
    * `connect`). For a bucket with `tenant`, its tenant (`context.tenant`, the
-   * one `tenant()` resolved, or the `tenant.claim` claims) must fill the tenant
-   * segment of every path.
+   * one `membershipsExtension()` resolved, or the `tenant.claim` claims) must
+   * fill the tenant segment of every path.
    */
   readonly context?: RequestContext;
   /** The tenant every path must hold, instead of reading it from `context`. */

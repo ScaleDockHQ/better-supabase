@@ -526,6 +526,57 @@ const items = createTasks(db);
 `);
   });
 
+  it("moves the plugin imports onto the blocks, lint and the root", () => {
+    const source = `import { tenant } from "better-supabase/plugins/tenant";
+import { softDelete } from "better-supabase/plugins/soft-delete";
+import { rules, strict } from "better-supabase/plugins/rules";
+import { validation } from "better-supabase/plugins/validation";
+
+const db = defineSupabase(schema)
+  .use(tenant({ claim: "org_id" }))
+  .use(softDelete())
+  .use(rules(strict()))
+  .use(validation({ schemas }));
+`;
+
+    const { text, review } = applyCodemod(v015, source);
+
+    expect(text)
+      .toBe(`import { membershipsExtension } from "better-supabase/blocks/memberships";
+import { trashExtension } from "better-supabase/blocks/trash";
+import { guards, strictGuards } from "better-supabase/lint";
+import { validation } from "better-supabase";
+
+const db = defineSupabase(schema)
+  .use(membershipsExtension({ claim: "org_id" }))
+  .use(trashExtension())
+  .use(guards(strictGuards()))
+  .use(validation({ schemas }));
+`);
+    expect(review.map((hint) => hint.line)).toEqual(
+      expect.arrayContaining([7, 8, 10]),
+    );
+  });
+
+  it("moves the plugins config key onto the blocks", () => {
+    const source = `import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  plugins: { softDelete: { column: "archived_at" }, actor: true },
+});
+`;
+
+    const { text } = applyCodemod(
+      v015,
+      source,
+      "/app/better-supabase.config.ts",
+    );
+
+    expect(text).not.toContain("plugins");
+    expect(text).toMatch(/trash: \{[^}]*deletedAt: "archived_at"/s);
+    expect(text).toContain('"created-by"');
+  });
+
   it("renames blocks, preset blocks and operations in the config", () => {
     const source = `import { defineConfig } from "better-supabase/config";
 

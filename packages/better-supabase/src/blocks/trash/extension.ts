@@ -18,21 +18,21 @@ import {
   isNotNull,
   isNull,
   withDefault,
-} from "../shared.ts";
+} from "../extension-shared.ts";
 
-export interface SoftDeleteFindArgs {
+export interface TrashFindArgs {
   /** Include soft-deleted rows of the queried table. */
   readonly withDeleted?: boolean;
   /** Only return soft-deleted rows of the queried table. */
   readonly onlyDeleted?: boolean;
 }
 
-export interface SoftDeleteDeleteArgs {
+export interface TrashDeleteArgs {
   /** Delete the row for real instead of setting the soft-delete column. */
   readonly hard?: boolean;
 }
 
-export interface SoftDeleteMethods<K> {
+export interface TrashMethods<K> {
   /** Clears the soft-delete column. `not_found` when the row does not exist. */
   readonly restore: (
     key: K,
@@ -40,15 +40,15 @@ export interface SoftDeleteMethods<K> {
   ) => AsyncResult<void>;
 }
 
-export interface SoftDeleteExtension extends RepositoryExtension {
+export interface TrashExtension extends RepositoryExtension {
   readonly methods: HasFlag<this["M"], this["T"], "softDelete"> extends true
-    ? SoftDeleteMethods<PrimaryKeyValue<this["M"], this["T"]>>
+    ? TrashMethods<PrimaryKeyValue<this["M"], this["T"]>>
     : unknown;
   readonly findArgs: HasFlag<this["M"], this["T"], "softDelete"> extends true
-    ? SoftDeleteFindArgs
+    ? TrashFindArgs
     : unknown;
   readonly deleteArgs: HasFlag<this["M"], this["T"], "softDelete"> extends true
-    ? SoftDeleteDeleteArgs
+    ? TrashDeleteArgs
     : unknown;
 }
 
@@ -69,7 +69,8 @@ type UpdateFn = (
 ) => AsyncResult<unknown>;
 
 /**
- * Soft delete for tables generated with `Flags.softDelete`:
+ * The `trash` block's repository extension, for tables generated with
+ * `Flags.softDelete`:
  *
  * - Reads, updates and deletes skip deleted rows, including inside includes and
  *   relation filters (`withDeleted` / `onlyDeleted` change the root table);
@@ -80,8 +81,8 @@ type UpdateFn = (
  * deleted rows does not make them fail. `deleteMany({ returning: true })` keeps
  * `RETURNING`, which needs a SELECT policy that still shows the row.
  */
-export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
-  return definePlugin<"softDelete", SoftDeleteExtension>({
+export function trashExtension(): Plugin<"softDelete", TrashExtension> {
+  return definePlugin<"softDelete", TrashExtension>({
     name: "softDelete",
     // Runs first so other plugins see the delete as the update it becomes.
     enforce: "pre",
@@ -143,7 +144,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
         kind: "update",
         intent: "softDelete",
         table,
-        set: { [column]: now().toString() },
+        set: { [column]: deletedAt(now) },
         where: op.where,
         returning: options["returning"] === true ? op.returning : undefined,
         ...(op.maxAffected === undefined
@@ -178,4 +179,20 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
       };
     },
   });
+}
+
+/**
+ * The clock's reading, or the system clock's when the runtime has no Temporal:
+ * a soft delete needs a time, and no trigger sets one.
+ */
+function deletedAt(now: () => Temporal.Instant): string {
+  try {
+    return now().toString();
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return new Date().toISOString();
+    }
+
+    throw error;
+  }
 }

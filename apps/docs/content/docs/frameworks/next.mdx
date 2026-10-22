@@ -468,7 +468,7 @@ async function customerList(tenant: string) {
 
 The read is tagged `bsb:customers@<tenant>` and `bsb:customers@*`. A
 mutation invalidates `bsb:customers`, the tag of its tenant (from the
-request context, such as the tenant plugin's), or `bsb:customers@*` when it
+request context, such as the memberships extension's), or `bsb:customers@*` when it
 has none, and the tags of the rows it changed. Reads without a `tenant` keep
 `bsb:<table>`, which every mutation of the table invalidates, and so does a
 read across tenants (`{ tenant: "*" }`), which carries `bsb:<table>` as well

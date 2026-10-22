@@ -48,7 +48,7 @@ const EVENTS: BlockSqlEvents<TrashEvents> = {
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
-  options: ["subjects", "retentionDays", "extraColumns"],
+  options: ["subjects", "retentionDays", "extraColumns", "deletedAt"],
   tables: {
     items: {
       name: "trash_items",

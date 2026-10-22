@@ -112,8 +112,9 @@ function env(names: readonly string[]): string | undefined {
  * Checks row-level security between two tenants against a running stack: for
  * each table, a user of one tenant must not select, insert, update or delete
  * the other tenant's rows. Runs without `betterSupabase`'s plugins, so the
- * `tenant()` plugin can't hide a missing policy. Throws a `ConformanceError`
- * naming each table and command that leaks; removes every row it created.
+ * `membershipsExtension()` plugin can't hide a missing policy. Throws a
+ * `ConformanceError` naming each table and command that leaks; removes every
+ * row it created.
  *
  * ```ts
  * await expectTenantIsolation(betterSupabase, {

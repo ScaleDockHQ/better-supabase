@@ -7,6 +7,7 @@ import type {
   BetterSupabaseConfig,
   FlatConfig,
   ResolvedConfig,
+  ResolvedExtensions,
 } from "./types/config.ts";
 import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
@@ -170,19 +171,65 @@ export function defineConfig<const C extends BetterSupabaseConfig>(
   return expandPreset<C>(config);
 }
 
-function pick<T extends object>(
-  value: boolean | T | undefined,
-  defaults: Required<T>,
-): Required<T> | undefined {
-  if (value === undefined || value === false) {
-    return undefined;
-  }
+/** A block's option as a string, or `fallback` when it leaves it unset. */
+function optionOf(
+  blocks: AnyBlocksConfig,
+  block: string,
+  key: string,
+  fallback: string,
+): string {
+  const value = blocks[block]?.options?.[key];
 
-  if (value === true) {
-    return defaults;
-  }
+  return typeof value === "string" ? value : fallback;
+}
 
-  return { ...defaults, ...value };
+/**
+ * The columns each installed block's repository extension manages. The
+ * organization one is on with the `memberships` block, or with
+ * `auth.organization.column` set for an app's own tenancy.
+ */
+function extensionsOf(
+  { blocks, blockNames }: Pick<ResolvedConfig, "blocks" | "blockNames">,
+  organization: FlatConfig["organization"],
+  organizationColumn: string,
+): ResolvedExtensions {
+  const has = (name: string): boolean => blockNames.includes(name);
+
+  return {
+    timestamps: has("updated-at")
+      ? {
+          createdAt: optionOf(blocks, "updated-at", "createdAt", "created_at"),
+          updatedAt: optionOf(blocks, "updated-at", "updatedAt", "updated_at"),
+        }
+      : undefined,
+    softDelete: has("trash")
+      ? { column: optionOf(blocks, "trash", "deletedAt", "deleted_at") }
+      : undefined,
+    tenant:
+      has("memberships") || organization?.column !== undefined
+        ? {
+            column: organization?.column ?? organizationColumn,
+            ...(organization?.onMissing === undefined
+              ? {}
+              : { onMissing: organization.onMissing }),
+            ...(organization?.header === undefined
+              ? {}
+              : { header: organization.header }),
+          }
+        : undefined,
+    actor: has("created-by")
+      ? {
+          createdBy: optionOf(blocks, "created-by", "createdBy", "created_by"),
+          updatedBy: optionOf(blocks, "created-by", "updatedBy", "updated_by"),
+          impersonatedBy: optionOf(
+            blocks,
+            "created-by",
+            "impersonatedBy",
+            "impersonated_by",
+          ),
+        }
+      : undefined,
+  };
 }
 
 function generatorsOf(
@@ -267,21 +314,11 @@ export function resolveConfig(
     ),
     readSets: config.readSets ?? [],
     generators: generatorsOf(config.generators),
-    plugins: {
-      timestamps: pick(config.plugins?.timestamps, {
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      }),
-      softDelete: pick(config.plugins?.softDelete, { column: "deleted_at" }),
-      tenant: pick(config.plugins?.tenant, {
-        column: tenantNames(tenantName).rename("organization_id"),
-      }),
-      actor: pick(config.plugins?.actor, {
-        createdBy: "created_by",
-        updatedBy: "updated_by",
-        impersonatedBy: "impersonated_by",
-      }),
-    },
+    extensions: extensionsOf(
+      blocks,
+      config.organization,
+      tenantNames(tenantName).rename("organization_id"),
+    ),
     claims: { ...DEFAULT_CLAIMS, ...config.claims },
     buckets: config.buckets ?? {},
     topics: config.topics ?? {},

@@ -338,12 +338,10 @@ function consumer(profile: Profile): string {
       ? ["import type { Database } from './database.types.ts';"]
       : []),
     "import { defineSupabase } from 'better-supabase';",
-    "import { softDelete } from 'better-supabase/plugins/soft-delete';",
-    "import { tenant } from 'better-supabase/plugins/tenant';",
-    "import { timestamps } from 'better-supabase/plugins/timestamps';",
+    "import { membershipsExtension } from 'better-supabase/blocks/memberships';",
     "import { schema } from './generated.ts';",
     "declare const client: SupabaseClient;",
-    "const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);",
+    "const db = defineSupabase(schema).use(membershipsExtension()).connect(client);",
     "export async function run(): Promise<void> {",
   ];
 
@@ -490,15 +488,15 @@ function run(profile: Profile): Run {
       gen: {
         casing: "camel",
         output: "generated.ts",
+        tasks: ["types"],
         json: profile.composite
           ? { [`${name(1)}.metadata`]: { type: "{ tags: string[] }" } }
           : undefined,
       },
       auth: { organization: { column: "organization_id" } },
-      plugins: {
-        timestamps: true,
-        softDelete: { column: "archived_at" },
-        tenant: true,
+      blocks: {
+        "updated-at": {},
+        trash: { options: { deletedAt: "archived_at" } },
       },
     }),
   );

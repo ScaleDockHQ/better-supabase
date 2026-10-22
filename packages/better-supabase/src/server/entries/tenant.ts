@@ -11,7 +11,7 @@ import { callOf, startSupportLookup } from "./core.ts";
 /**
  * Entry contributing `ctx.tenant`: the active tenant from
  * `ServerOptions.tenant` (a URL slug, a header), or `undefined`. It becomes
- * `context.tenant` for the `tenant()` plugin, the `better_supabase.tenant`
+ * `context.tenant` for `membershipsExtension()`, the `better_supabase.tenant`
  * setting over Postgres and the `x-bsb-tenant` header over PostgREST. It starts
  * the support lookup that `withSupport` awaits, so both run at once.
  */

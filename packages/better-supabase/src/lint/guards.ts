@@ -1,103 +1,99 @@
-import type {
-  HookArgs,
-  Plugin,
-  RepositoryExtension,
-} from "../../core/plugin.ts";
-import type { Condition, Operation, Selection } from "../../ir/types.ts";
-import type { ColumnMeta, SchemaMeta, TableMeta } from "../../schema/types.ts";
+import type { HookArgs, Plugin, RepositoryExtension } from "../core/plugin.ts";
+import type { Condition, Operation, Selection } from "../ir/types.ts";
+import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
-import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
-import { dbError, DbException } from "../../core/errors.ts";
-import { definePlugin } from "../../core/plugin.ts";
-import { simplify } from "../../ir/simplify.ts";
-import { lookupOf } from "../../schema/lookup.ts";
+import { tenantFrom, tenantPathsFor } from "../core/claims.ts";
+import { dbError, DbException } from "../core/errors.ts";
+import { definePlugin } from "../core/plugin.ts";
+import { simplify } from "../ir/simplify.ts";
+import { lookupOf } from "../schema/lookup.ts";
 
-export type RuleLevel = "off" | "warn" | "error";
+export type GuardLevel = "off" | "warn" | "error";
 
 /** A level, or a level with the rule's option: `['error', 500]`. */
-export type RuleSetting<Option = never> =
-  | RuleLevel
-  | ([Option] extends [never] ? never : readonly [RuleLevel, Option]);
+export type GuardSetting<Option = never> =
+  | GuardLevel
+  | ([Option] extends [never] ? never : readonly [GuardLevel, Option]);
 
-export interface RuleSet {
+export interface GuardSet {
   /** `findMany` without `limit` (reads the whole table). */
-  readonly noUnboundedFindMany?: RuleSetting;
+  readonly noUnboundedFindMany?: GuardSetting;
   /** `limit` above the given maximum (default 1000). */
-  readonly maxLimit?: RuleSetting<number>;
+  readonly maxLimit?: GuardSetting<number>;
   /**
    * Paging (`offset`, or `limit` above 1) without `orderBy`: Postgres returns
    * rows in no particular order, so pages overlap or skip rows. `findMany`
    * orders by the primary key by default, so this only fires on views and
    * tables without one.
    */
-  readonly requireOrderByForCursor?: RuleSetting;
+  readonly requireOrderByForCursor?: GuardSetting;
   /** Includes nested deeper than the given depth (default 3). */
-  readonly maxIncludeDepth?: RuleSetting<number>;
+  readonly maxIncludeDepth?: GuardSetting<number>;
   /**
    * Tenant tables queried without a tenant: neither `context.tenant` nor the
    * given claim (default `config.claims.tenant`, `tenant_id`). Service
    * connections are exempt.
    */
-  readonly requireTenantContext?: RuleSetting<string>;
+  readonly requireTenantContext?: GuardSetting<string>;
   /** A service-role connection used where `window` and `document` exist. */
-  readonly noAdminInBrowser?: RuleSetting;
+  readonly noAdminInBrowser?: GuardSetting;
   /**
    * Reads of columns listed in `config.sensitive` without `sensitive: true` on
    * the call.
    */
-  readonly noSensitiveSelect?: RuleSetting;
+  readonly noSensitiveSelect?: GuardSetting;
   /**
    * Delete operations without `where`. The repository refuses `deleteMany`
    * without `where` on its own, so this catches deletes built by plugins; the
    * lint rule of the same name flags the call in the editor.
    */
-  readonly noDeleteManyWithoutWhere?: RuleSetting;
+  readonly noDeleteManyWithoutWhere?: GuardSetting;
   /**
    * `updateMany` and `deleteMany` without `maxAffected`, or with one above the
    * given maximum (default 1000). With a bound, a `where` that matches more
    * rows than intended fails with `max_affected` and writes nothing. Updates
    * and deletes by key are exempt.
    */
-  readonly requireMaxAffected?: RuleSetting<number>;
+  readonly requireMaxAffected?: GuardSetting<number>;
   /**
    * Storage objects written to `*_url` text columns: a column listed in
    * `storagePaths`, or a value that is a Storage URL or matches a bucket's path
    * template. Signed URLs expire and public URLs pin the project host, so store
    * the path in a `*_path` column and build URLs when rendering.
    */
-  readonly storagePathColumns?: RuleSetting;
+  readonly storagePathColumns?: GuardSetting;
 }
 
-export type RuleName = keyof RuleSet;
+export type GuardName = keyof GuardSet;
 
-export interface RuleViolation {
-  readonly rule: RuleName;
+export interface GuardViolation {
+  readonly rule: GuardName;
   readonly level: "warn" | "error";
   readonly table: string;
   readonly operation: Operation["kind"];
   readonly message: string;
 }
 
-export interface AutomationsOptions {
-  readonly rules?: RuleSet;
+export interface GuardsOptions {
+  readonly rules?: GuardSet;
   /**
    * Called for every violation. Defaults to `console.warn` for warnings. Errors
    * fail the call with `invalid_request` after reporting.
    */
-  readonly report?: (violation: RuleViolation) => void;
+  readonly report?: (violation: GuardViolation) => void;
 }
 
-export interface RulesFindArgs {
+export interface GuardsFindArgs {
   /** Allow reading `config.sensitive` columns in this call. */
   readonly sensitive?: boolean;
 }
 
-export interface RulesExtension extends RepositoryExtension {
-  readonly findArgs: RulesFindArgs;
+export interface GuardsExtension extends RepositoryExtension {
+  readonly findArgs: GuardsFindArgs;
 }
 
 /** Catches data-exposure and correctness mistakes; everything else off. */
-export function safe(): RuleSet {
+export function safeGuards(): GuardSet {
   return {
     noAdminInBrowser: "error",
     noDeleteManyWithoutWhere: "error",
@@ -106,10 +102,10 @@ export function safe(): RuleSet {
   };
 }
 
-/** `safe()` plus performance warnings. */
-export function recommended(): RuleSet {
+/** `safeGuards()` plus performance warnings. */
+export function recommendedGuards(): GuardSet {
   return {
-    ...safe(),
+    ...safeGuards(),
     noUnboundedFindMany: "warn",
     maxLimit: ["warn", 1000],
     requireOrderByForCursor: "warn",
@@ -119,9 +115,9 @@ export function recommended(): RuleSet {
 }
 
 /** Every rule as an error. */
-export function strict(): RuleSet {
+export function strictGuards(): GuardSet {
   return {
-    ...safe(),
+    ...safeGuards(),
     noUnboundedFindMany: "error",
     maxLimit: ["error", 1000],
     requireOrderByForCursor: "error",
@@ -131,7 +127,7 @@ export function strict(): RuleSet {
   };
 }
 
-function levelOf(setting: RuleSetting<unknown> | undefined): RuleLevel {
+function levelOf(setting: GuardSetting<unknown> | undefined): GuardLevel {
   if (setting === undefined) {
     return "off";
   }
@@ -139,11 +135,11 @@ function levelOf(setting: RuleSetting<unknown> | undefined): RuleLevel {
   return typeof setting === "string" ? setting : setting[0];
 }
 
-function optionOf<T>(setting: RuleSetting<T> | undefined, fallback: T): T {
+function optionOf<T>(setting: GuardSetting<T> | undefined, fallback: T): T {
   // SAFETY: a rule setting is a level or a [level, options] tuple, and
   // Array.isArray picked the tuple.
   return Array.isArray(setting)
-    ? (setting as readonly [RuleLevel, T])[1]
+    ? (setting as readonly [GuardLevel, T])[1]
     : fallback;
 }
 
@@ -370,7 +366,7 @@ function pinsPrimaryKey(
 
 type Check = (op: Operation, hook: HookArgs) => string | undefined;
 
-function checks(rules: RuleSet): Record<RuleName, Check> {
+function checks(rules: GuardSet): Record<GuardName, Check> {
   const maxLimit = optionOf(rules.maxLimit, 1000);
   const maxDepth = optionOf(rules.maxIncludeDepth, 3);
   const maxAffected = optionOf(rules.requireMaxAffected, 1000);
@@ -469,7 +465,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
   };
 }
 
-function defaultReport(violation: RuleViolation): void {
+function defaultReport(violation: GuardViolation): void {
   if (violation.level === "warn") {
     console.warn(
       `[better-supabase] ${violation.rule} (${violation.table}): ${violation.message}`,
@@ -478,33 +474,33 @@ function defaultReport(violation: RuleViolation): void {
 }
 
 /**
- * Runtime query rules, checked before each request is built:
+ * Runtime query guards, checked before each request is built:
  *
  * ```ts
- * defineSupabase(schema).use(rules({ rules: recommended() }));
+ * defineSupabase(schema).use(guards({ rules: recommendedGuards() }));
  * ```
  *
  * Runs first (`enforce: 'first'`) so it sees the query as written, before
  * tenant or soft-delete filters are added. Pair with the static
  * `better-supabase/lint` plugin to catch the same mistakes in the editor.
  */
-export function rules(
-  options: AutomationsOptions = {},
-): Plugin<"rules", RulesExtension> {
-  const set = options.rules ?? recommended();
+export function guards(
+  options: GuardsOptions = {},
+): Plugin<"guards", GuardsExtension> {
+  const set = options.rules ?? recommendedGuards();
   const report = options.report ?? defaultReport;
   const all = checks(set);
 
   // SAFETY: checks() returns one entry per rule name, and Object.keys widens
   // the keys to string.
-  const active = (Object.keys(all) as RuleName[]).flatMap((rule) => {
+  const active = (Object.keys(all) as GuardName[]).flatMap((rule) => {
     const level = levelOf(set[rule]);
 
     return level === "off" ? [] : [{ rule, level, check: all[rule] }];
   });
 
-  return definePlugin<"rules", RulesExtension>({
-    name: "rules",
+  return definePlugin<"guards", GuardsExtension>({
+    name: "guards",
     enforce: "first",
     scopes: [],
     transformQuery(op, hook): Operation {
@@ -515,7 +511,7 @@ export function rules(
           continue;
         }
 
-        const violation: RuleViolation = {
+        const violation: GuardViolation = {
           rule,
           level,
           table: op.table.key,

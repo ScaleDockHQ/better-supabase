@@ -1,18 +1,20 @@
 ---
-title: Query rules
-description: Runtime checks that catch unbounded reads, missing tenants, sensitive columns and admin keys in the browser.
+title: Query guards
+description: Runtime checks that catch unbounded reads, missing organizations, sensitive columns and admin keys in the browser.
 ---
 
-`rules()` checks every query before it's sent and reports what looks wrong.
-It runs before every other plugin, `pre` ones included and whatever the `use()`
-order, so it sees the query you wrote, before the tenant or soft-delete
-plugins add their filters.
+`guards()` checks every query before it's sent and reports what looks wrong.
+It runs before every other plugin, `pre` ones included and whatever the
+`use()` order, so it sees the query you wrote, before the memberships and
+trash extensions add their filters. It ships in `better-supabase/lint`, next
+to the [lint rules](/docs/repository/lint) that catch the same mistakes in
+the editor.
 
 ```ts
-import { recommended, rules } from "better-supabase/plugins/rules";
+import { guards, recommendedGuards } from "better-supabase/lint";
 
 export const betterSupabase = defineSupabase(schema).use(
-  rules({ rules: recommended() }),
+  guards({ rules: recommendedGuards() }),
 );
 ```
 
@@ -21,18 +23,18 @@ violation fails the call with `invalid_request`, and nothing is sent.
 
 ## Presets
 
-| Preset          | Contents                                                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `safe()`        | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteManyWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
-| `recommended()` | `safe()` plus the performance rules and `storagePathColumns` as warnings (the default)                                               |
-| `strict()`      | Everything as an error, plus `requireMaxAffected`                                                                                    |
+| Preset                | Contents                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `safeGuards()`        | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteManyWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
+| `recommendedGuards()` | `safeGuards()` plus the performance rules and `storagePathColumns` as warnings (the default)                                         |
+| `strictGuards()`      | Everything as an error, plus `requireMaxAffected`                                                                                    |
 
 Spread a preset to change single rules:
 
 ```ts
-rules({
+guards({
   rules: {
-    ...recommended(),
+    ...recommendedGuards(),
     maxLimit: ["error", 200],
     noUnboundedFindMany: "off",
   },
@@ -56,9 +58,9 @@ rules({
 
 `noUnboundedFindMany` skips `aggregate()`, and `maxLimit` doesn't count the
 extra row `paginate()` reads to know whether there is a next page.
-`requireTenantContext` reads the same claim paths as the `tenant()` plugin,
-so a tenant in `app_metadata` counts. `requireMaxAffected` is only in
-`strict()`; add it to another preset with `requireMaxAffected: ["error", 500]`.
+`requireTenantContext` reads the same claim paths as the
+[memberships](/docs/blocks/memberships) extension, so an organization in
+`app_metadata` counts. `requireMaxAffected` is only in `strictGuards()`; add it to another preset with `requireMaxAffected: ["error", 500]`.
 
 `noSensitiveSelect` looks at the columns actually selected by reads,
 includes too. A `select` that leaves the column out passes; to read it on
@@ -78,7 +80,7 @@ Writes don't trip the rule: without a `select`, `create`, `update` and
 
 The repository already refuses `deleteMany` without `where` on its own, so
 `noDeleteManyWithoutWhere` only catches deletes built by other plugins. The
-[lint rule](/docs/plugins/lint) of the same name catches the call in your
+[lint rule](/docs/repository/lint) of the same name catches the call in your
 editor.
 
 `storagePathColumns` only compares against bucket templates with a literal
@@ -89,7 +91,10 @@ mistaken for an object.
 ## Reporting
 
 ```ts
-rules({ rules: recommended(), report: (violation) => logger.warn(violation) });
+guards({
+  rules: recommendedGuards(),
+  report: (violation) => logger.warn(violation),
+});
 ```
 
 A violation has `rule`, `level`, `table`, `operation` and `message`.
@@ -98,7 +103,7 @@ Errors still fail the call after `report` runs.
 ## Skipping plugins
 
 `db.$withoutPlugins()` returns the same connection with no plugins at all:
-no rules, tenant scoping, soft-delete filters or executor wrappers. Use it for
+no guards, organization scoping, trash filters or executor wrappers. Use it for
 migrations and admin scripts, never for user requests. Pass
 `{ keep: ['otel'] }` to keep tracing (or any plugin by name); a name that
 isn't installed throws, so a typo can't drop a plugin silently.

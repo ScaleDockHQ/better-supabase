@@ -33,7 +33,7 @@ import {
   permissionCatalogKeys,
 } from "./shared.ts";
 
-/** The non-empty string at a dotted path, as the tenant() plugin reads it. */
+/** The non-empty string at a dotted path, as membershipsExtension() reads it. */
 function claimAt(
   claims: Readonly<Record<string, unknown>>,
   path: string,
@@ -478,7 +478,7 @@ async function missingTenantClaim(
       }
 
       findings.push({
-        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.permissions.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set blocks.permissions.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
+        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.permissions.activeTenant is 'claim', so current_tenant_id() is null and membershipsExtension() rejects their requests. Write the claim in the hook, or set blocks.permissions.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
         target,
         object: { kind: "function", schema: fn.schema, name: fn.name },
       });
@@ -797,7 +797,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `auth.organization.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
+      "With the `tenant` module and `blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and `membershipsExtension()` read the tenant from the `auth.organization.claim` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {

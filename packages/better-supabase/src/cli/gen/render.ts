@@ -16,7 +16,11 @@ import {
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
 import { detectProject } from "../project/detect.ts";
-import { emitBlockConfig, generatorBlocks } from "./blocks.ts";
+import {
+  emitBlockConfig,
+  generatorBlocks,
+  schemaExtensions,
+} from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
 import { emitFeatures } from "./features.ts";
 import { buildModel, generatorModel } from "./model.ts";
@@ -35,6 +39,12 @@ export interface RenderOptions {
    * the project's dependencies show.
    */
   readonly frameworks?: readonly Framework[];
+  /**
+   * Whether the schema carries the installed blocks' repository extensions and
+   * the `validation` extension. `false` emits a bare `defineSchema(meta)`, for
+   * code that installs them with `.use()` itself. Defaults to `true`.
+   */
+  readonly extensions?: boolean;
 }
 
 export interface Rendered {
@@ -85,16 +95,18 @@ export async function render(
 
   const metaFiles = metaPaths(config.output);
 
-  const main = emitModule(model, {
+  const emitOptions = {
     databaseTypesImport: importPath(
       output,
       resolve(config.root, config.databaseTypesOutput),
     ),
-    importPathFor: (from) => importPath(output, resolve(config.root, from)),
+    importPathFor: (from: string) =>
+      importPath(output, resolve(config.root, from)),
     metaImport: `./${basename(metaFiles.js)}`,
+    extensions: options.extensions === false ? [] : schemaExtensions(config),
     ...(options.inlineMeta ? { inlineMeta: true } : {}),
     ...runtime,
-  });
+  };
 
   const meta = emitMeta(model, {
     types: `./${basename(metaFiles.dts)}`,
@@ -103,7 +115,7 @@ export async function render(
 
   const files: GeneratedFile[] = [
     { path: config.databaseTypesOutput, contents: databaseTypes },
-    { path: config.output, contents: main },
+    { path: config.output, contents: "" },
     { path: metaFiles.js, contents: meta.js },
     { path: metaFiles.dts, contents: meta.dts },
   ];
@@ -174,6 +186,26 @@ export async function render(
       files.push(file);
     }
   }
+
+  const validators =
+    options.extensions === false
+      ? undefined
+      : files.find((file) => file.validators === true);
+
+  files[1] = {
+    path: config.output,
+    contents: emitModule(model, {
+      ...emitOptions,
+      ...(validators === undefined
+        ? {}
+        : {
+            validatorsImport: importPath(
+              output,
+              resolve(config.root, validators.path),
+            ),
+          }),
+    }),
+  };
 
   return { files, warnings: model.warnings, notices: model.notices };
 }

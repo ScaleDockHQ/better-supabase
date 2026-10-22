@@ -64,8 +64,8 @@ export function moduleLayout(
         },
       ];
     }),
-    ...(config.plugins.tenant
-      ? { tenantColumn: config.plugins.tenant.column }
+    ...(config.extensions.tenant
+      ? { tenantColumn: config.extensions.tenant.column }
       : {}),
   };
 }

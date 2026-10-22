@@ -414,7 +414,7 @@ const OWN_RULES: readonly Rule[] = [
     description:
       "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`.",
     check: (context) => {
-      const column = context.config.plugins.tenant?.column;
+      const column = context.config.extensions.tenant?.column;
 
       const providerFunctions = [
         ...new Set(
@@ -552,9 +552,9 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant column without an index",
     description:
-      "The tenant plugin and tenant policies filter every query on this column. A view is left out: a query on it uses the indexes of its tables.",
+      "The memberships extension and organization policies filter every query on this column. A view is left out: a query on it uses the indexes of its tables.",
     check: (context) => {
-      const tenant = context.config.plugins.tenant;
+      const tenant = context.config.extensions.tenant;
 
       if (!tenant) {
         return [];
@@ -622,7 +622,7 @@ const OWN_RULES: readonly Rule[] = [
     description:
       "PostgREST re-reads updated rows through the select policy. If it hides deleted rows, soft-deleting fails with an RLS error unless the update returns nothing.",
     check: (context) => {
-      const softDelete = context.config.plugins.softDelete;
+      const softDelete = context.config.extensions.softDelete;
 
       if (!softDelete) {
         return [];
@@ -644,7 +644,7 @@ const OWN_RULES: readonly Rule[] = [
               ),
           )
           .map((policy) => ({
-            message: `Policy "${policy.name}" on ${qualified(table)} hides rows where ${softDelete.column} is set, so \`softDelete()\` can't read the row back. Filter deleted rows in queries (the plugin does) instead of in the policy.`,
+            message: `Policy "${policy.name}" on ${qualified(table)} hides rows where ${softDelete.column} is set, so the trash extension can't read the row back. Filter deleted rows in queries (the extension does) instead of in the policy.`,
             target: `${qualified(table)}.${policy.name}`,
             object: policyObject(table, policy),
           }));

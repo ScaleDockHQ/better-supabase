@@ -153,8 +153,8 @@ await db.customers.findMany();
 
 Without a server, pass the claims you verified yourself to `connect`.
 `authContext(auth)` builds the context from an `AuthState`; a hand-built one
-needs at least `claims`, and `created-by` and `tenant` when the `actor()` and
-`tenant()` plugins should fill them:
+needs at least `claims`, and `actor` and `tenant` when the created-by and
+memberships extensions should fill them:
 
 ```ts
 const db = betterSupabase.connect(supabase, {
@@ -260,7 +260,7 @@ service-role transport or a log line.
 
 Apps that pick the tenant from the URL or a profile, rather than a claim,
 pass `tenant`. It returns the tenant id for a request, or `undefined`. The
-result becomes `context.tenant` for the [`tenant()` plugin](/docs/plugins/tenant),
+result becomes `context.tenant` for the [memberships extension](/docs/blocks/memberships),
 the `better_supabase.tenant` setting for `ctx.sql` and the `x-bsb-tenant`
 header (`TENANT_HEADER`) for `ctx.db`, which `current_tenant_id()` reads with
 `blocks.permissions.activeTenant: 'resolver'`. See

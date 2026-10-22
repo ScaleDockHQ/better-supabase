@@ -65,8 +65,8 @@ export interface Job<P = unknown> {
   /**
    * The actor and tenant recorded at enqueue, ready for
    * `bsb.forContext(job.context)`, which runs as that user with RLS. Without a
-   * recorded tenant, `tenant()` applies its `onMissing` unless the worker runs
-   * with `allTenants: true`.
+   * recorded tenant, `membershipsExtension()` applies its `onMissing` unless
+   * the worker runs with `allTenants: true`.
    */
   readonly context: RequestContext;
 }
@@ -95,10 +95,10 @@ export interface EnqueueOptions {
   readonly dedupe?: "always" | "waiting";
   /**
    * The request context whose actor and tenant the job records, next to the
-   * payload. The tenant is `context.tenant`, the one `tenant()` resolved, or
-   * the `tenant_id` claim (then `app_metadata.tenant_id`). A delegated token's
-   * `client_id`, `scope`, `authorization_details` and `act` chain are recorded
-   * too; an invalid `act` chain fails with `forbidden`.
+   * payload. The tenant is `context.tenant`, the one `membershipsExtension()`
+   * resolved, or the `tenant_id` claim (then `app_metadata.tenant_id`). A
+   * delegated token's `client_id`, `scope`, `authorization_details` and `act`
+   * chain are recorded too; an invalid `act` chain fails with `forbidden`.
    */
   readonly context?: RequestContext;
   /**
@@ -336,9 +336,9 @@ export interface WorkOptions extends ClaimOptions {
   readonly signal?: AbortSignal;
   readonly onError?: (error: DbError, job: Job) => void;
   /**
-   * Run jobs that recorded no tenant with a context that `tenant()` and tenant
-   * buckets don't scope. Off by default, so such jobs get the `onMissing` of
-   * `tenant()`.
+   * Run jobs that recorded no tenant with a context that
+   * `membershipsExtension()` and tenant buckets don't scope. Off by default, so
+   * such jobs get the `onMissing` of `membershipsExtension()`.
    */
   readonly allTenants?: boolean;
 }

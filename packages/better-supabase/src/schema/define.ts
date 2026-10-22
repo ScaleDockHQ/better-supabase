@@ -1,3 +1,4 @@
+import type { AnyPlugin } from "../core/plugin.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -16,8 +17,12 @@ export function defineSchema<
   D = unknown,
   F extends AnyFunctions = AnyFunctions,
   S extends string = string,
->(meta: SchemaMeta): Schema<M, D, F, S> {
-  return { meta: validateMeta(meta) };
+  E = unknown,
+>(
+  meta: SchemaMeta,
+  extensions: readonly AnyPlugin[] = [],
+): Schema<M, D, F, S, E> {
+  return { meta: validateMeta(meta), extensions };
 }
 
 function validateMeta(meta: SchemaMeta): SchemaMeta {

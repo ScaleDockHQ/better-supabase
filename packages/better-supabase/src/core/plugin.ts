@@ -25,7 +25,8 @@ export interface Actor {
 
 /**
  * Per-connection context. Server adapters fill it from the verified JWT;
- * plugins read it (`tenant()` reads `tenant`, `actor()` reads `actor`).
+ * plugins read it (`membershipsExtension()` reads `tenant`,
+ * `createdByExtension()` reads `actor`).
  */
 export interface RequestContext {
   readonly actor?: Actor;
@@ -73,8 +74,8 @@ export interface MutationEvent {
    */
   readonly keys?: readonly Readonly<Record<string, unknown>>[];
   /**
-   * The tenant of the write: `context.tenant`, which `tenant()` fills from the
-   * claims.
+   * The tenant of the write: `context.tenant`, which `membershipsExtension()`
+   * fills from the claims.
    */
   readonly tenant?: string;
   readonly context: RequestContext;
@@ -203,22 +204,22 @@ export interface Plugin<
    * Hook order: `first`, then `pre`, then unmarked plugins, then `post`;
    * plugins at the same level keep `use()` order. `first` is for plugins that
    * check the query as the caller wrote it, before a `pre` plugin rewrites it
-   * (`rules()`). Validation is `post` so it sees columns other plugins fill.
+   * (`guards()`). Validation is `post` so it sees columns other plugins fill.
    */
   readonly enforce?: "first" | "pre" | "post";
   /**
    * The table flags whose tables this plugin's `transformQuery` filters
-   * (`tenant()` declares `['tenant']`). Read sets warn when they read such a
-   * table, because their generated SQL function runs without the plugin. `[]`
-   * means the plugin only inspects queries. A plugin with `transformQuery` that
-   * leaves this out is assumed to filter every table.
+   * (`membershipsExtension()` declares `['tenant']`). Read sets warn when they
+   * read such a table, because their generated SQL function runs without the
+   * plugin. `[]` means the plugin only inspects queries. A plugin with
+   * `transformQuery` that leaves this out is assumed to filter every table.
    */
   readonly scopes?: readonly (keyof TableFlags)[];
   /**
    * `context`: derive values from the connection's context once per `connect()`
-   * and `$with()`, so `db.$context` carries them (`tenant()` adds the tenant it
-   * resolved). Runs in hook order on the context the caller passed. A throw is
-   * logged and leaves the context unchanged.
+   * and `$with()`, so `db.$context` carries them (`membershipsExtension()` adds
+   * the tenant it resolved). Runs in hook order on the context the caller
+   * passed. A throw is logged and leaves the context unchanged.
    */
   readonly context?: (
     context: RequestContext,
@@ -271,6 +272,17 @@ export type WithExtension<E, X> = unknown extends X
       ? readonly [X]
       : readonly [E, X];
 
+/**
+ * The extensions of a plugin list, as `.use()` collects them one by one: the
+ * type `gen` gives the schema of the blocks' extensions.
+ */
+export type ExtensionsOf<
+  L extends readonly AnyPlugin[],
+  E = unknown,
+> = L extends readonly [infer Head, ...infer Rest extends readonly AnyPlugin[]]
+  ? ExtensionsOf<Rest, WithExtension<E, ExtensionOf<Head>>>
+  : E;
+
 const RANK = { first: 0, pre: 1, normal: 2, post: 3 } as const;
 
 function rankOf(plugin: AnyPlugin): number {
@@ -306,7 +318,10 @@ export function definePlugin<
  */
 const ALL_TENANTS: unique symbol = Symbol("better-supabase.allTenants");
 
-/** `context`, marked so `tenant()` and tenant buckets skip their tenant scope. */
+/**
+ * `context`, marked so `membershipsExtension()` and tenant buckets skip their
+ * tenant scope.
+ */
 export function allTenantsContext(context: RequestContext): RequestContext {
   return { ...context, [ALL_TENANTS]: true };
 }

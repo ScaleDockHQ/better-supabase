@@ -386,7 +386,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
 
       lines.push(
         "",
-        "/** Write validators for the validation plugin. */",
+        "/** Write validators; the generated schema installs them through `validation`. */",
         "export const validators: {",
       );
 
@@ -409,7 +409,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         "",
       );
 
-      return [{ path, contents: lines.join("\n") }];
+      return [{ path, contents: lines.join("\n"), validators: true }];
     },
   };
 }

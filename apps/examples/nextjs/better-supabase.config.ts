@@ -97,7 +97,6 @@ export default defineConfig({
       },
     },
   },
-  plugins: { tenant: true },
   // Rows the search index, comments and other subject-aware modules point at.
   // Installed blocks register their own entities (deals, work items, ...);
   // `blocks.<name>.entities` sets their pages.

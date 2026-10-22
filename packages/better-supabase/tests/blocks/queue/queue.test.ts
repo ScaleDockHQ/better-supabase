@@ -11,6 +11,7 @@ import type { DbError } from "../../../src/core/errors.ts";
 import type { Executor } from "../../../src/core/executor.ts";
 import type { SqlAnswer } from "../../fixtures/fake-sql.ts";
 
+import { membershipsExtension } from "../../../src/blocks/memberships/index.ts";
 import {
   createIdempotency,
   withLease,
@@ -26,7 +27,6 @@ import { defineSupabase } from "../../../src/core/define.ts";
 import { spansAllTenants } from "../../../src/core/plugin.ts";
 import { ok } from "../../../src/core/result.ts";
 import { provideTemporal } from "../../../src/core/temporal.ts";
-import { tenant } from "../../../src/plugins/tenant/index.ts";
 import { capturingClient } from "../../fixtures/client.ts";
 import { fakeSql, pgError } from "../../fixtures/fake-sql.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
@@ -562,7 +562,7 @@ describe("job context", () => {
     const { client, sent } = memoryQueue();
 
     const db = defineSupabase(schema)
-      .use(tenant({ claim: "app_metadata.organization" }))
+      .use(membershipsExtension({ claim: "app_metadata.organization" }))
       .connect(echoExecutor, {
         claims: { tenant_id: "o1", app_metadata: { organization: "o9" } },
       });

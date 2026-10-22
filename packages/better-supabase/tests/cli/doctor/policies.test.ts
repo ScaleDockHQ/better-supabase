@@ -37,7 +37,10 @@ const context = (
   snap: Snapshot,
   extra: Partial<DoctorContext> = {},
 ): DoctorContext => ({
-  config: resolveConfig({ plugins: { tenant: true } }, "/project"),
+  config: resolveConfig(
+    { auth: { organization: { column: "organization_id" } } },
+    "/project",
+  ),
   snapshot: snap,
   configToml: undefined,
   envFiles: [],

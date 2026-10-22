@@ -19,8 +19,8 @@ const customers = await bsb.db.customers
   .orThrow();
 ```
 
-- `bsb.db` carries the current session's actor and claims, so plugins
-  like [`actor`](/docs/plugins/actor) and [`tenant`](/docs/plugins/tenant)
+- `bsb.db` carries the current session's actor and claims, so extensions
+  like [created-by](/docs/blocks/created-by) and [memberships](/docs/blocks/memberships)
   behave as they do on the server. It is rebuilt when the user changes.
 - `bsb.queries` holds [TanStack Query options](/docs/frontend/query).
 - `bsb.auth` is a small store (`current()`, `subscribe()`) for UI state:

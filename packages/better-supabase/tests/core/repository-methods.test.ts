@@ -15,6 +15,7 @@ import type {
 } from "../../src/ir/types.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
+import { trashExtension } from "../../src/blocks/trash/index.ts";
 import {
   decodeCursor,
   encodeBoundCursor,
@@ -24,7 +25,6 @@ import {
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -1506,7 +1506,7 @@ describe("write bounds and request options", () => {
   });
 
   it("keeps maxAffected when softDelete turns a deleteMany into an update", async () => {
-    const { db, op } = connect(() => rowsOf([], 1), [softDelete()]);
+    const { db, op } = connect(() => rowsOf([], 1), [trashExtension()]);
     await db.customers.deleteMany({
       where: { status: "lead" },
       maxAffected: 3,

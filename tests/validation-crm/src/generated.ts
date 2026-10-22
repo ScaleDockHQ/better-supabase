@@ -2,7 +2,9 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import { defineSchema, type Schema } from "better-supabase";
+import { defineSchema, type ExtensionsOf, type Schema } from "better-supabase";
+import { updatedAtExtension } from "better-supabase/blocks/updated-at";
+import { membershipsExtension } from "better-supabase/blocks/memberships";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
@@ -858,7 +860,10 @@ export type Models = {
     };
     Checks: "agenda_calendar_connection_secrets_provider_check";
     ForeignKeys: "agenda_calendar_connection_secrets_connection_id_fkey" | "agenda_calendar_connection_secrets_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCalendarConnections: {
     Row: {
@@ -908,7 +913,10 @@ export type Models = {
     };
     Checks: "agenda_calendar_connections_name_check" | "agenda_calendar_connections_provider_check" | "agenda_calendar_connections_status_check";
     ForeignKeys: "agenda_calendar_connections_created_by_fkey" | "agenda_calendar_connections_organization_id_fkey" | "agenda_calendar_connections_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCalendarFeeds: {
     Row: {
@@ -956,7 +964,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "agenda_calendar_feeds_agenda_collection_id_organization_id_fkey" | "agenda_calendar_feeds_created_by_fkey" | "agenda_calendar_feeds_organization_id_fkey" | "agenda_calendar_feeds_user_id_fkey" | "agenda_calendar_feeds_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCollectionGrants: {
     Row: {
@@ -1005,7 +1016,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "agenda_collection_grants_check" | "agenda_collection_grants_position_check" | "agenda_collection_grants_role_check";
     ForeignKeys: "agenda_collection_grants_agenda_collection_id_organization_fkey" | "agenda_collection_grants_created_by_fkey" | "agenda_collection_grants_organization_id_fkey" | "agenda_collection_grants_team_id_organization_id_fkey" | "agenda_collection_grants_user_id_fkey" | "agenda_collection_grants_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCollectionNotificationPreferences: {
     Row: {
@@ -1050,7 +1064,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "agenda_collection_notificatio_agenda_collection_id_organiz_fkey" | "agenda_collection_notification_pre_user_id_organization_id_fkey" | "agenda_collection_notification_preferences_organization_id_fkey" | "agenda_collection_notification_preferences_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCollectionNotificationReminders: {
     Row: {
@@ -1106,7 +1123,10 @@ export type Models = {
     };
     Checks: "agenda_collection_notification_reminders_check" | "agenda_collection_notification_reminders_event_kind_check" | "agenda_collection_notification_reminders_method_check" | "agenda_collection_notification_reminders_position_check";
     ForeignKeys: "agenda_collection_notificati_agenda_collection_id_organiz_fkey1" | "agenda_collection_notification_rem_user_id_organization_id_fkey" | "agenda_collection_notification_reminders_organization_id_fkey" | "agenda_collection_notification_reminders_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCollectionPreferences: {
     Row: {
@@ -1145,7 +1165,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "agenda_collection_preferences_position_check";
     ForeignKeys: "agenda_collection_preferences_agenda_collection_id_organiz_fkey" | "agenda_collection_preferences_organization_id_fkey" | "agenda_collection_preferences_user_id_fkey" | "agenda_collection_preferences_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaCollections: {
     Row: {
@@ -1219,7 +1242,10 @@ export type Models = {
     };
     Checks: "agenda_collections_check" | "agenda_collections_check1" | "agenda_collections_check2" | "agenda_collections_color_check" | "agenda_collections_default_time_zone_check" | "agenda_collections_kind_check" | "agenda_collections_name_check" | "agenda_collections_position_check" | "agenda_collections_source_check" | "agenda_collections_visibility_check";
     ForeignKeys: "agenda_collections_created_by_fkey" | "agenda_collections_external_calendar_fk" | "agenda_collections_organization_id_fkey" | "agenda_collections_owner_user_id_fkey" | "agenda_collections_owner_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaExternalCalendars: {
     Row: {
@@ -1298,7 +1324,10 @@ export type Models = {
     };
     Checks: "agenda_external_calendars_last_sync_status_check" | "agenda_external_calendars_provider_check" | "agenda_external_calendars_summary_check" | "agenda_external_calendars_visibility_check";
     ForeignKeys: "agenda_external_calendars_connection_id_fkey" | "agenda_external_calendars_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaExternalEventMappings: {
     Row: {
@@ -1340,7 +1369,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "agenda_external_event_mapping_agenda_item_id_organization__fkey" | "agenda_external_event_mappings_external_calendar_id_fkey" | "agenda_external_event_mappings_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaItemAttendees: {
     Row: {
@@ -1402,7 +1434,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "agenda_item_attendees_check" | "agenda_item_attendees_participation_status_check" | "agenda_item_attendees_role_check";
     ForeignKeys: "agenda_item_attendees_agenda_item_id_organization_id_fkey" | "agenda_item_attendees_customer_contact_id_fkey" | "agenda_item_attendees_customer_id_organization_id_fkey" | "agenda_item_attendees_organization_id_fkey" | "agenda_item_attendees_user_id_fkey" | "agenda_item_attendees_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaItemRecurrenceDates: {
     Row: {
@@ -1439,7 +1474,10 @@ export type Models = {
     };
     Checks: "agenda_item_recurrence_dates_kind_check";
     ForeignKeys: "agenda_item_recurrence_dates_agenda_item_id_organization_i_fkey" | "agenda_item_recurrence_dates_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaItemRecurrenceRules: {
     Row: {
@@ -1492,7 +1530,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "agenda_item_recurrence_rules_check" | "agenda_item_recurrence_rules_check1" | "agenda_item_recurrence_rules_check2" | "agenda_item_recurrence_rules_check3" | "agenda_item_recurrence_rules_count_check" | "agenda_item_recurrence_rules_frequency_check" | "agenda_item_recurrence_rules_interval_count_check" | "agenda_item_recurrence_rules_month_day_check" | "agenda_item_recurrence_rules_month_ordinal_check" | "agenda_item_recurrence_rules_month_weekday_check" | "agenda_item_recurrence_rules_week_days_check";
     ForeignKeys: "agenda_item_recurrence_rules_agenda_item_id_organization_i_fkey" | "agenda_item_recurrence_rules_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaItemReminders: {
     Row: {
@@ -1532,7 +1573,10 @@ export type Models = {
     };
     Checks: "agenda_item_reminders_method_check" | "agenda_item_reminders_offset_minutes_check";
     ForeignKeys: "agenda_item_reminders_agenda_item_id_organization_id_fkey" | "agenda_item_reminders_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaItemUsers: {
     Row: {
@@ -1562,7 +1606,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "agenda_item_users_agenda_item_id_organization_id_fkey" | "agenda_item_users_organization_id_fkey" | "agenda_item_users_user_id_fkey" | "agenda_item_users_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaItems: {
     Row: {
@@ -1695,7 +1742,10 @@ export type Models = {
     };
     Checks: "agenda_items_check" | "agenda_items_check1" | "agenda_items_check2" | "agenda_items_sequence_check" | "agenda_items_source_check" | "agenda_items_status_check" | "agenda_items_title_check" | "agenda_items_transparency_check" | "agenda_items_visibility_check";
     ForeignKeys: "agenda_items_agenda_collection_id_organization_id_fkey" | "agenda_items_created_by_fkey" | "agenda_items_external_calendar_fk" | "agenda_items_organization_id_fkey" | "agenda_items_organizer_user_id_fkey" | "agenda_items_owner_user_id_fkey" | "agenda_items_recurrence_parent_fk" | "agenda_items_task_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaSuggestionDecisions: {
     Row: {
@@ -1747,7 +1797,10 @@ export type Models = {
     };
     Checks: "agenda_suggestion_decisions_check" | "agenda_suggestion_decisions_check1" | "agenda_suggestion_decisions_decision_check";
     ForeignKeys: "agenda_suggestion_decisions_organization_id_fkey" | "agenda_suggestion_decisions_task_id_fkey" | "agenda_suggestion_decisions_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaTaskProjections: {
     Row: {
@@ -1782,7 +1835,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "agenda_task_projections_agenda_item_id_organization_id_fkey" | "agenda_task_projections_organization_id_fkey" | "agenda_task_projections_task_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   agendaTimeOffProjections: {
     Row: {
@@ -1812,7 +1868,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "agenda_time_off_projections_agenda_item_id_organization_id_fkey" | "agenda_time_off_projections_organization_id_fkey" | "agenda_time_off_projections_time_off_request_id_organizati_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiAgentDelegations: {
     Row: {
@@ -1858,7 +1917,10 @@ export type Models = {
     };
     Checks: "ai_agent_delegations_check" | "ai_agent_delegations_status_check";
     ForeignKeys: "ai_agent_delegations_actor_user_id_fkey" | "ai_agent_delegations_organization_id_fkey" | "ai_agent_delegations_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiAgentRunEvents: {
     Row: {
@@ -1925,7 +1987,10 @@ export type Models = {
     };
     Checks: "ai_agent_run_events_kind_check" | "ai_agent_run_events_sequence_check" | "ai_agent_run_events_status_check";
     ForeignKeys: "ai_agent_run_events_approval_id_fkey" | "ai_agent_run_events_created_by_fkey" | "ai_agent_run_events_organization_id_fkey" | "ai_agent_run_events_run_id_fkey" | "ai_agent_run_events_step_id_fkey" | "ai_agent_run_events_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiAgentRunHandoffs: {
     Row: {
@@ -1995,7 +2060,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_agent_run_handoffs_status_check";
     ForeignKeys: "ai_agent_run_handoffs_accepted_by_fkey" | "ai_agent_run_handoffs_assigned_team_id_fkey" | "ai_agent_run_handoffs_assigned_user_id_fkey" | "ai_agent_run_handoffs_organization_id_fkey" | "ai_agent_run_handoffs_requested_by_fkey" | "ai_agent_run_handoffs_resolved_by_fkey" | "ai_agent_run_handoffs_run_id_fkey" | "ai_agent_run_handoffs_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   aiAgentRunSteps: {
     Row: {
@@ -2088,7 +2155,10 @@ export type Models = {
     };
     Checks: "ai_agent_run_steps_attempt_check" | "ai_agent_run_steps_kind_check" | "ai_agent_run_steps_sequence_check" | "ai_agent_run_steps_status_check";
     ForeignKeys: "ai_agent_run_steps_organization_id_fkey" | "ai_agent_run_steps_parent_step_id_fkey" | "ai_agent_run_steps_run_id_fkey" | "ai_agent_run_steps_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiAgentRuns: {
     Row: {
@@ -2171,7 +2241,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_agent_runs_mode_check" | "ai_agent_runs_status_check";
     ForeignKeys: "ai_agent_runs_created_by_fkey" | "ai_agent_runs_message_id_fkey" | "ai_agent_runs_organization_id_fkey" | "ai_agent_runs_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiAgentToolCheckpoints: {
     Row: {
@@ -2219,7 +2292,9 @@ export type Models = {
     };
     Checks: "ai_agent_tool_checkpoints_status_check";
     ForeignKeys: "ai_agent_tool_checkpoints_run_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   aiContextualArtifactEvents: {
     Row: {
@@ -2260,7 +2335,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_contextual_artifact_events_kind_check" | "ai_contextual_artifact_events_metadata_check";
     ForeignKeys: "ai_contextual_artifact_events_actor_user_id_fkey" | "ai_contextual_artifact_events_artifact_id_organization_id_fkey" | "ai_contextual_artifact_events_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiContextualArtifacts: {
     Row: {
@@ -2382,7 +2460,10 @@ export type Models = {
     };
     Checks: "ai_contextual_artifacts_action_id_check" | "ai_contextual_artifacts_check" | "ai_contextual_artifacts_check1" | "ai_contextual_artifacts_check2" | "ai_contextual_artifacts_context_fingerprint_check" | "ai_contextual_artifacts_context_kinds_check" | "ai_contextual_artifacts_decision_metadata_check" | "ai_contextual_artifacts_origin_execution_policy_check" | "ai_contextual_artifacts_origin_permission_check" | "ai_contextual_artifacts_origin_risk_check" | "ai_contextual_artifacts_origin_route_check" | "ai_contextual_artifacts_payload_check" | "ai_contextual_artifacts_schema_version_check" | "ai_contextual_artifacts_source_references_check" | "ai_contextual_artifacts_status_check" | "ai_contextual_artifacts_thread_visibility_check";
     ForeignKeys: "ai_contextual_artifacts_applying_by_fkey" | "ai_contextual_artifacts_created_by_fkey" | "ai_contextual_artifacts_decided_by_fkey" | "ai_contextual_artifacts_message_id_fkey" | "ai_contextual_artifacts_organization_id_fkey" | "ai_contextual_artifacts_run_id_fkey" | "ai_contextual_artifacts_thread_id_fkey" | "ai_contextual_artifacts_thread_owner_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiFunctionSettings: {
     Row: {
@@ -2423,7 +2504,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_function_settings_function_key_check" | "ai_function_settings_max_output_tokens_check" | "ai_function_settings_max_steps_check" | "ai_function_settings_temperature_check" | "ai_function_settings_timeout_ms_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   aiMemoryItems: {
     Row: {
@@ -2509,7 +2592,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_memory_items_check" | "ai_memory_items_check1" | "ai_memory_items_confidence_check" | "ai_memory_items_kind_check" | "ai_memory_items_scope_check" | "ai_memory_items_use_count_check" | "ai_memory_items_visibility_check";
     ForeignKeys: "ai_memory_items_created_by_fkey" | "ai_memory_items_organization_id_fkey" | "ai_memory_items_thread_id_fkey" | "ai_memory_items_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   aiModelSettings: {
     Row: {
@@ -2537,7 +2623,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_model_settings_model_id_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   aiModelUseDefaults: {
     Row: {
@@ -2565,7 +2653,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_model_use_defaults_use_case_check";
     ForeignKeys: "ai_model_use_defaults_model_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   aiTelemetryEvents: {
     Row: {
@@ -2642,7 +2732,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "ai_telemetry_events_kind_check" | "ai_telemetry_events_status_check";
     ForeignKeys: "ai_telemetry_events_organization_id_fkey" | "ai_telemetry_events_thread_id_fkey" | "ai_telemetry_events_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   approvalDecisions: {
     Row: {
@@ -2688,7 +2781,10 @@ export type Models = {
     };
     Checks: "approval_decisions_comment_check" | "approval_decisions_decision_check";
     ForeignKeys: "approval_decisions_decided_by_fkey" | "approval_decisions_delegated_from_user_id_fkey" | "approval_decisions_organization_id_fkey" | "approval_decisions_request_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   approvalDelegations: {
     Row: {
@@ -2733,7 +2829,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "approval_delegations_check" | "approval_delegations_check1";
     ForeignKeys: "approval_delegations_created_by_fkey" | "approval_delegations_delegate_employee_id_organization_id_fkey" | "approval_delegations_employee_id_organization_id_fkey" | "approval_delegations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   approvalEvents: {
     Row: {
@@ -2771,7 +2870,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "approval_events_kind_check";
     ForeignKeys: "approval_events_actor_user_id_fkey" | "approval_events_organization_id_fkey" | "approval_events_request_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   approvalPolicies: {
     Row: {
@@ -2853,7 +2955,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "approval_policies_action_key_check" | "approval_policies_approver_permission_check" | "approval_policies_check" | "approval_policies_conditions_check" | "approval_policies_description_check" | "approval_policies_effect_check" | "approval_policies_escalate_after_seconds_check" | "approval_policies_escalate_to_permission_check" | "approval_policies_expires_after_seconds_check" | "approval_policies_name_check" | "approval_policies_quorum_check";
     ForeignKeys: "approval_policies_created_by_fkey" | "approval_policies_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   approvalRequests: {
     Row: {
@@ -3035,7 +3140,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "approval_requests_action_key_check" | "approval_requests_check" | "approval_requests_check1" | "approval_requests_check2" | "approval_requests_decision_reason_check" | "approval_requests_input_fingerprint_check" | "approval_requests_quorum_check" | "approval_requests_risk_check" | "approval_requests_status_check" | "approval_requests_step_check" | "approval_requests_subject_id_check" | "approval_requests_subject_type_check" | "approval_requests_title_check";
     ForeignKeys: "approval_requests_agent_run_id_fkey" | "approval_requests_agent_step_id_fkey" | "approval_requests_approver_employee_id_organization_id_fkey" | "approval_requests_approver_user_id_fkey" | "approval_requests_employee_id_organization_id_fkey" | "approval_requests_on_behalf_of_user_id_fkey" | "approval_requests_organization_id_fkey" | "approval_requests_requested_by_fkey" | "approval_requests_response_run_id_fkey" | "approval_requests_thread_id_fkey" | "approval_requests_workflow_run_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   assetCustomAttributes: {
     Row: {
@@ -3098,7 +3206,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "asset_custom_attributes_check" | "asset_custom_attributes_position_check";
     ForeignKeys: "asset_custom_attributes_customer_asset_id_fkey" | "asset_custom_attributes_organization_id_fkey" | "asset_custom_attributes_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   assetImages: {
     Row: {
@@ -3141,7 +3252,10 @@ export type Models = {
     };
     Checks: "asset_images_position_check";
     ForeignKeys: "asset_images_organization_id_fkey" | "asset_images_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   assetTags: {
     Row: {
@@ -3178,7 +3292,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "asset_tags_customer_asset_id_fkey" | "asset_tags_organization_id_fkey" | "asset_tags_product_id_fkey" | "asset_tags_tag_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   attendanceRecords: {
     Row: {
@@ -3231,7 +3348,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "attendance_records_break_minutes_check" | "attendance_records_check" | "attendance_records_note_check";
     ForeignKeys: "attendance_records_employee_id_organization_id_fkey" | "attendance_records_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   auditLogExportJobs: {
     Row: {
@@ -3293,7 +3413,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "audit_log_export_jobs_check" | "audit_log_export_jobs_normalized_filters_check" | "audit_log_export_jobs_row_count_check" | "audit_log_export_jobs_scope_check" | "audit_log_export_jobs_status_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   auditLogRestrictedDetails: {
     Row: {
@@ -3325,7 +3448,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "audit_log_restricted_details_restricted_metadata_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   auditLogTableRegistry: {
     Row: {
@@ -3443,7 +3568,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "audit_logs_actor_kind_check" | "audit_logs_category_check" | "audit_logs_check" | "audit_logs_event_type_check" | "audit_logs_outcome_check" | "audit_logs_safe_metadata_check" | "audit_logs_scope_check" | "audit_logs_source_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   billingCreditRolloverPeriods: {
     Row: {
@@ -3492,7 +3620,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "billing_credit_rollover_periods_check" | "billing_credit_rollover_periods_check1" | "billing_credit_rollover_periods_check2" | "billing_credit_rollover_periods_credits_granted_check" | "billing_credit_rollover_periods_credits_remaining_check";
     ForeignKeys: "billing_credit_rollover_periods_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   billingPlanCreditPackages: {
     Row: {
@@ -3536,7 +3667,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "billing_plan_credit_packages_display_order_check" | "billing_plan_credit_packages_included_credits_check" | "billing_plan_credit_packages_package_key_check";
     ForeignKeys: "billing_plan_credit_packages_plan_key_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   billingPlanFeatures: {
     Row: {
@@ -3584,7 +3717,9 @@ export type Models = {
     };
     Checks: "billing_plan_features_category_check" | "billing_plan_features_display_order_check" | "billing_plan_features_feature_key_check";
     ForeignKeys: "billing_plan_features_plan_key_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   billingPlanPrices: {
     Row: {
@@ -3642,7 +3777,9 @@ export type Models = {
     };
     Checks: "billing_plan_prices_amount_check" | "billing_plan_prices_annual_discount_bps_check" | "billing_plan_prices_currency_check" | "billing_plan_prices_published_version_check";
     ForeignKeys: "billing_plan_prices_plan_key_package_key_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   billingPlanUsageLimits: {
     Row: {
@@ -3702,7 +3839,9 @@ export type Models = {
     };
     Checks: "billing_plan_usage_limits_base_cost_unit_price_micros_check" | "billing_plan_usage_limits_credit_weight_check" | "billing_plan_usage_limits_enforcement_mode_check" | "billing_plan_usage_limits_included_quantity_check" | "billing_plan_usage_limits_markup_bps_check" | "billing_plan_usage_limits_overage_unit_price_micros_check" | "billing_plan_usage_limits_pricing_model_check" | "billing_plan_usage_limits_reset_interval_check";
     ForeignKeys: "billing_plan_usage_limits_meter_key_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   billingPlans: {
     Row: {
@@ -3752,7 +3891,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "billing_plans_currency_check" | "billing_plans_display_order_check" | "billing_plans_status_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   billingUsageMeters: {
     Row: {
@@ -3803,7 +3944,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "billing_usage_meters_category_check" | "billing_usage_meters_display_order_check" | "billing_usage_meters_key_check" | "billing_usage_meters_unit_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   brandImages: {
     Row: {
@@ -3846,7 +3989,10 @@ export type Models = {
     };
     Checks: "brand_images_position_check";
     ForeignKeys: "brand_images_brand_id_fkey" | "brand_images_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   brandTags: {
     Row: {
@@ -3881,7 +4027,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "brand_tags_brand_id_fkey" | "brand_tags_organization_id_fkey" | "brand_tags_tag_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   brands: {
     Row: {
@@ -3929,7 +4078,10 @@ export type Models = {
     };
     Checks: "brands_slug_check";
     ForeignKeys: "brands_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatAttachments: {
     Row: {
@@ -3986,7 +4138,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "chat_attachments_status_check";
     ForeignKeys: "chat_attachments_created_by_fkey" | "chat_attachments_message_id_fkey" | "chat_attachments_organization_id_fkey" | "chat_attachments_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatMessageFeedback: {
     Row: {
@@ -4028,7 +4183,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "chat_message_feedback_model_id_check" | "chat_message_feedback_rating_check";
     ForeignKeys: "chat_message_feedback_message_id_fkey" | "chat_message_feedback_organization_id_fkey" | "chat_message_feedback_run_id_fkey" | "chat_message_feedback_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatMessages: {
     Row: {
@@ -4091,7 +4249,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "chat_messages_role_check" | "chat_messages_status_check";
     ForeignKeys: "chat_messages_created_by_fkey" | "chat_messages_organization_id_fkey" | "chat_messages_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatSuggestionSnapshots: {
     Row: {
@@ -4122,7 +4283,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "chat_suggestion_snapshots_snapshot_check" | "chat_suggestion_snapshots_snapshot_check1";
     ForeignKeys: "chat_suggestion_snapshots_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatThreadParticipants: {
     Row: {
@@ -4167,7 +4331,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "chat_thread_participants_kind_check";
     ForeignKeys: "chat_thread_participants_customer_id_fkey" | "chat_thread_participants_organization_id_fkey" | "chat_thread_participants_thread_id_fkey" | "chat_thread_participants_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatThreadShareLinks: {
     Row: {
@@ -4210,7 +4377,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "chat_thread_share_links_created_by_fkey" | "chat_thread_share_links_organization_id_fkey" | "chat_thread_share_links_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   chatThreads: {
     Row: {
@@ -4282,7 +4452,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "chat_threads_mode_check" | "chat_threads_stream_status_check" | "chat_threads_visibility_check";
     ForeignKeys: "chat_threads_organization_id_fkey" | "chat_threads_owner_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   commentThreads: {
     Row: {
@@ -4336,7 +4509,10 @@ export type Models = {
     };
     Checks: "comment_threads_subject_fk_check" | "comment_threads_subject_type_check";
     ForeignKeys: "comment_threads_customer_asset_id_fkey" | "comment_threads_customer_id_fkey" | "comment_threads_invoice_id_fkey" | "comment_threads_organization_id_fkey" | "comment_threads_quote_id_fkey" | "comment_threads_task_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   comments: {
     Row: {
@@ -4382,7 +4558,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "comments_content_doc_check" | "comments_content_text_check";
     ForeignKeys: "comments_author_id_fkey" | "comments_organization_id_fkey" | "comments_parent_id_fkey" | "comments_thread_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   contactMethods: {
     Row: {
@@ -4428,7 +4607,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "contact_methods_contact_profile_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   contactProfiles: {
     Row: {
@@ -4472,7 +4653,9 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "contact_profiles_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   currencies: {
     Row: {
@@ -4508,7 +4691,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "currencies_code_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   customerAssetFiles: {
     Row: {
@@ -4563,7 +4748,10 @@ export type Models = {
     };
     Checks: "customer_asset_files_byte_size_check" | "customer_asset_files_position_check";
     ForeignKeys: "customer_asset_files_created_by_fkey" | "customer_asset_files_customer_asset_id_fkey" | "customer_asset_files_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   customerAssets: {
     Row: {
@@ -4672,7 +4860,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "customer_assets_purchase_price_check" | "customer_assets_service_interval_days_check" | "customer_assets_variant_id_check";
     ForeignKeys: "customer_assets_created_by_fkey" | "customer_assets_currency_fkey" | "customer_assets_customer_id_fkey" | "customer_assets_customer_id_organization_id_fkey" | "customer_assets_customer_location_id_fkey" | "customer_assets_invoice_organization_fkey" | "customer_assets_organization_id_fkey" | "customer_assets_product_id_fkey" | "customer_assets_quote_organization_fkey" | "customer_assets_updated_by_fkey" | "customer_assets_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   customerAssignees: {
     Row: {
@@ -4703,7 +4894,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "customer_assignees_customer_id_fkey" | "customer_assignees_customer_id_organization_id_fkey" | "customer_assignees_organization_id_fkey" | "customer_assignees_user_id_fkey" | "customer_assignees_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   customerContacts: {
     Row: {
@@ -4754,7 +4948,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "customer_contacts_contact_profile_id_fkey" | "customer_contacts_customer_id_fkey" | "customer_contacts_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   customerLocations: {
     Row: {
@@ -4812,7 +5009,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "customer_locations_customer_id_fkey" | "customer_locations_customer_id_organization_id_fkey" | "customer_locations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   customerTags: {
     Row: {
@@ -4842,7 +5042,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   customers: {
     Row: {
@@ -4946,7 +5149,10 @@ export type Models = {
     };
     Checks: "customers_monthly_budget_hours_check";
     ForeignKeys: "customers_created_by_fkey" | "customers_organization_id_fkey" | "customers_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   documentViews: {
     Row: {
@@ -4991,7 +5197,9 @@ export type Models = {
     };
     Checks: "document_views_version_check" | "document_views_view_count_check";
     ForeignKeys: "document_views_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   emailDeliveries: {
     Row: {
@@ -5061,7 +5269,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "email_deliveries_template_key_check";
     ForeignKeys: "email_deliveries_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeContractBonuses: {
     Row: {
@@ -5108,7 +5319,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "employee_contract_bonuses_amount_check" | "employee_contract_bonuses_check" | "employee_contract_bonuses_description_check";
     ForeignKeys: "employee_contract_bonuses_contract_id_organization_id_fkey" | "employee_contract_bonuses_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeContracts: {
     Row: {
@@ -5203,7 +5417,10 @@ export type Models = {
     };
     Checks: "employee_contracts_check" | "employee_contracts_check1" | "employee_contracts_check2" | "employee_contracts_currency_check" | "employee_contracts_holiday_allowance_pct_check" | "employee_contracts_hours_per_week_check" | "employee_contracts_leave_entitlement_hours_override_check" | "employee_contracts_notes_check" | "employee_contracts_notice_period_days_check" | "employee_contracts_pay_amount_check";
     ForeignKeys: "employee_contracts_created_by_fkey" | "employee_contracts_employee_id_organization_id_fkey" | "employee_contracts_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeDocuments: {
     Row: {
@@ -5274,7 +5491,10 @@ export type Models = {
     };
     Checks: "employee_documents_check" | "employee_documents_name_check" | "employee_documents_reminder_days_before_check" | "employee_documents_size_bytes_check";
     ForeignKeys: "employee_documents_created_by_fkey" | "employee_documents_employee_id_organization_id_fkey" | "employee_documents_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeFieldDefinitions: {
     Row: {
@@ -5322,7 +5542,10 @@ export type Models = {
     };
     Checks: "employee_field_definitions_key_check" | "employee_field_definitions_label_check";
     ForeignKeys: "employee_field_definitions_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeFieldOptions: {
     Row: {
@@ -5357,7 +5580,9 @@ export type Models = {
     };
     Checks: "employee_field_options_label_check";
     ForeignKeys: "employee_field_options_definition_id_organization_id_fkey" | "employee_field_options_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   employeeFieldValues: {
     Row: {
@@ -5408,7 +5633,10 @@ export type Models = {
     };
     Checks: "employee_field_values_value_text_check";
     ForeignKeys: "employee_field_values_definition_id_organization_id_fkey" | "employee_field_values_employee_id_organization_id_fkey" | "employee_field_values_option_id_organization_id_fkey" | "employee_field_values_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeJourneyItems: {
     Row: {
@@ -5476,7 +5704,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "employee_journey_items_description_check" | "employee_journey_items_title_check";
     ForeignKeys: "employee_journey_items_assignee_user_id_fkey" | "employee_journey_items_completed_by_fkey" | "employee_journey_items_equipment_assignment_id_fkey" | "employee_journey_items_journey_id_organization_id_fkey" | "employee_journey_items_organization_id_fkey" | "employee_journey_items_task_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeJourneys: {
     Row: {
@@ -5541,7 +5772,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "employee_journeys_buddy_employee_id_organization_id_fkey" | "employee_journeys_created_by_fkey" | "employee_journeys_employee_id_organization_id_fkey" | "employee_journeys_organization_id_fkey" | "employee_journeys_template_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeePrivateDetails: {
     Row: {
@@ -5606,7 +5840,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "employee_private_details_emergency_contact_name_check" | "employee_private_details_emergency_contact_phone_check" | "employee_private_details_emergency_contact_relation_check" | "employee_private_details_iban_check" | "employee_private_details_personal_email_check" | "employee_private_details_phone_check";
     ForeignKeys: "employee_private_details_employee_id_organization_id_fkey" | "employee_private_details_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeSkills: {
     Row: {
@@ -5657,7 +5894,10 @@ export type Models = {
     };
     Checks: "employee_skills_level_check";
     ForeignKeys: "employee_skills_employee_document_id_organization_id_fkey" | "employee_skills_employee_id_organization_id_fkey" | "employee_skills_organization_id_fkey" | "employee_skills_skill_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeTimeOffPolicies: {
     Row: {
@@ -5696,7 +5936,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "employee_time_off_policies_check";
     ForeignKeys: "employee_time_off_policies_employee_id_organization_id_fkey" | "employee_time_off_policies_organization_id_fkey" | "employee_time_off_policies_policy_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employeeWorkSchedules: {
     Row: {
@@ -5737,7 +5980,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "employee_work_schedules_check" | "employee_work_schedules_cycle_week_check" | "employee_work_schedules_weekday_check";
     ForeignKeys: "employee_work_schedules_employee_id_organization_id_fkey" | "employee_work_schedules_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   employees: {
     Row: {
@@ -5860,7 +6106,10 @@ export type Models = {
     };
     Checks: "employees_check" | "employees_check1" | "employees_company_name_check" | "employees_first_name_check" | "employees_job_title_check" | "employees_kvk_check" | "employees_last_name_check" | "employees_vat_id_check" | "employees_work_email_check";
     ForeignKeys: "employees_created_by_fkey" | "employees_department_team_id_organization_id_fkey" | "employees_organization_id_fkey" | "employees_reports_to_employee_id_organization_id_fkey" | "employees_updated_by_fkey" | "employees_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   equipmentAssignments: {
     Row: {
@@ -5918,7 +6167,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "equipment_assignments_check" | "equipment_assignments_condition_in_check" | "equipment_assignments_condition_out_check";
     ForeignKeys: "equipment_assignments_assigned_by_fkey" | "equipment_assignments_employee_id_organization_id_fkey" | "equipment_assignments_equipment_item_id_organization_id_fkey" | "equipment_assignments_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   equipmentItems: {
     Row: {
@@ -5987,7 +6239,10 @@ export type Models = {
     };
     Checks: "equipment_items_asset_tag_check" | "equipment_items_category_check" | "equipment_items_currency_check" | "equipment_items_name_check" | "equipment_items_notes_check" | "equipment_items_purchase_price_check" | "equipment_items_serial_number_check";
     ForeignKeys: "equipment_items_created_by_fkey" | "equipment_items_organization_id_fkey" | "equipment_items_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   equipmentRequests: {
     Row: {
@@ -6039,7 +6294,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "equipment_requests_description_check";
     ForeignKeys: "equipment_requests_created_by_fkey" | "equipment_requests_employee_id_organization_id_fkey" | "equipment_requests_equipment_item_id_organization_id_fkey" | "equipment_requests_journey_item_id_fkey" | "equipment_requests_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   expenseCaptureAddresses: {
     Row: {
@@ -6077,7 +6335,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "expense_capture_addresses_employee_id_organization_id_fkey" | "expense_capture_addresses_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   expenseCategories: {
     Row: {
@@ -6127,7 +6388,10 @@ export type Models = {
     };
     Checks: "expense_categories_default_vat_rate_check" | "expense_categories_gl_code_check" | "expense_categories_name_check";
     ForeignKeys: "expense_categories_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   expenseFlags: {
     Row: {
@@ -6174,7 +6438,10 @@ export type Models = {
     };
     Checks: "expense_flags_message_check";
     ForeignKeys: "expense_flags_expense_id_organization_id_fkey" | "expense_flags_organization_id_fkey" | "expense_flags_related_expense_id_organization_id_fkey" | "expense_flags_resolved_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   expensePolicies: {
     Row: {
@@ -6224,7 +6491,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "expense_policies_max_amount_check" | "expense_policies_name_check" | "expense_policies_receipt_required_above_check";
     ForeignKeys: "expense_policies_category_id_organization_id_fkey" | "expense_policies_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   expenseTrips: {
     Row: {
@@ -6275,7 +6545,10 @@ export type Models = {
     };
     Checks: "expense_trips_check" | "expense_trips_destination_check" | "expense_trips_name_check";
     ForeignKeys: "expense_trips_customer_id_organization_id_fkey" | "expense_trips_employee_id_organization_id_fkey" | "expense_trips_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   expenses: {
     Row: {
@@ -6436,7 +6709,10 @@ export type Models = {
     };
     Checks: "expenses_amount_check" | "expenses_check" | "expenses_check1" | "expenses_check2" | "expenses_check3" | "expenses_currency_check" | "expenses_decision_note_check" | "expenses_description_check" | "expenses_distance_km_check" | "expenses_exchange_rate_check" | "expenses_extraction_confidence_check" | "expenses_merchant_check" | "expenses_mileage_rate_check" | "expenses_per_diem_days_check" | "expenses_reimbursement_reference_check" | "expenses_route_from_check" | "expenses_route_to_check" | "expenses_vat_amount_check" | "expenses_vat_rate_check";
     ForeignKeys: "expenses_category_id_organization_id_fkey" | "expenses_created_by_fkey" | "expenses_customer_id_organization_id_fkey" | "expenses_decided_by_fkey" | "expenses_employee_id_organization_id_fkey" | "expenses_invoice_id_organization_id_fkey" | "expenses_organization_id_fkey" | "expenses_reimbursed_by_fkey" | "expenses_task_id_organization_id_fkey" | "expenses_trip_id_organization_id_fkey" | "expenses_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileComments: {
     Row: {
@@ -6478,7 +6754,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "file_comments_body_check";
     ForeignKeys: "file_comments_created_by_fkey" | "file_comments_node_id_fkey" | "file_comments_node_id_organization_id_fkey" | "file_comments_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileCopyOperationItems: {
     Row: {
@@ -6536,7 +6815,10 @@ export type Models = {
     };
     Checks: "file_copy_operation_items_status_check" | "file_copy_operation_items_target_storage_path_check";
     ForeignKeys: "file_copy_operation_items_operation_id_fkey" | "file_copy_operation_items_organization_id_fkey" | "file_copy_operation_items_target_node_id_fkey" | "file_copy_operation_items_target_version_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileCopyOperations: {
     Row: {
@@ -6608,7 +6890,10 @@ export type Models = {
     };
     Checks: "file_copy_operations_check" | "file_copy_operations_conflict_strategy_check" | "file_copy_operations_source_node_ids_check" | "file_copy_operations_status_check";
     ForeignKeys: "file_copy_operations_created_by_fkey" | "file_copy_operations_created_by_organization_id_fkey" | "file_copy_operations_destination_drive_id_fkey" | "file_copy_operations_destination_drive_id_organization_id_fkey" | "file_copy_operations_destination_parent_id_destination_dri_fkey" | "file_copy_operations_destination_parent_id_fkey" | "file_copy_operations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileDriveGrants: {
     Row: {
@@ -6653,7 +6938,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "file_drive_grants_check" | "file_drive_grants_role_check";
     ForeignKeys: "file_drive_grants_created_by_fkey" | "file_drive_grants_drive_id_fkey" | "file_drive_grants_drive_id_organization_id_fkey" | "file_drive_grants_organization_id_fkey" | "file_drive_grants_team_id_fkey" | "file_drive_grants_team_id_organization_id_fkey" | "file_drive_grants_user_id_fkey" | "file_drive_grants_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileDrives: {
     Row: {
@@ -6721,7 +7009,10 @@ export type Models = {
     };
     Checks: "file_drives_check" | "file_drives_check1" | "file_drives_check2" | "file_drives_check3" | "file_drives_drive_type_check" | "file_drives_lifecycle_state_check" | "file_drives_name_check";
     ForeignKeys: "file_drives_created_by_fkey" | "file_drives_organization_id_fkey" | "file_drives_owner_user_id_fkey" | "file_drives_owner_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileNodeGrants: {
     Row: {
@@ -6766,7 +7057,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "file_node_grants_check" | "file_node_grants_role_check";
     ForeignKeys: "file_node_grants_created_by_fkey" | "file_node_grants_node_id_fkey" | "file_node_grants_node_id_organization_id_fkey" | "file_node_grants_organization_id_fkey" | "file_node_grants_team_id_fkey" | "file_node_grants_team_id_organization_id_fkey" | "file_node_grants_user_id_fkey" | "file_node_grants_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileNodeUserState: {
     Row: {
@@ -6803,7 +7097,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "file_node_user_state_node_id_fkey" | "file_node_user_state_node_id_organization_id_fkey" | "file_node_user_state_organization_id_fkey" | "file_node_user_state_user_id_fkey" | "file_node_user_state_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileNodes: {
     Row: {
@@ -6909,7 +7206,10 @@ export type Models = {
     };
     Checks: "file_nodes_check" | "file_nodes_check1" | "file_nodes_check2" | "file_nodes_check3" | "file_nodes_kind_check" | "file_nodes_name_check" | "file_nodes_source_check";
     ForeignKeys: "file_nodes_created_by_fkey" | "file_nodes_current_version_id_fkey" | "file_nodes_customer_id_organization_id_fkey" | "file_nodes_deleted_by_fkey" | "file_nodes_drive_id_fkey" | "file_nodes_drive_id_organization_id_fkey" | "file_nodes_organization_id_fkey" | "file_nodes_parent_id_drive_id_fkey" | "file_nodes_parent_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileShareLinks: {
     Row: {
@@ -6956,7 +7256,10 @@ export type Models = {
     };
     Checks: "file_share_links_role_check" | "file_share_links_token_check";
     ForeignKeys: "file_share_links_created_by_fkey" | "file_share_links_node_id_fkey" | "file_share_links_node_id_organization_id_fkey" | "file_share_links_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileStorageSettings: {
     Row: {
@@ -6987,7 +7290,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "file_storage_settings_enterprise_retention_days_check" | "file_storage_settings_quota_bytes_check";
     ForeignKeys: "file_storage_settings_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileUploadReservations: {
     Row: {
@@ -7077,7 +7383,10 @@ export type Models = {
     };
     Checks: "file_upload_reservations_actual_bytes_check" | "file_upload_reservations_check" | "file_upload_reservations_expected_bytes_check" | "file_upload_reservations_file_name_check" | "file_upload_reservations_idempotency_key_check" | "file_upload_reservations_status_check";
     ForeignKeys: "file_upload_reservations_created_by_fkey" | "file_upload_reservations_created_by_organization_id_fkey" | "file_upload_reservations_drive_id_fkey" | "file_upload_reservations_drive_id_organization_id_fkey" | "file_upload_reservations_finalized_version_id_fkey" | "file_upload_reservations_node_id_drive_id_fkey" | "file_upload_reservations_node_id_fkey" | "file_upload_reservations_organization_id_fkey" | "file_upload_reservations_parent_id_drive_id_fkey" | "file_upload_reservations_parent_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileVersions: {
     Row: {
@@ -7155,7 +7464,10 @@ export type Models = {
     };
     Checks: "file_versions_byte_size_check" | "file_versions_storage_bucket_check" | "file_versions_storage_path_check" | "file_versions_version_number_check";
     ForeignKeys: "file_versions_created_by_fkey" | "file_versions_drive_id_fkey" | "file_versions_drive_id_organization_id_fkey" | "file_versions_node_id_drive_id_fkey" | "file_versions_node_id_fkey" | "file_versions_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileZipExportItems: {
     Row: {
@@ -7207,7 +7519,10 @@ export type Models = {
     };
     Checks: "file_zip_export_items_archive_path_check" | "file_zip_export_items_byte_size_check" | "file_zip_export_items_check";
     ForeignKeys: "file_zip_export_items_export_id_fkey" | "file_zip_export_items_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   fileZipExports: {
     Row: {
@@ -7285,7 +7600,10 @@ export type Models = {
     };
     Checks: "file_zip_exports_check" | "file_zip_exports_check1" | "file_zip_exports_delivery_mode_check" | "file_zip_exports_file_name_check" | "file_zip_exports_idempotency_key_check" | "file_zip_exports_source_node_ids_check" | "file_zip_exports_status_check" | "file_zip_exports_total_bytes_check";
     ForeignKeys: "file_zip_exports_created_by_fkey" | "file_zip_exports_created_by_organization_id_fkey" | "file_zip_exports_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringApplications: {
     Row: {
@@ -7351,7 +7669,10 @@ export type Models = {
     };
     Checks: "hiring_applications_cover_letter_check" | "hiring_applications_rejection_reason_check";
     ForeignKeys: "hiring_applications_candidate_id_organization_id_fkey" | "hiring_applications_job_id_organization_id_fkey" | "hiring_applications_organization_id_fkey" | "hiring_applications_stage_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringCandidates: {
     Row: {
@@ -7428,7 +7749,10 @@ export type Models = {
     };
     Checks: "hiring_candidates_cv_experience_years_check" | "hiring_candidates_cv_summary_check" | "hiring_candidates_email_check" | "hiring_candidates_first_name_check" | "hiring_candidates_last_name_check" | "hiring_candidates_linkedin_url_check" | "hiring_candidates_phone_check";
     ForeignKeys: "hiring_candidates_employee_id_organization_id_fkey" | "hiring_candidates_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringEmailTemplates: {
     Row: {
@@ -7469,7 +7793,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "hiring_email_templates_body_check" | "hiring_email_templates_kind_check" | "hiring_email_templates_subject_check";
     ForeignKeys: "hiring_email_templates_organization_id_fkey" | "hiring_email_templates_stage_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringInterviewInterviewers: {
     Row: {
@@ -7495,7 +7822,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "hiring_interview_interviewers_interview_id_fkey" | "hiring_interview_interviewers_organization_id_fkey" | "hiring_interview_interviewers_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   hiringInterviews: {
     Row: {
@@ -7544,7 +7873,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "hiring_interviews_check" | "hiring_interviews_location_check";
     ForeignKeys: "hiring_interviews_agenda_item_id_organization_id_fkey" | "hiring_interviews_application_id_organization_id_fkey" | "hiring_interviews_created_by_fkey" | "hiring_interviews_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringJobs: {
     Row: {
@@ -7630,7 +7962,10 @@ export type Models = {
     };
     Checks: "hiring_jobs_check" | "hiring_jobs_currency_check" | "hiring_jobs_description_check" | "hiring_jobs_hours_per_week_check" | "hiring_jobs_location_check" | "hiring_jobs_salary_max_check" | "hiring_jobs_salary_min_check" | "hiring_jobs_slug_check" | "hiring_jobs_title_check";
     ForeignKeys: "hiring_jobs_created_by_fkey" | "hiring_jobs_hiring_manager_employee_id_organization_id_fkey" | "hiring_jobs_organization_id_fkey" | "hiring_jobs_team_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringScorecardScores: {
     Row: {
@@ -7660,7 +7995,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "hiring_scorecard_scores_score_check";
     ForeignKeys: "hiring_scorecard_scores_criterion_id_organization_id_fkey" | "hiring_scorecard_scores_organization_id_fkey" | "hiring_scorecard_scores_scorecard_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   hiringScorecards: {
     Row: {
@@ -7709,7 +8046,10 @@ export type Models = {
     };
     Checks: "hiring_scorecards_notes_check" | "hiring_scorecards_rating_check";
     ForeignKeys: "hiring_scorecards_application_id_organization_id_fkey" | "hiring_scorecards_organization_id_fkey" | "hiring_scorecards_reviewer_user_id_fkey" | "hiring_scorecards_stage_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringStageCriteria: {
     Row: {
@@ -7750,7 +8090,10 @@ export type Models = {
     };
     Checks: "hiring_stage_criteria_label_check";
     ForeignKeys: "hiring_stage_criteria_organization_id_fkey" | "hiring_stage_criteria_stage_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hiringStages: {
     Row: {
@@ -7797,7 +8140,10 @@ export type Models = {
     };
     Checks: "hiring_stages_name_check";
     ForeignKeys: "hiring_stages_job_id_organization_id_fkey" | "hiring_stages_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hrDefaultSchedule: {
     Row: {
@@ -7834,7 +8180,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "hr_default_schedule_check" | "hr_default_schedule_cycle_week_check" | "hr_default_schedule_weekday_check";
     ForeignKeys: "hr_default_schedule_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   hrSettings: {
     Row: {
@@ -7938,7 +8287,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "hr_settings_allow_negative_balance_hours_check" | "hr_settings_billing_rounding_minutes_check" | "hr_settings_budget_warning_pct_check" | "hr_settings_candidate_retention_weeks_check" | "hr_settings_employee_data_retention_months_check" | "hr_settings_expense_auto_approve_below_check" | "hr_settings_full_time_hours_per_week_check" | "hr_settings_hiring_stalled_after_days_check" | "hr_settings_leave_year_start_month_check" | "hr_settings_mileage_rate_check" | "hr_settings_pay_day_check" | "hr_settings_per_diem_rate_check" | "hr_settings_public_holiday_country_check" | "hr_settings_team_capacity_warning_threshold_check" | "hr_settings_timer_grace_minutes_check";
     ForeignKeys: "hr_settings_hr_handbook_collection_id_fkey" | "hr_settings_organization_id_fkey" | "hr_settings_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxAutomationRuns: {
     Row: {
@@ -7994,7 +8346,10 @@ export type Models = {
     };
     Checks: "inbox_automation_runs_status_check";
     ForeignKeys: "inbox_automation_runs_channel_thread_id_fkey" | "inbox_automation_runs_organization_id_fkey" | "inbox_automation_runs_source_message_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxConnectionSecrets: {
     Row: {
@@ -8034,7 +8389,10 @@ export type Models = {
     };
     Checks: "inbox_connection_secrets_kind_check";
     ForeignKeys: "inbox_connection_secrets_connection_id_fkey" | "inbox_connection_secrets_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxConnections: {
     Row: {
@@ -8100,7 +8458,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "inbox_connections_consecutive_failures_check" | "inbox_connections_health_status_check" | "inbox_connections_kind_check" | "inbox_connections_status_check";
     ForeignKeys: "inbox_connections_created_by_fkey" | "inbox_connections_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxDeliveries: {
     Row: {
@@ -8164,7 +8525,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "inbox_deliveries_direction_check" | "inbox_deliveries_retry_count_check" | "inbox_deliveries_status_check";
     ForeignKeys: "inbox_deliveries_chat_message_id_fkey" | "inbox_deliveries_connection_id_fkey" | "inbox_deliveries_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxDeliveryAttempts: {
     Row: {
@@ -8219,7 +8583,10 @@ export type Models = {
     };
     Checks: "inbox_delivery_attempts_attempt_check" | "inbox_delivery_attempts_status_check";
     ForeignKeys: "inbox_delivery_attempts_delivery_id_fkey" | "inbox_delivery_attempts_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxDraftSuggestions: {
     Row: {
@@ -8282,7 +8649,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "inbox_draft_suggestions_confidence_check" | "inbox_draft_suggestions_decision_check" | "inbox_draft_suggestions_status_check";
     ForeignKeys: "inbox_draft_suggestions_channel_thread_id_fkey" | "inbox_draft_suggestions_decided_by_fkey" | "inbox_draft_suggestions_edited_by_fkey" | "inbox_draft_suggestions_organization_id_fkey" | "inbox_draft_suggestions_source_message_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxEndpoints: {
     Row: {
@@ -8344,7 +8714,10 @@ export type Models = {
     };
     Checks: "inbox_endpoints_check" | "inbox_endpoints_principal_type_check";
     ForeignKeys: "inbox_endpoints_connection_id_fkey" | "inbox_endpoints_contact_profile_id_fkey" | "inbox_endpoints_organization_id_fkey" | "inbox_endpoints_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxThreads: {
     Row: {
@@ -8420,7 +8793,10 @@ export type Models = {
     };
     Checks: "inbox_threads_takeover_status_check";
     ForeignKeys: "inbox_threads_assigned_team_id_fkey" | "inbox_threads_assigned_user_id_fkey" | "inbox_threads_chat_thread_id_fkey" | "inbox_threads_connection_id_fkey" | "inbox_threads_customer_id_fkey" | "inbox_threads_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inboxWebhookJobs: {
     Row: {
@@ -8487,7 +8863,10 @@ export type Models = {
     };
     Checks: "inbox_webhook_jobs_retry_count_check" | "inbox_webhook_jobs_status_check";
     ForeignKeys: "inbox_webhook_jobs_connection_id_fkey" | "inbox_webhook_jobs_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   integrationCategories: {
     Row: {
@@ -8526,7 +8905,9 @@ export type Models = {
     };
     Checks: "integration_categories_name_check" | "integration_categories_position_check" | "integration_categories_slug_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   integrationDefinitionCategories: {
     Row: {
@@ -8552,7 +8933,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "integration_definition_categories_category_id_fkey" | "integration_definition_categories_definition_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   integrationDefinitions: {
     Row: {
@@ -8644,7 +9027,9 @@ export type Models = {
     };
     Checks: "integration_definitions_check" | "integration_definitions_description_check" | "integration_definitions_documentation_url_check" | "integration_definitions_logo_path_check" | "integration_definitions_name_check" | "integration_definitions_privacy_policy_url_check" | "integration_definitions_provider_check" | "integration_definitions_slug_check" | "integration_definitions_status_check" | "integration_definitions_support_url_check" | "integration_definitions_terms_url_check" | "integration_definitions_usage_count_check" | "integration_definitions_website_url_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   integrationInstallationSecrets: {
     Row: {
@@ -8682,7 +9067,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "integration_installation_secrets_auth_header_name_check" | "integration_installation_secrets_check";
     ForeignKeys: "integration_installation_secr_installation_id_organization_fkey" | "integration_installation_secrets_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   integrationInstallations: {
     Row: {
@@ -8744,7 +9132,10 @@ export type Models = {
     };
     Checks: "integration_installations_check" | "integration_installations_display_name_check" | "integration_installations_domain_kind_check" | "integration_installations_scope_check" | "integration_installations_status_check";
     ForeignKeys: "integration_installations_created_by_fkey" | "integration_installations_definition_id_fkey" | "integration_installations_organization_id_fkey" | "integration_installations_user_id_fkey" | "integration_installations_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   integrationRequests: {
     Row: {
@@ -8795,7 +9186,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "integration_requests_check" | "integration_requests_scope_check" | "integration_requests_status_check";
     ForeignKeys: "integration_requests_definition_id_fkey" | "integration_requests_organization_id_fkey" | "integration_requests_user_id_fkey" | "integration_requests_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   integrationUserAuthorizations: {
     Row: {
@@ -8852,7 +9246,10 @@ export type Models = {
     };
     Checks: "integration_user_authorizations_check" | "integration_user_authorizations_status_check";
     ForeignKeys: "integration_user_authorizatio_installation_id_organization_fkey" | "integration_user_authorizations_installation_id_fkey" | "integration_user_authorizations_organization_id_fkey" | "integration_user_authorizations_user_id_fkey" | "integration_user_authorizations_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inventoryAllocations: {
     Row: {
@@ -8919,7 +9316,10 @@ export type Models = {
     };
     Checks: "inventory_allocations_check" | "inventory_allocations_check1" | "inventory_allocations_check2" | "inventory_allocations_quantity_check" | "inventory_allocations_variant_id_check";
     ForeignKeys: "inventory_allocations_invoice_line_id_organization_id_fkey" | "inventory_allocations_order_line_organization_fkey" | "inventory_allocations_organization_id_fkey" | "inventory_allocations_product_id_organization_id_fkey" | "inventory_allocations_quote_version_line_id_organization_i_fkey" | "inventory_allocations_stock_record_id_organization_id_fkey" | "inventory_allocations_task_material_id_organization_id_fkey" | "inventory_allocations_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inventoryLocations: {
     Row: {
@@ -8963,7 +9363,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "inventory_locations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inventoryMovements: {
     Row: {
@@ -9062,7 +9465,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "inventory_movements_allocated_after_check" | "inventory_movements_check" | "inventory_movements_quantity_after_check" | "inventory_movements_variant_id_check";
     ForeignKeys: "inventory_movements_created_by_fkey" | "inventory_movements_invoice_organization_fkey" | "inventory_movements_location_id_fkey" | "inventory_movements_location_id_organization_id_fkey" | "inventory_movements_order_organization_fkey" | "inventory_movements_organization_id_fkey" | "inventory_movements_product_id_fkey" | "inventory_movements_product_id_organization_id_fkey" | "inventory_movements_purchase_order_organization_fkey" | "inventory_movements_quote_organization_fkey" | "inventory_movements_shipment_organization_fkey" | "inventory_movements_stock_record_id_fkey" | "inventory_movements_stock_record_id_organization_id_fkey" | "inventory_movements_supplier_id_organization_id_fkey" | "inventory_movements_task_material_organization_fkey" | "inventory_movements_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inventoryReorderRules: {
     Row: {
@@ -9118,7 +9524,10 @@ export type Models = {
     };
     Checks: "inventory_reorder_rules_check" | "inventory_reorder_rules_check1" | "inventory_reorder_rules_max_level_check" | "inventory_reorder_rules_reorder_point_check" | "inventory_reorder_rules_reorder_quantity_check";
     ForeignKeys: "inventory_reorder_rules_location_id_organization_id_fkey" | "inventory_reorder_rules_organization_id_fkey" | "inventory_reorder_rules_product_id_organization_id_fkey" | "inventory_reorder_rules_supplier_id_organization_id_fkey" | "inventory_reorder_rules_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   inventoryStockRecords: {
     Row: {
@@ -9205,7 +9614,10 @@ export type Models = {
     };
     Checks: "inventory_stock_records_allocated_quantity_check" | "inventory_stock_records_check" | "inventory_stock_records_on_hand_quantity_check" | "inventory_stock_records_unit_cost_check" | "inventory_stock_records_variant_id_check";
     ForeignKeys: "inventory_stock_records_created_by_fkey" | "inventory_stock_records_currency_fkey" | "inventory_stock_records_location_id_fkey" | "inventory_stock_records_location_id_organization_id_fkey" | "inventory_stock_records_organization_id_fkey" | "inventory_stock_records_product_id_fkey" | "inventory_stock_records_product_id_organization_id_fkey" | "inventory_stock_records_updated_by_fkey" | "inventory_stock_records_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   invoiceCharges: {
     Row: {
@@ -9258,7 +9670,10 @@ export type Models = {
     };
     Checks: "invoice_charges_amount_cents_check" | "invoice_charges_currency_check" | "invoice_charges_reason_check";
     ForeignKeys: "invoice_charges_created_by_fkey" | "invoice_charges_created_by_run_step_id_fkey" | "invoice_charges_invoice_id_fkey" | "invoice_charges_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   invoiceLines: {
     Row: {
@@ -9372,7 +9787,10 @@ export type Models = {
     };
     Checks: "invoice_lines_check" | "invoice_lines_check1" | "invoice_lines_check2" | "invoice_lines_direct_cost_amount_check" | "invoice_lines_direct_cost_coherence_check" | "invoice_lines_direct_cost_currency_check" | "invoice_lines_direct_cost_semantics_check" | "invoice_lines_discount_value_check" | "invoice_lines_quantity_check" | "invoice_lines_vat_rate_check";
     ForeignKeys: "invoice_lines_invoice_id_fkey" | "invoice_lines_order_line_organization_fkey" | "invoice_lines_organization_id_fkey" | "invoice_lines_product_id_fkey" | "invoice_lines_promotion_organization_fkey" | "invoice_lines_shipment_organization_fkey" | "invoice_lines_task_id_fkey" | "invoice_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   invoicePayments: {
     Row: {
@@ -9473,7 +9891,10 @@ export type Models = {
     };
     Checks: "invoice_payments_amount_cents_check" | "invoice_payments_amount_total_check" | "invoice_payments_application_fee_amount_check" | "invoice_payments_application_fee_bps_check" | "invoice_payments_application_fee_mode_check" | "invoice_payments_check" | "invoice_payments_currency_check" | "invoice_payments_method_check" | "invoice_payments_note_check" | "invoice_payments_provider_check" | "invoice_payments_reference_check";
     ForeignKeys: "invoice_payments_invoice_id_fkey" | "invoice_payments_organization_id_fkey" | "invoice_payments_recorded_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   invoiceStatusHistory: {
     Row: {
@@ -9514,7 +9935,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "invoice_status_history_actor_user_id_fkey" | "invoice_status_history_invoice_id_fkey" | "invoice_status_history_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   invoiceTasks: {
     Row: {
@@ -9547,7 +9971,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "invoice_tasks_invoice_id_fkey" | "invoice_tasks_organization_id_fkey" | "invoice_tasks_task_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   invoices: {
     Row: {
@@ -9798,7 +10225,10 @@ export type Models = {
     };
     Checks: "invoices_amount_due_cents_check" | "invoices_amount_paid_cents_check" | "invoices_check" | "invoices_check1" | "invoices_currency_check" | "invoices_customer_reference_check" | "invoices_discount_value_check" | "invoices_due_days_check" | "invoices_number_prefix_check" | "invoices_sent_dates_check" | "invoices_uncollectible_reason_check";
     ForeignKeys: "invoices_created_by_fkey" | "invoices_customer_contact_id_fkey" | "invoices_customer_id_fkey" | "invoices_invoice_template_id_fkey" | "invoices_order_organization_fkey" | "invoices_organization_id_fkey" | "invoices_original_invoice_id_fkey" | "invoices_promotion_organization_fkey" | "invoices_source_quote_id_fkey" | "invoices_terms_pdf_file_id_fkey" | "invoices_terms_pdf_version_id_fkey" | "invoices_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   knowledgeChunks: {
     Row: {
@@ -9854,7 +10284,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "knowledge_chunks_collection_id_fkey" | "knowledge_chunks_file_id_fkey" | "knowledge_chunks_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   knowledgeCollectionGrants: {
     Row: {
@@ -9893,7 +10326,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "knowledge_collection_grants_check";
     ForeignKeys: "knowledge_collection_grants_collection_id_fkey" | "knowledge_collection_grants_created_by_fkey" | "knowledge_collection_grants_organization_id_fkey" | "knowledge_collection_grants_team_id_fkey" | "knowledge_collection_grants_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   knowledgeCollections: {
     Row: {
@@ -9946,7 +10382,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "knowledge_collections_check" | "knowledge_collections_scope_check" | "knowledge_collections_visibility_check";
     ForeignKeys: "knowledge_collections_created_by_fkey" | "knowledge_collections_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   knowledgeFiles: {
     Row: {
@@ -10019,7 +10458,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "knowledge_files_check" | "knowledge_files_source_kind_check" | "knowledge_files_status_check";
     ForeignKeys: "knowledge_files_collection_id_fkey" | "knowledge_files_created_by_fkey" | "knowledge_files_file_node_id_fkey" | "knowledge_files_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   notificationDeliveries: {
     Row: {
@@ -10071,7 +10513,10 @@ export type Models = {
     };
     Checks: "notification_deliveries_channel_check" | "notification_deliveries_status_check";
     ForeignKeys: "notification_deliveries_organization_id_fkey" | "notification_deliveries_recipient_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   notificationEvents: {
     Row: {
@@ -10127,7 +10572,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "notification_events_priority_check" | "notification_events_subject_type_check" | "notification_events_type_check";
     ForeignKeys: "notification_events_actor_user_id_fkey" | "notification_events_created_by_fkey" | "notification_events_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   notificationPreferences: {
     Row: {
@@ -10166,7 +10614,10 @@ export type Models = {
     };
     Checks: "notification_preferences_channel_check" | "notification_preferences_type_check";
     ForeignKeys: "notification_preferences_organization_id_fkey" | "notification_preferences_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   notificationRecipients: {
     Row: {
@@ -10214,7 +10665,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "notification_recipients_event_id_fkey" | "notification_recipients_organization_id_fkey" | "notification_recipients_recipient_user_id_fkey" | "notification_recipients_recipient_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   notificationSubscriptions: {
     Row: {
@@ -10254,7 +10708,10 @@ export type Models = {
     };
     Checks: "notification_subscriptions_level_check" | "notification_subscriptions_subject_type_check";
     ForeignKeys: "notification_subscriptions_organization_id_fkey" | "notification_subscriptions_user_id_fkey" | "notification_subscriptions_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   orderDigitalGrants: {
     Row: {
@@ -10302,7 +10759,10 @@ export type Models = {
     };
     Checks: "order_digital_grants_check" | "order_digital_grants_download_count_check";
     ForeignKeys: "order_digital_grants_digital_file_id_fkey" | "order_digital_grants_license_key_id_fkey" | "order_digital_grants_order_line_id_organization_id_fkey" | "order_digital_grants_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   orderLines: {
     Row: {
@@ -10390,7 +10850,10 @@ export type Models = {
     };
     Checks: "order_lines_check" | "order_lines_check1" | "order_lines_check2" | "order_lines_description_check" | "order_lines_discount_value_check" | "order_lines_position_check" | "order_lines_quantity_cancelled_check" | "order_lines_quantity_check" | "order_lines_title_check" | "order_lines_vat_rate_check";
     ForeignKeys: "order_lines_order_id_organization_id_fkey" | "order_lines_organization_id_fkey" | "order_lines_product_id_organization_id_fkey" | "order_lines_promotion_organization_fkey" | "order_lines_quote_line_id_fkey" | "order_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   orders: {
     Row: {
@@ -10578,7 +11041,10 @@ export type Models = {
     };
     Checks: "orders_check" | "orders_currency_check" | "orders_customer_note_check" | "orders_discount_value_check" | "orders_notes_check" | "orders_number_prefix_check" | "orders_shipping_address_country_check";
     ForeignKeys: "orders_created_by_fkey" | "orders_customer_contact_id_fkey" | "orders_customer_id_organization_id_fkey" | "orders_inbox_thread_id_fkey" | "orders_organization_id_fkey" | "orders_promotion_organization_fkey" | "orders_quote_id_organization_id_fkey" | "orders_template_id_fkey" | "orders_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationAiActionPolicies: {
     Row: {
@@ -10621,7 +11087,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_ai_action_policies_action_id_check" | "organization_ai_action_policies_execution_ceiling_check";
     ForeignKeys: "organization_ai_action_policies_created_by_fkey" | "organization_ai_action_policies_organization_id_fkey" | "organization_ai_action_policies_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationAiPolicies: {
     Row: {
@@ -10676,7 +11145,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_ai_policies_approval_risk_threshold_check" | "organization_ai_policies_chat_instructions_check" | "organization_ai_policies_daily_credit_budget_check" | "organization_ai_policies_execution_ceiling_check" | "organization_ai_policies_private_memory_retention_days_check";
     ForeignKeys: "organization_ai_policies_created_by_fkey" | "organization_ai_policies_organization_id_fkey" | "organization_ai_policies_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationBillingCustomers: {
     Row: {
@@ -10744,7 +11216,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "organization_billing_customers_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationBillingTopUps: {
     Row: {
@@ -10778,7 +11253,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_billing_top_ups_current_period_amount_micros_check" | "organization_billing_top_ups_monthly_limit_micros_check";
     ForeignKeys: "organization_billing_top_ups_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationBrandImages: {
     Row: {
@@ -10818,7 +11296,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_brand_images_byte_size_check" | "organization_brand_images_height_check" | "organization_brand_images_width_check";
     ForeignKeys: "organization_brand_images_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationInvitations: {
     Row: {
@@ -10873,7 +11354,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "organization_invitations_invited_by_fkey" | "organization_invitations_organization_id_fkey" | "organization_invitations_role_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationInvoiceRecipients: {
     Row: {
@@ -10906,7 +11390,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "organization_invoice_recipients_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationInvoices: {
     Row: {
@@ -10988,7 +11475,10 @@ export type Models = {
     };
     Checks: "organization_invoices_currency_check";
     ForeignKeys: "organization_invoices_billing_customer_id_fkey" | "organization_invoices_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationNumberSequences: {
     Row: {
@@ -11016,7 +11506,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_number_sequences_entity_check" | "organization_number_sequences_last_number_check";
     ForeignKeys: "organization_number_sequences_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   organizationPaymentAccounts: {
     Row: {
@@ -11080,7 +11572,10 @@ export type Models = {
     };
     Checks: "organization_payment_accounts_country_check" | "organization_payment_accounts_default_currency_check" | "organization_payment_accounts_provider_check";
     ForeignKeys: "organization_payment_accounts_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationPaymentMethods: {
     Row: {
@@ -11141,7 +11636,10 @@ export type Models = {
     };
     Checks: "organization_payment_methods_last4_check";
     ForeignKeys: "organization_payment_methods_billing_customer_id_fkey" | "organization_payment_methods_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationPermissionOverrides: {
     Row: {
@@ -11177,7 +11675,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "organization_permission_overrides_organization_id_fkey" | "organization_permission_overrides_permission_id_fkey" | "organization_permission_overrides_role_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationSubscriptionHistory: {
     Row: {
@@ -11257,7 +11758,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_subscription_history_catalog_currency_check" | "organization_subscription_history_catalog_monthly_amount_check" | "organization_subscription_history_check" | "organization_subscription_history_quantity_check";
     ForeignKeys: "organization_subscription_his_organization_subscription_id_fkey" | "organization_subscription_history_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationSubscriptions: {
     Row: {
@@ -11344,7 +11848,10 @@ export type Models = {
     };
     Checks: "organization_subscriptions_audit_log_retention_days_check" | "organization_subscriptions_quantity_check";
     ForeignKeys: "organization_subscriptions_billing_customer_id_fkey" | "organization_subscriptions_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationTags: {
     Row: {
@@ -11398,7 +11905,10 @@ export type Models = {
     };
     Checks: "organization_tags_color_check" | "organization_tags_position_check" | "organization_tags_slug_check";
     ForeignKeys: "organization_tags_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationTaxIds: {
     Row: {
@@ -11444,7 +11954,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "organization_tax_ids_billing_customer_id_fkey" | "organization_tax_ids_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationUsageEvents: {
     Row: {
@@ -11500,7 +12013,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "organization_usage_events_check" | "organization_usage_events_quantity_check" | "organization_usage_events_source_check";
     ForeignKeys: "organization_usage_events_meter_key_fkey" | "organization_usage_events_organization_id_fkey" | "organization_usage_events_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationUsagePeriods: {
     Row: {
@@ -11567,7 +12083,10 @@ export type Models = {
     };
     Checks: "organization_usage_periods_check" | "organization_usage_periods_included_quantity_check" | "organization_usage_periods_overage_amount_micros_check" | "organization_usage_periods_overage_quantity_check" | "organization_usage_periods_quantity_check" | "organization_usage_periods_stripe_sync_status_check";
     ForeignKeys: "organization_usage_periods_meter_key_fkey" | "organization_usage_periods_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationUsers: {
     Row: {
@@ -11628,7 +12147,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "organization_users_organization_id_fkey" | "organization_users_role_id_fkey" | "organization_users_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizationVatRates: {
     Row: {
@@ -11667,7 +12189,10 @@ export type Models = {
     };
     Checks: "organization_vat_rates_position_check" | "organization_vat_rates_rate_check";
     ForeignKeys: "organization_vat_rates_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   organizations: {
     Row: {
@@ -12053,7 +12578,9 @@ export type Models = {
     };
     Checks: "organizations_ai_inference_region_check" | "organizations_brand_primary_color_check" | "organizations_brand_secondary_color_check" | "organizations_default_currency_check" | "organizations_default_hourly_rate_check" | "organizations_default_quote_validity_days_check" | "organizations_default_vat_rate_check" | "organizations_email_reply_to_check" | "organizations_export_date_format_check" | "organizations_export_default_format_check" | "organizations_fiscal_year_start_day_check" | "organizations_fiscal_year_start_month_check" | "organizations_forwarding_email_check" | "organizations_inbox_email_check" | "organizations_invoice_number_prefix_check" | "organizations_quote_number_prefix_check" | "organizations_slug_format_check" | "organizations_slug_reserved_check" | "organizations_task_number_prefix_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   payrollPeriods: {
     Row: {
@@ -12101,7 +12628,10 @@ export type Models = {
     };
     Checks: "payroll_periods_check";
     ForeignKeys: "payroll_periods_exported_by_fkey" | "payroll_periods_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   permissions: {
     Row: {
@@ -12138,7 +12668,9 @@ export type Models = {
     };
     Checks: "permissions_scope_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   platformSettings: {
     Row: {
@@ -12164,7 +12696,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "platform_settings_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   productCategories: {
     Row: {
@@ -12218,7 +12752,10 @@ export type Models = {
     };
     Checks: "product_categories_position_check" | "product_categories_slug_check";
     ForeignKeys: "product_categories_organization_id_fkey" | "product_categories_parent_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productCategoryAssignments: {
     Row: {
@@ -12255,7 +12792,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "product_category_assignments_category_id_fkey" | "product_category_assignments_category_id_organization_id_fkey" | "product_category_assignments_organization_id_fkey" | "product_category_assignments_product_id_fkey" | "product_category_assignments_product_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productDigitalFiles: {
     Row: {
@@ -12309,7 +12849,10 @@ export type Models = {
     };
     Checks: "product_digital_files_byte_size_check" | "product_digital_files_file_name_check" | "product_digital_files_position_check";
     ForeignKeys: "product_digital_files_created_by_fkey" | "product_digital_files_organization_id_fkey" | "product_digital_files_product_id_organization_id_fkey" | "product_digital_files_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productLicenseKeys: {
     Row: {
@@ -12359,7 +12902,10 @@ export type Models = {
     };
     Checks: "product_license_keys_check" | "product_license_keys_license_key_check";
     ForeignKeys: "product_license_keys_order_line_id_organization_id_fkey" | "product_license_keys_organization_id_fkey" | "product_license_keys_product_id_organization_id_fkey" | "product_license_keys_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productOptionValues: {
     Row: {
@@ -12395,7 +12941,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "product_option_values_position_check" | "product_option_values_value_check";
     ForeignKeys: "product_option_values_option_id_fkey" | "product_option_values_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productOptions: {
     Row: {
@@ -12436,7 +12985,10 @@ export type Models = {
     };
     Checks: "product_options_name_check" | "product_options_position_check";
     ForeignKeys: "product_options_organization_id_fkey" | "product_options_product_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productScanRequests: {
     Row: {
@@ -12499,7 +13051,10 @@ export type Models = {
     };
     Checks: "product_scan_requests_context_check" | "product_scan_requests_identifiers_check";
     ForeignKeys: "product_scan_requests_created_by_fkey" | "product_scan_requests_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productSupplierLinks: {
     Row: {
@@ -12573,7 +13128,10 @@ export type Models = {
     };
     Checks: "product_supplier_links_lead_time_days_check" | "product_supplier_links_min_order_quantity_check" | "product_supplier_links_order_multiple_check" | "product_supplier_links_unit_cost_check" | "product_supplier_links_variant_id_check";
     ForeignKeys: "product_supplier_links_currency_fkey" | "product_supplier_links_organization_id_fkey" | "product_supplier_links_product_id_fkey" | "product_supplier_links_supplier_id_fkey" | "product_supplier_links_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   productVariantOptionValues: {
     Row: {
@@ -12600,7 +13158,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "product_variant_option_values_option_value_id_fkey" | "product_variant_option_values_organization_id_fkey" | "product_variant_option_values_variant_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   productVariants: {
     Row: {
@@ -12692,7 +13252,10 @@ export type Models = {
     };
     Checks: "product_variants_average_cost_check" | "product_variants_position_check" | "product_variants_purchase_price_check" | "product_variants_selling_price_check" | "product_variants_title_check" | "product_variants_weight_grams_check";
     ForeignKeys: "product_variants_organization_id_fkey" | "product_variants_product_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   products: {
     Row: {
@@ -12821,7 +13384,10 @@ export type Models = {
     };
     Checks: "products_check" | "products_country_of_origin_check" | "products_default_purchase_price_check" | "products_default_selling_price_check" | "products_hs_code_check" | "products_slug_check" | "products_vat_percentage_check" | "products_weight_grams_check";
     ForeignKeys: "products_brand_id_fkey" | "products_created_by_fkey" | "products_currency_fkey" | "products_organization_id_fkey" | "products_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   profiles: {
     Row: {
@@ -12888,7 +13454,9 @@ export type Models = {
     };
     Checks: "profiles_date_format_check" | "profiles_time_format_check" | "profiles_timezone_format" | "profiles_username_format" | "profiles_week_start_check";
     ForeignKeys: "profiles_active_organization_id_fkey" | "profiles_active_team_id_fkey" | "profiles_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   promotionEligibility: {
     Row: {
@@ -12925,7 +13493,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "promotion_eligibility_check";
     ForeignKeys: "promotion_eligibility_customer_id_fkey" | "promotion_eligibility_organization_id_fkey" | "promotion_eligibility_promotion_id_organization_id_fkey" | "promotion_eligibility_tag_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   promotionRedemptions: {
     Row: {
@@ -12981,7 +13551,10 @@ export type Models = {
     };
     Checks: "promotion_redemptions_amount_check";
     ForeignKeys: "promotion_redemptions_customer_id_fkey" | "promotion_redemptions_organization_id_fkey" | "promotion_redemptions_promotion_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   promotionTargets: {
     Row: {
@@ -13022,7 +13595,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "promotion_targets_check";
     ForeignKeys: "promotion_targets_category_id_fkey" | "promotion_targets_organization_id_fkey" | "promotion_targets_product_id_fkey" | "promotion_targets_promotion_id_organization_id_fkey" | "promotion_targets_variant_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   promotions: {
     Row: {
@@ -13112,7 +13687,10 @@ export type Models = {
     };
     Checks: "promotions_check" | "promotions_check1" | "promotions_code_check" | "promotions_currency_check" | "promotions_description_check" | "promotions_min_quantity_check" | "promotions_min_subtotal_check" | "promotions_name_check" | "promotions_surfaces_check" | "promotions_usage_limit_per_customer_check" | "promotions_usage_limit_total_check" | "promotions_value_check";
     ForeignKeys: "promotions_created_by_fkey" | "promotions_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   publicHolidays: {
     Row: {
@@ -13145,7 +13723,10 @@ export type Models = {
     };
     Checks: "public_holidays_name_check";
     ForeignKeys: "public_holidays_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   purchaseOrderLines: {
     Row: {
@@ -13219,7 +13800,10 @@ export type Models = {
     };
     Checks: "purchase_order_lines_check" | "purchase_order_lines_position_check" | "purchase_order_lines_quantity_cancelled_check" | "purchase_order_lines_quantity_ordered_check" | "purchase_order_lines_quantity_received_check" | "purchase_order_lines_supplier_sku_check" | "purchase_order_lines_title_check" | "purchase_order_lines_unit_cost_check" | "purchase_order_lines_vat_rate_check";
     ForeignKeys: "purchase_order_lines_organization_id_fkey" | "purchase_order_lines_product_id_organization_id_fkey" | "purchase_order_lines_product_supplier_link_id_fkey" | "purchase_order_lines_purchase_order_id_organization_id_fkey" | "purchase_order_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   purchaseOrders: {
     Row: {
@@ -13319,7 +13903,10 @@ export type Models = {
     };
     Checks: "purchase_orders_currency_check" | "purchase_orders_exchange_rate_check" | "purchase_orders_notes_check" | "purchase_orders_number_prefix_check" | "purchase_orders_supplier_notes_check" | "purchase_orders_supplier_reference_check";
     ForeignKeys: "purchase_orders_created_by_fkey" | "purchase_orders_organization_id_fkey" | "purchase_orders_ship_to_location_id_organization_id_fkey" | "purchase_orders_supplier_id_organization_id_fkey" | "purchase_orders_template_id_fkey" | "purchase_orders_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteAssets: {
     Row: {
@@ -13352,7 +13939,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "quote_assets_customer_asset_id_fkey" | "quote_assets_organization_id_fkey" | "quote_assets_quote_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteChangeRequests: {
     Row: {
@@ -13399,7 +13989,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "quote_change_requests_comment_check" | "quote_change_requests_version_check";
     ForeignKeys: "quote_change_requests_organization_id_fkey" | "quote_change_requests_quote_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteLines: {
     Row: {
@@ -13496,7 +14089,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "quote_lines_check" | "quote_lines_check1" | "quote_lines_check2" | "quote_lines_check3" | "quote_lines_discount_value_check" | "quote_lines_quantity_check" | "quote_lines_stock_mode_check" | "quote_lines_subscription_periods_check" | "quote_lines_vat_rate_check";
     ForeignKeys: "quote_lines_organization_id_fkey" | "quote_lines_product_id_fkey" | "quote_lines_promotion_organization_fkey" | "quote_lines_quote_id_fkey" | "quote_lines_task_id_fkey" | "quote_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteStatusHistory: {
     Row: {
@@ -13549,7 +14145,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "quote_status_history_actor_user_id_fkey" | "quote_status_history_organization_id_fkey" | "quote_status_history_quote_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteTasks: {
     Row: {
@@ -13582,7 +14181,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "quote_tasks_organization_id_fkey" | "quote_tasks_quote_id_fkey" | "quote_tasks_task_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteVersionLines: {
     Row: {
@@ -13677,7 +14279,10 @@ export type Models = {
     };
     Checks: "quote_version_lines_check" | "quote_version_lines_check1" | "quote_version_lines_check2" | "quote_version_lines_check3" | "quote_version_lines_discount_value_check" | "quote_version_lines_quantity_check" | "quote_version_lines_stock_mode_check" | "quote_version_lines_subscription_periods_check" | "quote_version_lines_vat_rate_check";
     ForeignKeys: "quote_version_lines_organization_id_fkey" | "quote_version_lines_product_id_fkey" | "quote_version_lines_quote_version_id_fkey" | "quote_version_lines_task_id_fkey" | "quote_version_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   quoteVersions: {
     Row: {
@@ -13850,7 +14455,9 @@ export type Models = {
     };
     Checks: "quote_versions_currency_check" | "quote_versions_deposit_value_check" | "quote_versions_discount_value_check" | "quote_versions_version_check";
     ForeignKeys: "quote_versions_organization_id_fkey" | "quote_versions_published_by_fkey" | "quote_versions_quote_id_fkey" | "quote_versions_terms_pdf_file_id_fkey" | "quote_versions_terms_pdf_version_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   quotes: {
     Row: {
@@ -14111,7 +14718,10 @@ export type Models = {
     };
     Checks: "quotes_currency_check" | "quotes_deposit_percent_check" | "quotes_deposit_value_check" | "quotes_discount_value_check" | "quotes_number_prefix_check" | "quotes_version_check";
     ForeignKeys: "quotes_created_by_fkey" | "quotes_customer_id_fkey" | "quotes_invoice_id_fkey" | "quotes_organization_id_fkey" | "quotes_promotion_organization_fkey" | "quotes_quote_template_id_fkey" | "quotes_supersedes_quote_id_fkey" | "quotes_terms_pdf_file_id_fkey" | "quotes_terms_pdf_version_id_fkey" | "quotes_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   rolePermissions: {
     Row: {
@@ -14181,7 +14791,10 @@ export type Models = {
     };
     Checks: "roles_scope_fk_check";
     ForeignKeys: "roles_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   shipmentLines: {
     Row: {
@@ -14244,7 +14857,10 @@ export type Models = {
     };
     Checks: "shipment_lines_check" | "shipment_lines_position_check" | "shipment_lines_quantity_check";
     ForeignKeys: "shipment_lines_order_line_id_organization_id_fkey" | "shipment_lines_organization_id_fkey" | "shipment_lines_purchase_order_line_id_organization_id_fkey" | "shipment_lines_shipment_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   shipments: {
     Row: {
@@ -14363,7 +14979,10 @@ export type Models = {
     };
     Checks: "shipments_address_country_check" | "shipments_carrier_check" | "shipments_check" | "shipments_notes_check" | "shipments_number_prefix_check" | "shipments_package_count_check" | "shipments_service_check" | "shipments_tracking_number_check" | "shipments_tracking_url_check" | "shipments_weight_grams_check";
     ForeignKeys: "shipments_agenda_item_id_fkey" | "shipments_created_by_fkey" | "shipments_location_id_organization_id_fkey" | "shipments_order_id_organization_id_fkey" | "shipments_organization_id_fkey" | "shipments_purchase_order_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   sickLeaveCases: {
     Row: {
@@ -14422,7 +15041,10 @@ export type Models = {
     };
     Checks: "sick_leave_cases_check" | "sick_leave_cases_check1" | "sick_leave_cases_note_check" | "sick_leave_cases_partial_return_pct_check";
     ForeignKeys: "sick_leave_cases_employee_id_organization_id_fkey" | "sick_leave_cases_organization_id_fkey" | "sick_leave_cases_reported_by_fkey" | "sick_leave_cases_time_off_request_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   skills: {
     Row: {
@@ -14475,7 +15097,10 @@ export type Models = {
     };
     Checks: "skills_default_validity_months_check" | "skills_description_check" | "skills_name_check";
     ForeignKeys: "skills_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   stripeWebhookEvents: {
     Row: {
@@ -14530,7 +15155,9 @@ export type Models = {
     };
     Checks: "stripe_webhook_events_retry_count_check";
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   suppliers: {
     Row: {
@@ -14638,7 +15265,10 @@ export type Models = {
     };
     Checks: "suppliers_check" | "suppliers_default_lead_time_days_check" | "suppliers_payment_terms_days_check";
     ForeignKeys: "suppliers_currency_fkey" | "suppliers_default_inventory_location_organization_fkey" | "suppliers_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   taskAssignees: {
     Row: {
@@ -14668,7 +15298,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "task_assignees_organization_id_fkey" | "task_assignees_task_id_fkey" | "task_assignees_user_id_fkey" | "task_assignees_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   taskHoldReasons: {
     Row: {
@@ -14708,7 +15341,10 @@ export type Models = {
     };
     Checks: "task_hold_reasons_label_check" | "task_hold_reasons_position_check" | "task_hold_reasons_system_key_check";
     ForeignKeys: "task_hold_reasons_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   taskMaterials: {
     Row: {
@@ -14794,7 +15430,10 @@ export type Models = {
     };
     Checks: "task_materials_check" | "task_materials_position_check" | "task_materials_quantity_check" | "task_materials_unit_price_check" | "task_materials_variant_id_check" | "task_materials_vat_rate_check";
     ForeignKeys: "task_materials_created_by_fkey" | "task_materials_currency_fkey" | "task_materials_organization_id_fkey" | "task_materials_product_id_organization_id_fkey" | "task_materials_quote_organization_fkey" | "task_materials_task_id_organization_id_fkey" | "task_materials_updated_by_fkey" | "task_materials_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   taskRequiredSkills: {
     Row: {
@@ -14824,7 +15463,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "task_required_skills_organization_id_fkey" | "task_required_skills_skill_id_organization_id_fkey" | "task_required_skills_task_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   taskTags: {
     Row: {
@@ -14854,7 +15496,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "task_tags_organization_id_fkey" | "task_tags_tag_id_fkey" | "task_tags_task_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   tasks: {
     Row: {
@@ -14967,7 +15612,10 @@ export type Models = {
     };
     Checks: "tasks_budget_hours_check" | "tasks_invoice_timing_check" | "tasks_planned_window_check";
     ForeignKeys: "tasks_created_by_fkey" | "tasks_customer_asset_id_fkey" | "tasks_customer_id_fkey" | "tasks_hold_reason_id_fkey" | "tasks_organization_id_fkey" | "tasks_parent_task_id_organization_id_fkey" | "tasks_task_template_id_fkey" | "tasks_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   teamMembers: {
     Row: {
@@ -15000,7 +15648,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "team_members_organization_id_fkey" | "team_members_team_id_organization_id_fkey" | "team_members_user_id_fkey" | "team_members_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   teams: {
     Row: {
@@ -15066,7 +15717,10 @@ export type Models = {
     };
     Checks: "teams_description_length_check" | "teams_slug_format_check";
     ForeignKeys: "teams_created_by_fkey" | "teams_organization_id_fkey" | "teams_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateInvoiceLines: {
     Row: {
@@ -15142,7 +15796,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "template_invoice_lines_check" | "template_invoice_lines_check1" | "template_invoice_lines_check2" | "template_invoice_lines_discount_value_check" | "template_invoice_lines_quantity_check" | "template_invoice_lines_vat_rate_check";
     ForeignKeys: "template_invoice_lines_organization_id_fkey" | "template_invoice_lines_product_id_fkey" | "template_invoice_lines_template_id_fkey" | "template_invoice_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateOnboardingItems: {
     Row: {
@@ -15201,7 +15858,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "template_onboarding_items_check" | "template_onboarding_items_description_check" | "template_onboarding_items_offset_days_check" | "template_onboarding_items_title_check";
     ForeignKeys: "template_onboarding_items_assignee_user_id_fkey" | "template_onboarding_items_organization_id_fkey" | "template_onboarding_items_template_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateQuoteLines: {
     Row: {
@@ -15286,7 +15946,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "template_quote_lines_check" | "template_quote_lines_check1" | "template_quote_lines_check2" | "template_quote_lines_check3" | "template_quote_lines_discount_value_check" | "template_quote_lines_quantity_check" | "template_quote_lines_subscription_periods_check" | "template_quote_lines_vat_rate_check";
     ForeignKeys: "template_quote_lines_organization_id_fkey" | "template_quote_lines_product_id_fkey" | "template_quote_lines_template_id_fkey" | "template_quote_lines_variant_id_product_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateTaskAssignees: {
     Row: {
@@ -15316,7 +15979,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "template_task_assignees_organization_id_fkey" | "template_task_assignees_template_id_fkey" | "template_task_assignees_user_id_fkey" | "template_task_assignees_user_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateTaskSettings: {
     Row: {
@@ -15365,7 +16031,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "template_task_settings_customer_asset_id_fkey" | "template_task_settings_customer_id_fkey" | "template_task_settings_organization_id_fkey" | "template_task_settings_template_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateTaskSubtasks: {
     Row: {
@@ -15409,7 +16078,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "template_task_subtasks_organization_id_fkey" | "template_task_subtasks_template_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateTaskTags: {
     Row: {
@@ -15439,7 +16111,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "template_task_tags_organization_id_fkey" | "template_task_tags_tag_id_fkey" | "template_task_tags_template_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templateWorkflows: {
     Row: {
@@ -15488,7 +16163,10 @@ export type Models = {
     };
     Checks: "template_workflows_mode_check" | "template_workflows_position_check";
     ForeignKeys: "template_workflows_created_by_fkey" | "template_workflows_organization_id_fkey" | "template_workflows_template_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   templates: {
     Row: {
@@ -15619,7 +16297,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "templates_check" | "templates_currency_check" | "templates_default_due_days_check" | "templates_default_validity_days_check" | "templates_deposit_check" | "templates_deposit_value_check" | "templates_discount_value_check";
     ForeignKeys: "templates_created_by_fkey" | "templates_organization_id_fkey" | "templates_terms_pdf_file_id_fkey" | "templates_terms_pdf_version_id_fkey" | "templates_updated_by_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeEntries: {
     Row: {
@@ -15695,7 +16376,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "time_entries_bill_rate_check" | "time_entries_cost_rate_check" | "time_entries_duration_seconds_check" | "time_entries_note_check";
     ForeignKeys: "time_entries_agenda_item_id_organization_id_fkey" | "time_entries_customer_id_organization_id_fkey" | "time_entries_employee_id_organization_id_fkey" | "time_entries_invoice_line_id_fkey" | "time_entries_organization_id_fkey" | "time_entries_task_id_fkey" | "time_entries_timesheet_id_organization_id_fkey" | "time_entries_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeEntryDismissals: {
     Row: {
@@ -15724,7 +16408,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "time_entry_dismissals_signal_key_check";
     ForeignKeys: "time_entry_dismissals_employee_id_organization_id_fkey" | "time_entry_dismissals_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeOffBlackoutPeriods: {
     Row: {
@@ -15768,7 +16455,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "time_off_blackout_periods_check" | "time_off_blackout_periods_name_check";
     ForeignKeys: "time_off_blackout_periods_created_by_fkey" | "time_off_blackout_periods_organization_id_fkey" | "time_off_blackout_periods_team_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeOffFeeds: {
     Row: {
@@ -15808,7 +16498,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "time_off_feeds_organization_id_fkey" | "time_off_feeds_team_id_organization_id_fkey" | "time_off_feeds_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeOffLedger: {
     Row: {
@@ -15863,7 +16556,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "time_off_ledger_note_check";
     ForeignKeys: "time_off_ledger_created_by_fkey" | "time_off_ledger_employee_id_organization_id_fkey" | "time_off_ledger_organization_id_fkey" | "time_off_ledger_time_off_request_id_organization_id_fkey" | "time_off_ledger_time_off_type_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeOffPolicies: {
     Row: {
@@ -15919,7 +16615,10 @@ export type Models = {
     };
     Checks: "time_off_policies_annual_hours_check" | "time_off_policies_carryover_expires_after_months_check" | "time_off_policies_carryover_max_hours_check" | "time_off_policies_name_check";
     ForeignKeys: "time_off_policies_organization_id_fkey" | "time_off_policies_time_off_type_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeOffRequests: {
     Row: {
@@ -16005,7 +16704,10 @@ export type Models = {
     };
     Checks: "time_off_requests_check" | "time_off_requests_check1" | "time_off_requests_decision_note_check" | "time_off_requests_hours_check" | "time_off_requests_note_check";
     ForeignKeys: "time_off_requests_created_by_fkey" | "time_off_requests_decided_by_fkey" | "time_off_requests_employee_id_organization_id_fkey" | "time_off_requests_organization_id_fkey" | "time_off_requests_time_off_type_id_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timeOffTypes: {
     Row: {
@@ -16074,7 +16776,10 @@ export type Models = {
     };
     Checks: "time_off_types_name_check";
     ForeignKeys: "time_off_types_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   timesheets: {
     Row: {
@@ -16128,7 +16833,10 @@ export type Models = {
     };
     Checks: "timesheets_decision_note_check" | "timesheets_week_start_check";
     ForeignKeys: "timesheets_decided_by_fkey" | "timesheets_employee_id_organization_id_fkey" | "timesheets_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   userRoles: {
     Row: {
@@ -16153,7 +16861,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "user_roles_role_id_fkey" | "user_roles_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   webhookDeliveries: {
     Row: {
@@ -16226,7 +16936,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "webhook_deliveries_attempt_check" | "webhook_deliveries_status_check";
     ForeignKeys: "webhook_deliveries_destination_id_fkey" | "webhook_deliveries_event_id_fkey" | "webhook_deliveries_organization_id_fkey" | "webhook_deliveries_workflow_run_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   webhookDestinationSecrets: {
     Row: {
@@ -16263,7 +16976,10 @@ export type Models = {
     };
     Checks: "webhook_destination_secrets_secret_check";
     ForeignKeys: "webhook_destination_secrets_destination_id_fkey" | "webhook_destination_secrets_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   webhookDestinations: {
     Row: {
@@ -16308,7 +17024,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "webhook_destinations_name_check" | "webhook_destinations_url_check";
     ForeignKeys: "webhook_destinations_created_by_fkey" | "webhook_destinations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   webhookEndpointSecrets: {
     Row: {
@@ -16345,7 +17064,10 @@ export type Models = {
     };
     Checks: "webhook_endpoint_secrets_secret_check";
     ForeignKeys: "webhook_endpoint_secrets_endpoint_id_fkey" | "webhook_endpoint_secrets_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   webhookEndpoints: {
     Row: {
@@ -16401,7 +17123,10 @@ export type Models = {
     };
     Checks: "webhook_endpoints_last_status_check" | "webhook_endpoints_name_check" | "webhook_endpoints_receive_count_check" | "webhook_endpoints_token_check";
     ForeignKeys: "webhook_endpoints_created_by_fkey" | "webhook_endpoints_organization_id_fkey" | "webhook_endpoints_workflow_definition_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowDefinitions: {
     Row: {
@@ -16489,7 +17214,10 @@ export type Models = {
     };
     Checks: "workflow_definitions_check" | "workflow_definitions_check1" | "workflow_definitions_check2" | "workflow_definitions_forked_from_version_check" | "workflow_definitions_owner_scope_check" | "workflow_definitions_purpose_check" | "workflow_definitions_status_check" | "workflow_definitions_subject_type_check" | "workflow_definitions_visibility_check";
     ForeignKeys: "workflow_definitions_created_by_fkey" | "workflow_definitions_forked_from_definition_id_fkey" | "workflow_definitions_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowEvents: {
     Row: {
@@ -16528,7 +17256,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "workflow_events_source_check";
     ForeignKeys: "workflow_events_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowGrants: {
     Row: {
@@ -16567,7 +17298,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "workflow_grants_check";
     ForeignKeys: "workflow_grants_created_by_fkey" | "workflow_grants_definition_id_fkey" | "workflow_grants_organization_id_fkey" | "workflow_grants_team_id_fkey" | "workflow_grants_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowLifecycleEvents: {
     Row: {
@@ -16629,7 +17363,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "workflow_lifecycle_events_check" | "workflow_lifecycle_events_display_check" | "workflow_lifecycle_events_label_check" | "workflow_lifecycle_events_outcome_check";
     ForeignKeys: "workflow_lifecycle_events_actor_customer_contact_id_fkey" | "workflow_lifecycle_events_actor_user_id_fkey" | "workflow_lifecycle_events_lifecycle_id_fkey" | "workflow_lifecycle_events_organization_id_fkey" | "workflow_lifecycle_events_run_step_id_fkey" | "workflow_lifecycle_events_source_run_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowLifecycles: {
     Row: {
@@ -16698,7 +17435,10 @@ export type Models = {
     };
     Checks: "workflow_lifecycles_check" | "workflow_lifecycles_definition_version_check" | "workflow_lifecycles_pause_reason_check" | "workflow_lifecycles_subject_type_check";
     ForeignKeys: "workflow_lifecycles_definition_id_fkey" | "workflow_lifecycles_organization_id_fkey" | "workflow_lifecycles_paused_by_fkey" | "workflow_lifecycles_run_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowOptOuts: {
     Row: {
@@ -16726,7 +17466,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "workflow_opt_outs_created_by_fkey" | "workflow_opt_outs_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowRunSteps: {
     Row: {
@@ -16789,7 +17532,10 @@ export type Models = {
     };
     Checks: "workflow_run_steps_attempt_check" | "workflow_run_steps_status_check";
     ForeignKeys: "workflow_run_steps_organization_id_fkey" | "workflow_run_steps_run_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowRuns: {
     Row: {
@@ -16872,7 +17618,10 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: "workflow_runs_check" | "workflow_runs_definition_version_check" | "workflow_runs_status_check" | "workflow_runs_subject_type_check" | "workflow_runs_trigger_kind_check";
     ForeignKeys: "workflow_runs_created_by_fkey" | "workflow_runs_definition_id_fkey" | "workflow_runs_organization_id_fkey" | "workflow_runs_trigger_event_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
   workflowSchedules: {
     Row: {
@@ -16924,7 +17673,10 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: "workflow_schedules_definition_id_fkey" | "workflow_schedules_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
   };
 };
 
@@ -20281,4 +21033,8 @@ export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
 /** Columns of `T` the database fills (generated columns): in `Row`, never writable. */
 export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema(meta);
+/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof membershipsExtension>];
+const extensions: Extensions = [updatedAtExtension(), membershipsExtension()];
+
+export const schema: Schema<Models, Database, Functions, string, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);

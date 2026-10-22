@@ -22,7 +22,7 @@ import {
 } from "../../sql/index.ts";
 import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
-import { prop, q } from "./shared.ts";
+import { prop, q, runtimeSubpath } from "./shared.ts";
 
 /** `blocks.generated.ts`, next to the main generated module. */
 export function blockConfigPath(
@@ -214,6 +214,66 @@ const MANIFESTS = new Map(
   PRESET_CATALOG.manifests.map((manifest) => [manifest.name, manifest]),
 );
 
+/** A repository extension the generated schema installs. */
+export interface SchemaExtension {
+  /** The export that builds it, from `subpath`. */
+  readonly export: string;
+  /** `blocks/<name>`, under the runtime import. */
+  readonly subpath: string;
+  /** The argument list of the call, `""` for none. */
+  readonly args: string;
+}
+
+/**
+ * The repository extensions of the installed blocks, in block order. The
+ * `memberships` one also stands for an app's own tenancy, when
+ * `auth.organization.column` turns it on without the block.
+ */
+export function schemaExtensions(
+  config: Pick<ResolvedConfig, "blockNames" | "extensions">,
+): SchemaExtension[] {
+  const tenant = config.extensions.tenant;
+
+  const tenantOptions = Object.entries({
+    onMissing: tenant?.onMissing,
+    header: tenant?.header,
+  }).flatMap(([key, value]) =>
+    value === undefined ? [] : [`${key}: ${q(value)}`],
+  );
+
+  const tenantArgs =
+    tenantOptions.length === 0 ? "" : `{ ${tenantOptions.join(", ")} }`;
+
+  const extensions = config.blockNames.flatMap((name): SchemaExtension[] => {
+    const manifest = MANIFESTS.get(CATALOG_BLOCKS.get(name)?.manifest ?? "");
+
+    if (manifest?.extension === undefined) {
+      return [];
+    }
+
+    return [
+      {
+        export: manifest.extension,
+        subpath: `blocks/${manifest.name}`,
+        args: manifest.name === "memberships" ? tenantArgs : "",
+      },
+    ];
+  });
+
+  if (
+    tenant !== undefined &&
+    !extensions.some((entry) => entry.subpath === "blocks/memberships")
+  ) {
+    extensions.push({
+      export: "membershipsExtension",
+      subpath: "blocks/memberships",
+      args: tenantArgs,
+    });
+  }
+
+  return extensions;
+}
+
 /** The installed blocks with their final names, for `GeneratorModel.blocks`. */
 export function generatorBlocks(
   config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
@@ -404,8 +464,8 @@ export function emitBlockConfig(
 
   const blocksImport =
     specifiers.length === 1
-      ? `import type { GeneratedBlocks } from ${q(`${runtime}/blocks`)};`
-      : `import {\n${specifiers.map((name) => `  ${name},`).join("\n")}\n} from ${q(`${runtime}/blocks`)};`;
+      ? `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`
+      : `import {\n${specifiers.map((name) => `  ${name},`).join("\n")}\n} from ${q(runtimeSubpath(runtime, "blocks"))};`;
 
   return {
     path: blockConfigPath(config),

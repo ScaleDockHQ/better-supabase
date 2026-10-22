@@ -43,7 +43,8 @@ export interface SubjectConfig {
   readonly cascade?: boolean;
   /**
    * The column holding the soft-delete time. Blocks hide rows where it is set,
-   * metrics skip them, and `gen` makes it the table's `softDelete()` column.
+   * metrics skip them, and `gen` makes it the table's `trashExtension()`
+   * column.
    */
   readonly deletedAt?: string;
   /** The columns a search index reads. */

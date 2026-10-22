@@ -51,11 +51,13 @@ export default defineConfig({
     output: "src/lib/supabase/generated.ts",
     generators: [valibot()],
   },
-  plugins: { timestamps: true, softDelete: true },
+  blocks: { "updated-at": {}, trash: {} },
 });
 ```
 
-Every option has a default, so an empty config works too. A JSON config
+The `updated-at` and `trash` blocks keep `updated_at` current and turn deletes
+into soft deletes, in Postgres and in the generated repository. Every option
+has a default, so an empty config works too. A JSON config
 (`better-supabase.config.json`) is also supported and validated by
 [`schemas/config-v1.json`](/docs/cli/config).
 

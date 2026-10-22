@@ -519,7 +519,7 @@ Block tables appear under their final names, such as `tasksSearchParams`.
 Row, Insert and Update shapes that needs no zod or valibot install. Each one
 implements [Standard Schema](https://standardschema.dev) (`~standard.validate`)
 and Standard JSON Schema (`~standard.jsonSchema`), so it works anywhere a
-Standard Schema does: the [validation plugin](/docs/plugins/validation),
+Standard Schema does: the [validation extension](/docs/repository/validation),
 `validate()`, form libraries, oRPC and MCP tool inputs.
 
 ```ts title="better-supabase.config.ts"
@@ -612,7 +612,7 @@ follows
 [`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
 Row counts are left out so the file stays stable; tables Postgres estimates
 at 10,000 rows or more only get `large: true`, which the
-[`unbounded-read`](/docs/plugins/lint#unbounded-read) lint rule reads.
+[`unbounded-read`](/docs/repository/lint#unbounded-read) lint rule reads.
 
 The output is the same after `supabase db reset` and on every machine:
 object ids come from names, and the arguments of each function keep their

@@ -454,7 +454,7 @@ export const tasksViewRow: z.ZodType<RowOf<'tasksView'>> = z.object({
   projectName: z.string().nullable(),
 }).meta({ title: "Tasks view", description: "The rollups and lookups of public.tasks, read with the caller's row level security." });
 
-/** Write validators for the validation plugin. */
+/** Write validators; the generated schema installs them through `validation`. */
 export const validators: {
   readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };

@@ -93,6 +93,7 @@ import type {
 } from "../../src/streams/redis/index.ts";
 import type { TestDocumentFormatOptions } from "../../src/testing/document-format.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
@@ -100,6 +101,8 @@ import {
   sqlQueueProvider,
 } from "../../src/blocks/queue/index.ts";
 import { flatRateCarrier } from "../../src/blocks/shipments/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import {
   fetchTransport,
   hmacSigner,
@@ -130,9 +133,6 @@ import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import { nextCache } from "../../src/next/index.ts";
 import { openapiFormat } from "../../src/openapi/format.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import { sqlSupportStore } from "../../src/server/index.ts";
@@ -185,7 +185,7 @@ describe("extension interfaces", () => {
     expectTypeOf(zod()).toExtend<Generator>();
     expectTypeOf(valibot()).toExtend<Generator>();
     expectTypeOf(jsonSchema()).toExtend<Generator>();
-    expectTypeOf(timestamps()).toExtend<AnyPlugin>();
+    expectTypeOf(updatedAtExtension()).toExtend<AnyPlugin>();
     expectTypeOf<AuthResolver["resolve"]>()
       .parameter(0)
       .toEqualTypeOf<Request>();
@@ -374,7 +374,9 @@ describe("StreamStore", () => {
 });
 
 describe("defineRepository", () => {
-  const betterSupabase = defineSupabase(schema).use(softDelete()).use(tenant());
+  const betterSupabase = defineSupabase(schema)
+    .use(trashExtension())
+    .use(membershipsExtension());
 
   const tags = defineRepository(betterSupabase, "tags", (base) => ({
     named: (name: string) =>

@@ -160,7 +160,7 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     description:
       "When a tenant table references another tenant table by `id` alone, a row can point at a parent in another organization; RLS checks each row, not the pair. Reference `(id, organization_id)` with a composite foreign key, backed by `unique (id, organization_id)` on the parent.",
     check: (context) => {
-      const column = context.config.plugins.tenant?.column;
+      const column = context.config.extensions.tenant?.column;
 
       if (!column) {
         return [];

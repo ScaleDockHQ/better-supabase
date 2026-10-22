@@ -171,7 +171,6 @@ describe("flattenConfig and groupConfig", () => {
       teams: { ownership: "adopt", owner: "user" },
       memberships: { names: { organization: "workspace" } },
     },
-    plugins: { tenant: true },
   } satisfies BetterSupabaseConfig;
 
   it("flattens the groups and renames the keys to the resolved names", () => {
@@ -179,7 +178,7 @@ describe("flattenConfig and groupConfig", () => {
       schemas: ["public"],
       sql: { scope: "user" },
       claims: { tenant: "app_metadata.org_id" },
-      plugins: { tenant: { column: "org_id" } },
+      organization: { column: "org_id" },
       casing: "camel",
       tables: { audit: { serviceRole: true } },
       gen: { tasks: ["types"] },

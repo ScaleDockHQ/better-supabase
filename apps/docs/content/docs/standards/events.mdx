@@ -42,7 +42,7 @@ Each mutated row becomes one event:
 The types are `row.created`, `row.updated`, `row.upserted`, `row.deleted` and
 `row.softdeleted`. Use `typePrefix: 'com.acme.crm'` to use your own namespace.
 `subject` is the primary key, `partitionkey` the tenant (also the one
-`tenant()` resolved from the claims) and `data.actorId` the acting user. The
+the memberships extension resolved from the claims) and `data.actorId` the acting user. The
 actor is in `data`, not in a context attribute, because intermediaries read
 context attributes and they must not carry personal data. Writes
 that return no rows send one event per known primary key, with the key as

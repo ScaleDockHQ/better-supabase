@@ -109,6 +109,13 @@ export interface BlockDefinition<
    * `loadSections` and `createRecordController`.
    */
   readonly sections?: S;
+  /**
+   * The export of `better-supabase/blocks/<name>` that builds the block's
+   * repository extension (`trashExtension`). `gen` passes it to the schema when
+   * the block is installed, so it scopes queries and fills columns on the
+   * tables the block serves.
+   */
+  readonly extension?: string;
 }
 
 /**
@@ -153,6 +160,8 @@ export interface Block<
   readonly invalidates: BlockInvalidates;
   /** The parts of a record page the block owns, by name. */
   readonly sections: S;
+  /** The export that builds the block's repository extension, if any. */
+  readonly extension: string | undefined;
   /**
    * The options `with` set, passed to `create` and the providers over the
    * shared ones.
@@ -192,6 +201,7 @@ export interface AnyBlock {
   readonly schemas?: BlockSchemas;
   readonly invalidates?: BlockInvalidates;
   readonly sections?: Readonly<Record<string, AnySection>>;
+  readonly extension?: string | undefined;
   readonly settings: object;
   with(settings: never): AnyBlock;
   using(create: never): AnyBlock;
@@ -293,6 +303,7 @@ function blockOf<
     schemas: parts.schemas ?? {},
     invalidates: parts.invalidates ?? {},
     sections: parts.sections,
+    extension: parts.extension,
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),
     using: (next) => blockOf(parts, next, settings),

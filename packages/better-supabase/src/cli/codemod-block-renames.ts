@@ -143,6 +143,96 @@ export const BLOCK_SUBPATH_RENAMES: Readonly<Record<string, string>> =
     ),
   );
 
+/**
+ * The names the built-in plugins' subpaths exported, renamed to the block
+ * extensions, guards and validation that replace them.
+ */
+export const PLUGIN_IMPORT_RENAMES: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  "plugins/tenant": {
+    tenant: "membershipsExtension",
+    TenantOptions: "MembershipsExtensionOptions",
+    TenantFindArgs: "MembershipsFindArgs",
+    TenantExtension: "MembershipsExtension",
+    resolveTenant: "resolveOrganization",
+  },
+  "plugins/actor": {
+    actor: "createdByExtension",
+    ActorOptions: "CreatedByExtensionOptions",
+  },
+  "plugins/timestamps": { timestamps: "updatedAtExtension" },
+  "plugins/soft-delete": {
+    softDelete: "trashExtension",
+    SoftDeleteFindArgs: "TrashFindArgs",
+    SoftDeleteDeleteArgs: "TrashDeleteArgs",
+    SoftDeleteMethods: "TrashMethods",
+    SoftDeleteExtension: "TrashExtension",
+  },
+  "plugins/rules": {
+    rules: "guards",
+    safe: "safeGuards",
+    recommended: "recommendedGuards",
+    strict: "strictGuards",
+    RuleSet: "GuardSet",
+    RuleSetting: "GuardSetting",
+    RuleLevel: "GuardLevel",
+    RuleName: "GuardName",
+    RuleViolation: "GuardViolation",
+    AutomationsOptions: "GuardsOptions",
+    RulesFindArgs: "GuardsFindArgs",
+    RulesExtension: "GuardsExtension",
+  },
+};
+
+/** The built-in plugins' subpaths; `""` is the package root. */
+export const PLUGIN_SUBPATH_RENAMES: Readonly<Record<string, string>> = {
+  "plugins/tenant": "blocks/memberships",
+  "plugins/actor": "blocks/created-by",
+  "plugins/timestamps": "blocks/updated-at",
+  "plugins/soft-delete": "blocks/trash",
+  "plugins/rules": "lint",
+  "plugins/validation": "",
+};
+
+/** The 0.15 codemod's review hints: names and calls it can't rewrite safely. */
+export const REVIEW_0_15: readonly {
+  readonly pattern: RegExp;
+  readonly message: string;
+}[] = [
+  {
+    pattern: /["'`]bs[:.]|\[\s*["']bs["']/,
+    message:
+      "Cache tags (`bsb:<table>`), query keys (`['bsb', ...]`) and workflow attributes (`bsb.tenant`) now start with `bsb`",
+  },
+  {
+    pattern: /x-bs-db-calls|\/api\/bs-stats|\bbs-(?:proxy|verify)\b/,
+    message:
+      "The debug header is `x-bsb-db-calls`, the stats route `/api/bsb-stats`, and the Server-Timing names `bsb-proxy` and `bsb-verify`",
+  },
+  {
+    pattern: /["'`]bs:t:/,
+    message: "Realtime change topics are `bsb:t:<schema>.<table>`",
+  },
+  {
+    pattern:
+      /["'`]better-supabase\/(?:work-items|parties|engagements|targets|number-sequences|actor|ensure-rls|grants|shared-signals|service-principals|support-sessions|bulk|controls|passes|ai-tasks|ai-providers|workflow-builder|jobs|flags|access|rules|identities|sessions|tenant|activity|workflow-sdk-world)[./"'`]/,
+    message:
+      "Event sources are `better-supabase/<block>` under the 0.15 block name (`better-supabase/tasks`, not `better-supabase/work-items`); update CloudEvent source filters",
+  },
+  {
+    pattern: /\bmembershipsExtension\s*\(/,
+    message:
+      'The generated schema installs `membershipsExtension` with `auth.organization`\'s settings, and its `onMissing` default is now `skip`: keep this `.use()` only for a custom `resolve`, and pass `onMissing: "error"` to keep the 0.14 behavior',
+  },
+  {
+    pattern:
+      /\b(?:updatedAtExtension|createdByExtension|trashExtension|validation)\s*\(/,
+    message:
+      "The generated schema installs the installed blocks' extensions and `validation` (when a generator writes validators): this `.use()` replaces that one and can go unless it passes options",
+  },
+];
+
 const SPECIFIER = /(["'])better-supabase\/([\w./-]+)\1/g;
 
 /** `text` with each `better-supabase/<subpath>` specifier in `renames` renamed. */
@@ -155,8 +245,12 @@ export function renameSubpaths(
     (specifier, quote: string, subpath: string) => {
       const to = Object.hasOwn(renames, subpath) ? renames[subpath] : undefined;
 
-      return to === undefined
-        ? specifier
+      if (to === undefined) {
+        return specifier;
+      }
+
+      return to === ""
+        ? `${quote}better-supabase${quote}`
         : `${quote}better-supabase/${to}${quote}`;
     },
   );

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { MutationNotice } from "../../src/core/events.ts";
 import type { CloudEvent } from "../../src/events/index.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
@@ -13,8 +15,6 @@ import {
   toCloudEvents,
   toHttp,
 } from "../../src/events/index.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -188,8 +188,8 @@ describe("CloudEvents", () => {
 
   it("reports soft deletes by key with the resolved tenant", async () => {
     const betterSupabase = defineSupabase(schema)
-      .use(softDelete())
-      .use(tenant());
+      .use(trashExtension())
+      .use(membershipsExtension());
 
     const sent: CloudEvent[] = [];
     forwardMutations(

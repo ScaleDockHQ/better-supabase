@@ -9,8 +9,23 @@
  *
  * Rules match calls by method name (`.findMany(...)`, `.deleteMany(...)`) with
  * an inline object literal; spread or variable arguments are skipped rather
- * than guessed at. The runtime `rules()` plugin covers the rest.
+ * than guessed at. The runtime `guards()` plugin covers the rest.
  */
+
+export {
+  type GuardLevel,
+  type GuardName,
+  guards,
+  type GuardSet,
+  type GuardSetting,
+  type GuardsExtension,
+  type GuardsFindArgs,
+  type GuardsOptions,
+  type GuardViolation,
+  recommendedGuards,
+  safeGuards,
+  strictGuards,
+} from "./guards.ts";
 
 interface Node {
   readonly type: string;
@@ -87,7 +102,7 @@ export interface RuleModule {
   create(context: RuleContext): { CallExpression(node: CallExpression): void };
 }
 
-const DOCS = "https://bettersupabase.com/docs/plugins/lint";
+const DOCS = "https://bettersupabase.com/docs/repository/lint";
 
 function methodName(node: CallExpression): string | undefined {
   const callee = node.callee;

@@ -389,7 +389,7 @@ it("keeps organizations apart", async () => {
 - `row(tenant, n)` builds a row owned by `tenant`. `n` is 0 for the seeded
   row and 1 for the insert attempt, so put it in unique columns. `update`
   must change the row.
-- It runs without `betterSupabase`'s plugins, so the [`tenant()` plugin](/docs/plugins)
+- It runs without `betterSupabase`'s plugins and extensions, so the [memberships extension](/docs/blocks/memberships)
   can't hide a missing policy.
 - On a leak it throws a `ConformanceError` naming every table and command
   that leaked, such as `tags: globex can't delete leaky's rows`. It removes

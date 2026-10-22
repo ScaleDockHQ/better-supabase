@@ -2,7 +2,10 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import { defineSchema, type Schema } from "better-supabase";
+import { defineSchema, type ExtensionsOf, type Schema } from "better-supabase";
+import { updatedAtExtension } from "better-supabase/blocks/updated-at";
+import { membershipsExtension } from "better-supabase/blocks/memberships";
+import { trashExtension } from "better-supabase/blocks/trash";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, StoragePath, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
@@ -83,6 +86,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "client_notes_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -122,6 +126,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "contacts_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -154,6 +159,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -219,6 +225,7 @@ export type Models = {
     ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
       softDelete: "archivedAt";
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -262,6 +269,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -298,6 +306,7 @@ export type Models = {
     Checks: "memberships_role_check";
     ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -344,6 +353,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "notes_customer_id_fkey" | "notes_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -388,7 +398,9 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: never;
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   planFeatures: {
     Row: {
@@ -502,6 +514,7 @@ export type Models = {
     ForeignKeys: "projects_label_id_fkey" | "projects_lead_id_fkey" | "projects_organization_id_fkey";
     Flags: {
       softDelete: "deletedAt";
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -529,6 +542,8 @@ export type Models = {
     Checks: never;
     ForeignKeys: never;
     Flags: {
+      softDelete: "deletedAt";
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -562,7 +577,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "saved_views_user_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      timestamps: true;
+    };
   };
   subscriptions: {
     Row: {
@@ -595,6 +612,7 @@ export type Models = {
     Checks: "subscriptions_status_check";
     ForeignKeys: "subscriptions_organization_id_fkey" | "subscriptions_plan_key_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -635,6 +653,7 @@ export type Models = {
     Checks: "tags_color_check";
     ForeignKeys: "tags_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -689,6 +708,7 @@ export type Models = {
     Checks: "tasks_status_check" | "tasks_title_check";
     ForeignKeys: "tasks_assignee_id_fkey" | "tasks_organization_id_fkey" | "tasks_project_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -715,6 +735,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: never;
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -852,10 +873,14 @@ export const buckets = {
   }
 } as const;
 
+/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof membershipsExtension>, ReturnType<typeof trashExtension>];
+const extensions: Extensions = [updatedAtExtension(), membershipsExtension(), trashExtension()];
+
 /** The app's subject types, from `config.records`. */
 export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "engagement", "quote", "work_item", "employee", "invoice", "ledger_account", "product", "product_variant", "order", "calendar_event", "booking", "asset", "asset_location", "lease", "maintenance_request", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "policy", "incident", "form", "document", "customer", "drive_node", "application", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
 
-export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);
+export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);

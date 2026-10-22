@@ -4,10 +4,10 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Operation } from "../../src/ir/types.ts";
 import type { TableMeta } from "../../src/schema/types.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -46,7 +46,10 @@ describe.skipIf(!live)("Postgres executor", async () => {
   afterAll(() => postgres.end());
 
   const claims = { sub: USER, role: "authenticated", tenant_id: ACME };
-  const betterSupabase = defineSupabase(schema).use(softDelete()).use(tenant());
+
+  const betterSupabase = defineSupabase(schema)
+    .use(trashExtension())
+    .use(membershipsExtension());
 
   const rest = betterSupabase.connect(
     createClient(url, publishableKey, {

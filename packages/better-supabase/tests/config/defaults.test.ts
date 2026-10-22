@@ -30,21 +30,56 @@ describe("CONFIG_DEFAULTS", () => {
     ).toBe(500);
   });
 
-  it("names the tenant column after the tenant's name", () => {
+  it("names the organization column after the tenant's name", () => {
     expect(
-      resolveConfig({ plugins: { tenant: true } }, "/app").plugins,
-    ).toEqual(
-      expect.objectContaining({ tenant: { column: "organization_id" } }),
-    );
+      resolveConfig({ blocks: ["memberships"] }, "/app").extensions.tenant,
+    ).toEqual({ column: "organization_id" });
+    expect(
+      resolveConfig(
+        { blocks: { memberships: { names: { organization: "workspace" } } } },
+        "/app",
+      ).extensions.tenant,
+    ).toEqual({ column: "workspace_id" });
+    expect(resolveConfig({}, "/app").extensions.tenant).toBeUndefined();
+    expect(
+      resolveConfig(
+        { auth: { organization: { column: "org_id", onMissing: "error" } } },
+        "/app",
+      ).extensions.tenant,
+    ).toEqual({ column: "org_id", onMissing: "error" });
+  });
+
+  it("turns each block's extension on with the block, with its columns", () => {
+    expect(resolveConfig({}, "/app").extensions).toEqual({
+      timestamps: undefined,
+      softDelete: undefined,
+      tenant: undefined,
+      actor: undefined,
+    });
     expect(
       resolveConfig(
         {
-          plugins: { tenant: true },
-          blocks: { memberships: { names: { organization: "workspace" } } },
+          blocks: {
+            "updated-at": { options: { updatedAt: "changed_at" } },
+            "created-by": {},
+            trash: { options: { deletedAt: "archived_at" } },
+          },
         },
         "/app",
-      ).plugins.tenant,
-    ).toEqual({ column: "workspace_id" });
+      ).extensions,
+    ).toEqual({
+      timestamps: { createdAt: "created_at", updatedAt: "changed_at" },
+      softDelete: { column: "archived_at" },
+      tenant: undefined,
+      actor: {
+        createdBy: "created_by",
+        updatedBy: "updated_by",
+        impersonatedBy: "impersonated_by",
+      },
+    });
+  });
+
+  it("names the subjects' tenant column after the tenant's name", () => {
     expect(
       registeredSubjects(
         { deal: { table: "public.deals" } },

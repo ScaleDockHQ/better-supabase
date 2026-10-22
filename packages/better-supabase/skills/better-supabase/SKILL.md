@@ -50,8 +50,9 @@ Done when `gen --check` and `doctor` exit 0 and the project typechecks.
 1. Get `db` from the request context (see below), never from a global client,
    so RLS applies.
 2. Call the repository method and return or branch on its `Result`.
-3. If a plugin owns a column (timestamps, soft delete, tenant, actor), leave
-   it out of the input. See [references/plugins.md](references/plugins.md).
+3. If a block extension owns a column (timestamps, soft delete, organization,
+   actor), leave it out of the input. See
+   [references/block-extensions.md](references/block-extensions.md).
 4. Cover the rule with an RLS test as a real user (the
    `better-supabase-testing` skill).
 

@@ -219,3 +219,32 @@ blocks: {
 Then run `better-supabase upgrade`. Every block that owns tables now declares
 its nouns, so `blocks.<name>.names` renames them; see
 [SQL blocks](/docs/blocks/sql).
+
+## Plugins become block extensions
+
+The built-in plugins live with the blocks that own their columns, and the
+`plugins` config key goes. The codemod moves the config and the imports:
+
+| 0.14                                                      | 0.15                                                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `plugins.timestamps`                                      | the `updated-at` block (`createdAt` and `updatedAt` options)                                    |
+| `plugins.actor`                                           | the `created-by` block (`createdBy`, `updatedBy` and `impersonatedBy`)                          |
+| `plugins.softDelete.column`                               | the `trash` block's `deletedAt` option                                                          |
+| `plugins.tenant.column`                                   | `auth.organization.column`                                                                      |
+| `timestamps()` from `better-supabase/plugins/timestamps`  | `updatedAtExtension()` from `better-supabase/blocks/updated-at`                                 |
+| `actor()` from `better-supabase/plugins/actor`            | `createdByExtension()` from `better-supabase/blocks/created-by`                                 |
+| `softDelete()` from `better-supabase/plugins/soft-delete` | `trashExtension()` from `better-supabase/blocks/trash`                                          |
+| `tenant()` from `better-supabase/plugins/tenant`          | `membershipsExtension()` from `better-supabase/blocks/memberships`                              |
+| `rules()`, `safe()`, `recommended()`, `strict()`          | `guards()`, `safeGuards()`, `recommendedGuards()`, `strictGuards()` from `better-supabase/lint` |
+| `validation()` from `better-supabase/plugins/validation`  | `validation()` from `better-supabase`                                                           |
+
+`gen` now installs the extensions of the installed blocks in the generated
+schema, and `validation()` with the generated validators when a `zod()`,
+`valibot()` or `standardSchema()` generator is configured. Remove the
+`.use()` calls the codemod moved unless they pass options; a `.use()` of an
+extension with options replaces the one the schema installed.
+
+One default changed: a query on an organization table without an
+organization is left to RLS (`onMissing: "skip"`). The codemod keeps the
+0.14 behavior by writing `auth.organization.onMissing: "error"` for a config
+that had `plugins.tenant`; set it yourself to fail closed.

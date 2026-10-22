@@ -120,9 +120,9 @@ export const integrations: readonly Integration[] = [
     ["Redis streams", "/docs/blocks/streams", siRedis],
     ["Stripe", "/docs/blocks/billing", siStripe],
     ["OpenTelemetry", "/docs/standards/otel", siOpentelemetry],
-    ["Zod", "/docs/plugins/validation", siZod],
-    ["Valibot", "/docs/plugins/validation", valibotGlyph],
-    ["ArkType", "/docs/plugins/validation", arktypeGlyph],
+    ["Zod", "/docs/repository/validation", siZod],
+    ["Valibot", "/docs/repository/validation", valibotGlyph],
+    ["ArkType", "/docs/repository/validation", arktypeGlyph],
   ]),
 ];
 

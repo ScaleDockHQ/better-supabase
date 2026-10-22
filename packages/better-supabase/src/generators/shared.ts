@@ -83,8 +83,8 @@ export interface FieldPlan {
   /** Set when the config gives this jsonb column a custom TypeScript type. */
   readonly customJson: boolean;
   /**
-   * Filled by `timestamps()`, `actor()` or `softDelete()`; writes need `{
-   * override: true }`.
+   * Filled by `updatedAtExtension()`, `createdByExtension()` or
+   * `trashExtension()`; writes need `{ override: true }`.
    */
   readonly managed: boolean;
 }

@@ -38,7 +38,7 @@ row-level cache tags and `row.deleted` CloudEvents work for deletes too.
 changed rows when they are known, from the returned rows or from a `where` on
 the primary key, so writes that return nothing (soft deletes,
 `returning: false`) still invalidate the right rows. `tenant` is
-`context.tenant` or the tenant the `tenant()` plugin resolved from the claims.
+`context.tenant` or the tenant the memberships extension resolved from the claims.
 
 Listeners are per runtime: register them once, next to `defineSupabase`, not
 per request. Cache invalidation (`betterSupabase.cache`), CloudEvents

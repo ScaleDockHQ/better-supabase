@@ -12,20 +12,20 @@ import type { Executor } from "../../src/core/executor.ts";
 import type { CloudEvent, EventSink } from "../../src/events/index.ts";
 import type { Condition, Selection } from "../../src/ir/types.ts";
 
+import { createdByExtension } from "../../src/blocks/created-by/index.ts";
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { jsonSchema, resolveConfig } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { err, ok } from "../../src/core/result.ts";
+import { validation } from "../../src/core/validation.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import { nextCache } from "../../src/next/index.ts";
-import { actor } from "../../src/plugins/actor/index.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
-import { validation } from "../../src/plugins/validation/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import {
   ConformanceError,
@@ -474,10 +474,10 @@ describe("testPlugin", () => {
     };
 
     for (const plugin of [
-      timestamps(),
-      softDelete(),
-      tenant(),
-      actor(),
+      updatedAtExtension(),
+      trashExtension(),
+      membershipsExtension(),
+      createdByExtension(),
       validation({ schemas: validators }),
     ]) {
       await testPlugin(plugin, {
@@ -532,7 +532,7 @@ describe("testPlugin", () => {
     ).toEqual([
       "installs and builds repositories",
       "declares a known hook order",
-      "installs next to the first-party plugins in either order",
+      "installs next to the block extensions in either order",
       "repository adds functions and keeps the base methods",
     ]);
   });
@@ -556,7 +556,7 @@ describe("testPlugin", () => {
       "targets plugin API v1",
       "installs and builds repositories",
       "declares a known hook order",
-      "installs next to the first-party plugins in either order",
+      "installs next to the block extensions in either order",
       "beforeMutation is pure and deterministic",
       "mapError returns a DbError or undefined",
     ]);
@@ -618,7 +618,7 @@ describe("testPlugin", () => {
     expect(await failures(testPlugin(old, { betterSupabase }))).toEqual([
       "targets plugin API v1",
       "installs and builds repositories",
-      "installs next to the first-party plugins in either order",
+      "installs next to the block extensions in either order",
     ]);
   });
 });

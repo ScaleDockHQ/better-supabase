@@ -730,16 +730,16 @@ describe("function arguments", () => {
   });
 });
 
-describe("plugin flags", () => {
+describe("extension flags", () => {
   it("rejects a soft-delete column that is not a timestamp", async () => {
     const config = resolveConfig(
-      { plugins: { softDelete: { column: "name" } } },
+      { blocks: { trash: { options: { deletedAt: "name" } } } },
       fixtures,
     );
 
     const snapshot = await loadFixtureSnapshot();
     expect(() => buildModel(snapshot, config)).toThrow(
-      "plugins.softDelete.column: public.customers.name is text, but softDelete() writes a timestamp",
+      "blocks.trash.options.deletedAt: public.customers.name is text, but the trash extension writes a timestamp",
     );
   });
 
@@ -761,7 +761,7 @@ describe("plugin flags", () => {
       await flagsOf(
         {
           records: subjects,
-          plugins: { softDelete: { column: "created_at" } },
+          blocks: { trash: { options: { deletedAt: "created_at" } } },
         },
         "customers",
       ),
@@ -770,7 +770,7 @@ describe("plugin flags", () => {
       await flagsOf(
         {
           records: { customer: { table: "customers", deletedAt: "gone_at" } },
-          plugins: { softDelete: { column: "archived_at" } },
+          blocks: { trash: { options: { deletedAt: "archived_at" } } },
         },
         "customers",
       ),
@@ -785,7 +785,7 @@ describe("plugin flags", () => {
 
     const snapshot = await loadFixtureSnapshot();
     expect(() => buildModel(snapshot, config)).toThrow(
-      "subjects.customer.deletedAt: public.customers.name is text, but softDelete() writes a timestamp",
+      "subjects.customer.deletedAt: public.customers.name is text, but the trash extension writes a timestamp",
     );
   });
 });
@@ -830,7 +830,6 @@ describe("config JSON Schema", () => {
       gen: true,
       api: true,
       tooling: true,
-      plugins: true,
       records: true,
       blocks: true,
       tables: true,
@@ -937,7 +936,7 @@ describe("gen", () => {
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
         gen: { casing: "camel", output: "src/db/generated.ts" },
-        plugins: { tenant: true },
+        auth: { organization: { column: "organization_id" } },
         database: {
           realtime: {
             tables: ["customers", "public.tags", "organizations"],

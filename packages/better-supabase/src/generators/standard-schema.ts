@@ -41,7 +41,7 @@ export interface StandardSchemaGeneratorOptions {
 /**
  * Standard Schemas for every table's Row, Insert and Update shape, with no
  * validation library. Each one also converts to JSON Schema (Standard JSON
- * Schema), and `validators` plugs into the validation plugin.
+ * Schema), and `validators` is what the generated schema checks writes with.
  */
 export function standardSchema(
   options: StandardSchemaGeneratorOptions = {},
@@ -152,7 +152,7 @@ export function standardSchema(
 
       lines.push(
         "",
-        "/** Write validators for the validation plugin. */",
+        "/** Write validators; the generated schema installs them through `validation`. */",
         "export const validators: {",
         ...validatorTypes,
         "} = {",
@@ -180,7 +180,7 @@ export function standardSchema(
         "",
       );
 
-      return [{ path, contents: lines.join("\n") }];
+      return [{ path, contents: lines.join("\n"), validators: true }];
     },
   };
 }

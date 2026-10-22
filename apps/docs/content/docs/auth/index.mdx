@@ -178,7 +178,7 @@ export const betterSupabase = defineSupabase(schema)
   .use(tenant<v.InferOutput<typeof Claims>>());
 ```
 
-The tenant plugin, `current_tenant_id()` and the storage and realtime policies
+The memberships extension, `current_tenant_id()` and the storage and realtime policies
 read the active tenant from `tenant_id` (or `app_metadata.tenant_id`).
 `auth.organization.claim` in the config renames it for all of them at once. Memberships
 have the shape `{ scope, id, roles }`, and roles and memberships are never
@@ -276,5 +276,5 @@ policy come from the verified claims, never from `profile` or
 
 `authContext(auth)` turns an auth state into the repository context: a typed
 `actor` (`user`, `service` or `anon`) and the JWT `claims`. The
-[`actor`](/docs/plugins/actor) and [`tenant`](/docs/plugins/tenant) plugins
-read it.
+[created-by](/docs/blocks/created-by) and [memberships](/docs/blocks/memberships)
+extensions read it.

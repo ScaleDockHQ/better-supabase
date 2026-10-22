@@ -63,6 +63,10 @@ export type { ErrorMessages } from "./core/error-messages.ts";
 
 export { definePlugin, PLUGIN_API_VERSION } from "./core/plugin.ts";
 
+export { validation } from "./core/validation.ts";
+
+export type { TableValidators, ValidationOptions } from "./core/validation.ts";
+
 export { defineRepository } from "./core/define-repository.ts";
 
 export type { TableRepositoryExtension } from "./core/define-repository.ts";
@@ -116,6 +120,7 @@ export type {
   ApplyExtension,
   CallOptions,
   ExtensionOf,
+  ExtensionsOf,
   NoExtension,
   WithExtension,
   HasFlag,

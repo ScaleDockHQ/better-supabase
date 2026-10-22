@@ -499,10 +499,15 @@ function presetManifest(
     provides: Object.keys(block.provides).filter(isPortName),
   };
 
+  const extended =
+    block.extension === undefined
+      ? manifest
+      : { ...manifest, extension: block.extension };
+
   const entitySchemas = entitySchemasOf(block);
 
   const typed =
-    entityTypes.length === 0 ? manifest : { ...manifest, entityTypes };
+    entityTypes.length === 0 ? extended : { ...extended, entityTypes };
 
   const withSchemas =
     Object.keys(entitySchemas).length === 0

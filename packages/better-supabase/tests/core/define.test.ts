@@ -92,6 +92,19 @@ describe("use", () => {
     );
   });
 
+  it("installs the schema's extensions first and lets use() replace one by name", () => {
+    const installed: AnyPlugin = { apiVersion: 1, name: "trash" };
+    const replacement: AnyPlugin = { apiVersion: 1, name: "trash" };
+
+    const extended = defineSupabase(defineSchema(schema.meta, [installed]));
+
+    expect(extended.plugins).toEqual([installed]);
+    expect(extended.use(replacement).plugins).toEqual([replacement]);
+    expect(() => extended.use(replacement).use(replacement)).toThrow(
+      'better-supabase: plugin "trash" is already installed',
+    );
+  });
+
   it("rejects a plugin method that redefines a repository method", () => {
     const plugin: AnyPlugin = {
       apiVersion: 1,

@@ -8,6 +8,8 @@ export const UPDATED_AT: BlockSqlDefinition = {
   description: "Keeps an updated_at column current on every update.",
   requires: [],
   target: "schema",
+  // Read by gen for the repository extension, not by the SQL.
+  names: { tables: {}, options: ["createdAt", "updatedAt"] },
   build: () => `${SCHEMA}
 
 create or replace function better_supabase.set_updated_at()

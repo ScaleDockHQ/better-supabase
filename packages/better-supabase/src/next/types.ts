@@ -142,9 +142,9 @@ export interface ActionOptions<
   readonly input?: S;
   /**
    * The active tenant for the action's context, from the validated input,
-   * instead of `NextOptions.tenant`. It is checked the same way: the `tenant()`
-   * plugin and `current_tenant_id()` only honor a tenant the caller belongs
-   * to.
+   * instead of `NextOptions.tenant`. It is checked the same way: the
+   * `membershipsExtension()` plugin and `current_tenant_id()` only honor a
+   * tenant the caller belongs to.
    */
   readonly tenant?: (input: ActionParsed<S>) => string | undefined;
 }
@@ -198,8 +198,9 @@ export interface ScopeOptions {
   /**
    * The active tenant, e.g. from route params, instead of `NextOptions.tenant`
    * (whose request has the incoming headers but no URL here). It goes where the
-   * resolver's result goes, so it gets the same checks: the `tenant()` plugin
-   * and `current_tenant_id()` only honor a tenant the caller belongs to.
+   * resolver's result goes, so it gets the same checks:
+   * `membershipsExtension()` and `current_tenant_id()` only honor a tenant the
+   * caller belongs to.
    */
   readonly tenant?: string;
 }

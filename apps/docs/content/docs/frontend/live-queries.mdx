@@ -26,7 +26,7 @@ decides what each user sees, and includes and filters stay correct.
    better-supabase add realtime-tables
    ```
 
-With the [tenant plugin](/docs/plugins/tenant), tables broadcast on a
+With the [memberships extension](/docs/blocks/memberships), tables broadcast on a
 per-tenant topic (`bsb:t:public.customers:<organization>`), and the policy only lets a
 user join the tenant in their `tenant_id` claim. A table without the tenant
 column fails to install, so a tenant table never broadcasts to everyone by

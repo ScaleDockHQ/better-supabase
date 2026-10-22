@@ -36,9 +36,9 @@ export const features: readonly Feature[] = [
     href: "/docs/concepts/caching",
   },
   {
-    title: "Plugins",
-    body: "Timestamps, soft delete, tenants, actors, validation and rules, each versioned and opt-in.",
-    href: "/docs/plugins",
+    title: "Block extensions",
+    body: "Timestamps, soft delete, organization scoping, actor columns and validation, installed by gen with their blocks.",
+    href: "/docs/blocks/updated-at",
   },
   {
     title: "Blocks",

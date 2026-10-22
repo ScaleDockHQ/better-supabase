@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 import type { Logger } from "../../src/core/logger.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineRepository } from "../../src/core/define-repository.ts";
 import { BetterSupabase, defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
 import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
@@ -42,7 +42,7 @@ function recordingLogger(): Logger & { readonly messages: string[] } {
 
 describe("betterSupabase.cache", () => {
   it("invalidates the table, cascaded tables, row keys and tenant after mutations", async () => {
-    const betterSupabase = defineSupabase(schema).use(tenant());
+    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
     const cache = memoryCache();
     const detach = betterSupabase.cache(cache);
     const db = betterSupabase.connect(echo(), { tenant: ACME });
@@ -131,11 +131,11 @@ describe("per-definition state", () => {
 
   it("resolves each definition's tenant from its own claim paths", () => {
     const byOrganization = defineSupabase(schema).use(
-      tenant({ claim: "org_id" }),
+      membershipsExtension({ claim: "org_id" }),
     );
 
     const byMetadata = defineSupabase(schema).use(
-      tenant({ claim: "app_metadata.tenant" }),
+      membershipsExtension({ claim: "app_metadata.tenant" }),
     );
 
     expect(byOrganization.connect(echo(), { claims }).$context.tenant).toBe(
@@ -149,7 +149,7 @@ describe("per-definition state", () => {
 
   it("derives the context again for $with and drops it for $withoutPlugins", () => {
     const db = defineSupabase(schema)
-      .use(tenant({ claim: "org_id" }))
+      .use(membershipsExtension({ claim: "org_id" }))
       .connect(echo(), { claims });
 
     expect(

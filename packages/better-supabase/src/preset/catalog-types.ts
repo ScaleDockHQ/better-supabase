@@ -58,6 +58,8 @@ export interface PresetCatalogManifest {
     Readonly<Record<PortName, "optional" | "required">>
   >;
   readonly provides: readonly PortName[];
+  /** The export of its subpath that builds its repository extension. */
+  readonly extension?: string;
   /**
    * The types its subpath exports that carry one of its entities' names, which
    * `gen` aliases under the renamed names.
