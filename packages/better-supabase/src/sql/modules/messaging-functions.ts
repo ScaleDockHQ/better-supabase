@@ -293,6 +293,24 @@ function messageFunctions(q: MessagingSql): string {
     end if;
   end if;`;
 
+  const anchorFile =
+    attachments === undefined
+      ? `
+    ${fail("MESSAGING_ATTACHMENTS_UNAVAILABLE", "install the attachments block to anchor a message to a file", "22023")}`
+      : `
+    if not exists (
+      select 1 from ${attachments.table("attachments")} a
+      where a.${a("id")} = (send_message.attrs -> 'anchor' ->> 'attachmentId')::uuid
+        and a.${a("tenant")} = v_conv.${cv("tenant")}
+        and a.${a("status")} <> 'infected'
+        and ((a.${a("subjectType")} = v_conv.${cv("subjectType")} and a.${a("subjectId")} = v_conv.${cv("subjectId")})
+          or (a.${a("subjectType")} = ${message} and exists (
+            select 1 from ${t("messages")} m
+            where m.${ms("id")}::text = a.${a("subjectId")} and m.${ms("conversation")} = v_conv.${cv("id")})))
+    ) then
+      ${fail("MESSAGING_ANCHOR_INVALID", "anchor the message to a file on this record or in this conversation", "22023")}
+    end if;`;
+
   const detach =
     attachments === undefined
       ? ""
@@ -353,6 +371,45 @@ as $$
 $$;
 revoke execute on function ${fn("parse_mentions")}(text) from public, anon;
 grant execute on function ${fn("parse_mentions")}(text) to authenticated, service_role;
+
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function ${fn("messaging_file_anchor_valid")}(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function ${fn("messaging_file_anchor_valid")}(jsonb) from public, anon;
+grant execute on function ${fn("messaging_file_anchor_valid")}(jsonb) to authenticated, service_role;
 
 -- Stores the records a sent message mentions, at most ${String(MAX_RECORD_MENTIONS)} of registered
 -- subject types, in place of the ones stored before. A deleted or unsent
@@ -464,6 +521,11 @@ begin
     if not found then
       ${fail("MESSAGING_PARENT_INVALID", "reply to a sent message in the same conversation", "22023")}
     end if;${depth}
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not ${fn("messaging_file_anchor_valid")}(send_message.attrs -> 'anchor') then
+      ${fail("MESSAGING_ANCHOR_INVALID", "a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0", "22023")}
+    end if;${anchorFile}
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -735,6 +797,26 @@ as $$
   ))
 $$;
 ${userGrant(`${fn("list_replies")}(uuid, timestamptz, uuid, integer)`)}
+
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function ${fn("list_file_anchors")}(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${fn("messaging_messages_json")}(array(
+    select m.${ms("id")} from ${t("messages")} m
+    where m.${ms("anchor")} ->> 'kind' = 'file'
+      and m.${ms("anchor")} ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m.${ms("sentAt")} is not null and m.${ms("deletedAt")} is null
+    order by m.${ms("sentAt")}, m.${ms("id")}
+    limit ${pageSize("list_file_anchors.max_rows", 100, 500)}
+  ))
+$$;
+${userGrant(`${fn("list_file_anchors")}(uuid, integer)`)}
 
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function ${fn("get_message")}(message uuid)

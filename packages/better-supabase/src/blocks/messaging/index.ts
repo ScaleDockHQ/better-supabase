@@ -73,6 +73,10 @@ export {
   type MessageDraft,
 } from "./client.ts";
 
+export { fileAnchor, isFileAnchor } from "./anchors.ts";
+
+export type { AnchorRegion, FileAnchor, FileAnchorAt } from "./anchors.ts";
+
 export { messagingBlock } from "./manifest.ts";
 
 export { messageChangeSchema, messageInputSchema } from "./schemas.ts";

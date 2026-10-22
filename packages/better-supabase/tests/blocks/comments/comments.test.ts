@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { commentOf } from "../../../src/blocks/comments/comments.ts";
 import {
   createComments,
+  fileAnchor,
   mentionsIn,
 } from "../../../src/blocks/comments/index.ts";
 
@@ -435,5 +436,22 @@ describe("createComments", () => {
     expect(
       await createComments({ transport: fake.transport }).remove("c1"),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+  });
+});
+
+describe("comments.anchoredTo", () => {
+  it("lists the comments anchored to a file", async () => {
+    const file = "00000000-0000-4000-8000-0000000f1001";
+    const anchor = fileAnchor(file, { page: 2 });
+    const fake = fakeTransport({ list_file_comments: [{ ...row, anchor }] });
+    const comments = createComments({ transport: fake.transport });
+
+    const [comment] = await comments.anchoredTo(file, { limit: 5 }).orThrow();
+
+    expect(fake.calls[0]?.slice(1)).toEqual([
+      "list_file_comments",
+      { attachment: file, max_rows: 5 },
+    ]);
+    expect(comment).toMatchObject({ anchor, subject: PROJECT });
   });
 });

@@ -16,6 +16,14 @@ export type { MessageEdit } from "../messaging/messaging.ts";
 
 export { conversationTopic } from "../messaging/messaging.ts";
 
+export { fileAnchor, isFileAnchor } from "../messaging/anchors.ts";
+
+export type {
+  AnchorRegion,
+  FileAnchor,
+  FileAnchorAt,
+} from "../messaging/anchors.ts";
+
 export {
   dbTransport,
   rpcTransport,

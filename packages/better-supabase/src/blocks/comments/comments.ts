@@ -85,7 +85,8 @@ export interface NewComment<F extends object = Record<never, never>> {
   readonly document?: unknown;
   /**
    * Where on the record the comment points, such as a text range or a field
-   * (any JSON). Top-level comments only.
+   * (any JSON), or a page, region or moment of a file (`fileAnchor`). Top-level
+   * comments only.
    */
   readonly anchor?: unknown;
   /**
@@ -140,6 +141,11 @@ export interface Comments<F extends object = Record<never, never>> {
   create(subject: SubjectRef, comment: NewComment<F>): AsyncResult<Comment<F>>;
   /** One comment, or `not_found` when the caller can't read it. */
   get(id: string): AsyncResult<Comment<F>>;
+  /** The top-level comments anchored to a file (`fileAnchor`), oldest first. */
+  anchoredTo(
+    attachmentId: string,
+    options?: { readonly limit?: number },
+  ): AsyncResult<Comment<F>[]>;
   /** The author edits within `editWindow`; the old version is kept. */
   edit(id: string, edit: CommentEdit<F>): AsyncResult<Comment<F>>;
   /** Soft-deletes (the author, or a member with `comments.moderate`). */
@@ -383,6 +389,12 @@ export function createComments<
           (value) => recordsOf(value, "list_comments").map(commentOf),
         ).andThen(fields.rows),
       ),
+    anchoredTo: (attachmentId, list = {}) =>
+      call(
+        "list_file_comments",
+        { attachment: attachmentId, max_rows: list.limit },
+        (value) => recordsOf(value, "list_file_comments").map(commentOf),
+      ).andThen(fields.rows),
     counts: (subjects) =>
       tenant().andThen((organizationId) =>
         bySubjectType(subjects, (type, ids) =>

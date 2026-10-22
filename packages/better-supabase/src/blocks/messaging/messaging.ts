@@ -313,6 +313,11 @@ export interface Messaging<F extends object = Record<never, never>> {
     messageId: string,
     options?: { readonly after?: MessageCursor; readonly limit?: number },
   ): AsyncResult<Message<F>[]>;
+  /** The top-level messages anchored to a file (`fileAnchor`), oldest first. */
+  anchoredTo(
+    attachmentId: string,
+    options?: { readonly limit?: number },
+  ): AsyncResult<Message<F>[]>;
   /** One message, or `undefined`: for a Realtime ping's id. */
   get(messageId: string): AsyncResult<Message<F> | undefined>;
   edits(messageId: string): AsyncResult<MessageEdit[]>;
@@ -718,6 +723,11 @@ export function createMessaging<
       many("list_replies", {
         message: messageId,
         ...cursorArgs("after", list.after),
+        max_rows: list.limit ?? null,
+      }),
+    anchoredTo: (attachmentId, list = {}) =>
+      many("list_file_anchors", {
+        attachment: attachmentId,
         max_rows: list.limit ?? null,
       }),
     get: (messageId) =>

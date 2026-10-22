@@ -154,6 +154,7 @@ create index if not exists ${idx("messaging_messages_thread_idx")} on ${t("messa
 create index if not exists ${idx("messaging_messages_parent_idx")} on ${t("messages")} (${ms("parent")}) where ${ms("parent")} is not null;
 create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messages")} (${ms("author")});
 create index if not exists ${idx("messaging_messages_due_idx")} on ${t("messages")} (${ms("scheduledFor")}) where ${ms("sentAt")} is null;
+create index if not exists ${idx("messaging_messages_file_anchor_idx")} on ${t("messages")} ((${ms("anchor")} ->> 'attachmentId')) where ${ms("anchor")} ->> 'kind' = 'file';
 create index if not exists ${idx("messaging_messages_pinned_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("pinnedAt")} desc) where ${ms("pinnedAt")} is not null;${addExtraColumns(t("messages"), ctx.extraColumns("messages", MESSAGE_RESERVED))}
 ${lockTable(t("messages"), { read: true })}`,
     edits: `create table if not exists ${t("edits")} (
