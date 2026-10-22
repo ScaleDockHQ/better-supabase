@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { accessBlock } from "better-supabase/blocks/access";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -19,12 +20,14 @@ import { profilesBlock } from "better-supabase/blocks/profiles";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./marketplace.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  access: accessBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,
@@ -41,6 +44,7 @@ export const blockSet = defineBlocks(blockConfig, {
   reactions: reactionsBlock,
   settings: settingsBlock,
   shareLinks: shareLinksBlock,
+  subjects: subjectsBlock,
   teams: teamsBlock,
 });
 

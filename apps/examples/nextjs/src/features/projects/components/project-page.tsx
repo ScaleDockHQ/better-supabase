@@ -30,7 +30,7 @@ import { PROJECT_SUBJECT } from "../project-types";
 import { ProjectHistory } from "./project-history";
 import { ProjectLoadError } from "./project-load-error";
 import { TaskFormDialog } from "./task-form-dialog";
-import { TaskImportDialog } from "./task-import-dialog";
+import { TaskImportAction } from "./task-import-action";
 import { TaskStatusBadge } from "./task-status-badge";
 
 // #region recipe:record-page
@@ -105,9 +105,7 @@ export async function ProjectPage({
               })}
             </CardDescription>
             <CardAction className="flex items-center gap-2">
-              {can(session, "imports.manage") ? (
-                <TaskImportDialog projectId={record.id} />
-              ) : null}
+              <TaskImportAction projectId={record.id} />
               <TaskFormDialog
                 projects={[{ id: record.id, name: record.name }]}
                 members={members.data}

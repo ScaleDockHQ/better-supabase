@@ -361,6 +361,37 @@ describe("access module", () => {
     }
   });
 
+  it("answers my_permissions through can() when keys are passed, in every model", () => {
+    const models = [
+      SQL_MODULES["access"]!.sql,
+      provider(),
+      access({
+        model: "custom",
+        functions: {
+          can: "public.authorize({id}, {permission})",
+          tenantIdsWith: "public.ids_with({permission})",
+          isPlatform: "public.is_admin({permission})",
+          canAssign: "public.may_assign({tenant}, {role})",
+        },
+      }),
+    ];
+
+    for (const sql of models) {
+      expect(sql).toContain(
+        "create or replace function better_supabase.my_permissions(tenant uuid, keys text[] default null)",
+      );
+      expect(sql).toContain(
+        "where better_supabase.can('tenant', my_permissions.tenant, k)",
+      );
+      expect(sql).toContain(
+        "better_supabase.member_permissions(auth.uid(), my_permissions.tenant)",
+      );
+      expect(sql).toContain(
+        "grant execute on function better_supabase.my_permissions(uuid, text[]) to anon, authenticated, service_role;",
+      );
+    }
+  });
+
   it("wraps the app's functions in the custom model", () => {
     const sql = access({
       model: "custom",

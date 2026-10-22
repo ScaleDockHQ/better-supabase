@@ -19,6 +19,11 @@ export interface TemplateContext {
   readonly tsExtensions: boolean;
   readonly frameworks: readonly Framework[];
   readonly version: string;
+  /**
+   * Whether the config installs blocks, so the browser client takes
+   * `blockConfig` from `blocks.generated.ts`.
+   */
+  readonly blocks?: boolean;
 }
 
 export interface TemplateFile {
@@ -264,14 +269,29 @@ export const TEMPLATES: Readonly<Record<Integration, IntegrationTemplate>> = {
       const path = join(supabaseDir(context), "client.ts");
       const env = publicEnv(context);
 
+      const blocks =
+        context.blocks === true
+          ? importFrom(
+              context,
+              path,
+              join(posix.dirname(context.generated), "blocks.generated.ts"),
+            )
+          : undefined;
+
       return [
         {
           path,
           contents: `import { createClient } from 'better-supabase/client';
 
-import { betterSupabase } from '${importLib(context, path)}';
+import { betterSupabase } from '${importLib(context, path)}';${
+            blocks === undefined
+              ? ""
+              : `\n\nimport { blockConfig } from '${blocks}';`
+          }
 
-export const bs = createClient(betterSupabase, {
+export const bs = createClient(betterSupabase, {${
+            blocks === undefined ? "" : "\n  blocks: blockConfig,"
+          }
   env: {
     url: ${env.url},
     publishableKey: ${env.key},

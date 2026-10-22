@@ -1,0 +1,167 @@
+---
+title: Subjects
+description: Titles and links for any record in config.subjects, resolved in one batched call, with the SubjectLink and SubjectChip recipes.
+---
+
+Comments, relations, approvals and the other blocks point at records as a
+`SubjectRef`, `{ type, id }`. `better-supabase/blocks/subjects` turns those
+refs into a title and a path from the [subject registry](/docs/blocks/sql#subject-registry),
+so a list of rows that each name a record shows a link without a query per
+row.
+
+```bash
+better-supabase add subjects
+```
+
+Give each type in `config.subjects` a `title` column and a `url` template:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  subjects: {
+    customer: {
+      table: "public.customers",
+      title: "name",
+      url: "/customers/{id}",
+    },
+  },
+});
+```
+
+`resolve(refs)` calls `subject_titles` and returns the readable subjects keyed
+`type:id`. It runs as the caller, so a row the caller can't read, a
+soft-deleted row and an unknown type are missing from the result. It removes
+duplicate refs and sends at most 500 per call, splitting larger lists:
+
+```ts
+import { createBlockClient } from "better-supabase/blocks";
+import { subjectKey, subjectsBlock } from "better-supabase/blocks/subjects";
+
+const subjects = createBlockClient(db, subjectsBlock);
+const found = await subjects
+  .resolve([
+    { type: "customer", id: customerId },
+    { type: "project", id: projectId },
+  ])
+  .orThrow();
+
+found[subjectKey({ type: "customer", id: customerId })];
+// { type: "customer", id: "…", title: "Road Runner Inc", url: "/customers/…" }
+```
+
+`subject_titles` fails with `SUBJECT_REFS_INVALID` when `refs` is not a JSON
+array and `SUBJECT_REFS_TOO_MANY` above 500 refs.
+
+## Paths in code
+
+`gen` writes a `urls` constant to `blocks.generated.ts` with a function for
+every subject type that has a `url`: block entities, `config.subjects` and app
+table subjects. Each placeholder becomes a camel-case argument:
+
+```ts
+import { urls } from "@/lib/supabase/blocks.generated";
+
+urls.customer({ id: customer.id }); // "/customers/…"
+urls.task({ projectId: task.project_id }); // "/projects/…"
+```
+
+## In the browser
+
+`useSubject(ref)` from `better-supabase/blocks/subjects/react` returns
+`subject`: `undefined` while it loads, `null` when the caller can't read the
+record, then `{ type, id, title, url }`. `useSubjects(refs)` resolves a list
+and returns `get(ref)`. Every `useSubject` and `useSubjects` of one render
+joins one `subject_titles` call, so a table with a subject link in each row
+costs one round trip. Both expose `error` and `refresh` for a retry.
+
+```tsx title="components/subject-link.tsx"
+"use client";
+
+import { useSubject } from "better-supabase/blocks/subjects/react";
+
+export function SubjectLink({ subject }: { subject: SubjectRef }) {
+  const { subject: resolved } = useSubject(subject);
+
+  if (resolved === undefined) return <Skeleton className="h-4 w-32" />;
+  if (resolved === null) return <span>A record you can't open</span>;
+
+  return <Link href={resolved.url ?? "#"}>{resolved.title}</Link>;
+}
+```
+
+`createSubjectsController` is the same logic without React, and
+`better-supabase/blocks/subjects/vue`, `/svelte` and `/solid` export
+`useSubjects` over it. Wrap the client in `batchSubjects` so the components
+of one render share a call. The [Subject link and Subject chip
+recipes](/docs/registry/ui-recipes) show both in the Next.js example: the
+related records panel and the approvals queue.
+
+```vue title="SubjectTitle.vue"
+<script setup lang="ts">
+import { computed } from "vue";
+import { useSupabase } from "better-supabase/vue";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchSubjects,
+  createSubjects,
+  subjectKey,
+} from "better-supabase/blocks/subjects";
+import { useSubjects } from "better-supabase/blocks/subjects/vue";
+
+const props = defineProps<{ type: string; id: string }>();
+const supabase = useSupabase();
+const ref = { type: props.type, id: props.id };
+const { state } = useSubjects({
+  client: batchSubjects(
+    createSubjects({ transport: rpcTransport(supabase), schema: "api" }),
+  ),
+  refs: [ref],
+});
+const subject = computed(() => state.value.subjects?.[subjectKey(ref)]);
+</script>
+
+<template>
+  <a v-if="subject?.url" :href="subject.url">{{ subject.title }}</a>
+</template>
+```
+
+```svelte title="SubjectTitle.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { rpcTransport } from "better-supabase/blocks";
+  import { batchSubjects, createSubjects, subjectKey } from "better-supabase/blocks/subjects";
+  import { useSubjects } from "better-supabase/blocks/subjects/svelte";
+
+  let { type, id }: { type: string; id: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const subjects = useSubjects({
+    client: batchSubjects(createSubjects({ transport: rpcTransport(supabase), schema: "api" })),
+    refs: [{ type, id }],
+  });
+</script>
+
+<span>{$subjects.subjects?.[subjectKey({ type, id })]?.title}</span>
+```
+
+```tsx title="SubjectTitle.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchSubjects,
+  createSubjects,
+  subjectKey,
+} from "better-supabase/blocks/subjects";
+import { useSubjects } from "better-supabase/blocks/subjects/solid";
+
+export function SubjectTitle(props: { type: string; id: string }) {
+  const supabase = useSupabase();
+  const ref = { type: props.type, id: props.id };
+  const { state } = useSubjects({
+    client: batchSubjects(
+      createSubjects({ transport: rpcTransport(supabase), schema: "api" }),
+    ),
+    refs: [ref],
+  });
+
+  return <span>{state().subjects?.[subjectKey(ref)]?.title}</span>;
+}
+```

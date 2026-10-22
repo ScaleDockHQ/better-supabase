@@ -101,6 +101,7 @@
   "blocks/sso",
   "blocks/state-machine",
   "blocks/streams",
+  "blocks/subjects",
   "blocks/tags",
   "blocks/targets",
   "blocks/teams",

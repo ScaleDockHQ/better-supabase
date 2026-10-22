@@ -148,7 +148,10 @@ describe("module sources", () => {
       /better_supabase\.can\(|tenant_ids_with\(|is_platform\(|member_organization_ids\(\)/;
 
     const files = (await readdir(MODULES_DIR)).filter(
-      (file) => file.endsWith(".ts") && file !== "access.ts",
+      (file) =>
+        file.endsWith(".ts") &&
+        file !== "access.ts" &&
+        file !== "access-permissions.ts",
     );
 
     const sites: string[] = [];

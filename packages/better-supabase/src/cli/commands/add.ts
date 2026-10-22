@@ -247,7 +247,13 @@ async function addIntegrations(
   prompts?: Prompter,
 ): Promise<CommandResult> {
   const project = await detectProject(config.root);
-  const templateContext = templateContextFor(project, config.output);
+
+  const templateContext = templateContextFor(
+    project,
+    config.output,
+    config.blockNames.length > 0,
+  );
+
   const fromConfig = args._.length === 0 && config.integrations.length > 0;
 
   const missing = config.integrations.filter((name) =>

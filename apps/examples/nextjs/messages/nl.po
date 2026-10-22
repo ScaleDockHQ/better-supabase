@@ -3766,11 +3766,6 @@ msgid "Link removed"
 msgstr "Koppeling verwijderd"
 
 #: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.fkf6Ps"
-msgid "A record you can't open"
-msgstr "Een record dat je niet kunt openen"
-
-#: src/features/customers/components/related-items-panel.tsx
 msgctxt "customers.cr1jN8"
 msgid "Remove link"
 msgstr "Koppeling verwijderen"
@@ -6920,6 +6915,7 @@ msgid "Add its tasks once it exists."
 msgstr "Voeg de taken toe zodra het bestaat."
 
 #: src/features/projects/components/project-form-dialog.tsx
+#: src/features/projects/components/project-history.tsx
 #: src/features/projects/components/task-grid.tsx
 msgctxt "projects.HAlOn1"
 msgid "Name"
@@ -6928,6 +6924,7 @@ msgstr "Naam"
 #: src/features/projects/components/project-form-dialog.tsx
 #: src/features/projects/components/task-form-dialog.tsx
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.47FYwb"
 msgid "Cancel"
 msgstr "Annuleren"
@@ -6937,12 +6934,94 @@ msgctxt "projects.VUN1K7"
 msgid "Create project"
 msgstr "Project aanmaken"
 
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.djJp6c"
+msgid "History"
+msgstr "Geschiedenis"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.UdJJHc"
+msgid "Each change to the name, budget or currency."
+msgstr "Elke wijziging van de naam, het budget of de valuta."
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.2YBfcY"
+msgid "No history yet"
+msgstr "Nog geen geschiedenis"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.mjp--f"
+msgid "The next change to this project appears here."
+msgstr "De volgende wijziging van dit project verschijnt hier."
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.H1LYPI"
+msgid "Field restored"
+msgstr "Veld hersteld"
+
+#: src/features/projects/components/project-history.tsx
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.0KKXrH"
+msgid "Budget"
+msgstr "Budget"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.55hdQy"
+msgid "Currency"
+msgstr "Valuta"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.fsB_4p"
+msgid "Saved"
+msgstr "Opgeslagen"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.OhIqLr"
+msgid "Edited"
+msgstr "Bewerkt"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.muh87-"
+msgid "Restored"
+msgstr "Hersteld"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.-RhnH-"
+msgid "Empty"
+msgstr "Leeg"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.oTqwvB"
+msgid "Version {number}"
+msgstr "Versie {number}"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.11BIRd"
+msgid "Restore {field} from version {number}"
+msgstr "{field} herstellen uit versie {number}"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.zz6ObK"
+msgid "Restore"
+msgstr "Herstellen"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.5zn5fC"
+msgid "Version saved"
+msgstr "Versie opgeslagen"
+
+#: src/features/projects/components/project-history.tsx
+msgctxt "projects.4MLaX8"
+msgid "Save a version"
+msgstr "Versie opslaan"
+
 #: src/features/projects/components/project-load-error.tsx
 msgctxt "projects.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
 #: src/features/projects/components/project-load-error.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
@@ -6996,11 +7075,6 @@ msgid "Details"
 msgstr "Details"
 
 #: src/features/projects/components/project-page.tsx
-msgctxt "projects.0KKXrH"
-msgid "Budget"
-msgstr "Budget"
-
-#: src/features/projects/components/project-page.tsx
 msgctxt "projects.bhfSJZ"
 msgid "Lead"
 msgstr "Leider"
@@ -7009,6 +7083,11 @@ msgstr "Leider"
 msgctxt "projects.2cVj2C"
 msgid "Open tasks"
 msgstr "Open taken"
+
+#: src/features/projects/components/project-page.tsx
+msgctxt "projects.Gq7Gyo"
+msgid "The history didn't load"
+msgstr "De geschiedenis is niet geladen"
 
 #: src/features/projects/components/project-page.tsx
 msgctxt "projects.1EYCdR"
@@ -7068,6 +7147,7 @@ msgstr "Hij komt onderaan de statuskolom."
 
 #: src/features/projects/components/task-form-dialog.tsx
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.9a9-ww"
 msgid "Title"
 msgstr "Titel"
@@ -7090,6 +7170,7 @@ msgstr "Geen projecten gevonden."
 
 #: src/features/projects/components/task-form-dialog.tsx
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
 msgctxt "projects.tzMNF3"
 msgid "Status"
 msgstr "Status"
@@ -7187,6 +7268,37 @@ msgid "{count, plural, one {# task} other {# tasks}} changed"
 msgstr "{count, plural, one {# taak} other {# taken}} gewijzigd"
 
 #: src/features/projects/components/task-grid.tsx
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.l3AfOI"
+msgid "Due date"
+msgstr "Vervaldatum"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.vZzNOR"
+msgid "Set field"
+msgstr "Veld instellen"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.jV03nZ"
+msgid "Set a field on {count, plural, one {# task} other {# tasks}}"
+msgstr "Een veld instellen op {count, plural, one {# taak} other {# taken}}"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.Qco2Sg"
+msgid "Leave the value empty to clear the field."
+msgstr "Laat de waarde leeg om het veld te wissen."
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.AbvQFb"
+msgid "Field"
+msgstr "Veld"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.EWw_tK"
+msgid "Apply"
+msgstr "Toepassen"
+
+#: src/features/projects/components/task-grid.tsx
 msgctxt "projects.g9pEhE"
 msgid "Due"
 msgstr "Deadline"
@@ -7205,6 +7317,76 @@ msgstr "Markeer als {status}"
 msgctxt "projects.K3r6DQ"
 msgid "Delete"
 msgstr "Verwijderen"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.TqS0GP"
+msgid "{count, plural, one {# task} other {# tasks}} imported"
+msgstr "{count, plural, one {# taak} other {# taken}} geïmporteerd"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.lAzEZA"
+msgid "The file has rows that need fixing."
+msgstr "Het bestand heeft rijen die gecorrigeerd moeten worden."
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects._4tOwT"
+msgid "Skip"
+msgstr "Overslaan"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.9XUYQt"
+msgid "Import"
+msgstr "Importeren"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.vPFGqa"
+msgid "Import tasks"
+msgstr "Taken importeren"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.E-nvnF"
+msgid "Paste CSV with a title column. A title the project already has updates that task."
+msgstr "Plak CSV met een kolom title. Een titel die het project al heeft, werkt die taak bij."
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.8UzT6d"
+msgid "CSV"
+msgstr "CSV"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.nvkCcf"
+msgid "The preview didn't load"
+msgstr "Het voorbeeld is niet geladen"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.-A_7K2"
+msgid "{count, plural, one {# new} other {# new}}"
+msgstr "{count, plural, one {# nieuw} other {# nieuw}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.G2Ksec"
+msgid "{count, plural, one {# changed} other {# changed}}"
+msgstr "{count, plural, one {# gewijzigd} other {# gewijzigd}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.R7N3-1"
+msgid "{count, plural, one {# unchanged} other {# unchanged}}"
+msgstr "{count, plural, one {# ongewijzigd} other {# ongewijzigd}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.VXgrSB"
+msgid "{count, plural, one {# error} other {# errors}}"
+msgstr "{count, plural, one {# fout} other {# fouten}}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.8AEzNx"
+msgid "Row {row}: {message}"
+msgstr "Rij {row}: {message}"
+
+#: src/features/projects/components/task-import-dialog.tsx
+msgctxt "projects.TJo5E6"
+msgid "Preview"
+msgstr "Voorbeeld"
 
 #: src/features/projects/components/task-timeline.tsx
 #: src/features/projects/use-task-labels.ts
@@ -9108,6 +9290,31 @@ msgstr "Metadata geüpload als XML"
 msgctxt "sso.jUqYir"
 msgid "Added {date}"
 msgstr "Toegevoegd op {date}"
+
+#: src/features/subjects/components/subject-chip.tsx
+msgctxt "subjects.UpwcFd"
+msgid "Unavailable"
+msgstr "Niet beschikbaar"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.UJ-xqJ"
+msgid "The title didn't load"
+msgstr "De titel is niet geladen"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.fkf6Ps"
+msgid "A record you can't open"
+msgstr "Een record dat je niet kunt openen"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.3kbIhS"
+msgid "Untitled"
+msgstr "Zonder titel"
 
 #: src/features/templates/components/create-template-dialog.tsx
 msgctxt "templates.uI5hko"

@@ -73,6 +73,154 @@ Keys follow one scheme, `<area>.<verb>`, with `read` for viewing. Platform-wide 
 | `flags`            | `manage` (platform): `flags.manage`                                                                                                                                                                                                      |
 | `waitlist`         | `manage` (platform): `waitlist.manage`, `invite`: the `invitations` module's `invite` key                                                                                                                                                |
 
+## Permissions in the app
+
+`my_permissions(tenant, keys)` returns the keys the caller holds in a tenant.
+With `keys`, it returns the ones `can()` grants, so every model answers,
+including a provider and delegated tokens. Without them, it returns the keys
+the model lists for the member, with wildcards as granted. Use it to hide
+buttons and menu items; the SQL functions and policies still check every
+write.
+
+`createAccess` from `better-supabase/blocks/access` calls it. `can(key)` and
+`flags(map)` are typed by the keys you pass, such as the generated
+`permissions` constant from `blocks.generated.ts`:
+
+```ts
+import { createBlockClient } from "better-supabase/blocks";
+import { accessBlock, permissionFlags } from "better-supabase/blocks/access";
+
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+const access = createBlockClient(db, accessBlock);
+const allowed = await access.can(permissions.invoices.write).orThrow();
+const { canEdit, canDelete } = await access
+  .flags({
+    edit: permissions.invoices.write,
+    delete: permissions.invoices.delete,
+  })
+  .orThrow();
+
+const set = await access.permissions([permissions.invoices.write]).orThrow();
+permissionFlags(set, { edit: permissions.invoices.write }); // { canEdit: true }
+```
+
+`permissions(keys?)` returns a `PermissionSet`, `{ tenant, keys }`, that
+`can(set, key)` and `permissionFlags(set, map)` read without another call,
+for a payload query that returns rows together with what the caller may do
+with them. A call without a tenant fails with the hint `TENANT_REQUIRED`.
+
+In React, `usePermission(key)` returns `undefined` while it loads, then true
+or false, and `<Can>` renders its children only for a caller who holds the
+key. The hooks of one render share one `my_permissions` call per tenant, so a
+table whose rows each check a key costs one round trip. They read the
+client's tenant unless you pass `tenant`:
+
+```tsx title="components/task-import-action.tsx"
+"use client";
+
+import { Can } from "better-supabase/blocks/access/react";
+
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export function TaskImportAction({ projectId }: { projectId: string }) {
+  return (
+    <Can permission={permissions.imports.manage}>
+      <TaskImportDialog projectId={projectId} />
+    </Can>
+  );
+}
+```
+
+`createPermissionsController` is the same logic without React, and
+`better-supabase/blocks/access/vue`, `/svelte` and `/solid` export
+`usePermissions` over it. Those bindings have no `<Can>` component; render
+on `can(state.permissions, key)` with `v-if`, `{#if}` or `<Show>`. Wrap the
+client in `batchPermissions` so the components of one render share a call.
+The [Can recipe](/docs/registry/ui-recipes) shows it in the Next.js example.
+
+```vue title="ImportButton.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchPermissions,
+  can,
+  createAccess,
+} from "better-supabase/blocks/access";
+import { usePermissions } from "better-supabase/blocks/access/vue";
+
+const props = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = usePermissions({
+  client: batchPermissions(
+    createAccess({ transport: rpcTransport(supabase), schema: "api" }),
+  ),
+  keys: ["imports.manage"],
+  tenant: props.organizationId,
+});
+</script>
+
+<template>
+  <button v-if="can(state.permissions, 'imports.manage')">Import</button>
+</template>
+```
+
+```svelte title="ImportButton.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { rpcTransport } from "better-supabase/blocks";
+  import { batchPermissions, can, createAccess } from "better-supabase/blocks/access";
+  import { usePermissions } from "better-supabase/blocks/access/svelte";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const access = usePermissions({
+    client: batchPermissions(createAccess({ transport: rpcTransport(supabase), schema: "api" })),
+    keys: ["imports.manage"],
+    tenant: organizationId,
+  });
+</script>
+
+{#if can($access.permissions, "imports.manage")}
+  <button>Import</button>
+{/if}
+```
+
+```tsx title="ImportButton.tsx"
+import { Show } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchPermissions,
+  can,
+  createAccess,
+} from "better-supabase/blocks/access";
+import { usePermissions } from "better-supabase/blocks/access/solid";
+
+export function ImportButton(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = usePermissions({
+    client: batchPermissions(
+      createAccess({ transport: rpcTransport(supabase), schema: "api" }),
+    ),
+    keys: ["imports.manage"],
+    tenant: props.organizationId,
+  });
+
+  return (
+    <Show when={can(state().permissions, "imports.manage")}>
+      <button>Import</button>
+    </Show>
+  );
+}
+```
+
+With `mode: "custom"`, write `my_permissions(tenant, keys text[] default null)
+returns text[]` next to your contract functions, and expose it through your
+API schema; the Next.js example's fixture has one in
+`supabase/schemas/better_supabase/functions/my_permissions.sql`.
+
 ## Models
 
 `blocks.access.model` picks where permissions come from. Every model writes the

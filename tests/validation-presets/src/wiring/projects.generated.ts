@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { accessBlock } from "better-supabase/blocks/access";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
@@ -20,6 +21,7 @@ import { rankBlock } from "better-supabase/blocks/rank";
 import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
+import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { timeTrackingBlock } from "better-supabase/blocks/time-tracking";
@@ -28,6 +30,7 @@ import { blockConfig } from "./projects.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  access: accessBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   attachments: attachmentsBlock,
@@ -45,6 +48,7 @@ export const blockSet = defineBlocks(blockConfig, {
   reminders: remindersBlock,
   settings: settingsBlock,
   stateMachine: stateMachineBlock,
+  subjects: subjectsBlock,
   tags: tagsBlock,
   teams: teamsBlock,
   timeTracking: timeTrackingBlock,

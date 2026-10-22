@@ -122,8 +122,6 @@ export interface RelatedCustomer {
   readonly kind: string;
   readonly subjectType: string;
   readonly subjectId: string;
-  /** The other customer's name; `null` for another record type or a hidden row. */
-  readonly name: string | null;
 }
 
 export interface Relations {
@@ -149,18 +147,12 @@ async function loadRelations(customerId: string): Promise<Relations> {
       .orThrow(),
   ]);
 
-  const names = new Map(customers.map((row) => [row.id, row.name]));
-
   return {
     links: links.map((link) => ({
       id: link.id,
       kind: link.kind,
       subjectType: link.subject.type,
       subjectId: link.subject.id,
-      name:
-        link.subject.type === SUBJECT
-          ? (names.get(link.subject.id) ?? null)
-          : null,
     })),
     options: customers.filter((row) => row.id !== customerId),
   };

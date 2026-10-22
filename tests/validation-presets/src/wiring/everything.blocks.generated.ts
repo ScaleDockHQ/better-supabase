@@ -1624,6 +1624,15 @@ export const blockEventSchemas = {
   "workflow_run.failed": true,
 } as const;
 
+/**
+ * The path of each subject type with a `url`: block entities, `subjects`
+ * and app table subjects.
+ * @public
+ */
+export const urls = {
+  product: (v: { readonly slug: string | number }) => `/products/${String(v.slug)}`,
+} as const;
+
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */
 export const topics = {
   aiChat: () => "ai-chat",
