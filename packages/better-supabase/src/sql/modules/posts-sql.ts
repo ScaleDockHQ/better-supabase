@@ -7,7 +7,7 @@ import { moduleOperations } from "./access-model.ts";
 const WHERE = "blocks.posts.options";
 
 /** The keys post reads return next to the extra columns. */
-export const POST_KEYS = [
+const POST_KEYS = [
   "id",
   "organizationId",
   "boardId",

@@ -96,7 +96,7 @@ const NAMES: ModuleNames = {
 };
 
 /** The statuses a post moves through, from a feedback board's point of view. */
-export const POST_STATUSES = [
+const POST_STATUSES = [
   "open",
   "under_review",
   "planned",

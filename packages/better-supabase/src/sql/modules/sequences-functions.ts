@@ -10,11 +10,11 @@ const UUID =
 const ADDRESS = "^[^@[:space:]]+@[^@[:space:]]+$";
 
 /** The step ids of a steps array, in order. */
-export const stepIds = (json: string): string =>
+const stepIds = (json: string): string =>
   `array(select t.value ->> 'id' from jsonb_array_elements(${json}) with ordinality as t(value, ord) order by t.ord)`;
 
 /** Whether a steps array has an email step. */
-export const sendsEmail = (json: string): string =>
+const sendsEmail = (json: string): string =>
   `exists (select 1 from jsonb_array_elements(${json}) t where t.value ->> 'kind' = 'email')`;
 
 function stepsCheck(ctx: ModuleContext): string {
