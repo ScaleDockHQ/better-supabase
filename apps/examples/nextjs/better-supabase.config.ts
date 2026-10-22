@@ -268,6 +268,8 @@ export default defineConfig({
     segments: {},
     // Round robin and weighted queues that pick an owner for new records.
     assignment: {},
+    // Company and person data from an enrichment provider, one result each.
+    enrichment: {},
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.

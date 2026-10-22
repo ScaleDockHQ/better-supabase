@@ -20,6 +20,7 @@ import { documentsBlock } from "better-supabase/blocks/documents";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
+import { enrichmentBlock } from "better-supabase/blocks/enrichment";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { importsBlock } from "better-supabase/blocks/imports";
@@ -123,6 +124,7 @@ const blockSet = defineBlocks(blockConfig, {
   mailSync: mailSyncBlock,
   segments: segmentsBlock,
   assignment: assignmentBlock,
+  enrichment: enrichmentBlock,
   quotes: quotesBlock,
   targets: targetsBlock,
   workItems: workItemsBlock,
