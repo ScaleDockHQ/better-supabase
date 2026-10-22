@@ -197,11 +197,13 @@ set search_path = ''
 as $$
 declare
   v_tenant text := (case start_sla_clocks.subject_type
-      when 'comment' then (select s."organization_id"::text from "better_supabase"."comments" s where s."id" = (start_sla_clocks.subject_id)::uuid)
-      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'channel' then (select s."tenant_id"::text from "better_supabase"."channels" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'engagement' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (start_sla_clocks.subject_id)::uuid)
@@ -241,11 +243,13 @@ begin
     raise exception 'unknown record' using errcode = 'P0002', hint = 'SLA_SUBJECT_INVALID';
   end if;
   if not (start_sla_clocks.trusted and pg_trigger_depth() > 0) and not ((auth.role() = 'service_role') or (case start_sla_clocks.subject_type
-      when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
-      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -319,11 +323,13 @@ set search_path = ''
 as $$
 declare
   v_tenant text := (case record_sla_event.subject_type
-      when 'comment' then (select s."organization_id"::text from "better_supabase"."comments" s where s."id" = (record_sla_event.subject_id)::uuid)
-      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'channel' then (select s."tenant_id"::text from "better_supabase"."channels" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'engagement' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_sla_event.subject_id)::uuid)
@@ -363,11 +369,13 @@ begin
     raise exception 'unknown record' using errcode = 'P0002', hint = 'SLA_SUBJECT_INVALID';
   end if;
   if pg_trigger_depth() = 0 and not ((auth.role() = 'service_role') or (case record_sla_event.subject_type
-      when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (record_sla_event.subject_id)::uuid and s."organization_id"::text = v_tenant::text)
-      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)

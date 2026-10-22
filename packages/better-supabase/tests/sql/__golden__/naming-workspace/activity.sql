@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_114_activity.sql
+-- ==== schema supabase/schemas/900_better_supabase_131_activity.sql
 -- better-supabase module: activity
 -- @bs-module activity@1 managed
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
@@ -121,7 +121,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_114_activity.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_131_activity.sql
 -- better-supabase module: activity
 -- @bs-module-data activity
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

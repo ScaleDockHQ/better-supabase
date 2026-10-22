@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_119_forecasts.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module forecasts@1 managed
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
@@ -271,7 +271,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_119_forecasts.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module-data forecasts
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -284,7 +284,7 @@ values ('forecasts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_119_forecasts.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module forecasts@1 managed
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
@@ -557,7 +557,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_119_forecasts.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module-data forecasts
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -570,7 +570,7 @@ values ('forecasts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_forecasts.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module forecasts@1 managed
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
@@ -845,7 +845,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_119_forecasts.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module-data forecasts
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -858,7 +858,7 @@ values ('forecasts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_119_forecasts.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module forecasts@1 managed
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
@@ -1189,7 +1189,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_119_forecasts.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bs-module-data forecasts
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

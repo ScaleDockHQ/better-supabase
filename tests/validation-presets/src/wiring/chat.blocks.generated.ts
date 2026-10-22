@@ -8,6 +8,7 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { ChannelsEvents } from "better-supabase/blocks/channels";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
@@ -41,6 +42,10 @@ export const blockConfig = {
     options: {},
   },
   billing: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -147,6 +152,11 @@ export const permissions = {
     write: "messages.send",
     upload: "messages.send",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
@@ -199,13 +209,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "channels.create" | "channels.manage" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "channels.create" | "channels.manage" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & MessagingEvents & ChannelsEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & MessagingEvents & ChannelsEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -217,6 +227,8 @@ export const blockEvents: Events<BlockEvents> = {
     "api_key.created",
     "api_key.revoked",
     "api_key.rotated",
+    "attachment.replaced",
+    "attachment.restored",
     "attachment.scanned",
     "attachment.uploaded",
     "audit.revealed",
@@ -232,6 +244,12 @@ export const blockEvents: Events<BlockEvents> = {
     "conversation.created",
     "conversation.member_added",
     "conversation.member_removed",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
@@ -286,6 +304,8 @@ export const blockEventSchemas = {
   "api_key.created": true,
   "api_key.revoked": true,
   "api_key.rotated": true,
+  "attachment.replaced": true,
+  "attachment.restored": true,
   "attachment.scanned": true,
   "attachment.uploaded": true,
   "audit.revealed": true,
@@ -301,6 +321,12 @@ export const blockEventSchemas = {
   "conversation.created": true,
   "conversation.member_added": true,
   "conversation.member_removed": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,

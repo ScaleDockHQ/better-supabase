@@ -879,7 +879,7 @@ as $$
     join "better_supabase"."attachments" a on a."id" = v."attachment_id"
     where v."bucket" = attachment_object_allowed.bucket and v."object_path" = attachment_object_allowed.path
       and case attachment_object_allowed.action
-        when 'select' then (v."status" = 'clean' and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))
+        when 'select' then (v."status" = 'clean' and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or ((a."organization_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
           or v."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         else false
@@ -1103,7 +1103,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = replace_attachment.id for update;
-  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false) or ((v_row."organization_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may replace has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
@@ -1158,7 +1158,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = restore_attachment_version.id for update;
-  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((v_row."uploaded_by" = auth.uid() and (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.upload'), false) or ((v_row."organization_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may restore has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."attachment_versions" v

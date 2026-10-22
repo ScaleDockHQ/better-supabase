@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_116_segments.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module segments@1 managed
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
@@ -404,7 +404,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_116_segments.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module-data segments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -417,7 +417,7 @@ values ('segments', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_116_segments.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module segments@1 managed
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
@@ -841,7 +841,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_116_segments.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module-data segments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -854,7 +854,7 @@ values ('segments', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_116_segments.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module segments@1 managed
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
@@ -1262,7 +1262,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_116_segments.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module-data segments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1275,7 +1275,7 @@ values ('segments', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_116_segments.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module segments@1 managed
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
@@ -1775,7 +1775,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_116_segments.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bs-module-data segments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

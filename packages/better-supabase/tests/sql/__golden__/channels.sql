@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_113_channels.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module channels@1 managed
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
@@ -384,7 +384,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_113_channels.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module-data channels
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -397,7 +397,7 @@ values ('channels', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_113_channels.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module channels@1 managed
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
@@ -801,7 +801,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_113_channels.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module-data channels
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -814,7 +814,7 @@ values ('channels', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_113_channels.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module channels@1 managed
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
@@ -1202,7 +1202,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_113_channels.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module-data channels
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1215,7 +1215,7 @@ values ('channels', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_113_channels.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module channels@1 managed
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
@@ -1713,7 +1713,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_113_channels.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bs-module-data channels
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bs-module moderation@1 managed
--- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes comments.
+-- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -585,7 +585,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bs-module moderation@1 managed
--- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes comments.
+-- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -812,8 +812,8 @@ begin
   if moderation_apply.action = 'ban' and v_old."author_id" is null then
     raise exception 'this content has no author to ban' using errcode = '22023', hint = 'MODERATION_INVALID';
   end if;
-  if moderation_apply.action = 'restore' and v_old."status" = 'removed' and v_old."subject_type" = 'comment' then
-    raise exception 'a removed comment can''t be restored' using errcode = '22023', hint = 'MODERATION_INVALID';
+  if moderation_apply.action = 'restore' and v_old."status" = 'removed' and v_old."subject_type" = 'message' then
+    raise exception 'a removed message can''t be restored' using errcode = '22023', hint = 'MODERATION_INVALID';
   end if;
   update "better_supabase"."moderation_items" x
   set "status" = v_status,
@@ -833,8 +833,10 @@ begin
   insert into "better_supabase"."moderation_actions" ("tenant_id", "item_id", "action", "from_status", "to_status", "reason", "actor_id")
   values (v_row."tenant_id", v_row."id", moderation_apply.action, v_old."status", v_status, nullif(trim(moderation_apply.reason), ''),
     case when moderation_apply.automatic then null else auth.uid() end);
-  if v_row."subject_type" = 'comment' and v_status = 'removed' then
-    update "better_supabase"."comments" x set "deleted_at" = now()
+  if v_row."subject_type" = 'message' and v_status = 'removed' then
+    update "better_supabase"."messages" x
+    set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
+      "pinned_at" = null, "pinned_by" = null, "deleted_at" = now()
     where x."id"::text = v_row."subject_id" and x."deleted_at" is null;
   end if;
   if moderation_apply.action = 'ban' and not "better_supabase"."moderation_banned"(v_row."tenant_id", v_row."author_id") then
@@ -908,11 +910,11 @@ begin
     or report_content.subject_id is null or length(report_content.subject_id) not between 1 and 200 then
     raise exception 'a report needs a subject type and id' using errcode = '22023', hint = 'MODERATION_INVALID';
   end if;
-  if report_content.subject_type = 'comment' then
-    select x."author_id" into v_author from "better_supabase"."comments" x
-    where x."id"::text = report_content.subject_id and x."organization_id" = report_content.tenant and x."deleted_at" is null;
+  if report_content.subject_type = 'message' then
+    select x."author_id" into v_author from "better_supabase"."messages" x
+    where x."id"::text = report_content.subject_id and x."tenant_id" = report_content.tenant and x."deleted_at" is null;
     if not found then
-      raise exception 'there is no such comment to report' using errcode = 'P0002', hint = 'MODERATION_SUBJECT_NOT_FOUND';
+      raise exception 'there is no such message to report' using errcode = 'P0002', hint = 'MODERATION_SUBJECT_NOT_FOUND';
     end if;
   end if;
   insert into "better_supabase"."moderation_items" ("tenant_id", "subject_type", "subject_id", "author_id")
@@ -1209,34 +1211,6 @@ $$;
 revoke execute on function "better_supabase"."moderation_hidden"(text, text) from public, anon;
 grant execute on function "better_supabase"."moderation_hidden"(text, text) to authenticated, service_role;
 
-drop policy if exists "comments_moderation" on "better_supabase"."comments";
-create policy "comments_moderation" on "better_supabase"."comments" as restrictive for select to authenticated
-  using (
-    "author_id" = (select auth.uid())
-    or not "better_supabase"."moderation_hidden"('comment', "better_supabase"."comments"."id"::text)
-    or "better_supabase"."comments"."organization_id" in (select better_supabase.tenant_ids_with('moderation.read'))
-  );
-
--- Refuses comments from members banned in the organization.
-create or replace function "better_supabase"."comments_moderation_guard"()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if "better_supabase"."moderation_banned"(new."organization_id", new."author_id") then
-    raise exception 'you are banned in this organization' using errcode = '42501', hint = 'MODERATION_BANNED';
-  end if;
-  return new;
-end;
-$$;
-revoke execute on function "better_supabase"."comments_moderation_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_comments_moderation_guard" on "better_supabase"."comments";
-create trigger "bs_comments_moderation_guard"
-  before insert on "better_supabase"."comments"
-  for each row execute function "better_supabase"."comments_moderation_guard"();
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1265,7 +1239,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bs-module moderation@1 managed
--- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes comments.
+-- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1851,7 +1825,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bs-module moderation@1 managed
--- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes comments.
+-- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

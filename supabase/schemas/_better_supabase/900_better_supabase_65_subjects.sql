@@ -1,9 +1,43 @@
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, and my_work across the installed blocks.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
@@ -14,7 +48,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{comment,course,company,person,deal,engagement,work_item,employee,ledger_account,product,product_variant,calendar_event,asset,asset_location,lease,maintenance_request,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,document,customer,drive_node,application,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,engagement,work_item,employee,ledger_account,product,product_variant,calendar_event,asset,asset_location,lease,maintenance_request,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,document,customer,drive_node,application,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -28,16 +62,20 @@ set search_path = ''
 as $$
 begin
   case subject_title.subject_type
-    when 'comment' then
-      return (select s."body"::text from "better_supabase"."comments" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
-    when 'course' then
-      return (select s."title"::text from "better_supabase"."courses" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'message' then
+      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'conversation' then
+      return (select s."title"::text from "better_supabase"."conversations" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'channel' then
+      return (select s."name"::text from "better_supabase"."channels" s where s."id" = (subject_title.subject_id)::uuid);
     when 'company' then
       return (select s."name"::text from "better_supabase"."companies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'person' then
       return (select s."name"::text from "better_supabase"."people" s where s."id" = (subject_title.subject_id)::uuid);
     when 'deal' then
       return (select s."name"::text from "better_supabase"."deals" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'course' then
+      return (select s."title"::text from "better_supabase"."courses" s where s."id" = (subject_title.subject_id)::uuid);
     when 'engagement' then
       return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'work_item' then
@@ -158,16 +196,22 @@ begin
   end if;
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'comment', 'id', s."id"::text,
+      'type', 'message', 'id', s."id"::text,
       'title', s."body"::text, 'url', null::text))
-    from "better_supabase"."comments" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'comment')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+    from "better_supabase"."messages" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'course', 'id', s."id"::text,
+      'type', 'conversation', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."courses" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'course')::uuid[])), '[]'::jsonb);
+    from "better_supabase"."conversations" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'conversation')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'channel', 'id', s."id"::text,
+      'title', s."name"::text, 'url', null::text))
+    from "better_supabase"."channels" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'channel')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'company', 'id', s."id"::text,
@@ -186,6 +230,12 @@ begin
       'title', s."name"::text, 'url', '/crm/deals'))
     from "better_supabase"."deals" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'deal')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'course', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."courses" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'course')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'engagement', 'id', s."id"::text,
@@ -364,24 +414,35 @@ set search_path = ''
 as $$
 begin
   case can_subject.subject_type
-    when 'comment' then
+    when 'message' then
       return exists (
-        select 1 from "better_supabase"."comments" s
+        select 1 from "better_supabase"."messages" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
-          when 'upload' then coalesce(better_supabase.can('tenant', s."organization_id", 'comments.create'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
           else true
         end)
       );
-    when 'course' then
+    when 'conversation' then
       return exists (
-        select 1 from "better_supabase"."courses" s
+        select 1 from "better_supabase"."conversations" s
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.send'), false)
+          else true
+        end)
+      );
+    when 'channel' then
+      return exists (
+        select 1 from "better_supabase"."channels" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'courses.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'courses.manage'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'channels.manage'), false)
           else true
         end)
       );
@@ -412,6 +473,16 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'deals.write'), false)
+          else true
+        end)
+      );
+    when 'course' then
+      return exists (
+        select 1 from "better_supabase"."courses" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'courses.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'courses.manage'), false)
           else true
         end)
       );
@@ -693,6 +764,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > 20 then
     raise exception 'record_summary takes at most 20 sections'
@@ -702,15 +774,21 @@ begin
     return null;
   end if;
   if 'comments' = any (record_summary.sections) then
-    select count(*), max(x."created_at")
+    select count(*), max(x."sent_at")
       into v_count, v_latest
-      from "better_supabase"."comments" x
-      where x."subject_type"::text = record_summary.subject_type
-        and x."subject_id"::text = record_summary.subject_id
-        and x."deleted_at" is null;
+      from "better_supabase"."messages" x
+      join "better_supabase"."conversations" c on c."id" = x."conversation_id"
+        and c."kind" = 'subject'
+      where c."subject_type"::text = record_summary.subject_type
+        and c."subject_id"::text = record_summary.subject_id
+        and x."sent_at" is not null and x."deleted_at" is null;
+    v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
+        where c."kind" = 'subject'
+          and c."subject_type" = record_summary.subject_type
+          and c."subject_id" = record_summary.subject_id), record_summary.seen_at);
     v_counts := v_counts || jsonb_build_object('comments', v_count);
     v_unread := v_unread || jsonb_build_object('comments',
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;
   if 'attachments' = any (record_summary.sections) then
     select count(*), max(x."uploaded_at")
@@ -719,9 +797,10 @@ begin
       where x."subject_type"::text = record_summary.subject_type
         and x."subject_id"::text = record_summary.subject_id
         and x."uploaded_at" is not null and x."status" <> 'infected';
+    v_seen := record_summary.seen_at;
     v_counts := v_counts || jsonb_build_object('attachments', v_count);
     v_unread := v_unread || jsonb_build_object('attachments',
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;
   return jsonb_build_object(
     'type', record_summary.subject_type,
@@ -749,24 +828,35 @@ set search_path = ''
 as $$
 begin
   case can_subject_for.subject_type
-    when 'comment' then
+    when 'message' then
       return exists (
-        select 1 from "better_supabase"."comments" s
+        select 1 from "better_supabase"."messages" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
-          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'comments.create'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
           else false
         end
       );
-    when 'course' then
+    when 'conversation' then
       return exists (
-        select 1 from "better_supabase"."courses" s
+        select 1 from "better_supabase"."conversations" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.send'), false)
+          else false
+        end
+      );
+    when 'channel' then
+      return exists (
+        select 1 from "better_supabase"."channels" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'courses.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'courses.manage'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'messages.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'channels.manage'), false)
           else false
         end
       );
@@ -797,6 +887,16 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'deals.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'deals.write'), false)
+          else false
+        end
+      );
+    when 'course' then
+      return exists (
+        select 1 from "better_supabase"."courses" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'courses.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'courses.manage'), false)
           else false
         end
       );
@@ -1135,13 +1235,14 @@ begin
     from "better_supabase"."my_reminders_due"(my_work.tenant) d
     where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
     union all
-    select 'mention'::text, c."subject_type"::text, c."subject_id"::text, c."id"::text, null::text,
-      c."created_at"
-    from "better_supabase"."comments" c
-    where v_me = any (c."mentions")
-      and c."deleted_at" is null
-      and c."created_at" > now() - interval '30 days'
-      and (my_work.tenant is null or c."organization_id" = my_work.tenant)
+    select 'mention'::text, c."subject_type"::text, c."subject_id"::text, m."id"::text, null::text,
+      m."sent_at"
+    from "better_supabase"."messages" m
+    join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
+    where v_me = any (m."mentions")
+      and m."deleted_at" is null
+      and m."sent_at" > now() - interval '30 days'
+      and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
     union all
     select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
       k."due_at"
@@ -1164,9 +1265,72 @@ $$;
 revoke execute on function "better_supabase"."my_work"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."my_work"(uuid, integer) to authenticated, service_role;
 
+-- Whether the caller may join presence topic `topic`
+-- (presence:<type>:<id>): they can read that subject.
+create or replace function "better_supabase"."subject_presence_allowed"(topic text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^presence:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+begin
+  if v_parts is null then
+    return false;
+  end if;
+  return coalesce("better_supabase"."can_subject"(v_parts[1], v_parts[2], 'read'), false);
+exception
+  when invalid_text_representation then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."subject_presence_allowed"(text) from public, anon;
+grant execute on function "better_supabase"."subject_presence_allowed"(text) to authenticated, service_role;
+
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists "bs_subject_presence_receive" on realtime.messages;
+    create policy "bs_subject_presence_receive" on realtime.messages for select to authenticated
+      using (
+        realtime.messages.extension = 'presence'
+        and (select realtime.topic()) like 'presence:' || '%'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
+      );
+    drop policy if exists "bs_subject_presence_send" on realtime.messages;
+    create policy "bs_subject_presence_send" on realtime.messages for insert to authenticated
+      with check ((
+        realtime.messages.extension = 'presence'
+        and (select realtime.topic()) like 'presence:' || '%'
+        and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
+      ) and (select better_supabase.actor_may_write()));
+  end if;
+end;
+$$;
+
 -- blocks.subjects.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."subject_types"()
 returns text[]
@@ -1248,6 +1412,15 @@ set search_path = ''
 as $$ select "better_supabase"."my_work"($1, $2) $$;
 revoke execute on function "api"."my_work"(uuid, integer) from public, anon;
 grant execute on function "api"."my_work"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."subject_presence_allowed"(topic text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_presence_allowed"($1) $$;
+revoke execute on function "api"."subject_presence_allowed"(text) from public, anon;
+grant execute on function "api"."subject_presence_allowed"(text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

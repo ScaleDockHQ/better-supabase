@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_120_field_history.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module field-history@1 managed
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
@@ -79,7 +79,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_120_field_history.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module-data field-history
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -92,7 +92,7 @@ values ('field-history', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_120_field_history.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module field-history@1 managed
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
@@ -173,7 +173,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_120_field_history.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module-data field-history
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -186,7 +186,7 @@ values ('field-history', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_field_history.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module field-history@1 managed
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
@@ -269,7 +269,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_120_field_history.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module-data field-history
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -282,7 +282,7 @@ values ('field-history', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_120_field_history.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module field-history@1 managed
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
@@ -376,7 +376,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_120_field_history.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bs-module-data field-history
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

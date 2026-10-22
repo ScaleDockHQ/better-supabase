@@ -22,6 +22,7 @@ import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { versionsBlock } from "better-supabase/blocks/versions";
+import { workItemsBlock } from "better-supabase/blocks/work-items";
 
 import { blockConfig, permissions } from "../../blocks.generated.ts";
 
@@ -52,6 +53,7 @@ export const customerFeature = defineRecordFeature({
     sla: slaBlock,
     tags: tagsBlock,
     versions: versionsBlock,
+    workItems: workItemsBlock,
   },
   config: blockConfig,
   permissions,

@@ -20,7 +20,6 @@ import type { BookingsEvents } from "better-supabase/blocks/bookings";
 import type { BulkEvents } from "better-supabase/blocks/bulk";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
-import type { CommentsEvents } from "better-supabase/blocks/comments";
 import type { ConnectorsEvents } from "better-supabase/blocks/connectors";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { DataLifecycleEvents } from "better-supabase/blocks/data-lifecycle";
@@ -48,12 +47,17 @@ import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
 import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { FormsEvents } from "better-supabase/blocks/forms";
-import type { SignaturesEvents } from "better-supabase/blocks/forms";
+import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { HiringEvents } from "better-supabase/blocks/hiring";
 import type { ImportsEvents } from "better-supabase/blocks/imports";
 import type { InboxEvents } from "better-supabase/blocks/inbox";
 import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
+import type { MessagingEvents } from "better-supabase/blocks/messaging";
+import type { ChannelsEvents } from "better-supabase/blocks/channels";
+import type { MailSyncEvents } from "better-supabase/blocks/mail-sync";
+import type { EnrichmentEvents } from "better-supabase/blocks/enrichment";
+import type { ForecastsEvents } from "better-supabase/blocks/forecasts";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
@@ -397,6 +401,53 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  messaging: {
+    schema: "better_supabase",
+    api: "api",
+    options: {
+      topic: "messages",
+    },
+  },
+  channels: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  activity: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "mail-sync": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  segments: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  assignment: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  enrichment: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  "field-history": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  forecasts: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   metrics: {
     schema: "better_supabase",
     api: "api",
@@ -675,6 +726,9 @@ export const permissions = {
     create: "access_requests.create",
     manage: "access_requests.manage",
   },
+  activity: {
+    read: "activity.read",
+  },
   agents: {
     read: "ai.read",
     create: "ai.create",
@@ -729,6 +783,11 @@ export const permissions = {
     manage: "assets.manage",
     assign: "assets.assign",
   },
+  assignment: {
+    read: "assignment.read",
+    manage: "assignment.manage",
+    assign: "assignment.assign",
+  },
   attachments: {
     read: "attachments.read",
     upload: "attachments.upload",
@@ -765,16 +824,19 @@ export const permissions = {
     manage: "catalog.manage",
     read: "catalog.read",
   },
-  comment: {
-    read: "comments.read",
-    write: "comments.create",
-    upload: "comments.create",
+  channel: {
+    read: "messages.read",
+    write: "channels.manage",
+  },
+  channels: {
+    read: "messages.read",
+    create: "channels.create",
+    manage: "channels.manage",
   },
   comments: {
-    read: "comments.read",
-    create: "comments.create",
-    moderate: "comments.moderate",
-    activity: "activity.read",
+    read: "messages.read",
+    create: "messages.send",
+    moderate: "messages.moderate",
   },
   company: {
     read: "parties.read",
@@ -803,6 +865,11 @@ export const permissions = {
     manage: "controls.manage",
     collect: "controls.collect",
     acknowledge: "controls.acknowledge",
+  },
+  conversation: {
+    read: "messages.read",
+    write: "messages.send",
+    upload: "messages.send",
   },
   course: {
     read: "courses.read",
@@ -848,6 +915,7 @@ export const permissions = {
   documents: {
     read: "documents.read",
     write: "documents.write",
+    suggest: "documents.suggest",
     manage: "documents.manage",
   },
   donation_fund: {
@@ -885,6 +953,10 @@ export const permissions = {
     write: "engagements.write",
     manage: "engagements.manage",
   },
+  enrichment: {
+    read: "enrichment.read",
+    run: "enrichment.run",
+  },
   enrollments: {
     read: "enrollments.read",
     enroll: "enrollments.enroll",
@@ -905,8 +977,15 @@ export const permissions = {
     approve: "expenses.approve",
     manage: "expenses.manage",
   },
+  "field-history": {
+    read: "history.read",
+  },
   flags: {
     manage: "flags.manage",
+  },
+  forecasts: {
+    read: "forecasts.read",
+    snapshot: "forecasts.snapshot",
   },
   forms: {
     read: "forms.read",
@@ -980,6 +1059,12 @@ export const permissions = {
     read: "ledger.read",
     write: "ledger.manage",
   },
+  "mail-sync": {
+    read: "mail.read",
+    connect: "mail.connect",
+    send: "mail.send",
+    manage: "mail.manage",
+  },
   maintenance_request: {
     read: "leases.read",
     write: "leases.maintain",
@@ -987,6 +1072,16 @@ export const permissions = {
   memory: {
     read: "ai.read",
     manage: "ai.admin",
+  },
+  message: {
+    read: "messages.read",
+    write: "messages.send",
+    upload: "messages.send",
+  },
+  messaging: {
+    read: "messages.read",
+    send: "messages.send",
+    moderate: "messages.moderate",
   },
   metrics: {
     read: "metrics.read",
@@ -1088,6 +1183,10 @@ export const permissions = {
   },
   search: {
     read: "search.read",
+  },
+  segments: {
+    read: "segments.read",
+    edit: "segments.edit",
   },
   "service-principals": {
     read: "service_principals.read",
@@ -1202,13 +1301,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "comments.create" | "comments.moderate" | "comments.read" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "history.read" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ControlsEvents & IncidentsEvents & CoursesEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ControlsEvents & IncidentsEvents & CoursesEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1254,6 +1353,8 @@ export const blockEvents: Events<BlockEvents> = {
     "asset_location.archived",
     "asset_location.created",
     "asset_location.updated",
+    "attachment.replaced",
+    "attachment.restored",
     "attachment.scanned",
     "attachment.uploaded",
     "audit.revealed",
@@ -1268,9 +1369,8 @@ export const blockEvents: Events<BlockEvents> = {
     "calendar_event.deleted",
     "calendar_event.updated",
     "catalog.price_changed",
-    "comment.created",
-    "comment.deleted",
-    "comment.mentioned",
+    "channel.created",
+    "channel.updated",
     "company.archived",
     "company.created",
     "company.merged",
@@ -1288,6 +1388,10 @@ export const blockEvents: Events<BlockEvents> = {
     "contract.updated",
     "control.evidence_added",
     "control.saved",
+    "conversation.archived",
+    "conversation.created",
+    "conversation.member_added",
+    "conversation.member_removed",
     "course.completed",
     "course.deleted",
     "course.enrolled",
@@ -1309,6 +1413,9 @@ export const blockEvents: Events<BlockEvents> = {
     "deal.updated",
     "dispatch_route.planned",
     "document.created",
+    "document.suggested",
+    "document.suggestion_accepted",
+    "document.suggestion_rejected",
     "donation.failed",
     "donation.received",
     "donation.refunded",
@@ -1347,6 +1454,7 @@ export const blockEvents: Events<BlockEvents> = {
     "flag.deleted",
     "flag.override_set",
     "flag.saved",
+    "forecast.snapshotted",
     "form.created",
     "form_submission.deleted",
     "form_submission.reviewed",
@@ -1365,6 +1473,7 @@ export const blockEvents: Events<BlockEvents> = {
     "inbox_conversation.opened",
     "inbox_conversation.reopened",
     "inbox_conversation.resolved",
+    "inbox_conversation.unsnoozed",
     "inbox_message.received",
     "incident.opened",
     "incident.resolved",
@@ -1402,8 +1511,19 @@ export const blockEvents: Events<BlockEvents> = {
     "ledger_transaction.reversed",
     "legal_hold.placed",
     "legal_hold.released",
+    "mail_account.connected",
+    "mail_account.disconnected",
+    "mail_message.clicked",
+    "mail_message.opened",
+    "mail_message.received",
+    "mail_message.sent",
     "maintenance_request.filed",
     "maintenance_request.updated",
+    "message.deleted",
+    "message.edited",
+    "message.pinned",
+    "message.resolved",
+    "message.sent",
     "moderation_ban.created",
     "moderation_ban.lifted",
     "moderation_item.decided",
@@ -1447,6 +1567,7 @@ export const blockEvents: Events<BlockEvents> = {
     "organization.updated",
     "organization_setting.reset",
     "organization_setting.updated",
+    "party.enriched",
     "pass.admitted",
     "pass.credit_refunded",
     "pass.credit_used",
@@ -1647,6 +1768,8 @@ export const blockEventSchemas = {
   "asset_location.archived": true,
   "asset_location.created": true,
   "asset_location.updated": true,
+  "attachment.replaced": true,
+  "attachment.restored": true,
   "attachment.scanned": true,
   "attachment.uploaded": true,
   "audit.revealed": true,
@@ -1661,9 +1784,8 @@ export const blockEventSchemas = {
   "calendar_event.deleted": true,
   "calendar_event.updated": true,
   "catalog.price_changed": true,
-  "comment.created": true,
-  "comment.deleted": true,
-  "comment.mentioned": true,
+  "channel.created": true,
+  "channel.updated": true,
   "company.archived": true,
   "company.created": true,
   "company.merged": true,
@@ -1681,6 +1803,10 @@ export const blockEventSchemas = {
   "contract.updated": true,
   "control.evidence_added": true,
   "control.saved": true,
+  "conversation.archived": true,
+  "conversation.created": true,
+  "conversation.member_added": true,
+  "conversation.member_removed": true,
   "course.completed": true,
   "course.deleted": true,
   "course.enrolled": true,
@@ -1702,6 +1828,9 @@ export const blockEventSchemas = {
   "deal.updated": true,
   "dispatch_route.planned": true,
   "document.created": true,
+  "document.suggested": true,
+  "document.suggestion_accepted": true,
+  "document.suggestion_rejected": true,
   "donation.failed": true,
   "donation.received": true,
   "donation.refunded": true,
@@ -1740,6 +1869,7 @@ export const blockEventSchemas = {
   "flag.deleted": true,
   "flag.override_set": true,
   "flag.saved": true,
+  "forecast.snapshotted": true,
   "form.created": true,
   "form_submission.deleted": true,
   "form_submission.reviewed": true,
@@ -1758,6 +1888,7 @@ export const blockEventSchemas = {
   "inbox_conversation.opened": true,
   "inbox_conversation.reopened": true,
   "inbox_conversation.resolved": true,
+  "inbox_conversation.unsnoozed": true,
   "inbox_message.received": true,
   "incident.opened": true,
   "incident.resolved": true,
@@ -1795,8 +1926,19 @@ export const blockEventSchemas = {
   "ledger_transaction.reversed": true,
   "legal_hold.placed": true,
   "legal_hold.released": true,
+  "mail_account.connected": true,
+  "mail_account.disconnected": true,
+  "mail_message.clicked": true,
+  "mail_message.opened": true,
+  "mail_message.received": true,
+  "mail_message.sent": true,
   "maintenance_request.filed": true,
   "maintenance_request.updated": true,
+  "message.deleted": true,
+  "message.edited": true,
+  "message.pinned": true,
+  "message.resolved": true,
+  "message.sent": true,
   "moderation_ban.created": true,
   "moderation_ban.lifted": true,
   "moderation_item.decided": true,
@@ -1840,6 +1982,7 @@ export const blockEventSchemas = {
   "organization.updated": true,
   "organization_setting.reset": true,
   "organization_setting.updated": true,
+  "party.enriched": true,
   "pass.admitted": true,
   "pass.credit_refunded": true,
   "pass.credit_used": true,
@@ -2021,6 +2164,7 @@ export const topics = {
   aiChatList: () => "ai-chats",
   announcements: () => "announcements",
   inbox: () => "inbox",
+  messaging: () => "messages",
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
   reactions: () => "reactions",
 } as const;

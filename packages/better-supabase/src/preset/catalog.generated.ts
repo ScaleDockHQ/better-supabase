@@ -409,70 +409,24 @@ export const PRESET_CATALOG: PresetCatalog = {
     },
     {
       "name": "comments",
-      "title": "Comments and activity",
+      "title": "Comments",
       "category": "collaboration",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "subjects",
+        "messaging"
       ],
       "integrates": [
-        "jsonb-schemas",
         "notifications",
-        "profiles",
-        "subjects",
-        "audit",
-        "workflows"
+        "work-items",
+        "reactions",
+        "attachments"
       ],
       "manifest": "comments",
       "scopes": [
-        "tenant",
-        "user",
-        "none"
-      ],
-      "extraColumns": "comments",
-      "entities": {
-        "specs": {
-          "comment": {
-            "table": "comments",
-            "singular": "comment",
-            "primary": true,
-            "subject": {
-              "title": "body",
-              "deletedAt": "deletedAt",
-              "permissions": {
-                "read": "read",
-                "write": "create",
-                "upload": "create"
-              }
-            }
-          }
-        },
-        "tables": {
-          "comments": {
-            "name": "comments",
-            "columns": {
-              "id": "id",
-              "tenant": "organization_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "author": "author_id",
-              "body": "body",
-              "document": "document",
-              "mentions": "mentions",
-              "parent": "parent_id",
-              "createdAt": "created_at",
-              "editedAt": "edited_at",
-              "deletedAt": "deleted_at"
-            }
-          }
-        },
-        "keys": {
-          "read": "comments.read",
-          "create": "comments.create",
-          "moderate": "comments.moderate",
-          "activity": "activity.read"
-        }
-      }
+        "tenant"
+      ]
     },
     {
       "name": "attachments",
@@ -700,7 +654,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "access",
         "updated-at",
-        "teams"
+        "teams",
+        "messaging",
+        "attachments"
       ],
       "integrates": [
         "jobs",
@@ -1061,6 +1017,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "comments",
+        "messaging",
         "attachments",
         "work-items",
         "approvals",
@@ -1351,8 +1308,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "comments",
-        "inbox"
+        "messaging"
       ],
       "manifest": "reactions",
       "scopes": [
@@ -1977,7 +1933,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "notifications",
         "ai-files",
-        "jobs"
+        "jobs",
+        "bookings",
+        "parties"
       ],
       "manifest": "engagements",
       "scopes": [
@@ -2557,7 +2515,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "comments",
+        "messaging",
         "outbox",
         "audit"
       ],
@@ -4229,6 +4187,530 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "messaging",
+      "title": "Messaging",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "notifications",
+        "jobs",
+        "profiles",
+        "attachments",
+        "reactions",
+        "data-lifecycle",
+        "inbox",
+        "moderation"
+      ],
+      "manifest": "messaging",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "messages",
+      "entities": {
+        "specs": {
+          "message": {
+            "table": "messages",
+            "singular": "message",
+            "primary": true,
+            "subject": {
+              "title": "body",
+              "deletedAt": "deletedAt",
+              "permissions": {
+                "read": "read",
+                "write": "send",
+                "upload": "send"
+              },
+              "search": {
+                "title": "body",
+                "body": []
+              }
+            }
+          },
+          "conversation": {
+            "table": "conversations",
+            "singular": "conversation",
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "send",
+                "upload": "send"
+              }
+            }
+          }
+        },
+        "tables": {
+          "messages": {
+            "name": "messages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "conversation": "conversation_id",
+              "parent": "parent_id",
+              "thread": "thread_id",
+              "author": "author_id",
+              "kind": "kind",
+              "body": "body",
+              "document": "document",
+              "anchor": "anchor",
+              "mentions": "mentions",
+              "mentionScope": "mention_scope",
+              "broadcast": "broadcast",
+              "replyCount": "reply_count",
+              "lastReplyAt": "last_reply_at",
+              "replyUsers": "reply_user_ids",
+              "pinnedAt": "pinned_at",
+              "pinnedBy": "pinned_by",
+              "resolvedAt": "resolved_at",
+              "resolvedBy": "resolved_by",
+              "scheduledFor": "scheduled_for",
+              "sentAt": "sent_at",
+              "editedAt": "edited_at",
+              "deletedAt": "deleted_at",
+              "createdAt": "created_at"
+            }
+          },
+          "conversations": {
+            "name": "conversations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "access": "access",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "title": "title",
+              "memberKey": "member_key",
+              "createdBy": "created_by",
+              "lastMessageAt": "last_message_at",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "messages.read",
+          "send": "messages.send",
+          "moderate": "messages.moderate"
+        }
+      }
+    },
+    {
+      "name": "channels",
+      "title": "Channels",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "messaging"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "channels",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "channel": {
+            "table": "channels",
+            "singular": "channel",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "topic",
+                  "purpose"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "channels": {
+            "name": "channels",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "visibility": "visibility",
+              "topic": "topic",
+              "purpose": "purpose",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "messages.read",
+          "create": "channels.create",
+          "manage": "channels.manage"
+        }
+      }
+    },
+    {
+      "name": "activity",
+      "title": "Activity feed",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "notifications",
+        "subjects",
+        "audit",
+        "workflows"
+      ],
+      "manifest": "activity",
+      "scopes": [
+        "tenant",
+        "user",
+        "none"
+      ]
+    },
+    {
+      "name": "mail-sync",
+      "title": "Mail sync",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "parties",
+        "engagements",
+        "data-lifecycle"
+      ],
+      "manifest": "mail-sync",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "mail_thread": {
+            "table": "threads",
+            "singular": "mail_thread",
+            "primary": true
+          },
+          "mail_account": {
+            "table": "accounts",
+            "singular": "mail_account"
+          },
+          "mail_message": {
+            "table": "messages",
+            "singular": "mail_message"
+          }
+        },
+        "tables": {
+          "threads": {
+            "name": "mail_threads",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "externalId": "external_id",
+              "subject": "subject",
+              "snippet": "snippet",
+              "lastMessageAt": "last_message_at",
+              "messageCount": "message_count",
+              "engagement": "engagement_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "accounts": {
+            "name": "mail_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "provider": "provider",
+              "address": "address",
+              "credentialRef": "credential_ref",
+              "share": "share",
+              "status": "status",
+              "cursor": "sync_cursor",
+              "lastSyncedAt": "last_synced_at",
+              "lastError": "last_error",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "messages": {
+            "name": "mail_messages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "thread": "thread_id",
+              "externalId": "external_id",
+              "rfcId": "rfc_message_id",
+              "direction": "direction",
+              "fromAddress": "from_address",
+              "fromName": "from_name",
+              "to": "to_addresses",
+              "cc": "cc_addresses",
+              "subject": "subject",
+              "snippet": "snippet",
+              "bodyText": "body_text",
+              "bodyHtml": "body_html",
+              "sentAt": "sent_at",
+              "templateVersion": "template_version_id",
+              "trackingHash": "tracking_hash",
+              "openedAt": "opened_at",
+              "openCount": "open_count",
+              "clickedAt": "clicked_at",
+              "clickCount": "click_count",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "mail.read",
+          "connect": "mail.connect",
+          "send": "mail.send",
+          "manage": "mail.manage"
+        }
+      }
+    },
+    {
+      "name": "segments",
+      "title": "Segments",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "rules"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "segments",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "segment": {
+            "table": "segments",
+            "singular": "segment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "segments": {
+            "name": "segments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "subjectType": "subject_type",
+              "conditions": "conditions",
+              "memberCount": "member_count",
+              "refreshedAt": "refreshed_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "segments.read",
+          "edit": "segments.edit"
+        }
+      }
+    },
+    {
+      "name": "assignment",
+      "title": "Assignment",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "rules"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "assignment",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "assignment_queue": {
+            "table": "queues",
+            "singular": "assignment_queue",
+            "primary": true
+          }
+        },
+        "tables": {
+          "queues": {
+            "name": "assignment_queues",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "subjectType": "subject_type",
+              "strategy": "strategy",
+              "conditions": "conditions",
+              "rank": "rank",
+              "enabled": "enabled",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "assignment.read",
+          "manage": "assignment.manage",
+          "assign": "assignment.assign"
+        }
+      }
+    },
+    {
+      "name": "enrichment",
+      "title": "Enrichment",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "parties"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "enrichment",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "enrichment": {
+            "table": "enrichments",
+            "singular": "enrichment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "enrichments": {
+            "name": "enrichments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "company": "company_id",
+              "person": "person_id",
+              "provider": "provider",
+              "status": "status",
+              "data": "data",
+              "filled": "filled",
+              "fetchedAt": "fetched_at",
+              "requestedBy": "requested_by"
+            }
+          }
+        },
+        "keys": {
+          "read": "enrichment.read",
+          "run": "enrichment.run"
+        }
+      }
+    },
+    {
+      "name": "forecasts",
+      "title": "Forecasts",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "deals"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "forecasts",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "snapshot": {
+            "table": "snapshots",
+            "singular": "forecast_snapshot",
+            "primary": true
+          }
+        },
+        "tables": {
+          "snapshots": {
+            "name": "forecast_snapshots",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "pipeline": "pipeline_id",
+              "since": "period_start",
+              "until": "period_end",
+              "currency": "currency",
+              "target": "target",
+              "totals": "totals",
+              "dealCount": "deal_count",
+              "takenBy": "taken_by",
+              "takenAt": "taken_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "forecasts.read",
+          "snapshot": "forecasts.snapshot"
+        }
+      }
+    },
+    {
+      "name": "field-history",
+      "title": "Field history",
+      "category": "database",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "data-lifecycle"
+      ],
+      "manifest": "field-history",
+      "scopes": [
+        "tenant"
+      ]
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5355,7 +5837,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "collectionsBlock",
         "subpath": "better-supabase/blocks/collections"
       },
-      "consumes": {},
+      "consumes": {
+        "notifier": "optional"
+      },
       "provides": [],
       "events": {
         "type": "CollectionsEvents",
@@ -5363,7 +5847,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "collection.created",
           "collection.archived",
           "collection.entry_added",
-          "collection.entry_removed"
+          "collection.entry_removed",
+          "saved_item.reminded"
         ]
       }
     },
@@ -5379,185 +5864,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
-      "entityTypes": [
-        {
-          "name": "Comment",
-          "fields": true
-        },
-        {
-          "name": "CommentDraft"
-        },
-        {
-          "name": "CommentEdit",
-          "fields": true
-        },
-        {
-          "name": "Comments",
-          "fields": true
-        },
-        {
-          "name": "CommentsActions"
-        },
-        {
-          "name": "CommentsController"
-        },
-        {
-          "name": "CommentsControllerOptions"
-        },
-        {
-          "name": "CommentsEvents"
-        },
-        {
-          "name": "CommentsOptimisticAction"
-        },
-        {
-          "name": "CommentsOptions"
-        },
-        {
-          "name": "CommentsSnapshot"
-        },
-        {
-          "name": "CommentSubject"
-        },
-        {
-          "name": "CommentsWrites"
-        },
-        {
-          "name": "ListCommentsOptions"
-        },
-        {
-          "name": "NewComment",
-          "fields": true
-        }
-      ],
-      "entitySchemas": {
-        "comment": {
-          "input": {
-            "title": "NewComment",
-            "fields": {
-              "body": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "document": {
-                "kind": "unknown",
-                "optional": true,
-                "description": "A rich-text document (any JSON)."
-              },
-              "mentions": {
-                "kind": "uuid",
-                "optional": true,
-                "array": true
-              },
-              "parentId": {
-                "kind": "uuid",
-                "optional": true
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns to set, keyed by database name."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "NewComment",
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "document": {
-                  "description": "A rich-text document (any JSON)."
-                },
-                "mentions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "parentId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "fields": {
-                  "description": "The extra columns to set, keyed by database name."
-                }
-              },
-              "required": [
-                "body"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "change": {
-            "title": "CommentEdit",
-            "fields": {
-              "body": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "document": {
-                "kind": "unknown",
-                "optional": true,
-                "description": "`null` removes the document."
-              },
-              "mentions": {
-                "kind": "uuid",
-                "optional": true,
-                "array": true
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns to set, keyed by database name."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "CommentEdit",
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "document": {
-                  "description": "`null` removes the document."
-                },
-                "mentions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "fields": {
-                  "description": "The extra columns to set, keyed by database name."
-                }
-              },
-              "required": [
-                "body"
-              ],
-              "additionalProperties": false
-            }
-          }
-        }
-      },
       "sections": {
         "comments": [
           "add",
           "remove"
-        ]
-      },
-      "events": {
-        "type": "CommentsEvents",
-        "types": [
-          "comment.created",
-          "comment.mentioned",
-          "comment.deleted"
         ]
       }
     },
@@ -10782,7 +11092,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "content",
       "client": {
         "export": "signaturesBlock",
-        "subpath": "better-supabase/blocks/forms"
+        "subpath": "better-supabase/blocks/signatures"
       },
       "consumes": {},
       "provides": [],
@@ -10886,6 +11196,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "inbox_conversation.assigned",
           "inbox_conversation.resolved",
           "inbox_conversation.reopened",
+          "inbox_conversation.unsnoozed",
           "inbox_message.received"
         ]
       }
@@ -11033,6 +11344,953 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": []
+    },
+    {
+      "name": "messaging",
+      "sql": [
+        "messaging"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "messagingBlock",
+        "subpath": "better-supabase/blocks/messaging"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Conversation"
+        },
+        {
+          "name": "ConversationAccess"
+        },
+        {
+          "name": "ConversationKind"
+        },
+        {
+          "name": "ConversationsActions"
+        },
+        {
+          "name": "ConversationsController"
+        },
+        {
+          "name": "ConversationsControllerOptions"
+        },
+        {
+          "name": "ConversationsSnapshot"
+        },
+        {
+          "name": "ConversationSummary"
+        },
+        {
+          "name": "Message",
+          "fields": true
+        },
+        {
+          "name": "MessageCursor"
+        },
+        {
+          "name": "MessageDraft"
+        },
+        {
+          "name": "MessageEdit"
+        },
+        {
+          "name": "MessageEdition",
+          "fields": true
+        },
+        {
+          "name": "MessageFile"
+        },
+        {
+          "name": "MessageKind"
+        },
+        {
+          "name": "MessageListOptions"
+        },
+        {
+          "name": "MessageReaction"
+        },
+        {
+          "name": "MessagesActions"
+        },
+        {
+          "name": "MessagesController"
+        },
+        {
+          "name": "MessagesControllerOptions"
+        },
+        {
+          "name": "MessagesSnapshot"
+        },
+        {
+          "name": "NewMessage",
+          "fields": true
+        },
+        {
+          "name": "OpenConversation"
+        },
+        {
+          "name": "SummaryMessage"
+        }
+      ],
+      "entitySchemas": {
+        "message": {
+          "input": {
+            "title": "NewMessage",
+            "fields": {
+              "body": {
+                "kind": "string"
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "A rich-text document (any JSON)."
+              },
+              "anchor": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "Where on the record a top-level message points."
+              },
+              "mentionIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "broadcast": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "scheduledFor": {
+                "kind": "instant",
+                "optional": true
+              },
+              "attachmentIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewMessage",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "document": {
+                  "description": "A rich-text document (any JSON)."
+                },
+                "anchor": {
+                  "description": "Where on the record a top-level message points."
+                },
+                "mentionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "broadcast": {
+                  "type": "boolean"
+                },
+                "scheduledFor": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "attachmentIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "MessageEdition",
+            "fields": {
+              "body": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "`null` removes the document."
+              },
+              "mentionIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MessageEdition",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "document": {
+                  "description": "`null` removes the document."
+                },
+                "mentionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MessagingEvents",
+        "types": [
+          "conversation.created",
+          "conversation.archived",
+          "conversation.member_added",
+          "conversation.member_removed",
+          "message.sent",
+          "message.edited",
+          "message.deleted",
+          "message.pinned",
+          "message.resolved"
+        ]
+      }
+    },
+    {
+      "name": "channels",
+      "sql": [
+        "channels"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "channelsBlock",
+        "subpath": "better-supabase/blocks/channels"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Channel"
+        },
+        {
+          "name": "ChannelChange"
+        },
+        {
+          "name": "Channels"
+        },
+        {
+          "name": "ChannelsEvents"
+        },
+        {
+          "name": "ChannelsOptions"
+        },
+        {
+          "name": "ChannelVisibility"
+        },
+        {
+          "name": "NewChannel"
+        }
+      ],
+      "entitySchemas": {
+        "channel": {
+          "input": {
+            "title": "NewChannel",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
+              "topic": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true
+              },
+              "purpose": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record to link: { type, id }."
+              },
+              "memberIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewChannel",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "topic": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "purpose": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "subject": {
+                  "description": "The record to link: { type, id }."
+                },
+                "memberIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "ChannelChange",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "optional": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
+              "topic": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true,
+                "nullable": true
+              },
+              "purpose": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true,
+                "nullable": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ChannelChange",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "topic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 250
+                },
+                "purpose": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 250
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ChannelsEvents",
+        "types": [
+          "channel.created",
+          "channel.updated"
+        ]
+      }
+    },
+    {
+      "name": "activity",
+      "sql": [
+        "activity"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "activityBlock",
+        "subpath": "better-supabase/blocks/activity"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "mail-sync",
+      "sql": [
+        "mail-sync"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "mailSyncBlock",
+        "subpath": "better-supabase/blocks/mail-sync"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "MailAccount"
+        },
+        {
+          "name": "MailAccountInput"
+        },
+        {
+          "name": "MailMessage"
+        },
+        {
+          "name": "MailThread"
+        },
+        {
+          "name": "MailThreadDetail"
+        }
+      ],
+      "entitySchemas": {
+        "mail_account": {
+          "input": {
+            "title": "MailAccountInput",
+            "fields": {
+              "provider": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "address": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "credentialRef": {
+                "kind": "json",
+                "description": "The member's OAuth grant: { provider, tenant, ... }."
+              },
+              "share": {
+                "kind": "enum",
+                "values": [
+                  "records",
+                  "private"
+                ],
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MailAccountInput",
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "address": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "credentialRef": {
+                  "description": "The member's OAuth grant: { provider, tenant, ... }."
+                },
+                "share": {
+                  "type": "string",
+                  "enum": [
+                    "records",
+                    "private"
+                  ]
+                }
+              },
+              "required": [
+                "provider",
+                "address",
+                "credentialRef"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "mail_message": {
+          "input": {
+            "title": "MailDraft",
+            "fields": {
+              "to": {
+                "kind": "json",
+                "array": true,
+                "description": "The recipients: { address, name? }."
+              },
+              "cc": {
+                "kind": "json",
+                "array": true,
+                "optional": true
+              },
+              "bcc": {
+                "kind": "json",
+                "array": true,
+                "optional": true
+              },
+              "subject": {
+                "kind": "string",
+                "maxLength": 998
+              },
+              "text": {
+                "kind": "string",
+                "optional": true
+              },
+              "html": {
+                "kind": "string",
+                "optional": true
+              },
+              "threadId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "templateVersionId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "track": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MailDraft",
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The recipients: { address, name? }."
+                },
+                "cc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "bcc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "subject": {
+                  "type": "string",
+                  "maxLength": 998
+                },
+                "text": {
+                  "type": "string"
+                },
+                "html": {
+                  "type": "string"
+                },
+                "threadId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "templateVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "track": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "to",
+                "subject"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MailSyncEvents",
+        "types": [
+          "mail_account.connected",
+          "mail_account.disconnected",
+          "mail_message.received",
+          "mail_message.sent",
+          "mail_message.opened",
+          "mail_message.clicked"
+        ]
+      }
+    },
+    {
+      "name": "segments",
+      "sql": [
+        "segments"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "segmentsBlock",
+        "subpath": "better-supabase/blocks/segments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Segment"
+        },
+        {
+          "name": "SegmentInput"
+        },
+        {
+          "name": "SegmentMember"
+        },
+        {
+          "name": "SegmentMembership"
+        },
+        {
+          "name": "SegmentRefresh"
+        },
+        {
+          "name": "SegmentRefreshReport"
+        },
+        {
+          "name": "Segments"
+        },
+        {
+          "name": "SegmentsOptions"
+        },
+        {
+          "name": "SegmentsSqlOptions"
+        }
+      ],
+      "entitySchemas": {
+        "segment": {
+          "input": {
+            "title": "SegmentInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "optional": true
+              },
+              "description": {
+                "kind": "string",
+                "maxLength": 2000,
+                "optional": true
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "A FilterQuery over the subject type's rule fields."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "SegmentInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "conditions": {
+                  "description": "A FilterQuery over the subject type's rule fields."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "assignment",
+      "sql": [
+        "assignment"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "assignmentBlock",
+        "subpath": "better-supabase/blocks/assignment"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AssignmentQueue"
+        },
+        {
+          "name": "AssignmentQueueInput"
+        }
+      ],
+      "entitySchemas": {
+        "assignment_queue": {
+          "input": {
+            "title": "AssignmentQueueInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "optional": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "optional": true
+              },
+              "strategy": {
+                "kind": "enum",
+                "values": [
+                  "round_robin",
+                  "weighted"
+                ],
+                "optional": true
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "The territory, a FilterQuery over the rule fields."
+              },
+              "rank": {
+                "kind": "integer",
+                "optional": true
+              },
+              "enabled": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AssignmentQueueInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "round_robin",
+                    "weighted"
+                  ]
+                },
+                "conditions": {
+                  "description": "The territory, a FilterQuery over the rule fields."
+                },
+                "rank": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "enrichment",
+      "sql": [
+        "enrichment"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "enrichmentBlock",
+        "subpath": "better-supabase/blocks/enrichment"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Enrichment"
+        },
+        {
+          "name": "EnrichmentEvents"
+        },
+        {
+          "name": "EnrichmentOptions"
+        },
+        {
+          "name": "EnrichmentProvider"
+        },
+        {
+          "name": "EnrichmentReport"
+        },
+        {
+          "name": "EnrichmentResult"
+        },
+        {
+          "name": "EnrichmentSubject"
+        }
+      ],
+      "events": {
+        "type": "EnrichmentEvents",
+        "types": [
+          "party.enriched"
+        ]
+      }
+    },
+    {
+      "name": "field-history",
+      "sql": [
+        "field-history"
+      ],
+      "category": "database",
+      "client": {
+        "export": "fieldHistoryBlock",
+        "subpath": "better-supabase/blocks/field-history"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "forecasts",
+      "sql": [
+        "forecasts"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "forecastsBlock",
+        "subpath": "better-supabase/blocks/forecasts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ForecastSnapshot"
+        },
+        {
+          "name": "ForecastSnapshotDeal"
+        }
+      ],
+      "events": {
+        "type": "ForecastsEvents",
+        "types": [
+          "forecast.snapshotted"
+        ]
+      }
     },
     {
       "name": "metrics",
@@ -12829,6 +14087,9 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "sections": {
+        "checklist": []
       },
       "events": {
         "type": "WorkItemsEvents",

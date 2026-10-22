@@ -146,11 +146,13 @@ begin
   end if;
   for v_item in select value from jsonb_array_elements(coalesce(log_engagement.subjects, '[]')) loop
     if not (case (v_item ->> 'type')
-      when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
-      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -272,11 +274,13 @@ begin
   end if;
   for v_item in select value from jsonb_array_elements(coalesce(update_engagement.subjects, '[]')) loop
     if not (case (v_item ->> 'type')
-      when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
-      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -841,6 +845,91 @@ as $$
 $$;
 revoke execute on function "better_supabase"."engagement_notes"(uuid) from public, anon;
 grant execute on function "better_supabase"."engagement_notes"(uuid) to authenticated, service_role;
+
+-- A meeting engagement for each confirmed booking (options.bookings), with
+-- the external ref booking:<id>: moved when the booking moves, and closed
+-- with the outcome cancelled when it is cancelled.
+create or replace function "better_supabase"."bs_booking_engagement"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_ref text := 'booking:' || new."id"::text;
+  v_tenant uuid := new."tenant_id";
+  v_id uuid;
+  v_inserted boolean;
+  v_title text;
+  v_owner uuid := new."created_by";
+  v_person uuid;
+  v_person_owner uuid;
+  v_subjects jsonb;
+  v_first jsonb;
+begin
+  if new."status" = 'confirmed' then
+    if tg_op = 'UPDATE' and old."status" = 'confirmed' and old."during" = new."during" then
+      return null;
+    end if;
+    select p."id", p."owner_user_id" into v_person, v_person_owner
+    from "better_supabase"."people" p
+    where p."tenant_id" = v_tenant and p."archived_at" is null and p."merged_into" is null
+      and ((new."customer_user_id" is not null and p."user_id" = new."customer_user_id")
+        or (new."customer_email" is not null and lower(p."email") = lower(new."customer_email")))
+    order by (new."customer_user_id" is not null and p."user_id" = new."customer_user_id") desc, p."created_at"
+    limit 1;
+    v_owner := coalesce(v_owner, v_person_owner);
+    select left(coalesce(sv."name", 'Booking') || coalesce(' with ' || nullif(trim(new."customer_name"), ''), ''), 500)
+    into v_title
+    from "better_supabase"."booking_services" sv where sv."id" = new."service_id";
+    insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "owner_user_id", "due_at", "duration_seconds", "external_ref", "created_by")
+    values (v_tenant, 'meeting', coalesce(v_title, 'Booking'), new."notes", v_owner, lower(new."during"),
+      extract(epoch from upper(new."during") - lower(new."during"))::integer, v_ref, new."created_by")
+    on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
+      "due_at" = excluded."due_at", "duration_seconds" = excluded."duration_seconds",
+      "done_at" = null, "outcome" = null, "updated_at" = now()
+    returning "id", (xmax = 0) into v_id, v_inserted;
+    if v_person is not null then
+      insert into "better_supabase"."engagement_subjects" ("tenant_id", "engagement_id", "subject_type", "subject_id", "position")
+      values (v_tenant, v_id, 'person', v_person::text, 1)
+      on conflict do nothing;
+      insert into "better_supabase"."engagement_subjects" ("tenant_id", "engagement_id", "subject_type", "subject_id", "position")
+      select v_tenant, v_id, 'company', c."id"::text, 2
+      from "better_supabase"."company_people" k
+      join "better_supabase"."companies" c on c."id" = k."company_id"
+      where k."person_id" = v_person and c."archived_at" is null
+      order by k."is_primary" desc, k."created_at"
+      limit 1
+      on conflict do nothing;
+    end if;
+    v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = v_id), '[]'::jsonb);
+    v_first := v_subjects -> 0;
+    if v_inserted then
+      perform "better_supabase".emit_event('engagement.logged', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', 'meeting', 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/engagements');
+    else
+      perform "better_supabase".emit_event('engagement.updated', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', 'meeting', 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/engagements');
+    end if;
+  elsif new."status" = 'cancelled' and tg_op = 'UPDATE' and old."status" = 'confirmed' then
+    update "better_supabase"."engagements" x set
+      "done_at" = coalesce(new."cancelled_at", now()),
+      "outcome" = left('cancelled' || coalesce(': ' || nullif(trim(new."cancel_reason"), ''), ''), 500),
+      "updated_at" = now()
+    where x."tenant_id" = v_tenant and x."external_ref" = v_ref and x."done_at" is null
+    returning x."id" into v_id;
+    if v_id is not null then
+    v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = v_id), '[]'::jsonb);
+    v_first := v_subjects -> 0;
+      perform "better_supabase".emit_event('engagement.completed', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', 'meeting', 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/engagements');
+    end if;
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."bs_booking_engagement"() from public, anon, authenticated;
+drop trigger if exists bookings_engagement on "better_supabase"."bookings";
+create trigger bookings_engagement
+after insert or update of "status", "during" on "better_supabase"."bookings"
+for each row execute function "better_supabase"."bs_booking_engagement"();
 
 -- blocks.engagements.api: entry points for the Data API.
 create schema if not exists "api";

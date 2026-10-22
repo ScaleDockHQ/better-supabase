@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_118_enrichment.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module enrichment@1 managed
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
@@ -306,7 +306,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_118_enrichment.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module-data enrichment
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -319,7 +319,7 @@ values ('enrichment', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_118_enrichment.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module enrichment@1 managed
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
@@ -627,7 +627,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_118_enrichment.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module-data enrichment
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -640,7 +640,7 @@ values ('enrichment', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_118_enrichment.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module enrichment@1 managed
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
@@ -950,7 +950,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_118_enrichment.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module-data enrichment
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -963,7 +963,7 @@ values ('enrichment', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_118_enrichment.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module enrichment@1 managed
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
@@ -1329,7 +1329,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_118_enrichment.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bs-module-data enrichment
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

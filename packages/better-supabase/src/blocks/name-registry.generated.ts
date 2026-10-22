@@ -27,6 +27,16 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "activity": {
+    readonly tables: {
+      readonly "activity": "id" | "tenant" | "event" | "type" | "actor" | "subjectType" | "subjectId" | "summary" | "data" | "occurredAt";
+    };
+    readonly functions: "activity_subject_deliveries" | "activity_subject_readable" | "list_activity" | "record_activity";
+    readonly actions: "read";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "actor": {
     readonly tables: {};
     readonly functions: never;
@@ -166,6 +176,20 @@ export interface BlockNameRegistry {
     };
     readonly primary: "asset";
   };
+  readonly "assignment": {
+    readonly tables: {
+      readonly "queues": "id" | "tenant" | "name" | "subjectType" | "strategy" | "conditions" | "rank" | "enabled" | "createdAt" | "updatedAt";
+      readonly "members": "queue" | "tenant" | "user" | "weight" | "active" | "credit" | "assignedCount" | "lastAssignedAt";
+      readonly "log": "id" | "tenant" | "queue" | "subjectType" | "subjectId" | "user" | "assignedAt";
+    };
+    readonly functions: "assign_subject" | "assignment_history" | "list_assignment_queues" | "remove_assignment_queue" | "save_assignment_queue" | "set_assignment_members";
+    readonly actions: "read" | "manage" | "assign";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "assignment_queue": "id" | "tenant_id" | "name" | "subject_type" | "strategy" | "conditions" | "rank" | "enabled" | "created_at" | "updated_at";
+    };
+    readonly primary: "assignment_queue";
+  };
   readonly "attachments": {
     readonly tables: {
       readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata" | "version" | "width" | "height" | "pages";
@@ -280,6 +304,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: "product";
   };
+  readonly "channels": {
+    readonly tables: {
+      readonly "channels": "id" | "tenant" | "name" | "visibility" | "topic" | "purpose" | "subjectType" | "subjectId" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_channel" | "channels_for_record" | "create_channel" | "find_channel" | "get_channel" | "invite_to_channel" | "join_channel" | "leave_channel" | "list_channels" | "update_channel";
+    readonly actions: "read" | "create" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "channel": "id" | "tenant_id" | "name" | "visibility" | "topic" | "purpose" | "subject_type" | "subject_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "channel";
+  };
   readonly "chat-sdk-state": {
     readonly tables: {
       readonly "subscriptions": "prefix" | "thread" | "createdAt";
@@ -300,8 +336,9 @@ export interface BlockNameRegistry {
       readonly "collections": "id" | "tenant" | "subjectType" | "scope" | "owner" | "team" | "name" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "entries": "collection" | "tenant" | "subjectType" | "subjectId" | "rank" | "addedBy" | "addedAt";
       readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt";
+      readonly "savedItems": "id" | "user" | "tenant" | "subjectType" | "subjectId" | "note" | "remindAt" | "remindedAt" | "completedAt" | "createdAt";
     };
-    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "create_collection" | "list_collections" | "rank_collection_entry" | "rank_star" | "remove_collection_entries" | "rename_collection" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
+    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "list_collections" | "list_saved_items" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
     readonly actions: "read" | "write" | "share";
     readonly hooks: "before_collection_create" | "after_collection_create" | "before_collection_add" | "after_collection_add";
     readonly entities: {};
@@ -309,16 +346,13 @@ export interface BlockNameRegistry {
   };
   readonly "comments": {
     readonly tables: {
-      readonly "comments": "id" | "tenant" | "subjectType" | "subjectId" | "author" | "body" | "document" | "mentions" | "parent" | "createdAt" | "editedAt" | "deletedAt";
-      readonly "activity": "id" | "tenant" | "event" | "type" | "actor" | "subjectType" | "subjectId" | "summary" | "data" | "occurredAt";
+      readonly "tasks": "message" | "tenant" | "task" | "createdBy" | "createdAt";
     };
-    readonly functions: "activity_subject_deliveries" | "activity_subject_readable" | "comment_counts" | "comment_subject_readable" | "comments_after_write" | "comments_before_write" | "copy_comments" | "create_comment" | "delete_comment" | "edit_comment" | "list_activity" | "list_comments" | "record_activity";
-    readonly actions: "read" | "create" | "moderate" | "activity";
+    readonly functions: "comment_conversation" | "comment_counts" | "comment_message_readable" | "comments_json" | "copy_comments" | "create_comment" | "get_comment" | "list_comments" | "list_file_comments";
+    readonly actions: "read" | "create" | "moderate";
     readonly hooks: never;
-    readonly entities: {
-      readonly "comment": "id" | "organization_id" | "subject_type" | "subject_id" | "author_id" | "body" | "document" | "mentions" | "parent_id" | "created_at" | "edited_at" | "deleted_at";
-    };
-    readonly primary: "comment";
+    readonly entities: {};
+    readonly primary: never;
   };
   readonly "connectors": {
     readonly tables: {
@@ -546,6 +580,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: "engagement";
   };
+  readonly "enrichment": {
+    readonly tables: {
+      readonly "enrichments": "id" | "tenant" | "company" | "person" | "provider" | "status" | "data" | "filled" | "fetchedAt" | "requestedBy";
+    };
+    readonly functions: "enrichment_due" | "enrichment_target" | "enrichments_of" | "record_enrichment";
+    readonly actions: "read" | "run";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "enrichment": "id" | "tenant_id" | "company_id" | "person_id" | "provider" | "status" | "data" | "filled" | "fetched_at" | "requested_by";
+    };
+    readonly primary: "enrichment";
+  };
   readonly "enrollments": {
     readonly tables: {
       readonly "programs": "id" | "tenant" | "key" | "name" | "description" | "subjectTypes" | "steps" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt";
@@ -593,6 +639,16 @@ export interface BlockNameRegistry {
     };
     readonly primary: "expense_report";
   };
+  readonly "field-history": {
+    readonly tables: {
+      readonly "changes": "id" | "tenant" | "subjectType" | "subjectId" | "field" | "before" | "after" | "changedBy" | "changedAt";
+    };
+    readonly functions: "field_history";
+    readonly actions: "read";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "flags": {
     readonly tables: {
       readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
@@ -603,6 +659,19 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "forecasts": {
+    readonly tables: {
+      readonly "snapshots": "id" | "tenant" | "pipeline" | "since" | "until" | "currency" | "target" | "totals" | "dealCount" | "takenBy" | "takenAt";
+      readonly "deals": "snapshot" | "tenant" | "deal" | "name" | "owner" | "stage" | "forecast" | "outcome" | "amount" | "closeOn" | "closedAt";
+    };
+    readonly functions: "forecast_changes" | "forecast_snapshot" | "forecast_snapshots" | "take_forecast_snapshot";
+    readonly actions: "read" | "snapshot";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "snapshot": "id" | "tenant_id" | "pipeline_id" | "period_start" | "period_end" | "currency" | "target" | "totals" | "deal_count" | "taken_by" | "taken_at";
+    };
+    readonly primary: "snapshot";
   };
   readonly "forms": {
     readonly tables: {
@@ -690,16 +759,14 @@ export interface BlockNameRegistry {
       readonly "contacts": "id" | "tenant" | "user" | "name" | "email" | "phone" | "avatarUrl" | "metadata" | "createdAt" | "updatedAt";
       readonly "identities": "id" | "tenant" | "contact" | "channel" | "externalId" | "createdAt";
       readonly "conversations": "id" | "tenant" | "inbox" | "contact" | "subject" | "status" | "priority" | "assignee" | "team" | "botMode" | "thread" | "snoozedUntil" | "lastMessageAt" | "preview" | "firstResponseAt" | "resolvedAt" | "metadata" | "createdAt" | "updatedAt";
-      readonly "participants": "conversation" | "user" | "role" | "createdAt";
       readonly "events": "id" | "tenant" | "conversation" | "type" | "actor" | "data" | "createdAt";
-      readonly "reads": "conversation" | "user" | "lastReadAt";
-      readonly "messages": "id" | "tenant" | "conversation" | "direction" | "kind" | "authorType" | "author" | "body" | "format" | "attachments" | "reactions" | "mentions" | "externalId" | "replyTo" | "metadata" | "createdAt" | "editedAt" | "deletedAt";
+      readonly "details": "message" | "tenant" | "conversation" | "direction" | "authorType" | "format" | "externalId" | "replyTo" | "metadata";
       readonly "deliveries": "id" | "tenant" | "message" | "channel" | "status" | "externalId" | "error" | "attempts" | "createdAt" | "updatedAt";
-      readonly "mentions": "message" | "user" | "tenant" | "createdAt";
       readonly "inbound": "id" | "tenant" | "adapter" | "externalId" | "inbox" | "headers" | "body" | "status" | "error" | "attempts" | "receivedAt" | "processedAt";
       readonly "templates": "id" | "tenant" | "inbox" | "name" | "channel" | "language" | "body" | "variables" | "externalId" | "createdAt" | "updatedAt";
+      readonly "scheduled": "id" | "tenant" | "conversation" | "author" | "input" | "scheduledFor" | "createdAt" | "updatedAt";
     };
-    readonly functions: "assign_conversation" | "create_inbox" | "create_inbox_team" | "delete_message_template" | "edit_message" | "get_conversation" | "get_message" | "inbox_add_message" | "inbox_contact_conversation_ids" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_message_broadcast" | "inbox_read_broadcast" | "inbox_resolve_contact" | "list_conversation_events" | "list_conversations" | "list_messages" | "mark_conversation_read" | "pending_inbound_events" | "purge_contact" | "purge_inbound_events" | "react_to_message" | "record_delivery" | "record_inbound" | "send_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "set_typing" | "start_conversation" | "store_inbound_event" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
+    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "inbox_resolve_contact" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "schedule_inbox_message" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -835,6 +902,25 @@ export interface BlockNameRegistry {
     };
     readonly primary: "ledger_account";
   };
+  readonly "mail-sync": {
+    readonly tables: {
+      readonly "accounts": "id" | "tenant" | "user" | "provider" | "address" | "credentialRef" | "share" | "status" | "cursor" | "lastSyncedAt" | "lastError" | "createdAt" | "updatedAt";
+      readonly "threads": "id" | "tenant" | "account" | "externalId" | "subject" | "snippet" | "lastMessageAt" | "messageCount" | "engagement" | "createdAt" | "updatedAt";
+      readonly "messages": "id" | "tenant" | "account" | "thread" | "externalId" | "rfcId" | "direction" | "fromAddress" | "fromName" | "to" | "cc" | "subject" | "snippet" | "bodyText" | "bodyHtml" | "sentAt" | "templateVersion" | "trackingHash" | "openedAt" | "openCount" | "clickedAt" | "clickCount" | "createdAt";
+      readonly "trackedLinks": "tenant" | "message" | "position" | "url" | "clickCount" | "createdAt";
+      readonly "tracking": "id" | "tenant" | "message" | "kind" | "position" | "userAgent" | "occurredAt";
+      readonly "links": "tenant" | "thread" | "subjectType" | "subjectId" | "source" | "createdAt";
+    };
+    readonly functions: "connect_mail_account" | "disconnect_mail_account" | "due_mail_accounts" | "get_mail_account" | "get_mail_thread" | "ingest_mail" | "link_mail_thread" | "list_mail_threads" | "mail_accounts_of" | "mail_template_stats" | "mail_thread_visible" | "mail_threads_of" | "record_sent_mail" | "set_mail_account_status" | "store_mail_message" | "track_mail" | "unlink_mail_thread" | "update_mail_account";
+    readonly actions: "read" | "connect" | "send" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "mail_thread": "id" | "tenant_id" | "account_id" | "external_id" | "subject" | "snippet" | "last_message_at" | "message_count" | "engagement_id" | "created_at" | "updated_at";
+      readonly "mail_account": "id" | "tenant_id" | "user_id" | "provider" | "address" | "credential_ref" | "share" | "status" | "sync_cursor" | "last_synced_at" | "last_error" | "created_at" | "updated_at";
+      readonly "mail_message": "id" | "tenant_id" | "account_id" | "thread_id" | "external_id" | "rfc_message_id" | "direction" | "from_address" | "from_name" | "to_addresses" | "cc_addresses" | "subject" | "snippet" | "body_text" | "body_html" | "sent_at" | "template_version_id" | "tracking_hash" | "opened_at" | "open_count" | "clicked_at" | "click_count" | "created_at";
+    };
+    readonly primary: "mail_thread";
+  };
   readonly "memory": {
     readonly tables: {
       readonly "memories": "id" | "tenant" | "owner" | "scope" | "agent" | "chat" | "project" | "kind" | "path" | "content" | "version" | "embedding" | "model" | "sourceMessage" | "supersededBy" | "tsv" | "createdAt" | "updatedAt";
@@ -846,6 +932,25 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "messaging": {
+    readonly tables: {
+      readonly "conversations": "id" | "tenant" | "kind" | "access" | "subjectType" | "subjectId" | "title" | "memberKey" | "createdBy" | "lastMessageAt" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "members": "conversation" | "tenant" | "user" | "role" | "notify" | "lastReadAt" | "joinedAt";
+      readonly "messages": "id" | "tenant" | "conversation" | "parent" | "thread" | "author" | "kind" | "body" | "document" | "anchor" | "mentions" | "mentionScope" | "broadcast" | "replyCount" | "lastReplyAt" | "replyUsers" | "pinnedAt" | "pinnedBy" | "resolvedAt" | "resolvedBy" | "scheduledFor" | "sentAt" | "editedAt" | "deletedAt" | "createdAt";
+      readonly "edits": "id" | "tenant" | "message" | "body" | "document" | "editor" | "editedAt";
+      readonly "reads": "tenant" | "user" | "conversation" | "thread" | "lastReadAt";
+      readonly "recordMentions": "tenant" | "message" | "conversation" | "subjectType" | "subjectId" | "createdAt";
+      readonly "summaries": "id" | "tenant" | "conversation" | "thread" | "summary" | "model" | "messageCount" | "throughAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "add_conversation_members" | "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "delete_message" | "edit_message" | "get_message" | "index_record_mentions" | "is_conversation_member" | "list_conversations" | "list_file_anchors" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_record_mentions" | "list_replies" | "mark_read" | "messaging_file_anchor_valid" | "messaging_message_broadcast" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "open_conversation" | "parse_mentions" | "pin_message" | "publish_due_messages" | "remove_conversation_member" | "resolve_message" | "save_thread_summary" | "send_message" | "set_conversation_notify" | "set_typing" | "thread_summary" | "unread_counts";
+    readonly actions: "read" | "send" | "moderate";
+    readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
+    readonly entities: {
+      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_for" | "sent_at" | "edited_at" | "deleted_at" | "created_at";
+      readonly "conversation": "id" | "tenant_id" | "kind" | "access" | "subject_type" | "subject_id" | "title" | "member_key" | "created_by" | "last_message_at" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "message";
   };
   readonly "metrics": {
     readonly tables: {
@@ -1206,6 +1311,19 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "segments": {
+    readonly tables: {
+      readonly "segments": "id" | "tenant" | "name" | "description" | "subjectType" | "conditions" | "memberCount" | "refreshedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "members": "segment" | "tenant" | "subjectId" | "enteredAt";
+    };
+    readonly functions: "evaluate_segment" | "list_segment_members" | "refresh_due_segments" | "refresh_segment" | "remove_segment" | "save_segment" | "segment_get" | "segments_list" | "segments_of";
+    readonly actions: "read" | "edit";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "segment": "id" | "tenant_id" | "name" | "description" | "subject_type" | "conditions" | "member_count" | "refreshed_at" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "segment";
+  };
   readonly "service-principals": {
     readonly tables: {
       readonly "principals": "id" | "tenant" | "name" | "role" | "isDefault" | "createdBy" | "createdAt" | "disabledAt";
@@ -1347,7 +1465,7 @@ export interface BlockNameRegistry {
   };
   readonly "subjects": {
     readonly tables: {};
-    readonly functions: "can_subject" | "can_subject_for" | "my_work" | "record_summary" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "can_subject" | "can_subject_for" | "my_work" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

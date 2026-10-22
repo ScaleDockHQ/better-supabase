@@ -1774,6 +1774,7 @@
               "api-keys",
               "approvals",
               "assets",
+              "assignment",
               "attachments",
               "audit",
               "billable-time",
@@ -1802,11 +1803,14 @@
               "drive-files",
               "employees",
               "engagements",
+              "enrichment",
               "enrollments",
               "ensure-rls",
               "entitlements",
               "expenses",
+              "field-history",
               "flags",
+              "forecasts",
               "forms",
               "grants",
               "guests",
@@ -1825,6 +1829,7 @@
               "leases",
               "leave",
               "ledger",
+              "mail-sync",
               "memory",
               "messaging",
               "metrics",
@@ -1858,6 +1863,7 @@
               "saved-views",
               "scores",
               "search",
+              "segments",
               "service-principals",
               "sessions",
               "settings",
@@ -1940,6 +1946,9 @@
             },
             "assets": {
               "$ref": "#/$defs/blocks/assets"
+            },
+            "assignment": {
+              "$ref": "#/$defs/blocks/assignment"
             },
             "attachments": {
               "$ref": "#/$defs/blocks/attachments"
@@ -2025,6 +2034,9 @@
             "engagements": {
               "$ref": "#/$defs/blocks/engagements"
             },
+            "enrichment": {
+              "$ref": "#/$defs/blocks/enrichment"
+            },
             "enrollments": {
               "$ref": "#/$defs/blocks/enrollments"
             },
@@ -2037,8 +2049,14 @@
             "expenses": {
               "$ref": "#/$defs/blocks/expenses"
             },
+            "field-history": {
+              "$ref": "#/$defs/blocks/field-history"
+            },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
+            },
+            "forecasts": {
+              "$ref": "#/$defs/blocks/forecasts"
             },
             "forms": {
               "$ref": "#/$defs/blocks/forms"
@@ -2093,6 +2111,9 @@
             },
             "ledger": {
               "$ref": "#/$defs/blocks/ledger"
+            },
+            "mail-sync": {
+              "$ref": "#/$defs/blocks/mail-sync"
             },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
@@ -2192,6 +2213,9 @@
             },
             "search": {
               "$ref": "#/$defs/blocks/search"
+            },
+            "segments": {
+              "$ref": "#/$defs/blocks/segments"
             },
             "service-principals": {
               "$ref": "#/$defs/blocks/service-principals"
@@ -3500,6 +3524,17 @@
           }
         }
       },
+      "assignment": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "attachments": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4092,8 +4127,22 @@
               "recordings": {
                 "type": "boolean",
                 "default": false
+              },
+              "bookings": {
+                "type": "boolean"
               }
             }
+          }
+        }
+      },
+      "enrichment": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4148,6 +4197,19 @@
           }
         }
       },
+      "field-history": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
       "flags": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4159,6 +4221,17 @@
               "contexts": {},
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "forecasts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4501,6 +4574,24 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "mail-sync": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "engagementType": {
+                "type": "string"
+              },
+              "matchDomains": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },
@@ -5236,6 +5327,21 @@
               "dimensions": {
                 "type": "number",
                 "default": 0
+              }
+            }
+          }
+        }
+      },
+      "segments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxMembers": {
+                "type": "number"
               }
             }
           }

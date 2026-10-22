@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bs-module reactions@2 managed
--- Emoji reactions and up or down votes on any subject, comments and inbox messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -100,22 +100,24 @@ create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function "better_supabase"."reaction_subject_visible"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select case reaction_subject_visible.subject_type
-    when 'inbox_message' then exists (select 1 from "better_supabase"."inbox_messages" m where m."id"::text = reaction_subject_visible.subject_id and m."tenant_id" = reaction_subject_visible.tenant)
-    else case reaction_subject_visible.subject_type
-    when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant and s."deleted_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'comments.read'), false)
-    when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'courses.read'), false)
+begin
+  return case reaction_subject_visible.subject_type
+    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."deleted_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'messages.read'), false)
+    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'messages.read'), false)
+    when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'messages.read'), false)
     when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'parties.read'), false)
     when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'parties.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'deals.read'), false)
+    when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'courses.read'), false)
     when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'engagements.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'work_items.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant) and coalesce(better_supabase.can('tenant', reaction_subject_visible.tenant, 'employees.read'), false)
@@ -143,8 +145,8 @@ as $$
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant and s."deleted_at" is null)
     when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."organization_id" = reaction_subject_visible.tenant)
     else false
-  end
-  end
+  end;
+end;
 $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
@@ -157,12 +159,12 @@ create policy "reactions_insert" on "better_supabase"."reactions" for insert to 
   with check ((
     "user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
-    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create')) and "subject_type" <> 'inbox_message'
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "reactions_delete" on "better_supabase"."reactions";
 create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
-  using (("user_id" = (select auth.uid()) and "subject_type" <> 'inbox_message') and (select better_supabase.actor_may_write()));
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 drop policy if exists "reaction_scores_read" on "better_supabase"."reaction_scores";
 create policy "reaction_scores_read" on "better_supabase"."reaction_scores" for select to authenticated
@@ -308,10 +310,6 @@ declare
   v_actor text;
   v_user uuid;
 begin
-  if react.subject_type = 'inbox_message' then
-    perform "better_supabase"."react_to_message"(react.subject_id::uuid, react.emoji, coalesce(react.present, true), react.actor);
-    return "better_supabase"."reaction_list"(react.tenant, react.subject_type, react.subject_id);
-  end if;
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_actor := coalesce(react.actor, 'service');
   elsif react.actor is not null then
@@ -588,7 +586,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.comments' then array['comment'] when 'better_supabase.courses' then array['course'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.maintenance_requests' then array['maintenance_request'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.maintenance_requests' then array['maintenance_request'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     delete from "better_supabase"."reactions" x where x."subject_type" = v_type and x."subject_id" = v_drop and exists (select 1 from "better_supabase"."reactions" y where y."subject_type" = v_type and y."subject_id" = v_keep and y."actor" is not distinct from x."actor" and y."emoji" is not distinct from x."emoji");
     update "better_supabase"."reactions" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
   end loop;

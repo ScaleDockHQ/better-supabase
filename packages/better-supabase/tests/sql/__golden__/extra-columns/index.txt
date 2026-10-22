@@ -5,7 +5,6 @@ profiles
 notifications
 api-keys
 flags
-comments
 attachments
 waitlist
 announcements
@@ -61,3 +60,4 @@ contracts
 controls
 incidents
 courses
+messaging

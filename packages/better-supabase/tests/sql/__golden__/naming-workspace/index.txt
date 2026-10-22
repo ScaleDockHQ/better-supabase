@@ -20,6 +20,7 @@ sso
 waitlist
 announcements
 workflow-builder
+inbox
 ai-chat
 ai-files
 knowledge
@@ -47,3 +48,5 @@ leases
 contracts
 controls
 incidents
+activity
+assignment

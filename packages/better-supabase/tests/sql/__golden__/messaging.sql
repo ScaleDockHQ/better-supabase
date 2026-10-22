@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_112_messaging.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
@@ -154,6 +154,7 @@ create index if not exists messaging_messages_thread_idx on "better_supabase"."m
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from anon, authenticated;
@@ -376,8 +377,8 @@ begin
       return true;
     when 'send' then
       return v_conv."archived_at" is null
-        and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
-        and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id"));
+        and ((coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
+        and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id"))));
     when 'moderate' then
       return coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.moderate'), false);
     else
@@ -823,6 +824,45 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "better_supabase"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Stores the records a sent message mentions, at most 20 of registered
 -- subject types, in place of the ones stored before. A deleted or unsent
 -- message keeps none.
@@ -932,6 +972,12 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "better_supabase"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    raise exception 'install the attachments block to anchor a message to a file' using errcode = '22023', hint = 'MESSAGING_ATTACHMENTS_UNAVAILABLE';
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -1241,6 +1287,27 @@ $$;
 revoke execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "better_supabase"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."messaging_messages_json"(array(
+    select m."id" from "better_supabase"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "better_supabase"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "better_supabase"."get_message"(message uuid)
 returns jsonb
@@ -1451,7 +1518,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_112_messaging.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -1464,7 +1531,7 @@ values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_112_messaging.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
@@ -1580,7 +1647,8 @@ using ((case when "better_supabase"."conversations"."kind" = 'inbox'
       when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
-    end) end));
+    end)
+    or ("better_supabase"."conversations"."kind" = 'subject' and (("better_supabase"."conversations"."tenant_id")::text, ("better_supabase"."conversations"."subject_type")::text, ("better_supabase"."conversations"."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end));
 
 drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
 create policy conversation_members_read on "better_supabase"."conversation_members" for select to authenticated
@@ -1622,6 +1690,7 @@ create index if not exists messaging_messages_thread_idx on "better_supabase"."m
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from anon, authenticated;
@@ -1788,7 +1857,8 @@ as $$
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
       when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
       else false
-    end) end))
+    end)
+    or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
 $$;
 revoke execute on function "better_supabase"."message_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."message_authors"(uuid[]) to authenticated, service_role;
@@ -1968,7 +2038,8 @@ begin
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
       when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
       else false
-    end) end));
+    end)
+    or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end));
   if not found then
     return false;
   end if;
@@ -1983,8 +2054,9 @@ begin
       return true;
     when 'send' then
       return v_conv."archived_at" is null
-        and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
-        and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id"));
+        and ((coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
+        and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id")))
+    or (v_conv."kind" = 'subject' and ((v_conv."tenant_id")::text, (v_conv."subject_type")::text, (v_conv."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('comment') g)));
     when 'moderate' then
       return coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.moderate'), false);
     else
@@ -2013,18 +2085,19 @@ declare
   v_access text;
   v_conv "better_supabase"."conversations";
   v_created boolean := false;
+  v_guest boolean := open_conversation.kind = 'subject' and coalesce(((open_conversation.tenant)::text, (open_conversation.attrs ->> 'subjectType')::text, (open_conversation.attrs ->> 'subjectId')::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g), false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_conversation.tenant, 'messages.send'), false) or v_guest) then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   v_users := array(
     select distinct x from unnest(coalesce(open_conversation.members, '{}') || case when auth.uid() is null then '{}'::uuid[] else array[auth.uid()] end) x
     where x is not null order by 1
   );
-  if exists (
+  if not v_guest and exists (
     select 1 from unnest(v_users) x
     where not coalesce(better_supabase.can_user(x, 'tenant', open_conversation.tenant, 'messages.read'), false)
   ) then
@@ -2046,7 +2119,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         raise exception 'a record conversation needs attrs.subjectType and attrs.subjectId' using errcode = '22023', hint = 'MESSAGING_SUBJECT_REQUIRED';
       end if;
-      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_guest or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       select c."id" into v_id from "better_supabase"."conversations" c
@@ -2470,6 +2543,45 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "better_supabase"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Stores the records a sent message mentions, at most 20 of registered
 -- subject types, in place of the ones stored before. A deleted or unsent
 -- message keeps none.
@@ -2582,6 +2694,23 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "better_supabase"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    if not exists (
+      select 1 from "better_supabase"."attachments" a
+      where a."id" = (send_message.attrs -> 'anchor' ->> 'attachmentId')::uuid
+        and a."organization_id" = v_conv."tenant_id"
+        and a."status" <> 'infected'
+        and ((a."subject_type" = v_conv."subject_type" and a."subject_id" = v_conv."subject_id")
+          or (a."subject_type" = 'message' and exists (
+            select 1 from "better_supabase"."messages" m
+            where m."id"::text = a."subject_id" and m."conversation_id" = v_conv."id")))
+    ) then
+      raise exception 'anchor the message to a file on this record or in this conversation' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -2909,6 +3038,27 @@ $$;
 revoke execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "better_supabase"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."messaging_messages_json"(array(
+    select m."id" from "better_supabase"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "better_supabase"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "better_supabase"."get_message"(message uuid)
 returns jsonb
@@ -3119,6 +3269,33 @@ alter table "better_supabase"."inbox_message_details" add constraint "inbox_mess
 drop trigger if exists "bs_messaging_inbox_broadcast" on "better_supabase"."messages";
 create trigger "bs_messaging_inbox_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."inbox_message_broadcast"();
+drop policy if exists "messages_moderation" on "better_supabase"."messages";
+create policy "messages_moderation" on "better_supabase"."messages" as restrictive for select to authenticated
+  using (
+    "author_id" = (select auth.uid())
+    or not "better_supabase"."moderation_hidden"('message', "better_supabase"."messages"."id"::text)
+    or "better_supabase"."messages"."tenant_id" in (select better_supabase.tenant_ids_with('moderation.read'))
+  );
+
+-- Refuses messages from members banned in the organization.
+create or replace function "better_supabase"."messages_moderation_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if "better_supabase"."moderation_banned"(new."tenant_id", new."author_id") then
+    raise exception 'you are banned in this organization' using errcode = '42501', hint = 'MODERATION_BANNED';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."messages_moderation_guard"() from public, anon, authenticated;
+drop trigger if exists "bs_messages_moderation_guard" on "better_supabase"."messages";
+create trigger "bs_messages_moderation_guard"
+  before insert on "better_supabase"."messages"
+  for each row execute function "better_supabase"."messages_moderation_guard"();
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
@@ -3132,7 +3309,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_112_messaging.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -3145,7 +3322,7 @@ values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_messaging.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
@@ -3303,6 +3480,7 @@ create index if not exists messaging_messages_thread_idx on "app_private"."messa
 create index if not exists messaging_messages_parent_idx on "app_private"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "app_private"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "app_private"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "app_private"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "app_private"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "app_private"."messages" enable row level security;
 revoke all on "app_private"."messages" from anon, authenticated;
@@ -3525,8 +3703,8 @@ begin
       return true;
     when 'send' then
       return v_conv."archived_at" is null
-        and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
-        and (v_conv."access" <> 'members' or "app_private"."is_conversation_member"(v_conv."id"));
+        and ((coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
+        and (v_conv."access" <> 'members' or "app_private"."is_conversation_member"(v_conv."id"))));
     when 'moderate' then
       return coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.moderate'), false);
     else
@@ -3972,6 +4150,45 @@ $$;
 revoke execute on function "app_private"."parse_mentions"(text) from public, anon;
 grant execute on function "app_private"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "app_private"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "app_private"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "app_private"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Stores the records a sent message mentions, at most 20 of registered
 -- subject types, in place of the ones stored before. A deleted or unsent
 -- message keeps none.
@@ -4081,6 +4298,12 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "app_private"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    raise exception 'install the attachments block to anchor a message to a file' using errcode = '22023', hint = 'MESSAGING_ATTACHMENTS_UNAVAILABLE';
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -4390,6 +4613,27 @@ $$;
 revoke execute on function "app_private"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "app_private"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "app_private"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "app_private"."messaging_messages_json"(array(
+    select m."id" from "app_private"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "app_private"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "app_private"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "app_private"."get_message"(message uuid)
 returns jsonb
@@ -4600,7 +4844,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_112_messaging.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
@@ -4613,7 +4857,7 @@ values ('messaging', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_112_messaging.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module messaging@1 managed
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
@@ -4769,6 +5013,7 @@ create index if not exists messaging_messages_thread_idx on "better_supabase"."m
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
 create index if not exists messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
+create index if not exists messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index if not exists messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from anon, authenticated;
@@ -4991,8 +5236,8 @@ begin
       return true;
     when 'send' then
       return v_conv."archived_at" is null
-        and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
-        and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id"));
+        and ((coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false)
+        and (v_conv."access" <> 'members' or "better_supabase"."is_conversation_member"(v_conv."id"))));
     when 'moderate' then
       return coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.moderate'), false);
     else
@@ -5438,6 +5683,45 @@ $$;
 revoke execute on function "better_supabase"."parse_mentions"(text) from public, anon;
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
+-- Whether a file anchor has a valid shape: an attachmentId, and optionally a
+-- page from 1, a region as fractions of the page or frame (x, y, width,
+-- height, inside 0 to 1), and a time span in seconds (start from 0, end
+-- after start).
+create or replace function "better_supabase"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_typeof(anchor) = 'object'
+    and anchor ->> 'kind' = 'file'
+    and coalesce(anchor ->> 'attachmentId', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    and (anchor -> 'page' is null
+      or (jsonb_typeof(anchor -> 'page') = 'number' and (anchor ->> 'page')::numeric >= 1
+        and (anchor ->> 'page')::numeric = trunc((anchor ->> 'page')::numeric)))
+    and (anchor -> 'region' is null
+      or (jsonb_typeof(anchor -> 'region') = 'object'
+        and jsonb_typeof(anchor -> 'region' -> 'x') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'y') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'width') = 'number'
+        and jsonb_typeof(anchor -> 'region' -> 'height') = 'number'
+        and (anchor -> 'region' ->> 'x')::numeric >= 0
+        and (anchor -> 'region' ->> 'y')::numeric >= 0
+        and (anchor -> 'region' ->> 'width')::numeric > 0
+        and (anchor -> 'region' ->> 'height')::numeric > 0
+        and (anchor -> 'region' ->> 'x')::numeric + (anchor -> 'region' ->> 'width')::numeric <= 1
+        and (anchor -> 'region' ->> 'y')::numeric + (anchor -> 'region' ->> 'height')::numeric <= 1))
+    and (anchor -> 'start' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and (anchor ->> 'start')::numeric >= 0))
+    and (anchor -> 'end' is null
+      or (jsonb_typeof(anchor -> 'start') = 'number' and jsonb_typeof(anchor -> 'end') = 'number'
+        and (anchor ->> 'end')::numeric > (anchor ->> 'start')::numeric)),
+    false)
+$$;
+revoke execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "better_supabase"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 -- Stores the records a sent message mentions, at most 20 of registered
 -- subject types, in place of the ones stored before. A deleted or unsent
 -- message keeps none.
@@ -5547,6 +5831,12 @@ begin
     end if;
     -- One level of threads: a reply to a reply joins the root's thread.
     v_parent := coalesce(v_root, v_parent);
+  end if;
+  if v_parent is null and send_message.attrs -> 'anchor' ->> 'kind' = 'file' then
+    if not "better_supabase"."messaging_file_anchor_valid"(send_message.attrs -> 'anchor') then
+      raise exception 'a file anchor needs an attachmentId, a page from 1, a region inside 0 to 1 and a time span from 0' using errcode = '22023', hint = 'MESSAGING_ANCHOR_INVALID';
+    end if;
+    raise exception 'install the attachments block to anchor a message to a file' using errcode = '22023', hint = 'MESSAGING_ATTACHMENTS_UNAVAILABLE';
   end if;
   if v_scheduled is not null and v_scheduled <= now() then
     v_scheduled := null;
@@ -5855,6 +6145,27 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
+
+-- The top-level messages anchored to a file, oldest first: the comments on
+-- its pages, regions and moments. Only the conversations the caller can read.
+create or replace function "better_supabase"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."messaging_messages_json"(array(
+    select m."id" from "better_supabase"."messages" m
+    where m."anchor" ->> 'kind' = 'file'
+      and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
+      and m."sent_at" is not null and m."deleted_at" is null
+    order by m."sent_at", m."id"
+    limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
+  ))
+$$;
+revoke execute on function "better_supabase"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_file_anchors"(uuid, integer) to authenticated, service_role;
 
 -- One message the caller can read, or null: for a Realtime ping's id.
 create or replace function "better_supabase"."get_message"(message uuid)
@@ -6183,6 +6494,15 @@ as $$ select "better_supabase"."set_typing"($1, $2, $3) $$;
 revoke execute on function "api"."set_typing"(uuid, boolean, text) from public, anon;
 grant execute on function "api"."set_typing"(uuid, boolean, text) to authenticated, service_role;
 
+create or replace function "api"."messaging_file_anchor_valid"(anchor jsonb)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."messaging_file_anchor_valid"($1) $$;
+revoke execute on function "api"."messaging_file_anchor_valid"(jsonb) from public, anon;
+grant execute on function "api"."messaging_file_anchor_valid"(jsonb) to authenticated, service_role;
+
 create or replace function "api"."list_record_mentions"(subject_type text, subject_id text, before timestamptz default null, before_id uuid default null, max_rows integer default null)
 returns jsonb
 language sql
@@ -6264,6 +6584,15 @@ as $$ select "better_supabase"."list_replies"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_replies"(uuid, timestamptz, uuid, integer) from public, anon;
 grant execute on function "api"."list_replies"(uuid, timestamptz, uuid, integer) to authenticated, service_role;
 
+create or replace function "api"."list_file_anchors"(attachment uuid, max_rows integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_file_anchors"($1, $2) $$;
+revoke execute on function "api"."list_file_anchors"(uuid, integer) from public, anon;
+grant execute on function "api"."list_file_anchors"(uuid, integer) to authenticated, service_role;
+
 create or replace function "api"."get_message"(message uuid)
 returns jsonb
 language sql
@@ -6321,7 +6650,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_112_messaging.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bs-module-data messaging
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

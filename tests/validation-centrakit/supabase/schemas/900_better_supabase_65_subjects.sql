@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bs-module subjects@1 managed
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -347,6 +347,77 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
+
+-- The caller's own reminders sent in the last week, for my_work. Reminders
+-- have no read policy, so this reads them past it, keeping only the caller's.
+create or replace function "better_supabase"."my_reminders_due"(tenant uuid default null)
+returns table (reminder uuid, subject_type text, subject_id text, at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."id", r."subject_type"::text,
+    r."subject_id"::text, max(d."occurrence_at")
+  from "centrakit"."reminders" r
+  join "centrakit"."reminder_deliveries" d on d."reminder_id" = r."id"
+  where r."user_id" = (select auth.uid())
+    and (my_reminders_due.tenant is null or r."tenant_id" = my_reminders_due.tenant)
+    and d."sent_at" > now() - interval '7 days'
+  group by 1, 2, 3
+$$;
+revoke execute on function "better_supabase"."my_reminders_due"(uuid) from public, anon;
+grant execute on function "better_supabase"."my_reminders_due"(uuid) to authenticated, service_role;
+
+-- What waits on the caller across the installed blocks, newest first: open
+-- work items assigned to them, approvals they can decide, their reminders
+-- sent this week, mentions from the last 30 days and SLA clocks warned on
+-- their work items. Runs as the caller, so each row is one they can read.
+create or replace function "better_supabase"."my_work"(tenant uuid default null, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'kind', w.kind,
+      'subject', jsonb_build_object('type', w.subject_type, 'id', w.subject_id),
+      'ref', w.ref,
+      'title', coalesce(w.title, "better_supabase"."subject_title"(w.subject_type, w.subject_id)),
+      'url', "better_supabase"."subject_url"(w.subject_type, w.subject_id),
+      'at', w.at
+    ) order by w.at desc nulls last, w.kind, w.ref), '[]'::jsonb)
+    from (
+      select * from (
+    select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
+    from "better_supabase"."my_reminders_due"(my_work.tenant) d
+    where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
+    union all
+    select 'mention'::text, c."subject_type"::text, c."subject_id"::text, m."id"::text, null::text,
+      m."sent_at"
+    from "better_supabase"."messages" m
+    join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
+    where v_me = any (m."mentions")
+      and m."deleted_at" is null
+      and m."sent_at" > now() - interval '30 days'
+      and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
+      ) u (kind, subject_type, subject_id, ref, title, at)
+      order by u.at desc nulls last, u.kind, u.ref
+      limit least(greatest(coalesce(my_work.page_size, 50), 1), 200)
+    ) w
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."my_work"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."my_work"(uuid, integer) to authenticated, service_role;
 
 -- Whether the caller may join presence topic `topic`
 -- (presence:<type>:<id>): they can read that subject.

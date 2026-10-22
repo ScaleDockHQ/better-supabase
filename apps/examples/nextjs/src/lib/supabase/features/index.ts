@@ -2,6 +2,7 @@
 
 export { applicationFeature } from "./application/application-feature.ts";
 export { calendarEventFeature } from "./calendar-event/calendar-event-feature.ts";
+export { channelFeature } from "./channel/channel-feature.ts";
 export { companyFeature } from "./company/company-feature.ts";
 export { controlFeature } from "./control/control-feature.ts";
 export { courseFeature } from "./course/course-feature.ts";
@@ -20,4 +21,3 @@ export { productFeature } from "./product/product-feature.ts";
 export { productVariantFeature } from "./product-variant/product-variant-feature.ts";
 export { projectFeature } from "./project/project-feature.ts";
 export { taskFeature } from "./task/task-feature.ts";
-export { workItemFeature } from "./work-item/work-item-feature.ts";

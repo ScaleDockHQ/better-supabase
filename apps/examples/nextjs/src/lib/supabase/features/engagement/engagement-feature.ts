@@ -21,6 +21,7 @@ import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
+import { workItemsBlock } from "better-supabase/blocks/work-items";
 
 import { blockConfig, permissions } from "../../blocks.generated.ts";
 
@@ -50,6 +51,7 @@ export const engagementFeature = defineRecordFeature({
     shareLinks: shareLinksBlock,
     sla: slaBlock,
     tags: tagsBlock,
+    workItems: workItemsBlock,
   },
   config: blockConfig,
   permissions,

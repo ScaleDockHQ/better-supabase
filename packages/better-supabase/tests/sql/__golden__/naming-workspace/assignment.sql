@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_117_assignment.sql
+-- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bs-module assignment@1 managed
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
@@ -397,7 +397,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_117_assignment.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bs-module-data assignment
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
