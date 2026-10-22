@@ -2598,6 +2598,7 @@ msgid "Send"
 msgstr "Send"
 
 #: src/features/chat/components/message-item.tsx
+#: src/features/chat/components/presence-avatars.tsx
 msgctxt "chat.XDWEZM"
 msgid "Someone"
 msgstr "Someone"
@@ -2656,6 +2657,11 @@ msgstr "{count, plural, one {Someone is typing} other {# people are typing}}"
 msgctxt "chat.jQ74Cd"
 msgid "Message #{name}"
 msgstr "Message #{name}"
+
+#: src/features/chat/components/presence-avatars.tsx
+msgctxt "chat.ECg3v5"
+msgid "{count, plural, one {# other viewer} other {# other viewers}}"
+msgstr "{count, plural, one {# other viewer} other {# other viewers}}"
 
 #: src/features/chat/components/thread-panel.tsx
 msgctxt "chat.6dmn4m"

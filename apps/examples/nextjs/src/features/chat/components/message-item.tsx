@@ -2,8 +2,10 @@
 
 import type { Message } from "better-supabase/blocks/messaging";
 
-import { MessageSquareIcon, PaperclipIcon } from "lucide-react";
+import { mentionSegments } from "better-supabase/blocks/messaging";
+import { LinkIcon, MessageSquareIcon, PaperclipIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
+import { Fragment } from "react";
 
 import { Badge } from "@/components/reui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,6 +17,69 @@ const initials = (name: string): string =>
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
+
+/**
+ * A body with its mentions: users in bold, records as chips. Each record
+ * mention is also a backlink, listed by `messaging.recordMentions(subject)`.
+ */
+function MessageBody({ body }: { body: string }) {
+  const seen = new Map<string, number>();
+
+  // The same text or mention can repeat in a body, so its key counts repeats.
+  const keyOf = (base: string): string => {
+    const count = (seen.get(base) ?? 0) + 1;
+    seen.set(base, count);
+
+    return `${base}#${String(count)}`;
+  };
+
+  return mentionSegments(body).map((segment) => {
+    switch (segment.kind) {
+      case "text": {
+        return (
+          <Fragment key={keyOf(`text:${segment.text}`)}>
+            {segment.text}
+          </Fragment>
+        );
+      }
+
+      case "user": {
+        return (
+          <span key={keyOf(`user:${segment.userId}`)} className="font-medium">
+            @{segment.name}
+          </span>
+        );
+      }
+
+      case "record": {
+        return (
+          <Badge
+            key={keyOf(`record:${segment.subject.type}/${segment.subject.id}`)}
+            variant="outline"
+            title={`${segment.subject.type} ${segment.subject.id}`}
+          >
+            <LinkIcon aria-hidden />
+            {segment.name}
+          </Badge>
+        );
+      }
+
+      case "scope": {
+        return (
+          <span key={keyOf(`scope:${segment.scope}`)} className="font-medium">
+            @{segment.scope}
+          </span>
+        );
+      }
+
+      default: {
+        const never: never = segment;
+
+        return never;
+      }
+    }
+  });
+}
 
 /** One message: author, time, body, files and, at the top level, its replies. */
 export function MessageItem({
@@ -54,7 +119,7 @@ export function MessageItem({
           </p>
         ) : (
           <p className="text-sm break-words whitespace-pre-wrap">
-            {message.body}
+            <MessageBody body={message.body} />
           </p>
         )}
         {message.attachments.length > 0 ? (

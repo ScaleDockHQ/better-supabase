@@ -2598,6 +2598,7 @@ msgid "Send"
 msgstr "Versturen"
 
 #: src/features/chat/components/message-item.tsx
+#: src/features/chat/components/presence-avatars.tsx
 msgctxt "chat.XDWEZM"
 msgid "Someone"
 msgstr "Iemand"
@@ -2656,6 +2657,11 @@ msgstr "{count, plural, one {Iemand is aan het typen} other {# mensen zijn aan h
 msgctxt "chat.jQ74Cd"
 msgid "Message #{name}"
 msgstr "Bericht aan #{name}"
+
+#: src/features/chat/components/presence-avatars.tsx
+msgctxt "chat.ECg3v5"
+msgid "{count, plural, one {# other viewer} other {# other viewers}}"
+msgstr "{count, plural, one {# andere kijker} other {# andere kijkers}}"
 
 #: src/features/chat/components/thread-panel.tsx
 msgctxt "chat.6dmn4m"

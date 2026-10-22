@@ -12,6 +12,7 @@ import { Alert, AlertAction, AlertTitle } from "@/components/reui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -32,6 +33,7 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 import { MessageComposer } from "./message-composer";
 import { MessageItem } from "./message-item";
+import { PresenceAvatars } from "./presence-avatars";
 
 /**
  * A channel's top-level messages, live over Realtime: older pages on demand,
@@ -68,6 +70,11 @@ export function MessageList({
       <CardHeader>
         <CardTitle>#{name}</CardTitle>
         {topic ? <CardDescription>{topic}</CardDescription> : null}
+        <CardAction>
+          <PresenceAvatars
+            subject={{ type: "conversation", id: conversationId }}
+          />
+        </CardAction>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
         {error ? (

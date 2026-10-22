@@ -530,6 +530,20 @@ export const RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "presence-avatars",
+    title: "Presence avatars",
+    blocks: ["messaging"],
+    kind: "component",
+    description:
+      "Who else has a record open (a channel, a comment thread's record or a document), on the record's presence topic.",
+    hook: { name: "usePresence", entry: "better-supabase/react" },
+    web: {
+      file: `${WEB_APP}/src/features/chat/components/presence-avatars.tsx`,
+      components: ["avatar"],
+      glue: [],
+    },
+  },
+  {
     slug: "workspace-url-field",
     title: "Workspace URL field",
     blocks: ["organizations", "reserved-slugs"],

@@ -27,6 +27,7 @@ export const messagingBlock: BlockOf<
     "channel-sidebar",
     "message-composer",
     "message-list",
+    "presence-avatars",
     "thread-panel",
   ],
 });
