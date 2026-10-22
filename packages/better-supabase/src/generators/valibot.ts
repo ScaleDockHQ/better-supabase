@@ -359,7 +359,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
 
       lines.push(
         "",
-        "/** Write validators for the validation plugin. */",
+        "/** Write validators; the generated schema installs them through `validation`. */",
         "export const validators: {",
         ...validatorTypes,
         "} = {",
@@ -370,7 +370,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         "",
       );
 
-      return [{ path, contents: lines.join("\n") }];
+      return [{ path, contents: lines.join("\n"), validators: true }];
     },
   };
 }

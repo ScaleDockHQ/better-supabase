@@ -10,6 +10,8 @@ export const ACTOR: BlockSqlDefinition = {
     "Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.",
   requires: [],
   target: "schema",
+  // Read by gen for the repository extension, not by the SQL.
+  names: { tables: {}, options: ["createdBy", "updatedBy", "impersonatedBy"] },
   build: () => `${SCHEMA}
 
 ${ACTING_MEMBER}

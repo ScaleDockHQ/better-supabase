@@ -6714,7 +6714,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "identity",
       "client": null,
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "extension": "createdByExtension"
     },
     {
       "name": "agents",
@@ -17263,7 +17264,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "tenancy",
       "client": null,
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "extension": "membershipsExtension"
     },
     {
       "name": "time-tracking",
@@ -17335,6 +17337,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "extension": "trashExtension",
       "events": {
         "type": "TrashEvents",
         "types": [
@@ -17363,7 +17366,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "database",
       "client": null,
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "extension": "updatedAtExtension"
     },
     {
       "name": "usage",

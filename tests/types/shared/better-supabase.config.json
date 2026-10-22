@@ -1,13 +1,5 @@
 {
   "$schema": "../../../packages/better-supabase/schemas/config-v1.json",
-  "plugins": {
-    "timestamps": true,
-    "softDelete": {
-      "column": "archived_at"
-    },
-    "tenant": true,
-    "actor": true
-  },
   "database": {
     "source": {
       "snapshot": "../../../supabase/snapshot.json"
@@ -32,11 +24,21 @@
       "customers.metadata": {
         "type": "{ source?: string; tier?: 'free' | 'pro' }"
       }
-    }
+    },
+    "tasks": ["types"]
   },
   "auth": {
     "organization": {
       "column": "organization_id"
+    }
+  },
+  "blocks": {
+    "updated-at": {},
+    "created-by": {},
+    "trash": {
+      "options": {
+        "deletedAt": "archived_at"
+      }
     }
   }
 }

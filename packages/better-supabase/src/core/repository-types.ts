@@ -54,8 +54,9 @@ export interface WriteArgs<
   /** `false` skips `RETURNING` (needed when RLS hides the written row). */
   readonly returning?: boolean;
   /**
-   * Keep caller-supplied values for columns that `timestamps()`, `actor()` and
-   * `softDelete()` fill (imports, backfills). Without it they are refused.
+   * Keep caller-supplied values for columns that `updatedAtExtension()`,
+   * `createdByExtension()` and `trashExtension()` fill (imports, backfills).
+   * Without it they are refused.
    */
   readonly override?: boolean;
 }

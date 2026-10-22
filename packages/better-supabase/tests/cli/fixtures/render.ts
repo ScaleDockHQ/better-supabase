@@ -28,11 +28,10 @@ const fixtureConfig: BetterSupabaseConfig = {
     },
     storagePaths: { "customers.logo_path": "customerLogos" },
   },
-  plugins: {
-    timestamps: true,
-    softDelete: { column: "archived_at" },
-    tenant: true,
-    actor: true,
+  blocks: {
+    "updated-at": {},
+    "created-by": {},
+    trash: { options: { deletedAt: "archived_at" } },
   },
   database: {
     buckets: {
@@ -62,7 +61,10 @@ export async function loadFixtureSnapshot(): Promise<Snapshot> {
   );
 }
 
-/** The fixture modules, rendered by `gen` with the runtime imported from source. */
+/**
+ * The fixture modules, rendered by `gen` with the runtime imported from source.
+ * Their schemas stay bare, so each test installs the extensions it covers.
+ */
 export async function renderFixtures(): Promise<
   { path: string; contents: string }[]
 > {
@@ -98,9 +100,12 @@ export async function renderFixtures(): Promise<
   for (const variant of variants) {
     const rendered = await renderFiles(resolveConfig(variant, root), snapshot, {
       runtimeImport: "../../src/index.ts",
+      extensions: false,
     });
 
-    for (const file of rendered) {
+    for (const file of rendered.filter(
+      ({ path }) => !path.endsWith("blocks.generated.ts"),
+    )) {
       files.set(resolve(root, file.path), file.contents);
     }
   }

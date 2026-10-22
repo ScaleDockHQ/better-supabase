@@ -15,6 +15,14 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
+export {
+  type TrashDeleteArgs,
+  type TrashExtension,
+  trashExtension,
+  type TrashFindArgs,
+  type TrashMethods,
+} from "./extension.ts";
+
 export { trashBlock } from "./manifest.ts";
 
 export { trashEvents } from "./events.ts";

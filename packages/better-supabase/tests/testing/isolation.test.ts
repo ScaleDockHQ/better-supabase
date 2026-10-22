@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalStack } from "../../src/testing/as-user.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { ConformanceError } from "../../src/testing/conformance.ts";
 import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -26,7 +26,7 @@ const tenants = [
   { id: GLOBEX, claims: { sub: USER, tenant_id: GLOBEX } },
 ] as const;
 
-const betterSupabase = defineSupabase(schema).use(tenant());
+const betterSupabase = defineSupabase(schema).use(membershipsExtension());
 
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({

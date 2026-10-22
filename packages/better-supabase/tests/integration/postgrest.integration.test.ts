@@ -3,12 +3,12 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { AsyncResult } from "../../src/core/result.ts";
 
+import { createdByExtension } from "../../src/blocks/created-by/index.ts";
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
-import { actor } from "../../src/plugins/actor/index.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -594,10 +594,10 @@ describe.skipIf(!live)("PostgREST integration", () => {
     });
 
     const user = betterSupabase
-      .use(timestamps())
-      .use(softDelete())
-      .use(tenant())
-      .use(actor())
+      .use(updatedAtExtension())
+      .use(trashExtension())
+      .use(membershipsExtension())
+      .use(createdByExtension())
       .connect(
         createClient(url, publishableKey, { accessToken: async () => token }),
         {

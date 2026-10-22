@@ -2,7 +2,11 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import { defineSchema, type Schema } from "better-supabase";
+import { defineSchema, type ExtensionsOf, type Schema } from "better-supabase";
+import { updatedAtExtension } from "better-supabase/blocks/updated-at";
+import { createdByExtension } from "better-supabase/blocks/created-by";
+import { trashExtension } from "better-supabase/blocks/trash";
+import { membershipsExtension } from "better-supabase/blocks/memberships";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
@@ -861,4 +865,8 @@ export const topics = {
   "customers": "organization:{organizationId}:customers"
 } as const;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema(meta);
+/** The installed blocks' repository extensions; `defineSupabase` installs them. */
+type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof createdByExtension>, ReturnType<typeof trashExtension>, ReturnType<typeof membershipsExtension>];
+const extensions: Extensions = [updatedAtExtension(), createdByExtension(), trashExtension(), membershipsExtension()];
+
+export const schema: Schema<Models, Database, Functions, string, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);

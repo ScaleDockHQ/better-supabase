@@ -15,10 +15,10 @@ import {
   sessionCookieName,
   writeSession,
 } from "../../src/auth/session.ts";
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient as createBetterClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import {
   withBetterDb,
@@ -196,7 +196,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("binds repositories to the caller through createServer", async () => {
-    const betterSupabase = defineSupabase(schema).use(tenant());
+    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
     const server = createServer(betterSupabase, { env, postgres });
     const cookies = await signInCookies();
     const ctx = await server.context(toRequest(cookies));
@@ -249,7 +249,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("records the impersonating admin in the audit log", async () => {
-    const betterSupabase = defineSupabase(schema).use(tenant());
+    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
     const server = createServer(betterSupabase, { env, postgres });
     const admin = crypto.randomUUID();
     await postgres.admin.queryRaw(SQL_MODULES["audit"]!.sql);
@@ -305,7 +305,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("follows the session in the browser client", async () => {
-    const betterSupabase = defineSupabase(schema).use(tenant());
+    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
 
     const browser = createBetterClient(betterSupabase, {
       client: createClient(url, publishableKey, {

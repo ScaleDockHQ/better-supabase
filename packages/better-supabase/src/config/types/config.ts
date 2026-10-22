@@ -6,19 +6,14 @@ import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
 import type { AppTablesConfig } from "./app-tables.ts";
 import type {
-  ActorConfig,
   ClaimsConfig,
   CodecsConfig,
   FunctionConfig,
   Generator,
   JsonTypeConfig,
-  PluginFlagsConfig,
   RelationsConfig,
-  SoftDeleteConfig,
   SourceConfig,
   TableConfig,
-  TenantConfig,
-  TimestampsConfig,
 } from "./codegen.ts";
 import type {
   BucketConfig,
@@ -31,6 +26,7 @@ import type {
   VectorSearchConfig,
 } from "./database.ts";
 import type { EntitlementsConfig } from "./entitlements.ts";
+import type { OrganizationConfig } from "./groups.ts";
 import type { SubjectsConfig } from "./subjects.ts";
 import type {
   DoctorConfig,
@@ -116,8 +112,11 @@ export interface FlatConfig {
    */
   readonly readSets?: readonly string[];
   readonly generators?: readonly Generator[];
-  /** Enables plugin flags in the generated metadata. */
-  readonly plugins?: PluginFlagsConfig;
+  /**
+   * `auth.organization` without its claim (that is `claims.tenant`): the
+   * organization column and how the `memberships` extension resolves it.
+   */
+  readonly organization?: Omit<OrganizationConfig, "claim">;
   readonly claims?: ClaimsConfig;
   readonly buckets?: Readonly<Record<string, BucketConfig>>;
   /**
@@ -219,12 +218,11 @@ export interface ResolvedConfig {
   readonly exposeFunctions: Readonly<Record<string, readonly ExposeRole[]>>;
   readonly readSets: readonly string[];
   readonly generators: readonly Generator[];
-  readonly plugins: {
-    readonly timestamps: Required<TimestampsConfig> | undefined;
-    readonly softDelete: Required<SoftDeleteConfig> | undefined;
-    readonly tenant: Required<TenantConfig> | undefined;
-    readonly actor: Required<ActorConfig> | undefined;
-  };
+  /**
+   * The repository extensions of the installed blocks and the columns they
+   * manage; `gen` writes them as table flags.
+   */
+  readonly extensions: ResolvedExtensions;
   readonly claims: Required<ClaimsConfig>;
   readonly buckets: Readonly<Record<string, BucketConfig>>;
   readonly entitlements: {
@@ -285,6 +283,38 @@ export interface ResolvedConfig {
   readonly environment?: string;
 }
 
+/**
+ * The columns the repository extensions of the installed blocks manage, by
+ * extension; an extension whose block is not installed is `undefined`.
+ */
+export interface ResolvedExtensions {
+  /** `updated-at`: `blocks["updated-at"].options`. */
+  readonly timestamps:
+    | { readonly createdAt: string; readonly updatedAt: string }
+    | undefined;
+  /** `trash`: `blocks.trash.options.deletedAt`. */
+  readonly softDelete: { readonly column: string } | undefined;
+  /**
+   * `memberships`, or `auth.organization.column` without it: the organization
+   * column and how a request's organization is resolved.
+   */
+  readonly tenant:
+    | {
+        readonly column: string;
+        readonly onMissing?: "error" | "skip";
+        readonly header?: string;
+      }
+    | undefined;
+  /** `created-by`: `blocks["created-by"].options`. */
+  readonly actor:
+    | {
+        readonly createdBy: string;
+        readonly updatedBy: string;
+        readonly impersonatedBy: string;
+      }
+    | undefined;
+}
+
 export type {
   AppTableInput,
   AppTablesInput,
@@ -297,7 +327,6 @@ export type {
   EnvironmentConfig,
   GenGroupConfig,
   OrganizationConfig,
-  PluginFlagsInput,
   SqlInput,
   ToolingConfig,
 } from "./groups.ts";

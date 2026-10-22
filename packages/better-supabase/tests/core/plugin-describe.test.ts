@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -21,7 +21,7 @@ const property = (
 
 describe("Plugin.describe", () => {
   it("timestamps marks the managed columns read-only", () => {
-    const { model } = defineApi(base.use(timestamps()), {
+    const { model } = defineApi(base.use(updatedAtExtension()), {
       info,
       resources: { notes: true },
     });
@@ -36,7 +36,7 @@ describe("Plugin.describe", () => {
   });
 
   it("softDelete documents the hidden column", () => {
-    const { model } = defineApi(base.use(softDelete()), {
+    const { model } = defineApi(base.use(trashExtension()), {
       info,
       resources: { customers: true, notes: true },
     });
@@ -57,10 +57,15 @@ describe("Plugin.describe", () => {
   });
 
   it("tenant marks the tenant column and documents its header", () => {
-    const { model } = defineApi(base.use(tenant({ header: "x-tenant" })), {
-      info,
-      resources: { notes: { operations: ["list", "get"] }, tags: true },
-    });
+    const { model } = defineApi(
+      base.use(
+        membershipsExtension({ header: "x-tenant", onMissing: "error" }),
+      ),
+      {
+        info,
+        resources: { notes: { operations: ["list", "get"] }, tags: true },
+      },
+    );
 
     expect(
       property(model.schemas, "NotesInsert", "organizationId"),
@@ -85,7 +90,7 @@ describe("Plugin.describe", () => {
     });
 
     const optional = defineApi(
-      base.use(tenant({ header: "x-tenant", onMissing: "skip" })),
+      base.use(membershipsExtension({ header: "x-tenant", onMissing: "skip" })),
       { info, resources: { notes: { operations: ["get"] } } },
     );
 
@@ -93,7 +98,7 @@ describe("Plugin.describe", () => {
       expect.objectContaining({ name: "x-tenant", required: false }),
     );
 
-    const noHeader = defineApi(base.use(tenant()), {
+    const noHeader = defineApi(base.use(membershipsExtension()), {
       info,
       resources: { notes: { operations: ["get"] } },
     });

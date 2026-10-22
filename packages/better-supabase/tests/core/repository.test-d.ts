@@ -19,7 +19,7 @@ import type {
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { isCheck, isConflict } from "../../src/core/errors.ts";
-import { rules } from "../../src/plugins/rules/index.ts";
+import { guards } from "../../src/lint/index.ts";
 import { schema as camel } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
 
@@ -428,7 +428,7 @@ describe("_count, $table and $withoutPlugins", () => {
   });
 
   it("accepts the rules sensitive opt-in", () => {
-    const ruled = defineSupabase(camel).use(rules()).connect(client);
+    const ruled = defineSupabase(camel).use(guards()).connect(client);
     void ruled.contacts.findMany({ limit: 1, sensitive: true });
   });
 });

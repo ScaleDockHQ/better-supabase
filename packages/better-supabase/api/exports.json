@@ -75,7 +75,8 @@
       "toProblem",
       "toSnake",
       "touchedTables",
-      "validate"
+      "validate",
+      "validation"
     ],
     "types": [
       "* from ./ir/args.ts",
@@ -130,6 +131,7 @@
       "ExecuteResult",
       "Executor",
       "ExtensionOf",
+      "ExtensionsOf",
       "FieldSpec",
       "FindExt",
       "HasFlag",
@@ -200,10 +202,12 @@
       "TableSchema",
       "TableSchemaSpec",
       "TableSpecs",
+      "TableValidators",
       "UpdateArgs",
       "UpsertArgs",
       "UpsertManyArgs",
       "ValidationIssue",
+      "ValidationOptions",
       "WithExtension",
       "WriteArgs",
       "WriteManyArgs"
@@ -256,7 +260,6 @@
       "* from ./snapshot.ts",
       "AccessBlockConfig",
       "ActiveTenantSource",
-      "ActorConfig",
       "AnyBlocksConfig",
       "ApiConfig",
       "AppColumnAccess",
@@ -351,13 +354,12 @@
       "NuqsGeneratorOptions",
       "OpenApiConfig",
       "OrganizationConfig",
-      "PluginFlagsConfig",
-      "PluginFlagsInput",
       "Privilege",
       "RealtimeConfig",
       "RelationsConfig",
       "ResolvedConfig",
       "ResolvedExpose",
+      "ResolvedExtensions",
       "ResolvedSqlConfig",
       "RoleNames",
       "ScaffoldApiConfig",
@@ -365,7 +367,6 @@
       "SeedConfig",
       "SkillsAgent",
       "SkillsConfig",
-      "SoftDeleteConfig",
       "SourceConfig",
       "SqlConfig",
       "SqlInput",
@@ -374,8 +375,6 @@
       "SubjectConfig",
       "SubjectsConfig",
       "TableConfig",
-      "TenantConfig",
-      "TimestampsConfig",
       "ToolingConfig",
       "TopicTriggerConfig",
       "TopicTriggerLookupConfig",
@@ -7185,16 +7184,54 @@
       "rpcTransport",
       "sqlTransport",
       "trashBlock",
-      "trashEvents"
+      "trashEvents",
+      "trashExtension"
     ],
     "types": [
       "BlockTransport",
       "Trash",
       "TrashBatch",
+      "TrashDeleteArgs",
       "TrashEvents",
+      "TrashExtension",
+      "TrashFindArgs",
       "TrashItem",
       "TrashListOptions",
+      "TrashMethods",
       "TrashOptions"
+    ]
+  },
+  "./blocks/memberships": {
+    "values": [
+      "membershipsBlock",
+      "membershipsExtension",
+      "resolveOrganization"
+    ],
+    "types": [
+      "ClaimPath",
+      "MembershipsExtension",
+      "MembershipsExtensionOptions",
+      "MembershipsFindArgs",
+      "MembershipsSqlOptions"
+    ]
+  },
+  "./blocks/created-by": {
+    "values": [
+      "createdByBlock",
+      "createdByExtension"
+    ],
+    "types": [
+      "CreatedByExtensionOptions",
+      "CreatedBySqlOptions"
+    ]
+  },
+  "./blocks/updated-at": {
+    "values": [
+      "updatedAtBlock",
+      "updatedAtExtension"
+    ],
+    "types": [
+      "UpdatedAtSqlOptions"
     ]
   },
   "./blocks/reactions": {
@@ -8926,83 +8963,31 @@
       "OtelOptions"
     ]
   },
-  "./plugins/timestamps": {
-    "values": [
-      "timestamps"
-    ],
-    "types": []
-  },
   "./lint": {
     "values": [
       "default",
+      "guards",
       "largeTables",
       "plugin",
-      "rules"
+      "recommendedGuards",
+      "rules",
+      "safeGuards",
+      "strictGuards"
     ],
     "types": [
       "CallExpression",
+      "GuardLevel",
+      "GuardName",
+      "GuardSet",
+      "GuardSetting",
+      "GuardsExtension",
+      "GuardsFindArgs",
+      "GuardsOptions",
+      "GuardViolation",
       "LintSnapshot",
       "RuleContext",
       "RuleId",
       "RuleModule"
-    ]
-  },
-  "./plugins/rules": {
-    "values": [
-      "recommended",
-      "rules",
-      "safe",
-      "strict"
-    ],
-    "types": [
-      "AutomationsOptions",
-      "RuleLevel",
-      "RuleName",
-      "RuleSet",
-      "RuleSetting",
-      "RulesExtension",
-      "RulesFindArgs",
-      "RuleViolation"
-    ]
-  },
-  "./plugins/soft-delete": {
-    "values": [
-      "softDelete"
-    ],
-    "types": [
-      "SoftDeleteDeleteArgs",
-      "SoftDeleteExtension",
-      "SoftDeleteFindArgs",
-      "SoftDeleteMethods"
-    ]
-  },
-  "./plugins/tenant": {
-    "values": [
-      "resolveTenant",
-      "tenant"
-    ],
-    "types": [
-      "ClaimPath",
-      "TenantExtension",
-      "TenantFindArgs",
-      "TenantOptions"
-    ]
-  },
-  "./plugins/actor": {
-    "values": [
-      "actor"
-    ],
-    "types": [
-      "ActorOptions"
-    ]
-  },
-  "./plugins/validation": {
-    "values": [
-      "validation"
-    ],
-    "types": [
-      "TableValidators",
-      "ValidationOptions"
     ]
   },
   "./sql": {

@@ -107,18 +107,15 @@ function organizationOf(organization: unknown, out: Entries): Entries {
     return {};
   }
 
+  const { claim, ...rest } = organization;
   const patch: Entries = {};
-  const claim = organization["claim"];
-  const column = organization["column"];
 
   if (typeof claim === "string") {
     patch["claims"] = { ...objectOr(out["claims"]), tenant: claim };
   }
 
-  const plugins = objectOr(out["plugins"]);
-
-  if (typeof column === "string" && plugins["tenant"] === true) {
-    patch["plugins"] = { ...plugins, tenant: { column } };
+  if (Object.keys(rest).length > 0) {
+    patch["organization"] = rest;
   }
 
   return patch;
@@ -127,8 +124,8 @@ function organizationOf(organization: unknown, out: Entries): Entries {
 /**
  * The grouped config in the flat shape `resolveConfig` reads: every group's
  * keys at the top level, `records`, `tables` and `adapters` under their flat
- * names, `auth.organization` as `claims.tenant` and the tenant plugin's column,
- * and the renamed block and app table keys under their flat names.
+ * names, `auth.organization` as `claims.tenant` and `organization`, and the
+ * renamed block and app table keys under their flat names.
  */
 export function flattenConfig(config: BetterSupabaseConfig): FlatConfig {
   const source: Entries = { ...config };
@@ -209,7 +206,10 @@ export function hasFlatTables(keys: readonly string[]): boolean {
   );
 }
 
-/** Moves `claims.tenant` and the tenant plugin's column to `auth.organization`. */
+/**
+ * Moves `claims.tenant`, the flat `organization` and the 0.14 tenant plugin's
+ * column to `auth.organization`.
+ */
 function withOrganization(out: Entries, groups: Record<string, Entries>): void {
   const auth = groups["auth"];
   const claims = auth?.["claims"];
@@ -223,6 +223,16 @@ function withOrganization(out: Entries, groups: Record<string, Entries>): void {
     } else {
       auth["claims"] = rest;
     }
+  }
+
+  const flat = out["organization"];
+
+  if (isObject(flat)) {
+    delete out["organization"];
+
+    const next = { ...groups["auth"] };
+    next["organization"] = { ...objectOr(next["organization"]), ...flat };
+    groups["auth"] = next;
   }
 
   const plugins = out["plugins"];

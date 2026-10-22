@@ -3,8 +3,8 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { LocalStack } from "../../src/testing/as-user.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { ConformanceError } from "../../src/testing/conformance.ts";
 import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -30,7 +30,7 @@ const LEAKY = `00000000-0000-4000-8000-${String(RUN).slice(-12).padStart(12, "0"
 const USER = "00000000-0000-4000-8000-0000000000ff";
 
 const source = await openPg(dbUrl);
-const betterSupabase = defineSupabase(schema).use(tenant());
+const betterSupabase = defineSupabase(schema).use(membershipsExtension());
 
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({

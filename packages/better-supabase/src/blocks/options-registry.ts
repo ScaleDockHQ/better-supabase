@@ -26,6 +26,7 @@ import type { ConnectorsSqlOptions } from "./connectors/options.ts";
 import type { ContactsSqlOptions } from "./contacts/options.ts";
 import type { ContractsSqlOptions } from "./contracts/options.ts";
 import type { CoursesSqlOptions } from "./courses/options.ts";
+import type { CreatedBySqlOptions } from "./created-by/options.ts";
 import type { CredentialsSqlOptions } from "./credentials/options.ts";
 import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
 import type { DataApiGrantsSqlOptions } from "./data-api-grants/options.ts";
@@ -111,6 +112,7 @@ import type { TeamsSqlOptions } from "./teams/options.ts";
 import type { TemplatesSqlOptions } from "./templates/options.ts";
 import type { TimeTrackingSqlOptions } from "./time-tracking/options.ts";
 import type { TrashSqlOptions } from "./trash/options.ts";
+import type { UpdatedAtSqlOptions } from "./updated-at/options.ts";
 import type { UsageSqlOptions } from "./usage/options.ts";
 import type { VectorSearchSqlOptions } from "./vector-search/options.ts";
 import type { VercelMarketplaceSqlOptions } from "./vercel-marketplace/options.ts";
@@ -151,6 +153,7 @@ import { connectorsSqlOptions } from "./connectors/options.ts";
 import { contactsSqlOptions } from "./contacts/options.ts";
 import { contractsSqlOptions } from "./contracts/options.ts";
 import { coursesSqlOptions } from "./courses/options.ts";
+import { createdBySqlOptions } from "./created-by/options.ts";
 import { credentialsSqlOptions } from "./credentials/options.ts";
 import { customFieldsSqlOptions } from "./custom-fields/options.ts";
 import { dataApiGrantsSqlOptions } from "./data-api-grants/options.ts";
@@ -236,6 +239,7 @@ import { teamsSqlOptions } from "./teams/options.ts";
 import { templatesSqlOptions } from "./templates/options.ts";
 import { timeTrackingSqlOptions } from "./time-tracking/options.ts";
 import { trashSqlOptions } from "./trash/options.ts";
+import { updatedAtSqlOptions } from "./updated-at/options.ts";
 import { usageSqlOptions } from "./usage/options.ts";
 import { vectorSearchSqlOptions } from "./vector-search/options.ts";
 import { vercelMarketplaceSqlOptions } from "./vercel-marketplace/options.ts";
@@ -288,7 +292,7 @@ export interface BlockOptionsRegistry {
   readonly contacts: ContactsSqlOptions;
   readonly contracts: ContractsSqlOptions;
   readonly courses: CoursesSqlOptions;
-  readonly "created-by": None;
+  readonly "created-by": CreatedBySqlOptions;
   readonly credentials: CredentialsSqlOptions;
   readonly "custom-fields": CustomFieldsSqlOptions;
   readonly "data-api-grants": DataApiGrantsSqlOptions;
@@ -386,7 +390,7 @@ export interface BlockOptionsRegistry {
   readonly "time-tracking": TimeTrackingSqlOptions;
   readonly timeline: None;
   readonly trash: TrashSqlOptions;
-  readonly "updated-at": None;
+  readonly "updated-at": UpdatedAtSqlOptions;
   readonly usage: UsageSqlOptions;
   readonly "vector-search": VectorSearchSqlOptions;
   readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
@@ -438,7 +442,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   contacts: contactsSqlOptions,
   contracts: contractsSqlOptions,
   courses: coursesSqlOptions,
-  "created-by": NO_OPTIONS,
+  "created-by": createdBySqlOptions,
   credentials: credentialsSqlOptions,
   "custom-fields": customFieldsSqlOptions,
   "data-api-grants": dataApiGrantsSqlOptions,
@@ -536,7 +540,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "time-tracking": timeTrackingSqlOptions,
   timeline: NO_OPTIONS,
   trash: trashSqlOptions,
-  "updated-at": NO_OPTIONS,
+  "updated-at": updatedAtSqlOptions,
   usage: usageSqlOptions,
   "vector-search": vectorSearchSqlOptions,
   "vercel-marketplace": vercelMarketplaceSqlOptions,

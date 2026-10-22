@@ -4,12 +4,12 @@ import type { ExecuteResult, Executor } from "../../src/core/executor.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { batchingExecutor } from "../../src/core/batch.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
 import { ok } from "../../src/core/result.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { compileReadSet, compileReadSets } from "../../src/sql/read-sets.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -107,7 +107,11 @@ describe("defineReadSet", () => {
   it("warns when runtime plugins scope tables the generated function reads", () => {
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
-    const scoped = defineSupabase(schema, { logger }).use(tenant());
+
+    const scoped = defineSupabase(schema, { logger }).use(
+      membershipsExtension(),
+    );
+
     defineReadSet(scoped, "scoped", {}, (s) => ({
       customers: s.customers.count(),
     }));

@@ -324,13 +324,31 @@ export class BetterSupabase<
     return specTables(this.meta, spec);
   }
 
-  /** Returns a new instance with the plugin appended. */
+  /**
+   * Returns a new instance with the plugin appended. A plugin with the name of
+   * an extension the schema installed replaces it, so
+   * `.use(membershipsExtension({ resolve }))` swaps the organization resolver.
+   * Any other name installed twice throws.
+   */
   use<Q extends AnyPlugin>(
     plugin: Q,
   ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<Q>>, C, P, B> {
+    const fromSchema = new Set(this.schema.extensions);
+
+    const replaces = this.plugins.some(
+      (installed) =>
+        installed.name === plugin.name && fromSchema.has(installed),
+    );
+
     return new BetterSupabase(
       this.schema,
-      [...this.plugins, plugin],
+      replaces
+        ? this.plugins.map((installed) =>
+            installed.name === plugin.name && fromSchema.has(installed)
+              ? plugin
+              : installed,
+          )
+        : [...this.plugins, plugin],
       this.options,
       this.events,
     );
@@ -1151,17 +1169,22 @@ function rpc(
 }
 
 /**
- * Creates the data-layer definition from the generated `schema`.
+ * Creates the data-layer definition from the generated `schema`, with the
+ * repository extensions of the installed blocks (organization scope, trash,
+ * `created_by` and `updated_at` stamps, write validation) already in place.
  *
  * ```ts
- * export const betterSupabase = defineSupabase(schema)
- *   .use(timestamps())
- *   .use(softDelete());
+ * export const betterSupabase = defineSupabase(schema).use(guards());
  * ```
  */
-export function defineSupabase<M extends AnyModels, D, F extends AnyFunctions>(
-  schema: Schema<M, D, F>,
+export function defineSupabase<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E = unknown,
+>(
+  schema: Schema<M, D, F, string, E>,
   options?: SupabaseOptions,
-): BetterSupabase<M, D, F> {
-  return new BetterSupabase(schema, [], options);
+): BetterSupabase<M, D, F, E> {
+  return new BetterSupabase(schema, schema.extensions ?? [], options);
 }

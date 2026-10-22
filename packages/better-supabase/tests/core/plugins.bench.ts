@@ -6,14 +6,14 @@
 import type { Executor } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
 
+import { createdByExtension } from "../../src/blocks/created-by/index.ts";
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
-import { actor } from "../../src/plugins/actor/index.ts";
-import { recommended, rules } from "../../src/plugins/rules/index.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
+import { recommendedGuards, guards } from "../../src/lint/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const ORG = "00000000-0000-4000-8000-000000000001";
@@ -47,13 +47,13 @@ const traced = definePlugin({
 
 const SETS: Readonly<Record<string, readonly AnyPlugin[]>> = {
   "0 plugins": [],
-  "3 plugins": [timestamps(), softDelete(), tenant()],
+  "3 plugins": [updatedAtExtension(), trashExtension(), membershipsExtension()],
   "6 plugins": [
-    timestamps(),
-    softDelete(),
-    tenant(),
-    actor(),
-    rules({ rules: recommended(), report: () => {} }),
+    updatedAtExtension(),
+    trashExtension(),
+    membershipsExtension(),
+    createdByExtension(),
+    guards({ rules: recommendedGuards(), report: () => {} }),
     traced,
   ],
 };

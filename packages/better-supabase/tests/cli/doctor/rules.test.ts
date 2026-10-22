@@ -324,7 +324,7 @@ describe("BS204, BS210, BS301", () => {
         context(
           snap,
           {},
-          { plugins: { softDelete: { column: "archived_at" } } },
+          { blocks: { trash: { options: { deletedAt: "archived_at" } } } },
         ),
       ),
     ).toEqual([]);

@@ -230,8 +230,10 @@ const sourcesOf = (block: AnyBlock): string => {
 };
 
 /** A block with a TypeScript side: a directory with an `index.ts` entry. */
+/** A block whose `index.ts` only exports its repository extension has no client. */
 const hasClient = (block: AnyBlock): boolean =>
-  existsSync(join(dirOf(block), "index.ts"));
+  existsSync(join(dirOf(block), "index.ts")) &&
+  (block.extension === undefined || block.create !== undefined);
 
 const withCreator = BLOCK_MANIFESTS.filter(
   (block) => block.create !== undefined,

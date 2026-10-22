@@ -1221,6 +1221,21 @@
       "types": "./dist/blocks/trash/index.d.ts",
       "default": "./dist/blocks/trash/index.js"
     },
+    "./blocks/memberships": {
+      "@better-supabase/source": "./src/blocks/memberships/index.ts",
+      "types": "./dist/blocks/memberships/index.d.ts",
+      "default": "./dist/blocks/memberships/index.js"
+    },
+    "./blocks/created-by": {
+      "@better-supabase/source": "./src/blocks/created-by/index.ts",
+      "types": "./dist/blocks/created-by/index.d.ts",
+      "default": "./dist/blocks/created-by/index.js"
+    },
+    "./blocks/updated-at": {
+      "@better-supabase/source": "./src/blocks/updated-at/index.ts",
+      "types": "./dist/blocks/updated-at/index.d.ts",
+      "default": "./dist/blocks/updated-at/index.js"
+    },
     "./blocks/reactions": {
       "@better-supabase/source": "./src/blocks/reactions/index.ts",
       "types": "./dist/blocks/reactions/index.d.ts",
@@ -1607,40 +1622,10 @@
       "types": "./dist/otel/index.d.ts",
       "default": "./dist/otel/index.js"
     },
-    "./plugins/timestamps": {
-      "@better-supabase/source": "./src/plugins/timestamps/index.ts",
-      "types": "./dist/plugins/timestamps/index.d.ts",
-      "default": "./dist/plugins/timestamps/index.js"
-    },
     "./lint": {
       "@better-supabase/source": "./src/lint/index.ts",
       "types": "./dist/lint/index.d.ts",
       "default": "./dist/lint/index.js"
-    },
-    "./plugins/rules": {
-      "@better-supabase/source": "./src/plugins/rules/index.ts",
-      "types": "./dist/plugins/rules/index.d.ts",
-      "default": "./dist/plugins/rules/index.js"
-    },
-    "./plugins/soft-delete": {
-      "@better-supabase/source": "./src/plugins/soft-delete/index.ts",
-      "types": "./dist/plugins/soft-delete/index.d.ts",
-      "default": "./dist/plugins/soft-delete/index.js"
-    },
-    "./plugins/tenant": {
-      "@better-supabase/source": "./src/plugins/tenant/index.ts",
-      "types": "./dist/plugins/tenant/index.d.ts",
-      "default": "./dist/plugins/tenant/index.js"
-    },
-    "./plugins/actor": {
-      "@better-supabase/source": "./src/plugins/actor/index.ts",
-      "types": "./dist/plugins/actor/index.d.ts",
-      "default": "./dist/plugins/actor/index.js"
-    },
-    "./plugins/validation": {
-      "@better-supabase/source": "./src/plugins/validation/index.ts",
-      "types": "./dist/plugins/validation/index.d.ts",
-      "default": "./dist/plugins/validation/index.js"
     },
     "./sql": {
       "@better-supabase/source": "./src/sql/index.ts",
@@ -2700,6 +2685,18 @@
         "types": "./dist/blocks/trash/index.d.ts",
         "default": "./dist/blocks/trash/index.js"
       },
+      "./blocks/memberships": {
+        "types": "./dist/blocks/memberships/index.d.ts",
+        "default": "./dist/blocks/memberships/index.js"
+      },
+      "./blocks/created-by": {
+        "types": "./dist/blocks/created-by/index.d.ts",
+        "default": "./dist/blocks/created-by/index.js"
+      },
+      "./blocks/updated-at": {
+        "types": "./dist/blocks/updated-at/index.d.ts",
+        "default": "./dist/blocks/updated-at/index.js"
+      },
       "./blocks/reactions": {
         "types": "./dist/blocks/reactions/index.d.ts",
         "default": "./dist/blocks/reactions/index.js"
@@ -3011,33 +3008,9 @@
         "types": "./dist/otel/index.d.ts",
         "default": "./dist/otel/index.js"
       },
-      "./plugins/timestamps": {
-        "types": "./dist/plugins/timestamps/index.d.ts",
-        "default": "./dist/plugins/timestamps/index.js"
-      },
       "./lint": {
         "types": "./dist/lint/index.d.ts",
         "default": "./dist/lint/index.js"
-      },
-      "./plugins/rules": {
-        "types": "./dist/plugins/rules/index.d.ts",
-        "default": "./dist/plugins/rules/index.js"
-      },
-      "./plugins/soft-delete": {
-        "types": "./dist/plugins/soft-delete/index.d.ts",
-        "default": "./dist/plugins/soft-delete/index.js"
-      },
-      "./plugins/tenant": {
-        "types": "./dist/plugins/tenant/index.d.ts",
-        "default": "./dist/plugins/tenant/index.js"
-      },
-      "./plugins/actor": {
-        "types": "./dist/plugins/actor/index.d.ts",
-        "default": "./dist/plugins/actor/index.js"
-      },
-      "./plugins/validation": {
-        "types": "./dist/plugins/validation/index.d.ts",
-        "default": "./dist/plugins/validation/index.js"
       },
       "./sql": {
         "types": "./dist/sql/index.d.ts",

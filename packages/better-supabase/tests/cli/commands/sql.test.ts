@@ -47,7 +47,6 @@ describe("moduleLayout", () => {
             "public.posts.raw": { type: "unknown" },
           },
         },
-        plugins: { tenant: true },
         auth: { organization: { column: "org_id" } },
       },
       "/p",

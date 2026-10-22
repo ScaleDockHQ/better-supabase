@@ -56,8 +56,6 @@ const triggerValue: v.GenericSchema<TopicTriggerValueConfig> = v.union([
 
 const triggerValues = v.record(v.string(), triggerValue);
 
-const pluginFlag = v.union([v.boolean(), v.record(v.string(), v.unknown())]);
-
 const isGenerator = (value: unknown): value is Generator =>
   typeof value === "object" &&
   value !== null &&
@@ -600,12 +598,11 @@ const FLAT = {
   ),
   readSets: v.optional(strings),
   generators: v.optional(v.array(generator)),
-  plugins: v.optional(
+  organization: v.optional(
     v.strictObject({
-      timestamps: v.optional(pluginFlag),
-      softDelete: v.optional(pluginFlag),
-      tenant: v.optional(v.boolean()),
-      actor: v.optional(pluginFlag),
+      column: v.optional(v.string()),
+      onMissing: v.optional(v.picklist(["error", "skip"])),
+      header: v.optional(v.string()),
     }),
   ),
   claims: v.optional(
@@ -891,6 +888,8 @@ const ENTRIES = {
         v.strictObject({
           claim: v.optional(v.string()),
           column: v.optional(v.string()),
+          onMissing: v.optional(v.picklist(["error", "skip"])),
+          header: v.optional(v.string()),
         }),
       ),
       ...pickEntries(["claims", "authorization", "entitlements"]),
@@ -900,7 +899,6 @@ const ENTRIES = {
   tables: FLAT.appTables,
   blocks: FLAT.blocks,
   adapters: FLAT.integrations,
-  plugins: FLAT.plugins,
   gen: v.optional(
     v.strictObject({
       tasks: v.optional(v.array(v.picklist(GEN_TASKS))),

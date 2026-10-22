@@ -205,6 +205,21 @@ describe("config environments", () => {
     });
   });
 
+  it("names the blocks that replace the plugins key", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ plugins: { timestamps: true } }),
+    );
+
+    const error = await loadConfig(dir).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      code: "config_invalid",
+      message: expect.stringContaining(
+        "plugins: removed in 0.15: the updated-at, created-by, trash and memberships blocks",
+      ),
+    });
+  });
+
   it("picks --env, then $BETTER_SUPABASE_ENV, then ci in CI", () => {
     expect(
       configEnvironment("staging", { BETTER_SUPABASE_ENV: "x", CI: "1" }),

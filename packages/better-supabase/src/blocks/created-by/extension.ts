@@ -2,11 +2,16 @@ import type { Plugin, RequestContext } from "../../core/plugin.ts";
 import type { MutationOp } from "../../ir/types.ts";
 
 import { definePlugin } from "../../core/plugin.ts";
-import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
+import {
+  dbName,
+  guardManaged,
+  insertsOnly,
+  withDefault,
+} from "../extension-shared.ts";
 
 type Row = Readonly<Record<string, unknown>>;
 
-export interface ActorOptions {
+export interface CreatedByExtensionOptions {
   /**
    * Custom actor id resolution. Defaults to `context.actor.id` for users and
    * services.
@@ -21,14 +26,17 @@ function defaultActor(context: RequestContext): string | undefined {
 }
 
 /**
- * Stamps the columns generated as `Flags.actor`: `createdBy` on insert and
- * `updatedBy` on insert and update. Soft deletes are updates, so they record
- * who deleted the row. `impersonatedBy` gets `context.actor.impersonator` on an
- * impersonated insert or update and is left alone otherwise, so a user's own
- * update keeps the stamp, like the SQL modules' `track_actor`. Without an actor
- * (anonymous requests) nothing is set.
+ * The `created-by` block's repository extension. Stamps the columns generated
+ * as `Flags.actor`: `createdBy` on insert and `updatedBy` on insert and update.
+ * Soft deletes are updates, so they record who deleted the row.
+ * `impersonatedBy` gets `context.actor.impersonator` on an impersonated insert
+ * or update and is left alone otherwise, so a user's own update keeps the
+ * stamp, like the block's `track_actor` trigger. Without an actor (anonymous
+ * requests) nothing is set.
  */
-export function actor(options: ActorOptions = {}): Plugin<"actor"> {
+export function createdByExtension(
+  options: CreatedByExtensionOptions = {},
+): Plugin<"actor"> {
   const resolve = options.resolve ?? defaultActor;
 
   return definePlugin({

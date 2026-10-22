@@ -48,6 +48,14 @@ function movedSqlIssues(prefix: string, block: unknown): string[] {
   );
 }
 
+/** Top-level keys 0.15 removed, with what replaces them. */
+const REMOVED_KEYS: ReadonlyMap<string, string> = new Map([
+  [
+    "plugins",
+    "removed in 0.15: the updated-at, created-by, trash and memberships blocks carry these columns now; run `better-supabase codemod 0.15`",
+  ],
+]);
+
 /** Keys of the flat 0.14 config in one config block. */
 function movedGroupIssues(prefix: string, block: unknown): string[] {
   if (!isRecord(block)) {
@@ -55,6 +63,12 @@ function movedGroupIssues(prefix: string, block: unknown): string[] {
   }
 
   return Object.keys(block).flatMap((key) => {
+    const removed = REMOVED_KEYS.get(key);
+
+    if (removed !== undefined) {
+      return [`${prefix}${key}: ${removed}`];
+    }
+
     const moved = MOVED_KEYS.get(key);
 
     return moved === undefined

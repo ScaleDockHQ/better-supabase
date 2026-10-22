@@ -2,16 +2,22 @@ import type { Plugin } from "../../core/plugin.ts";
 import type { MutationOp } from "../../ir/types.ts";
 
 import { definePlugin } from "../../core/plugin.ts";
-import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
+import {
+  dbName,
+  guardManaged,
+  insertsOnly,
+  withDefault,
+} from "../extension-shared.ts";
 
 /**
- * Stamps the columns generated as `Flags.timestamps`: `createdAt` on insert,
- * `updatedAt` on insert and update. A call that sets either column fails with
- * `invalid_request` unless it passes `{ override: true }`, which keeps the
- * caller's values. Pair it with the `updated-at` SQL module trigger to cover
- * writes that bypass the app.
+ * The `updated-at` block's repository extension. Stamps the columns generated
+ * as `Flags.timestamps`: `createdAt` on insert, `updatedAt` on insert and
+ * update. A call that sets either column fails with `invalid_request` unless it
+ * passes `{ override: true }`, which keeps the caller's values. The block's
+ * `track_updated_at` trigger covers writes that bypass the app, and every write
+ * when the runtime has no Temporal.
  */
-export function timestamps(): Plugin<"timestamps"> {
+export function updatedAtExtension(): Plugin<"timestamps"> {
   return definePlugin({
     name: "timestamps",
     describe(api): void {
@@ -45,7 +51,16 @@ export function timestamps(): Plugin<"timestamps"> {
       const created = dbName(table, flags.createdAt);
       const updated = dbName(table, flags.updatedAt);
       guardManaged(op, [created, updated], "timestamps", options);
-      const stamp = now().toString();
+
+      if (op.kind === "delete") {
+        return op;
+      }
+
+      const stamp = readClock(now);
+
+      if (stamp === undefined) {
+        return op;
+      }
 
       switch (op.kind) {
         case "insert": {
@@ -67,10 +82,6 @@ export function timestamps(): Plugin<"timestamps"> {
           return { ...op, set: withDefault(op.set, updated, stamp) };
         }
 
-        case "delete": {
-          return op;
-        }
-
         default: {
           const exhaustive: never = op;
 
@@ -79,4 +90,20 @@ export function timestamps(): Plugin<"timestamps"> {
       }
     },
   });
+}
+
+/**
+ * The clock's reading, or `undefined` when the runtime has no Temporal. The
+ * column defaults and the block's trigger fill the columns then.
+ */
+function readClock(now: () => Temporal.Instant): string | undefined {
+  try {
+    return now().toString();
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return undefined;
+    }
+
+    throw error;
+  }
 }

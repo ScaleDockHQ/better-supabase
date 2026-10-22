@@ -17,13 +17,13 @@ import type {
 } from "../../src/core/repository-types.ts";
 import type { CustomersStatus } from "../fixtures/generated-camel.ts";
 
+import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { createQueries } from "../../src/query/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const betterSupabase = defineSupabase(schema).use(softDelete());
+const betterSupabase = defineSupabase(schema).use(trashExtension());
 const q = createQueries(betterSupabase, betterSupabase.connect(client));
 
 describe("query option types", () => {

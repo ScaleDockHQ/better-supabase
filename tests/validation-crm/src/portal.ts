@@ -1,5 +1,5 @@
 import { defineSupabase } from "better-supabase";
-import { tenant } from "better-supabase/plugins/tenant";
+import { membershipsExtension } from "better-supabase/blocks/memberships";
 import * as v from "valibot";
 
 import { schema } from "./generated.ts";
@@ -44,7 +44,11 @@ function scopedBy(column: "customerId" | "organizationId") {
  */
 export const portal = defineSupabase(scopedBy("customerId"))
   .claims(PortalClaims)
-  .use(tenant<v.InferOutput<typeof PortalClaims>>({ claim: "customer_id" }));
+  .use(
+    membershipsExtension<v.InferOutput<typeof PortalClaims>>({
+      claim: "customer_id",
+    }),
+  );
 
 /**
  * An employee's reads, filtered on the organization in the token, next to
@@ -52,4 +56,8 @@ export const portal = defineSupabase(scopedBy("customerId"))
  */
 export const staff = defineSupabase(scopedBy("organizationId"))
   .claims(StaffClaims)
-  .use(tenant<v.InferOutput<typeof StaffClaims>>({ claim: "organization_id" }));
+  .use(
+    membershipsExtension<v.InferOutput<typeof StaffClaims>>({
+      claim: "organization_id",
+    }),
+  );

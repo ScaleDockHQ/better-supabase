@@ -1,23 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { RuleViolation } from "../../../src/plugins/rules/index.ts";
+import type { GuardViolation } from "../../src/lint/index.ts";
 
-import { defineSupabase } from "../../../src/core/define.ts";
-import { definePlugin, orderPlugins } from "../../../src/core/plugin.ts";
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { defineSupabase } from "../../src/core/define.ts";
+import { definePlugin, orderPlugins } from "../../src/core/plugin.ts";
 import {
-  recommended,
-  rules,
-  safe,
-  strict,
-} from "../../../src/plugins/rules/index.ts";
-import { tenant } from "../../../src/plugins/tenant/index.ts";
-import { defineSchema } from "../../../src/schema/define.ts";
-import { capturingClient } from "../../fixtures/client.ts";
-import { schema } from "../../fixtures/generated-camel.ts";
+  recommendedGuards,
+  guards,
+  safeGuards,
+  strictGuards,
+} from "../../src/lint/index.ts";
+import { defineSchema } from "../../src/schema/define.ts";
+import { capturingClient } from "../fixtures/client.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
-function withReport(set = strict()) {
-  const violations: RuleViolation[] = [];
-  const plugin = rules({ rules: set, report: (v) => violations.push(v) });
+function withReport(set = strictGuards()) {
+  const violations: GuardViolation[] = [];
+  const plugin = guards({ rules: set, report: (v) => violations.push(v) });
 
   return { plugin, violations };
 }
@@ -73,7 +73,7 @@ describe("rules()", () => {
     const { client, requests } = capturingClient();
 
     const db = defineSupabase(schema)
-      .use(rules({ rules: recommended() }))
+      .use(guards({ rules: recommendedGuards() }))
       .connect(client, context);
 
     const result = await db.customers.findMany();
@@ -86,11 +86,11 @@ describe("rules()", () => {
   });
 
   it("sees the query before other plugins scope it", async () => {
-    const { plugin, violations } = withReport(safe());
+    const { plugin, violations } = withReport(safeGuards());
     const { client } = capturingClient();
 
     const db = defineSupabase(schema)
-      .use(tenant({ onMissing: "skip" }))
+      .use(membershipsExtension({ onMissing: "skip" }))
       .use(plugin)
       .connect(client);
 
@@ -113,7 +113,7 @@ describe("rules()", () => {
   it("refuses service connections in a browser", async () => {
     vi.stubGlobal("window", {});
     vi.stubGlobal("document", {});
-    const { plugin } = withReport(safe());
+    const { plugin } = withReport(safeGuards());
     const { client } = capturingClient();
 
     const db = defineSupabase(schema)
@@ -142,7 +142,7 @@ describe("rules()", () => {
       },
     });
 
-    const { plugin } = withReport(safe());
+    const { plugin } = withReport(safeGuards());
     const { client } = capturingClient();
 
     const db = defineSupabase({ ...schema, meta: marked.meta })
@@ -174,7 +174,7 @@ describe("rules()", () => {
 
   it("allows aggregates, paginate's look-ahead row and app_metadata tenants", async () => {
     const { plugin, violations } = withReport({
-      ...strict(),
+      ...strictGuards(),
       maxLimit: ["error", 10],
     });
 
@@ -226,12 +226,12 @@ describe("rules()", () => {
       named("late", "post"),
       named("checker", "first"),
       named("rewriter", "pre"),
-      rules(),
+      guards(),
     ]).map((plugin) => `${plugin.name}:${plugin.enforce ?? "normal"}`);
 
     expect(order).toEqual([
       "checker:first",
-      "rules:first",
+      "guards:first",
       "rewriter:pre",
       "rules:normal",
       "late:post",
@@ -258,7 +258,7 @@ describe("rules()", () => {
       },
     });
 
-    const { plugin, violations } = withReport(recommended());
+    const { plugin, violations } = withReport(recommendedGuards());
     const { client } = capturingClient();
 
     const db = defineSupabase({ ...schema, meta: marked.meta })
@@ -332,7 +332,7 @@ describe("rules()", () => {
       },
     });
 
-    const { plugin, violations } = withReport(recommended());
+    const { plugin, violations } = withReport(recommendedGuards());
     const { client } = capturingClient();
 
     const db = defineSupabase({ ...schema, meta: marked.meta })
@@ -394,7 +394,7 @@ describe("rules()", () => {
         })
       ).error?.kind,
     ).toBe("invalid_request");
-    const loose = withReport(recommended());
+    const loose = withReport(recommendedGuards());
 
     const db = defineSupabase(schema)
       .use(loose.plugin)
@@ -405,7 +405,7 @@ describe("rules()", () => {
   });
 
   it("keeps the repository guard for deleteMany without where", async () => {
-    const { plugin, violations } = withReport(safe());
+    const { plugin, violations } = withReport(safeGuards());
     const { client } = capturingClient();
     const db = defineSupabase(schema).use(plugin).connect(client, context);
     const result = await db.tags.deleteMany({} as never);
@@ -427,7 +427,7 @@ describe("db.$table and db.$withoutPlugins", () => {
     const { client, requests } = capturingClient();
 
     const db = defineSupabase(schema)
-      .use(rules({ rules: strict(), report: () => {} }))
+      .use(guards({ rules: strictGuards(), report: () => {} }))
       .use(
         definePlugin({
           name: "wrap",

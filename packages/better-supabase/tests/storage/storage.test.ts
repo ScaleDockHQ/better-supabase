@@ -10,11 +10,11 @@ import type {
   StorageResponse,
 } from "../../src/storage/index.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import {
   defineBucket,
   fromStorageError,
@@ -1976,7 +1976,7 @@ describe("tenant-scoped buckets", () => {
     const { client } = fakeStorage();
 
     const db = defineSupabase(schema)
-      .use(tenant({ claim: "app_metadata.organization" }))
+      .use(membershipsExtension({ claim: "app_metadata.organization" }))
       .connect(
         {
           name: "echo",

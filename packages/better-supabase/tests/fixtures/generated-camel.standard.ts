@@ -630,7 +630,7 @@ export const tasksViewRow: TableSchema<RowOf<'tasksView'>> = tableSchema({
   },
 });
 
-/** Write validators for the validation plugin. */
+/** Write validators; the generated schema installs them through `validation`. */
 export const validators: {
   readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };

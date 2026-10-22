@@ -1,14 +1,14 @@
-import type { ValidationIssue } from "../../core/errors.ts";
-import type { Plugin } from "../../core/plugin.ts";
-import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { MutationOp } from "../../ir/types.ts";
-import type { TableMeta } from "../../schema/types.ts";
+import type { MutationOp } from "../ir/types.ts";
+import type { TableMeta } from "../schema/types.ts";
+import type { ValidationIssue } from "./errors.ts";
+import type { Plugin } from "./plugin.ts";
+import type { StandardSchemaV1 } from "./standard.ts";
 
-import { DbException, dbError } from "../../core/errors.ts";
-import { definePlugin } from "../../core/plugin.ts";
-import { validate } from "../../core/standard.ts";
-import { decodeValue, encodeValue } from "../../ir/wire.ts";
-import { toApp, toDb } from "../../schema/casing.ts";
+import { decodeValue, encodeValue } from "../ir/wire.ts";
+import { toApp, toDb } from "../schema/casing.ts";
+import { DbException, dbError } from "./errors.ts";
+import { definePlugin } from "./plugin.ts";
+import { validate } from "./standard.ts";
 
 export interface TableValidators {
   /** Validates inserts and upserts, with app-cased keys. */
@@ -99,7 +99,8 @@ async function check(
  * Validates writes with Standard Schema validators (zod, valibot, arktype,
  * ...). Runs after other plugins (`enforce: 'post'`), so it sees the tenant,
  * timestamp and actor columns they fill. Failures become `validation` errors
- * (422) with issue paths; bulk writes prefix the row index.
+ * (422) with issue paths; bulk writes prefix the row index. `gen` installs it
+ * on the schema when one of `gen.generators` writes `validators`.
  */
 export function validation(options: ValidationOptions): Plugin<"validation"> {
   return definePlugin({

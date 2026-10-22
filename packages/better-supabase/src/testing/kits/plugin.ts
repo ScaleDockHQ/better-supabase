@@ -4,13 +4,13 @@ import type { Operation } from "../../ir/types.ts";
 import type { ConformanceReport } from "../conformance.ts";
 import type { AnyDb, AnySupabase } from "./executor.ts";
 
+import { createdByExtension } from "../../blocks/created-by/extension.ts";
+import { membershipsExtension } from "../../blocks/memberships/extension.ts";
+import { trashExtension } from "../../blocks/trash/extension.ts";
+import { updatedAtExtension } from "../../blocks/updated-at/extension.ts";
 import { dbError } from "../../core/errors.ts";
 import { ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { actor } from "../../plugins/actor/index.ts";
-import { softDelete } from "../../plugins/soft-delete/index.ts";
-import { tenant } from "../../plugins/tenant/index.ts";
-import { timestamps } from "../../plugins/timestamps/index.ts";
 import {
   Violation,
   conform,
@@ -25,7 +25,10 @@ export interface TestPluginOptions {
   readonly betterSupabase: AnySupabase;
   /** Table to exercise. Defaults to the first table. */
   readonly table?: string;
-  /** Context the plugin needs, such as `{ tenant }` for `tenant()`. */
+  /**
+   * Context the plugin needs, such as `{ tenant }` for
+   * `membershipsExtension()`.
+   */
   readonly context?: RequestContext;
   /** Row for `create`, to exercise `beforeMutation`. */
   readonly create?: Readonly<Record<string, unknown>>;
@@ -33,10 +36,9 @@ export interface TestPluginOptions {
 
 /**
  * Proves a `Plugin` targets API v1, installs cleanly on its own and next to the
- * first-party plugins in either order, adds repository methods without
- * replacing base ones, keeps `context`, `transformQuery` and `beforeMutation`
- * pure and deterministic, and keeps executors' results intact when it wraps
- * them.
+ * block extensions in either order, adds repository methods without replacing
+ * base ones, keeps `context`, `transformQuery` and `beforeMutation` pure and
+ * deterministic, and keeps executors' results intact when it wraps them.
  */
 export function testPlugin(
   plugin: AnyPlugin,
@@ -97,11 +99,14 @@ export function testPlugin(
       },
     ],
     [
-      "installs next to the first-party plugins in either order",
+      "installs next to the block extensions in either order",
       () => {
-        const others = [timestamps(), softDelete(), tenant(), actor()].filter(
-          (other) => other.name !== plugin.name,
-        );
+        const others = [
+          updatedAtExtension(),
+          trashExtension(),
+          membershipsExtension(),
+          createdByExtension(),
+        ].filter((other) => other.name !== plugin.name);
 
         let before: AnySupabase = betterSupabase;
 

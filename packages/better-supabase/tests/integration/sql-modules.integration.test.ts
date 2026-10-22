@@ -13,6 +13,7 @@ import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { AnyModels } from "../../src/schema/types.ts";
 
 import { purgeAuditLog } from "../../src/blocks/audit/index.ts";
+import { createdByExtension } from "../../src/blocks/created-by/index.ts";
 import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
@@ -32,7 +33,6 @@ import { rpcTransport, sqlTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { mapDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
-import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
@@ -713,7 +713,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         },
       }),
-    ).use(actor());
+    ).use(createdByExtension());
 
     const user = crypto.randomUUID();
     const admin = crypto.randomUUID();

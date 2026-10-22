@@ -1,5 +1,14 @@
 export const q = (value: string): string => JSON.stringify(value);
 
+/**
+ * The import path of a runtime subpath: `better-supabase/blocks/trash`, or
+ * `../src/blocks/trash/index.ts` when the runtime is imported from source.
+ */
+export const runtimeSubpath = (runtime: string, subpath: string): string =>
+  runtime.endsWith("/index.ts")
+    ? `${runtime.slice(0, -"index.ts".length)}${subpath}/index.ts`
+    : `${runtime}/${subpath}`;
+
 /** A property key: bare when it is a valid identifier, quoted otherwise. */
 export function prop(name: string): string {
   return /^[A-Za-z_$][\w$]*$/.test(name) ? name : q(name);

@@ -69,15 +69,26 @@ const edit = <T>(value: T): { -readonly [K in keyof T]: T[K] } => value;
 const table = (tables: CatalogTable[], name: string) =>
   edit(tables.find((entry) => entry.name === name)!);
 
+const ORGANIZATION = resolveConfig(
+  { auth: { organization: { column: "organization_id" } } },
+  "/project",
+);
+
+/** The trash extension's column, without the trash block's SQL files on disk. */
+const SOFT_DELETING = {
+  ...ORGANIZATION,
+  extensions: {
+    ...ORGANIZATION.extensions,
+    softDelete: { column: "archived_at" },
+  },
+};
+
 function context(
   snap: Snapshot,
   extra: Partial<DoctorContext> = {},
 ): DoctorContext {
   return {
-    config: resolveConfig(
-      { plugins: { tenant: true, softDelete: { column: "archived_at" } } },
-      "/project",
-    ),
+    config: SOFT_DELETING,
     snapshot: snap,
     configToml: undefined,
     envFiles: [],
@@ -2076,7 +2087,7 @@ uri = "https://example.com/hook"
     const ctx = context(snap, {
       config: resolveConfig(
         {
-          plugins: { softDelete: { column: "archived_at" } },
+          blocks: { trash: { options: { deletedAt: "archived_at" } } },
           database: {
             buckets: {
               customerLogos: {
@@ -2371,7 +2382,7 @@ describe("doctor command", () => {
       "better-supabase.config.json",
       JSON.stringify({
         tooling: { doctor: { ignore: ["BS303"] } },
-        plugins: { tenant: true },
+        auth: { organization: { column: "organization_id" } },
       }),
     );
 

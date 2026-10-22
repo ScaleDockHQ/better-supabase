@@ -24,7 +24,6 @@ export type {
 export type { ExpandedConfig } from "../preset/config.ts";
 
 export type {
-  ActorConfig,
   Casing,
   ClaimsConfig,
   CodecsConfig,
@@ -45,13 +44,9 @@ export type {
   GeneratorTable,
   JsonSchemaSource,
   JsonTypeConfig,
-  PluginFlagsConfig,
   RelationsConfig,
-  SoftDeleteConfig,
   SourceConfig,
   TableConfig,
-  TenantConfig,
-  TimestampsConfig,
 } from "./types/codegen.ts";
 
 export type {
@@ -136,8 +131,8 @@ export type {
   FlatConfig,
   GenGroupConfig,
   OrganizationConfig,
-  PluginFlagsInput,
   ResolvedConfig,
+  ResolvedExtensions,
   SqlInput,
   ToolingConfig,
 } from "./types/config.ts";

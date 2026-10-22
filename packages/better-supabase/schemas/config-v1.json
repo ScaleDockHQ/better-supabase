@@ -662,6 +662,13 @@
             "column": {
               "type": "string",
               "description": "Column the tenant plugin filters and fills on tenant-scoped tables. Defaults to `tenant_id`."
+            },
+            "onMissing": {
+              "enum": ["error", "skip"],
+              "type": "string"
+            },
+            "header": {
+              "type": "string"
             }
           },
           "additionalProperties": false,
@@ -2294,48 +2301,6 @@
       },
       "description": "The integrations init and add wrote."
     },
-    "plugins": {
-      "type": "object",
-      "properties": {
-        "timestamps": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "object",
-              "additionalProperties": {}
-            }
-          ]
-        },
-        "softDelete": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "object",
-              "additionalProperties": {}
-            }
-          ]
-        },
-        "tenant": {
-          "type": "boolean"
-        },
-        "actor": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "object",
-              "additionalProperties": {}
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
     "gen": {
       "type": "object",
       "properties": {
@@ -2794,9 +2759,6 @@
         },
         "adapters": {
           "$ref": "#/properties/adapters"
-        },
-        "plugins": {
-          "$ref": "#/properties/plugins"
         },
         "gen": {
           "$ref": "#/properties/gen"
@@ -3987,7 +3949,20 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "createdBy": {
+                "type": "string",
+                "default": "created_by"
+              },
+              "updatedBy": {
+                "type": "string",
+                "default": "updated_by"
+              },
+              "impersonatedBy": {
+                "type": "string",
+                "default": "impersonated_by"
+              }
+            }
           }
         }
       },
@@ -5840,7 +5815,11 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "deletedAt": {
+                "type": "string",
+                "default": "deleted_at"
+              }
             }
           }
         }
@@ -5852,7 +5831,16 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "createdAt": {
+                "type": "string",
+                "default": "created_at"
+              },
+              "updatedAt": {
+                "type": "string",
+                "default": "updated_at"
+              }
+            }
           }
         }
       },

@@ -535,7 +535,7 @@ function toTableModels(
   relations: ReadonlyMap<string, RelationModel[]>,
 ): TableModel[] {
   const { config, keyOf, optionsOf } = ctx;
-  const flagsConfig = config.plugins;
+  const flagsConfig = config.extensions;
   const subjectDeletedAt = new Map<string, { db: string; source: string }>();
 
   for (const [type, subject] of Object.entries(config.subjects)) {
@@ -587,7 +587,7 @@ function toTableModels(
           : flagsConfig.softDelete
             ? {
                 db: flagsConfig.softDelete.column,
-                source: "plugins.softDelete.column",
+                source: "blocks.trash.options.deletedAt",
               }
             : undefined;
 
@@ -598,7 +598,7 @@ function toTableModels(
 
         if (softDeleteColumn.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
           throw new TypeError(
-            `${softDelete.source}: ${id}.${softDelete.db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
+            `${softDelete.source}: ${id}.${softDelete.db} is ${udt}, but the trash extension writes a timestamp. Use timestamptz or timestamp.`,
           );
         }
 

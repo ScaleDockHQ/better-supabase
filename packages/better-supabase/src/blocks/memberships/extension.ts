@@ -11,7 +11,7 @@ import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { definePlugin, spansAllTenants } from "../../core/plugin.ts";
 import { scopeOperation } from "../../ir/scope.ts";
-import { dbName, equals, forbidden, insertsOnly } from "../shared.ts";
+import { dbName, equals, forbidden, insertsOnly } from "../extension-shared.ts";
 
 /**
  * Dotted paths to the string claims of `C` (up to three levels), e.g.
@@ -37,7 +37,7 @@ type StringPaths<T, Depth extends readonly unknown[]> = T extends object
  * `C` is the claims type (`betterSupabase.claims(schema)`'s output); it types
  * `claim`.
  */
-export interface TenantOptions<C = unknown> {
+export interface MembershipsExtensionOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.
    * Dots walk into objects. Defaults to `config.auth.organization.claim`
@@ -48,8 +48,8 @@ export interface TenantOptions<C = unknown> {
   /** Custom resolution, e.g. from a header validated against memberships. */
   readonly resolve?: (context: RequestContext) => string | undefined;
   /**
-   * What happens on a tenant table without a tenant in the context: `error`
-   * (default) fails with `forbidden`; `skip` leaves it to RLS.
+   * What happens on a tenant table without an organization in the context:
+   * `skip` (default) leaves it to RLS; `error` fails with `forbidden`.
    */
   readonly onMissing?: "error" | "skip";
   /**
@@ -59,7 +59,7 @@ export interface TenantOptions<C = unknown> {
   readonly header?: string;
 }
 
-export interface TenantFindArgs {
+export interface MembershipsFindArgs {
   /**
    * Skip the tenant filter for this call (admin tooling, jobs). RLS still
    * applies.
@@ -67,13 +67,13 @@ export interface TenantFindArgs {
   readonly allTenants?: boolean;
 }
 
-export interface TenantExtension extends RepositoryExtension {
+export interface MembershipsExtension extends RepositoryExtension {
   readonly findArgs: HasFlag<this["M"], this["T"], "tenant"> extends true
-    ? TenantFindArgs
+    ? MembershipsFindArgs
     : unknown;
   readonly methods: unknown;
   readonly deleteArgs: HasFlag<this["M"], this["T"], "tenant"> extends true
-    ? TenantFindArgs
+    ? MembershipsFindArgs
     : unknown;
 }
 
@@ -81,16 +81,16 @@ export interface TenantExtension extends RepositoryExtension {
  * The tenant for a request: `context.tenant`, then the configured claim.
  * `schema` supplies the default claim (`config.claims.tenant`).
  */
-export function resolveTenant<C = unknown>(
+export function resolveOrganization<C = unknown>(
   context: RequestContext,
-  options: TenantOptions<C> = {},
+  options: MembershipsExtensionOptions<C> = {},
   schema?: Pick<SchemaMeta, "claims">,
 ): string | undefined {
   if (options.resolve) {
     return options.resolve(context);
   }
 
-  // SAFETY: TenantOptions types claim as ClaimPath<C> or a list of them, and
+  // SAFETY: MembershipsExtensionOptions types claim as ClaimPath<C> or a list of them, and
   // both are strings at runtime.
   const claim = options.claim as string | readonly string[] | undefined;
 
@@ -114,15 +114,17 @@ function tenantColumn(table: TableMeta): string | undefined {
 }
 
 /**
- * Multi-tenancy for tables generated with `Flags.tenant`. Scopes reads, updates
- * and deletes to the request's tenant (nested includes and relation filters
- * too), fills the tenant column on insert and rejects writes that would move
- * rows to another tenant. It complements RLS; it does not replace it.
+ * The `memberships` block's repository extension, for tables generated with
+ * `Flags.tenant`. Scopes reads, updates and deletes to the request's
+ * organization (nested includes and relation filters too), fills the
+ * organization column on insert and rejects writes that would move rows to
+ * another organization. It complements RLS; it does not replace it. `gen`
+ * installs it with `auth.organization`; `.use()` it again to replace it.
  */
-export function tenant<C = unknown>(
-  options: TenantOptions<C> = {},
-): Plugin<"tenant", TenantExtension> {
-  const onMissing = options.onMissing ?? "error";
+export function membershipsExtension<C = unknown>(
+  options: MembershipsExtensionOptions<C> = {},
+): Plugin<"tenant", MembershipsExtension> {
+  const onMissing = options.onMissing ?? "skip";
   /** A context is fixed for a connection, so its tenant is resolved once. */
   const resolved = new WeakMap<RequestContext, string | undefined>();
 
@@ -133,7 +135,7 @@ export function tenant<C = unknown>(
     let id = resolved.get(context);
 
     if (id === undefined && !resolved.has(context)) {
-      id = resolveTenant(context, options, schema);
+      id = resolveOrganization(context, options, schema);
       resolved.set(context, id);
     }
 
@@ -163,7 +165,7 @@ export function tenant<C = unknown>(
     return id;
   };
 
-  return definePlugin<"tenant", TenantExtension>({
+  return definePlugin<"tenant", MembershipsExtension>({
     name: "tenant",
     scopes: ["tenant"],
     describe(api): void {

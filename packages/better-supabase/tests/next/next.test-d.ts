@@ -8,12 +8,12 @@ import type { ActionResult, AuthSession } from "../../src/next/index.ts";
 import type { ActionInputOf } from "../../src/react/index.ts";
 import type { BucketClient } from "../../src/storage/index.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createNext } from "../../src/next/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createHooks, useSession } from "../../src/react/index.ts";
 import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
@@ -51,7 +51,9 @@ const Claims = v.object({
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema)", () => {
-  const betterSupabase = defineSupabase(schema).claims(Claims).use(tenant());
+  const betterSupabase = defineSupabase(schema)
+    .claims(Claims)
+    .use(membershipsExtension());
 
   it("types the claims of every session and auth state", async () => {
     const typed = createNext(betterSupabase);
@@ -104,13 +106,13 @@ describe("betterSupabase.claims(schema)", () => {
   });
 
   it("types tenant claim paths", () => {
-    tenant<Claims>({ claim: "tenant_id" });
-    tenant<Claims>({ claim: ["tenant_id", "app_metadata.plan"] });
+    membershipsExtension<Claims>({ claim: "tenant_id" });
+    membershipsExtension<Claims>({ claim: ["tenant_id", "app_metadata.plan"] });
     // @ts-expect-error not a string claim
-    tenant<Claims>({ claim: "memberships" });
+    membershipsExtension<Claims>({ claim: "memberships" });
     // @ts-expect-error unknown claim
-    tenant<Claims>({ claim: "org_id" });
-    tenant({ claim: "anything.goes" });
+    membershipsExtension<Claims>({ claim: "org_id" });
+    membershipsExtension({ claim: "anything.goes" });
   });
 });
 
@@ -122,7 +124,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
   const betterSupabase = defineSupabase(schema)
     .claims(Claims)
     .userMetadata(Profile)
-    .use(tenant());
+    .use(membershipsExtension());
 
   it("types the profile next to the claims, possibly undefined", async () => {
     const session = await createNext(betterSupabase).session();
@@ -142,7 +144,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
   it("keeps the profile through claims() and use() in either order", () => {
     const later = defineSupabase(schema)
       .userMetadata(Profile)
-      .use(tenant())
+      .use(membershipsExtension())
       .claims(Claims);
 
     expectTypeOf(createNext(later).session()).resolves.toEqualTypeOf<

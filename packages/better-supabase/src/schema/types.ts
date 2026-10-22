@@ -1,3 +1,4 @@
+import type { AnyPlugin } from "../core/plugin.ts";
 import type { BucketLifecycle } from "../storage/versioning.ts";
 
 export type Casing = "snake" | "camel";
@@ -345,8 +346,14 @@ export interface Schema<
   D = unknown,
   F extends AnyFunctions = AnyFunctions,
   S extends string = string,
+  E = unknown,
 > {
   readonly meta: SchemaMeta;
+  /**
+   * The repository extensions of the installed blocks (`trashExtension()`,
+   * ...). `defineSupabase(schema)` installs them first.
+   */
+  readonly extensions?: readonly AnyPlugin[];
   /** Phantom. Never present at runtime. */
   readonly "~types"?: {
     readonly models: M;
@@ -354,6 +361,8 @@ export interface Schema<
     readonly functions: F;
     /** The `config.records` type names. */
     readonly subjects: S;
+    /** The repository extensions' types, as `.use()` collects them. */
+    readonly extensions: E;
   };
 }
 

@@ -11,7 +11,6 @@ import type {
   FunctionConfig,
   Generator,
   JsonTypeConfig,
-  PluginFlagsConfig,
   RelationsConfig,
   SourceConfig,
   TableConfig,
@@ -106,11 +105,23 @@ export interface OrganizationConfig {
    */
   readonly claim?: string;
   /**
-   * The column holding the organization id on tenant tables, for the `tenant`
-   * plugin flag. Defaults to `organization_id`, or `<name>_id` when
-   * `blocks.memberships.names.organization` renames it.
+   * The column holding the organization id on organization tables, which the
+   * `memberships` extension scopes and fills. Defaults to `organization_id`, or
+   * `<name>_id` when `blocks.memberships.names.organization` renames it.
+   * Setting it without the `memberships` block turns the extension on for an
+   * app's own tenancy.
    */
   readonly column?: string;
+  /**
+   * A request without an organization on an organization table: `skip`
+   * (default) leaves it to RLS, `error` fails it with `forbidden`.
+   */
+  readonly onMissing?: "error" | "skip";
+  /**
+   * The request header an app's resolver reads the organization from; the API
+   * spec documents it on organization tables.
+   */
+  readonly header?: string;
 }
 
 /** The database: where it is read from, its SQL and what it exposes. */
@@ -220,11 +231,6 @@ export interface ToolingConfig {
   readonly scaffold?: ScaffoldConfig;
 }
 
-/** The plugin flags; the tenant column is `auth.organization.column`. */
-export type PluginFlagsInput = Omit<PluginFlagsConfig, "tenant"> & {
-  readonly tenant?: boolean;
-};
-
 /** `better-supabase.config.ts`, grouped by what each key configures. */
 export interface BetterSupabaseConfig {
   readonly $schema?: string;
@@ -254,8 +260,6 @@ export interface BetterSupabaseConfig {
   readonly blocks?: readonly string[] | BlocksInput;
   /** The framework and runtime adapters `init` and `add` wrote. */
   readonly adapters?: readonly IntegrationName[];
-  /** Enables plugin flags in the generated metadata. */
-  readonly plugins?: PluginFlagsInput;
   readonly gen?: GenGroupConfig;
   readonly api?: ApiConfig;
   readonly tooling?: ToolingConfig;

@@ -4,18 +4,18 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AsyncResult } from "../../src/core/result.ts";
 
+import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
+import { trashExtension } from "../../src/blocks/trash/index.ts";
+import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { softDelete } from "../../src/plugins/soft-delete/index.ts";
-import { tenant } from "../../src/plugins/tenant/index.ts";
-import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 
 const db = defineSupabase(schema)
-  .use(timestamps())
-  .use(softDelete())
-  .use(tenant())
+  .use(updatedAtExtension())
+  .use(trashExtension())
+  .use(membershipsExtension())
   .connect(client);
 
 describe("plugin extensions", () => {

@@ -24,6 +24,7 @@ import {
   toBetterResult,
 } from "better-supabase";
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { membershipsExtension } from "better-supabase/blocks/memberships";
 import { createQueue } from "better-supabase/blocks/queue";
 import { rpcTransport } from "better-supabase/blocks/settings";
 import { verifyWebhook } from "better-supabase/blocks/webhooks";
@@ -39,9 +40,6 @@ import { createImageLoader } from "better-supabase/next/image";
 import { createOpenApi } from "better-supabase/openapi";
 import { createOrpc } from "better-supabase/orpc";
 import { otel } from "better-supabase/otel";
-import { softDelete } from "better-supabase/plugins/soft-delete";
-import { tenant } from "better-supabase/plugins/tenant";
-import { timestamps } from "better-supabase/plugins/timestamps";
 import { createPostgres, postgresExecutor } from "better-supabase/postgres";
 import { createQueries, queryCache } from "better-supabase/query";
 import { createHooks, useLiveCount } from "better-supabase/react";
@@ -82,10 +80,9 @@ createQueue({ client: typedClient, queues: {} });
 
 const logger: Logger = silentLogger;
 
+// The schema installs the blocks' extensions; `use()` replaces one by name.
 const base = defineSupabase(schema, { logger })
-  .use(timestamps())
-  .use(softDelete())
-  .use(tenant())
+  .use(membershipsExtension({ onMissing: "error" }))
   .use(otel());
 
 const customers = defineRepository(base, "customers", (repo) => ({

@@ -1,3 +1,4 @@
+import type { SchemaExtension } from "./blocks.ts";
 import type { ColumnModel, FunctionModel, Model } from "./model.ts";
 
 import { byCodePoint } from "../compare.ts";
@@ -10,6 +11,7 @@ import {
   pascal,
   prop,
   q,
+  runtimeSubpath,
 } from "./shared.ts";
 
 export const GENERATED_HEADER =
@@ -214,6 +216,13 @@ export interface EmitOptions {
    * file.
    */
   readonly inlineMeta?: boolean;
+  /** The installed blocks' repository extensions, which the schema carries. */
+  readonly extensions?: readonly SchemaExtension[];
+  /**
+   * Import path to a generated module that exports `validators`; the schema
+   * then installs `validation` with them, so writes are checked.
+   */
+  readonly validatorsImport?: string;
 }
 
 /**
@@ -323,18 +332,33 @@ const RESERVED_EXPORTS = [
   "SubjectType",
   "RecordRef",
   "schema",
+  "extensions",
+  "Extensions",
+  "ExtensionsOf",
+  "validation",
+  "validators",
 ];
 
 /** Renders the generated module. */
 export function emitModule(model: Model, options: EmitOptions): string {
   const runtime = options.runtimeImport ?? "better-supabase";
+  const extensions = options.extensions ?? [];
+  const { validatorsImport } = options;
+  const extended = extensions.length > 0 || validatorsImport !== undefined;
 
   const lines: string[] = [
     GENERATED_HEADER,
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
-    `import { defineSchema, type Schema${options.inlineMeta ? ", type SchemaMeta" : ""} } from ${q(runtime)};`,
+    `import { defineSchema, ${validatorsImport === undefined ? "" : "validation, "}${extended ? "type ExtensionsOf, " : ""}type Schema${options.inlineMeta ? ", type SchemaMeta" : ""} } from ${q(runtime)};`,
+    ...extensions.map(
+      (extension) =>
+        `import { ${extension.export} } from ${q(runtimeSubpath(runtime, extension.subpath))};`,
+    ),
+    ...(validatorsImport === undefined
+      ? []
+      : [`import { validators } from ${q(validatorsImport)};`]),
   ];
 
   const storagePaths = model.tables.some((table) =>
@@ -373,9 +397,11 @@ export function emitModule(model: Model, options: EmitOptions): string {
   );
 
   const exported = new Map<string, string>(
-    [...RESERVED_EXPORTS, ...model.jsonImports.map((entry) => entry.name)].map(
-      (name) => [name, "the generated module"],
-    ),
+    [
+      ...RESERVED_EXPORTS,
+      ...extensions.map((extension) => extension.export),
+      ...model.jsonImports.map((entry) => entry.name),
+    ].map((name) => [name, "the generated module"]),
   );
 
   const claim = (name: string, source: string): string => {
@@ -471,6 +497,31 @@ export function emitModule(model: Model, options: EmitOptions): string {
 
   const subjects = Object.keys(model.config.subjects);
 
+  const calls = [
+    ...extensions.map((extension) => ({
+      fn: extension.export,
+      call: `${extension.export}(${extension.args})`,
+    })),
+    ...(validatorsImport === undefined
+      ? []
+      : [{ fn: "validation", call: "validation({ schemas: validators })" }]),
+  ];
+
+  if (extended) {
+    lines.push(
+      "/** The installed blocks' repository extensions; `defineSupabase` installs them. */",
+      `type Extensions = readonly [${calls.map(({ fn }) => `ReturnType<typeof ${fn}>`).join(", ")}];`,
+      `const extensions: Extensions = [${calls.map(({ call }) => call).join(", ")}];`,
+      "",
+    );
+  }
+
+  const subjectType = subjects.length > 0 ? "SubjectType" : "string";
+
+  const schemaLine = extended
+    ? `export const schema: Schema<Models, Database, Functions, ${subjectType}, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);`
+    : `export const schema: Schema<Models, Database, Functions${subjects.length > 0 ? ", SubjectType" : ""}> = defineSchema(meta);`;
+
   if (subjects.length > 0) {
     lines.push(
       "/** The app's subject types, from `config.records`. */",
@@ -479,15 +530,10 @@ export function emitModule(model: Model, options: EmitOptions): string {
       "/** One subject: its type and its id as text. */",
       "export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };",
       "",
-      "export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);",
-      "",
-    );
-  } else {
-    lines.push(
-      "export const schema: Schema<Models, Database, Functions> = defineSchema(meta);",
-      "",
     );
   }
+
+  lines.push(schemaLine, "");
 
   return lines.join("\n");
 }
