@@ -483,7 +483,7 @@ export function createExpenses(options: ExpensesOptions): Expenses {
         "reimburse_expense_report",
         {
           report_id: reportId,
-          paid_at: instantArg(input.paidAt),
+          paid_at: instantArg(input.paidAt) ?? null,
           reference: input.reference ?? null,
         },
         report("reimburse_expense_report"),

@@ -457,7 +457,7 @@ export function createLeases(options: LeasesOptions): Leases {
         {
           lease_id: leaseId,
           amount: amountText(payment.amount),
-          paid_at: instantArg(payment.paidAt),
+          paid_at: instantArg(payment.paidAt) ?? null,
           reference: payment.reference ?? null,
         },
         (value) => {
