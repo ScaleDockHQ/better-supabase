@@ -7,27 +7,30 @@ import type {
 } from "../config/types/app-tables.ts";
 import type { PresetCatalog } from "./catalog-types.ts";
 import type { Preset } from "./fields.ts";
+import type { PresetName } from "./presets.ts";
 import type { ConfigSourceKeys } from "./render.ts";
 import type { ResolvedPreset } from "./resolve.ts";
+import type { PresetSpec } from "./spec.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
 import { asBlocksConfig } from "../config/blocks.ts";
 import { PRESET_CATALOG } from "./catalog.generated.ts";
-import { encodePreset } from "./code.ts";
 import { presetConfig, presetOf } from "./config.ts";
-import {
-  configSource,
-  createUrl,
-  presetApplyCommand,
-  presetInstallCommand,
-} from "./render.ts";
+import { defaultPreset } from "./presets.ts";
+import { configSource } from "./render.ts";
+import { presetOfSpec, presetSpec } from "./spec.ts";
+
+const CREATE_URL = "https://app.bettersupabase.com/create";
 
 /**
- * What the `/create` canvas adds to a preset (ADR 0040): tables the app owns,
- * extra columns on block tables, and where each table sits on the canvas. It
- * travels in the `&design=` parameter of a `/create` URL.
+ * A design from the `/create` canvas (ADR 0040): the preset (its name, or its
+ * conventions and blocks), tables the app owns, extra columns on block tables,
+ * and where each table sits on the canvas. It travels in the `design=`
+ * parameter of a `/create` URL, or as a design file.
  */
 export interface CreateDesign {
+  /** A preset name, or a preset object of conventions and blocks. */
+  readonly preset?: PresetName | PresetSpec;
   /** `config.appTables`. */
   readonly appTables?: Readonly<Record<string, AppTableConfig>>;
   /**
@@ -43,9 +46,8 @@ export interface CreateDesign {
 
 /**
  * The first character of a design code: how it is encoded. `0` is deflate-raw
- * compressed JSON in base64url. Preset codes never start with `0` (their first
- * character is the preset version, from 1), and preset names never start with a
- * digit. The JSON's own format is `DESIGN_FORMAT`.
+ * compressed JSON in base64url. Preset names never start with a digit. The
+ * JSON's own format is `DESIGN_FORMAT`.
  */
 const DESIGN_VERSION = "0";
 
@@ -58,9 +60,9 @@ const DESIGN_VERSION = "0";
  * Format 3 adds table `rollups` and `lookups` (ADR 0044). Format 4 adds table
  * `events` (ADR 0048) and subject `versions`. Format 5 adds column `access`
  * (ADR 0051). Format 6 adds column `encrypted` and table `auditReads` (ADR
- * 0087).
+ * 0087). Format 7 adds `preset`, which replaces the 0.14 preset codes.
  */
-export const DESIGN_FORMAT = 6;
+export const DESIGN_FORMAT = 7;
 
 const FORMAT_1_TABLE_KEYS = ["id", "unique", "indexes", "comment"] as const;
 
@@ -75,6 +77,10 @@ const FORMAT_1_COLUMN_KEYS = [
 
 /** The lowest design format that reads `design`. */
 export function designFormat(design: CreateDesign): number {
+  if (design.preset !== undefined) {
+    return 7;
+  }
+
   const tables = Object.values(design.appTables ?? {});
 
   if (
@@ -170,7 +176,7 @@ export type DesignErrorCode =
   | "too_long"
   /** A design file that isn't JSON or lacks its keys. */
   | "invalid_file"
-  /** A design file's preset that isn't a preset name or code. */
+  /** A preset that isn't a preset name or object, or a design file without one. */
   | "invalid_preset";
 
 /** One problem with a design, as `safeParseDesign` reports it. */
@@ -562,6 +568,17 @@ function checkedAppTables(
   }
 }
 
+/** A design's `preset`, checked and written as `presetSpec` writes it. */
+function presetKeyOf(value: unknown): PresetName | PresetSpec {
+  try {
+    return presetSpec(presetOfSpec(value));
+  } catch (error) {
+    throw new DesignParseError("invalid_preset", "/preset", messageOf(error), {
+      cause: error,
+    });
+  }
+}
+
 function designOfValue(
   value: unknown,
   catalog: PresetCatalog = PRESET_CATALOG,
@@ -576,6 +593,7 @@ function designOfValue(
 
   const unknownKey = Object.keys(value).find(
     (name) =>
+      name !== "preset" &&
       name !== "appTables" &&
       name !== "extraColumns" &&
       name !== "positions" &&
@@ -586,9 +604,12 @@ function designOfValue(
     throw new DesignParseError(
       "unknown_key",
       jsonPointer(unknownKey),
-      `design: unknown key "${unknownKey}"; a design has appTables, extraColumns and positions`,
+      `design: unknown key "${unknownKey}"; a design has preset, appTables, extraColumns and positions`,
     );
   }
+
+  const preset =
+    value["preset"] === undefined ? undefined : presetKeyOf(value["preset"]);
 
   const version = value["version"] ?? 0;
 
@@ -642,6 +663,7 @@ function designOfValue(
   );
 
   return {
+    ...(preset === undefined ? {} : { preset }),
     ...(Object.keys(appTables).length === 0 ? {} : { appTables }),
     ...(Object.keys(filled).length === 0 ? {} : { extraColumns: filled }),
     ...(Object.keys(positions).length === 0 ? {} : { positions }),
@@ -784,7 +806,7 @@ export async function decodeDesign(code: string): Promise<CreateDesign> {
 }
 
 /**
- * The design in a `/create` URL's `&design=` parameter, or in a bare design
+ * The design in a `/create` URL's `design=` parameter, or in a bare design
  * code; `undefined` when `input` has neither.
  */
 export async function designOf(
@@ -797,6 +819,44 @@ export async function designOf(
   }
 
   return isDesignCode(input) ? decodeDesign(input) : undefined;
+}
+
+/** A design without its `preset`, the part `designConfig` reads. */
+function withoutPreset(design: CreateDesign): CreateDesign {
+  const { preset: _preset, ...rest } = design;
+
+  return rest;
+}
+
+/**
+ * The preset and design a preset name, a `/create` URL or a design code holds.
+ * The design's own `preset` comes first, then a `preset=<name>` parameter, then
+ * the default preset. A 0.14 preset code throws, naming the codemod.
+ */
+export async function presetAndDesignOf(
+  input: string,
+): Promise<{
+  readonly preset: Preset;
+  readonly design: CreateDesign | undefined;
+}> {
+  const design = await designOf(input);
+
+  if (design === undefined) {
+    return { preset: presetOf(input), design: undefined };
+  }
+
+  const named = /[?&]preset=([^&#]+)/.exec(input)?.[1];
+
+  const preset =
+    design.preset === undefined
+      ? named === undefined
+        ? defaultPreset()
+        : presetOf(named)
+      : presetOfSpec(design.preset);
+
+  const rest = withoutPreset(design);
+
+  return { preset, design: Object.keys(rest).length === 0 ? undefined : rest };
 }
 
 /**
@@ -844,43 +904,80 @@ export function designConfig(
 }
 
 /**
- * `better-supabase.config.ts` for a preset with a design. `designCode`, the
- * design's `encodeDesign`, goes into the `/create` URL in the comment, so the
- * canvas reopens with its positions.
+ * The `/create` URL that reopens a preset and design: `?preset=<name>` for a
+ * named preset with no design, otherwise `?design=` with the preset inside.
+ * Throws a `DesignTooLongError` when the design is too long for a URL; write a
+ * design file (`designFileSource`) instead.
  */
-export function designConfigSource(
+export async function createUrl(
   resolved: ResolvedPreset,
-  design: CreateDesign,
-  designCode = "",
-): string {
-  const config: ConfigSourceKeys = designConfig(resolved, design);
+  design: CreateDesign = {},
+): Promise<string> {
+  const preset = presetSpec(resolved.preset);
+  const rest = withoutPreset(design);
 
-  return configSource(resolved, config, createUrl(resolved, designCode));
+  if (typeof preset === "string" && Object.keys(rest).length === 0) {
+    return `${CREATE_URL}?preset=${preset}`;
+  }
+
+  return `${CREATE_URL}?design=${await encodeDesign({ ...rest, preset })}`;
 }
 
 /**
- * The command that starts a project from the preset and design: `init` with the
- * quoted `/create` URL, or `presetInstallCommand` when `designCode` is empty.
+ * `better-supabase.config.ts` for a preset and an optional design: every block
+ * with its reason, the conventions that differ from the defaults and the app
+ * tables, under a comment with the `/create` URL that reopens the canvas.
  */
-export function designInstallCommand(
+export async function presetConfigSource(
   resolved: ResolvedPreset,
-  designCode: string,
-): string {
-  return designCode === ""
-    ? presetInstallCommand(resolved)
-    : `npx better-supabase init --preset "${createUrl(resolved, designCode)}"`;
+  design?: CreateDesign,
+): Promise<string> {
+  const config: ConfigSourceKeys =
+    design === undefined
+      ? presetConfig(resolved)
+      : designConfig(resolved, design);
+
+  return configSource(resolved, config, await createUrl(resolved, design));
+}
+
+/** The value `--preset` takes for a preset and design: the name or the URL. */
+async function presetArgument(
+  resolved: ResolvedPreset,
+  design: CreateDesign | undefined,
+): Promise<string> {
+  const preset = presetSpec(resolved.preset);
+
+  return typeof preset === "string" &&
+    (design === undefined || Object.keys(withoutPreset(design)).length === 0)
+    ? preset
+    : `"${await createUrl(resolved, design)}"`;
+}
+
+/** The command that starts a project from the preset and design. */
+export async function presetInstallCommand(
+  resolved: ResolvedPreset,
+  design?: CreateDesign,
+): Promise<string> {
+  return `npx better-supabase init --preset ${await presetArgument(resolved, design)}`;
+}
+
+/** The command that applies the preset and design to an existing project. */
+export async function presetApplyCommand(
+  resolved: ResolvedPreset,
+  design?: CreateDesign,
+): Promise<string> {
+  return `npx better-supabase add --preset ${await presetArgument(resolved, design)}`;
 }
 
 /**
- * A preset and its design as one JSON file, for a design too long for a URL
- * (ADR 0058). `init --preset` and `apply --preset` read it from a path.
+ * A design file: the design with its `preset` (ADR 0058), for a design too long
+ * for a URL. `init --preset` and `add --preset` read it from a path.
  */
-export interface DesignFile {
-  /** The preset code. */
-  readonly preset: string;
-  /** The design, with `version` set to `designFormat` when it is above 0. */
-  readonly design: CreateDesign & { readonly version?: number };
-}
+export type DesignFile = CreateDesign & {
+  readonly preset: PresetName | PresetSpec;
+  /** `designFormat`, when it is above 0. */
+  readonly version?: number;
+};
 
 /**
  * The design file for a preset and design, as JSON text. Throws a
@@ -891,13 +988,12 @@ export function designFileSource(
   resolved: ResolvedPreset,
   design: CreateDesign,
 ): string {
-  const checked = designOfValue(design);
-  const format = designFormat(checked);
+  const checked = designOfValue({
+    ...withoutPreset(design),
+    preset: presetSpec(resolved.preset),
+  });
 
-  const file: DesignFile = {
-    preset: encodePreset(resolved.preset),
-    design: format === 0 ? checked : { version: format, ...checked },
-  };
+  const file = { version: designFormat(checked), ...checked };
 
   return `${JSON.stringify(file, null, 2)}\n`;
 }
@@ -918,10 +1014,9 @@ export function safeDesignFileSource(
 }
 
 /**
- * Reads a design file's text. Each `DesignParseError` path points into the
- * file, so a design problem starts with `/design`. Throws one naming the first
- * problem: text that isn't JSON, a missing or invalid preset, or an invalid
- * design.
+ * Reads a design file's text into its preset and the rest of the design. Throws
+ * a `DesignParseError` naming the first problem: text that isn't JSON, a
+ * missing or invalid preset, a 0.14 file, or an invalid design.
  */
 export function readDesignFile(text: string): {
   readonly preset: Preset;
@@ -940,68 +1035,23 @@ export function readDesignFile(text: string): {
     );
   }
 
-  if (!isRecord(value)) {
+  if (isRecord(value) && isRecord(value["design"])) {
     throw new DesignParseError(
       "invalid_file",
-      "",
-      "design file: expected an object with preset and design",
+      "/design",
+      "design file: this is a 0.14 design file with a preset code. Run `better-supabase codemod 0.15` to convert it.",
     );
   }
 
-  const unknownKey = Object.keys(value).find(
-    (name) => name !== "preset" && name !== "design",
-  );
+  const design = designOfValue(value);
 
-  if (unknownKey !== undefined) {
-    throw new DesignParseError(
-      "unknown_key",
-      jsonPointer(unknownKey),
-      `design file: unknown key "${unknownKey}"; a design file has preset and design`,
-    );
-  }
-
-  const preset = value["preset"];
-
-  if (typeof preset !== "string" || preset === "") {
+  if (design.preset === undefined) {
     throw new DesignParseError(
       "invalid_preset",
       "/preset",
-      "design file: preset must be a preset name or code from /create",
+      "design file: preset is missing; it takes a preset name or an object of conventions and blocks",
     );
   }
 
-  let parsed: Preset;
-
-  try {
-    parsed = presetOf(preset);
-  } catch (error) {
-    throw new DesignParseError("invalid_preset", "/preset", messageOf(error), {
-      cause: error,
-    });
-  }
-
-  try {
-    return { preset: parsed, design: designOfValue(value["design"] ?? {}) };
-  } catch (error) {
-    if (error instanceof DesignParseError) {
-      throw new DesignParseError(
-        error.code,
-        `/design${error.path}`,
-        error.message,
-        { cause: error },
-      );
-    }
-
-    throw error;
-  }
-}
-
-/** The command that applies the preset and design to an existing project. */
-export function designApplyCommand(
-  resolved: ResolvedPreset,
-  designCode: string,
-): string {
-  return designCode === ""
-    ? presetApplyCommand(resolved)
-    : `npx better-supabase add --preset "${createUrl(resolved, designCode)}"`;
+  return { preset: presetOfSpec(design.preset), design: withoutPreset(design) };
 }

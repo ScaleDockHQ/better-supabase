@@ -1,4 +1,8 @@
-import type { CreateDesign, DesignChange } from "../preset/index.ts";
+import type {
+  CreateDesign,
+  DesignChange,
+  PresetInput,
+} from "../preset/index.ts";
 
 import { diffDesigns } from "../preset/index.ts";
 import { previewFiles } from "./preview-provider.ts";
@@ -39,7 +43,7 @@ export type MigrationPlan =
  * refused so a deploy never guesses.
  */
 export function migrationBetween(
-  code: string,
+  preset: PresetInput,
   base: CreateDesign,
   next: CreateDesign,
 ): MigrationPlan {
@@ -59,10 +63,10 @@ export function migrationBetween(
   }
 
   const before = new Map(
-    previewFiles(code, base).map((file) => [file.path, file.contents]),
+    previewFiles(preset, base).map((file) => [file.path, file.contents]),
   );
 
-  const differing = previewFiles(code, next).filter(
+  const differing = previewFiles(preset, next).filter(
     (file) => before.get(file.path) !== file.contents,
   );
 

@@ -8,6 +8,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 
 import { CLI_CALL_FILE, SHELL_FILE } from "../codemod-calls.ts";
+import { DESIGN_FILE_NAME } from "../codemod-preset-code.ts";
 import { applyCodemod, CODEMODS, CONFIG_FILE } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
@@ -90,6 +91,7 @@ async function sourceFiles(path: string): Promise<string[]> {
       (SOURCE_EXTENSIONS.has(extname(entry.name)) &&
         !entry.name.endsWith(".d.ts")) ||
       CONFIG_FILE.test(entry.name) ||
+      DESIGN_FILE_NAME.test(entry.name) ||
       CLI_CALL_FILE.test(full) ||
       SHELL_FILE.test(entry.name)
     ) {

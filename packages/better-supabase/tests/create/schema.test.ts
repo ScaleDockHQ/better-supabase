@@ -10,7 +10,7 @@ import {
   tableStatements,
   tenantColumnOf,
 } from "../../src/create/index.ts";
-import { encodePreset, namedPreset } from "../../src/preset/index.ts";
+import { presetSpec, namedPreset } from "../../src/preset/index.ts";
 import { moduleLayout, renderBlocks } from "../../src/sql/index.ts";
 
 interface Rendered {
@@ -20,7 +20,7 @@ interface Rendered {
 
 function rendered(name: PresetName, overrides: Partial<Preset> = {}): Rendered {
   const preset = { ...namedPreset(name), ...overrides };
-  const config = resolveConfig({ preset: encodePreset(preset) }, "/");
+  const config = resolveConfig({ preset: presetSpec(preset) }, "/");
 
   return {
     files: renderBlocks(config.blockNames, moduleLayout(config)),

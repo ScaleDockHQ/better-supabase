@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 
 import type { IntegrationName, SqlWorkflow } from "../config/index.ts";
+import type { PresetSpec } from "../preset/index.ts";
 import type { Framework } from "./project/detect.ts";
 
 import { groupEntries, INTEGRATION_INFO } from "../config/index.ts";
@@ -202,7 +203,7 @@ export function baseFiles(
   lib: boolean = true,
   integrations: readonly Integration[] = [],
   workflow: SqlWorkflow = "pg-delta",
-  preset?: string,
+  preset?: string | PresetSpec,
   keys: ConventionKeys = {},
 ): TemplateFile[] {
   const sql = { ...(workflow === "pg-delta" ? {} : { workflow }), ...keys.sql };
@@ -219,7 +220,7 @@ export function baseFiles(
 export default defineConfig({${
       preset === undefined
         ? ""
-        : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: '${preset}',`
+        : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: ${literal(preset)},`
     }
   gen: { casing: '${casing}', output: '${context.generated}' },${
     grouped["database"] === undefined

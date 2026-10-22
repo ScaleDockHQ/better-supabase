@@ -6,6 +6,7 @@
  * since 0.11.
  */
 
+import type { CodemodConfigEdit } from "../codemod.ts";
 import type { ConfigEdit, Property } from "./config-edit.ts";
 
 import { isRecord } from "../guards.ts";
@@ -152,4 +153,55 @@ export function pinWebhookFormat(
   format: WebhookFormat,
 ): FormatPin {
   return json ? pinJson(source, format) : pinTs(source, format);
+}
+
+/**
+ * `edit` with `defaultFormat` pinned to `format` where an adopted webhooks-out
+ * block needs it.
+ */
+export function withWebhookFormat(
+  edit: CodemodConfigEdit,
+  json: boolean,
+  format: WebhookFormat,
+): CodemodConfigEdit {
+  if (!edit.ok) {
+    return edit;
+  }
+
+  const earlier = "review" in edit ? edit.review : [];
+  const pin = pinWebhookFormat(edit.text, json, format);
+
+  if (pin === undefined) {
+    return { ok: true, text: edit.text, review: earlier };
+  }
+
+  if (!pin.ok) {
+    return {
+      ok: true,
+      text: edit.text,
+      review: [
+        ...earlier,
+        {
+          line: 1,
+          message: `blocks["webhooks-out"] is adopted and maps no columns.endpoints.format, but defaultFormat wasn't pinned: ${pin.reason}. Set options.defaultFormat to "${format}" to keep the body endpoints get now`,
+        },
+      ],
+    };
+  }
+
+  const line =
+    pin.text.split("\n").findIndex((text) => text.includes("defaultFormat")) +
+    1;
+
+  return {
+    ok: true,
+    text: pin.text,
+    review: [
+      ...earlier,
+      {
+        line: Math.max(line, 1),
+        message: `blocks["webhooks-out"] is adopted and maps no columns.endpoints.format, so the codemod set options.defaultFormat to "${format}", the body its endpoints get now. Change it if your receivers expect the other format`,
+      },
+    ],
+  };
 }

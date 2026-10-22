@@ -20,6 +20,7 @@ import {
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
+import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import { movedKeyIssues } from "./config-moved.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
@@ -937,8 +938,30 @@ const EnvironmentSchema = v.strictObject(ENTRIES);
  * The shape of a `/create` design; `parseDesign` adds the rules a schema can't
  * state.
  */
+/**
+ * A preset name, or the conventions that differ from the defaults and the
+ * blocks.
+ */
+const PresetSchema = v.union([
+  v.pipe(v.string(), v.minLength(1)),
+  v.strictObject({
+    ...Object.fromEntries(
+      CONVENTION_FIELDS.map((field) => [
+        field.key,
+        v.optional(
+          field.multi === true
+            ? v.array(v.picklist(field.values))
+            : v.picklist(field.values),
+        ),
+      ]),
+    ),
+    blocks: v.optional(v.array(v.string())),
+  }),
+]);
+
 const DesignSchema = v.strictObject({
   version: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  preset: v.optional(PresetSchema),
   appTables: v.optional(designAppTables),
   extraColumns: v.optional(v.record(v.string(), stringRecord)),
   positions: v.optional(
@@ -948,7 +971,7 @@ const DesignSchema = v.strictObject({
 
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
-  preset: v.optional(v.pipe(v.string(), v.minLength(1))),
+  preset: v.optional(PresetSchema),
   ...ENTRIES,
   $env: v.optional(v.record(v.string(), EnvironmentSchema)),
   $development: v.optional(EnvironmentSchema),

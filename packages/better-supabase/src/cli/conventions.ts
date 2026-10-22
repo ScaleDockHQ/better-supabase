@@ -10,7 +10,7 @@ import {
   presetField,
   presetValueLabel,
   PRESET_TENANT_NAMES,
-  withPresetField,
+  presetFromSpec,
 } from "../preset/index.ts";
 import { CliError } from "./core/errors.ts";
 
@@ -129,14 +129,14 @@ export const hasConventionFlags = (
 ): boolean => Object.keys(flags).length > 0;
 
 /**
- * `preset` with the flags' conventions. A preset code stores the tenant names
- * /create offers, so another `--tenant-name` throws.
+ * `preset` with the flags' conventions. A preset holds the tenant names /create
+ * offers, so another `--tenant-name` throws.
  */
 export function withConventions(
   preset: Preset,
   flags: Partial<ConfigConventions>,
 ): Preset {
-  let next = preset;
+  let next: Preset = preset;
 
   for (const key of KEYS) {
     const value = flags[key];
@@ -155,7 +155,7 @@ export function withConventions(
       );
     }
 
-    next = withPresetField(next, key, value);
+    next = presetFromSpec({ ...next, [key]: value });
   }
 
   return next;

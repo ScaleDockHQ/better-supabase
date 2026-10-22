@@ -1,24 +1,25 @@
 import { describe, expect, it } from "vitest";
 
+import type { PresetSpec } from "../../src/preset/spec.ts";
+
 import { defineConfig, resolveConfig } from "../../src/config/index.ts";
-import { encodePreset } from "../../src/preset/code.ts";
 import { expandPreset, presetOf } from "../../src/preset/config.ts";
 import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
 import { namedPreset, PRESET_NAMES } from "../../src/preset/presets.ts";
+import { presetOfSpec } from "../../src/preset/spec.ts";
 
 describe("presetOf", () => {
-  it("reads a name, a code, a /create URL and an object", () => {
+  it("reads a name, a /create URL and an object", () => {
     expect(presetOf("saas")).toEqual(namedPreset("saas"));
     expect(presetOf("consumer").scope).toBe("user");
-    const code = encodePreset({ casing: "camel", blocks: ["tags"] });
-    expect(presetOf(code)).toEqual({
+    expect(presetOf({ casing: "camel", blocks: ["tags"] })).toEqual({
       ...DEFAULT_CONVENTIONS,
       casing: "camel",
       blocks: ["tags"],
     });
     expect(
-      presetOf(`https://bettersupabase.com/create?preset=${code}#graph`),
-    ).toEqual(presetOf(code));
+      presetOf("https://app.bettersupabase.com/create?preset=crm#graph"),
+    ).toEqual(namedPreset("crm"));
     expect(presetOf({ api: "api" })).toEqual({
       ...DEFAULT_CONVENTIONS,
       api: "api",
@@ -28,7 +29,22 @@ describe("presetOf", () => {
 
   it("names the presets when the input is none of them", () => {
     expect(() => presetOf("startup")).toThrow(
-      `preset: "startup" is not a preset. Use a name (${PRESET_NAMES.join(", ")}), a code from /create, or its URL.`,
+      `preset: "startup" is not a preset name. Use one of ${PRESET_NAMES.join(", ")}, or an object of conventions and blocks.`,
+    );
+  });
+
+  it("names the codemod for a 0.14 preset code", () => {
+    expect(() => presetOf("1pWEF3d578B1iGt16")).toThrow(
+      /better-supabase codemod 0\.15/,
+    );
+  });
+
+  it("names the key or value an object gets wrong", () => {
+    expect(() => presetOfSpec({ casing: "kebab" })).toThrow(
+      "preset.casing: expected one of",
+    );
+    expect(() => presetOfSpec({ colour: "red" })).toThrow(
+      "preset.colour: not a preset key.",
     );
   });
 });
@@ -40,14 +56,14 @@ describe("expandPreset", () => {
   });
 
   it("expands the blocks and the conventions that differ from the defaults", () => {
-    const code = encodePreset({
+    const code: PresetSpec = {
       blocks: ["comments"],
       casing: "camel",
       api: "api",
       access: "catalog",
       idType: "bigint",
       integrations: ["next"],
-    });
+    };
 
     expect(expandPreset({ preset: code })).toEqual({
       preset: code,
@@ -66,12 +82,12 @@ describe("expandPreset", () => {
   });
 
   it("lets explicit config win", () => {
-    const code = encodePreset({
+    const code: PresetSpec = {
       blocks: ["access"],
       casing: "camel",
       api: "api",
       access: "catalog",
-    });
+    };
 
     const expanded = expandPreset({
       preset: code,
@@ -99,11 +115,11 @@ describe("expandPreset", () => {
   });
 
   it("throws on what can't install", () => {
-    const code = encodePreset({ blocks: ["organizations"], scope: "user" });
+    const code: PresetSpec = { blocks: ["organizations"], scope: "user" };
     expect(() => expandPreset({ preset: code })).toThrow(
       `preset: organizations (it needs tenants, and scope "user" has none) can't install.`,
     );
-    const expo = encodePreset({ framework: "expo", blocks: [] });
+    const expo: PresetSpec = { framework: "expo", blocks: [] };
     expect(() => expandPreset({ preset: expo })).toThrow(
       "preset: platforms (Expo builds a native app: choose native or both) can't install.",
     );
@@ -112,19 +128,17 @@ describe("expandPreset", () => {
 
 describe("conventions", () => {
   it("write database.sql.owner and the tenant name when they differ from the defaults", () => {
-    const user = expandPreset({
-      preset: encodePreset({ blocks: ["tags"], scope: "user" }),
-    });
+    const user = expandPreset({ preset: { blocks: ["tags"], scope: "user" } });
 
     expect(user.database?.sql).toEqual({ owner: "user" });
     expect(user.blocks).toEqual({ tags: {} });
 
     const workspace = expandPreset({
-      preset: encodePreset({
+      preset: {
         blocks: ["organizations"],
         tenantName: "workspace",
         api: "api",
-      }),
+      },
     });
 
     expect(workspace.database?.sql).toEqual({ api: "api" });

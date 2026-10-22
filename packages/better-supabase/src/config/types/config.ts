@@ -1,4 +1,5 @@
 import type { PresetName } from "../../preset/presets.ts";
+import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
 import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
@@ -146,12 +147,12 @@ export interface FlatConfig {
    */
   readonly subjects?: SubjectsConfig;
   /**
-   * A named preset (`saas`, `crm`, ...), a code from `/create`, or its URL.
-   * `defineConfig` expands it into `blocks`, with the blocks they require, and
-   * the conventions it sets (`casing`, `sql.api`, `integrations`); the keys you
-   * set win.
+   * A named preset (`saas`, `crm`, ...), or a preset object: the conventions
+   * that differ from the defaults and the blocks. It expands into `blocks`,
+   * with the blocks they require, and the conventions it sets; the keys you set
+   * win.
    */
-  readonly preset?: PresetName | (string & {});
+  readonly preset?: PresetName | (string & {}) | PresetSpec;
   /**
    * The blocks to install and keep in sync (`better-supabase add`): a list of
    * names, or an object keyed by block name whose values set each block's mode,
@@ -250,7 +251,7 @@ export interface ResolvedConfig {
    * The `preset` the config started from, as written; `blocks` already holds it
    * expanded.
    */
-  readonly preset?: string;
+  readonly preset?: string | PresetSpec;
   /** `blocks` with `sql.schema` and `sql.api` applied, keyed by block name. */
   readonly blocks: AnyBlocksConfig;
   /** The installed blocks, in config order. */

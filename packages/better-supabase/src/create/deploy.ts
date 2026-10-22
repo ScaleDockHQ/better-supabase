@@ -1,4 +1,4 @@
-import type { Preset } from "../preset/index.ts";
+import type { Preset, PresetName, PresetSpec } from "../preset/index.ts";
 import type {
   SupabaseLint,
   SupabaseOrganization,
@@ -33,8 +33,8 @@ export function newDeployId(): string {
 export interface DeployRecord {
   readonly id: string;
   readonly ref: string;
-  /** The preset code. */
-  readonly preset: string;
+  /** The preset, as the config's `preset` key takes it. */
+  readonly preset: PresetName | PresetSpec;
   /** The design code, or `null` when the preset had no design. */
   readonly design: string | null;
   readonly migration: string;
@@ -131,8 +131,8 @@ export interface DeployResponse {
   /** The id written at the top of the migration; store it in a `DeployRecord`. */
   readonly id: string;
   readonly ref: string;
-  /** The preset code. */
-  readonly preset: string;
+  /** The preset, as the config's `preset` key takes it. */
+  readonly preset: PresetName | PresetSpec;
   /** The design code, or `null` when the preset had no design. */
   readonly design: string | null;
   readonly migration: string;

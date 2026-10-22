@@ -2,12 +2,90 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://unpkg.com/better-supabase/schemas/design-v1.json",
   "title": "better-supabase design",
-  "description": "A design from app.bettersupabase.com/create: app tables, extra columns on block tables and canvas positions, up to format 6. This schema checks the shape; designSchema and parseDesign in better-supabase/preset also check names, defaults and limits.",
+  "description": "A design from app.bettersupabase.com/create: app tables, extra columns on block tables and canvas positions, up to format 7. This schema checks the shape; designSchema and parseDesign in better-supabase/preset also check names, defaults and limits.",
   "type": "object",
   "properties": {
     "version": {
       "type": "integer",
       "minimum": 0
+    },
+    "preset": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "framework": {
+              "enum": [
+                "next",
+                "vite",
+                "tanstack-start",
+                "expo",
+                "sveltekit",
+                "nuxt",
+                "hono",
+                "astro",
+                "react-router"
+              ],
+              "type": "string"
+            },
+            "platforms": {
+              "enum": ["web", "native", "both"],
+              "type": "string"
+            },
+            "casing": {
+              "enum": ["snake", "camel"],
+              "type": "string"
+            },
+            "idType": {
+              "enum": ["uuid", "text", "bigint", "integer"],
+              "type": "string"
+            },
+            "scope": {
+              "enum": ["tenant", "user", "none"],
+              "type": "string"
+            },
+            "tenantName": {
+              "enum": ["organization", "workspace", "team"],
+              "type": "string"
+            },
+            "access": {
+              "enum": ["roles", "catalog", "provider", "custom"],
+              "type": "string"
+            },
+            "api": {
+              "enum": ["none", "api"],
+              "type": "string"
+            },
+            "integrations": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "next",
+                  "hono",
+                  "orpc",
+                  "edge",
+                  "expo",
+                  "mcp",
+                  "client",
+                  "react"
+                ],
+                "type": "string"
+              }
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "appTables": {
       "type": "object",

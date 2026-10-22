@@ -1,7 +1,6 @@
 import type { Preset, PresetConventions } from "./fields.ts";
 
-import { PRESET_BLOCKS } from "./blocks.ts";
-import { encodePreset } from "./code.ts";
+import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { DEFAULT_CONVENTIONS } from "./fields.ts";
 
 /** Where a named preset sits in the `/create` and `init` pickers. */
@@ -699,7 +698,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     title: "Everything",
     description: "Every block, for demos and tests.",
     group: "everything",
-    blocks: PRESET_BLOCKS.filter((name) => name !== null),
+    blocks: PRESET_CATALOG.blocks.map((block) => block.name),
   },
 };
 
@@ -749,7 +748,7 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "everything",
 ];
 
-export function isPresetName(value: string): value is PresetName {
+export function isPresetName(value: unknown): value is PresetName {
   return PRESET_NAMES.some((name) => name === value);
 }
 
@@ -766,9 +765,4 @@ export const DEFAULT_PRESET_NAME = "saas" as const;
 /** The default preset as a `Preset`, so a new design can start from it. */
 export function defaultPreset(): Preset {
   return namedPreset(DEFAULT_PRESET_NAME);
-}
-
-/** The default preset's code, for a `/create` URL or `init --preset`. */
-export function defaultPresetCode(): string {
-  return encodePreset(defaultPreset());
 }

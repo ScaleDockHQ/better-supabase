@@ -1,5 +1,3 @@
-export { PRESET_BLOCKS } from "./blocks.ts";
-
 export { PRESET_CATALOG } from "./catalog.generated.ts";
 
 export type {
@@ -8,15 +6,6 @@ export type {
   PresetCatalogManifest,
   PresetGlueItem,
 } from "./catalog-types.ts";
-
-export {
-  decodePreset,
-  encodePreset,
-  isPresetCode,
-  withPresetField,
-} from "./code.ts";
-
-export type { DecodedPreset } from "./code.ts";
 
 export {
   conventionConfig,
@@ -50,15 +39,17 @@ export {
   DesignTooLongError,
   designFileSource,
   designFormat,
-  designApplyCommand,
+  createUrl,
   designConfig,
-  designConfigSource,
-  designInstallCommand,
   designOf,
   encodeDesign,
   isDesignCode,
   MAX_DESIGN_CODE_LENGTH,
   parseDesign,
+  presetAndDesignOf,
+  presetApplyCommand,
+  presetConfigSource,
+  presetInstallCommand,
   readDesignFile,
   safeDesignFileSource,
   safeParseDesign,
@@ -84,11 +75,10 @@ export type { ConfigConventions, PresetInput } from "./config.ts";
 
 export {
   DEFAULT_CONVENTIONS,
+  CONVENTION_FIELDS,
   integrationsForFramework,
-  PRESET_FIELDS,
   PRESET_FRAMEWORKS,
   PRESET_TENANT_NAMES,
-  PRESET_VERSION,
   presetField,
   presetValueLabel,
 } from "./fields.ts";
@@ -109,7 +99,6 @@ export type {
 export {
   DEFAULT_PRESET_NAME,
   defaultPreset,
-  defaultPresetCode,
   isPresetName,
   namedPreset,
   PRESET_GROUPS,
@@ -121,13 +110,14 @@ export type { NamedPreset, PresetGroup, PresetName } from "./presets.ts";
 
 export {
   glueCommand,
-  presetApplyCommand,
   presetBlocksSource,
   presetGlue,
-  presetConfigSource,
-  presetInstallCommand,
   PROVIDER_COMMENT,
 } from "./render.ts";
+
+export { presetFromSpec, presetOfSpec, presetSpec } from "./spec.ts";
+
+export type { PresetSpec } from "./spec.ts";
 
 export { listNames, presetBlockConflict, resolvePreset } from "./resolve.ts";
 

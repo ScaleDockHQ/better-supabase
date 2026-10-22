@@ -9,6 +9,8 @@ import type {
 import type {
   ConfigConventions,
   CreateDesign,
+  PresetName,
+  PresetSpec,
   ResolvedPreset,
 } from "../../preset/index.ts";
 import type { AnyCommand, CliArgs } from "../core/command.ts";
@@ -22,7 +24,6 @@ import { groupConfig, resolveConfig } from "../../config/index.ts";
 import {
   conventionConfig,
   designConfig,
-  encodePreset,
   glueCommand,
   integrationsForFramework,
   isPresetName,
@@ -30,6 +31,7 @@ import {
   presetBlocksSource,
   presetGlue,
   PRESETS,
+  presetSpec,
   resolvePreset,
 } from "../../preset/index.ts";
 import { findConfig, loadConfig } from "../config.ts";
@@ -114,7 +116,7 @@ const INIT_ARGS = {
   preset: {
     type: "string",
     description:
-      "A named preset, a code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts",
+      "A named preset, a design code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts",
     valueHint: "name|code|url|file",
   },
   lite: {
@@ -215,7 +217,7 @@ async function chosenPreset(
   root: string,
 ): Promise<
   | {
-      readonly value: string;
+      readonly value: PresetName | PresetSpec;
       readonly resolved: ResolvedPreset;
       readonly design?: CreateDesign | undefined;
     }
@@ -284,7 +286,7 @@ async function chosenPreset(
     value:
       isPresetName(value) && !hasConventionFlags(flags)
         ? value
-        : encodePreset(preset),
+        : presetSpec(preset),
     resolved,
     design,
   };

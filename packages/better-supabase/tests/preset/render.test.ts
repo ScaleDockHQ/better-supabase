@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { encodePreset } from "../../src/preset/code.ts";
-import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
 import {
+  createUrl,
   presetApplyCommand,
-  presetBlocksSource,
   presetConfigSource,
   presetInstallCommand,
-} from "../../src/preset/render.ts";
+} from "../../src/preset/design.ts";
+import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
+import { namedPreset } from "../../src/preset/presets.ts";
+import { presetBlocksSource } from "../../src/preset/render.ts";
 import { resolvePreset } from "../../src/preset/resolve.ts";
 
 describe("presetConfigSource", () => {
-  it("lists every block, with the reason for those it adds", () => {
+  it("lists every block, with the reason for those it adds", async () => {
     const preset = {
       ...DEFAULT_CONVENTIONS,
       casing: "camel" as const,
@@ -21,11 +22,13 @@ describe("presetConfigSource", () => {
       blocks: ["comments", "api-keys"],
     };
 
-    expect(presetConfigSource(resolvePreset(preset))).toBe(
+    const resolved = resolvePreset(preset);
+
+    expect(await presetConfigSource(resolved)).toBe(
       [
         'import { defineConfig } from "better-supabase/config";',
         "",
-        `// https://app.bettersupabase.com/create?preset=${encodePreset(preset)}`,
+        `// ${await createUrl(resolved)}`,
         "export default defineConfig({",
         '  database: { sql: { api: "api" } },',
         '  gen: { casing: "camel" },',
@@ -47,8 +50,8 @@ describe("presetConfigSource", () => {
     );
   });
 
-  it("keeps a default preset short", () => {
-    const source = presetConfigSource(
+  it("keeps a default preset short", async () => {
+    const source = await presetConfigSource(
       resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: ["profiles"] }),
     );
 
@@ -99,14 +102,33 @@ describe("presetBlocksSource", () => {
 });
 
 describe("presetInstallCommand and presetApplyCommand", () => {
-  it("start or apply the preset by its code", () => {
-    const preset = { ...DEFAULT_CONVENTIONS, blocks: ["tags", "comments"] };
-    const resolved = resolvePreset(preset);
-    expect(presetInstallCommand(resolved)).toBe(
-      `npx better-supabase init --preset ${encodePreset(preset)}`,
+  it("start or apply a named preset by its name", async () => {
+    const resolved = resolvePreset(namedPreset("crm"));
+
+    expect(await presetInstallCommand(resolved)).toBe(
+      "npx better-supabase init --preset crm",
     );
-    expect(presetApplyCommand(resolved)).toBe(
-      `npx better-supabase add --preset ${encodePreset(preset)}`,
+    expect(await presetApplyCommand(resolved)).toBe(
+      "npx better-supabase add --preset crm",
+    );
+  });
+
+  it("start or apply another preset by its /create URL", async () => {
+    const resolved = resolvePreset({
+      ...DEFAULT_CONVENTIONS,
+      blocks: ["tags", "comments"],
+    });
+
+    const url = await createUrl(resolved);
+
+    expect(url).toMatch(
+      /^https:\/\/app\.bettersupabase\.com\/create\?design=0/,
+    );
+    expect(await presetInstallCommand(resolved)).toBe(
+      `npx better-supabase init --preset "${url}"`,
+    );
+    expect(await presetApplyCommand(resolved)).toBe(
+      `npx better-supabase add --preset "${url}"`,
     );
   });
 });

@@ -11,33 +11,16 @@ export interface PresetValueInfo {
   readonly hint?: string;
 }
 
-/**
- * One convention a preset sets. `values` and the field list are append-only: a
- * code stores each value's index in `bits` bits, so a value keeps its index
- * forever and a new value fits only while `values` stays within `bits`. A
- * `multi` field stores one bit per value.
- */
-export interface PresetCodeField<
+/** One convention a preset sets, with the names `/create` and `init` show. */
+export interface PresetField<
   K extends string = string,
   V extends string = string,
 > {
   readonly key: K;
   readonly values: readonly V[];
   readonly default: V | readonly V[];
-  readonly bits: number;
+  /** The field takes several values (`integrations`). */
   readonly multi?: true;
-  /**
-   * The code version that added the field; older codes decode it as its
-   * default.
-   */
-  readonly since: number;
-}
-
-/** A convention field with the names `/create` and the `init` prompts show. */
-export interface PresetField<
-  K extends string = string,
-  V extends string = string,
-> extends PresetCodeField<K, V> {
   readonly label: string;
   readonly labels: { readonly [P in V]: PresetValueInfo };
 }
@@ -79,10 +62,7 @@ function integrationLabel(name: IntegrationName): PresetValueInfo {
   return { label: title, hint: description };
 }
 
-/**
- * The tenant names a preset can set (`blocks.tenant.names.organization`), in
- * code order.
- */
+/** The tenant names a preset can set (`blocks.tenant.names.organization`). */
 export const PRESET_TENANT_NAMES = [
   "organization",
   "workspace",
@@ -106,11 +86,8 @@ export const PRESET_FRAMEWORKS = [
 
 export type PresetFramework = (typeof PRESET_FRAMEWORKS)[number];
 
-/**
- * The convention fields, in code order. Append new fields at the end with the
- * next `since`, and never remove or reorder one.
- */
-export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
+/** The convention fields, in the order `/create` and `init` show them. */
+export const CONVENTION_FIELDS: readonly PresetField<PresetFieldKey>[] = [
   field({
     key: "framework",
     label: "Framework",
@@ -127,8 +104,6 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       "react-router": { label: "React Router" },
     },
     default: "next",
-    bits: 5,
-    since: 1,
   }),
   field({
     key: "platforms",
@@ -140,8 +115,6 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       both: { label: "Web and native" },
     },
     default: "web",
-    bits: 2,
-    since: 1,
   }),
   field({
     key: "casing",
@@ -155,8 +128,6 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       },
     },
     default: "snake",
-    bits: 2,
-    since: 1,
   }),
   field({
     key: "idType",
@@ -169,8 +140,6 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       integer: { label: "Integer" },
     },
     default: "uuid",
-    bits: 3,
-    since: 1,
   }),
   field({
     key: "scope",
@@ -188,10 +157,8 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       },
     },
     default: "tenant",
-    bits: 2,
-    since: 1,
   }),
-  // `blocks.tenant.names.organization`. New names go at the end.
+  // `blocks.tenant.names.organization`.
   field({
     key: "tenantName",
     label: "Tenant name",
@@ -202,8 +169,6 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       team: { label: "Team" },
     },
     default: "organization",
-    bits: 3,
-    since: 1,
   }),
   field({
     key: "access",
@@ -225,8 +190,6 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       custom: { label: "Custom SQL", hint: "Your own SQL expressions." },
     },
     default: "roles",
-    bits: 3,
-    since: 1,
   }),
   field({
     key: "api",
@@ -243,10 +206,7 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       },
     },
     default: "none",
-    bits: 2,
-    since: 1,
   }),
-  // `INTEGRATION_NAMES`, frozen here: a code stores each one's position.
   field({
     key: "integrations",
     label: "Integrations",
@@ -262,9 +222,7 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
       react: integrationLabel("react"),
     },
     default: [],
-    bits: 16,
     multi: true,
-    since: 1,
   }),
 ];
 
@@ -272,7 +230,7 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
 export function presetField<K extends PresetFieldKey>(
   key: K,
 ): PresetField<K, ValueOf<K>> {
-  const found = PRESET_FIELDS.find((each) => each.key === key);
+  const found = CONVENTION_FIELDS.find((each) => each.key === key);
 
   if (found === undefined) {
     throw new Error(`Unknown preset field ${key}`);
@@ -315,7 +273,7 @@ export type PresetScope = PresetConventions["scope"];
 
 export type PresetAccess = PresetConventions["access"];
 
-/** A block selection and its conventions: what a preset code encodes. */
+/** A block selection and its conventions. */
 export interface Preset extends PresetConventions {
   /**
    * Block names (`blocks` keys in the config), as selected; `resolvePreset`
@@ -323,9 +281,6 @@ export interface Preset extends PresetConventions {
    */
   readonly blocks: readonly string[];
 }
-
-/** The newest code version; `encodePreset` writes it. */
-export const PRESET_VERSION = 1;
 
 /** Every convention at its default. */
 export const DEFAULT_CONVENTIONS: PresetConventions = {

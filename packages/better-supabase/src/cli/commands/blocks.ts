@@ -32,7 +32,7 @@ const LIST_ARGS = {
   preset: {
     type: "string",
     description:
-      "The blocks and conventions of a preset name, a preset code or a /create URL",
+      "The blocks and conventions of a preset name, a design code or a /create URL",
     valueHint: "name|code|url",
   },
   "tests-dir": SQL_ARGS["tests-dir"],
@@ -213,7 +213,7 @@ export const blocksListCommand: AnyCommand = defineCliCommand({
     }
 
     if (args.preset !== undefined) {
-      return Promise.resolve(decodePresetInput(args.preset));
+      return decodePresetInput(args.preset);
     }
 
     return args.installed === true

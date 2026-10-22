@@ -5,11 +5,11 @@ import type { CreateDesign } from "../../src/preset/index.ts";
 import { checkDesign } from "../../src/create/index.ts";
 import {
   encodeDesign,
-  encodePreset,
+  presetSpec,
   namedPreset,
 } from "../../src/preset/index.ts";
 
-const SAAS = encodePreset(namedPreset("saas"));
+const SAAS = presetSpec(namedPreset("saas"));
 
 const DESIGN: CreateDesign = {
   appTables: {
@@ -26,7 +26,7 @@ describe("checkDesign", () => {
     expect(await checkDesign(code, SAAS)).toEqual(expected);
     expect(
       await checkDesign(
-        `https://app.bettersupabase.com/create?preset=${SAAS}&design=${code}`,
+        `https://app.bettersupabase.com/create?preset=saas&design=${code}`,
         "saas",
       ),
     ).toEqual(expected);
@@ -41,7 +41,7 @@ describe("checkDesign", () => {
           path: "/tables",
           table: "design",
           message:
-            'design: unknown key "tables"; a design has appTables, extraColumns and positions',
+            'design: unknown key "tables"; a design has preset, appTables, extraColumns and positions',
         },
       ],
     });
