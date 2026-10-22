@@ -79,6 +79,7 @@ import {
   SatelliteDishIcon,
   ScanSearchIcon,
   ScrollTextIcon,
+  ScaleIcon,
   SearchIcon,
   SendIcon,
   ServerIcon,
@@ -190,6 +191,7 @@ export const BLOCK_ICONS = {
   orders: ShoppingCartIcon,
   promotions: TicketPercentIcon,
   invoices: ReceiptIcon,
+  ledger: ScaleIcon,
   // Scheduling
   reminders: AlarmClockIcon,
   calendar: CalendarDaysIcon,

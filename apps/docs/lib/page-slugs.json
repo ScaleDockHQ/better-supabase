@@ -71,6 +71,7 @@
   "blocks/jobs",
   "blocks/knowledge",
   "blocks/leave",
+  "blocks/ledger",
   "blocks/memory",
   "blocks/metrics",
   "blocks/notifications",
