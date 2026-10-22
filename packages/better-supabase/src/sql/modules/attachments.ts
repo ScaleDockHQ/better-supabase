@@ -418,9 +418,9 @@ end;`;
         );
 
   const subjectReadableSql = subjectReadable(ctx, subjects, {
-    type: "subject_type",
-    id: "subject_id",
-    tenant: "tenant",
+    type: "attachment_subject_readable.subject_type",
+    id: "attachment_subject_readable.subject_id",
+    tenant: "attachment_subject_readable.tenant",
   });
 
   const cascades = subjectCascades(
@@ -540,14 +540,17 @@ grant all on ${t} to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
 -- without a subject pass; with options.subjects, an unlisted type fails.
+-- plpgsql, so a subject table a later module creates (messages) binds late.
 create or replace function ${fn("attachment_subject_readable")}(subject_type text, subject_id text, tenant ${id})
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select ${subjects.length === 0 ? "true" : `subject_type is null or ${subjectReadableSql}`}
+begin
+  return ${subjects.length === 0 ? "true" : `attachment_subject_readable.subject_type is null or ${subjectReadableSql}`};
+end;
 $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;

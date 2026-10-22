@@ -286,10 +286,7 @@ function deliveryHelper(ctx: ModuleContext, types: string): string | undefined {
     occurredAt: d("createdAt"),
   };
 
-  const activity = ctx.permission(
-    "activity",
-    moduleOperations("comments").activity,
-  );
+  const activity = ctx.permission("read", moduleOperations("activity").read);
 
   const send = ctx.permission("send", OPERATIONS["notifications.send"]);
   const signature = DELIVERIES_SIGNATURE(ctx);

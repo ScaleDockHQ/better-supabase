@@ -291,6 +291,7 @@ const entries = [
   "blocks/data-lifecycle/index",
   "blocks/attachments/index",
   "blocks/comments/index",
+  "blocks/activity/index",
   "blocks/flags/index",
   "blocks/billing/index",
   "blocks/billing/react/index",

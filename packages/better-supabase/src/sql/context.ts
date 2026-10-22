@@ -146,7 +146,7 @@ export interface ModuleNames {
   readonly options?: readonly string[];
   /**
    * The events the module records, typed against its block's event map
-   * (`ModuleEvents<CommentsEvents>`); `record` rejects any other type.
+   * (`ModuleEvents<MessagingEvents>`); `record` rejects any other type.
    */
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
   /**

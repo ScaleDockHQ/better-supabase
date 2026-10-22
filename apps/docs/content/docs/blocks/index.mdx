@@ -233,7 +233,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `usage`              | `tenant`, `access`                          | `entitlements`, `data-lifecycle`                                                                                                                 |
 | `billing`            | `tenant`, `access`                          | `organizations`                                                                                                                                  |
 | `flags`              | `tenant`                                    | `access`, `entitlements`                                                                                                                         |
-| `comments`           | `tenant`, `access`                          | `jsonb-schemas`, `notifications`, `profiles`, `subjects`, `audit`, `workflows`                                                                   |
+| `comments`           | `tenant`, `access`, `subjects`, `messaging` | `notifications`, `work-items`, `reactions`, `attachments`                                                                                        |
 | `attachments`        | `tenant`, `access`                          | `profiles`                                                                                                                                       |
 | `data-lifecycle`     | `tenant`, `access`                          | every installed module                                                                                                                           |
 | `sso`                | `tenant`, `access`                          | `organizations`, `data-lifecycle`                                                                                                                |
@@ -265,7 +265,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `share-links`        | `tenant`, `access`                          | `ai-chat`, `bookings`, `calendar`, `drive`, `forms`, `outbox`, `versions`                                                                        |
 | `reminders`          | `tenant`, `access`, `jobs`                  | `notifications`, `outbox`                                                                                                                        |
 | `imports`            | `tenant`, `access`, `jobs`                  | `attachments`, `outbox`                                                                                                                          |
-| `subjects`           | `access`                                    | `comments`, `attachments`                                                                                                                        |
+| `subjects`           | `access`                                    | `comments`, `messaging`, `attachments`                                                                                                           |
 | `rank`               | `access`, `subjects`                        | `jobs`                                                                                                                                           |
 | `saved-views`        | `tenant`, `access`                          | `outbox`, `teams`, `collections`                                                                                                                 |
 | `relations`          | `tenant`, `access`                          | `outbox`                                                                                                                                         |
@@ -276,7 +276,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `bookings`           | `tenant`, `access`                          | `jobs`, `share-links`, `rate-limit`, `calendar`, `reminders`, `outbox`                                                                           |
 | `versions`           | `tenant`, `access`                          | `outbox`, `audit`, `share-links`                                                                                                                 |
 | `trash`              | `tenant`, `access`                          | `outbox`, `audit`, `data-lifecycle`                                                                                                              |
-| `reactions`          | `tenant`, `access`                          | `outbox`, `comments`, `inbox`                                                                                                                    |
+| `reactions`          | `tenant`, `access`                          | `outbox`, `messaging`, `inbox`                                                                                                                   |
 | `approvals`          | `tenant`, `access`                          | `outbox`, `audit`, `notifications`, `jobs`, `teams`, `state-machine`, `access-requests`, `time-tracking`, `leave`, `ai-chat`, `support-sessions` |
 | `access-requests`    | `tenant`, `access`, `approvals`             | `outbox`, `audit`                                                                                                                                |
 | `documents`          | `tenant`, `access`                          | `outbox`, `audit`, `jobs`, `versions`                                                                                                            |
@@ -314,6 +314,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `vercel-marketplace` | none                                        | `outbox`, `audit`                                                                                                                                |
 | `messaging`          | `tenant`, `access`, `subjects`              | `notifications`, `jobs`, `profiles`, `attachments`, `reactions`, `data-lifecycle`                                                                |
 | `channels`           | `tenant`, `access`, `subjects`, `messaging` | `outbox`, `audit`, `data-lifecycle`                                                                                                              |
+| `activity`           | `tenant`, `access`                          | `notifications`, `subjects`, `audit`, `workflows`                                                                                                |
 | `ensure-rls`         | none                                        | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

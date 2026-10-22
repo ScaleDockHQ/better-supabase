@@ -128,6 +128,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > 20 then
     raise exception 'record_summary takes at most 20 sections'
@@ -331,6 +332,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > 20 then
     raise exception 'record_summary takes at most 20 sections'
@@ -340,15 +342,21 @@ begin
     return null;
   end if;
   if 'comments' = any (record_summary.sections) then
-    select count(*), max(x."created_at")
+    select count(*), max(x."sent_at")
       into v_count, v_latest
-      from "better_supabase"."comments" x
-      where x."subject_type"::text = record_summary.subject_type
-        and x."subject_id"::text = record_summary.subject_id
-        and x."deleted_at" is null;
+      from "better_supabase"."messages" x
+      join "better_supabase"."conversations" c on c."id" = x."conversation_id"
+        and c."kind" = 'subject'
+      where c."subject_type"::text = record_summary.subject_type
+        and c."subject_id"::text = record_summary.subject_id
+        and x."sent_at" is not null and x."deleted_at" is null;
+    v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
+        where c."kind" = 'subject'
+          and c."subject_type" = record_summary.subject_type
+          and c."subject_id" = record_summary.subject_id), record_summary.seen_at);
     v_counts := v_counts || jsonb_build_object('comments', v_count);
     v_unread := v_unread || jsonb_build_object('comments',
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;
   if 'attachments' = any (record_summary.sections) then
     select count(*), max(x."uploaded_at")
@@ -357,9 +365,10 @@ begin
       where x."subject_type"::text = record_summary.subject_type
         and x."subject_id"::text = record_summary.subject_id
         and x."uploaded_at" is not null and x."status" <> 'infected';
+    v_seen := record_summary.seen_at;
     v_counts := v_counts || jsonb_build_object('attachments', v_count);
     v_unread := v_unread || jsonb_build_object('attachments',
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;
   return jsonb_build_object(
     'type', record_summary.subject_type,
@@ -557,6 +566,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > 20 then
     raise exception 'record_summary takes at most 20 sections'
@@ -760,6 +770,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > 20 then
     raise exception 'record_summary takes at most 20 sections'

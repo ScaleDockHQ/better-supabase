@@ -24,6 +24,11 @@ export const messageInputSchema: EntitySchema<NewMessage> =
         optional: true,
         description: "A rich-text document (any JSON).",
       },
+      anchor: {
+        kind: "unknown",
+        optional: true,
+        description: "Where on the record a top-level message points.",
+      },
       mentionIds: { kind: "uuid", optional: true, array: true },
       parentId: { kind: "uuid", optional: true },
       broadcast: { kind: "boolean", optional: true },

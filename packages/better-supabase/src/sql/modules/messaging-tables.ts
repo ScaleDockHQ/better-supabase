@@ -29,13 +29,16 @@ export function conversationReadable(
     end)`;
 }
 
-/** The five tables, their policies and the thread and read triggers. */
-export function messagingTables(q: MessagingSql): string {
-  if (!q.ctx.manages) {
-    return "";
-  }
+interface TableDdl {
+  readonly conversations: string;
+  readonly members: string;
+  readonly messages: string;
+  readonly edits: string;
+  readonly reads: string;
+}
 
-  const { ctx, t, fn, id } = q;
+function tableDdl(q: MessagingSql): TableDdl {
+  const { ctx, t, id } = q;
   const cv = q.cols("conversations");
   const mb = q.cols("members");
   const ms = q.cols("messages");
@@ -43,11 +46,8 @@ export function messagingTables(q: MessagingSql): string {
   const rd = q.cols("reads");
   const idx = (name: string): string => ctx.naming.rename(name);
 
-  const policy = (table: string, suffix: string): string =>
-    `${ctx.tableName(table).name}_${suffix}`;
-
-  return `
-create table if not exists ${t("conversations")} (
+  return {
+    conversations: `create table if not exists ${t("conversations")} (
   ${cv("id")} uuid primary key default gen_random_uuid(),
   ${cv("tenant")} ${id} not null,
   ${cv("kind")} text not null check (${cv("kind")} in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
@@ -67,9 +67,8 @@ create table if not exists ${t("conversations")} (
 create unique index if not exists ${idx("messaging_conversations_subject_idx")} on ${t("conversations")} (${cv("tenant")}, ${cv("subjectType")}, ${cv("subjectId")}) where ${cv("kind")} = 'subject';
 create unique index if not exists ${idx("messaging_conversations_member_key_idx")} on ${t("conversations")} (${cv("tenant")}, ${cv("kind")}, ${cv("memberKey")}) where ${cv("memberKey")} is not null;
 create index if not exists ${idx("messaging_conversations_list_idx")} on ${t("conversations")} (${cv("tenant")}, ${cv("lastMessageAt")} desc nulls last, ${cv("id")});
-${lockTable(t("conversations"), { read: true })}
-
-create table if not exists ${t("members")} (
+${lockTable(t("conversations"), { read: true })}`,
+    members: `create table if not exists ${t("members")} (
   ${mb("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
   ${mb("tenant")} ${id} not null,
   ${mb("user")} uuid not null,
@@ -80,7 +79,107 @@ create table if not exists ${t("members")} (
   primary key (${mb("conversation")}, ${mb("user")})
 );
 create index if not exists ${idx("messaging_members_user_idx")} on ${t("members")} (${mb("user")}, ${mb("tenant")});
-${lockTable(t("members"), { read: true })}
+${lockTable(t("members"), { read: true })}`,
+    messages: `create table if not exists ${t("messages")} (
+  ${ms("id")} uuid primary key default gen_random_uuid(),
+  ${ms("tenant")} ${id} not null,
+  ${ms("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
+  ${ms("parent")} uuid references ${t("messages")} (${ms("id")}) on delete set null,
+  ${ms("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
+  ${ms("author")} uuid,
+  ${ms("body")} text not null default '' check (length(${ms("body")}) <= ${String(q.maxBody)}),
+  ${ms("document")} jsonb,
+  ${ms("anchor")} jsonb,
+  ${ms("mentions")} uuid[] not null default '{}',
+  ${ms("mentionScope")} text check (${ms("mentionScope")} in ('channel', 'here')),
+  ${ms("broadcast")} boolean not null default false,
+  ${ms("replyCount")} integer not null default 0,
+  ${ms("lastReplyAt")} timestamptz,
+  ${ms("replyUsers")} uuid[] not null default '{}',
+  ${ms("pinnedAt")} timestamptz,
+  ${ms("pinnedBy")} uuid,
+  ${ms("resolvedAt")} timestamptz,
+  ${ms("resolvedBy")} uuid,
+  ${ms("scheduledFor")} timestamptz,
+  ${ms("sentAt")} timestamptz,
+  ${ms("editedAt")} timestamptz,
+  ${ms("deletedAt")} timestamptz,
+  ${ms("createdAt")} timestamptz not null default now(),
+  check ((${ms("thread")} is null) = (${ms("parent")} is null))
+);
+create index if not exists ${idx("messaging_messages_conversation_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is null or ${ms("broadcast")};
+create index if not exists ${idx("messaging_messages_thread_idx")} on ${t("messages")} (${ms("thread")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is not null;
+create index if not exists ${idx("messaging_messages_parent_idx")} on ${t("messages")} (${ms("parent")}) where ${ms("parent")} is not null;
+create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messages")} (${ms("author")});
+create index if not exists ${idx("messaging_messages_due_idx")} on ${t("messages")} (${ms("scheduledFor")}) where ${ms("sentAt")} is null;
+create index if not exists ${idx("messaging_messages_pinned_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("pinnedAt")} desc) where ${ms("pinnedAt")} is not null;${addExtraColumns(t("messages"), ctx.extraColumns("messages", MESSAGE_RESERVED))}
+${lockTable(t("messages"), { read: true })}`,
+    edits: `create table if not exists ${t("edits")} (
+  ${ed("id")} uuid primary key default gen_random_uuid(),
+  ${ed("tenant")} ${id} not null,
+  ${ed("message")} uuid not null references ${t("messages")} (${ms("id")}) on delete cascade,
+  ${ed("body")} text not null,
+  ${ed("document")} jsonb,
+  ${ed("editor")} uuid,
+  ${ed("editedAt")} timestamptz not null default now()
+);
+create index if not exists ${idx("messaging_edits_message_idx")} on ${t("edits")} (${ed("message")}, ${ed("editedAt")});
+${lockTable(t("edits"), { read: true })}`,
+    reads: `create table if not exists ${t("reads")} (
+  ${rd("tenant")} ${id} not null,
+  ${rd("user")} uuid not null,
+  ${rd("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
+  ${rd("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
+  ${rd("lastReadAt")} timestamptz not null default now(),
+  unique nulls not distinct (${rd("user")}, ${rd("conversation")}, ${rd("thread")})
+);
+create index if not exists ${idx("messaging_reads_conversation_idx")} on ${t("reads")} (${rd("conversation")});
+create index if not exists ${idx("messaging_reads_thread_idx")} on ${t("reads")} (${rd("thread")});
+${lockTable(t("reads"), { read: true })}`,
+  };
+}
+
+/**
+ * The five tables and their indexes, without policies, functions or triggers,
+ * for an upgrade step that fills them before the module file runs.
+ */
+export function messagingTableDdl(q: MessagingSql): string {
+  if (!q.ctx.manages) {
+    return "";
+  }
+
+  const ddl = tableDdl(q);
+
+  return [
+    ddl.conversations,
+    ddl.members,
+    ddl.messages,
+    ddl.edits,
+    ddl.reads,
+  ].join("\n\n");
+}
+
+/** The five tables, their policies and the thread and read triggers. */
+export function messagingTables(q: MessagingSql): string {
+  if (!q.ctx.manages) {
+    return "";
+  }
+
+  const { ctx, t, fn } = q;
+  const ddl = tableDdl(q);
+  const cv = q.cols("conversations");
+  const mb = q.cols("members");
+  const ms = q.cols("messages");
+  const ed = q.cols("edits");
+  const rd = q.cols("reads");
+
+  const policy = (table: string, suffix: string): string =>
+    `${ctx.tableName(table).name}_${suffix}`;
+
+  return `
+${ddl.conversations}
+
+${ddl.members}
 
 -- Membership for the conversation policy. It runs as its owner, because the
 -- members policy reads conversations and would call it again.
@@ -110,39 +209,7 @@ using (
   or exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${mb("conversation")})
 );
 
-create table if not exists ${t("messages")} (
-  ${ms("id")} uuid primary key default gen_random_uuid(),
-  ${ms("tenant")} ${id} not null,
-  ${ms("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
-  ${ms("parent")} uuid references ${t("messages")} (${ms("id")}) on delete set null,
-  ${ms("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
-  ${ms("author")} uuid,
-  ${ms("body")} text not null default '' check (length(${ms("body")}) <= ${String(q.maxBody)}),
-  ${ms("document")} jsonb,
-  ${ms("mentions")} uuid[] not null default '{}',
-  ${ms("mentionScope")} text check (${ms("mentionScope")} in ('channel', 'here')),
-  ${ms("broadcast")} boolean not null default false,
-  ${ms("replyCount")} integer not null default 0,
-  ${ms("lastReplyAt")} timestamptz,
-  ${ms("replyUsers")} uuid[] not null default '{}',
-  ${ms("pinnedAt")} timestamptz,
-  ${ms("pinnedBy")} uuid,
-  ${ms("resolvedAt")} timestamptz,
-  ${ms("resolvedBy")} uuid,
-  ${ms("scheduledFor")} timestamptz,
-  ${ms("sentAt")} timestamptz,
-  ${ms("editedAt")} timestamptz,
-  ${ms("deletedAt")} timestamptz,
-  ${ms("createdAt")} timestamptz not null default now(),
-  check ((${ms("thread")} is null) = (${ms("parent")} is null))
-);
-create index if not exists ${idx("messaging_messages_conversation_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is null or ${ms("broadcast")};
-create index if not exists ${idx("messaging_messages_thread_idx")} on ${t("messages")} (${ms("thread")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is not null;
-create index if not exists ${idx("messaging_messages_parent_idx")} on ${t("messages")} (${ms("parent")}) where ${ms("parent")} is not null;
-create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messages")} (${ms("author")});
-create index if not exists ${idx("messaging_messages_due_idx")} on ${t("messages")} (${ms("scheduledFor")}) where ${ms("sentAt")} is null;
-create index if not exists ${idx("messaging_messages_pinned_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("pinnedAt")} desc) where ${ms("pinnedAt")} is not null;${addExtraColumns(t("messages"), ctx.extraColumns("messages", MESSAGE_RESERVED))}
-${lockTable(t("messages"), { read: true })}
+${ddl.messages}
 
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
@@ -153,17 +220,7 @@ using (
   and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})
 );
 
-create table if not exists ${t("edits")} (
-  ${ed("id")} uuid primary key default gen_random_uuid(),
-  ${ed("tenant")} ${id} not null,
-  ${ed("message")} uuid not null references ${t("messages")} (${ms("id")}) on delete cascade,
-  ${ed("body")} text not null,
-  ${ed("document")} jsonb,
-  ${ed("editor")} uuid,
-  ${ed("editedAt")} timestamptz not null default now()
-);
-create index if not exists ${idx("messaging_edits_message_idx")} on ${t("edits")} (${ed("message")}, ${ed("editedAt")});
-${lockTable(t("edits"), { read: true })}
+${ddl.edits}
 
 drop policy if exists ${policy("edits", "read")} on ${t("edits")};
 create policy ${policy("edits", "read")} on ${t("edits")} for select to authenticated
@@ -172,17 +229,7 @@ using (exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${ed("mess
 -- Where a user has read to, per conversation (thread null) or per thread
 -- root. Members keep the conversation marker on their member row too; a
 -- record's thread has no members, so its readers keep it here.
-create table if not exists ${t("reads")} (
-  ${rd("tenant")} ${id} not null,
-  ${rd("user")} uuid not null,
-  ${rd("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
-  ${rd("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
-  ${rd("lastReadAt")} timestamptz not null default now(),
-  unique nulls not distinct (${rd("user")}, ${rd("conversation")}, ${rd("thread")})
-);
-create index if not exists ${idx("messaging_reads_conversation_idx")} on ${t("reads")} (${rd("conversation")});
-create index if not exists ${idx("messaging_reads_thread_idx")} on ${t("reads")} (${rd("thread")});
-${lockTable(t("reads"), { read: true })}
+${ddl.reads}
 
 drop policy if exists ${policy("reads", "read")} on ${t("reads")};
 create policy ${policy("reads", "read")} on ${t("reads")} for select to authenticated

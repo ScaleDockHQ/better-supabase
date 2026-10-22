@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { AnyModels } from "../../../src/schema/types.ts";
-
+import { commentOf } from "../../../src/blocks/comments/comments.ts";
 import {
-  activityListQuery,
-  activitySink,
   createComments,
   mentionsIn,
 } from "../../../src/blocks/comments/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
-import { defineSchema } from "../../../src/schema/define.ts";
 
 const ADA = "8c5a3d3e-0000-4000-8000-000000000001";
 const BOB = "8c5a3d3e-0000-4000-8000-000000000002";
@@ -18,16 +13,21 @@ const PROJECT = { type: "project", id: "p1" };
 
 const row = {
   id: "c1",
-  organization_id: "org-1",
+  tenant_id: "org-1",
+  conversation_id: "conv-1",
   subject_type: "project",
   subject_id: "p1",
   author_id: ADA,
   body: "Hello",
   mentions: [BOB],
   parent_id: null,
+  thread_id: null,
+  anchor: null,
+  sent_at: "2026-10-06T12:00:00Z",
   created_at: "2026-10-06T12:00:00Z",
   edited_at: null,
   deleted_at: null,
+  task_id: null,
 };
 
 function fakeTransport(results: Record<string, unknown>) {
@@ -62,6 +62,23 @@ describe("mentionsIn", () => {
   });
 });
 
+describe("commentOf", () => {
+  it("reads a message with its record and work item", () => {
+    expect(
+      commentOf({ ...row, task_id: "w1", anchor: { from: 1, to: 4 } }),
+    ).toMatchObject({
+      id: "c1",
+      organizationId: "org-1",
+      conversationId: "conv-1",
+      subject: PROJECT,
+      mentionIds: [BOB],
+      anchor: { from: 1, to: 4 },
+      taskId: "w1",
+    });
+    expect(commentOf(row).taskId).toBeUndefined();
+  });
+});
+
 describe("createComments", () => {
   it("creates with the mentions from the body unless given", async () => {
     const fake = fakeTransport({ create_comment: row });
@@ -80,14 +97,19 @@ describe("createComments", () => {
       id: "c1",
       subject: PROJECT,
       authorId: ADA,
-      author: undefined,
-      mentions: [BOB],
+      mentionIds: [BOB],
       parentId: undefined,
       editedAt: undefined,
     });
-    expect(comment.createdAt.toString()).toBe("2026-10-06T12:00:00Z");
+    expect(comment.sentAt?.toString()).toBe("2026-10-06T12:00:00Z");
     await comments
-      .create(PROJECT, { body: "Reply", mentions: [], parentId: "c0" })
+      .create(PROJECT, {
+        body: "Reply",
+        mentionIds: [],
+        parentId: "c0",
+        anchor: { field: "title" },
+        attachmentIds: ["f1"],
+      })
       .orThrow();
     expect(fake.calls).toEqual([
       [
@@ -98,8 +120,8 @@ describe("createComments", () => {
           subject_type: "project",
           subject_id: "p1",
           body: `Hello @[Bob](${BOB})`,
-          mentions: [BOB],
-          parent: undefined,
+          attrs: { mentions: [BOB] },
+          attachments: [],
         },
       ],
       [
@@ -110,152 +132,189 @@ describe("createComments", () => {
           subject_type: "project",
           subject_id: "p1",
           body: "Reply",
-          mentions: [],
-          parent: "c0",
+          attrs: { mentions: [], parentId: "c0", anchor: { field: "title" } },
+          attachments: ["f1"],
         },
       ],
     ]);
   });
 
-  it("edits, or returns not_found for a comment the caller can't edit", async () => {
+  it("edits through the messaging core and reads the comment back", async () => {
     const edited = { ...row, edited_at: "2026-10-06T12:05:00Z" };
-    const ok = fakeTransport({ edit_comment: edited });
+    const fake = fakeTransport({ edit_message: {}, get_comment: edited });
 
-    const comment = await createComments({ transport: ok.transport })
-      .edit("c1", { body: "Changed" })
+    const comments = createComments({
+      transport: fake.transport,
+      mentionsOf: ({ document }) => (document ? [ADA] : []),
+    });
+
+    const comment = await comments
+      .edit("c1", { body: "Changed", document: { type: "doc" } })
       .orThrow();
 
     expect(comment.editedAt?.toString()).toBe("2026-10-06T12:05:00Z");
-    expect(ok.calls[0]).toEqual([
-      "better_supabase",
-      "edit_comment",
-      { id: "c1", body: "Changed", mentions: [] },
+    expect(fake.calls).toEqual([
+      [
+        "better_supabase",
+        "edit_message",
+        {
+          message: "c1",
+          body: "Changed",
+          attrs: { mentions: [ADA], document: { type: "doc" } },
+        },
+      ],
+      ["better_supabase", "get_comment", { message: "c1" }],
     ]);
+  });
 
-    const none = fakeTransport({ edit_comment: null });
+  it("returns not_found for a comment the caller can't read", async () => {
+    const fake = fakeTransport({ get_comment: null });
+
     expect(
-      await createComments({ transport: none.transport }).edit("c9", {
-        body: "x",
-        mentions: [ADA],
-      }),
+      await createComments({ transport: fake.transport }).get("c9"),
     ).toMatchObject({
       ok: false,
       error: { kind: "not_found", hint: "COMMENT_NOT_FOUND" },
     });
   });
 
-  it("takes mentions from mentionsOf, copies threads and lists a timeline", async () => {
+  it("resolves, pins, lists edits and removes", async () => {
     const fake = fakeTransport({
-      create_comment: { ...row, document: { type: "doc" } },
-      edit_comment: row,
-      copy_comments: 3,
-      list_activity: [
+      resolve_message: {},
+      pin_message: {},
+      get_comment: { ...row, resolved_at: "2026-10-06T13:00:00Z" },
+      list_message_edits: [
         {
-          id: "a1",
-          organization_id: "org-1",
-          type: "quote.sent",
-          actor_id: ADA,
-          subject_type: "quote",
-          subject_id: "q1",
-          summary: "Sent",
-          data: { total: 10 },
-          occurred_at: "2026-10-06T12:00:00Z",
-        },
-        {
-          id: "a2",
-          organization_id: "org-1",
-          type: "quote.created",
-          actor_id: null,
-          subject_type: null,
-          subject_id: null,
-          summary: null,
-          data: null,
-          occurred_at: "2026-10-06T11:00:00Z",
-        },
-        {
-          id: "42",
-          source: "audit",
-          organization_id: "org-1",
-          event_id: null,
-          type: "quotes.updated",
-          actor_id: ADA,
-          subject_type: "quote",
-          subject_id: "q1",
-          summary: null,
-          data: { op: "update", changed: ["total"], table: "public.quotes" },
-          occurred_at: "2026-10-06T10:00:00Z",
+          id: "e1",
+          message_id: "c1",
+          body: "Helo",
+          edited_by: ADA,
+          edited_at: "2026-10-06T12:05:00Z",
         },
       ],
+      delete_message: true,
+    });
+
+    const comments = createComments({ transport: fake.transport });
+
+    expect(
+      (await comments.resolve("c1").orThrow()).resolvedAt?.toString(),
+    ).toBe("2026-10-06T13:00:00Z");
+    await comments.resolve("c1", false).orThrow();
+    await comments.pin("c1").orThrow();
+    await comments.pin("c1", false).orThrow();
+    expect(await comments.edits("c1").orThrow()).toMatchObject([
+      { id: "e1", messageId: "c1", body: "Helo", editedBy: ADA },
+    ]);
+    expect(await comments.remove("c1").orThrow()).toBe(true);
+    expect(
+      fake.calls
+        .filter(([, fn]) => fn !== "get_comment")
+        .map(([, fn, args]) => [fn, args]),
+    ).toEqual([
+      ["resolve_message", { message: "c1", resolved: true }],
+      ["resolve_message", { message: "c1", resolved: false }],
+      ["pin_message", { message: "c1", pinned: true }],
+      ["pin_message", { message: "c1", pinned: false }],
+      ["list_message_edits", { message: "c1" }],
+      ["delete_message", { message: "c1" }],
+    ]);
+  });
+
+  it("turns a comment into a work item", async () => {
+    const fake = fakeTransport({ assign_comment: "w1" });
+
+    const comments = createComments({ transport: fake.transport });
+
+    expect(
+      await comments
+        .assign("c1", {
+          assigneeId: BOB,
+          title: "Fix it",
+          attrs: { priority: "high" },
+        })
+        .orThrow(),
+    ).toBe("w1");
+    await comments.assign("c1").orThrow();
+    expect(fake.calls.map(([, , args]) => args)).toEqual([
+      {
+        message: "c1",
+        assignee: BOB,
+        attrs: { priority: "high", title: "Fix it" },
+      },
+      { message: "c1", assignee: null, attrs: {} },
+    ]);
+
+    const empty = fakeTransport({ assign_comment: null });
+    expect(
+      await createComments({ transport: empty.transport }).assign("c1"),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("finds or opens the record's conversation and moves the read marker", async () => {
+    const fake = fakeTransport({
+      comment_conversation: "conv-1",
+      open_conversation: { id: "conv-1" },
+      mark_read: "2026-10-06T14:00:00Z",
     });
 
     const comments = createComments({
       transport: fake.transport,
       tenant: "org-1",
-      mentionsOf: ({ document }) => (document ? [ADA] : []),
     });
 
-    const created = await comments
-      .create(PROJECT, { body: "Hi", document: { type: "doc" } })
-      .orThrow();
-
-    expect(created.document).toEqual({ type: "doc" });
-    expect(fake.calls[0]![2]).toMatchObject({
-      mentions: [ADA],
-      document: { type: "doc" },
-    });
-    await comments.edit("c1", { body: "x", document: null }).orThrow();
-    expect(fake.calls[1]![2]).toMatchObject({
-      clear_document: true,
-      mentions: [],
-    });
+    expect(await comments.conversation(PROJECT).orThrow()).toBe("conv-1");
+    expect(await comments.conversation(PROJECT, { open: true }).orThrow()).toBe(
+      "conv-1",
+    );
     expect(
-      await comments
-        .copy({ type: "quote", id: "q1" }, { type: "invoice", id: "i1" })
+      (
+        await comments
+          .markRead(PROJECT, {
+            readAt: Temporal.Instant.from("2026-10-06T14:00:00Z"),
+          })
+          .orThrow()
+      )?.toString(),
+    ).toBe("2026-10-06T14:00:00Z");
+    expect(fake.calls.map(([, fn, args]) => [fn, args])).toEqual([
+      [
+        "comment_conversation",
+        { tenant: "org-1", subject_type: "project", subject_id: "p1" },
+      ],
+      [
+        "open_conversation",
+        {
+          tenant: "org-1",
+          kind: "subject",
+          attrs: { subjectType: "project", subjectId: "p1" },
+          members: [],
+        },
+      ],
+      [
+        "comment_conversation",
+        { tenant: "org-1", subject_type: "project", subject_id: "p1" },
+      ],
+      [
+        "mark_read",
+        {
+          conversation: "conv-1",
+          thread: null,
+          read_at: "2026-10-06T14:00:00Z",
+        },
+      ],
+    ]);
+
+    const none = fakeTransport({ comment_conversation: null });
+    expect(
+      await createComments({ transport: none.transport, tenant: "org-1" })
+        .markRead(PROJECT)
         .orThrow(),
-    ).toBe(3);
-    expect(fake.calls[2]![2]).toEqual({
-      tenant: "org-1",
-      from_type: "quote",
-      from_id: "q1",
-      to_type: "invoice",
-      to_id: "i1",
-    });
-
-    const history = await comments
-      .history(
-        { type: "quote", id: "q1" },
-        { cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"), limit: 2 },
-      )
-      .orThrow();
-
-    expect(history[0]).toMatchObject({
-      source: "event",
-      type: "quote.sent",
-      actorId: ADA,
-      subject: { type: "quote", id: "q1" },
-      data: { total: 10 },
-    });
-    expect(history[1]).toMatchObject({
-      actorId: undefined,
-      subject: undefined,
-      data: {},
-    });
-    expect(history[2]).toMatchObject({
-      id: "42",
-      source: "audit",
-      type: "quotes.updated",
-      data: { op: "update", changed: ["total"] },
-    });
-    expect(fake.calls[3]![2]).toMatchObject({
-      subject_type: "quote",
-      before: "2026-10-07T00:00:00Z",
-      max_rows: 2,
-    });
+    ).toBeUndefined();
+    expect(none.calls).toHaveLength(1);
   });
 
-  it("removes and lists a thread", async () => {
+  it("lists a thread with deleted comments as placeholders", async () => {
     const fake = fakeTransport({
-      delete_comment: true,
       list_comments: [
         row,
         { ...row, id: "c2", body: null, deleted_at: "2026-10-06T13:00:00Z" },
@@ -267,11 +326,10 @@ describe("createComments", () => {
       tenant: "org-1",
     });
 
-    expect(await comments.remove("c1").orThrow()).toBe(true);
-
     const thread = await comments
       .list(PROJECT, {
         cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
+        cursorId: "c0",
         limit: 20,
       })
       .orThrow();
@@ -281,7 +339,7 @@ describe("createComments", () => {
       ["c2", ""],
     ]);
     expect(thread[1]?.deletedAt).toBeDefined();
-    expect(fake.calls[1]).toEqual([
+    expect(fake.calls[0]).toEqual([
       "better_supabase",
       "list_comments",
       {
@@ -291,33 +349,16 @@ describe("createComments", () => {
         after: "2026-10-06T00:00:00Z",
         max_rows: 20,
         skip: undefined,
-        after_id: undefined,
+        after_id: "c0",
       },
     ]);
   });
 
-  it("passes the last comment's id with the cursor", async () => {
-    const fake = fakeTransport({ list_comments: [] });
-
-    const comments = createComments({
-      transport: fake.transport,
-      tenant: "org-1",
-    });
-
-    await comments.list(PROJECT, {
-      cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
-      cursorId: "c1",
-    });
-    expect(fake.calls[0]![2]).toMatchObject({
-      after: "2026-10-06T00:00:00Z",
-      after_id: "c1",
-    });
-  });
-
-  it("pages by offset and counts comments per subject", async () => {
+  it("pages by offset, counts comments per subject and copies a thread", async () => {
     const fake = fakeTransport({
       list_comments: [],
       comment_counts: { p1: 3, p9: "2" },
+      copy_comments: 3,
     });
 
     const comments = createComments({
@@ -341,6 +382,18 @@ describe("createComments", () => {
         subject_ids: ["p1", "p2", "p9"],
       },
     ]);
+    expect(
+      await comments
+        .copy({ type: "quote", id: "q1" }, { type: "invoice", id: "i1" })
+        .orThrow(),
+    ).toBe(3);
+    expect(fake.calls[2]![2]).toEqual({
+      tenant: "org-1",
+      from_type: "quote",
+      from_id: "q1",
+      to_type: "invoice",
+      to_id: "i1",
+    });
   });
 
   it("fails without a tenant and reads the author from the row", async () => {
@@ -374,7 +427,7 @@ describe("createComments", () => {
 
   it("maps database errors to DbError", async () => {
     const fake = fakeTransport({
-      delete_comment: Object.assign(new Error("permission denied"), {
+      delete_message: Object.assign(new Error("permission denied"), {
         code: "42501",
       }),
     });
@@ -382,205 +435,5 @@ describe("createComments", () => {
     expect(
       await createComments({ transport: fake.transport }).remove("c1"),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
-  });
-});
-
-describe("activitySink", () => {
-  const event = (patch: Record<string, unknown>) => ({
-    specversion: "1.0" as const,
-    id: "evt-1",
-    source: "https://app.test",
-    type: "dev.better-supabase.comment.created",
-    time: "2026-10-06T12:00:00Z",
-    partitionkey: "org-1",
-    subject: "comments/c1",
-    data: { commentId: "c1", authorId: ADA },
-    ...patch,
-  });
-
-  it("records tenant events with their actor and subject, once per batch", async () => {
-    const fake = fakeTransport({ record_activity: 2 });
-    await activitySink({ transport: fake.transport }).send([
-      event({}),
-      event({
-        id: "evt-2",
-        type: "app.project.archived",
-        subject: undefined,
-        data: { subjectType: "project", subjectId: "p1", actorId: BOB },
-      }),
-      event({ id: "evt-3", partitionkey: undefined }),
-      event({ id: "evt-4", subject: "loose", data: "text", type: "x" }),
-    ]);
-    expect(fake.calls).toEqual([
-      [
-        "better_supabase",
-        "record_activity",
-        {
-          batch: {
-            entries: [
-              {
-                event_id: "evt-1",
-                organization_id: "org-1",
-                type: "comment.created",
-                actor_id: ADA,
-                subject_type: "comment",
-                subject_id: "c1",
-                summary: undefined,
-                data: { commentId: "c1", authorId: ADA },
-                occurred_at: "2026-10-06T12:00:00Z",
-              },
-              {
-                event_id: "evt-2",
-                organization_id: "org-1",
-                type: "app.project.archived",
-                actor_id: BOB,
-                subject_type: "project",
-                subject_id: "p1",
-                summary: undefined,
-                data: { subjectType: "project", subjectId: "p1", actorId: BOB },
-                occurred_at: "2026-10-06T12:00:00Z",
-              },
-              {
-                event_id: "evt-4",
-                organization_id: "org-1",
-                type: "x",
-                actor_id: undefined,
-                subject_type: undefined,
-                subject_id: undefined,
-                summary: undefined,
-                data: {},
-                occurred_at: "2026-10-06T12:00:00Z",
-              },
-            ],
-          },
-        },
-      ],
-    ]);
-  });
-
-  it("filters by type and lets describe() summarize or skip", async () => {
-    const fake = fakeTransport({ record_activity: 1 });
-
-    const sink = activitySink({
-      transport: fake.transport,
-      schema: "app",
-      typePrefix: "com.acme",
-      types: ["comment.*", "invoice.paid"],
-      describe: (cloud, type) =>
-        cloud.id === "evt-2"
-          ? null
-          : {
-              summary: `${type} by Ada`,
-              actorId: ADA,
-              subjectType: "thread",
-              subjectId: "t1",
-              data: { x: 1 },
-            },
-    });
-
-    await sink.send([
-      event({ type: "com.acme.comment.created" }),
-      event({ id: "evt-2", type: "com.acme.comment.deleted" }),
-      event({ id: "evt-3", type: "com.acme.invoice.voided" }),
-    ]);
-    expect(fake.calls).toEqual([
-      [
-        "app",
-        "record_activity",
-        {
-          batch: {
-            entries: [
-              {
-                event_id: "evt-1",
-                organization_id: "org-1",
-                type: "comment.created",
-                actor_id: ADA,
-                subject_type: "thread",
-                subject_id: "t1",
-                summary: "comment.created by Ada",
-                data: { x: 1 },
-                occurred_at: "2026-10-06T12:00:00Z",
-              },
-            ],
-          },
-        },
-      ],
-    ]);
-    await sink.send([event({ id: "evt-5", type: "com.acme.invoice.voided" })]);
-    expect(fake.calls).toHaveLength(1);
-  });
-});
-
-describe("activityListQuery", () => {
-  const column = (db: string, type: string, nullable = true) => ({
-    db,
-    type,
-    nullable,
-    hasDefault: false,
-  });
-
-  const table = (casing: "camel" | "snake") => {
-    const name = (snake: string, camel: string) =>
-      casing === "camel" ? camel : snake;
-
-    return defineSupabase(
-      defineSchema<AnyModels>({
-        version: 1,
-        casing,
-        tables: {
-          activity: {
-            key: "activity",
-            name: "activity_entries",
-            schema: "better_supabase",
-            kind: "table",
-            columns: {
-              id: column("id", "uuid", false),
-              type: column("type", "text", false),
-              [name("actor_id", "actorId")]: column("actor_id", "uuid"),
-              [name("subject_type", "subjectType")]: column(
-                "subject_type",
-                "text",
-              ),
-              [name("occurred_at", "occurredAt")]: column(
-                "occurred_at",
-                "timestamptz",
-                false,
-              ),
-            },
-            primaryKey: ["id"],
-            uniqueKeys: {},
-            relations: {},
-            flags: {},
-          },
-        },
-        functions: {},
-      } as never),
-    );
-  };
-
-  it("pages newest first by the facets the table has, in either casing", () => {
-    for (const casing of ["camel", "snake"] as const) {
-      const list = activityListQuery(table(casing), "activity", {
-        pageSize: 25,
-        maxPageSize: 50,
-      });
-
-      expect(list.facets.map((facet) => facet.key)).toEqual([
-        "type",
-        "actor",
-        "subjectType",
-      ]);
-      const query = list.parse({});
-      expect(query.ok).toBe(true);
-      const occurredAt = casing === "camel" ? "occurredAt" : "occurred_at";
-      expect(list.args(query.value!)).toMatchObject({
-        orderBy: [{ [occurredAt]: "desc" }, { id: "desc" }],
-        size: 25,
-      });
-    }
-
-    expect(() => activityListQuery(table("camel"), "missing")).toThrow(
-      /unknown table "missing"/,
-    );
   });
 });

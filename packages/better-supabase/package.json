@@ -516,6 +516,11 @@
       "types": "./dist/blocks/flags/index.d.ts",
       "default": "./dist/blocks/flags/index.js"
     },
+    "./blocks/activity": {
+      "@better-supabase/source": "./src/blocks/activity/index.ts",
+      "types": "./dist/blocks/activity/index.d.ts",
+      "default": "./dist/blocks/activity/index.js"
+    },
     "./blocks/comments": {
       "@better-supabase/source": "./src/blocks/comments/index.ts",
       "types": "./dist/blocks/comments/index.d.ts",
@@ -1966,6 +1971,10 @@
       "./blocks/flags": {
         "types": "./dist/blocks/flags/index.d.ts",
         "default": "./dist/blocks/flags/index.js"
+      },
+      "./blocks/activity": {
+        "types": "./dist/blocks/activity/index.d.ts",
+        "default": "./dist/blocks/activity/index.js"
       },
       "./blocks/comments": {
         "types": "./dist/blocks/comments/index.d.ts",

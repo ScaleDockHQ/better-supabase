@@ -87,18 +87,18 @@ function topicOf(ctx: ModuleContext): string {
 }
 
 /**
- * The module's subjects. Comments always join them when the comments module is
- * installed, under the comment entity's subject type, even when
- * `options.subjects` lists other types.
+ * The module's subjects. Messages (and so comments) always join them when the
+ * messaging module is installed, under the message entity's subject type, even
+ * when `options.subjects` lists other types.
  */
 function reactionSubjects(ctx: ModuleContext): readonly [string, Subject][] {
-  const comments =
-    ctx.installed("comments") && ctx.of("comments").mode !== "custom"
-      ? ctx.of("comments").table("comments").replaceAll('"', "")
+  const messages =
+    ctx.installed("messaging") && ctx.of("messaging").mode !== "custom"
+      ? ctx.of("messaging").table("messages").replaceAll('"', "")
       : undefined;
 
   return subjectsOption(ctx, ["deletedAt"], {
-    always: (entry) => entry.table === comments,
+    always: (entry) => entry.table === messages,
   });
 }
 
@@ -250,15 +250,18 @@ create policy "custom_emoji_read" on ${emojiTable} for select to authenticated
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function ${visible}(subject_type text, subject_id text, tenant ${ctx.idType})
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select ${visibleCase(ctx, { type: "reaction_subject_visible.subject_type", id: "reaction_subject_visible.subject_id", tenant: "reaction_subject_visible.tenant" })}
+begin
+  return ${visibleCase(ctx, { type: "reaction_subject_visible.subject_type", id: "reaction_subject_visible.subject_id", tenant: "reaction_subject_visible.tenant" })};
+end;
 $$;
 revoke execute on function ${visible}(text, text, ${ctx.idType}) from public, anon;
 grant execute on function ${visible}(text, text, ${ctx.idType}) to authenticated, service_role;
@@ -528,9 +531,9 @@ export const REACTIONS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Reactions",
   description:
-    "Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.",
+    "Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "comments", "inbox"],
+  integrates: ["outbox", "messaging", "inbox"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

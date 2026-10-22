@@ -346,7 +346,6 @@ export type {
   CollaborationEventData,
   CollectionEntryEventData,
   CollectionEventData,
-  CommentEventData,
   CommerceEventData,
   ApplicationEventData,
   EmployeeEventData,

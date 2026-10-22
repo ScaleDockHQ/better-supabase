@@ -9,18 +9,21 @@ import type { Comment, CommentEdit, Comments, NewComment } from "./comments.ts";
 import { dbError } from "../../core/errors.ts";
 import { err } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
+import { conversationTopic } from "../messaging/messaging.ts";
 
 export interface CommentsControllerOptions {
-  readonly client: Pick<Comments, "list" | "create" | "edit" | "remove">;
+  readonly client: Pick<
+    Comments,
+    "list" | "create" | "edit" | "remove" | "resolve" | "pin" | "conversation"
+  >;
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
   /** The subject whose thread to follow; the thread waits without one. */
   readonly subject: SubjectRef | null;
   /**
-   * A private topic that hears of new comments on the subject, such as a
-   * `realtime-tables` topic on the comments table. Each message loads the
-   * thread again. Default `null`: the thread loads again after its own writes
-   * only.
+   * `blocks.messaging.options.topic`, default `messages`: the thread joins the
+   * record conversation's private topic and loads again for each ping. `null`
+   * turns Realtime off, so the thread loads again after its own writes only.
    */
   readonly topic?: string | null;
   /** The most comments to load, default 100, at most 500. */
@@ -37,11 +40,8 @@ export interface CommentsSnapshot {
   readonly error: DbError | undefined;
 }
 
-/** A reply, a rich-text document or explicit mentions for `add`. */
-export type CommentDraft = Pick<
-  NewComment,
-  "document" | "mentions" | "parentId"
->;
+/** A reply, a rich-text document, an anchor, mentions or files for `add`. */
+export type CommentDraft = Omit<NewComment, "body">;
 
 export interface CommentsActions {
   /** Posts a comment on the subject; a failure is also kept in `error`. */
@@ -53,6 +53,12 @@ export interface CommentsActions {
   readonly edit: (id: string, edit: CommentEdit) => Promise<Result<Comment>>;
   /** Soft-deletes a comment: it stays in the thread as a placeholder. */
   readonly remove: (id: string) => Promise<Result<boolean>>;
+  /** Resolves a thread by its root comment, or opens it again. */
+  readonly resolve: (
+    id: string,
+    resolved?: boolean,
+  ) => Promise<Result<Comment>>;
+  readonly pin: (id: string, pinned?: boolean) => Promise<Result<Comment>>;
   readonly refresh: () => Promise<void>;
 }
 
@@ -60,19 +66,21 @@ export type CommentsController = Controller<CommentsSnapshot, CommentsActions>;
 
 /**
  * One subject's comment thread for the signed-in user: loads it, keeps it
- * current after `add`, `edit` and `remove`, and loads it again for each message
- * on `topic`.
+ * current after its own writes, and loads it again for each ping on the record
+ * conversation's topic (joined once the record has a conversation).
  */
 export function createCommentsController(
   options: CommentsControllerOptions,
 ): CommentsController {
   const { client, subject } = options;
-  const topic = options.topic ?? null;
+  const topic = options.topic === undefined ? "messages" : options.topic;
 
   return defineController<CommentsSnapshot, CommentsActions>(
     { comments: undefined, status: "closed", error: undefined },
     (state) => {
       let ticket = 0;
+      let leave: (() => void) | undefined;
+      let watching = false;
 
       const refresh = async (): Promise<void> => {
         if (subject === null) {
@@ -98,6 +106,32 @@ export function createCommentsController(
         );
       };
 
+      const join = (conversationId: string): void => {
+        if (topic === null || !watching || leave !== undefined) {
+          return;
+        }
+
+        leave = options.ports.topic(conversationTopic(conversationId, topic), {
+          onMessage: () => void refresh(),
+          onRejoin: () => void refresh(),
+          onStatus: (status) => {
+            state.set({ status });
+          },
+        }).leave;
+      };
+
+      const watch = async (): Promise<void> => {
+        if (subject === null || topic === null) {
+          return;
+        }
+
+        const found = await client.conversation(subject);
+
+        if (found.ok && found.data !== undefined) {
+          join(found.data);
+        }
+      };
+
       const replace = (comment: Comment): void => {
         // A load that started before the write would answer without it.
         ticket += 1;
@@ -115,35 +149,33 @@ export function createCommentsController(
         });
       };
 
+      const write = async (
+        result: PromiseLike<Result<Comment>>,
+      ): Promise<Result<Comment>> => {
+        const settled = await result;
+
+        if (settled.ok) {
+          replace(settled.data);
+          join(settled.data.conversationId);
+        } else {
+          state.set({ error: settled.error });
+        }
+
+        return settled;
+      };
+
       return {
         actions: {
           refresh,
-          add: async (body, draft = {}) => {
-            if (subject === null) {
-              return err(dbError("invalid_input", "No subject is open"));
-            }
-
-            const result = await client.create(subject, { ...draft, body });
-
-            if (result.ok) {
-              replace(result.data);
-            } else {
-              state.set({ error: result.error });
-            }
-
-            return result;
-          },
-          edit: async (id, edit) => {
-            const result = await client.edit(id, edit);
-
-            if (result.ok) {
-              replace(result.data);
-            } else {
-              state.set({ error: result.error });
-            }
-
-            return result;
-          },
+          add: (body, draft = {}) =>
+            subject === null
+              ? Promise.resolve(
+                  err(dbError("invalid_input", "No subject is open")),
+                )
+              : write(client.create(subject, { ...draft, body })),
+          edit: (id, edit) => write(client.edit(id, edit)),
+          resolve: (id, resolved) => write(client.resolve(id, resolved)),
+          pin: (id, pinned) => write(client.pin(id, pinned)),
           remove: async (id) => {
             const result = await client.remove(id);
 
@@ -160,21 +192,15 @@ export function createCommentsController(
           subject === null
             ? undefined
             : whileSignedIn(options.auth, () => {
+                watching = true;
                 void refresh();
+                void watch();
 
-                if (topic === null) {
-                  return;
-                }
-
-                const { leave } = options.ports.topic(topic, {
-                  onMessage: () => void refresh(),
-                  onRejoin: () => void refresh(),
-                  onStatus: (status) => {
-                    state.set({ status });
-                  },
-                });
-
-                return leave;
+                return () => {
+                  watching = false;
+                  leave?.();
+                  leave = undefined;
+                };
               }),
       };
     },

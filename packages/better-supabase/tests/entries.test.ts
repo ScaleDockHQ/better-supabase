@@ -95,6 +95,7 @@ const PURE_BARRELS = [
   "blocks/data-lifecycle",
   "blocks/attachments",
   "blocks/comments",
+  "blocks/activity",
   "blocks/flags",
   "blocks/billing",
   "blocks/usage",

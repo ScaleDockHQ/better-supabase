@@ -1753,6 +1753,7 @@
             "enum": [
               "access",
               "access-requests",
+              "activity",
               "actor",
               "agents",
               "ai-cache",
@@ -1877,6 +1878,9 @@
             },
             "access-requests": {
               "$ref": "#/$defs/blocks/access-requests"
+            },
+            "activity": {
+              "$ref": "#/$defs/blocks/activity"
             },
             "actor": {
               "$ref": "#/$defs/blocks/actor"
@@ -3180,6 +3184,17 @@
           }
         }
       },
+      "activity": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "actor": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3640,22 +3655,11 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
-              "maxBodyLength": {
-                "type": "number",
-                "default": 10000
-              },
-              "documentSchema": {},
-              "notify": {
-                "type": "boolean",
-                "default": true
-              },
               "follow": {
                 "type": "boolean",
                 "default": true
               },
-              "mentionGroups": {},
-              "extraColumns": {}
+              "mentionGroups": {}
             }
           }
         }

@@ -268,6 +268,7 @@ export interface BlockOptionsRegistry {
   readonly memory: MemorySqlOptions;
   readonly messaging: MessagingSqlOptions;
   readonly channels: None;
+  readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
   readonly notifications: NotificationsSqlOptions;
@@ -389,6 +390,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   leave: leaveSqlOptions,
   memory: memorySqlOptions,
   channels: NO_OPTIONS,
+  activity: NO_OPTIONS,
   messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,
   mfa: NO_OPTIONS,

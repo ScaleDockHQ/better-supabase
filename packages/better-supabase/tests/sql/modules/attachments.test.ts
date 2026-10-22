@@ -69,16 +69,16 @@ describe("attachments module", () => {
     );
     expect(sql).toContain(`coalesce("organization_id"::text, '-')`);
     expect(sql).toContain(
-      `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = subject_id)`,
+      `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = attachment_subject_readable.subject_id)`,
     );
     expect(sql).toContain(
       `("organization_id" is null or coalesce(better_supabase.can(`,
     );
     expect(sqlOf(["attachments"])).not.toContain("drop not null");
     expect(() =>
-      renderModules(["comments"], {
+      renderModules(["reactions"], {
         modules: {
-          comments: {
+          reactions: {
             options: { subjects: { note: { table: "notes", tenant: false } } },
           },
         },
@@ -179,8 +179,8 @@ describe("attachments module", () => {
     expect(overridden).toContain("'contracts.admin'");
   });
 
-  it("checks the comments key for files on a comment", () => {
-    const modules = ["comments", "attachments"];
+  it("checks the messaging key for files on a message or a comment thread", () => {
+    const modules = ["messaging", "comments", "attachments"];
 
     const sql = renderModules(modules, {
       subjects: withBlockSubjects({}, modules, {}),
@@ -190,7 +190,7 @@ describe("attachments module", () => {
       .join("\n");
 
     expect(sql).toContain(
-      `case "subject_type" when 'comment' then 'comments.create' else 'attachments.upload' end`,
+      `case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' else 'attachments.upload' end`,
     );
   });
 

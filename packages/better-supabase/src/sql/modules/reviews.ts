@@ -385,15 +385,18 @@ ${lockTable(stats)}
 ${tables}
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function ${readable}(tenant ${idType}, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select ${readableSql}
+begin
+  return ${readableSql};
+end;
 $$;
 revoke execute on function ${readable}(${idType}, text, text) from public, anon, authenticated;
 

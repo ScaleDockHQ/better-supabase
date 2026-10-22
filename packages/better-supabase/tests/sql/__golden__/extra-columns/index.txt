@@ -5,7 +5,6 @@ profiles
 notifications
 api-keys
 flags
-comments
 attachments
 waitlist
 announcements

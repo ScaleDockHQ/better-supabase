@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -79,15 +79,18 @@ create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function "better_supabase"."reaction_subject_visible"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select true
+begin
+  return true;
+end;
 $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
@@ -377,7 +380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -455,18 +458,21 @@ create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function "better_supabase"."reaction_subject_visible"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select case reaction_subject_visible.subject_type
+begin
+  return case reaction_subject_visible.subject_type
     when 'inbox_message' then exists (select 1 from "better_supabase"."inbox_messages" m where m."id"::text = reaction_subject_visible.subject_id and m."tenant_id" = reaction_subject_visible.tenant)
     else true
-  end
+  end;
+end;
 $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
@@ -774,7 +780,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -854,15 +860,18 @@ create policy "custom_emoji_read" on "app_private"."custom_emoji" for select to 
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function "app_private"."reaction_subject_visible"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select true
+begin
+  return true;
+end;
 $$;
 revoke execute on function "app_private"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "app_private"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;
@@ -1152,7 +1161,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, comments and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1230,15 +1239,18 @@ create policy "custom_emoji_read" on "better_supabase"."custom_emoji" for select
   using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')));
 
 -- Whether the caller sees the subject. It runs as the caller, so the subject
--- tables' policies apply.
+-- tables' policies apply. plpgsql, so a subject table a later module creates
+-- (messages) binds late.
 create or replace function "better_supabase"."reaction_subject_visible"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select true
+begin
+  return true;
+end;
 $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) to authenticated, service_role;

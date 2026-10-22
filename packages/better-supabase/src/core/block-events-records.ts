@@ -200,6 +200,11 @@ export interface MessageEventData extends SubjectEventData {
   readonly authorId: string | null;
   /** The thread's root message, null for a top-level message. */
   readonly threadId: string | null;
+  /** The conversation's kind: `subject` for a record's comments. */
+  readonly conversationKind?: string;
+  /** The record a `subject` conversation discusses, null otherwise. */
+  readonly recordType?: string | null;
+  readonly recordId?: string | null;
   /** For `message.sent`: the users it mentions. */
   readonly mentionIds?: readonly string[];
   /** For `message.pinned` and `message.resolved`: the new state. */

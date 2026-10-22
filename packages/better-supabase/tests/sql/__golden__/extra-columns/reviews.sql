@@ -88,15 +88,18 @@ grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function "better_supabase"."review_subject_readable"(tenant uuid, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select false
+begin
+  return false;
+end;
 $$;
 revoke execute on function "better_supabase"."review_subject_readable"(uuid, text, text) from public, anon, authenticated;
 

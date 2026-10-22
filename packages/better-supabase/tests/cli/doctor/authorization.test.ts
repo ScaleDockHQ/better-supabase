@@ -641,7 +641,7 @@ describe("BS411", () => {
 
     const result = await findings(
       "BS411",
-      config(partial, { invitations: {}, comments: {} }),
+      config(partial, { invitations: {}, inbox: {} }),
       { snapshot },
     );
 
@@ -649,7 +649,7 @@ describe("BS411", () => {
       severity: "warning",
       target: "authorization.functions.idsWithFor",
       message: expect.stringMatching(
-        /The invitations, comments modules call authorization\.functions\.idsWithFor, which the authorization provider \(stub\) doesn't set/,
+        /The invitations, inbox modules call authorization\.functions\.idsWithFor, which the authorization provider \(stub\) doesn't set/,
       ),
     });
     expect(result).toContainEqual({

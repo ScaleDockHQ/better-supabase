@@ -43,7 +43,10 @@ export function commentsOptimistic(
   }
 }
 
-/** A record's comment thread, oldest first. */
+/**
+ * A record's comment thread, oldest first. The messaging events make it stale:
+ * a record conversation's messages carry `conversationKind: "subject"`.
+ */
 export const commentsSection: Section<
   Comments,
   readonly Comment[],
@@ -54,6 +57,12 @@ export const commentsSection: Section<
   load: (client: Comments, subject, options?: ListCommentsOptions) =>
     client.list(subject, options),
   count: (client: Comments, subjects) => client.counts(subjects),
-  events: ["comment.created", "comment.deleted"],
+  events: [
+    "message.sent",
+    "message.edited",
+    "message.deleted",
+    "message.pinned",
+    "message.resolved",
+  ],
   optimistic: commentsOptimistic,
 });

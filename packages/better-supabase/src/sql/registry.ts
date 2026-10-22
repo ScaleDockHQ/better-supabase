@@ -11,6 +11,7 @@ import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCESS } from "./modules/access.ts";
+import { ACTIVITY } from "./modules/activity.ts";
 import { ACTOR } from "./modules/actor.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
@@ -311,6 +312,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(VERCEL_MARKETPLACE),
       built(MESSAGING),
       built(CHANNELS),
+      built(ACTIVITY),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

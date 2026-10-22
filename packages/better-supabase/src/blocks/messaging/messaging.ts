@@ -121,6 +121,11 @@ export interface Message<F extends object = Record<never, never>> {
   readonly body: string;
   /** The rich-text document an editor wrote, next to `body` as plain text. */
   readonly document: unknown;
+  /**
+   * Where on the record a top-level message points, such as a text range or a
+   * field (any JSON); `undefined` without one.
+   */
+  readonly anchor: unknown;
   readonly mentionIds: readonly string[];
   /** `channel` or `here` when the body says `@channel` or `@here`. */
   readonly mentionScope: "channel" | "here" | undefined;
@@ -163,6 +168,8 @@ export interface NewMessage<F extends object = Record<never, never>> {
   readonly body: string;
   /** A rich-text document (any JSON); keep `body` as its plain text. */
   readonly document?: unknown;
+  /** Where on the record a top-level message points (any JSON). */
+  readonly anchor?: unknown;
   /** User ids, merged with the ones the body's markup mentions. */
   readonly mentionIds?: readonly string[];
   /** A reply: with one level of threads, a reply to a reply joins the root. */
@@ -382,7 +389,8 @@ function reactionsOf(value: unknown): readonly MessageReaction[] {
     : [];
 }
 
-function messageOf(value: unknown): Message {
+/** A message row from the messaging functions. */
+export function messageOf(value: unknown): Message {
   const row = recordOf(value, "message");
   const scope = optionalText(row["mention_scope"]);
   const extra = isRecord(row["fields"]) ? row["fields"] : {};
@@ -397,6 +405,7 @@ function messageOf(value: unknown): Message {
     author: authorOf(row["author"]),
     body: textOf(row["body"] ?? ""),
     document: row["document"] ?? undefined,
+    anchor: row["anchor"] ?? undefined,
     mentionIds: stringsOf(row["mentions"]),
     mentionScope:
       scope === undefined
@@ -421,7 +430,8 @@ function messageOf(value: unknown): Message {
   };
 }
 
-function editOf(value: unknown): MessageEdit {
+/** An earlier version from `list_message_edits`. */
+export function editOf(value: unknown): MessageEdit {
   const row = recordOf(value, "message edit");
 
   return {
@@ -604,6 +614,9 @@ export function createMessaging<
               ...(message.document === undefined
                 ? {}
                 : { document: message.document }),
+              ...(message.anchor === undefined
+                ? {}
+                : { anchor: message.anchor }),
               ...(message.mentionIds === undefined
                 ? {}
                 : { mentions: [...message.mentionIds] }),

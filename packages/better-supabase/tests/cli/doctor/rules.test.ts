@@ -2368,24 +2368,30 @@ describe("tables without the session policy (BS320)", () => {
   });
 });
 
-describe("comments columns reactions reads (BS213)", () => {
-  it("leaves out the tenant pinned by can() and the comments soft delete", async () => {
-    const comments = (findings: readonly { target?: string }[]) =>
-      findings.filter(
-        (finding) => finding.target === "better_supabase.comments",
-      );
+describe("soft-delete columns reactions read (BS213)", () => {
+  it("leaves out a subject's deletedAt column", async () => {
+    const projects = (findings: readonly { target?: string }[]) =>
+      findings.filter((finding) => finding.target === "public.projects");
 
-    const bare = comments(await run("BS213", context()));
+    const bare = projects(await run("BS213", context()));
     expect(bare).toHaveLength(1);
     expect(bare[0]).toMatchObject({
       message: expect.stringContaining("authenticated may update deleted_at."),
     });
 
     expect(
-      comments(
+      projects(
         await run(
           "BS213",
-          context(base, {}, { blocks: { comments: {}, reactions: {} } }),
+          context(
+            base,
+            {},
+            {
+              subjects: {
+                project: { table: "projects", deletedAt: "deleted_at" },
+              },
+            },
+          ),
         ),
       ),
     ).toEqual([]);

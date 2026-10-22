@@ -253,7 +253,7 @@ describe("entityRenamePlan", () => {
   });
 
   it("moves stored subjects to the renamed type", () => {
-    const blocks = [...BLOCKS, "comments"];
+    const blocks = [...BLOCKS, "subjects", "messaging", "comments"];
 
     const before = renderModules(blocks, {
       subjects: withBlockSubjects({}, ["work-items"], {}),
@@ -272,7 +272,7 @@ describe("entityRenamePlan", () => {
     ).steps.map((step) => step.sql);
 
     expect(steps).toContain(
-      `update "better_supabase"."comments" set "subject_type" = 'task' where "subject_type" = 'work_item';`,
+      `update "better_supabase"."conversations" set "subject_type" = 'task' where "subject_type" = 'work_item';`,
     );
   });
 

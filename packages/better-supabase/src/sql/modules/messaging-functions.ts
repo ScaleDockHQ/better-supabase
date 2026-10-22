@@ -218,10 +218,12 @@ function messageRecord(
   extra = "",
 ): string {
   const ms = q.cols("messages");
+  const cv = q.cols("conversations");
 
   return q.ctx.record({
     type,
-    payload: `jsonb_build_object('organizationId', ${row}.${ms("tenant")}::text, 'conversationId', ${row}.${ms("conversation")}, 'messageId', ${row}.${ms("id")}, 'authorId', ${row}.${ms("author")}, 'threadId', ${row}.${ms("thread")}, 'subjectType', ${sqlString(q.e("message"))}, 'subjectId', ${row}.${ms("id")}::text${extra})`,
+    payload: `jsonb_build_object('organizationId', ${row}.${ms("tenant")}::text, 'conversationId', ${row}.${ms("conversation")}, 'messageId', ${row}.${ms("id")}, 'authorId', ${row}.${ms("author")}, 'threadId', ${row}.${ms("thread")}, 'subjectType', ${sqlString(q.e("message"))}, 'subjectId', ${row}.${ms("id")}::text${extra})
+      || coalesce((select jsonb_build_object('conversationKind', c.${cv("kind")}, 'recordType', c.${cv("subjectType")}, 'recordId', c.${cv("subjectId")}) from ${q.t("conversations")} c where c.${cv("id")} = ${row}.${ms("conversation")}), '{}'::jsonb)`,
     subject: `'messages/' || ${row}.${ms("id")}::text`,
     tenant: `${row}.${ms("tenant")}::text`,
     audit: false,
@@ -328,8 +330,9 @@ revoke execute on function ${fn("parse_mentions")}(text) from public, anon;
 grant execute on function ${fn("parse_mentions")}(text) to authenticated, service_role;
 
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
--- body as plain text), mentions (user ids, merged with the body's markup),
--- broadcast (a reply also shown in the conversation), scheduledFor (sends
+-- body as plain text), anchor (where on the record a top-level message
+-- points, such as a text range), mentions (user ids, merged with the body's
+-- markup), broadcast (a reply also shown in the conversation), scheduledFor (sends
 -- later) and fields (the extra columns). attachments: ids of files the caller
 -- uploaded to the conversation. Returns the message.
 create or replace function ${fn("send_message")}(conversation uuid, body text, attrs jsonb default '{}', attachments uuid[] default '{}')
@@ -386,10 +389,11 @@ begin
     ["jsonb", "send_message.attrs"],
   ])}
   begin
-    insert into ${t("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("parent")}, ${ms("thread")}, ${ms("author")}, ${ms("body")}, ${ms("document")},
+    insert into ${t("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("parent")}, ${ms("thread")}, ${ms("author")}, ${ms("body")}, ${ms("document")}, ${ms("anchor")},
       ${ms("mentions")}, ${ms("mentionScope")}, ${ms("broadcast")}, ${ms("scheduledFor")}, ${ms("sentAt")})
     values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document', v_mentions,
+      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv.${cv("access")} = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
       v_scheduled, case when v_scheduled is null then now() end)

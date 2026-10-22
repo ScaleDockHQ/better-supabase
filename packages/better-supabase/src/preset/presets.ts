@@ -111,7 +111,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "crm",
     title: "CRM",
     description:
-      "SaaS plus parties, pipelines and engagements, with tags, comments, custom fields, saved views and search.",
+      "SaaS plus parties, pipelines and engagements, with tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
       ...SAAS,
@@ -120,6 +120,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "engagements",
       "tags",
       "comments",
+      "activity",
       "custom-fields",
       "saved-views",
       "search",
@@ -129,12 +130,13 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "projects",
     title: "Projects",
     description:
-      "SaaS plus tags, comments, attachments, a state machine, ranked ordering, reminders and time tracking.",
+      "SaaS plus tags, comments, an activity feed, attachments, a state machine, ranked ordering, reminders and time tracking.",
     group: "products",
     blocks: [
       ...SAAS,
       "tags",
       "comments",
+      "activity",
       "attachments",
       "state-machine",
       "rank",
@@ -146,7 +148,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "helpdesk",
     title: "Help desk",
     description:
-      "SaaS plus a shared inbox, work items with SLAs, comments, attachments, tags, saved views, a knowledge base and search.",
+      "SaaS plus a shared inbox, work items with SLAs, comments, an activity feed, attachments, tags, saved views, a knowledge base and search.",
     group: "products",
     blocks: [
       ...SAAS,
@@ -154,6 +156,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "work-items",
       "sla",
       "comments",
+      "activity",
       "attachments",
       "tags",
       "saved-views",
@@ -244,6 +247,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "documents",
       "versions",
       "comments",
+      "activity",
       "reactions",
       "templates",
       "search",

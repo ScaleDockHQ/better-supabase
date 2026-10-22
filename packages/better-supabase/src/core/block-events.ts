@@ -95,18 +95,6 @@ export interface BillingEventData {
   readonly stripeEventId?: string;
 }
 
-/** `comment.*`, written to the outbox by the comments module. */
-export interface CommentEventData {
-  readonly commentId: string;
-  readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
-  readonly authorId?: string;
-  readonly parentId?: string;
-  /** `comment.created`: every mention; `comment.mentioned`: the new ones. */
-  readonly mentionIds?: readonly string[];
-}
-
 /** `attachment.*`, written to the outbox by the attachments module. */
 export interface AttachmentEventData {
   readonly attachmentId: string;

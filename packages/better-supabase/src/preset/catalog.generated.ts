@@ -409,70 +409,24 @@ export const PRESET_CATALOG: PresetCatalog = {
     },
     {
       "name": "comments",
-      "title": "Comments and activity",
+      "title": "Comments",
       "category": "collaboration",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "subjects",
+        "messaging"
       ],
       "integrates": [
-        "jsonb-schemas",
         "notifications",
-        "profiles",
-        "subjects",
-        "audit",
-        "workflows"
+        "work-items",
+        "reactions",
+        "attachments"
       ],
       "manifest": "comments",
       "scopes": [
-        "tenant",
-        "user",
-        "none"
-      ],
-      "extraColumns": "comments",
-      "entities": {
-        "specs": {
-          "comment": {
-            "table": "comments",
-            "singular": "comment",
-            "primary": true,
-            "subject": {
-              "title": "body",
-              "deletedAt": "deletedAt",
-              "permissions": {
-                "read": "read",
-                "write": "create",
-                "upload": "create"
-              }
-            }
-          }
-        },
-        "tables": {
-          "comments": {
-            "name": "comments",
-            "columns": {
-              "id": "id",
-              "tenant": "organization_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "author": "author_id",
-              "body": "body",
-              "document": "document",
-              "mentions": "mentions",
-              "parent": "parent_id",
-              "createdAt": "created_at",
-              "editedAt": "edited_at",
-              "deletedAt": "deleted_at"
-            }
-          }
-        },
-        "keys": {
-          "read": "comments.read",
-          "create": "comments.create",
-          "moderate": "comments.moderate",
-          "activity": "activity.read"
-        }
-      }
+        "tenant"
+      ]
     },
     {
       "name": "attachments",
@@ -1055,6 +1009,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "comments",
+        "messaging",
         "attachments"
       ],
       "manifest": "subjects",
@@ -1337,7 +1292,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "comments",
+        "messaging",
         "inbox"
       ],
       "manifest": "reactions",
@@ -2618,6 +2573,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "author": "author_id",
               "body": "body",
               "document": "document",
+              "anchor": "anchor",
               "mentions": "mentions",
               "mentionScope": "mention_scope",
               "broadcast": "broadcast",
@@ -2726,6 +2682,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "manage": "channels.manage"
         }
       }
+    },
+    {
+      "name": "activity",
+      "title": "Activity feed",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "notifications",
+        "subjects",
+        "audit",
+        "workflows"
+      ],
+      "manifest": "activity",
+      "scopes": [
+        "tenant",
+        "user",
+        "none"
+      ]
     },
     {
       "name": "ensure-rls",
@@ -3705,179 +3682,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/comments"
       },
       "consumes": {},
-      "provides": [],
-      "entityTypes": [
-        {
-          "name": "Comment",
-          "fields": true
-        },
-        {
-          "name": "CommentDraft"
-        },
-        {
-          "name": "CommentEdit",
-          "fields": true
-        },
-        {
-          "name": "Comments",
-          "fields": true
-        },
-        {
-          "name": "CommentsActions"
-        },
-        {
-          "name": "CommentsController"
-        },
-        {
-          "name": "CommentsControllerOptions"
-        },
-        {
-          "name": "CommentsEvents"
-        },
-        {
-          "name": "CommentsOptimisticAction"
-        },
-        {
-          "name": "CommentsOptions"
-        },
-        {
-          "name": "CommentsSnapshot"
-        },
-        {
-          "name": "CommentSubject"
-        },
-        {
-          "name": "ListCommentsOptions"
-        },
-        {
-          "name": "NewComment",
-          "fields": true
-        }
-      ],
-      "entitySchemas": {
-        "comment": {
-          "input": {
-            "title": "NewComment",
-            "fields": {
-              "body": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "document": {
-                "kind": "unknown",
-                "optional": true,
-                "description": "A rich-text document (any JSON)."
-              },
-              "mentions": {
-                "kind": "uuid",
-                "optional": true,
-                "array": true
-              },
-              "parentId": {
-                "kind": "uuid",
-                "optional": true
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns to set, keyed by database name."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "NewComment",
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "document": {
-                  "description": "A rich-text document (any JSON)."
-                },
-                "mentions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "parentId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "fields": {
-                  "description": "The extra columns to set, keyed by database name."
-                }
-              },
-              "required": [
-                "body"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "change": {
-            "title": "CommentEdit",
-            "fields": {
-              "body": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "document": {
-                "kind": "unknown",
-                "optional": true,
-                "description": "`null` removes the document."
-              },
-              "mentions": {
-                "kind": "uuid",
-                "optional": true,
-                "array": true
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns to set, keyed by database name."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "CommentEdit",
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "document": {
-                  "description": "`null` removes the document."
-                },
-                "mentions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "fields": {
-                  "description": "The extra columns to set, keyed by database name."
-                }
-              },
-              "required": [
-                "body"
-              ],
-              "additionalProperties": false
-            }
-          }
-        }
-      },
-      "events": {
-        "type": "CommentsEvents",
-        "types": [
-          "comment.created",
-          "comment.mentioned",
-          "comment.deleted"
-        ]
-      }
+      "provides": []
     },
     {
       "name": "connectors",
@@ -5420,6 +5225,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "description": "A rich-text document (any JSON)."
               },
+              "anchor": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "Where on the record a top-level message points."
+              },
               "mentionIds": {
                 "kind": "uuid",
                 "optional": true,
@@ -5458,6 +5268,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 },
                 "document": {
                   "description": "A rich-text document (any JSON)."
+                },
+                "anchor": {
+                  "description": "Where on the record a top-level message points."
                 },
                 "mentionIds": {
                   "type": "array",
@@ -5753,6 +5566,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "channel.updated"
         ]
       }
+    },
+    {
+      "name": "activity",
+      "sql": [
+        "activity"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "activityBlock",
+        "subpath": "better-supabase/blocks/activity"
+      },
+      "consumes": {},
+      "provides": []
     },
     {
       "name": "metrics",

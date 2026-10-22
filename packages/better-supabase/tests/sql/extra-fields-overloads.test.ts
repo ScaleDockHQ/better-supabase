@@ -101,14 +101,14 @@ describe("the fields parameter of writes with extra columns", () => {
   });
 
   it("finds the writes of the modules that take fields", () => {
-    const extra = render("comments", { app_note: "text" });
+    const extra = render("tags", { app_note: "text" });
     expect(
       [...functions(extra)]
         .filter(([, list]) => list.at(-1) === "fields jsonb default null")
         .map(([name]) => name),
     ).toEqual([
-      '"better_supabase"."create_comment"',
-      '"better_supabase"."edit_comment"',
+      '"better_supabase"."create_tag"',
+      '"better_supabase"."update_tag"',
     ]);
   });
 });

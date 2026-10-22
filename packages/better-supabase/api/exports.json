@@ -2728,7 +2728,6 @@
       "CollaborationEventData",
       "CollectionEntryEventData",
       "CollectionEventData",
-      "CommentEventData",
       "CommerceEventData",
       "CommerceSubjectEventData",
       "ConnectorEventData",
@@ -3500,16 +3499,37 @@
       "RequestFlagContext"
     ]
   },
-  "./blocks/comments": {
+  "./blocks/activity": {
     "values": [
+      "activityBlock",
       "activityListQuery",
       "activitySink",
+      "createActivity",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "Activity",
+      "ActivityDescription",
+      "ActivityEntry",
+      "ActivityFacet",
+      "ActivityListOptions",
+      "ActivityOptions",
+      "ActivitySinkOptions",
+      "ActivitySort",
+      "ActivitySource",
+      "BlockTransport"
+    ]
+  },
+  "./blocks/comments": {
+    "values": [
       "commentChangeSchema",
       "commentInputSchema",
       "commentsBlock",
-      "commentsEvents",
       "commentsOptimistic",
       "commentsSection",
+      "conversationTopic",
       "createComments",
       "createCommentsController",
       "dbTransport",
@@ -3518,28 +3538,22 @@
       "sqlTransport"
     ],
     "types": [
-      "ActivityDescription",
-      "ActivityEntry",
-      "ActivityFacet",
-      "ActivityHistoryOptions",
-      "ActivitySinkOptions",
-      "ActivitySort",
-      "ActivitySource",
       "Author",
       "BlockTransport",
       "Comment",
+      "CommentAssignment",
       "CommentDraft",
       "CommentEdit",
       "Comments",
       "CommentsActions",
       "CommentsController",
       "CommentsControllerOptions",
-      "CommentsEvents",
       "CommentsOptimisticAction",
       "CommentsOptions",
       "CommentsSnapshot",
-      "CommentSubject",
+      "CommentsSqlOptions",
       "ListCommentsOptions",
+      "MessageEdit",
       "NewComment"
     ]
   },

@@ -1,5 +1,6 @@
 import type { accessRequestsBlock } from "../../src/blocks/access-requests/manifest.ts";
 import type { accessBlock } from "../../src/blocks/access/manifest.ts";
+import type { activityBlock } from "../../src/blocks/activity/manifest.ts";
 import type { actorBlock } from "../../src/blocks/actor/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
@@ -142,6 +143,7 @@ export type AllBlocks = {
   readonly collections: typeof collectionsBlock;
   readonly channels: typeof channelsBlock;
   readonly comments: typeof commentsBlock;
+  readonly activity: typeof activityBlock;
   readonly connectors: typeof connectorsBlock;
   readonly credentials: typeof credentialsBlock;
   readonly customFields: typeof customFieldsBlock;

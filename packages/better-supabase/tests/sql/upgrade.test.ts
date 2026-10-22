@@ -169,10 +169,11 @@ describe("NAMES.migrations", () => {
       migrations: [
         {
           from: comments.version! - 1,
-          description: "Renames notes to comments and text to body.",
-          table: "comments",
-          was: "notes",
-          columns: { body: "text" },
+          description:
+            "Renames comment_links to comment_tasks and work_item_id to task_id.",
+          table: "tasks",
+          was: "comment_links",
+          columns: { task: "work_item_id" },
         },
       ],
     },
@@ -182,22 +183,26 @@ describe("NAMES.migrations", () => {
     upgradePlan(
       [{ module: "comments", version: comments.version! - 1 }],
       layout,
-      { comments: moved },
+      { ...SQL_MODULES, comments: moved },
     )[0]!.steps.map((step) => step.sql);
 
   it("renames the declared table and columns before the module's own steps", () => {
     const [first] = steps({});
 
     expect(first).toContain(
-      'alter table "better_supabase"."notes" rename to "comments"',
+      'alter table "better_supabase"."comment_links" rename to "comment_tasks"',
     );
-    expect(first).toContain('rename column "text" to "body"');
+    expect(first).toContain('rename column "work_item_id" to "task_id"');
   });
 
   it("follows the config's table rename", () => {
     expect(
-      steps({ modules: { comments: { tables: { comments: "remarks" } } } })[0],
-    ).toContain('alter table "better_supabase"."notes" rename to "remarks"');
+      steps({
+        modules: { comments: { tables: { tasks: "comment_todos" } } },
+      })[0],
+    ).toContain(
+      'alter table "better_supabase"."comment_links" rename to "comment_todos"',
+    );
   });
 
   it("skips installs at or past the move", () => {
@@ -205,7 +210,7 @@ describe("NAMES.migrations", () => {
       upgradePlan(
         [{ module: "comments", version: comments.version! }],
         {},
-        { comments: moved },
+        { ...SQL_MODULES, comments: moved },
       ),
     ).toEqual([]);
   });

@@ -30,7 +30,7 @@ export type BlockEventSchema<T> = StandardSchemaV1<unknown, T>;
 
 /**
  * Data schemas for block events, by event type, typed by an event map such as
- * `EventMapOf<typeof commentsEvents>`. `true` documents the event with an open
+ * `EventMapOf<typeof messagingEvents>`. `true` documents the event with an open
  * payload. A block can export its own map of this type.
  */
 export type BlockEventSchemas<M extends EventMap = EventMap> = {

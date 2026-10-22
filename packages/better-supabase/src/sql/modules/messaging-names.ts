@@ -22,6 +22,9 @@ const MESSAGE = [
   "threadId",
   "subjectType",
   "subjectId",
+  "conversationKind",
+  "recordType",
+  "recordId",
 ] as const;
 
 const EVENTS: ModuleEvents<MessagingEvents> = {
@@ -134,6 +137,7 @@ export const MESSAGING_NAMES: ModuleNames = {
         author: "author_id",
         body: "body",
         document: "document",
+        anchor: "anchor",
         mentions: "mentions",
         mentionScope: "mention_scope",
         broadcast: "broadcast",

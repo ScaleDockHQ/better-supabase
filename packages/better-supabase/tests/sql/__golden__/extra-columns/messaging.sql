@@ -130,6 +130,7 @@ create table if not exists "better_supabase"."messages" (
   "author_id" uuid,
   "body" text not null default '' check (length("body") <= 40000),
   "document" jsonb,
+  "anchor" jsonb,
   "mentions" uuid[] not null default '{}',
   "mention_scope" text check ("mention_scope" in ('channel', 'here')),
   "broadcast" boolean not null default false,
@@ -767,8 +768,9 @@ revoke execute on function "better_supabase"."parse_mentions"(text) from public,
 grant execute on function "better_supabase"."parse_mentions"(text) to authenticated, service_role;
 
 -- Sends a message. attrs: parentId (a reply), document (rich text next to
--- body as plain text), mentions (user ids, merged with the body's markup),
--- broadcast (a reply also shown in the conversation), scheduledFor (sends
+-- body as plain text), anchor (where on the record a top-level message
+-- points, such as a text range), mentions (user ids, merged with the body's
+-- markup), broadcast (a reply also shown in the conversation), scheduledFor (sends
 -- later) and fields (the extra columns). attachments: ids of files the caller
 -- uploaded to the conversation. Returns the message.
 create or replace function "better_supabase"."send_message"(conversation uuid, body text, attrs jsonb default '{}', attachments uuid[] default '{}')
@@ -833,10 +835,11 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document",
+    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_for", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document', v_mentions,
+      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
       v_scheduled, case when v_scheduled is null then now() end)

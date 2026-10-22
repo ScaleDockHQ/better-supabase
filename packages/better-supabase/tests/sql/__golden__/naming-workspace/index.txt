@@ -42,3 +42,4 @@ employees
 domains
 leave
 rules
+activity
