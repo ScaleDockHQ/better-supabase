@@ -12853,3 +12853,408 @@ msgstr "Too many requests. Wait a moment and try again."
 msgctxt "errors.L-85Jk"
 msgid "Your plan's limit is reached. Upgrade to continue."
 msgstr "Your plan's limit is reached. Upgrade to continue."
+
+#: src/app/[locale]/(app)/community/page.tsx
+msgctxt "community.4CrCbD"
+msgid "Community"
+msgstr "Community"
+
+#: src/app/[locale]/(app)/community/page.tsx
+msgctxt "community.tb4_CP"
+msgid "Post ideas and questions, and vote on the ones you want."
+msgstr "Post ideas and questions, and vote on the ones you want."
+
+#: src/app/[locale]/(app)/crm/sequences/page.tsx
+msgctxt "sequences.fqIG9Q"
+msgid "Sequences"
+msgstr "Sequences"
+
+#: src/app/[locale]/(app)/crm/sequences/page.tsx
+msgctxt "sequences.emb3EJ"
+msgid "Email, wait and task steps that run for each enrolled contact until they reply."
+msgstr "Email, wait and task steps that run for each enrolled contact until they reply."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.yUcWBK"
+msgid "The board didn't load"
+msgstr "The board didn't load"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.dQRvIA"
+msgid "No board yet"
+msgstr "No board yet"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.GI38BD"
+msgid "Open a feedback board where members post and vote on ideas."
+msgstr "Open a feedback board where members post and vote on ideas."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JFFn5z"
+msgid "An admin opens the board your team posts on."
+msgstr "An admin opens the board your team posts on."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Back to the dashboard"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.lxtHzL"
+msgid "Under review"
+msgstr "Under review"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.kp0NPF"
+msgid "Planned"
+msgstr "Planned"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.Fv1ZSz"
+msgid "Closed"
+msgstr "Closed"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community._TlAIY"
+msgid "Visible"
+msgstr "Visible"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.ObLwzE"
+msgid "Awaiting review"
+msgstr "Awaiting review"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.ThUvIL"
+msgid "Hidden"
+msgstr "Hidden"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.KGzfLt"
+msgid "Removed"
+msgstr "Removed"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.s6RK5S"
+msgid "No posts yet"
+msgstr "No posts yet"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.wZXQfk"
+msgid "Post the first idea for others to vote on."
+msgstr "Post the first idea for others to vote on."
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.fWZYP5"
+msgid "Pinned"
+msgstr "Pinned"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.SfLG8q"
+msgid "{count} replies"
+msgstr "{count} replies"
+
+#: src/features/community/components/post-board.tsx
+msgctxt "community.oL0rU6"
+msgid "Locked"
+msgstr "Locked"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.RKbGb8"
+msgid "Feedback board opened"
+msgstr "Feedback board opened"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.Ejhdi4"
+msgid "Feedback"
+msgstr "Feedback"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community._bwhcd"
+msgid "Open a feedback board"
+msgstr "Open a feedback board"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.J3YEb1"
+msgid "Remove your vote, {score} votes"
+msgstr "Remove your vote, {score} votes"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.dPTbLK"
+msgid "Vote up, {score} votes"
+msgstr "Vote up, {score} votes"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.N2pA2e"
+msgid "Posted; it shows once a moderator approves it"
+msgstr "Posted; it shows once a moderator approves it"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.QYYHH3"
+msgid "Posted"
+msgstr "Posted"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.TCJDlW"
+msgid "New post"
+msgstr "New post"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.xiK7Kz"
+msgid "Share an idea; others vote on it and reply."
+msgstr "Share an idea; others vote on it and reply."
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/community/components/post-controls.tsx
+msgctxt "community.eKv7yX"
+msgid "Post"
+msgstr "Post"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.fqIG9Q"
+msgid "Sequences"
+msgstr "Sequences"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.4CrCbD"
+msgid "Community"
+msgstr "Community"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.xiZz44"
+msgid "The sequences didn't load"
+msgstr "The sequences didn't load"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.uhLiFs"
+msgid "No sequences yet"
+msgstr "No sequences yet"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.jo2BZv"
+msgid "Create a sample sequence, then activate it to enroll contacts."
+msgstr "Create a sample sequence, then activate it to enroll contacts."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.OdK47I"
+msgid "An admin sets up the sequences your team enrolls contacts in."
+msgstr "An admin sets up the sequences your team enrolls contacts in."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.iOWjNm"
+msgid "Wait {minutes} minutes"
+msgstr "Wait {minutes} minutes"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.8nWPbU"
+msgid "No steps yet."
+msgstr "No steps yet."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.bz-S_R"
+msgid "{count} active"
+msgstr "{count} active"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.cjYin_"
+msgid "{count} completed"
+msgstr "{count} completed"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.TE_1u-"
+msgid "{count} replied"
+msgstr "{count} replied"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.5YeDsT"
+msgid "Sample sequence created"
+msgstr "Sample sequence created"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dEl5ay"
+msgid "Welcome series"
+msgstr "Welcome series"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dC1LJX"
+msgid "Welcome to the team"
+msgstr "Welcome to the team"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.oPKWQ6"
+msgid "Reply to this email if you have questions."
+msgstr "Reply to this email if you have questions."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nIHcMI"
+msgid "Call the new customer"
+msgstr "Call the new customer"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KTZS4Z"
+msgid "Create a sample sequence"
+msgstr "Create a sample sequence"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.u3ID8A"
+msgid "Sequence active"
+msgstr "Sequence active"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.GFYx5s"
+msgid "Sequence paused"
+msgstr "Sequence paused"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.tFFMkF"
+msgid "Pause"
+msgstr "Pause"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.AcxDgz"
+msgid "Activate"
+msgstr "Activate"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.6QushX"
+msgid "Step added"
+msgstr "Step added"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.sy-pv5"
+msgid "Email"
+msgstr "Email"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.Mmft-L"
+msgid "Wait"
+msgstr "Wait"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.0wJ7N-"
+msgid "Task"
+msgstr "Task"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KWJ4W2"
+msgid "Add step"
+msgstr "Add step"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nj4dGB"
+msgid "Add a step"
+msgstr "Add a step"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.BGcreS"
+msgid "Recipients already past the end run the new step on their next turn."
+msgstr "Recipients already past the end run the new step on their next turn."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.e5x8FT"
+msgid "Kind"
+msgstr "Kind"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.2_2yg-"
+msgid "Add"
+msgstr "Add"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.LLtKhp"
+msgid "Subject"
+msgstr "Subject"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nXsjRT"
+msgid "Following up"
+msgstr "Following up"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.1c9W9U"
+msgid "Minutes to wait"
+msgstr "Minutes to wait"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.rM6yDL"
+msgid "Task title"
+msgstr "Task title"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.ifgK-P"
+msgid "Call the contact"
+msgstr "Call the contact"

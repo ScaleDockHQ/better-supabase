@@ -16,6 +16,8 @@ import {
   ShieldHalfIcon,
   ContactRoundIcon,
   KanbanIcon,
+  SendIcon,
+  MessageSquareTextIcon,
   FileTextIcon,
   StoreIcon,
   BoxesIcon,
@@ -84,6 +86,7 @@ const ICONS = {
   rules: ListFilterIcon,
   contacts: ContactRoundIcon,
   deals: KanbanIcon,
+  sequences: SendIcon,
   quotes: FileTextIcon,
   shop: StoreIcon,
   inventory: BoxesIcon,
@@ -95,6 +98,7 @@ const ICONS = {
   documents: NotebookTextIcon,
   forms: ClipboardListIcon,
   courses: PresentationIcon,
+  community: MessageSquareTextIcon,
   templates: LayoutTemplateIcon,
   imports: FileUpIcon,
   trash: Trash2Icon,
@@ -183,6 +187,10 @@ function useNavLabel() {
         return t("Deals");
       }
 
+      case "sequences": {
+        return t("Sequences");
+      }
+
       case "quotes": {
         return t("Quotes");
       }
@@ -225,6 +233,10 @@ function useNavLabel() {
 
       case "courses": {
         return t("Courses");
+      }
+
+      case "community": {
+        return t("Community");
       }
 
       case "templates": {
