@@ -10,6 +10,10 @@ export const addWorkItemComments = workItemRecord.actions.comments.add;
 
 export const removeWorkItemComments = workItemRecord.actions.comments.remove;
 
+export const grantWorkItemGuests = workItemRecord.actions.guests.grant;
+
+export const revokeWorkItemGuests = workItemRecord.actions.guests.revoke;
+
 export const linkWorkItemRelations = workItemRecord.actions.relations.link;
 
 export const unlinkWorkItemRelations = workItemRecord.actions.relations.unlink;

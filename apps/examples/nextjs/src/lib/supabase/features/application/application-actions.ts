@@ -10,6 +10,10 @@ export const addApplicationComments = applicationRecord.actions.comments.add;
 
 export const removeApplicationComments = applicationRecord.actions.comments.remove;
 
+export const grantApplicationGuests = applicationRecord.actions.guests.grant;
+
+export const revokeApplicationGuests = applicationRecord.actions.guests.revoke;
+
 export const linkApplicationRelations = applicationRecord.actions.relations.link;
 
 export const unlinkApplicationRelations = applicationRecord.actions.relations.unlink;

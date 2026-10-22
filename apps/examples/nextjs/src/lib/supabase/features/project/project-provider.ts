@@ -10,6 +10,8 @@ import {
   removeProjectAttachments,
   addProjectComments,
   removeProjectComments,
+  grantProjectGuests,
+  revokeProjectGuests,
   linkProjectRelations,
   unlinkProjectRelations,
   createProjectShareLinks,
@@ -31,6 +33,10 @@ const writes = {
   comments: {
     add: addProjectComments,
     remove: removeProjectComments,
+  },
+  guests: {
+    grant: grantProjectGuests,
+    revoke: revokeProjectGuests,
   },
   relations: {
     link: linkProjectRelations,

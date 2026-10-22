@@ -19,6 +19,7 @@ import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { formsBlock } from "better-supabase/blocks/forms";
+import { guestsBlock } from "better-supabase/blocks/guests";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { importsBlock } from "better-supabase/blocks/imports";
 import { inboxBlock } from "better-supabase/blocks/inbox";
@@ -135,6 +136,7 @@ const blockSet = defineBlocks(blockConfig, {
   catalog: catalogBlock,
   inventory: inventoryBlock,
   ledger: ledgerBlock,
+  guests: guestsBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
   calendar: calendarBlock,

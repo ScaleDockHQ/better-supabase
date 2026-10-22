@@ -10,6 +10,8 @@ import {
   removeTaskAttachments,
   addTaskComments,
   removeTaskComments,
+  grantTaskGuests,
+  revokeTaskGuests,
   linkTaskRelations,
   unlinkTaskRelations,
   createTaskShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addTaskComments,
     remove: removeTaskComments,
+  },
+  guests: {
+    grant: grantTaskGuests,
+    revoke: revokeTaskGuests,
   },
   relations: {
     link: linkTaskRelations,

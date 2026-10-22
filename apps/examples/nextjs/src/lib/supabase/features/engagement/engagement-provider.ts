@@ -10,6 +10,8 @@ import {
   removeEngagementAttachments,
   addEngagementComments,
   removeEngagementComments,
+  grantEngagementGuests,
+  revokeEngagementGuests,
   linkEngagementRelations,
   unlinkEngagementRelations,
   createEngagementShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addEngagementComments,
     remove: removeEngagementComments,
+  },
+  guests: {
+    grant: grantEngagementGuests,
+    revoke: revokeEngagementGuests,
   },
   relations: {
     link: linkEngagementRelations,

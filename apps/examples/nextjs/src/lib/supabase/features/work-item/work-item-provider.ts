@@ -10,6 +10,8 @@ import {
   removeWorkItemAttachments,
   addWorkItemComments,
   removeWorkItemComments,
+  grantWorkItemGuests,
+  revokeWorkItemGuests,
   linkWorkItemRelations,
   unlinkWorkItemRelations,
   createWorkItemShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addWorkItemComments,
     remove: removeWorkItemComments,
+  },
+  guests: {
+    grant: grantWorkItemGuests,
+    revoke: revokeWorkItemGuests,
   },
   relations: {
     link: linkWorkItemRelations,

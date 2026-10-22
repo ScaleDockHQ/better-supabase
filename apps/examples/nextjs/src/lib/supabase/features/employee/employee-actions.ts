@@ -10,6 +10,10 @@ export const addEmployeeComments = employeeRecord.actions.comments.add;
 
 export const removeEmployeeComments = employeeRecord.actions.comments.remove;
 
+export const grantEmployeeGuests = employeeRecord.actions.guests.grant;
+
+export const revokeEmployeeGuests = employeeRecord.actions.guests.revoke;
+
 export const linkEmployeeRelations = employeeRecord.actions.relations.link;
 
 export const unlinkEmployeeRelations = employeeRecord.actions.relations.unlink;

@@ -10,6 +10,8 @@ import {
   removeCompanyAttachments,
   addCompanyComments,
   removeCompanyComments,
+  grantCompanyGuests,
+  revokeCompanyGuests,
   linkCompanyRelations,
   unlinkCompanyRelations,
   createCompanyShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addCompanyComments,
     remove: removeCompanyComments,
+  },
+  guests: {
+    grant: grantCompanyGuests,
+    revoke: revokeCompanyGuests,
   },
   relations: {
     link: linkCompanyRelations,

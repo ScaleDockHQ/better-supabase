@@ -10,6 +10,8 @@ import {
   removeEmployeeAttachments,
   addEmployeeComments,
   removeEmployeeComments,
+  grantEmployeeGuests,
+  revokeEmployeeGuests,
   linkEmployeeRelations,
   unlinkEmployeeRelations,
   createEmployeeShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addEmployeeComments,
     remove: removeEmployeeComments,
+  },
+  guests: {
+    grant: grantEmployeeGuests,
+    revoke: revokeEmployeeGuests,
   },
   relations: {
     link: linkEmployeeRelations,

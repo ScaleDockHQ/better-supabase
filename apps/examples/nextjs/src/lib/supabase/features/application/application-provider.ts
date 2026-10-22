@@ -10,6 +10,8 @@ import {
   removeApplicationAttachments,
   addApplicationComments,
   removeApplicationComments,
+  grantApplicationGuests,
+  revokeApplicationGuests,
   linkApplicationRelations,
   unlinkApplicationRelations,
   createApplicationShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addApplicationComments,
     remove: removeApplicationComments,
+  },
+  guests: {
+    grant: grantApplicationGuests,
+    revoke: revokeApplicationGuests,
   },
   relations: {
     link: linkApplicationRelations,

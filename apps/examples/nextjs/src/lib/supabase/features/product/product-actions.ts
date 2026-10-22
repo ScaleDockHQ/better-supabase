@@ -10,6 +10,10 @@ export const addProductComments = productRecord.actions.comments.add;
 
 export const removeProductComments = productRecord.actions.comments.remove;
 
+export const grantProductGuests = productRecord.actions.guests.grant;
+
+export const revokeProductGuests = productRecord.actions.guests.revoke;
+
 export const linkProductRelations = productRecord.actions.relations.link;
 
 export const unlinkProductRelations = productRecord.actions.relations.unlink;

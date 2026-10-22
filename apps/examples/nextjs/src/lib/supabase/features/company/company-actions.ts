@@ -10,6 +10,10 @@ export const addCompanyComments = companyRecord.actions.comments.add;
 
 export const removeCompanyComments = companyRecord.actions.comments.remove;
 
+export const grantCompanyGuests = companyRecord.actions.guests.grant;
+
+export const revokeCompanyGuests = companyRecord.actions.guests.revoke;
+
 export const linkCompanyRelations = companyRecord.actions.relations.link;
 
 export const unlinkCompanyRelations = companyRecord.actions.relations.unlink;

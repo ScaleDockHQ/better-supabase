@@ -10,6 +10,8 @@ import {
   removeDealAttachments,
   addDealComments,
   removeDealComments,
+  grantDealGuests,
+  revokeDealGuests,
   linkDealRelations,
   unlinkDealRelations,
   createDealShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addDealComments,
     remove: removeDealComments,
+  },
+  guests: {
+    grant: grantDealGuests,
+    revoke: revokeDealGuests,
   },
   relations: {
     link: linkDealRelations,

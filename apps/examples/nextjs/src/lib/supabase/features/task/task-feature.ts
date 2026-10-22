@@ -4,6 +4,7 @@ import { accessBlock } from "better-supabase/blocks/access";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
+import { guestsBlock } from "better-supabase/blocks/guests";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -22,6 +23,7 @@ export const taskFeature = defineRecordFeature({
     attachments: attachmentsBlock,
     comments: commentsBlock,
     ledger: ledgerBlock,
+    guests: guestsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

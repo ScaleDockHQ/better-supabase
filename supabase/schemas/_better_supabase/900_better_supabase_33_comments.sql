@@ -79,7 +79,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select case subject_type
+  select (((tenant)::text, (subject_type)::text, (subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case subject_type
     when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'comments.read'), false)
     when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
     when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
@@ -98,17 +98,17 @@ as $$
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     else false
-  end
+  end)
 $$;
 
 drop policy if exists "comments_read" on "better_supabase"."comments";
 create policy "comments_read" on "better_supabase"."comments" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id"));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id"));
 drop policy if exists "comments_insert" on "better_supabase"."comments";
 create policy "comments_insert" on "better_supabase"."comments" for insert to authenticated
   with check ((
     "author_id" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id")
+    and (coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('comment') g)) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "comments_update" on "better_supabase"."comments";
 create policy "comments_update" on "better_supabase"."comments" for update to authenticated
@@ -344,7 +344,7 @@ as $$
   from "better_supabase"."comments" y
   join "better_supabase"."profiles" pr on pr."id" = y."author_id"
   where y."id" = any ($1)
-    and y."organization_id" in (select better_supabase.tenant_ids_with('comments.read'))
+    and (y."organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or ((y."organization_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
 $$;
 revoke execute on function "better_supabase"."comment_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."comment_authors"(uuid[]) to authenticated, service_role;

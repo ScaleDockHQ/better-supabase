@@ -10,6 +10,8 @@ import {
   removeProductAttachments,
   addProductComments,
   removeProductComments,
+  grantProductGuests,
+  revokeProductGuests,
   linkProductRelations,
   unlinkProductRelations,
   createProductShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addProductComments,
     remove: removeProductComments,
+  },
+  guests: {
+    grant: grantProductGuests,
+    revoke: revokeProductGuests,
   },
   relations: {
     link: linkProductRelations,

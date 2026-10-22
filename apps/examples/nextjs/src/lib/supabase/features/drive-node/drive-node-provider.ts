@@ -10,6 +10,8 @@ import {
   removeDriveNodeAttachments,
   addDriveNodeComments,
   removeDriveNodeComments,
+  grantDriveNodeGuests,
+  revokeDriveNodeGuests,
   linkDriveNodeRelations,
   unlinkDriveNodeRelations,
   createDriveNodeShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addDriveNodeComments,
     remove: removeDriveNodeComments,
+  },
+  guests: {
+    grant: grantDriveNodeGuests,
+    revoke: revokeDriveNodeGuests,
   },
   relations: {
     link: linkDriveNodeRelations,

@@ -10,6 +10,10 @@ export const addDocumentComments = documentRecord.actions.comments.add;
 
 export const removeDocumentComments = documentRecord.actions.comments.remove;
 
+export const grantDocumentGuests = documentRecord.actions.guests.grant;
+
+export const revokeDocumentGuests = documentRecord.actions.guests.revoke;
+
 export const linkDocumentRelations = documentRecord.actions.relations.link;
 
 export const unlinkDocumentRelations = documentRecord.actions.relations.unlink;

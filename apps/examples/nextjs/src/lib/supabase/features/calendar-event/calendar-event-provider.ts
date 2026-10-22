@@ -10,6 +10,8 @@ import {
   removeCalendarEventAttachments,
   addCalendarEventComments,
   removeCalendarEventComments,
+  grantCalendarEventGuests,
+  revokeCalendarEventGuests,
   linkCalendarEventRelations,
   unlinkCalendarEventRelations,
   createCalendarEventShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addCalendarEventComments,
     remove: removeCalendarEventComments,
+  },
+  guests: {
+    grant: grantCalendarEventGuests,
+    revoke: revokeCalendarEventGuests,
   },
   relations: {
     link: linkCalendarEventRelations,

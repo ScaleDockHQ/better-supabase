@@ -396,6 +396,7 @@ export default defineConfig({
     promotions: {},
     calendar: {},
     bookings: {},
+    guests: {},
     reminders: {},
     "drive-files": {},
     drive: {},

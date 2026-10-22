@@ -10,6 +10,10 @@ export const addEngagementComments = engagementRecord.actions.comments.add;
 
 export const removeEngagementComments = engagementRecord.actions.comments.remove;
 
+export const grantEngagementGuests = engagementRecord.actions.guests.grant;
+
+export const revokeEngagementGuests = engagementRecord.actions.guests.revoke;
+
 export const linkEngagementRelations = engagementRecord.actions.relations.link;
 
 export const unlinkEngagementRelations = engagementRecord.actions.relations.unlink;

@@ -10,6 +10,10 @@ export const addCalendarEventComments = calendarEventRecord.actions.comments.add
 
 export const removeCalendarEventComments = calendarEventRecord.actions.comments.remove;
 
+export const grantCalendarEventGuests = calendarEventRecord.actions.guests.grant;
+
+export const revokeCalendarEventGuests = calendarEventRecord.actions.guests.revoke;
+
 export const linkCalendarEventRelations = calendarEventRecord.actions.relations.link;
 
 export const unlinkCalendarEventRelations = calendarEventRecord.actions.relations.unlink;

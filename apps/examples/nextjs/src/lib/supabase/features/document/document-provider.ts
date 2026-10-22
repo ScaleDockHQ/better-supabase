@@ -10,6 +10,8 @@ import {
   removeDocumentAttachments,
   addDocumentComments,
   removeDocumentComments,
+  grantDocumentGuests,
+  revokeDocumentGuests,
   linkDocumentRelations,
   unlinkDocumentRelations,
   createDocumentShareLinks,
@@ -29,6 +31,10 @@ const writes = {
   comments: {
     add: addDocumentComments,
     remove: removeDocumentComments,
+  },
+  guests: {
+    grant: grantDocumentGuests,
+    revoke: revokeDocumentGuests,
   },
   relations: {
     link: linkDocumentRelations,
