@@ -51,7 +51,7 @@ const { tags, available, add, remove, create } = useTagInput({
 
 The hook calls the schema and function names in the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so it takes no `schema`, and acts in the client's tenant: the client's `tenant` option, then the session's tenant claim. It waits while there is no tenant or `subject` is `null`.
 
-`createTagInputController` from `better-supabase/blocks/tags` is the same logic without React, and `better-supabase/blocks/tags/vue`, `/svelte` and `/solid` export `useTagInput` over it, taking the controller's options: a client built with its `tenant`, and `subject`. The [tag input recipe](/docs/registry/ui-recipes) shows it in the Next.js and Expo examples.
+`createTagInputController` from `better-supabase/blocks/tags` is the same logic without React, and `better-supabase/blocks/tags/vue`, `/svelte` and `/solid` export `useTagInput` over it, taking the controller's options: a client built with its `tenant`, and `subject`. The [tag input recipe](/docs/registry/ui-recipes/tag-input) shows it in the Next.js and Expo examples.
 
 ```vue title="CustomerTags.vue"
 <script setup lang="ts">

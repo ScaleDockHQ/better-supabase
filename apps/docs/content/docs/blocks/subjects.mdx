@@ -95,8 +95,8 @@ export function SubjectLink({ subject }: { subject: SubjectRef }) {
 `createSubjectsController` is the same logic without React, and
 `better-supabase/blocks/subjects/vue`, `/svelte` and `/solid` export
 `useSubjects` over it. Wrap the client in `batchSubjects` so the components
-of one render share a call. The [Subject link and Subject chip
-recipes](/docs/registry/ui-recipes) show both in the Next.js example: the
+of one render share a call. The [Subject link](/docs/registry/ui-recipes/subject-link) and
+[Subject chip](/docs/registry/ui-recipes/subject-chip) recipes show both in the Next.js example: the
 related records panel and the approvals queue.
 
 ```vue title="SubjectTitle.vue"

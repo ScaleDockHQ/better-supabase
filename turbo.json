@@ -219,6 +219,8 @@
     "//#recipes": {
       "inputs": [
         "scripts/build-recipes.ts",
+        "scripts/build-catalog.ts",
+        "packages/better-supabase/src/**",
         "scripts/recipes/**",
         "apps/examples/nextjs/src/**",
         "apps/examples/expo-powersync/src/**",
@@ -229,11 +231,13 @@
     "//#recipes:check": {
       "inputs": [
         "scripts/build-recipes.ts",
+        "scripts/build-catalog.ts",
+        "packages/better-supabase/src/**",
         "scripts/recipes/**",
         "apps/examples/nextjs/src/**",
         "apps/examples/expo-powersync/src/**",
         "apps/marketing/public/recipes/**",
-        "apps/docs/content/docs/registry/ui-recipes.mdx",
+        "apps/docs/content/docs/registry/ui-recipes/**",
         "packages/better-supabase/skills/better-supabase/references/ui-recipes.md"
       ]
     },
