@@ -12,7 +12,7 @@ export const features: readonly Feature[] = [
   },
   {
     title: "A typed repository",
-    body: "findMany with where, include, orderBy and pagination compiles to one PostgREST request, or to SQL on the direct-Postgres path.",
+    body: "list with where, include, orderBy and pagination compiles to one PostgREST request, or to SQL on the direct-Postgres path.",
     href: "/docs/repository",
   },
   {

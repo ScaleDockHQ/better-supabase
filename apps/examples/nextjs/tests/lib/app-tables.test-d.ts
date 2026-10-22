@@ -18,14 +18,14 @@ export const POST = bsb.route(async (_request, { db }) => {
   await db.projects.create({ name: "No organization" });
 
   const [counted] = await db.projectsView
-    .findMany({ select: ["openTasks", "nextDueOn"], limit: 1 })
+    .list({ select: ["openTasks", "nextDueOn"], limit: 1 })
     .orThrow();
 
   const openTasks: bigint | null | undefined = counted?.openTasks;
   const nextDueOn: string | null | undefined = counted?.nextDueOn;
 
   const [task] = await db.tasksView
-    .findMany({ select: ["projectName"], limit: 1 })
+    .list({ select: ["projectName"], limit: 1 })
     .orThrow();
 
   const projectName: string | null | undefined = task?.projectName;

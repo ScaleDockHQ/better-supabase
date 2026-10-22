@@ -72,7 +72,7 @@ const meta: SchemaMeta = {
 interface Ledger {
   create(row: object): AsyncResult<unknown>;
   update(id: unknown, patch: object): AsyncResult<unknown>;
-  findMany(args?: object): AsyncResult<Record<string, unknown>[]>;
+  list(args?: object): AsyncResult<Record<string, unknown>[]>;
 }
 
 function ledger(client: SupabaseClient, schema: SchemaMeta = meta): Ledger {
@@ -136,7 +136,7 @@ describe("codecs", () => {
     }));
 
     const db = ledger(client);
-    const [row] = await db.findMany().orThrow();
+    const [row] = await db.list().orThrow();
     expect(query(last())[0]).toBe(
       "select=id::text,code,amount::text,bookedAt:booked_at::text,total",
     );
@@ -158,7 +158,7 @@ describe("codecs", () => {
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
-    const result = await ledger(client).findMany();
+    const result = await ledger(client).list();
     expect(result.error).toMatchObject({
       kind: "unexpected",
       message: expect.stringContaining("temporal-polyfill/global"),
@@ -168,7 +168,7 @@ describe("codecs", () => {
   it("encodes Temporal and bigint values in filters and rows", async () => {
     const { client, requests } = capturingClient(() => ({ body: [] }));
     const db = ledger(client);
-    await db.findMany({
+    await db.list({
       where: {
         id: 5n,
         bookedAt: { gte: Temporal.Instant.from("2026-01-01T00:00:00Z") },
@@ -198,10 +198,10 @@ describe("findUnique", () => {
     const db = defineSupabase(camel).connect(client);
 
     const row = await db.customers
-      .findUnique({
-        where: { organizationId: "o1", kvk: "123" },
-        select: ["id", "kvk"],
-      })
+      .get(
+        { organizationId: "o1", kvk: "123" },
+        { select: ["id", "kvk"], optional: true },
+      )
       .orThrow();
 
     expect(row).toEqual({ id: "c1", kvk: "123" });
@@ -217,15 +217,15 @@ describe("findUnique", () => {
     const { client } = capturingClient(() => ({ body: [] }));
     const db = defineSupabase(camel).connect(client);
     expect(
-      await db.customers.findUnique({ where: { id: "missing" } }).orThrow(),
+      await db.customers.get({ id: "missing" }, { optional: true }).orThrow(),
     ).toBeNull();
 
-    const partial = await db.customers.findUnique({
-      where: { kvk: "1" } as never,
+    const partial = await db.customers.get({ kvk: "1" } as never, {
+      optional: true,
     });
 
     expect(partial.error?.message).toContain(
-      "needs one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }",
+      "needs the primary key or one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }",
     );
   });
 });

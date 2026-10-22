@@ -1,7 +1,7 @@
 import type { Db } from "@better-supabase/example-monorepo-runtime";
 
 export function activeCustomers(db: Db) {
-  return db.customers.findMany({
+  return db.customers.list({
     select: ["id", "name", "status"],
     where: { status: "active" },
     orderBy: { name: "asc" },

@@ -123,8 +123,8 @@ describe("createClient", () => {
 
   it("passes staleTime to every query option", () => {
     const { browser } = setup({ staleTime: 30_000 });
-    expect(browser.queries.customers.findMany({}).staleTime).toBe(30_000);
-    expect(setup().browser.queries.customers.findMany({})).not.toHaveProperty(
+    expect(browser.queries.customers.list({}).staleTime).toBe(30_000);
+    expect(setup().browser.queries.customers.list({})).not.toHaveProperty(
       "staleTime",
     );
   });
@@ -296,12 +296,8 @@ describe("createClient", () => {
 
   it("builds query options that run on the current repositories", async () => {
     const { browser, requests } = setup();
-    const options = browser.queries.customers.findMany({ select: ["id"] });
-    expect(options.queryKey.slice(0, 3)).toEqual([
-      "bsb",
-      "customers",
-      "findMany",
-    ]);
+    const options = browser.queries.customers.list({ select: ["id"] });
+    expect(options.queryKey.slice(0, 3)).toEqual(["bsb", "customers", "list"]);
 
     const queryFn = options.queryFn as (context: {
       signal: AbortSignal;

@@ -93,7 +93,7 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
 
   afterAll(async () => {
     if (created.length > 0) {
-      await admin.customers.deleteMany({ where: { id: { in: created } } });
+      await admin.customers.delete({ where: { id: { in: created } } });
     }
   });
 

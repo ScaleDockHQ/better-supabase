@@ -5,7 +5,7 @@ description: Load related rows in the same request, typed by relation cardinalit
 
 ```ts
 const customer = await db.customers
-  .findById(id, {
+  .get(id, {
     select: ["id", "name"],
     include: {
       organization: { select: ["name"] },
@@ -47,7 +47,7 @@ returns `null`. Add `required: true` to drop those parents instead; the
 include is then typed non-null for nullable relations too:
 
 ```ts
-await db.notes.findMany({
+await db.notes.list({
   include: { customer: { select: ["name"], required: true } },
 });
 ```
@@ -63,7 +63,7 @@ them. A `where` counts only the matching rows:
 
 ```ts
 const customers = await db.customers
-  .findMany({
+  .list({
     select: ["id", "name"],
     include: {
       _count: { notes: true, locations: { where: { isPrimary: true } } },
@@ -79,6 +79,6 @@ To-one relations can't be counted; that's a type error, and an
 the same way; see [Aggregates](/docs/repository/aggregates).
 
 `_count` and the measures belong inside `include`. Passed next to `select`,
-as in `findMany({ _count: { notes: true } })`, they are a type error and an
+as in `list({ _count: { notes: true } })`, they are a type error and an
 `invalid_request` error at runtime, never silently ignored. To count or
 aggregate the table itself, use `count()` or `aggregate()`.

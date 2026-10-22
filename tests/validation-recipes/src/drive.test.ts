@@ -42,9 +42,13 @@ describe.skipIf(!live)("drive recipe", () => {
 
       expect(link.token).not.toBe("");
 
-      const label = await tags.create("document", "Finance").orThrow();
+      const label = await tags
+        .create({ kind: "document", name: "Finance" })
+        .orThrow();
 
-      await tags.tag({ type: "document", id: subjectId }, label.id).orThrow();
+      await tags
+        .attach({ type: "document", id: subjectId }, label.id)
+        .orThrow();
       await rank.move("document", subjectId, { group: "archive" }).orThrow();
 
       await watchers.relay();

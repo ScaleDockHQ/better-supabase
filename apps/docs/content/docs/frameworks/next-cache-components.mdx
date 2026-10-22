@@ -292,7 +292,7 @@ query runs with the user's token and RLS decides what comes back:
 export async function getCustomers() {
   "use cache: private";
   const { db } = await bsb.cached();
-  return db.customers.findMany({ select: ["id", "name", "status"] }).orThrow();
+  return db.customers.list({ select: ["id", "name", "status"] }).orThrow();
 }
 ```
 

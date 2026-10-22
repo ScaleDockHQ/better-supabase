@@ -245,7 +245,7 @@ export function createWorkflowEditor<
 
   const builder: WorkflowEditor<F> = {
     definitions: {
-      save: (input) =>
+      upsert: (input) =>
         fields
           .args(input.fields)
           .andThen((checked) =>
@@ -314,7 +314,7 @@ export function createWorkflowEditor<
       },
     },
     versions: {
-      save: (definition, graph, saveOptions = {}) =>
+      upsert: (definition, graph, saveOptions = {}) =>
         call(
           "save_workflow_draft",
           {
@@ -476,7 +476,7 @@ export function createWorkflowEditor<
       });
     },
     triggers: {
-      save: (input) => {
+      upsert: (input) => {
         const problem =
           input.kind === "event"
             ? triggerWhenProblem(input.config ?? {})
@@ -843,7 +843,7 @@ export function createWorkflowEditor<
         ),
     },
     alerts: {
-      save: (input) =>
+      upsert: (input) =>
         call(
           "save_workflow_alert",
           {

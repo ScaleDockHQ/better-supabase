@@ -27,7 +27,7 @@ export type EdgeHandler = (
  * ```ts
  * Deno.serve(
  *   toEdge([withBetterSupabase(server)], async (req, ctx) =>
- *     Response.json(await ctx.db.notes.findMany().orThrow()),
+ *     Response.json(await ctx.db.notes.list().orThrow()),
  *   ),
  * );
  * ```

@@ -96,14 +96,14 @@ lower) is split along its longest top-level `in` list
 into reads that fit; they run in parallel, and the rows come back merged:
 
 ```ts
-await db.employees.findMany({ where: { id: { in: managerIds } } });
+await db.employees.list({ where: { id: { in: managerIds } } });
 ```
 
 Splitting needs a read without `limit`, `offset`, `count` or a page, since
 the parts can't share those, and an `orderBy` on number, uuid, date or time
 columns, which are sorted again after the merge (an order column you don't
 select is fetched for the sort and left out of the rows). Other reads that are
-too long return `invalid_request`, and so do `updateMany`, `deleteMany` and
+too long return `invalid_request`, and so do `update({ where })`, `delete({ where })` and
 the other writes, which can't be split: page through a shorter list, or pass
 the list to a function. Set the limit with `defineSupabase(schema, { urlLengthLimit })`.
 
@@ -119,7 +119,7 @@ import type { WhereOf } from "@/lib/supabase/generated";
 const where: WhereOf<"customers"> = {};
 if (status) where.status = status;
 if (search) where.name = { ilike: `%${search}%` };
-await db.customers.findMany({ where });
+await db.customers.list({ where });
 ```
 
 `MutableWhere<Models, T>` from `better-supabase` is the generic form.
@@ -132,7 +132,7 @@ import type { OrderByOf } from "@/lib/supabase/generated";
 
 const orderBy: OrderByOf<"customers"> =
   sort === "newest" ? { createdAt: "desc" } : [{ name: "asc" }, { id: "asc" }];
-await db.customers.findMany({ where, orderBy });
+await db.customers.list({ where, orderBy });
 ```
 
 `OrderTermOf<"table">` is one term of that sort, for a tiebreak or a
@@ -227,6 +227,6 @@ to filter-only embeds (`!inner` for `some`, anti-joins for `none` and
 
 ## Limits of the PostgREST path
 
-`updateMany` and `deleteMany` cannot filter through relations over PostgREST,
+`update({ where })` and `delete({ where })` cannot filter through relations over PostgREST,
 and return an `invalid_request` error. Use the direct Postgres executor for
 those, or select the ids first.

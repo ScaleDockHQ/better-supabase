@@ -95,7 +95,7 @@ export const previewCustomerImport = bsb.action(
   },
   async ({ csv, mapping }, { db }) => {
     const preview = await dryRun(
-      customerImport((rows) => db.customers.createMany(rows)),
+      customerImport((rows) => db.customers.create(rows)),
       csv,
       mapping,
     );
@@ -129,7 +129,7 @@ export const runCustomerImport = bsb.action(
       can(session, "imports.manage") && can(session, "customers.write"),
   },
   async ({ csv, mapping }, { tenant, db, supabase, auth }) => {
-    const existing = await db.customers.findMany({
+    const existing = await db.customers.list({
       select: ["name"],
       where: { organizationId: tenant },
       limit: 10_000,
@@ -140,7 +140,7 @@ export const runCustomerImport = bsb.action(
     }
 
     const definition = customerImport((rows) =>
-      db.customers.createMany(rows, { returning: false }),
+      db.customers.create(rows, { returning: false }),
     );
 
     const { rows: valid } = await dryRun(definition, csv, mapping);

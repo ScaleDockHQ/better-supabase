@@ -26,7 +26,7 @@ compile to SQL and need no setting.
 
 Aggregates run under RLS like any other read: they see only the rows the
 caller may read, and plugins such as `memberships` and `softDelete` scope them
-the same way as `findMany`.
+the same way as `list`.
 
 ## Per-row aggregates of a relation
 
@@ -35,7 +35,7 @@ each takes to-many relations and, per relation, the columns to aggregate:
 
 ```ts
 const customers = await db.customers
-  .findMany({
+  .list({
     select: ["id", "name"],
     include: {
       _count: { invoices: true },

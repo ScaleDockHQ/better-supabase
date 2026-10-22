@@ -130,7 +130,7 @@ the `better-supabase-auth` skill.
 ## Querying
 
 ```ts
-const result = await db.customers.findMany({
+const result = await db.customers.list({
   select: ["id", "name"],
   where: { status: "active", notes: { some: { kind: "call" } } },
   include: { organization: { select: ["name"] } },
@@ -144,8 +144,8 @@ const customers = result.data;
 - Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted. The `DbException` it throws has the `DbError` as `error` and `cause`, plus its own `kind`, `status`, `code`, `details`, `hint` and `table`; kind-specific fields such as `constraint` stay on `error`.
 - Apps on better-result: `withBetterResult(db, toResult)` from `better-supabase/better-result` returns a `db` whose repositories, `$rpc` and `$list(list, query)` return better-result values; `toBetterResult(result, Result, mapError)` converts one result, and `defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure)` maps `DbError` kinds to `TaggedError` classes once. Annotate the expected `Result<T, E>` type instead of casting.
 - Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, and `queryRaw` on the `better-supabase/postgres` clients) use database names.
-- Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.
-- Page lists with a cursor: `paginate({ after: null, size: 25, orderBy })`, then pass `nextCursor` back as `after` with the same `orderBy` and `where`. Use `page` numbers only when users jump to a page and need a total, and `paginate({ offset, limit, count: 'exact' })` when the caller already has an offset; both return the rows and the total in one request.
+- Writes: `create` (one row or an array), `update(id, patch)`, `update({ where })`, `upsert`, `delete`.
+- Page lists with a cursor: `page({ after: null, size: 25, orderBy })`, then pass `nextCursor` back as `after` with the same `orderBy` and `where`. Use page numbers only when users jump to a page and need a total, and `page({ offset, limit, count: 'exact' })` when the caller already has an offset; both return the rows and the total in one request.
 - Handlers may return a `Result` directly. Adapters turn errors into RFC 9457 Problem Details with the right status.
 - Jobs and webhooks run as a user so RLS applies: `bsb.forContext(job.context)` for a job enqueued with `{ context: db.$context }`, `bsb.actingAs(userId, { tenant_id })` for a webhook or script. `bsb.admin()` bypasses RLS: use it only for work no user owns, never for a user's request.
 - PostgREST has no multi-request transactions. Put multi-step writes in a database function (`db.$rpc()`) or use `postgres.transaction()` on the server.

@@ -85,7 +85,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
         call("list_ai_provider_keys", { tenant: organizationId }, (value) =>
           recordsOf(value, "list_ai_provider_keys").map(keyOf),
         ),
-      save: (organizationId, key) =>
+      upsert: (organizationId, key) =>
         call(
           "save_ai_provider_key",
           {

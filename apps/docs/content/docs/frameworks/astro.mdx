@@ -37,7 +37,7 @@ import { bsb } from "../lib/server";
 
 const refused = await bsb.guard(Astro, { roles: ["admin"] });
 if (refused) return refused;
-const members = await bsb.locals(Astro).db.members.findMany().orThrow();
+const members = await bsb.locals(Astro).db.members.list().orThrow();
 ---
 <ul>{members.map((member) => <li>{member.name}</li>)}</ul>
 ```

@@ -33,7 +33,7 @@ views can't be created and are never visible.
 
 ## Save and list views
 
-Pass the list definitions to `lists` so `save` checks each view's `query`
+Pass the list definitions to `lists` so `upsert` checks each view's `query`
 with the list's own `parse`. An invalid view returns a `validation` error
 with the issues, prefixed with `query`, and makes no call.
 
@@ -48,7 +48,7 @@ export const savedViews = createSavedViews({
 });
 
 await savedViews
-  .save({
+  .upsert({
     organizationId,
     list: "tasks",
     name: "Open bugs",
@@ -73,7 +73,7 @@ forms.
 
 | Method                    | What it does                                                        |
 | ------------------------- | ------------------------------------------------------------------- |
-| `save(input)`             | Adds a view, or updates `input.id`; resolves to its id and rank key |
+| `upsert(input)`           | Adds a view, or updates `input.id`; resolves to its id and rank key |
 | `list(organizationId, l)` | The caller's views of list `l`, in rank order                       |
 | `reorder(id, neighbors)`  | Moves a view between its neighbours' rank keys                      |
 | `setDefault(id, on)`      | Makes a view the default of its slot, clearing the slot's other one |
@@ -113,7 +113,7 @@ then always false.
 
 `duplicate(id, { name, scope, teamId })` copies the state, kind and list of
 a view the caller sees. The copy is a personal view unless you pass `scope`,
-and it goes through the same checks as `save`, so a `team` or `tenant` copy
+and it goes through the same checks as `upsert`, so a `team` or `tenant` copy
 needs `views.share`. A member can copy a shared view to change it on their
 own.
 
@@ -136,7 +136,7 @@ const copy = await savedViews
 `state.collectionId` keeps a view to the records of a static list from the
 [collections](/docs/blocks/collections) block. The view stores the list's id;
 pass `collections.where(state.collectionId)` as the list query's `where` when
-you run it. With the collections module installed, `save` checks that the
+you run it. With the collections module installed, `upsert` checks that the
 list exists in the organization and is shared or the caller's own.
 
 ## Sync with the URL
@@ -198,7 +198,7 @@ export function ViewsMenu({ organizationId }: { organizationId: string }) {
 ```
 
 `apply` calls `onApplyState` with every key the view stores except `query`,
-so reset each part the view leaves out. The `save` callback receives the
+so reset each part the view leaves out. The `upsert` callback receives the
 query alone as `query` and the whole state as `state`.
 
 `queryFromUrlState` and `urlStateFromQuery` convert between nuqs values and a
@@ -290,8 +290,8 @@ export function Component() {
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `saved_views`. `save` writes them from `fields`,
-and `save`, `duplicate` and `list` return them in `fields`. Pass a Standard Schema as `fields`
+`options.extraColumns` adds columns to `saved_views`. `upsert` writes them from `fields`,
+and `upsert`, `duplicate` and `list` return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
@@ -307,7 +307,7 @@ const client = createSavedViews({
   transport,
   fields: v.object({ color: v.optional(v.string()) }),
 });
-await client.save({
+await client.upsert({
   organizationId,
   list: "tasks",
   name: "Mine",
@@ -318,8 +318,8 @@ await client.save({
 
 ## Events
 
-`save` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
-outbox when it is installed, and `save` calls the `before_view_save` and
+`upsert` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
+outbox when it is installed, and `upsert` calls the `before_view_save` and
 `after_view_save` hooks. `duplicate` saves through the same function, so a
 copy records `saved_view.saved` and runs both hooks. Preferences record no
 event.

@@ -98,8 +98,7 @@ export function toH3V1<const Entries extends readonly AnyEntry[]>(
  * const admins = guard({ roles: ["admin"] });
  * export default defineEventHandler(
  *   async (event) =>
- *     (await admins(event)) ??
- *     event.context.db.members.findMany().orThrow(),
+ *     (await admins(event)) ?? event.context.db.members.list().orThrow(),
  * );
  * ```
  */

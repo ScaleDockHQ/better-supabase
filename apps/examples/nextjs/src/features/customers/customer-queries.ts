@@ -45,17 +45,20 @@ export async function getCustomer(id: string) {
   const { db } = await bsb.cached();
 
   const customer = await db.customers
-    .findUnique({
-      where: { id },
-      select: ["id", "name", "status", "logoPath", "createdAt"],
-      include: {
-        notes: {
-          select: ["id", "body", "kind", "createdAt"],
-          orderBy: { createdAt: "desc" },
-          limit: 5,
+    .get(
+      { id },
+      {
+        select: ["id", "name", "status", "logoPath", "createdAt"],
+        include: {
+          notes: {
+            select: ["id", "body", "kind", "createdAt"],
+            orderBy: { createdAt: "desc" },
+            limit: 5,
+          },
         },
+        optional: true,
       },
-    })
+    )
     .orThrow();
 
   if (!customer) {

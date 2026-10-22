@@ -13,13 +13,13 @@ export const handler = bsb.routes(
   {
     "GET /me": (_request, { auth, tenant }) => ({ kind: auth.kind, tenant }),
     "GET /customers": (_request, { db }) =>
-      db.customers.findMany({
+      db.customers.list({
         select: customer,
         orderBy: { name: "asc" },
         limit: 50,
       }),
     "GET /customers/:id": (_request, { db, params }) =>
-      db.customers.findById(params.id, { select: customer }),
+      db.customers.get(params.id, { select: customer }),
     "POST /customers/:id/archive": {
       ...admin,
       requireTenant: true,
@@ -31,7 +31,7 @@ export const handler = bsb.routes(
         ),
     },
     "GET /tags": (_request, { db }) =>
-      db.tags.findMany({ select: ["id", "name"], orderBy: { name: "asc" } }),
+      db.tags.list({ select: ["id", "name"], orderBy: { name: "asc" } }),
   },
   { basePath: "/api" },
 );

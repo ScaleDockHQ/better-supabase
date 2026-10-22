@@ -18,9 +18,10 @@ export const workspaceSummary = defineReadSet(
     customers: s.customers.count(),
     active: s.customers.count({ where: { status: "active" } }),
     mine: s.customers.count({ where: { createdBy: auth.uid } }),
-    latestNote: s.notes.findFirst({
+    latestNote: s.notes.list({
       select: ["body", "createdAt"],
       orderBy: { createdAt: "desc" },
+      limit: 1,
     }),
   }),
 );

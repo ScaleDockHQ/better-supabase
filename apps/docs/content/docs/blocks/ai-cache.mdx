@@ -21,10 +21,10 @@ Entries hold prompts and answers, so only the service role reads or writes
 them: no member sees another member's cached answer through the Data API.
 Create the block with a service transport.
 
-| Option     | Default           | Sets                                                         |
-| ---------- | ----------------- | ------------------------------------------------------------ |
-| `maxTtl`   | 604,800 (7 days)  | The longest TTL in seconds; a longer `ttl` is cut to it      |
-| `maxBytes` | 1,048,576 (1 MiB) | The largest value; `set` fails with `invalid_input` above it |
+| Option     | Default           | Sets                                                            |
+| ---------- | ----------------- | --------------------------------------------------------------- |
+| `maxTtl`   | 604,800 (7 days)  | The longest TTL in seconds; a longer `ttl` is cut to it         |
+| `maxBytes` | 1,048,576 (1 MiB) | The largest value; `upsert` fails with `invalid_input` above it |
 
 ## Server
 
@@ -53,7 +53,7 @@ const cached = await aiCache.get<string>(key).orThrow();
 if (cached === undefined) {
   const answer = await summarize(prompt);
   await aiCache
-    .set(key, answer, {
+    .upsert(key, answer, {
       ttl: 3600,
       organizationId,
       kind: "generate",

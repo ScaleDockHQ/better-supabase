@@ -23,7 +23,7 @@ const chrome = defineReadSet(
     expectTypeOf(p.limit).toEqualTypeOf<number>();
 
     return {
-      names: s.customers.findMany({
+      names: s.customers.list({
         select: ["id", "name"],
         where: { organizationId: p.organizationId },
       }),
@@ -67,8 +67,8 @@ describe("db.$many", () => {
     expectTypeOf(
       db.$many([
         betterSupabase.spec.tags.count(),
-        betterSupabase.spec.customers.findFirst({ select: ["id"] }),
+        betterSupabase.spec.customers.list({ select: ["id"], limit: 1 }),
       ]),
-    ).toEqualTypeOf<AsyncResult<[number, { id: string } | null]>>();
+    ).toEqualTypeOf<AsyncResult<[number, { id: string }[]]>>();
   });
 });

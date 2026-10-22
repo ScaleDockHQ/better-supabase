@@ -34,7 +34,7 @@ async function expiredFlags(context: DoctorContext): Promise<FindingInput[]> {
   }
 
   return rows.map((row) => ({
-    message: `Flag "${row.key}" expired on ${row.expires_at}${row.owner ? ` (owner: ${row.owner})` : ""}. Remove its checks from the code, then archive it with \`flags.save("${row.key}", { archived: true })\`, or move \`expires_at\` when it stays.`,
+    message: `Flag "${row.key}" expired on ${row.expires_at}${row.owner ? ` (owner: ${row.owner})` : ""}. Remove its checks from the code, then archive it with \`flags.upsert("${row.key}", { archived: true })\`, or move \`expires_at\` when it stays.`,
     target: `flags:${row.key}`,
   }));
 }

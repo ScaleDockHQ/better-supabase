@@ -160,18 +160,18 @@ describe("createServer read URL", () => {
       });
 
     const ctx = await server.context(request());
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
     await ctx.db.customers
       .create({ name: "Acme", organizationId: "o1" }, { select: ["id"] })
       .orThrow();
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
     expect(ctx.replica).toMatchObject({ pinned: true, wrote: true });
 
     const pinned = await server.context(
       request(`${PRIMARY_COOKIE}=${String(Date.now() + 5000)}`),
     );
 
-    await pinned.db.customers.findMany({ select: ["id"] }).orThrow();
+    await pinned.db.customers.list({ select: ["id"] }).orThrow();
     expect(pinned.replica).toMatchObject({ pinned: true, wrote: false });
 
     expect(seen).toEqual([
@@ -191,7 +191,7 @@ describe("createServer read URL", () => {
     ]) {
       const server = createServer(defineSupabase(schema), options);
       const ctx = await server.context(new Request("https://app.test/"));
-      await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+      await ctx.db.customers.list({ select: ["id"] }).orThrow();
       expect(ctx.replica).toBeUndefined();
     }
 

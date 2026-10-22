@@ -87,7 +87,7 @@ const base = defineSupabase(schema, { logger })
 
 const customers = defineRepository(base, "customers", (repo) => ({
   active: () =>
-    repo.findMany({ where: { status: "active" }, select: ["id", "name"] }),
+    repo.list({ where: { status: "active" }, select: ["id", "name"] }),
 }));
 
 export const betterSupabase = base.use(customers);
@@ -96,7 +96,7 @@ const db = betterSupabase.connect(client, { tenant: "organization" });
 
 export async function reads(): Promise<void> {
   const rows = await db.customers
-    .findMany({ select: ["id", "status", "createdAt"] })
+    .list({ select: ["id", "status", "createdAt"] })
     .orThrow();
 
   assert<
@@ -110,10 +110,12 @@ export async function reads(): Promise<void> {
   assert<Equal<typeof active, AsyncResult<{ id: string; name: string }[]>>>();
 
   const withTags = await db.customers
-    .findFirst({
+    .list({
       select: ["id"],
       include: { customerTags: { select: ["tagId"] } },
+      limit: 1,
     })
+    .map((rows) => rows[0] ?? null)
     .orThrow();
 
   assert<
@@ -131,7 +133,7 @@ export async function reads(): Promise<void> {
   }
 
   // @ts-expect-error unknown column
-  await db.customers.findMany({ select: ["nope"] });
+  await db.customers.list({ select: ["nope"] });
   // @ts-expect-error the method exists on customers only
   db.tags.active(); // oxlint-disable-line typescript/no-unsafe-call -- the call is the expected type error.
   await db.customers.restore("id");

@@ -24,7 +24,7 @@ describe("_count includes", () => {
     const db = betterSupabase.connect(client);
 
     const rows = await db.customers
-      .findMany({
+      .list({
         select: ["id"],
         include: {
           _count: { notes: true, locations: { where: { city: "Delft" } } },
@@ -73,9 +73,7 @@ describe("_count includes", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.findMany({
-        include: { _count: { organization: true } as never },
-      });
+      .customers.list({ include: { _count: { organization: true } as never } });
 
     expect(result.error?.message).toContain("needs a to-many relation");
   });

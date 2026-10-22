@@ -408,7 +408,9 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       const { user, service } = transports(s, () => owner);
       const sessions = createHarnessSessions({ transport: user, service });
 
-      await sessions.save(chat, "claude", { sandboxId: "sbx_race" }).orThrow();
+      await sessions
+        .upsert(chat, "claude", { sandboxId: "sbx_race" })
+        .orThrow();
       await s.service();
       await s.rows(
         "update better_supabase.ai_harness_sessions set status = 'idle' where chat_id = $1",
@@ -423,7 +425,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         true,
       );
       await sessions
-        .save(chat, "claude", { resumeState: { b: 2 } }, { holder: "turn-1" })
+        .upsert(chat, "claude", { resumeState: { b: 2 } }, { holder: "turn-1" })
         .orThrow();
       await sessions.unlock(chat, "claude", "turn-1").orThrow();
 

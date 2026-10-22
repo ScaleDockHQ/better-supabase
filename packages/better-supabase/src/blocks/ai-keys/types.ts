@@ -158,7 +158,7 @@ export interface AiKeys {
      * Adds or replaces a key (`ai.admin`), and revokes the credential it
      * replaced.
      */
-    save(
+    upsert(
       organizationId: string,
       key: AiProviderKeyInput,
     ): AsyncResult<AiProviderKey>;

@@ -197,7 +197,7 @@ describe.skipIf(!live)("ai-files module", () => {
         await files.providerFiles.get(generated.id, "openai").orThrow(),
       ).toBeUndefined();
       await files.providerFiles
-        .set(
+        .upsert(
           generated.id,
           "openai",
           "file-1",
@@ -214,7 +214,7 @@ describe.skipIf(!live)("ai-files module", () => {
         ),
       ).toContain(generated.id);
       await files.providerFiles
-        .set(
+        .upsert(
           generated.id,
           "openai",
           "file-1",

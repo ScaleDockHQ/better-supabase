@@ -52,9 +52,9 @@ const alice = await asUser(
   { postgres },
 );
 expect(await alice.db.customers.count().orThrow()).toBe(1);
-expect(
-  await alice.db.customers.findById(OTHER_ORGANIZATION_CUSTOMER),
-).toMatchObject({ ok: false });
+expect(await alice.db.customers.get(OTHER_ORGANIZATION_CUSTOMER)).toMatchObject(
+  { ok: false },
+);
 ```
 
 - Check both directions: the user sees their own rows and never sees another tenant's.

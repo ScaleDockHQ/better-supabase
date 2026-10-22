@@ -15,7 +15,7 @@ With `'camel'`, models, filters, includes and returned rows use camelCase.
 The mapping happens in the query itself, not in a post-processing pass:
 
 ```ts
-await db.customers.findMany({ select: ["id", "organizationId"] });
+await db.customers.list({ select: ["id", "organizationId"] });
 // GET /customers?select=id,organizationId:organization_id
 ```
 

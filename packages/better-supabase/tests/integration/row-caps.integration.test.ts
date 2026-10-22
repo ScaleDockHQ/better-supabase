@@ -35,7 +35,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
 
   beforeAll(async () => {
     await admin.tags
-      .createMany(
+      .create(
         Array.from({ length: 1001 }, (_, index) => ({
           organizationId: GLOBEX,
           name: `${PREFIX}${String(index).padStart(4, "0")}`,
@@ -46,7 +46,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
   });
 
   afterAll(async () => {
-    await admin.tags.deleteMany({ where: { name: { startsWith: PREFIX } } });
+    await admin.tags.delete({ where: { name: { startsWith: PREFIX } } });
     await db.close();
   });
 
@@ -58,14 +58,11 @@ describe.skipIf(!source)("row caps against the local stack", () => {
     );
 
     const capped = await admin.tags
-      .findMany({
-        select: ["id", "name"],
-        where: { name: { startsWith: PREFIX } },
-      })
+      .list({ select: ["id", "name"], where: { name: { startsWith: PREFIX } } })
       .orThrow();
 
     const page = await admin.tags
-      .findMany({
+      .list({
         select: ["id"],
         where: { name: { startsWith: PREFIX } },
         limit: 1000,
@@ -81,7 +78,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
   it("orders by the primary key so repeated reads agree", async () => {
     const read = () =>
       admin.tags
-        .findMany({ select: ["id"], where: { name: { startsWith: PREFIX } } })
+        .list({ select: ["id"], where: { name: { startsWith: PREFIX } } })
         .orThrow();
 
     const first = await read();

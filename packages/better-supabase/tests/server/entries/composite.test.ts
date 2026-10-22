@@ -205,7 +205,7 @@ describe("withBetterSupabase", () => {
 
     const fetch = pipeline([withBetterSupabase(withSql)], async (_req, ctx) =>
       Response.json(
-        await ctx.sql?.customers.findMany({ select: ["id"] }).orThrow(),
+        await ctx.sql?.customers.list({ select: ["id"] }).orThrow(),
       ),
     );
 

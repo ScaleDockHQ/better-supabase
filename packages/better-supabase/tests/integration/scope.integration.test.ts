@@ -70,7 +70,7 @@ describe.skipIf(!live)("scopedSeed and withRollback", () => {
       );
 
       const names = await alice
-        .sql!.customers.findMany({ select: ["name"] })
+        .sql!.customers.list({ select: ["name"] })
         .orThrow();
 
       expect(names).toEqual([{ name: "one" }]);

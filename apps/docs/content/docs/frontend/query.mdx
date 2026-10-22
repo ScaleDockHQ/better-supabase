@@ -11,10 +11,10 @@ Query. The payload type of your `select`/`include` flows into `useQuery`,
 const q = bsb.queries; // or createQueries(betterSupabase, () => db)
 
 useQuery(
-  q.customers.findMany({ select: ["id", "name"], where: { status: "active" } }),
+  q.customers.list({ select: ["id", "name"], where: { status: "active" } }),
 );
-useSuspenseQuery(q.customers.findById(id, { include: { notes: true } }));
-useQuery(q.customers.paginate({ page, size: 20, count: "exact" }));
+useSuspenseQuery(q.customers.get(id, { include: { notes: true } }));
+useQuery(q.customers.page({ page, size: 20, count: "exact" }));
 useInfiniteQuery(
   q.customers.infinite({ size: 50, orderBy: { createdAt: "desc" } }),
 ); // cursor
@@ -25,7 +25,7 @@ The options are built on `@tanstack/query-core`, so they work with the
 React, Vue, Solid, Svelte and Angular adapters alike.
 
 Pass `skipToken` to disable a query until its input exists:
-`q.customers.findById(id ?? skipToken)`.
+`q.customers.get(id ?? skipToken)`.
 
 ## Infinite lists
 
@@ -86,7 +86,7 @@ different filters are different cache entries.
 
 Every query also carries `meta: { bsTables }`, the tables it read, includes
 and relation filters too. Invalidation matches on that meta, so a write to
-`notes` refetches a `customers.findMany` that included notes. Invalidate by
+`notes` refetches a `customers.list` that included notes. Invalidate by
 hand with `invalidateTables(queryClient, ['notes'])`. See
 [Caching](/docs/concepts/caching). An index from table to cached queries,
 kept current from the query cache's events, finds the matches, so a write to
@@ -124,7 +124,7 @@ queryClient)` once instead to invalidate after every write the client makes.
 It attaches the `queryCache(client)` [cache adapter](/docs/extending/interfaces#cacheadapter).
 
 `create`, `update` and `upsert` on a table with a single-column primary key
-also write the returned row into that row's `findById` entry when the write
+also write the returned row into that row's `get` entry when the write
 selected every column, so a detail page opened next shows it without a fetch.
 
 ### Optimistic updates
@@ -137,7 +137,7 @@ which keeps its own `onSuccess` invalidation:
 ```tsx title="src/features/customers/rename.tsx"
 import { optimistic } from "better-supabase/query";
 
-const list = q.customers.findMany({ select: ["id", "name"] });
+const list = q.customers.list({ select: ["id", "name"] });
 const rename = useMutation({
   ...q.customers.update({ select: ["id", "name"] }),
   ...optimistic.update(list),
@@ -153,7 +153,7 @@ rewrites any cached data. Pass an array to rewrite several lists.
 ## Specs and RPCs
 
 ```ts
-const spec = betterSupabase.spec.customers.findMany({
+const spec = betterSupabase.spec.customers.list({
   select: ["id", "name"],
   limit: 20,
 });
@@ -240,9 +240,7 @@ The same factories work on the server with the request-scoped `db`:
 ```tsx
 const { db } = await bsb.context();
 const q = createQueries(betterSupabase, db);
-await queryClient.prefetchQuery(
-  q.customers.findMany({ select: ["id", "name"] }),
-);
+await queryClient.prefetchQuery(q.customers.list({ select: ["id", "name"] }));
 ```
 
 `q.$prefetch(queryClient, spec)` prefetches a spec; dehydrate and hydrate the

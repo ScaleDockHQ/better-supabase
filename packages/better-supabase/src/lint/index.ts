@@ -7,9 +7,9 @@
  * export default [betterSupabase.configs.recommended];
  * ```
  *
- * Rules match calls by method name (`.findMany(...)`, `.deleteMany(...)`) with
- * an inline object literal; spread or variable arguments are skipped rather
- * than guessed at. The runtime `guards()` plugin covers the rest.
+ * Rules match calls by method name (`.list(...)`, `.delete(...)`) with an
+ * inline object literal; spread or variable arguments are skipped rather than
+ * guessed at. The runtime `guards()` plugin covers the rest.
  */
 
 export {
@@ -122,7 +122,7 @@ function methodName(node: CallExpression): string | undefined {
   return (member.property as Identifier).name;
 }
 
-/** `users` in `db.users.findMany(...)`. */
+/** `users` in `db.users.list(...)`. */
 function receiverName(node: CallExpression): string | undefined {
   // SAFETY: callers only pass calls whose callee methodName resolved, which is a MemberExpression.
   const callee = node.callee as MemberExpression;
@@ -171,8 +171,11 @@ function keyName(property: Property): string | undefined {
  * arguments, or `undefined` when it cannot be read statically.
  */
 // SAFETY: the type check above narrows first to an ObjectExpression.
-function argsOf(node: CallExpression): ReadonlyMap<string, Node> | undefined {
-  const [first] = node.arguments;
+function argsOf(
+  node: CallExpression,
+  index = 0,
+): ReadonlyMap<string, Node> | undefined {
+  const first = node.arguments[index];
 
   if (first === undefined) {
     return new Map();
@@ -232,7 +235,30 @@ function rule(
   };
 }
 
-const FIND_METHODS = new Set(["findMany", "findFirst", "paginate"]);
+const READ_METHODS = new Set(["list", "page"]);
+
+/** Where `update` and `delete` take their options, after the key and the patch. */
+const OPTIONS_INDEX: Readonly<Record<string, number>> = {
+  update: 2,
+  delete: 1,
+};
+
+/** The `where` of an `update({ where }, ...)` or `delete({ where })` call. */
+function filterWhere(node: CallExpression): Node | undefined {
+  const method = methodName(node);
+
+  return method === "update" || method === "delete"
+    ? argsOf(node)?.get("where")
+    : undefined;
+}
+
+function isEmptyObject(node: Node | undefined): boolean {
+  return (
+    node?.type === "ObjectExpression" &&
+    // SAFETY: the type check above narrows node to an ObjectExpression.
+    (node as ObjectExpression).properties.length === 0
+  );
+}
 
 /** Whether `node` calls `escapeLike(...)`, imported bare or through a namespace. */
 function isEscapeLike(node: Node): boolean {
@@ -318,8 +344,8 @@ function likeValues(node: Node): Node[] {
 }
 
 export type RuleId =
-  | "no-unbounded-find-many"
-  | "no-delete-many-without-where"
+  | "no-unbounded-list"
+  | "no-empty-where"
   | "max-limit"
   | "require-order-by"
   | "unbounded-read"
@@ -348,13 +374,13 @@ export function largeTables(snapshot: LintSnapshot): string[] {
 }
 
 export const rules: Readonly<Record<RuleId, RuleModule>> = {
-  "no-unbounded-find-many": rule(
-    "Require a limit on findMany",
-    "no-unbounded-find-many",
-    { unbounded: "findMany without limit reads every visible row." },
+  "no-unbounded-list": rule(
+    "Require a limit on list",
+    "no-unbounded-list",
+    { unbounded: "list without limit reads every visible row." },
     (context) => ({
       CallExpression(node) {
-        if (methodName(node) !== "findMany") {
+        if (methodName(node) !== "list") {
           return;
         }
 
@@ -366,20 +392,18 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       },
     }),
   ),
-  "no-delete-many-without-where": rule(
-    "Require where on deleteMany",
-    "no-delete-many-without-where",
-    { missing: "deleteMany without where removes every visible row." },
+  "no-empty-where": rule(
+    "Require a filtering where on update and delete",
+    "no-empty-where",
+    { empty: "{{method}} with an empty where changes every visible row." },
     (context) => ({
       CallExpression(node) {
-        if (methodName(node) !== "deleteMany") {
-          return;
-        }
-
-        const args = argsOf(node);
-
-        if (args && !args.has("where")) {
-          context.report({ node, messageId: "missing" });
+        if (isEmptyObject(filterWhere(node))) {
+          context.report({
+            node,
+            messageId: "empty",
+            data: { method: methodName(node) ?? "" },
+          });
         }
       },
     }),
@@ -397,7 +421,7 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
         CallExpression(node) {
           const method = methodName(node);
 
-          if (method === undefined || !FIND_METHODS.has(method)) {
+          if (method === undefined || !READ_METHODS.has(method)) {
             return;
           }
 
@@ -427,7 +451,7 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
     { unordered: "offset without orderBy returns rows in no stable order." },
     (context) => ({
       CallExpression(node) {
-        if (methodName(node) !== "findMany") {
+        if (methodName(node) !== "list") {
           return;
         }
 
@@ -440,11 +464,11 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
     }),
   ),
   "unbounded-read": rule(
-    "Require limit or paginate on large tables",
+    "Require limit or page on large tables",
     "unbounded-read",
     {
       unbounded:
-        "findMany on {{table}} without limit returns at most db-max-rows rows and drops the rest; add limit or use paginate().",
+        "list on {{table}} without limit returns at most db-max-rows rows and drops the rest; add limit or use page().",
     },
     (context) => {
       // SAFETY: the rule schema declares this options object, and the linter validates it.
@@ -456,7 +480,7 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
 
       return {
         CallExpression(node) {
-          if (methodName(node) !== "findMany") {
+          if (methodName(node) !== "list") {
             return;
           }
 
@@ -490,7 +514,7 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
     ],
   ),
   "require-max-affected": rule(
-    "Require maxAffected on updateMany and deleteMany",
+    "Require maxAffected on update and delete by filter",
     "require-max-affected",
     {
       missing:
@@ -506,11 +530,11 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
         CallExpression(node) {
           const method = methodName(node);
 
-          if (method !== "updateMany" && method !== "deleteMany") {
+          if (method === undefined || filterWhere(node) === undefined) {
             return;
           }
 
-          const args = argsOf(node);
+          const args = argsOf(node, OPTIONS_INDEX[method]);
 
           if (!args) {
             return;
@@ -587,8 +611,8 @@ export const plugin: {
     recommended: {
       plugins: {},
       rules: {
-        "better-supabase/no-delete-many-without-where": "error",
-        "better-supabase/no-unbounded-find-many": "warn",
+        "better-supabase/no-empty-where": "error",
+        "better-supabase/no-unbounded-list": "warn",
         "better-supabase/max-limit": "warn",
         "better-supabase/require-order-by": "warn",
         "better-supabase/unbounded-read": "warn",

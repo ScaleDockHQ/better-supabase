@@ -123,12 +123,12 @@ export interface ReminderEntry {
 }
 
 /**
- * `F` is the extra fields `options.fields` describes. `save` and `list` act in
- * the block's `tenant`.
+ * `F` is the extra fields `options.fields` describes. `upsert` and `list` act
+ * in the block's `tenant`.
  */
 export interface Reminders<F extends object = Record<never, never>> {
   /** Sets a reminder on `subject`; `fields` fills the app's extra columns. */
-  save(
+  upsert(
     subject: RecordRef,
     offsetMinutes?: number,
     fields?: Partial<F> & Readonly<Record<string, unknown>>,
@@ -266,7 +266,7 @@ export function createReminders<
     );
 
   const client: Reminders<F> = {
-    save: (subject, offsetMinutes, values) =>
+    upsert: (subject, offsetMinutes, values) =>
       tenant().andThen((organizationId) =>
         writeFields(fields, values, (checked) =>
           call(

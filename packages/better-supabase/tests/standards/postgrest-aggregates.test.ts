@@ -70,7 +70,7 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
     const { client, last } = capturingClient(() => ({ body: [] }));
     await betterSupabase
       .connect(client)
-      .customers.findMany({
+      .customers.list({
         select: ["id"],
         include: {
           _sum: { notes: { id: true } },
@@ -95,7 +95,7 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
 
     const result = await betterSupabase
       .connect(client)
-      .customers.findMany({
+      .customers.list({
         include: { _sum: { notes: { body: true } } } as never,
       });
 

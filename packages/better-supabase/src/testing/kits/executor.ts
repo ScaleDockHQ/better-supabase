@@ -92,7 +92,7 @@ export interface TestExecutorOptions {
 /**
  * Proves an `Executor` meets the contract: rows keyed by the selection's
  * aliases, counts, `aborted` errors, failures returned as `Result`s rather than
- * thrown, and (with `create`) a write round trip and a `deleteMany` that
+ * thrown, and (with `create`) a write round trip and a `delete({ where })` that
  * `maxAffected` refuses without deleting anything.
  *
  * ```ts
@@ -113,7 +113,7 @@ export function testExecutor(
   const context: ExecuteContext = { errorMappers: [] };
 
   const read = (): Promise<Operation> =>
-    captureOp(betterSupabase, (db) => db[table]!["findMany"]!({ limit: 2 }));
+    captureOp(betterSupabase, (db) => db[table]!["list"]!({ limit: 2 }));
 
   const create = options.create;
 
@@ -312,8 +312,8 @@ export function testExecutor(
         const removed = await repository["delete"]!(row[primary]);
         expect(removed.ok, `delete failed: ${JSON.stringify(removed.error)}`);
 
-        const again = await repository["findFirst"]!({
-          where: { [primary]: row[primary] },
+        const again = await repository["get"]!(row[primary], {
+          optional: true,
         });
 
         expect(
@@ -340,12 +340,12 @@ export function testExecutor(
         const id = (created.data as Record<string, unknown>)[primary];
 
         try {
-          const refused = await repository["deleteMany"]!({
-            where: { [primary]: id },
-            maxAffected: 0,
-          });
+          const refused = await repository["delete"]!(
+            { where: { [primary]: id } },
+            { maxAffected: 0 },
+          );
 
-          expect(!refused.ok, "deleteMany past maxAffected must fail");
+          expect(!refused.ok, "a delete past maxAffected must fail");
           // SAFETY: the ok check above means the result carries an error.
           const kind = (refused.error as { kind?: unknown } | undefined)?.kind;
           expect(
@@ -353,23 +353,21 @@ export function testExecutor(
             `expected kind "max_affected", got "${String(kind)}"`,
           );
 
-          const kept = await repository["findFirst"]!({
-            where: { [primary]: id },
-          });
+          const kept = await repository["get"]!(id, { optional: true });
 
           expect(
             kept.ok && kept.data !== null,
-            "a refused deleteMany must not delete the row",
+            "a refused delete must not delete the row",
           );
 
-          const allowed = await repository["deleteMany"]!({
-            where: { [primary]: id },
-            maxAffected: 1,
-          });
+          const allowed = await repository["delete"]!(
+            { where: { [primary]: id } },
+            { maxAffected: 1 },
+          );
 
           expect(
             allowed.ok,
-            `deleteMany within maxAffected failed: ${JSON.stringify(allowed.error)}`,
+            `a delete within maxAffected failed: ${JSON.stringify(allowed.error)}`,
           );
         } finally {
           await repository["delete"]!(id);

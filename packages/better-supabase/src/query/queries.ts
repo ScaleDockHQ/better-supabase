@@ -15,6 +15,7 @@ import type {
   DeleteArgs,
   DeleteExt,
   FindExt,
+  GetKey,
   OffsetPage,
   OffsetPageArgs,
   OffsetRangeArgs,
@@ -29,12 +30,9 @@ import type {
   AggregateArgs,
   AggregateResult,
   CountArgs,
-  FindFirstArgs,
-  FindOnlyArgs,
-  FindManyArgs,
+  GetArgs,
+  ListArgs,
   Payload,
-  ReadArgs,
-  WhereInput,
 } from "../ir/args.ts";
 import type {
   AnyFunctions,
@@ -42,7 +40,6 @@ import type {
   Insert,
   PrimaryKeyValue,
   TableKey,
-  UniqueWhere,
   Update,
 } from "../schema/types.ts";
 import type { BetterQueryMeta } from "./invalidate.ts";
@@ -161,43 +158,29 @@ export interface MutationOptionsOf<V, R> {
 export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   /** Prefix of every key for this table's own queries. */
   readonly key: readonly ["bsb", T];
-  findMany<const A extends FindManyArgs<M, T> & FindExt<E, M, T>>(
+  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
     args?: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A>[]>;
-  findFirst<const A extends FindFirstArgs<M, T> & FindExt<E, M, T>>(
-    args?: A | SkipToken,
-  ): QueryOptionsOf<Payload<M, T, A> | null>;
-  findOnly<const A extends FindOnlyArgs<M, T> & FindExt<E, M, T>>(
-    args: A | SkipToken,
-  ): QueryOptionsOf<Payload<M, T, A> | null>;
-  findUnique<
-    const A extends ReadArgs<M, T> & {
-      readonly where: UniqueWhere<M, T>;
-    } & FindExt<E, M, T>,
+  page<
+    const A extends (OffsetPageArgs<M, T> | OffsetRangeArgs<M, T>) &
+      FindExt<E, M, T>,
   >(
     args: A | SkipToken,
-  ): QueryOptionsOf<Payload<M, T, A> | null>;
-  findById<const A extends ReadArgs<M, T> & FindExt<E, M, T>>(
-    id: PrimaryKeyValue<M, T> | SkipToken,
+  ): QueryOptionsOf<OffsetPage<Payload<M, T, A>>>;
+  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+    key: GetKey<M, T> | SkipToken,
     args?: A,
-  ): QueryOptionsOf<Payload<M, T, A>>;
+  ): QueryOptionsOf<
+    A extends { readonly optional: true }
+      ? Payload<M, T, A> | null
+      : Payload<M, T, A>
+  >;
   count(
     args?: (CountArgs<M, T> & FindExt<E, M, T>) | SkipToken,
   ): QueryOptionsOf<number>;
   aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
     args: A | SkipToken,
   ): QueryOptionsOf<AggregateResult<M, T, A>>;
-  exists(
-    args?:
-      | ({ readonly where?: WhereInput<M, T> } & FindExt<E, M, T>)
-      | SkipToken,
-  ): QueryOptionsOf<boolean>;
-  paginate<
-    const A extends (OffsetPageArgs<M, T> | OffsetRangeArgs<M, T>) &
-      FindExt<E, M, T>,
-  >(
-    args: A | SkipToken,
-  ): QueryOptionsOf<OffsetPage<Payload<M, T, A>>>;
   /** Cursor pages for `useInfiniteQuery`. */
   infinite<
     const A extends Omit<CursorPageArgs<M, T>, "after"> & FindExt<E, M, T>,
@@ -414,9 +397,9 @@ function tableQueries(
     runtime.betterSupabase.meta.tables[table]?.primaryKey ?? [];
 
   /**
-   * The `findById(id)` entry for a full row a write returned, so a detail view
+   * The `get(id)` entry for a full row a write returned, so a detail view
    * opened next renders without a request. Only writes without read args return
-   * the shape `findById(id)` caches.
+   * the shape `get(id)` caches.
    */
   const seed = (
     client: QueryClient,
@@ -442,7 +425,7 @@ function tableQueries(
     }
 
     client.setQueryData(
-      specQuery(runtime, specs["findById"]!(id, undefined)).queryKey,
+      specQuery(runtime, specs["get"]!(id, undefined)).queryKey,
       row,
     );
   };
@@ -471,18 +454,14 @@ function tableQueries(
 
   return {
     key,
-    findMany: read("findMany"),
-    findFirst: read("findFirst"),
-    findOnly: read("findOnly"),
-    findUnique: read("findUnique"),
+    list: read("list"),
+    page: read("page"),
     count: read("count"),
     aggregate: read("aggregate"),
-    exists: read("exists"),
-    paginate: read("paginate"),
-    findById: (id: unknown, args?: object) =>
+    get: (id: unknown, args?: object) =>
       isSkip(id)
-        ? specQuery(runtime, id, [...key, "findById", "$skip"])
-        : specQuery(runtime, specs["findById"]!(id, withoutSignal(args))),
+        ? specQuery(runtime, id, [...key, "get", "$skip"])
+        : specQuery(runtime, specs["get"]!(id, withoutSignal(args))),
     infinite: (args: object, extras: InfiniteExtras = {}) => {
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as object;
@@ -498,7 +477,7 @@ function tableQueries(
         }) =>
           runtime
             .db()
-            .$run(specs["paginate"]!({ ...base, after: pageParam }), { signal })
+            .$run(specs["page"]!({ ...base, after: pageParam }), { signal })
             .orThrow(asException),
         initialPageParam: null,
         getNextPageParam: (last: { nextCursor: string | null }) =>
@@ -506,7 +485,7 @@ function tableQueries(
         ...maxPagesOf(extras),
         meta: {
           bsTables: runtime.betterSupabase.tablesOf(
-            specs["paginate"]!({ ...base, after: null }),
+            specs["page"]!({ ...base, after: null }),
           ),
         },
         ...stale,
@@ -527,7 +506,7 @@ function tableQueries(
         }) =>
           runtime
             .db()
-            .$run(specs["paginate"]!({ ...base, page: pageParam }), { signal })
+            .$run(specs["page"]!({ ...base, page: pageParam }), { signal })
             .orThrow(asException),
         initialPageParam: base.page ?? 1,
         getNextPageParam: (last: OffsetPage<unknown>) =>
@@ -536,7 +515,7 @@ function tableQueries(
           first.page.number > 1 ? first.page.number - 1 : undefined,
         ...maxPagesOf(extras),
         meta: {
-          bsTables: runtime.betterSupabase.tablesOf(specs["paginate"]!(base)),
+          bsTables: runtime.betterSupabase.tablesOf(specs["page"]!(base)),
         },
         ...stale,
       };
@@ -575,9 +554,7 @@ function tableQueries(
  *
  * ```ts
  * const q = createQueries(betterSupabase, () => bsb.db);
- * const { data } = useQuery(
- *   q.customers.findMany({ select: ["id", "name"] }),
- * );
+ * const { data } = useQuery(q.customers.list({ select: ["id", "name"] }));
  * ```
  */
 export function createQueries<

@@ -168,7 +168,7 @@ export function testPlugin(
       "transformQuery is pure and deterministic",
       async () => {
         const op = await captureOp(betterSupabase, (db) =>
-          db[table]!["findMany"]!({ limit: 1 }),
+          db[table]!["list"]!({ limit: 1 }),
         );
 
         const first = plugin.transformQuery!(frozenCopy(op), hook(op));
@@ -233,7 +233,7 @@ export function testPlugin(
       "wrapExecutor keeps results intact",
       async () => {
         const op = await captureOp(betterSupabase, (db) =>
-          db[table]!["findMany"]!({ limit: 1 }),
+          db[table]!["list"]!({ limit: 1 }),
         );
 
         const data = { rows: [{ marker: "conformance" }], count: 1 };

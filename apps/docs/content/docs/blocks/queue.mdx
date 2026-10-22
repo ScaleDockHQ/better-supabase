@@ -193,7 +193,7 @@ await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
 
 await jobs.work("send_invoice", async (payload, job) => {
   const db = await bsb.forContext(job.context).orThrow();
-  const invoice = await db.invoices.findById(payload.invoiceId).orThrow();
+  const invoice = await db.invoices.get(payload.invoiceId).orThrow();
   // ...
 });
 ```

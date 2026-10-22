@@ -22,7 +22,7 @@ export interface TableRepositoryExtension<
  *   betterSupabase,
  *   "customers",
  *   (base) => ({
- *     active: () => base.findMany({ where: { status: "active" } }),
+ *     active: () => base.list({ where: { status: "active" } }),
  *   }),
  * );
  * export const app = betterSupabase.use(customers);

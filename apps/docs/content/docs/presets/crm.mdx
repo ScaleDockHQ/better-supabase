@@ -46,7 +46,7 @@ organization's own pipeline:
 
 ```ts
 const sales = await pipelines
-  .save(organizationId, { subjectType: "deal", key: "sales", name: "Sales" })
+  .upsert(organizationId, { subjectType: "deal", key: "sales", name: "Sales" })
   .orThrow();
 const lead = await pipelines
   .saveStage(sales.id, { key: "lead", name: "Lead", category: "open" })
@@ -74,7 +74,7 @@ Each call takes the record as a subject, `deal` being `{ type: "deal", id: dealI
 | ------------------------- | ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
 | Creates a deal            | `deals.create(organizationId, { name, closeOn, ... })` | `deal.created`                           | nothing; the owner starts watching                     |
 | Comments on a deal        | `comments.create(deal, { body })`                      | `message.sent`                           | `comment.posted`, from comments                        |
-| Tags it                   | `tags.tag(deal, tagId)`                                | `subject.tagged`                         | `subject.tagged`                                       |
+| Tags it                   | `tags.attach(deal, tagId)`                             | `subject.tagged`                         | `subject.tagged`                                       |
 | Moves it to another stage | `deals.update([{ dealId, field: "stageId", value }])`  | `deal.updated`, `pipeline.stage_changed` | `pipeline.stage_changed`, from pipelines               |
 | Marks it won or lost      | `deals.win(dealId)` or `deals.lose(dealId, reason)`    | `pipeline.stage_changed`, `deal.closed`  | `pipeline.stage_changed` and `deal.closed`, from deals |
 | Sends a quote             | `quotes.fromDeal(dealId)`                              | `quote.created`                          | map it if you want                                     |

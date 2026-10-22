@@ -46,9 +46,9 @@ export default async function Page({ searchParams }: PageProps<'/customers'>) {
 }
 ```
 
-`run` calls `paginate` and ANDs your own `where` with the list filters. Plugins
+`run` calls `page` and ANDs your own `where` with the list filters. Plugins
 such as tenant scoping and soft delete still apply. `include` takes the same
-relation map as `findMany`. If you only want the arguments, use
+relation map as `list`. If you only want the arguments, use
 `customerList.args(query)`.
 
 ## Pagination

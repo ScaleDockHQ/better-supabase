@@ -9,7 +9,7 @@ import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import { DbException } from "../core/db-exception.ts";
 
 /**
- * The query a collection loads: `queries.<table>.findMany(args)` from
+ * The query a collection loads: `queries.<table>.list(args)` from
  * `better-supabase/query`.
  */
 export interface CollectionQuery<Row> {
@@ -88,7 +88,7 @@ function field(row: unknown, name: string): unknown {
  * const customers = createCollection(
  *   queryCollectionOptions(
  *     collectionOptions(betterSupabase, db, "customers", {
- *       query: queries.customers.findMany({ where: { status: "active" } }),
+ *       query: queries.customers.list({ where: { status: "active" } }),
  *       queryClient,
  *     }),
  *   ),

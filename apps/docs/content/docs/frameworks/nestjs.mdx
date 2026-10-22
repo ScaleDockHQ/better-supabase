@@ -51,13 +51,13 @@ import type { Db } from "./supabase";
 export class NotesController {
   @Get()
   list(@Ctx("db") db: Db) {
-    return db.notes.findMany({ select: ["id", "title"] }).orThrow();
+    return db.notes.list({ select: ["id", "title"] }).orThrow();
   }
 
   @Get("all")
   @UseGuards(guard({ roles: ["admin"] }))
   all(@Ctx("db") db: Db) {
-    return db.notes.findMany().orThrow();
+    return db.notes.list().orThrow();
   }
 }
 ```

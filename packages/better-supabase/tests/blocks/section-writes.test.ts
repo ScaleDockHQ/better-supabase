@@ -99,10 +99,10 @@ describe("section writes", () => {
     const section = tagsBlock.sections.tags;
 
     expect(await run(section, "apply", { tagId: ID })).toEqual([
-      ["tag", subject, ID],
+      ["attach", subject, ID],
     ]);
     expect(await run(section, "remove", { tagId: ID })).toEqual([
-      ["untag", subject, ID],
+      ["detach", subject, ID],
     ]);
   });
 
@@ -186,7 +186,7 @@ describe("section loads", () => {
   const cases: readonly [string, AnySection, string][] = [
     ["comments", commentsBlock.sections.comments, "list"],
     ["attachments", attachmentsBlock.sections.attachments, "list"],
-    ["tags", tagsBlock.sections.tags, "forSubject"],
+    ["tags", tagsBlock.sections.tags, "list"],
     ["shareLinks", shareLinksBlock.sections.shareLinks, "list"],
     ["relations", relationsBlock.sections.relations, "of"],
     ["versions", versionsBlock.sections.versions, "list"],
@@ -195,7 +195,7 @@ describe("section loads", () => {
 
   it.each(cases)(
     "loads %s through the block client",
-    async (_name, section, method) => {
+    async (name, section, method) => {
       const { client, calls } = recorder();
 
       const result = await section.load(
@@ -206,7 +206,9 @@ describe("section loads", () => {
 
       expect(result.ok).toBe(true);
       expect(calls[0]?.[0]).toBe(method);
-      expect(calls[0]?.[1]).toEqual(subject);
+      expect(calls[0]?.[1]).toEqual(
+        name === "tags" ? { on: subject } : subject,
+      );
     },
   );
 

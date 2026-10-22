@@ -131,7 +131,7 @@ A rejected refresh token is not an outage: the session is cleared and
 export default async function Customers() {
   const { db } = await bsb.context();
   const customers = await db.customers
-    .findMany({ select: ["id", "name"] })
+    .list({ select: ["id", "name"] })
     .orThrow();
   return <CustomerList customers={customers} />;
 }
@@ -163,7 +163,7 @@ export default async function AuditPage() {
     roles: ["admin"],
   });
   const events = await db.auditEvents
-    .findMany({ where: { organizationId: tenant } })
+    .list({ where: { organizationId: tenant } })
     .orThrow();
   return <AuditLog events={events} />;
 }
@@ -209,7 +209,7 @@ for instant navigations and role-aware menus.
 
 ```ts title="src/app/api/customers/[id]/route.ts"
 export const GET = bsb.route<{ id: string }>((request, { db, params }) =>
-  db.customers.findById(params.id, { select: ["id", "name"] }),
+  db.customers.get(params.id, { select: ["id", "name"] }),
 );
 ```
 
@@ -301,7 +301,7 @@ impersonated session, which acts as the user:
 ```ts title="src/app/api/customers/[id]/route.ts"
 export const GET = bsb.route<{ id: string }>(
   (request, { db, params }) =>
-    db.customers.findById(params.id, { select: ["id", "name"] }),
+    db.customers.get(params.id, { select: ["id", "name"] }),
   { scopes: ["customers:read"] },
 );
 ```
@@ -437,7 +437,7 @@ async function publicPlans() {
   bsb.cacheTag("plans");
   return bsb
     .admin()
-    .plans.findMany({ where: { public: true } })
+    .plans.list({ where: { public: true } })
     .orThrow();
 }
 ```
@@ -458,7 +458,7 @@ leaves it cached:
 ```ts
 async function customerList(tenant: string) {
   "use cache";
-  const spec = betterSupabase.spec.customers.findMany({
+  const spec = betterSupabase.spec.customers.list({
     where: { organizationId: tenant },
   });
   bsb.cacheTags(spec, { tenant });

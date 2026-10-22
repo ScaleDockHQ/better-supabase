@@ -409,7 +409,7 @@ set local role authenticated;       -- the claims' role, default anon
 explain (analyze, buffers, format json) select * from public.customers limit 1000;
 ```
 
-That is the query `findMany()` sends, capped at Supabase's default `max_rows`.
+That is the query `list()` sends, capped at Supabase's default `max_rows`.
 `--as <uuid>` plans as `{ "sub": uuid, "role": "authenticated" }`;
 `--claims '{"role":"authenticated","tenant_id":"..."}'` sets any claims your
 policies read. Qualify tables outside the exposed schemas, such as
@@ -1165,7 +1165,7 @@ table and swap the names in a maintenance window, or turn the option off.
 (`blocks.feature-flags.options.extraColumns`), and a flag on the live database that
 isn't archived has an `expires_at` in the past. A release flag that outlives
 its rollout keeps a dead branch in the code. Remove its checks, then archive
-the flag (`flags.save(key, { archived: true })`), or move `expires_at` when
+the flag (`flags.upsert(key, { archived: true })`), or move `expires_at` when
 the flag stays. The finding names the `owner` column when the table has one.
 See [owner and expiry](/docs/blocks/feature-flags#owner-and-expiry).
 

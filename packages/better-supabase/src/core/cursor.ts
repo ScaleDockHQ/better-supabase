@@ -33,7 +33,7 @@ export function encodeCursor(values: readonly unknown[]): string {
   return toBase64Url(JSON.stringify(values));
 }
 
-/** The values of a cursor from `encodeCursor` or from `paginate()`. */
+/** The values of a cursor from `encodeCursor` or from `page()`. */
 export function decodeCursor(cursor: string): unknown[] | undefined {
   const parsed = parse(cursor);
 
@@ -56,7 +56,7 @@ export function sortKey(text: string): string {
   return (hash >>> 0).toString(36);
 }
 
-/** A `paginate()` cursor that only continues the sort `key` names. */
+/** A `page()` cursor that only continues the sort `key` names. */
 export function encodeBoundCursor(
   values: readonly unknown[],
   key: string,
@@ -65,7 +65,7 @@ export function encodeBoundCursor(
 }
 
 /**
- * The values of a `paginate()` cursor made for the sort `key`. `sort` means the
+ * The values of a `page()` cursor made for the sort `key`. `sort` means the
  * cursor is valid but continues another sort or table.
  */
 export function decodeBoundCursor(

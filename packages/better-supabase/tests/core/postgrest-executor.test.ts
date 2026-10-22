@@ -178,15 +178,15 @@ describe("postgrestExecutor request options", () => {
     }));
 
     const db = betterSupabase.connect(client);
-    await db.customers.updateMany({
-      where: { status: "lead" },
-      data: { status: "active" },
-      maxAffected: 5,
-    });
-    await db.customers.deleteMany({
-      where: { status: "lead" },
-      maxAffected: 2,
-    });
+    await db.customers.update(
+      { where: { status: "lead" } },
+      { status: "active" },
+      { maxAffected: 5 },
+    );
+    await db.customers.delete(
+      { where: { status: "lead" } },
+      { maxAffected: 2 },
+    );
 
     for (const request of requests) {
       const prefer = request.headers.get("prefer") ?? "";
@@ -201,7 +201,7 @@ describe("postgrestExecutor request options", () => {
     const { client, last } = capturingClient(() => ({ status: 204 }));
     await betterSupabase
       .connect(client)
-      .customers.deleteMany({ where: { status: "lead" } });
+      .customers.delete({ where: { status: "lead" } });
     expect(last().headers.get("prefer")).not.toContain("max-affected");
   });
 
@@ -218,7 +218,7 @@ describe("postgrestExecutor request options", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.deleteMany({ where: { status: "lead" }, maxAffected: 2 });
+      .customers.delete({ where: { status: "lead" } }, { maxAffected: 2 });
 
     expect(result).toMatchObject({
       ok: false,
@@ -238,11 +238,11 @@ describe("postgrestExecutor request options", () => {
 
     const result = await old
       .connect(client)
-      .customers.updateMany({
-        where: { status: "lead" },
-        data: { status: "active" },
-        maxAffected: 1,
-      });
+      .customers.update(
+        { where: { status: "lead" } },
+        { status: "active" },
+        { maxAffected: 1 },
+      );
 
     expect(result).toMatchObject({
       ok: false,
@@ -260,11 +260,11 @@ describe("postgrestExecutor request options", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.updateMany({
-        where: { status: "lead" },
-        data: { status: "active" },
-        count: "planned",
-      });
+      .customers.update(
+        { where: { status: "lead" } },
+        { status: "active" },
+        { count: "planned" },
+      );
 
     expect(last().headers.get("prefer")).toContain("count=planned");
     expect(result).toMatchObject({ ok: true, data: { count: 7 } });
@@ -279,8 +279,8 @@ describe("postgrestExecutor request options", () => {
       { organizationId: "o", name: "b", color: "red" as const },
     ];
 
-    await db.tags.createMany(rows, { returning: false });
-    await db.tags.createMany(rows, { returning: false, defaultToNull: true });
+    await db.tags.create(rows, { returning: false });
+    await db.tags.create(rows, { returning: false, defaultToNull: true });
 
     expect(requests[0]?.headers.get("prefer")).toContain("missing=default");
     expect(requests[1]?.headers.get("prefer") ?? "").not.toContain(
@@ -313,14 +313,14 @@ describe("postgrestExecutor request options", () => {
 
     // SAFETY: the executor only calls from() and the builder methods above.
     const client = { from: builder } as unknown as PostgrestClientLike;
-    await betterSupabase.connect(client).tags.findMany({ retry: false });
+    await betterSupabase.connect(client).tags.list({ retry: false });
     await betterSupabase
       .connect(client, {}, { retry: false })
-      .tags.findMany({ limit: 1 });
+      .tags.list({ limit: 1 });
     await betterSupabase
       .connect(client, {}, { retry: false })
-      .tags.findMany({ retry: true });
-    await betterSupabase.connect(client).tags.findMany();
+      .tags.list({ retry: true });
+    await betterSupabase.connect(client).tags.list();
     expect(retried).toEqual([false, false, true]);
   });
 
@@ -359,7 +359,7 @@ describe("postgrestExecutor request options", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .tags.findMany({ timeout: 5, signal: caller.signal });
+      .tags.list({ timeout: 5, signal: caller.signal });
 
     expect(result).toMatchObject({
       ok: false,
@@ -384,7 +384,7 @@ describe("postgrestExecutor request options", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .tags.findMany({ timeout: 1000, signal: controller.signal });
+      .tags.list({ timeout: 1000, signal: controller.signal });
 
     expect(result).toMatchObject({ ok: false, error: { kind: "aborted" } });
   });
@@ -396,7 +396,7 @@ describe("postgrestExecutor request options", () => {
 
       const result = await betterSupabase
         .connect(client)
-        .tags.findMany({ timeout: timeout as number });
+        .tags.list({ timeout: timeout as number });
 
       expect(result).toMatchObject({
         ok: false,
@@ -433,7 +433,7 @@ describe("resolveUrlLengthLimit", () => {
 
     const result = await defineSupabase(schema, { urlLengthLimit: 200 })
       .connect(client)
-      .tags.findMany({ where: { id: { in: ids } } });
+      .tags.list({ where: { id: { in: ids } } });
 
     expect(result.ok).toBe(true);
     expect(requests.length).toBeGreaterThan(1);
@@ -452,7 +452,7 @@ async function captureSelect(): Promise<Operation> {
     },
   };
 
-  await defineSupabase(schema).connect(capture).tags.findMany({ limit: 1 });
+  await defineSupabase(schema).connect(capture).tags.list({ limit: 1 });
   const [op] = ops;
 
   if (!op) {

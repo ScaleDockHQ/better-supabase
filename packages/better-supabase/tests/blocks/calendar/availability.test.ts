@@ -305,7 +305,7 @@ describe("calendar availability client", () => {
     expect(plain).not.toHaveProperty("kind");
 
     await calendar
-      .save("c1", {
+      .upsert("c1", {
         title: "Away",
         startsAt: at("2030-03-07T00:00:00Z"),
         endsAt: at("2030-03-08T00:00:00Z"),

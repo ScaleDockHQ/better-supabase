@@ -220,7 +220,7 @@ extra round trips:
   view columns Postgres marks as not insertable or updatable are left out of
   the `Insert` and `Update` types, and writes to them fail before a request is
   sent.
-- **Unique keys and constraint names.** `findUnique` accepts the primary key
+- **Unique keys and constraint names.** `get` accepts the primary key
   or any named unique key, and `UniqueConstraint`, `CheckConstraint` and
   `ForeignKeyConstraint` types narrow `isConflict(error, 'customers_kvk_key')`.
   See [unique keys and errors](/docs/repository/unique-and-errors).

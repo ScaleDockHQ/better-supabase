@@ -120,7 +120,7 @@ describe("betterSupabase plugin", () => {
   it("does not subscribe while rendering on the server", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const { queryClient } = cachedClient();
-    const spec = typed.spec.notes.findMany();
+    const spec = typed.spec.notes.list();
 
     const app = createSSRApp(
       defineComponent({
@@ -306,7 +306,7 @@ describe("useBroadcast", () => {
 });
 
 describe("useLiveQuery", () => {
-  const spec = typed.spec.customers.findMany({ include: { notes: true } });
+  const spec = typed.spec.customers.list({ include: { notes: true } });
 
   it("needs a query client for a spec", () => {
     const { browser } = fakeBrowser(signedIn(USER));

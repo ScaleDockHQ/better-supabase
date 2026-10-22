@@ -143,7 +143,7 @@ export interface Score {
   readonly organizationId: string;
   readonly modelId: string;
   readonly modelKey: string;
-  /** From `forSubject`. */
+  /** Set on the scores `list` returns. */
   readonly modelName?: string;
   readonly modelVersion: number;
   readonly subject: RecordRef;
@@ -183,8 +183,8 @@ export interface Scores {
     fields: Readonly<Record<string, unknown>>,
     options?: { readonly timeZone?: string },
   ): AsyncResult<ComputedScore>;
-  /** A record's current scores, one per model. */
-  forSubject(subject: RecordRef): AsyncResult<readonly Score[]>;
+  /** The current scores of the record `on` names, one per model. */
+  list(params: { readonly on: RecordRef }): AsyncResult<readonly Score[]>;
   /** A record's scores under one model, newest first. */
   history(
     modelKey: string,
@@ -423,15 +423,11 @@ export function createScores(options: ScoresOptions): Scores {
           (value) => computedScoreOf(value, "compute_score"),
         ),
       ),
-    forSubject: (subject) =>
+    list: ({ on }) =>
       tenant().andThen((organizationId) =>
         call(
           "subject_scores",
-          {
-            tenant: organizationId,
-            subject_type: subject.type,
-            subject_id: subject.id,
-          },
+          { tenant: organizationId, subject_type: on.type, subject_id: on.id },
           (value) => scoresOf(value, "subject_scores"),
         ),
       ),

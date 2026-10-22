@@ -191,11 +191,11 @@ describe.skipIf(!live)("service principals", () => {
       const builder = createWorkflowEditor({ transport: sqlTransport(s.sql) });
 
       const definition = await builder.definitions
-        .save({ tenant, slug: "nightly", name: "Nightly" })
+        .upsert({ tenant, slug: "nightly", name: "Nightly" })
         .orThrow();
 
       const draft = await builder.versions
-        .save(definition.id, CRM_GRAPH)
+        .upsert(definition.id, CRM_GRAPH)
         .orThrow();
 
       await builder.versions.publish(draft.id).orThrow();

@@ -3,16 +3,19 @@ title: Writing
 description: create, update, upsert and delete, with typed conflicts and optimistic concurrency.
 ---
 
-| Method                               | Returns                                         |
-| ------------------------------------ | ----------------------------------------------- |
-| `create(data, args?)`                | The row                                         |
-| `createMany(data[], args?)`          | The rows                                        |
-| `update(key, data, args?)`           | The row, or `not_found`                         |
-| `updateMany({ where, data })`        | `{ count }`, or the rows with `returning: true` |
-| `upsert(data, { onConflict })`       | The row                                         |
-| `upsertMany(data[], { onConflict })` | The rows                                        |
-| `delete(key)`                        | Nothing, or `not_found`                         |
-| `deleteMany({ where })`              | `{ count }`, or the rows with `returning: true` |
+| Method                            | Returns                                         |
+| --------------------------------- | ----------------------------------------------- |
+| `create(data, args?)`             | The row                                         |
+| `create(data[], args?)`           | The rows                                        |
+| `update(key, patch, args?)`       | The row, or `not_found`                         |
+| `update({ where }, patch, args?)` | `{ count }`, or the rows with `returning: true` |
+| `upsert(data, { onConflict })`    | The row                                         |
+| `upsert(data[], { onConflict })`  | The rows                                        |
+| `delete(key)`                     | Nothing, or `not_found`                         |
+| `delete({ where }, args?)`        | `{ count }`, or the rows with `returning: true` |
+
+A key is the primary key value, or an object of the columns for a composite
+key. `{ where }` is a filter: the write applies to every row it matches.
 
 Inserts are typed by the generated `Insert` shape: required columns are
 required, columns with defaults are optional, and generated identity
@@ -34,58 +37,57 @@ await db.auditLog.create(entry, { returning: false });
   fails with `forbidden` after it passed your `INSERT` policy.
 </Callout>
 
-`updateMany` and `deleteMany` return `{ count }`. Pass `returning: true` to get
-the written rows instead, narrowed with `select` and `include` as in reads.
-`createMany` and `upsertMany` work the other way round: they return the rows,
-and `returning: false` gives `{ count }`. The result type follows the
+`update` and `delete` by filter return `{ count }`. Pass `returning: true` to
+get the written rows instead, narrowed with `select` and `include` as in reads.
+`create` and `upsert` with an array work the other way round: they return the
+rows, and `returning: false` gives `{ count }`. The result type follows the
 `returning` value you pass:
 
-| Method                     | `returning: true` | `returning: false` | Not passed  | `boolean` variable      |
-| -------------------------- | ----------------- | ------------------ | ----------- | ----------------------- |
-| `create`, `update`         | The row           | `null`             | The row     | The row or `null`       |
-| `createMany`, `upsertMany` | The rows          | `{ count }`        | The rows    | The rows or `{ count }` |
-| `updateMany`, `deleteMany` | The rows          | `{ count }`        | `{ count }` | The rows or `{ count }` |
+| Call                                     | `returning: true` | `returning: false` | Not passed  | `boolean` variable      |
+| ---------------------------------------- | ----------------- | ------------------ | ----------- | ----------------------- |
+| `create(row)`, `update(key)`             | The row           | `null`             | The row     | The row or `null`       |
+| `create(rows)`, `upsert(rows)`           | The rows          | `{ count }`        | The rows    | The rows or `{ count }` |
+| `update({ where })`, `delete({ where })` | The rows          | `{ count }`        | `{ count }` | The rows or `{ count }` |
 
 ```ts
 const sent = await db.invoices
-  .updateMany({
-    where: { status: "draft", dueAt: { lte: today } },
-    data: { status: "sent" },
-    returning: true,
-    select: ["id", "number"],
-  })
+  .update(
+    { where: { status: "draft", dueAt: { lte: today } } },
+    { status: "sent" },
+    { returning: true, select: ["id", "number"] },
+  )
   .orThrow();
 ```
 
-`updateMany` and `deleteMany` need a `where` that filters rows: an empty or
-missing `where`, or one whose conditions are all `undefined`, returns
-`invalid_request` instead of writing every row. Pass `allowAll: true` to
-`updateMany` when you mean the whole table; for `deleteMany`, filter on a
-column that every row matches. An `update` whose `data` sets no columns
-changes nothing: it reads the current row with the same `where`, `select` and
+A write by filter needs a `where` that filters rows: an empty `where`, or one
+whose conditions are all `undefined`, returns `invalid_request` instead of
+writing every row. Pass `allowAll: true` to `update` when you mean the whole
+table; for `delete`, filter on a column that every row matches. An `update`
+by key whose patch sets no columns changes nothing: it reads the current row with the same `where`, `select` and
 `include` and returns it (`null` with `returning: false`), or `not_found` when
-no row matches. An `updateMany` with empty `data` returns `{ count: 0 }`, or
+no row matches. An `update({ where })` with an empty patch returns
+`{ count: 0 }`, or
 the matching rows with `returning: true`. This lets you build a patch from
 optional fields without a guard. When an extension such as
 [updated-at](/docs/blocks/updated-at) is installed, an empty patch still
 runs as a write, because the plugin may fill in a column; a plugin that
 leaves it empty gets `invalid_request`.
 
-On a table with a [trash](/docs/blocks/trash#in-the-repository) column, `deleteMany`
-with `returning: true` keeps `RETURNING` on the update it becomes, so it needs
+On a table with a [trash](/docs/blocks/trash#in-the-repository) column, a
+`delete({ where })` with `returning: true` keeps `RETURNING` on the update it becomes, so it needs
 a `SELECT` policy that still shows the soft-deleted row.
 
 ## Limiting bulk writes
 
-`maxAffected` caps how many rows `updateMany` and `deleteMany` may change.
+`maxAffected` caps how many rows an `update` or `delete` by filter may change.
 When the `where` matches more, the write fails with `max_affected` (400) and
 changes nothing:
 
 ```ts
-const result = await db.sessions.deleteMany({
-  where: { userId },
-  maxAffected: 50,
-});
+const result = await db.sessions.delete(
+  { where: { userId } },
+  { maxAffected: 50 },
+);
 if (result.error?.kind === "max_affected") {
   // the filter matched more rows than expected
 }
@@ -103,9 +105,9 @@ transaction and roll the write back. The `requireMaxAffected` guard in
 
 ## Counting writes
 
-`updateMany` and `deleteMany` count the written rows exactly. Pass
+`update` and `delete` by filter count the written rows exactly. Pass
 `count: "planned"` or `count: "estimated"` to use the Postgres planner's
-estimate over PostgREST instead; `createMany` and `upsertMany` with
+estimate over PostgREST instead; `create` and `upsert` with an array and
 `returning: false` take the same option. The SQL executors always return the
 statement's own row count.
 
@@ -132,20 +134,20 @@ const result = await db.invitations.update(
 await db.customers.upsert(data, {
   onConflict: "customers_organization_id_kvk_key",
 });
-await db.tags.upsertMany(rows, {
+await db.tags.upsert(rows, {
   onConflict: ["organizationId", "name"],
   ignoreDuplicates: true,
 });
 ```
 
-`upsertMany` sends the rows sorted by the conflict columns, with nulls last.
+`upsert` with an array sends the rows sorted by the conflict columns, with nulls last.
 Two requests that upsert overlapping rows then lock them in the same order and
 wait for each other instead of deadlocking. The returned rows follow that
 order, not the order you passed.
 
 ## Bulk inserts
 
-`createMany` and `upsertMany` send one request over PostgREST however many
+`create` and `upsert` with an array send one request over PostgREST however many
 rows you pass. Rows can leave out different columns: a missing column gets
 its default. Pass `defaultToNull: true` to write `null` for missing columns
 instead, as supabase-js does by default. On the [Postgres executor](/docs/auth/postgres), one statement

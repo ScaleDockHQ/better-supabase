@@ -943,7 +943,7 @@ describe("compilePostgrest through supabase-js", () => {
     const { client, last } = capturingClient();
     const db = defineSupabase(schema).connect(client);
     await db.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: {
           OR: [{ name: { startsWith: "A" } }, { kvk: null }],
@@ -969,7 +969,7 @@ describe("compilePostgrest through supabase-js", () => {
     const { client, last } = capturingClient();
     const db = defineSupabase(schema).connect(client);
     await db.customers
-      .findMany({ select: ["id"], where: { name: { ieq: "Acme*_co" } } })
+      .list({ select: ["id"], where: { name: { ieq: "Acme*_co" } } })
       .orThrow();
     expect(query(last())).toEqual([
       "select=id",
@@ -982,7 +982,7 @@ describe("compilePostgrest through supabase-js", () => {
     const { client, last } = capturingClient();
     const db = defineSupabase(schema).connect(client);
     await db.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: {
           name: { contains: "50*off" },
@@ -1000,7 +1000,7 @@ describe("compilePostgrest through supabase-js", () => {
       "order=id.asc",
     ]);
     expect(
-      await db.customers.findMany({
+      await db.customers.list({
         where: { createdAt: { gte: new Date("nope") as never } },
       }),
     ).toMatchObject({ error: { kind: "invalid_value" } });

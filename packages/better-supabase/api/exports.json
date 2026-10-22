@@ -134,6 +134,7 @@
       "ExtensionsOf",
       "FieldSpec",
       "FindExt",
+      "GetKey",
       "HasFlag",
       "HookArgs",
       "InferReadSetParams",
@@ -141,7 +142,7 @@
       "LogFields",
       "Logger",
       "ManyResult",
-      "ManyReturningArgs",
+      "ManyWriteArgs",
       "MappedDbError",
       "MemoryCache",
       "MutationEvent",
@@ -187,6 +188,7 @@
       "RequestContext",
       "Result",
       "Returned",
+      "RowFilter",
       "RpcContext",
       "RpcDefinition",
       "RpcNotice",
@@ -5847,6 +5849,8 @@
       "tagsSection"
     ],
     "types": [
+      "CreateTagInput",
+      "ListTagsParams",
       "Tag",
       "TagChange",
       "TagInputActions",
@@ -5858,7 +5862,8 @@
       "TagsEvents",
       "TagsOptimisticAction",
       "TagsOptions",
-      "TagsWrites"
+      "TagsWrites",
+      "UpdateTagInput"
     ]
   },
   "./blocks/state-machine": {

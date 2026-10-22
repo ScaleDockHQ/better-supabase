@@ -63,7 +63,7 @@ describe("contact-scoped and staff reads", () => {
 
     const [quotes, invoices] = await Promise.all([
       ctx.db.quotes
-        .findMany({
+        .list({
           select: ["id", "number", "status", "totalIncl"],
           where: { status: { in: ["sent", "accepted"] } },
           limit: 20,
@@ -102,14 +102,14 @@ describe("contact-scoped and staff reads", () => {
 
     const [quotes, invoices] = await Promise.all([
       ctx.db.quotes
-        .findMany({
+        .list({
           select: ["id", "number", "status", "customerId"],
           orderBy: { issueDate: "desc" },
           limit: 50,
         })
         .orThrow(),
       ctx.db.invoices
-        .findMany({
+        .list({
           select: ["id", "formattedNumber", "status", "customerId"],
           where: { status: { neq: "draft" } },
           limit: 50,

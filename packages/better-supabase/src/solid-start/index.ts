@@ -90,7 +90,7 @@ export interface BetterSolidStart<
    * const notes = query(async () => {
    *   "use server";
    *   const { db } = await bsb.require();
-   *   return db.notes.findMany().orThrow();
+   *   return db.notes.list().orThrow();
    * }, "notes");
    * ```
    */

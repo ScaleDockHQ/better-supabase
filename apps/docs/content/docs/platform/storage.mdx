@@ -681,10 +681,7 @@ const { removed } = await logos
     referenced: async (paths) =>
       (
         await db.customers
-          .findMany({
-            where: { logoPath: { in: paths } },
-            select: ["logoPath"],
-          })
+          .list({ where: { logoPath: { in: paths } }, select: ["logoPath"] })
           .orThrow()
       ).map((row) => row.logoPath!),
   })

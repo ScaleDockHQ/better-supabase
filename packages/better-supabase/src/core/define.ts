@@ -305,7 +305,7 @@ export class BetterSupabase<
 
   /**
    * Builds serializable `QuerySpec`s with the same arguments and result types
-   * as the repository: `betterSupabase.spec.customers.findMany({ select: ['id']
+   * as the repository: `betterSupabase.spec.customers.list({ select: ['id']
    * })`.
    */
   get spec(): Specs<M, E> {
@@ -1049,7 +1049,7 @@ function runSpec(
   const args = [...spec.args];
 
   if (signal) {
-    const index = spec.method === "findById" ? 1 : 0;
+    const index = spec.method === "get" ? 1 : 0;
     // SAFETY: the options argument of a repository method is an object or undefined.
     args[index] = { ...(args[index] as object | undefined), signal };
   }

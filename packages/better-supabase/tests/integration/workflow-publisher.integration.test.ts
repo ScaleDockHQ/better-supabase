@@ -81,11 +81,11 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
       const builder = createWorkflowEditor({ transport: sqlTransport(s.sql) });
 
       const definition = await builder.definitions
-        .save({ tenant, slug: "crm", name: "CRM" })
+        .upsert({ tenant, slug: "crm", name: "CRM" })
         .orThrow();
 
       const draft = await builder.versions
-        .save(definition.id, CRM_GRAPH)
+        .upsert(definition.id, CRM_GRAPH)
         .orThrow();
 
       const refused = await builder.versions.publish(draft.id);
@@ -103,7 +103,7 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         permissions: [],
       });
 
-      await builder.versions.save(definition.id, EMAIL_GRAPH).orThrow();
+      await builder.versions.upsert(definition.id, EMAIL_GRAPH).orThrow();
       expect(await builder.versions.publish(draft.id).orThrow()).toMatchObject({
         status: "published",
         publishedBy: admin.id,
@@ -127,11 +127,11 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
       });
 
       const definition = await asPublisher.definitions
-        .save({ tenant, slug: "crm", name: "CRM" })
+        .upsert({ tenant, slug: "crm", name: "CRM" })
         .orThrow();
 
       const draft = await asPublisher.versions
-        .save(definition.id, CRM_GRAPH)
+        .upsert(definition.id, CRM_GRAPH)
         .orThrow();
 
       const version = await asPublisher.versions.publish(draft.id).orThrow();
@@ -224,11 +224,11 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
       const plain = createWorkflowEditor({ transport: sqlTransport(s.sql) });
 
       const definition = await plain.definitions
-        .save({ tenant, slug: "nightly", name: "Nightly" })
+        .upsert({ tenant, slug: "nightly", name: "Nightly" })
         .orThrow();
 
       const draft = await plain.versions
-        .save(definition.id, CRM_GRAPH)
+        .upsert(definition.id, CRM_GRAPH)
         .orThrow();
 
       expect(await plain.versions.publish(draft.id).orThrow()).toMatchObject({
@@ -258,7 +258,7 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
       );
 
       const next = await plain.versions
-        .save(definition.id, EMAIL_GRAPH)
+        .upsert(definition.id, EMAIL_GRAPH)
         .orThrow();
 
       const unpublished = await service.versions.runAs(next.id);

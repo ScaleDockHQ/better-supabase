@@ -12,7 +12,7 @@ import { csvResponse } from "better-supabase/server";
 
 export const GET = bsb.handler(async (_request, ctx) => {
   const customers = await ctx.db.customers
-    .findMany({ orderBy: { name: "asc" } })
+    .list({ orderBy: { name: "asc" } })
     .orThrow();
   return csvResponse(customers, {
     filename: "customers.csv",

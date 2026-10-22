@@ -43,7 +43,7 @@ describe("createFeatureFlags", () => {
     });
     expect(
       await admin
-        .save("beta", {
+        .upsert("beta", {
           enabled: false,
           archived: true,
           description: null,
@@ -100,7 +100,7 @@ describe("createFeatureFlags", () => {
       transport: { call: () => Promise.resolve(null) },
     });
 
-    expect(await admin.save("x", {}).orThrow()).toBeUndefined();
+    expect(await admin.upsert("x", {}).orThrow()).toBeUndefined();
     expect(await admin.remove("x").orThrow()).toBe(false);
   });
 });

@@ -85,7 +85,7 @@ describe.skipIf(!live)(
     const router = os.router({
       customers: {
         get: os.customers.get.handler(({ context, input }) =>
-          bsb.unwrap(context.db.customers.findById(input.id, { select })),
+          bsb.unwrap(context.db.customers.get(input.id, { select })),
         ),
         create: os.customers.create.handler(({ context, input }) =>
           bsb.unwrap(context.db.customers.create(input, { select })),
@@ -107,7 +107,7 @@ describe.skipIf(!live)(
 
     afterAll(async () => {
       if (created.length > 0) {
-        await admin.customers.deleteMany({ where: { id: { in: created } } });
+        await admin.customers.delete({ where: { id: { in: created } } });
       }
     });
 

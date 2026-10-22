@@ -225,7 +225,7 @@ function isDefinition<
  *   fetch: pipeline(
  *     [withBetterSupabase(betterSupabase)],
  *     async (req, ctx) =>
- *       Response.json(await ctx.db.notes.findMany().orThrow()),
+ *       Response.json(await ctx.db.notes.list().orThrow()),
  *   ),
  * };
  * ```

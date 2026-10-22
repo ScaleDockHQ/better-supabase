@@ -48,7 +48,7 @@ describe("Supabase SDK diagnostic logging", () => {
     const betterSupabase = defineSupabase(schema, { logger });
     expect(betterSupabase.events.has("query")).toBe(false);
     const db = betterSupabase.connect(conflict().client);
-    await db.contacts.findMany({ select: ["id"], where: { email: SECRET } });
+    await db.contacts.list({ select: ["id"], where: { email: SECRET } });
     expect(logger.debug).not.toHaveBeenCalled();
     expect(logger.info).not.toHaveBeenCalled();
   });
@@ -60,7 +60,7 @@ describe("Supabase SDK diagnostic logging", () => {
       conflict().client,
     );
 
-    const found = await db.contacts.findMany({
+    const found = await db.contacts.list({
       select: ["id"],
       where: { email: SECRET },
     });
@@ -145,7 +145,7 @@ describe("Supabase SDK diagnostic logging", () => {
       conflict().client,
     );
 
-    const found = await db.contacts.findMany({ select: ["id"] });
+    const found = await db.contacts.list({ select: ["id"] });
     expect(found.data).toEqual([{ id: "c1" }, { id: "c2" }]);
   });
 

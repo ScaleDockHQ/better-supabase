@@ -210,9 +210,9 @@ export const RULE_LIMITS: FilterLimits = {
 };
 
 /**
- * The problems `save` would report for a tree, checked in the browser: an empty
- * list when the database will accept it. Unfinished conditions are allowed;
- * they take no part until they have an operator.
+ * The problems `upsert` would report for a tree, checked in the browser: an
+ * empty list when the database will accept it. Unfinished conditions are
+ * allowed; they take no part until they have an operator.
  */
 export function checkRuleConditions(
   conditions: FilterQuery,

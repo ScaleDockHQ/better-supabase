@@ -35,7 +35,7 @@ if (insertError?.code === "23505") return { message: "Tag already exists" };
 With better-supabase, every column, relation and operator is typed, and errors are values with a `kind`:
 
 ```ts
-const customers = await db.customers.findMany({
+const customers = await db.customers.list({
   select: ["id", "name"],
   where: { status: "active", notes: { some: { kind: "call" } } },
   include: { organization: { select: ["name"] } },
@@ -53,7 +53,7 @@ Each call is still one PostgREST request, and it runs as the signed-in user, so 
 ## What you get
 
 - **Stronger generated types.** [`better-supabase gen`](https://bettersupabase.com/docs/cli/gen) writes the same `database.types.ts` as `supabase gen types` and adds relationship cardinality, unique keys, CHECK-constraint unions, typed jsonb and camelCase column maps.
-- **A typed repository per table.** [`findMany`, `findUnique`, `create`, `upsert`, `paginate`, counts and aggregates](https://bettersupabase.com/docs/repository), with nested relation filters and includes, compiled to PostgREST or to SQL on a direct Postgres connection.
+- **A typed repository per table.** [`list`, `get`, `create`, `upsert`, `page`, counts and aggregates](https://bettersupabase.com/docs/repository), with nested relation filters and includes, compiled to PostgREST or to SQL on a direct Postgres connection.
 - **Results instead of exceptions.** Every call returns a [`Result` with a plain, serializable `DbError`](https://bettersupabase.com/docs/concepts/results) that you can return from server actions and RPC handlers. `.orThrow()` is opt-in, and adapters turn errors into RFC 9457 Problem Details with the right status.
 - **Your casing.** Keep database names with `casing: 'snake'`, or get [camelCase rows](https://bettersupabase.com/docs/concepts/casing) renamed inside the PostgREST query.
 - **Auth without extra round trips.** Valid access tokens are [verified locally](https://bettersupabase.com/docs/auth) against the JWKS and never reach the Auth server. Refresh happens once, in the proxy. The service role is an explicit `bsb.admin()` call.
@@ -95,7 +95,7 @@ export const betterSupabase = defineSupabase(schema);
 const db = betterSupabase.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
-  .findMany({ select: ["id", "name"], where: { status: "active" } })
+  .list({ select: ["id", "name"], where: { status: "active" } })
   .orThrow();
 ```
 
@@ -116,7 +116,7 @@ export const proxy = (request: NextRequest) => bsb.proxy(request);
 export default async function Customers() {
   const { db } = await bsb.context();
   const customers = await db.customers
-    .findMany({ select: ["id", "name"] })
+    .list({ select: ["id", "name"] })
     .orThrow();
   return <CustomerList customers={customers} />;
 }

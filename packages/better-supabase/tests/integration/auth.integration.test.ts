@@ -203,11 +203,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
     expect(ctx.auth.kind).toBe("user");
 
     const viaRest = await ctx.db.customers
-      .findMany({ select: ["name"], orderBy: { name: "asc" } })
+      .list({ select: ["name"], orderBy: { name: "asc" } })
       .orThrow();
 
     const viaSql = await ctx
-      .sql!.customers.findMany({ select: ["name"], orderBy: { name: "asc" } })
+      .sql!.customers.list({ select: ["name"], orderBy: { name: "asc" } })
       .orThrow();
 
     expect(viaSql).toEqual(viaRest);
@@ -332,7 +332,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const queryClient = new QueryClient();
 
     const customers = await queryClient.query(
-      browser.queries.customers.findMany({ select: ["name"] }),
+      browser.queries.customers.list({ select: ["name"] }),
     );
 
     expect(customers.length).toBeGreaterThan(0);

@@ -103,7 +103,7 @@ export async function getTasks(
   }
 
   const tasks = await db.tasks
-    .findMany({
+    .list({
       select: [...TASK_COLUMNS],
       where: taskWhere(query),
       orderBy: { rank: "asc" },
@@ -126,7 +126,7 @@ export async function getProjectOptions(): Promise<
   }
 
   return db.projects
-    .findMany({
+    .list({
       select: ["id", "name"],
       where: { deletedAt: { isNull: true } },
       orderBy: { name: "asc" },
@@ -156,10 +156,20 @@ export async function getProject(
   }
 
   const project = await db.projects
-    .findFirst({
-      select: ["id", "name", "budgetMinor", "currency", "leadId", "createdAt"],
-      where: { id: { eq: id }, deletedAt: { isNull: true } },
-    })
+    .get(
+      { where: { id: { eq: id }, deletedAt: { isNull: true } } },
+      {
+        select: [
+          "id",
+          "name",
+          "budgetMinor",
+          "currency",
+          "leadId",
+          "createdAt",
+        ],
+        optional: true,
+      },
+    )
     .orThrow();
 
   return project ?? undefined;

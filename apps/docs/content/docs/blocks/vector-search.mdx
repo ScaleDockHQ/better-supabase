@@ -95,7 +95,7 @@ const result = await ctx.db.$search("chunks", {
 ```
 
 - Rows come back nearest first, typed from the generated schema, in your
-  configured casing. `select` and `include` work as in `findMany`.
+  configured casing. `select` and `include` work as in `list`.
 - `where` filters the `k` rows the search returns, so it can return fewer. Put
   filters that should shape the search (the tenant, a document set) in RLS.
 - `vector` is a `number[]` or pgvector text (`'[0.1,0.2]'`). It is sent in a

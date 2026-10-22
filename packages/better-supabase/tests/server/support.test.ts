@@ -282,8 +282,8 @@ describe("support sessions on the server", () => {
     expect(ctx.resolution.auth).toMatchObject({ user: { id: ADMIN } });
     expect(() => ctx.supabase).toThrow(/support session/);
     expect(() => ctx.db.$client).toThrow(/support session/);
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
-    await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
+    await ctx.sql!.customers.list({ select: ["id"] }).orThrow();
     expect(pg.claims[0]).toEqual({
       role: "authenticated",
       email: "member@acme.test",
@@ -391,7 +391,7 @@ describe("support sessions on the server", () => {
       { tenant: "t1" },
     );
 
-    await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.sql!.customers.list({ select: ["id"] }).orThrow();
     expect(pg.claims[0]).toMatchObject({ custom: true });
     expect(pg.sessions[0]).toEqual({
       settings: {
@@ -461,7 +461,7 @@ describe("support sessions on the server", () => {
     expect(auth.kind === "user" ? auth.user.id : undefined).toBe(TARGET);
     const db = server.dbFor(admin(), {}, { support: active });
     expect(() => db.$client).toThrow(/support session/);
-    await db.organizations.findMany().orThrow();
+    await db.organizations.list().orThrow();
     expect(pg.claims.at(-1)).toMatchObject({ sub: TARGET });
   });
 

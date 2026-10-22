@@ -27,7 +27,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       const cache = createAiCache({ transport: sqlTransport(s.sql) });
 
       const saved = await cache
-        .set(
+        .upsert(
           "k1",
           { text: "hi" },
           { ttl: 3600, organizationId: tenant, model: "openai/gpt-5" },
@@ -41,7 +41,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       expect(hit).toMatchObject({ value: { text: "hi" }, hits: 1 });
       expect(await cache.get("missing").orThrow()).toBeUndefined();
 
-      const tooBig = await cache.set("big", "x".repeat(2 * 1024 * 1024), {
+      const tooBig = await cache.upsert("big", "x".repeat(2 * 1024 * 1024), {
         ttl: 60,
       });
 
@@ -49,7 +49,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       const noFilter = await cache.clear({});
       expect(noFilter.ok).toBe(false);
 
-      await cache.set("k2", 1, { ttl: 60 }).orThrow();
+      await cache.upsert("k2", 1, { ttl: 60 }).orThrow();
       await s.rows(
         "update better_supabase.ai_cache_entries set expires_at = now() - interval '1 second' where key = 'k2'",
       );
@@ -95,7 +95,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
 
       await s.asRole(member);
 
-      const forbidden = await providers.keys.save(tenant, {
+      const forbidden = await providers.keys.upsert(tenant, {
         provider: "anthropic",
         credentialRef: ref,
       });
@@ -104,7 +104,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
 
       await s.asRole(owner);
 
-      const badRef = await providers.keys.save(tenant, {
+      const badRef = await providers.keys.upsert(tenant, {
         provider: "anthropic",
         credentialRef: { name: "no-provider" } as never,
       });
@@ -119,7 +119,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       ).toBe("CREDENTIAL_REF_FOREIGN");
 
       const saved = await providers.keys
-        .save(tenant, {
+        .upsert(tenant, {
           provider: "anthropic",
           credentialRef: ref,
           settings: { region: "eu" },
@@ -143,7 +143,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
       ]);
 
       await providers.keys
-        .save(tenant, { provider: "anthropic", credentialRef: backup })
+        .upsert(tenant, { provider: "anthropic", credentialRef: backup })
         .orThrow();
       const old = await credentials.getToken(ref, { subject: { type: "app" } });
       expect(old.ok ? "kept" : old.error.kind).toBe("not_found");

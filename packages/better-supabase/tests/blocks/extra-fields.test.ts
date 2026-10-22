@@ -78,9 +78,10 @@ describe("block fields", () => {
     });
 
     const tag = await tags
-      .create("label", "Urgent", undefined, undefined, {
-        priority: "high",
-        points: 3,
+      .create({
+        kind: "label",
+        name: "Urgent",
+        fields: { priority: "high", points: 3 },
       })
       .orThrow();
 
@@ -90,8 +91,8 @@ describe("block fields", () => {
       points: 3,
     });
 
-    const refused = await tags.update("t1", null, {
-      priority: "urgent" as "low",
+    const refused = await tags.update("t1", {
+      fields: { priority: "urgent" as "low" },
     });
 
     expect(refused).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -197,7 +198,7 @@ describe("block fields", () => {
       fields: { priority: "high", points: 1 },
     });
     await createGoals({ transport: fake.transport })
-      .save("o", { name: "Q4", fields: { budget: 3 } })
+      .upsert("o", { name: "Q4", fields: { budget: 3 } })
       .orThrow();
     expect(fake.calls[1]?.args["attrs"]).toMatchObject({
       fields: { budget: 3 },
@@ -336,7 +337,7 @@ describe("block fields", () => {
       transport: fake.transport,
       fields: Fields,
     })
-      .definitions.save({ slug: "s", name: "S", fields: value })
+      .definitions.upsert({ slug: "s", name: "S", fields: value })
       .orThrow();
 
     expect(definition.fields).toEqual(value);
@@ -345,7 +346,12 @@ describe("block fields", () => {
       transport: fake.transport,
       fields: Fields,
     })
-      .save({ organizationId: "o", type: "invoice", name: "T", fields: value })
+      .upsert({
+        organizationId: "o",
+        type: "invoice",
+        name: "T",
+        fields: value,
+      })
       .orThrow();
 
     expect(template.fields).toEqual(value);

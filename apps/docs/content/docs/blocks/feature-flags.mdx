@@ -99,7 +99,7 @@ Flags SDK `identify`.
 
 ### Archiving a flag
 
-`save(key, { archived: true })` archives a flag: it serves its default
+`upsert(key, { archived: true })` archives a flag: it serves its default
 variant like a disabled flag, and Flags Explorer no longer lists it. Archive
 a flag once no code reads it, and delete it later, so a deploy that still
 checks it gets the default instead of an unknown flag.
@@ -124,7 +124,10 @@ const admin = createFeatureFlags({
   transport: rpcTransport(supabase, { schema: "api" }),
 });
 
-await admin.save("new_editor", { rolloutPercentage: 25, rolloutVariant: "on" });
+await admin.upsert("new_editor", {
+  rolloutPercentage: 25,
+  rolloutVariant: "on",
+});
 await admin.override("new_editor", { organizationId }, "on");
 await admin.override(
   "new_editor",
@@ -135,15 +138,15 @@ await admin.override("new_editor", { userId }, null); // removes it
 const flags = await admin.list().orThrow();
 ```
 
-`save` creates the flag or updates the fields you pass and keeps the rest.
+`upsert` creates the flag or updates the fields you pass and keeps the rest.
 Anyone else gets `FLAGS_FORBIDDEN`.
 
 ### Your own fields and hooks
 
 `blocks.feature-flags.options.extraColumns` adds columns to the flags table, such as
-an owner or a ticket. `save` writes them from `fields`, and `list`, `save`
+an owner or a ticket. `upsert` writes them from `fields`, and `list`, `upsert`
 and `flag_definitions()` return them under `fields`. Pass a Standard Schema
-as `fields` to type them, parse them on reads and validate them on `save`,
+as `fields` to type them, parse them on reads and validate them on `upsert`,
 and `hooks` to run code around a method (see
 [extending blocks](/docs/extending/blocks)):
 
@@ -154,13 +157,13 @@ const admin = createFeatureFlags({
   transport: rpcTransport(supabase, { schema: "api" }),
   fields: z.object({ owner: z.string().email() }),
   hooks: {
-    save: {
+    upsert: {
       after: (result, [key]) => console.info("flag saved", key, result.ok),
     },
   },
 });
 
-await admin.save("new_editor", { fields: { owner: "ana@acme.test" } });
+await admin.upsert("new_editor", { fields: { owner: "ana@acme.test" } });
 ```
 
 ### Owner and expiry
@@ -277,7 +280,7 @@ returns the four `get*Details` methods that `withOpenFeature` calls (see
 | `flagContext(ctx, opts?)`          | The evaluation context from `jwtClaims`; claim names are options                                                          |
 | `evaluateFlag(flag, ctx)`          | `{ value, variant, reason }`, as `flag_evaluation()` computes it                                                          |
 | `flagBucket(key, target)`          | The rollout bucket, 0 to 9999                                                                                             |
-| `createFeatureFlags(opts)`         | `list`, `save`, `remove` and `override` for platform staff or the service role                                            |
+| `createFeatureFlags(opts)`         | `list`, `upsert`, `remove` and `override` for platform staff or the service role                                          |
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).

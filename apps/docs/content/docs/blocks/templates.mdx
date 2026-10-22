@@ -85,12 +85,12 @@ await templates.setDefault(fork.id).orThrow();
 
 ```ts
 await templates.versions
-  .save(fork.id, { tasks: ["Kickoff", "Plan"] })
+  .upsert(fork.id, { tasks: ["Kickoff", "Plan"] })
   .orThrow();
 await templates.versions.publish(fork.id).orThrow();
 ```
 
-`versions.save` updates the open draft, or opens the next version when the last one is published; a template has at most one draft. `versions.publish` publishes the draft (`TEMPLATE_NO_DRAFT` when there is none) and records `template.published`. Published versions don't change, so an application always points at the exact body it used. `get` returns the template with its newest published version and its draft, bodies included; `versions.list` lists them without bodies.
+`versions.upsert` updates the open draft, or opens the next version when the last one is published; a template has at most one draft. `versions.publish` publishes the draft (`TEMPLATE_NO_DRAFT` when there is none) and records `template.published`. Published versions don't change, so an application always points at the exact body it used. `get` returns the template with its newest published version and its draft, bodies included; `versions.list` lists them without bodies.
 
 ## Applying a template
 
@@ -108,7 +108,7 @@ Then it starts each enabled attached workflow on the new record through `workflo
 
 ```ts
 const version = await builder.versions
-  .save(definition.id, graph, {
+  .upsert(definition.id, graph, {
     inputSchema: {
       type: "object",
       required: ["owner"],
@@ -190,7 +190,7 @@ Errors carry these hints: `TEMPLATE_INVALID`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_FO
 
 Add columns to the template table with `blocks.templates.options.extraColumns`
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
-`save` validates and writes them, and `save`, `list`, `get` and `fork` return them parsed under
+`upsert` validates and writes them, and `upsert`, `list`, `get` and `fork` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 

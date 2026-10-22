@@ -30,7 +30,7 @@ import { createCourses } from "better-supabase/blocks/courses";
 const courses = createCourses({ transport, tenant: organizationId });
 
 const course = await courses
-  .save({ key: "security-basics", title: "Security basics" })
+  .upsert({ key: "security-basics", title: "Security basics" })
   .orThrow();
 const intro = await courses
   .saveModule(course.id, { title: "Introduction" })
@@ -52,7 +52,7 @@ await courses
     formId: quizFormId,
   })
   .orThrow();
-await courses.save({ id: course.id, status: "published" }).orThrow();
+await courses.upsert({ id: course.id, status: "published" }).orThrow();
 
 await courses.enroll(course.id).orThrow();
 ```
@@ -74,17 +74,17 @@ The block's entities are `course` (the `courses` table, its primary entity),
 registers `course` as a subject, searchable by title and summary when the
 search module is installed. Rename them with `blocks.courses.names`, for
 example `{ course: "training" }`; see [Typed blocks](/docs/blocks/typed-blocks).
-`courseInputSchema` and `courseLessonInputSchema` validate what `save` and
+`courseInputSchema` and `courseLessonInputSchema` validate what `upsert` and
 `saveLesson` take.
 
 `blocks.courses.options.extraColumns` adds columns to the `courses` table,
 keyed by column name with their SQL type. Pass `createCourses` a Standard
-Schema for them as `fields`, and `save` takes them under `fields`. See
+Schema for them as `fields`, and `upsert` takes them under `fields`. See
 [your own fields](/docs/extending/blocks#your-own-fields).
 
 ## Authoring
 
-`save(course)` creates a course, or changes one when you pass its `id`. Keys
+`upsert(course)` creates a course, or changes one when you pass its `id`. Keys
 left out keep their value, and a course's `key` (lower-case letters, digits
 and `-`) can't repeat in the organization. A new course is a `draft`: only
 members with `courses.manage` see it until its `status` is `published`.

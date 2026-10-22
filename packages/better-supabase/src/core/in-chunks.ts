@@ -109,7 +109,7 @@ export function tooLong(
     `The request for "${op.table.key}" is ${length} characters, over the ${max} the URL takes, and ${why}`,
     {
       table: op.table.key,
-      hint: "Split the in list or paginate, pass a shorter list to a search function, or raise `urlLengthLimit` when every proxy in front of PostgREST accepts longer URLs.",
+      hint: "Split the in list or page through it, pass a shorter list to a search function, or raise `urlLengthLimit` when every proxy in front of PostgREST accepts longer URLs.",
     },
   );
 }

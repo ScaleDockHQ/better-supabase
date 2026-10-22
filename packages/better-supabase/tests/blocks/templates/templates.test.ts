@@ -117,7 +117,7 @@ describe("templates client", () => {
 
     const templates = createTemplates({ transport: fake, types: { project } });
 
-    const bad = await templates.save({
+    const bad = await templates.upsert({
       organizationId: "o",
       type: "project",
       name: "Launch",
@@ -127,11 +127,11 @@ describe("templates client", () => {
     expect(bad.ok ? undefined : bad.error.kind).toBe("validation");
     expect(fake.calls).toHaveLength(0);
 
-    const badBody = await templates.versions.save("t1", { tasks: "no" });
+    const badBody = await templates.versions.upsert("t1", { tasks: "no" });
     expect(badBody.ok ? undefined : badBody.error.kind).toBe("validation");
 
     const draft = await templates.versions
-      .save("t1", { tasks: ["A"] })
+      .upsert("t1", { tasks: ["A"] })
       .orThrow();
 
     expect(draft.publishedAt).toBeUndefined();

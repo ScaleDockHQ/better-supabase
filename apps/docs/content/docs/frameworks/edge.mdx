@@ -113,7 +113,7 @@ Deno.serve(
   bsb.routes(
     {
       "GET /customers/:id": (_request, { db, params }) =>
-        db.customers.findById(params.id),
+        db.customers.get(params.id),
       "POST /customers/:id/archive": {
         roles: ["admin"],
         roleClaim: "user_role",
@@ -182,8 +182,7 @@ const bsb = createServer(betterSupabase);
 export default {
   fetch: toEdge(
     [withCors({ origin: "https://app.example.com" }), withBetterSupabase(bsb)],
-    async (_request, ctx) =>
-      Response.json(await ctx.db.notes.findMany().orThrow()),
+    async (_request, ctx) => Response.json(await ctx.db.notes.list().orThrow()),
   ),
 };
 ```

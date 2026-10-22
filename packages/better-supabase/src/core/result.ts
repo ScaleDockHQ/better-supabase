@@ -192,7 +192,7 @@ export type BetterResultErr<R> = R extends {
  * ```ts
  * import { Result } from "better-result";
  * const customer: Result<Customer, AppError> = toBetterResult(
- *   await db.customers.findById(id),
+ *   await db.customers.get(id),
  *   Result,
  *   toAppError,
  * );
@@ -339,7 +339,7 @@ export interface BetterResultErrors<
  *   DbFailure,
  * );
  * const customer: Result<Customer, NotFound | DbFailure> = await toResult(
- *   db.customers.findById(id),
+ *   db.customers.get(id),
  * );
  * ```
  */

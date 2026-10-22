@@ -325,7 +325,7 @@ export interface ReadArgs<
   readonly _max?: never;
 }
 
-export interface FindManyArgs<
+export interface ListArgs<
   M extends AnyModels,
   T extends keyof M,
 > extends ReadArgs<M, T> {
@@ -335,16 +335,13 @@ export interface FindManyArgs<
   readonly offset?: number;
 }
 
-export type FindFirstArgs<M extends AnyModels, T extends keyof M> = Omit<
-  FindManyArgs<M, T>,
-  "limit"
->;
-
-export interface FindOnlyArgs<
+/** `get()` options. */
+export interface GetArgs<
   M extends AnyModels,
   T extends keyof M,
 > extends ReadArgs<M, T> {
-  readonly where: WhereInput<M, T>;
+  /** Resolve to `null` instead of a `not_found` error when no row matches. */
+  readonly optional?: boolean;
 }
 
 export interface CountArgs<

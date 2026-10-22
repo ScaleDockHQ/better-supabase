@@ -122,7 +122,7 @@ export const renameProject = bsb.action(
     permission: "projects.update",
     resource: async ({ id }, { db }) => {
       const project = await db.projects
-        .findById(id, { select: ["id", "ownerId", "teamId"] })
+        .get(id, { select: ["id", "ownerId", "teamId"] })
         .orThrow();
 
       return {

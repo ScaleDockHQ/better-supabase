@@ -30,7 +30,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
 
   const plans = await bsb
     .admin()
-    .plans.findMany({
+    .plans.list({
       select: ["key", "name", "priceCents", "currency"],
       include: {
         planFeatures: { select: ["featureKey", "included", "value"] },
@@ -55,9 +55,9 @@ export async function getSubscription(organizationId: string) {
   const { db } = await bsb.cached();
 
   return db.subscriptions
-    .findFirst({
-      select: ["planKey", "status", "currentPeriodEnd"],
-      where: { organizationId },
-    })
+    .get(
+      { where: { organizationId } },
+      { select: ["planKey", "status", "currentPeriodEnd"], optional: true },
+    )
     .orThrow();
 }

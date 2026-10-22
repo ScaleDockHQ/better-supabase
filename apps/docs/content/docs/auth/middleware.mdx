@@ -27,7 +27,7 @@ export default {
     ],
     async (req, ctx) => {
       const customers = await ctx.db.customers
-        .findMany({ select: ["id", "name"] })
+        .list({ select: ["id", "name"] })
         .orThrow();
       return Response.json(customers);
     },

@@ -57,7 +57,7 @@ afterEach(() => {
 describe("next.route for bearer callers", () => {
   const read = bsb.route<{ id: string }>(
     (_request, { db, params }) =>
-      db.customers.findById(params.id, { select: ["id"] }),
+      db.customers.get(params.id, { select: ["id"] }),
     { scopes: ["customers:read"] },
   );
 

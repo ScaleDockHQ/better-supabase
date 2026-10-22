@@ -7,7 +7,7 @@ Repository methods never throw for database errors. They return an
 `AsyncResult`, which you can await for a `Result` or unwrap:
 
 ```ts
-const result = await db.customers.findById(id);
+const result = await db.customers.get(id);
 if (!result.ok) {
   if (result.error.kind === "not_found") return notFound();
   throw result.error;
@@ -15,11 +15,11 @@ if (!result.ok) {
 result.data.name;
 
 // Or throw a DbException on error:
-const customer = await db.customers.findById(id).orThrow();
+const customer = await db.customers.get(id).orThrow();
 
 // Or chain:
 const name = await db.customers
-  .findById(id)
+  .get(id)
   .map((row) => row.name)
   .unwrapOr("Unknown");
 ```
@@ -38,7 +38,7 @@ A `DbException` has the `DbError` as `error` and `cause`, and its own
 
 | kind              | status | From                                                                                                                                                                                                                                                                                                                                           |
 | ----------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `not_found`       | 404    | `findById`, `update`, `delete` with no row, `PGRST116`, `P0002` (`no_data_found`)                                                                                                                                                                                                                                                              |
+| `not_found`       | 404    | `get`, `update`, `delete` with no row, `PGRST116`, `P0002` (`no_data_found`)                                                                                                                                                                                                                                                                   |
 | `unauthorized`    | 401    | Missing or expired JWT                                                                                                                                                                                                                                                                                                                         |
 | `forbidden`       | 403    | `42501`, RLS `WITH CHECK` failures; `25006`, a write in a read-only transaction (with a hint); guards with `aal` set `required` ([MFA](/docs/auth/mfa-sso)); an [authorizer](/docs/extending/authorizers) refusal sets `permission`, and `approval` with `code: "APPROVAL_REQUIRED"`; a refusal that names the missing keys sets `permissions` |
 | `conflict`        | 409    | `23505` unique violation, with `constraint` and `columns`                                                                                                                                                                                                                                                                                      |
@@ -100,7 +100,7 @@ export class AppError extends Error {
 export const toAppError = (error: DbError) => new AppError(error);
 export const betterSupabase = defineSupabase(schema).mapError(toAppError);
 
-await db.customers.findById(id).orThrow(); // throws AppError
+await db.customers.get(id).orThrow(); // throws AppError
 ```
 
 Results themselves keep their `DbError`, so they stay serializable. The

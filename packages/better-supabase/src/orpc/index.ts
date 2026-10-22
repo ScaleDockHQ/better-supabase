@@ -279,9 +279,7 @@ export interface BetterOrpc<
    * ```ts
    * export const list = bsb
    *   .authed({ requireTenant: true })
-   *   .handler(({ context }) =>
-   *     bsb.unwrap(context.db.customers.findMany()),
-   *   );
+   *   .handler(({ context }) => bsb.unwrap(context.db.customers.list()));
    * ```
    */
   authed(

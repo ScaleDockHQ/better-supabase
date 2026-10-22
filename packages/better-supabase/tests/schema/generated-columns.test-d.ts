@@ -37,17 +37,16 @@ describe("generated columns", () => {
   });
 
   it("rejects the column in create and update", () => {
-    void db.memberships.create({
-      organizationId: "o",
-      userId: "u",
-      // @ts-expect-error generated columns are not writable
-      tierRole: "manager",
-    });
+    const row = { organizationId: "o", userId: "u", tierRole: "manager" };
+    // @ts-expect-error generated columns are not writable
+    void db.memberships.create(row);
 
     void db.memberships.update(
       { organizationId: "o", userId: "u" },
-      // @ts-expect-error generated columns are not writable
-      { tierRole: "manager" },
+      {
+        // @ts-expect-error generated columns are not writable
+        tierRole: "manager",
+      },
     );
   });
 

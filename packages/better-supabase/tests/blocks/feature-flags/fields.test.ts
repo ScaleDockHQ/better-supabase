@@ -32,7 +32,7 @@ describe("flags fields", () => {
     });
 
     const saved = await flags
-      .save("beta", { enabled: true, fields: { owner: "ana@acme.test" } })
+      .upsert("beta", { enabled: true, fields: { owner: "ana@acme.test" } })
       .orThrow();
 
     expect(saved?.fields.owner).toBe("ana@acme.test");
@@ -53,7 +53,7 @@ describe("flags fields", () => {
     const saved = await createFeatureFlags({
       transport: t,
       fields: Fields,
-    }).save("beta", { fields: { owner: "not an email" } });
+    }).upsert("beta", { fields: { owner: "not an email" } });
 
     expect(saved.ok ? undefined : saved.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);

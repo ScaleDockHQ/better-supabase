@@ -1,9 +1,9 @@
-import type { FindManyArgs } from "../ir/args.ts";
+import type { ListArgs } from "../ir/args.ts";
 import type { AnyModels } from "../schema/types.ts";
 
 /** `db.$search(table, args)`: the `k` rows nearest to `vector`. */
 export type SearchArgs<M extends AnyModels, T extends keyof M> = Pick<
-  FindManyArgs<M, T>,
+  ListArgs<M, T>,
   "select" | "include" | "where" | "signal"
 > & {
   /**

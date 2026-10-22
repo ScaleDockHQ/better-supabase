@@ -13,7 +13,7 @@ editing "this and following" splits the series in two.
 better-supabase add calendar
 ```
 
-The block's entities are `calendar_event` (the `calendar_events` table, its primary entity) and `calendar` (the `calendars` table). Installing it registers `calendar_event` as a subject, searchable by title, description and location when the search module is installed. Rename them with `blocks.calendar.names`, for example `{ calendar_event: "meeting" }`. `calendarEventInputSchema` validates what `save` takes.
+The block's entities are `calendar_event` (the `calendar_events` table, its primary entity) and `calendar` (the `calendars` table). Installing it registers `calendar_event` as a subject, searchable by title, description and location when the search module is installed. Rename them with `blocks.calendar.names`, for example `{ calendar_event: "meeting" }`. `calendarEventInputSchema` validates what `upsert` takes.
 
 ```ts
 import { createCalendar } from "better-supabase/blocks/calendar";
@@ -49,7 +49,7 @@ const { id: calendarId } = await calendar
   .orThrow();
 
 await calendar
-  .save(calendarId, {
+  .upsert(calendarId, {
     title: "Stand-up",
     startsAt: Temporal.Instant.from("2026-03-23T08:00:00Z"),
     endsAt: Temporal.Instant.from("2026-03-23T08:15:00Z"),
@@ -73,7 +73,7 @@ and the `event` row that applies, which is the override when there is one.
 
 | Method                                | Does                                                                                     |
 | ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `save(calendarId, input)`             | Inserts an event, or updates the one with `input.id`; keys left out keep their value     |
+| `upsert(calendarId, input)`           | Inserts an event, or updates the one with `input.id`; keys left out keep their value     |
 | `events(calendarIds, range)`          | The rows that can fall in the range: single events, series and overrides                 |
 | `occurrences(calendarIds, range)`     | The occurrences in the range, with EXDATEs removed and overrides applied                 |
 | `editOccurrence(occurrence, changes)` | Changes one occurrence: an override for a series, an update for a single event           |
@@ -111,7 +111,7 @@ await calendar
   .orThrow();
 
 await calendar
-  .save(calendarId, {
+  .upsert(calendarId, {
     title: "Deep work",
     kind: "focus_time",
     autoDecline: true,
@@ -376,7 +376,7 @@ it; their source is licensed per user, so copy them into your app from
 
 `blocks.calendar.options.extraColumns` adds columns to the `calendar_events` table,
 keyed by column name with their SQL type. Pass `createCalendar` a Standard Schema
-for them as `fields`: `save` and the occurrence edits take them next to the block's own keys and
+for them as `fields`: `upsert` and the occurrence edits take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `events` return them
 parsed. A column the module already uses is refused. See
 [your own fields](/docs/extending/blocks#your-own-fields).

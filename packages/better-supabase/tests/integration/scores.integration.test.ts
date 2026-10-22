@@ -267,7 +267,7 @@ describe.skipIf(!live)("scores module in Postgres", () => {
       [-44, true],
       [81, false],
     ]);
-    expect(await scores.forSubject(lead).orThrow()).toEqual([
+    expect(await scores.list({ on: lead }).orThrow()).toEqual([
       expect.objectContaining({ score: -44, modelName: "Lead score" }),
     ]);
     expect(
@@ -315,10 +315,10 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     expect((await scores.compute("lead", lead, {})).error?.hint).toBe(
       "SCORES_FORBIDDEN",
     );
-    expect(await scores.forSubject(lead).orThrow()).toHaveLength(1);
+    expect(await scores.list({ on: lead }).orThrow()).toHaveLength(1);
 
     await session.as(outsider);
-    expect((await scores.forSubject(lead)).error?.hint).toBe(
+    expect((await scores.list({ on: lead })).error?.hint).toBe(
       "SCORES_FORBIDDEN",
     );
     expect((await scores.models()).error?.hint).toBe("SCORES_FORBIDDEN");

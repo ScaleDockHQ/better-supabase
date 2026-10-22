@@ -13,30 +13,30 @@ get the read methods only.
 
 ## Reading
 
-| Method                  | Returns                                                                                                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `findMany(args?)`       | `Row[]`                                                                                                    |
-| `findFirst(args?)`      | `Row \| null`                                                                                              |
-| `findOnly({ where })`   | `Row \| null`, or a `multiple_rows` error when more than one row matches                                   |
-| `findById(key, args?)`  | `Row`, or a `not_found` error                                                                              |
-| `count({ where? })`     | `number` (a `HEAD` request)                                                                                |
-| `exists({ where? })`    | `boolean`                                                                                                  |
-| `findUnique({ where })` | `Row \| null`, by the primary key or any unique key; see [unique keys](/docs/repository/unique-and-errors) |
-| `paginate(args)`        | A page; see [pagination](/docs/repository/pagination)                                                      |
+| Method              | Returns                                                                  |
+| ------------------- | ------------------------------------------------------------------------ |
+| `list(args?)`       | `Row[]`                                                                  |
+| `page(args)`        | A page; see [pagination](/docs/repository/pagination)                    |
+| `get(key, args?)`   | `Row`, or a `not_found` error; `Row \| null` with `optional: true`       |
+| `count({ where? })` | `number` (a `HEAD` request)                                              |
+| `aggregate(args)`   | Sums, averages and groups; see [aggregates](/docs/repository/aggregates) |
 
-`findOnly` is for a filter that should match at most one row but has no
-unique key behind it, such as the active subscription of a customer. It
-asks for two rows and returns a `multiple_rows` error (status 409) when it
-gets both, where `findFirst` would return one of them. It returns `null`
-when nothing matches, like supabase-js `maybeSingle()`.
+`get` takes the primary key, an object with any unique key (see
+[unique keys](/docs/repository/unique-and-errors)), or `{ where }` for a filter
+that should match at most one row but has no unique key behind it, such as
+the active subscription of a customer. With a filter it asks for two rows and
+returns a `multiple_rows` error (status 409) when it gets both. Pass
+`optional: true` to get `null` instead of `not_found`, like supabase-js
+`maybeSingle()`. For "the first row in some order", use `list` with
+`limit: 1`. For "is there a row", use `count` and compare with zero.
 
 Every read takes `select`, `where`, `include`, `orderBy`, `limit`, `offset`
-and `signal`. `limit` and `offset` must be non-negative integers; anything
+and `signal`; `get` takes them as its second argument. `limit` and `offset` must be non-negative integers; anything
 else returns `invalid_request` before a request is sent. The result type follows `select` and `include`:
 
 ```ts
 const row = await db.customers
-  .findById(id, {
+  .get(id, {
     select: ["name"],
     include: { notes: { select: ["body"], limit: 3 } },
   })
@@ -44,14 +44,14 @@ const row = await db.customers
 // { name: string; notes: { body: string }[] }
 ```
 
-Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`.
+Composite keys take an object: `db.customerTags.get({ customerId, tagId })`.
 
 ## Timeouts and retries
 
 Every read, write and `$rpc` call also takes `timeout` and `retry`:
 
 ```ts
-const rows = await db.customers.findMany({
+const rows = await db.customers.list({
   where: { status: "lead" },
   timeout: 2000,
   retry: false,

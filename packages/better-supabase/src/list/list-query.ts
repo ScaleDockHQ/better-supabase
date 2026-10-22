@@ -1125,11 +1125,11 @@ export function defineListQuery<
       ) as never,
     args,
     run(db, query, extra) {
-      // SAFETY: args() returns an object of paginate options.
+      // SAFETY: args() returns an object of page options.
       const base = args(query) as Record<string, unknown>;
 
       // SAFETY: extra is optional ListExtra, and the rest spread keeps its
-      // other paginate options.
+      // other page options.
       const {
         where: extraWhere,
         count,
@@ -1141,15 +1141,15 @@ export function defineListQuery<
       // SAFETY: base comes from args(), whose where is a Where for table T.
       const combined = and([extraWhere, base["where"] as Where | undefined]);
 
-      // SAFETY: db is generic over M; this helper only calls paginate and
+      // SAFETY: db is generic over M; this helper only calls page and
       // aggregate on table T.
-      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs paginate and aggregate.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs page and aggregate.
       const repository = db[table] as unknown as {
-        paginate: (input: Record<string, unknown>) => AsyncResult<unknown>;
+        page: (input: Record<string, unknown>) => AsyncResult<unknown>;
         aggregate: (input: Record<string, unknown>) => AsyncResult<unknown>;
       };
 
-      const page = repository.paginate({
+      const page = repository.page({
         ...extra,
         ...base,
         ...(cursor ? {} : { count: count ?? base["count"] }),
@@ -1157,12 +1157,12 @@ export function defineListQuery<
       });
 
       if (!config.facetCounts) {
-        // SAFETY: without facet counts, run returns the paginate result as is.
+        // SAFETY: without facet counts, run returns the page result as is.
         return page as AsyncResult<never>;
       }
 
       if (facets.length === 0) {
-        // SAFETY: paginate returns a page object, which gets an empty facetCounts field.
+        // SAFETY: page returns a page object, which gets an empty facetCounts field.
         return page.map((data) => ({
           ...(data as object),
           facetCounts: {},
@@ -1198,7 +1198,7 @@ export function defineListQuery<
         });
       });
 
-      // SAFETY: paginate returns a page object, and aggregate with groupBy
+      // SAFETY: page returns a page object, and aggregate with groupBy
       // returns one row per group.
       return page.andThen(async (data) => {
         const results = await Promise.all(counted);
@@ -1225,7 +1225,7 @@ export function defineListQuery<
         // A literal, not ok(), keeps the error classes out of this entry.
         return {
           ok: true as const,
-          // SAFETY: paginate returns a page object.
+          // SAFETY: page returns a page object.
           data: {
             ...(data as object),
             facetCounts,

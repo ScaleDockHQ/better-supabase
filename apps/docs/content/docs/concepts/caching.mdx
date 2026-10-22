@@ -15,7 +15,7 @@ A read touches its table, every table it `include`s (nested includes too,
 and `_count` includes), and every table named in a relation filter:
 
 ```ts
-db.customers.findMany({
+db.customers.list({
   where: { notes: { some: { kind: "call" } } },
   include: { organization: true, _count: { locations: true } },
 });
@@ -67,7 +67,7 @@ Your own adapter implements one method, and `testCacheAdapter` from
 
 Query options from `createQueries` carry `meta: { bsTables }`. Invalidation
 is a predicate over that meta, so a write to `notes` refetches a
-`customers.findMany` that included notes, and nothing else. Keys stay
+`customers.list` that included notes, and nothing else. Keys stay
 `['bsb', table, method, ...args]` for devtools and manual invalidation. See
 [TanStack Query](/docs/frontend/query).
 
@@ -77,9 +77,7 @@ In a cached server component, tag the data with what it touched:
 
 ```ts
 "use cache";
-const spec = betterSupabase.spec.customers.findMany({
-  include: { notes: true },
-});
+const spec = betterSupabase.spec.customers.list({ include: { notes: true } });
 bsb.cacheTags(spec); // tags customers and notes
 const customers = await db.$run(spec).orThrow();
 ```
@@ -101,7 +99,7 @@ server, sent to the client, used as a query key and passed to
 [`useLiveQuery`](/docs/frontend/live-queries).
 
 ```ts
-const spec = betterSupabase.spec.customers.findMany({
+const spec = betterSupabase.spec.customers.list({
   select: ["id", "name"],
   limit: 20,
 });

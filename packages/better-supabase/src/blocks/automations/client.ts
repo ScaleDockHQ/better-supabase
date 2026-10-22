@@ -26,7 +26,7 @@ import {
 } from "./tree.ts";
 
 export interface RuleBuilderControllerOptions {
-  readonly client: Pick<Automations, "fields" | "get" | "save">;
+  readonly client: Pick<Automations, "fields" | "get" | "upsert">;
   readonly auth: AuthPort;
   readonly organizationId: string;
   /** The rule to edit; `null` edits a new one. */
@@ -317,7 +317,7 @@ export function createRuleBuilderController(
         const run = state.run();
         state.set({ saving: true, error: undefined });
 
-        const saved = await client.save(organizationId, {
+        const saved = await client.upsert(organizationId, {
           ...(current.rule === undefined
             ? {
                 subjectType: options.subjectType,

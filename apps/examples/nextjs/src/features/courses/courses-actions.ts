@@ -32,7 +32,7 @@ export const createSampleCourse = bsb.action(
   async ({ title, lessons }, { supabase, tenant, auth }) => {
     const { courses } = blocks(supabase, tenant);
 
-    const course = await courses.save({
+    const course = await courses.upsert({
       key: `sample-${crypto.randomUUID().slice(0, 8)}`,
       title,
     });
@@ -59,7 +59,7 @@ export const createSampleCourse = bsb.action(
       }
     }
 
-    const published = await courses.save({
+    const published = await courses.upsert({
       id: course.data.id,
       status: "published",
     });

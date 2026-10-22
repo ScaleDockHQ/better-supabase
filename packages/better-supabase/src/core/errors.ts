@@ -50,8 +50,9 @@ export interface DbErrorKinds {
   multiple_rows: Record<never, never>;
   stale: Record<never, never>;
   /**
-   * An `updateMany` or `deleteMany` matched more rows than its `maxAffected`
-   * allows; nothing was written. `maxAffected`: the limit, when known.
+   * An `update({ where })` or `delete({ where })` matched more rows than its
+   * `maxAffected` allows; nothing was written. `maxAffected`: the limit, when
+   * known.
    */
   max_affected: { maxAffected?: number };
   /** `retryAfter`: seconds until the window resets (the `Retry-After` header). */

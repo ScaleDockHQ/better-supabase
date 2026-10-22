@@ -82,10 +82,10 @@ async function measureAsync(work: () => PromiseLike<unknown>): Promise<number> {
   return ((performance.now() - started) / RUNS) * 1000;
 }
 
-const simple = await opOf(() => db.customers.findMany({ select: ["id"] }));
+const simple = await opOf(() => db.customers.list({ select: ["id"] }));
 
 const complex = await opOf(() =>
-  db.customers.findMany({
+  db.customers.list({
     select: ["id", "name", "status", "createdAt"],
     where: {
       organizationId: ORG,
@@ -126,7 +126,7 @@ const timings = {
   "decode 20 rows µs": measure(() => decodeRows(coded, wire.slice(0, 20))),
   "decode 200 rows µs": measure(() => decodeRows(coded, wire)),
   "paginate µs": await measureAsync(() =>
-    db.customers.paginate({ ...list.args(query) }),
+    db.customers.page({ ...list.args(query) }),
   ),
   "list run µs": await measureAsync(() => list.run(db, query)),
 };

@@ -482,13 +482,13 @@ aggregates return null. `count` and `sum` over `integer` or `bigint` return
 `bigint`.
 
 `better-supabase gen` reads the view as a read-only model, so
-`db.projectsView.findMany()` lists projects with their rollups and the
+`db.projectsView.list()` lists projects with their rollups and the
 repository has no insert or update. Write through the table, then read
 through the view:
 
 ```ts
 const projects = await db.projectsView
-  .findMany({ orderBy: { nextDueOn: "asc" } })
+  .list({ orderBy: { nextDueOn: "asc" } })
   .orThrow();
 ```
 

@@ -99,7 +99,7 @@ const build = (guarded: boolean) => {
             type: "text",
             text: JSON.stringify({
               id: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
-              hasDb: typeof ctx.db.customers.findMany === "function",
+              hasDb: typeof ctx.db.customers.list === "function",
               same: ctx.bsb.db === ctx.db,
             }),
           },

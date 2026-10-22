@@ -109,12 +109,12 @@ describe("use", () => {
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "clash",
-      repository: () => ({ findMany: () => 1 }),
+      repository: () => ({ list: () => 1 }),
     };
 
     const db = betterSupabase.use(plugin).connect(fake());
     expect(() => db.customers).toThrow(
-      'better-supabase: plugin "clash" redefines "customers.findMany"',
+      'better-supabase: plugin "clash" redefines "customers.list"',
     );
   });
 });
@@ -183,7 +183,7 @@ describe("connect", () => {
     const extended = db.tags.extend((base) => ({ total: () => base.count() }));
 
     expect(await extended.total()).toEqual(ok(9));
-    expect(typeof extended.findMany).toBe("function");
+    expect(typeof extended.list).toBe("function");
   });
 
   it("leaves plugin methods that return plain values alone under mapError", () => {
@@ -258,7 +258,7 @@ describe("$run", () => {
   });
 
   it("rejects a spec for an unknown table", async () => {
-    const spec = { v: 1, table: "nope", method: "findMany", args: [] };
+    const spec = { v: 1, table: "nope", method: "list", args: [] };
     expect(await betterSupabase.connect(fake()).$run(spec as never)).toEqual(
       err(dbError("invalid_request", 'Unknown table "nope" in QuerySpec')),
     );
@@ -281,8 +281,8 @@ describe("$run", () => {
   });
 
   it.each([
-    ["findById", betterSupabase.spec.tags.findById("t1")],
-    ["findMany", betterSupabase.spec.tags.findMany({ select: ["id"] })],
+    ["get", betterSupabase.spec.tags.get("t1")],
+    ["list", betterSupabase.spec.tags.list({ select: ["id"] })],
   ] as const)(
     "passes the signal into the options of %s",
     async (_name, spec) => {
@@ -371,11 +371,11 @@ describe("$many with a read set", () => {
     "chrome",
     { params: { organizationId: "uuid" } },
     (s, p) => ({
-      tags: s.tags.findMany({
+      tags: s.tags.list({
         select: ["id"],
         where: { organizationId: p.organizationId },
       }),
-      tag: s.tags.findById(p.organizationId, { select: ["id"] }),
+      tag: s.tags.get(p.organizationId, { select: ["id"] }),
     }),
   );
 

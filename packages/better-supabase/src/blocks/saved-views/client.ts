@@ -45,12 +45,12 @@ export interface SavedViewsSyncOptions<V extends SavedViewLike> {
   readonly onApplyState?: (state: SavedViewDisplayState, view: V) => void;
   /**
    * Saves the current state, e.g. a server action that calls
-   * `savedViews.save()`.
+   * `savedViews.upsert()`.
    */
   readonly save?: (input: {
     readonly name: string;
     readonly query: ListQueryInput<string, string>;
-    /** The query and `getState()` together, as `savedViews.save()` takes it. */
+    /** The query and `getState()` together, as `savedViews.upsert()` takes it. */
     readonly state: SavedViewState;
     readonly id?: string;
   }) => Promise<unknown>;

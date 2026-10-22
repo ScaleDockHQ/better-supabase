@@ -212,7 +212,7 @@ export function providerFile(
       );
     }
 
-    const saved = await files.providerFiles.set(
+    const saved = await files.providerFiles.upsert(
       fileId,
       provider,
       uploaded.reference,

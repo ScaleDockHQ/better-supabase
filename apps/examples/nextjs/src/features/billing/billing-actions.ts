@@ -45,7 +45,10 @@ export const loadPlanCatalog = bsb.action(
     const plans = await getPlans();
 
     return db.subscriptions
-      .findFirst({ select: ["planKey"], where: { organizationId } })
+      .get(
+        { where: { organizationId } },
+        { select: ["planKey"], optional: true },
+      )
       .map((subscription) => ({ plans, current: subscription?.planKey }));
   },
 );

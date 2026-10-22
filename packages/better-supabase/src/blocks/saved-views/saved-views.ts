@@ -144,7 +144,7 @@ export interface SavedView<
 }
 
 /**
- * What `save` and `duplicate` resolve to: the view's id, rank key and extra
+ * What `upsert` and `duplicate` resolve to: the view's id, rank key and extra
  * columns.
  */
 export interface SavedViewRef<F extends object = Record<never, never>> {
@@ -184,7 +184,7 @@ export interface SavedViewsOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
-  /** List definitions by key; `save` checks a view's query against its list. */
+  /** List definitions by key; `upsert` checks a view's query against its list. */
   readonly lists?: Readonly<Record<string, SavedViewList>>;
   /**
    * A Standard Schema for the extra columns of the saved views table
@@ -200,7 +200,7 @@ export interface SavedViewsOptions<
 
 export interface SavedViews<F extends object = Record<never, never>> {
   /** Adds a view, or updates `input.id`. Resolves to its id and rank key. */
-  save(
+  upsert(
     input: SaveViewInput<ListQueryInput<string, string>, F>,
   ): AsyncResult<SavedViewRef<F>>;
   /** The views the caller sees for a list, in rank order. */
@@ -463,7 +463,7 @@ export function createSavedViews<
   );
 
   const client: SavedViews<F> = {
-    save: (input) => {
+    upsert: (input) => {
       const issues = savedViewIssues(input.state, options.lists?.[input.list]);
 
       if (issues.length > 0) {

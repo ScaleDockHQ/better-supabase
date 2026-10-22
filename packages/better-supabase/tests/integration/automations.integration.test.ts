@@ -278,7 +278,7 @@ describe.skipIf(!live)("rules module", () => {
       await s.as(owner);
       expect(
         (
-          await rules.save(tenant, {
+          await rules.upsert(tenant, {
             subjectType: "invoice",
             trigger: "x",
             name: "x",
@@ -288,7 +288,7 @@ describe.skipIf(!live)("rules module", () => {
       ).toBe("RULE_SUBJECT_UNKNOWN");
       expect(
         (
-          await rules.save(tenant, {
+          await rules.upsert(tenant, {
             subjectType: "expense",
             trigger: "expense.submitted",
             name: "Bad",
@@ -298,7 +298,7 @@ describe.skipIf(!live)("rules module", () => {
       ).toBe("RULE_OPERATOR_INVALID");
       expect(
         (
-          await rules.save(tenant, {
+          await rules.upsert(tenant, {
             subjectType: "expense",
             trigger: "expense.submitted",
             name: "Bad",
@@ -308,7 +308,7 @@ describe.skipIf(!live)("rules module", () => {
       ).toBe("RULE_VALUE_INVALID");
       expect(
         (
-          await rules.save(tenant, {
+          await rules.upsert(tenant, {
             subjectType: "expense",
             trigger: "expense.submitted",
             name: "Bad",
@@ -319,7 +319,7 @@ describe.skipIf(!live)("rules module", () => {
       ).toBe("RULE_ACTIONS_INVALID");
 
       const large = await rules
-        .save(tenant, {
+        .upsert(tenant, {
           subjectType: "expense",
           trigger: "expense.submitted",
           name: "Large expenses",
@@ -341,7 +341,7 @@ describe.skipIf(!live)("rules module", () => {
       });
 
       const all = await rules
-        .save(tenant, {
+        .upsert(tenant, {
           subjectType: "expense",
           trigger: "expense.submitted",
           name: "Every submitted expense",
@@ -356,13 +356,18 @@ describe.skipIf(!live)("rules module", () => {
       await s.as(editor);
 
       const renamed = await rules
-        .save(tenant, { id: large.id, version: 1, name: "Large ones" })
+        .upsert(tenant, { id: large.id, version: 1, name: "Large ones" })
         .orThrow();
 
       expect(renamed.version).toBe(2);
       expect(
-        (await rules.save(tenant, { id: large.id, version: 1, name: "Stale" }))
-          .error?.hint,
+        (
+          await rules.upsert(tenant, {
+            id: large.id,
+            version: 1,
+            name: "Stale",
+          })
+        ).error?.hint,
       ).toBe("RULE_CONFLICT");
       expect(
         (await rules.versions(large.id).orThrow()).map(
@@ -376,7 +381,8 @@ describe.skipIf(!live)("rules module", () => {
         all.id,
       ]);
       expect(
-        (await rules.save(tenant, { id: large.id, name: "Mine" })).error?.hint,
+        (await rules.upsert(tenant, { id: large.id, name: "Mine" })).error
+          ?.hint,
       ).toBe("RULE_FORBIDDEN");
       expect((await rules.setEnabled(large.id, true)).error?.hint).toBe(
         "RULE_FORBIDDEN",
@@ -390,7 +396,7 @@ describe.skipIf(!live)("rules module", () => {
       await s.as(owner);
       await rules.setEnabled(large.id, true).orThrow();
       await rules
-        .save(tenant, { id: large.id, stopProcessing: true })
+        .upsert(tenant, { id: large.id, stopProcessing: true })
         .orThrow();
 
       const expense = subjects[0];

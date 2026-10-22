@@ -35,9 +35,10 @@ describe("withBetterSupabaseMcp", () => {
         expectTypeOf(ctx.db).toEqualTypeOf(ctx.bsb.db);
         expectTypeOf(ctx.http).not.toBeAny();
 
-        const found = await ctx.db.customers.findUnique({
-          where: { id: args.id },
-        });
+        const found = await ctx.db.customers.get(
+          { id: args.id },
+          { optional: true },
+        );
 
         expectTypeOf(found.ok).toBeBoolean();
 
@@ -45,7 +46,7 @@ describe("withBetterSupabaseMcp", () => {
       },
     );
     server.registerTool("ping", {}, (ctx) => {
-      expectTypeOf(ctx.db.customers).toHaveProperty("findMany");
+      expectTypeOf(ctx.db.customers).toHaveProperty("list");
 
       return { content: [] };
     });

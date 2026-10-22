@@ -125,7 +125,7 @@ export function createCustomersService(db: CrmDb) {
      * and location.
      */
     listCustomers(organizationId: string, filter: CustomerListFilter = {}) {
-      return db.customers.paginate({
+      return db.customers.page({
         select: LIST_COLUMNS,
         where: listWhere(organizationId, filter),
         orderBy: [
@@ -164,19 +164,22 @@ export function createCustomersService(db: CrmDb) {
     },
 
     getCustomer(organizationId: string, customerId: number) {
-      return db.customers.findFirst({
-        where: { id: customerId, organizationId },
-        include: {
-          customerContacts: {
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-            include: { contactProfile: true },
+      return db.customers.get(
+        { where: { id: customerId, organizationId } },
+        {
+          include: {
+            customerContacts: {
+              orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+              include: { contactProfile: true },
+            },
+            customerLocationsByCustomer: {
+              orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            },
+            customerTags: { include: { tag: true } },
           },
-          customerLocationsByCustomer: {
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-          },
-          customerTags: { include: { tag: true } },
+          optional: true,
         },
-      });
+      );
     },
 
     createCustomer(organizationId: string, input: CustomerInput) {

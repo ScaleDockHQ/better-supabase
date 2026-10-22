@@ -26,7 +26,7 @@ export const createSampleSequence = bsb.action(
     authorize: (session) => can(session, "sequences.manage"),
   },
   async ({ name, subject, text, task }, { supabase, tenant, auth }) => {
-    const saved = await blocks(supabase, tenant).sequences.save({
+    const saved = await blocks(supabase, tenant).sequences.upsert({
       key: `sample-${crypto.randomUUID().slice(0, 8)}`,
       name,
       steps: [
@@ -57,7 +57,7 @@ export const setSequenceStatus = bsb.action(
     authorize: (session) => can(session, "sequences.manage"),
   },
   async ({ sequenceId, status }, { supabase, tenant, auth }) => {
-    const saved = await blocks(supabase, tenant).sequences.save({
+    const saved = await blocks(supabase, tenant).sequences.upsert({
       id: sequenceId,
       status,
     });
@@ -126,7 +126,7 @@ export const addSequenceStep = bsb.action(
       return current;
     }
 
-    const saved = await sequences.save({
+    const saved = await sequences.upsert({
       id: input.sequenceId,
       steps: [...current.data.steps, stepOf(input)],
     });

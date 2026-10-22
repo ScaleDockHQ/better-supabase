@@ -63,9 +63,9 @@ type Outcome = PromiseLike<Result<unknown>>;
 
 interface Repository {
   create(row: unknown, args?: object): Outcome;
-  findMany(args: object): Outcome;
-  updateMany(args: object): Outcome;
-  deleteMany(args: object): Outcome;
+  list(args: object): Outcome;
+  update(filter: object, patch: unknown, args?: object): Outcome;
+  delete(filter: object): Outcome;
 }
 
 type Repositories = Readonly<Record<string, Repository>>;
@@ -202,7 +202,7 @@ export async function expectTenantIsolation<
       for (const tenant of tenants) {
         const [row] = await rowsOf(admin[key]!.create(spec.row(tenant, 0)));
         const where = keyOf(table, row!);
-        cleanup.push(() => admin[key]!.deleteMany({ where }));
+        cleanup.push(() => admin[key]!.delete({ where }));
         seeded.push(row!);
       }
 
@@ -217,13 +217,13 @@ export async function expectTenantIsolation<
         const target = keyOf(table, seeded[other]!);
 
         const current = async (): Promise<Row | undefined> =>
-          (await rowsOf(admin[key]!.findMany({ where: target })))[0];
+          (await rowsOf(admin[key]!.list({ where: target })))[0];
 
         reads.push(
           [
             `${key}: ${who} reads its own row`,
             async () => {
-              const rows = await rowsOf(user.findMany({ where: own }));
+              const rows = await rowsOf(user.list({ where: own }));
               expect(
                 rows.length === 1,
                 `${who} can't read its own row, so the other checks prove nothing; check its claims and memberships`,
@@ -233,7 +233,7 @@ export async function expectTenantIsolation<
           [
             `${key}: ${who} can't select ${whose} rows`,
             async () => {
-              const rows = await rowsOf(user.findMany({ where: target }));
+              const rows = await rowsOf(user.list({ where: target }));
               expect(rows.length === 0, `select returned ${whose} row`);
             },
           ],
@@ -249,7 +249,7 @@ export async function expectTenantIsolation<
                   Object.entries(row).filter(([, value]) => scalar(value)),
                 );
 
-                cleanup.push(() => admin[key]!.deleteMany({ where }));
+                cleanup.push(() => admin[key]!.delete({ where }));
               }
 
               expect(
@@ -274,11 +274,7 @@ export async function expectTenantIsolation<
                 ),
                 "update must change the row to detect a leak",
               );
-              await user.updateMany({
-                where: target,
-                data: patch,
-                returning: false,
-              });
+              await user.update({ where: target }, patch, { returning: false });
               const after = await current();
               expect(
                 Object.entries(patch).every(
@@ -292,7 +288,7 @@ export async function expectTenantIsolation<
         deletes.push([
           `${key}: ${who} can't delete ${whose} rows`,
           async () => {
-            await user.deleteMany({ where: target });
+            await user.delete({ where: target });
             expect(
               (await current()) !== undefined,
               `delete removed ${whose} row`,

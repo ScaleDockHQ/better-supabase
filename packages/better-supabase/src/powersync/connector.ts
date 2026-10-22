@@ -254,12 +254,12 @@ function unsupportedOp(entry: CrudEntryLike, route: string): Result<never> {
  * }
  * ```
  */
-export function uploadRoute<I, K>(
-  repository: CreateUploadRepository<I, K>,
+export function uploadRoute(
+  repository: CreateUploadRepository<never, never>,
   options: UploadRouteOptions<"create"> & { readonly put: "create" },
 ): UploadFunction;
-export function uploadRoute<I, K>(
-  repository: UploadRepository<I, K>,
+export function uploadRoute(
+  repository: UploadRepository<never, never>,
   options?: UploadRouteOptions<"upsert">,
 ): UploadFunction;
 export function uploadRoute(

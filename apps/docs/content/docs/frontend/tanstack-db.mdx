@@ -81,7 +81,7 @@ import { db, queries, queryClient } from "./client";
 export const customers = createCollection(
   queryCollectionOptions(
     collectionOptions(betterSupabase, db, "customers", {
-      query: queries.customers.findMany({ where: { status: "active" } }),
+      query: queries.customers.list({ where: { status: "active" } }),
       queryClient,
     }),
   ),

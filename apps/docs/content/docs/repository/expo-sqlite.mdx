@@ -17,7 +17,7 @@ export const local = betterSupabase.connect(
 );
 
 const drafts = await local.notes
-  .findMany({ where: { status: "draft" }, orderBy: { updatedAt: "desc" } })
+  .list({ where: { status: "draft" }, orderBy: { updatedAt: "desc" } })
   .orThrow();
 ```
 
@@ -60,7 +60,7 @@ export function Drafts() {
   const drafts = useWatch({
     db: database,
     tables: ["notes"],
-    query: () => local.notes.findMany({ where: { status: "draft" } }),
+    query: () => local.notes.list({ where: { status: "draft" } }),
   });
   // ...
 }

@@ -112,7 +112,7 @@ can compute for any organization.
 
 | Method                              | Returns                                                   |
 | ----------------------------------- | --------------------------------------------------------- |
-| `forSubject(subject)`               | The record's current score under each model, by model key |
+| `list({ on })`                      | The record's current score under each model, by model key |
 | `history(modelKey, subject)`        | The record's scores under one model, newest first         |
 | `top(modelKey, { band, minScore })` | The highest current scores, for a "hot leads" list        |
 
@@ -120,7 +120,7 @@ Each score has its `breakdown`: every rule with whether it matched and its
 points, and every metric with its value and points, so a UI can say why a
 lead is hot.
 
-`scoresSection` loads `forSubject` for a record page, and reloads on
+`scoresSection` loads `list({ on })` for a record page, and reloads on
 `score.changed`. See [Record sections](/docs/blocks/records).
 
 ## Events

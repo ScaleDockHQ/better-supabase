@@ -43,7 +43,7 @@ describe("withBetterResult", () => {
 
     const db = withBetterResult(betterSupabase.connect(client), toResult);
 
-    const found = await db.customers.findMany({ select: ["id", "name"] });
+    const found = await db.customers.list({ select: ["id", "name"] });
     expect(found.isOk() && found.value).toEqual([customer]);
 
     const created = await db.customers.create({
@@ -59,7 +59,7 @@ describe("withBetterResult", () => {
     const { client } = capturingClient(() => ({ body: [] }));
     const db = withBetterResult(betterSupabase.connect(client), toResult);
 
-    const missing = await db.customers.findById("c1");
+    const missing = await db.customers.get("c1");
     expect(missing.isErr() && missing.error).toBeInstanceOf(NotFound);
 
     const { client: failing } = capturingClient(() => ({
@@ -83,7 +83,7 @@ describe("withBetterResult", () => {
       mapError: (error: DbError) => error.kind,
     });
 
-    const missing = await db.customers.findById("c1");
+    const missing = await db.customers.get("c1");
     expect(missing.isErr() && missing.error).toBe("not_found");
   });
 
@@ -102,8 +102,8 @@ describe("withBetterResult", () => {
       { id: "o1", name: "Acme" },
     ]);
 
-    const counted = await db.$table("customers").findFirst();
-    expect(counted.isOk() && counted.value).toEqual(customer);
+    const counted = await db.$table("customers").list({ limit: 1 });
+    expect(counted.isOk() && counted.value).toEqual([customer]);
 
     const list = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
@@ -121,7 +121,7 @@ describe("withBetterResult", () => {
     expect(converted.isErr() && converted.error).toBeInstanceOf(DbFailure);
 
     expect(db.$db).toBe(plain);
-    expect(plain.customers.findMany()).toBeInstanceOf(AsyncResult);
+    expect(plain.customers.list()).toBeInstanceOf(AsyncResult);
     expect(db.customers).toBe(db.customers);
     expect(Object.keys(db)).toContain("customers");
   });

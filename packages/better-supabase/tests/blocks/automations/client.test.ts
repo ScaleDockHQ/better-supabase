@@ -74,7 +74,7 @@ function setup(
   );
 
   const controller = createRuleBuilderController({
-    client: { fields, get, save },
+    client: { fields, get, upsert: save },
     auth: fakeAuth(),
     organizationId: "org-1",
     rule: options.rule === undefined ? "rule-1" : options.rule,

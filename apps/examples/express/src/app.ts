@@ -23,14 +23,14 @@ export const app = express()
   .get("/api/customers", async (_req, res) => {
     res.json(
       await res.locals.db.customers
-        .findMany({ select: customer, orderBy: { name: "asc" }, limit: 50 })
+        .list({ select: customer, orderBy: { name: "asc" }, limit: 50 })
         .orThrow(),
     );
   })
   .get("/api/customers/:id", async (req, res) => {
     res.json(
       await res.locals.db.customers
-        .findById(req.params.id, { select: customer })
+        .get(req.params.id, { select: customer })
         .orThrow(),
     );
   })

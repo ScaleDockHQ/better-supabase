@@ -116,7 +116,7 @@ the same values back:
 
 ```ts
 const since = Temporal.Now.instant().subtract({ hours: 24 });
-await db.orders.findMany({ where: { createdAt: { gte: since } } });
+await db.orders.list({ where: { createdAt: { gte: since } } });
 ```
 
 Without the codec, `timestamptz` columns stay ISO strings, as PostgREST

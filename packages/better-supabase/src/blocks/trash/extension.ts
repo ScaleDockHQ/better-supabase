@@ -78,8 +78,8 @@ type UpdateFn = (
  * - `restore(key)` clears it.
  *
  * Deletes become updates without `RETURNING`, so a SELECT policy that hides
- * deleted rows does not make them fail. `deleteMany({ returning: true })` keeps
- * `RETURNING`, which needs a SELECT policy that still shows the row.
+ * deleted rows does not make them fail. `delete({ where }, { returning: true
+ * })` keeps `RETURNING`, which needs a SELECT policy that still shows the row.
  */
 export function trashExtension(): Plugin<"softDelete", TrashExtension> {
   return definePlugin<"softDelete", TrashExtension>({

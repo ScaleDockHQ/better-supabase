@@ -53,7 +53,7 @@ describe.skipIf(!live)("courses", () => {
       const courses = createCourses({ transport: sqlTransport(s.sql), tenant });
 
       const course = await courses
-        .save({ key: "onboarding", title: "Onboarding", certificate: true })
+        .upsert({ key: "onboarding", title: "Onboarding", certificate: true })
         .orThrow();
 
       expect(course).toMatchObject({ status: "draft", certificate: true });
@@ -154,7 +154,7 @@ describe.skipIf(!live)("courses", () => {
           member.id,
         ]),
       ).toBe("COURSE_NOT_PUBLISHED");
-      await courses.save({ id: course.id, status: "published" }).orThrow();
+      await courses.upsert({ id: course.id, status: "published" }).orThrow();
 
       await s.asRole(member);
       expect(
@@ -332,7 +332,7 @@ describe.skipIf(!live)("courses", () => {
       const courses = createCourses({ transport: sqlTransport(s.sql), tenant });
 
       const course = await courses
-        .save({
+        .upsert({
           key: "basics",
           title: "Basics",
           status: "published",

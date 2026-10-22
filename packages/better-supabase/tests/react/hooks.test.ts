@@ -850,7 +850,7 @@ describe("useBroadcast", () => {
 });
 
 describe("useLiveQuery", () => {
-  const spec = typed.spec.customers.findMany({ include: { notes: true } });
+  const spec = typed.spec.customers.list({ include: { notes: true } });
 
   it("needs a query client for a spec, not for null", () => {
     const { browser } = fakeBrowser(signedIn(USER));
@@ -929,7 +929,7 @@ describe("useLiveQuery", () => {
     const { browser, client } = fakeBrowser(signedIn(USER, { tenant_id: "t" }));
     const { queryClient } = cachedClient();
     const tablesOf = vi.spyOn(browser.betterSupabase, "tablesOf");
-    const first = typed.spec.customers.findMany({ include: { notes: true } });
+    const first = typed.spec.customers.list({ include: { notes: true } });
 
     const view = renderHook((next: typeof first) => useLiveQuery(next), first, {
       client: browser,
@@ -937,7 +937,7 @@ describe("useLiveQuery", () => {
     });
 
     expect(tablesOf.mock.calls[0]![0]).toBe(first);
-    view.rerender(typed.spec.customers.findMany({ include: { notes: true } }));
+    view.rerender(typed.spec.customers.list({ include: { notes: true } }));
     await flush();
     expect(client.channel).toHaveBeenCalledTimes(2);
     expect(tablesOf).toHaveBeenCalledOnce();
@@ -2537,7 +2537,7 @@ describe("workflow builder hooks", () => {
     expect(rpc).toHaveBeenCalledWith("workflow_definitions_list", {
       tenant: "t1",
     });
-    expect(typeof view.result.builder.definitions.save).toBe("function");
+    expect(typeof view.result.builder.definitions.upsert).toBe("function");
 
     failSteps = true;
     await view.result.refresh();

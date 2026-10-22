@@ -28,8 +28,7 @@ const bsb = createBetterServer(betterSupabase);
 createServer(
   toNodeHandler(
     [withBetterSupabase(bsb, { allow: ["user"] })],
-    (request, { db }) =>
-      db.notes.findMany({ select: ["id", "title"] }).orThrow(),
+    (request, { db }) => db.notes.list({ select: ["id", "title"] }).orThrow(),
   ),
 ).listen(3000);
 ```
@@ -57,10 +56,10 @@ app.use(
 );
 
 app.get("/notes", async (req, res) => {
-  res.json(await res.locals.db.notes.findMany().orThrow());
+  res.json(await res.locals.db.notes.list().orThrow());
 });
 app.get("/admin/members", guard({ roles: ["admin"] }), async (req, res) => {
-  res.json(await res.locals.db.members.findMany().orThrow());
+  res.json(await res.locals.db.members.list().orThrow());
 });
 
 app.use(problemErrorHandler());
@@ -80,7 +79,7 @@ app.get(
   "/reports",
   guard({ permission: "reports:read", authorizer }),
   async (req, res) => {
-    res.json(await res.locals.db.reports.findMany().orThrow());
+    res.json(await res.locals.db.reports.list().orThrow());
   },
 );
 ```
@@ -129,11 +128,11 @@ app.addHook(
   toFastify([withBetterSupabase(bsb, { allow: ["user"] })]),
 );
 
-app.get("/notes", (request) => request.locals.db.notes.findMany().orThrow());
+app.get("/notes", (request) => request.locals.db.notes.list().orThrow());
 app.get(
   "/admin/members",
   { preHandler: fastifyGuard({ roles: ["admin"] }) },
-  (request) => request.locals.db.members.findMany().orThrow(),
+  (request) => request.locals.db.members.list().orThrow(),
 );
 ```
 
@@ -153,7 +152,7 @@ const app = new Koa();
 app.use(toKoa([withBetterSupabase(bsb, { allow: ["user"] })]));
 app.use(koaGuard({ roles: ["admin"] }));
 app.use(async (ctx) => {
-  ctx.body = await ctx.state.db.members.findMany().orThrow();
+  ctx.body = await ctx.state.db.members.list().orThrow();
 });
 ```
 

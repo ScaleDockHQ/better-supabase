@@ -406,3 +406,22 @@ export function moveSqlModulesToBlocksJson(source: string): ConfigEdit {
 
   return { ok: true, text: `${JSON.stringify(sorted, null, indent)}\n` };
 }
+
+/** Review lines for `sql.modules` left in environment blocks after the move. */
+export function environmentModules(
+  text: string,
+): { readonly line: number; readonly message: string }[] {
+  return mask(text)
+    .split("\n")
+    .flatMap((line, index) =>
+      /\bmodules\s*:/.test(line)
+        ? [
+            {
+              line: index + 1,
+              message:
+                "`sql.modules` in an environment block moves to `blocks` too",
+            },
+          ]
+        : [],
+    );
+}

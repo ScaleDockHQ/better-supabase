@@ -89,7 +89,7 @@ describe("relation aggregates", () => {
 
     const rows = await betterSupabase
       .connect(client)
-      .customers.findMany({
+      .customers.list({
         select: ["id"],
         include: {
           _max: { notes: { id: true, createdAt: true } },
@@ -131,13 +131,13 @@ describe("relation aggregates", () => {
     const { client, requests } = capturingClient();
     const db = betterSupabase.connect(client);
 
-    const text = await db.customers.findMany({
+    const text = await db.customers.list({
       include: { _sum: { notes: { body: true } } },
     });
 
     expect(text.error?.message).toContain("_sum needs a numeric column");
 
-    const one = await db.customers.findMany({
+    const one = await db.customers.list({
       include: { _max: { organization: { name: true } } as never },
     });
 

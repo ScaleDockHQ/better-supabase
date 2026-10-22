@@ -46,7 +46,7 @@ rendering. Inputs are getters, so a subscription follows the `$state` and
 
   const auth = useAuth();
   const live = useLiveQuery(() =>
-    orgId ? betterSupabase.spec.customers.findMany({ where: { orgId } }) : null,
+    orgId ? betterSupabase.spec.customers.list({ where: { orgId } }) : null,
   );
   const unread = useLiveCount(() =>
     betterSupabase.spec.messages.count({ where: { read: false } }),

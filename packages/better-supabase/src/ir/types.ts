@@ -73,8 +73,8 @@ export interface OrderTerm {
   readonly direction: "asc" | "desc";
   readonly nulls?: "first" | "last";
   /**
-   * Added by the repository (the primary key order of `findMany`), not asked
-   * for by the caller, so a split read may sort it approximately.
+   * Added by the repository (the primary key order of `list`), not asked for by
+   * the caller, so a split read may sort it approximately.
    */
   readonly implicit?: true;
   /**
@@ -158,13 +158,13 @@ export interface SelectOp {
   readonly head: boolean;
   readonly single: "one" | "maybe" | undefined;
   /**
-   * `limit` includes one row past the page, which `paginate()` reads to set
+   * `limit` includes one row past the page, which `page()` reads to set
    * `hasMore`.
    */
   readonly lookAhead?: boolean;
   /**
-   * `limit` bounds a check, not a page: `findOnly` reads two rows to detect a
-   * second match.
+   * `limit` bounds a check, not a page: `get` reads two rows to detect a second
+   * match.
    */
   readonly unpaged?: boolean;
   /**

@@ -409,7 +409,7 @@ async function ${names.component}List() {
   ${requireCall(names)}
 
   const rows = await db.${names.key}
-    .findMany({ select: [${props.map(quote).join(", ")}]${whereOf(names)}${order}, limit: 100 })
+    .list({ select: [${props.map(quote).join(", ")}]${whereOf(names)}${order}, limit: 100 })
     .orThrow();
 
   if (rows.length === 0) {
@@ -487,7 +487,10 @@ async function ${names.component}Record({ params }: { params: Promise<{ id: stri
   ${requireCall(names)}
 
   const row = await db.${names.key}
-    .findFirst({ select: [${props.map(quote).join(", ")}]${whereOf(names, [names.idValue === "id" ? "id" : `id: ${names.idValue}`])} })
+    .get(
+      { ${whereOf(names, [names.idValue === "id" ? "id" : `id: ${names.idValue}`]).slice(2)} },
+      { select: [${props.map(quote).join(", ")}], optional: true },
+    )
     .orThrow();
 
   if (!row) {
@@ -520,7 +523,7 @@ function newPage(
 
   const loads = targets.map(
     (target) =>
-      `db.${target.key}.findMany({ select: ['id', ${quote(target.title)}], limit: 200 }).orThrow()`,
+      `db.${target.key}.list({ select: ['id', ${quote(target.title)}], limit: 200 }).orThrow()`,
   );
 
   const options = targets.map(

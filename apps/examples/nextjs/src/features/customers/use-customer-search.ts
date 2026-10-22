@@ -20,7 +20,7 @@ export function useCustomerSearch(needle: string) {
   const search = useDeferredValue(needle);
 
   return useQuery({
-    ...queries.customers.findMany(
+    ...queries.customers.list(
       search === ""
         ? skipToken
         : {

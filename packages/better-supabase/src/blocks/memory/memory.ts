@@ -333,7 +333,7 @@ export function createMemory(options: MemoryOptions): Memory {
     core,
     run: runCommand,
     archival: {
-      save: (organizationId, content, ns, saveOptions) =>
+      upsert: (organizationId, content, ns, saveOptions) =>
         save(organizationId, content, ns, saveOptions),
       search: (organizationId, query, ns, searchOptions) =>
         search(organizationId, query, ns, searchOptions),

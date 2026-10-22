@@ -77,7 +77,7 @@ bot.onSubscribedMessage(async (thread, message) => {
     return;
   }
   const db = await bsb.forContext({ ticket });
-  const orders = await db.orders.findMany().orThrow();
+  const orders = await db.orders.list().orThrow();
   await thread.post(`You have ${String(orders.length)} open orders.`);
 });
 ```

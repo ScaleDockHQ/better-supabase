@@ -31,9 +31,9 @@ describe("db.$stats()", () => {
     const db = defineSupabase(schema).connect(executor);
     expect(db.$stats()).toEqual({ calls: 0, waves: 0, tables: [], ms: 0 });
 
-    await Promise.all([db.customers.findMany(), db.notes.findMany()]);
+    await Promise.all([db.customers.list(), db.notes.list()]);
     await db.customers.count();
-    await db.$with({ claims: { tenant_id: "o" } }).tags.findMany();
+    await db.$with({ claims: { tenant_id: "o" } }).tags.list();
     await db.$rpc("customer_stats" as never, {} as never);
 
     const stats = db.$stats();
@@ -50,8 +50,8 @@ describe("db.$stats()", () => {
     const request = new StatsRecorder();
     const one = betterSupabase.connect(executor, {}, { stats: request });
     const two = betterSupabase.connect(executor, {}, { stats: request });
-    await Promise.all([one.customers.findMany(), two.customers.findMany()]);
-    await two.notes.findMany();
+    await Promise.all([one.customers.list(), two.customers.list()]);
+    await two.notes.list();
     expect(one.$stats()).toMatchObject({ calls: 1, waves: 1 });
     expect(request.snapshot()).toMatchObject({
       calls: 3,

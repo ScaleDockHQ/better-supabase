@@ -58,7 +58,7 @@ export interface CalendarOptions<
   /**
    * A Standard Schema for the event columns the app adds
    * (`blocks.calendar.options.extraColumns`), keyed by column name. It types
-   * and parses them on `events`, and validates them on `save` and the
+   * and parses them on `events`, and validates them on `upsert` and the
    * occurrence edits, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
@@ -139,7 +139,7 @@ export interface Calendar<F extends object = Record<never, never>> {
    * Inserts an event, or updates the one with `id`. Keys besides the input's
    * own are the event's extra columns.
    */
-  save(
+  upsert(
     calendarId: string,
     input: CalendarEventInput & Partial<F> & { readonly id?: string },
   ): AsyncResult<SavedCalendarEvent>;
@@ -496,7 +496,7 @@ export function createCalendar<
           };
         }),
       ),
-    save,
+    upsert: save,
     delete: (eventId) =>
       call(
         "delete_calendar_event",

@@ -95,7 +95,7 @@ describe("createAiCache", () => {
     const cache = createAiCache({ transport });
 
     const entry = await cache
-      .set(
+      .upsert(
         "k1",
         { text: "hi" },
         { ttl: 0.2, organizationId: "o1", kind: "stream", model: "m" },

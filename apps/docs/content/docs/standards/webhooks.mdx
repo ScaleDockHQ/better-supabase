@@ -16,8 +16,8 @@ export const POST = authHook(
   "custom_access_token",
   process.env.AUTH_HOOK_SECRET!,
   async ({ user_id, claims }) => {
-    const membership = await admin.memberships
-      .findFirst({ where: { userId: user_id } })
+    const [membership] = await admin.memberships
+      .list({ where: { userId: user_id }, limit: 1 })
       .orThrow();
     if (!membership) return hookError(403, "No organization");
     return { claims: { ...claims, tenant_id: membership.organizationId } };

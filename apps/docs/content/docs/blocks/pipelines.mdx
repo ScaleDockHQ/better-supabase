@@ -74,7 +74,7 @@ import { createPipelines } from "better-supabase/blocks/pipelines";
 
 const pipelines = createPipelines({ transport });
 const renewals = await pipelines
-  .save(organizationId, {
+  .upsert(organizationId, {
     subjectType: "deal",
     key: "renewals",
     name: "Renewals",
@@ -156,8 +156,8 @@ With the [notifications](/docs/blocks/notifications) module installed, the owner
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `pipelines`. `save` writes them from `fields`,
-and `save` and `list` return them in `fields`. Pass a Standard Schema as `fields`
+`options.extraColumns` adds columns to `pipelines`. `upsert` writes them from `fields`,
+and `upsert` and `list` return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
@@ -173,7 +173,7 @@ const client = createPipelines({
   transport,
   fields: v.object({ team: v.optional(v.string()) }),
 });
-await client.save(organizationId, {
+await client.upsert(organizationId, {
   subjectType: "deal",
   key: "enterprise",
   name: "Enterprise",

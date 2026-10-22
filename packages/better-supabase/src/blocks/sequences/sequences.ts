@@ -111,7 +111,7 @@ export interface Sequence {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** What `save` takes; keys left out keep their value. */
+/** What `upsert` takes; keys left out keep their value. */
 export interface SequenceInput {
   readonly id?: string;
   readonly key?: string;
@@ -186,7 +186,7 @@ export interface SequenceRunReport {
 }
 
 export interface Sequences {
-  save(input: SequenceInput): AsyncResult<Sequence>;
+  upsert(input: SequenceInput): AsyncResult<Sequence>;
   /** The organization's sequences; archived ones only with that status. */
   list(filter?: {
     readonly status?: SequenceStatus;
@@ -507,7 +507,7 @@ export function createSequences(options: SequencesOptions): Sequences {
   };
 
   const client: Sequences = {
-    save: (input) =>
+    upsert: (input) =>
       tenant().andThen((organizationId) =>
         call(
           "save_sequence",

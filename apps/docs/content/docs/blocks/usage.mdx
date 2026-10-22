@@ -424,8 +424,11 @@ anywhere, such as your own customers table:
 
 ```ts
 customer: async (organizationId) =>
-  (await db.billingCustomers.findFirst({ where: { organizationId } }).orThrow())
-    ?.stripeCustomerId,
+  (
+    await db.billingCustomers
+      .get({ where: { organizationId } }, { optional: true })
+      .orThrow()
+  )?.stripeCustomerId,
 ```
 
 When a plan includes an allowance and Stripe bills only what goes over it,

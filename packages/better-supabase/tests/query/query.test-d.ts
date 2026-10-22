@@ -28,7 +28,7 @@ const q = createQueries(betterSupabase, betterSupabase.connect(client));
 
 describe("query option types", () => {
   it("flows payload types into useQuery and the cache", () => {
-    const options = q.customers.findMany({ select: ["id", "status"] });
+    const options = q.customers.list({ select: ["id", "status"] });
     const { data, error } = useQuery(options);
     expectTypeOf(data).toEqualTypeOf<
       { id: string; status: CustomersStatus }[] | undefined
@@ -57,16 +57,16 @@ describe("query option types", () => {
   });
 
   it("keeps plugin arguments", () => {
-    q.customers.findMany({ withDeleted: true });
+    q.customers.list({ withDeleted: true });
     // @ts-expect-error unknown column
-    q.customers.findMany({ select: ["nope"] });
+    q.customers.list({ select: ["nope"] });
   });
 
   it("accepts skipToken and keeps the payload type", () => {
     const id: string | undefined = undefined as string | undefined;
 
     const { data } = useQuery(
-      q.customers.findById(id ?? skipToken, { select: ["id"] }),
+      q.customers.get(id ?? skipToken, { select: ["id"] }),
     );
 
     expectTypeOf(data).toEqualTypeOf<{ id: string } | undefined>();
@@ -82,7 +82,12 @@ describe("query option types", () => {
     >();
 
     const fromSpec = useQuery(
-      q.$spec(betterSupabase.spec.customers.findFirst({ select: ["status"] })),
+      q.$spec(
+        betterSupabase.spec.customers.get(
+          { where: { status: "active" } },
+          { select: ["status"], optional: true },
+        ),
+      ),
     );
 
     expectTypeOf(fromSpec.data).toEqualTypeOf<

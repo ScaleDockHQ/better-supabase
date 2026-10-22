@@ -9,8 +9,8 @@ With the [drive](/docs/blocks/drive#labels-and-approvals) installed, `drive_node
 
 | Permission    | Checked by                                                     | Default roles        |
 | ------------- | -------------------------------------------------------------- | -------------------- |
-| `tags.read`   | `list`, `forSubject`                                           | owner, admin, member |
-| `tags.apply`  | `tag`, `untag`                                                 | owner, admin, member |
+| `tags.read`   | `list`                                                         | owner, admin, member |
+| `tags.apply`  | `attach`, `detach`                                             | owner, admin, member |
 | `tags.manage` | `create`, `update`, `reorder`, `delete`, and every check above | owner, admin         |
 
 ```bash
@@ -29,12 +29,14 @@ Every call acts in the block's `tenant`, an organization id or a function that r
 const tags = createTags({ transport, tenant: organizationId });
 const customer = { type: "customer", id: customerId };
 
-const vip = await tags.create("customer", "VIP", "amber").orThrow();
-await tags.tag(customer, vip.id).orThrow();
-const onCustomer = await tags.forSubject(customer).orThrow();
+const vip = await tags
+  .create({ kind: "customer", name: "VIP", color: "amber" })
+  .orThrow();
+await tags.attach(customer, vip.id).orThrow();
+const onCustomer = await tags.list({ on: customer }).orThrow();
 ```
 
-`create(kind, name, color?, description?, fields?)` creates a tag of a kind. `tag(subject, tagId)` and `untag(subject, tagId)` put a tag on a record and take it off. `list(kind?)` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `forSubject(subject)` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
+`create({ kind, name, color?, description?, fields? })` creates a tag of a kind, and `update(id, { name?, fields? })` renames it or sets its extra columns. `attach(record, tagId)` and `detach(record, tagId)` put a tag on a record and take it off. `list({ kind? })` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `list({ on: record })` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
 
 ## In the browser
 

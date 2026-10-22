@@ -254,7 +254,7 @@ export interface BetterNext<
    * async function getCustomers() {
    *   "use cache: private";
    *   const { db } = await bsb.cached();
-   *   return db.customers.findMany().orThrow();
+   *   return db.customers.list().orThrow();
    * }
    * ```
    */
@@ -438,8 +438,8 @@ export interface BetterNext<
   ): void;
   /**
    * Tags the current `"use cache"` scope with every table the specs (or a read
-   * set) read, plus the row of each `findById`, so any mutation that changes
-   * one revalidates it.
+   * set) read, plus the row of each `get`, so any mutation that changes one
+   * revalidates it.
    */
   cacheTags(
     target:

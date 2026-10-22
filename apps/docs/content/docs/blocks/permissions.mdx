@@ -758,7 +758,7 @@ export default async function Customers({
 }: PageProps<"/[organizationId]/customers">) {
   const { organizationId } = await params;
   const { db } = await bsb.context({ tenant: organizationId });
-  const customers = await db.customers.findMany().orThrow();
+  const customers = await db.customers.list().orThrow();
   return <CustomerList customers={customers} />;
 }
 ```
@@ -771,7 +771,7 @@ cache entry on the arguments:
 async function getCustomers(organizationId: string) {
   "use cache: private";
   const { db } = await bsb.cached({ tenant: organizationId });
-  return db.customers.findMany().orThrow();
+  return db.customers.list().orThrow();
 }
 ```
 

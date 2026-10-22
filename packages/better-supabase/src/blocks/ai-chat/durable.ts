@@ -255,7 +255,7 @@ export interface AiHarnessSessionPatch {
 
 /**
  * The experimental harness session store, on the service role: `lock` keeps two
- * turns from driving one sandbox, `save` refuses a session another holder
+ * turns from driving one sandbox, `upsert` refuses a session another holder
  * locked (`AI_HARNESS_LOCKED`).
  */
 export interface AiHarnessSessions {
@@ -263,7 +263,7 @@ export interface AiHarnessSessions {
     chatId: string,
     harnessId: string,
   ): AsyncResult<AiHarnessSession | undefined>;
-  save(
+  upsert(
     chatId: string,
     harnessId: string,
     patch: AiHarnessSessionPatch,
@@ -342,7 +342,7 @@ export function createHarnessSessions(
         { chat: chatId, harness: harnessId },
         (value) => (value === null ? undefined : harnessOf(value)),
       ),
-    save: (chatId, harnessId, patch, saveOptions = {}) =>
+    upsert: (chatId, harnessId, patch, saveOptions = {}) =>
       service(
         "save_ai_harness_session",
         {

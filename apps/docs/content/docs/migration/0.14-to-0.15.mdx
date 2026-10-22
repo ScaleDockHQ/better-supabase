@@ -248,3 +248,53 @@ One default changed: a query on an organization table without an
 organization is left to RLS (`onMissing: "skip"`). The codemod keeps the
 0.14 behavior by writing `auth.organization.onMissing: "error"` for a config
 that had `plugins.tenant`; set it yourself to fail closed.
+
+## One data contract for tables and blocks
+
+Repositories and block clients share the data verbs: `list`, `page`, `get`,
+`count` and `aggregate` read, `create`, `update`, `upsert` and `delete`
+write, and `attach` and `detach` link a row to a record. The codemod
+rewrites the repository calls:
+
+| 0.14                                           | 0.15                                                 |
+| ---------------------------------------------- | ---------------------------------------------------- |
+| `findMany(args)`                               | `list(args)`                                         |
+| `paginate(args)`                               | `page(args)`                                         |
+| `findById(id)`                                 | `get(id)`, or `get(id, { optional: true })` for null |
+| `findUnique(key)`, `findOnly(args)`            | `get(key)`, or `get({ where })` for a filter         |
+| `findFirst(args)`                              | `list({ ...args, limit: 1 })`, then the first row    |
+| `exists(args)`                                 | `count(args)`, then compare with zero                |
+| `createMany(rows)`, `upsertMany(rows)`         | `create(rows)`, `upsert(rows)` with an array         |
+| `updateMany(where, patch)`                     | `update({ where }, patch)`                           |
+| `deleteMany(where)`                            | `delete({ where })`                                  |
+| `guards({ noUnboundedFindMany })`              | `guards({ noUnboundedList })`                        |
+| `guards({ noDeleteManyWithoutWhere })`         | `guards({ noDeleteWithoutWhere })`                   |
+| `better-supabase/no-unbounded-find-many`       | `better-supabase/no-unbounded-list`                  |
+| `better-supabase/no-delete-many-without-where` | `better-supabase/no-empty-where`                     |
+
+`get` takes the primary key, an object with one complete unique key, or
+`{ where }`. With `{ where }` it fails with `multiple_rows` when more than
+one row matches, so it replaces `findOnly`. Read sets and query specs have
+no `.map`, so where the codemod wrote `findFirst` as a list with
+`.map((rows) => rows[0] ?? null)`, use `get({ where }, { optional: true })`
+or destructure the first row; the codemod lists those calls.
+
+The lint rule `no-empty-where` reports an `update` or `delete` whose filter is
+`{ where: {} }`, and `no-unbounded-list` reports a `list` without `limit`.
+
+Block clients move to the same verbs. These calls are listed for review,
+because the names are too common to rewrite safely:
+
+| 0.14                                                   | 0.15                                                      |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| `tags.tag(record, tagId)`, `tags.untag(record, tagId)` | `tags.attach(record, tagId)`, `detach`                    |
+| `tags.create(kind, name, color, description, fields)`  | `tags.create({ kind, name, color, description, fields })` |
+| `tags.update(id, name, fields)`                        | `tags.update(id, { name, fields })`                       |
+| `tags.list(kind)`                                      | `tags.list({ kind })`                                     |
+| `forSubject(record)` on tags, channels and scores      | `list({ on: record })`                                    |
+| `save(...)` on a block client                          | `upsert(...)` with the same arguments                     |
+| `set(...)` on ai-cache and on ai-files `providerFiles` | `upsert(...)`                                             |
+
+The rule builder and saved-view controllers keep `save`, the settings client
+keeps `setUser` and `setOrganization`, and domain verbs such as `approve`,
+`send` and `publish` stay.

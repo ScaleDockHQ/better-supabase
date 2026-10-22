@@ -226,7 +226,7 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
 
       expect(
         await connectors.sessions
-          .save(server.id, {
+          .upsert(server.id, {
             chatKey: "c1",
             sessionId: "sess",
             initializeResult: { protocolVersion: "2025-11-25" },

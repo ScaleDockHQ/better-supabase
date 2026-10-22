@@ -96,7 +96,7 @@ A test server that must not see your shell's variables passes both, as in
 await bsb.admin().customers.count();
 
 // A user, with RLS, without their token: jobs, webhooks, support tooling.
-await bsb.actingAs(userId, { tenant_id: organizationId }).customers.findMany();
+await bsb.actingAs(userId, { tenant_id: organizationId }).customers.list();
 ```
 
 `actingAs` runs over direct Postgres with the user's claims set for the
@@ -148,7 +148,7 @@ import { resolveToken } from "better-supabase/server";
 
 const auth = await resolveToken(bsb, message.accessToken);
 const { db } = bsb.contextFor(auth);
-await db.customers.findMany();
+await db.customers.list();
 ```
 
 Without a server, pass the claims you verified yourself to `connect`.

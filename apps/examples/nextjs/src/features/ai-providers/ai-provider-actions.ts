@@ -44,7 +44,7 @@ export const addProviderKey = bsb.action(
       return stored;
     }
 
-    const saved = await aiProviders(supabase).keys.save(tenant, {
+    const saved = await aiProviders(supabase).keys.upsert(tenant, {
       provider,
       name: keyName,
       credentialRef: ref,

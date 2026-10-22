@@ -27,7 +27,7 @@ describe("query meta with a registered queryMeta", () => {
     expectTypeOf<BetterQueryMeta["bsTables"]>().toEqualTypeOf<
       readonly string[]
     >();
-    const options = q.customers.findMany({ select: ["id"] });
+    const options = q.customers.list({ select: ["id"] });
     useQuery({ ...options, meta: { ...options.meta, toast: "Loaded" } });
     useQuery(options);
   });

@@ -190,7 +190,7 @@ export interface BetterEdge<
    * Deno.serve(
    *   bsb.routes(
    *     {
-   *       "GET /customers": (req, ctx) => ctx.db.customers.findMany(),
+   *       "GET /customers": (req, ctx) => ctx.db.customers.list(),
    *       "GET /customers/:id": (req, ctx) =>
    *         ctx.db.customers.find(ctx.params.id),
    *       "POST /invites": {

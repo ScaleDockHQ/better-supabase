@@ -2,24 +2,20 @@ import type {
   AggregateArgs,
   AggregateResult,
   CountArgs,
-  FindFirstArgs,
-  FindOnlyArgs,
-  FindManyArgs,
+  GetArgs,
+  ListArgs,
   Payload,
-  ReadArgs,
-  WhereInput,
 } from "../ir/args.ts";
 import type {
   AnyModels,
-  PrimaryKeyValue,
   SchemaMeta,
   TableKey,
   TableMeta,
-  UniqueWhere,
 } from "../schema/types.ts";
 import type {
   CursorPageArgs,
   FindExt,
+  GetKey,
   OffsetPageArgs,
   OffsetRangeArgs,
   PageOf,
@@ -29,27 +25,14 @@ import { builderFor } from "../ir/build.ts";
 import { touchedTables } from "../ir/tables.ts";
 import { tableMeta } from "../schema/define.ts";
 
-export type ReadMethod =
-  | "findMany"
-  | "findFirst"
-  | "findOnly"
-  | "findUnique"
-  | "findById"
-  | "count"
-  | "aggregate"
-  | "exists"
-  | "paginate";
+export type ReadMethod = "list" | "page" | "get" | "count" | "aggregate";
 
 const READ_METHODS: readonly ReadMethod[] = [
-  "findMany",
-  "findFirst",
-  "findOnly",
-  "findUnique",
-  "findById",
+  "list",
+  "page",
+  "get",
   "count",
   "aggregate",
-  "exists",
-  "paginate",
 ];
 
 declare const resultType: unique symbol;
@@ -80,43 +63,33 @@ export type InferResult<S> =
 type NoSignal<A> = Omit<A, "signal">;
 
 export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
-  findMany<const A extends NoSignal<FindManyArgs<M, T>> & FindExt<E, M, T>>(
+  list<const A extends NoSignal<ListArgs<M, T>> & FindExt<E, M, T>>(
     args?: A,
-  ): QuerySpec<T, "findMany", Payload<M, T, A>[]>;
-  findFirst<const A extends NoSignal<FindFirstArgs<M, T>> & FindExt<E, M, T>>(
-    args?: A,
-  ): QuerySpec<T, "findFirst", Payload<M, T, A> | null>;
-  findOnly<const A extends NoSignal<FindOnlyArgs<M, T>> & FindExt<E, M, T>>(
-    args: A,
-  ): QuerySpec<T, "findOnly", Payload<M, T, A> | null>;
-  findUnique<
-    const A extends NoSignal<ReadArgs<M, T>> & {
-      readonly where: UniqueWhere<M, T>;
-    } & FindExt<E, M, T>,
-  >(
-    args: A,
-  ): QuerySpec<T, "findUnique", Payload<M, T, A> | null>;
-  findById<const A extends NoSignal<ReadArgs<M, T>> & FindExt<E, M, T>>(
-    id: PrimaryKeyValue<M, T>,
-    args?: A,
-  ): QuerySpec<T, "findById", Payload<M, T, A>>;
-  count(
-    args?: NoSignal<CountArgs<M, T>> & FindExt<E, M, T>,
-  ): QuerySpec<T, "count", number>;
-  aggregate<const A extends NoSignal<AggregateArgs<M, T>> & FindExt<E, M, T>>(
-    args: A,
-  ): QuerySpec<T, "aggregate", AggregateResult<M, T, A>>;
-  exists(
-    args?: { readonly where?: WhereInput<M, T> } & FindExt<E, M, T>,
-  ): QuerySpec<T, "exists", boolean>;
-  paginate<
+  ): QuerySpec<T, "list", Payload<M, T, A>[]>;
+  page<
     const A extends NoSignal<
       OffsetPageArgs<M, T> | OffsetRangeArgs<M, T> | CursorPageArgs<M, T>
     > &
       FindExt<E, M, T>,
   >(
     args: A,
-  ): QuerySpec<T, "paginate", PageOf<M, T, A>>;
+  ): QuerySpec<T, "page", PageOf<M, T, A>>;
+  get<const A extends NoSignal<GetArgs<M, T>> & FindExt<E, M, T>>(
+    key: GetKey<M, T>,
+    args?: A,
+  ): QuerySpec<
+    T,
+    "get",
+    A extends { readonly optional: true }
+      ? Payload<M, T, A> | null
+      : Payload<M, T, A>
+  >;
+  count(
+    args?: NoSignal<CountArgs<M, T>> & FindExt<E, M, T>,
+  ): QuerySpec<T, "count", number>;
+  aggregate<const A extends NoSignal<AggregateArgs<M, T>> & FindExt<E, M, T>>(
+    args: A,
+  ): QuerySpec<T, "aggregate", AggregateResult<M, T, A>>;
 }
 
 export type Specs<M extends AnyModels, E> = {
@@ -171,16 +144,28 @@ export function isQuerySpec(value: unknown): value is QuerySpec {
   );
 }
 
-/** The argument object of a spec's method (`findById` takes it second). */
+/**
+ * The argument object of a spec's method. `get` takes it second, and its first
+ * argument may be a `{ where }` filter.
+ */
 function specOptions(
   spec: QuerySpec,
 ): Readonly<Record<string, unknown>> | undefined {
-  const value = spec.method === "findById" ? spec.args[1] : spec.args[0];
+  const value = spec.method === "get" ? spec.args[1] : spec.args[0];
 
   // SAFETY: value is a non-null object, the shape of a read method's options argument.
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
+  const options =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : undefined;
+
+  const key = spec.method === "get" ? spec.args[0] : undefined;
+
+  if (typeof key === "object" && key !== null && "where" in key) {
+    return { ...options, where: key.where };
+  }
+
+  return options;
 }
 
 /**
@@ -282,10 +267,7 @@ function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   const table = tableMeta(meta, spec.table);
   const args = specOptions(spec);
 
-  const counts =
-    spec.method === "count" ||
-    spec.method === "exists" ||
-    spec.method === "aggregate";
+  const counts = spec.method === "count" || spec.method === "aggregate";
 
   return touchedTables({
     kind: "select",

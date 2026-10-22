@@ -24,7 +24,7 @@ export const { useDb, useQueries, useAuth, useSession } =
   createBindings<typeof bsb>();
 ```
 
-Use `useQuery(q.customers.findMany({ ... }))` from `@tanstack/vue-query`
+Use `useQuery(q.customers.list({ ... }))` from `@tanstack/vue-query`
 with `const q = useQueries()`. `useLiveQuery`, `useLiveCount`,
 `useBroadcast`, `usePresence` and `useAction` come from
 `better-supabase/vue` directly.
@@ -55,7 +55,7 @@ import { collectionOptions } from "better-supabase/tanstack-db";
 export const customers = createCollection(
   queryCollectionOptions(
     collectionOptions(betterSupabase, db, "customers", {
-      query: queries.customers.findMany({ where: { status: "active" } }),
+      query: queries.customers.list({ where: { status: "active" } }),
       queryClient,
     }),
   ),
@@ -88,7 +88,7 @@ export const database = expoSqliteDatabase(sqlite, {
 });
 ```
 
-Keep a list live with `useWatch({ db: database, tables: ["notes"], query: () => local.notes.findMany(...) })`
+Keep a list live with `useWatch({ db: database, tables: ["notes"], query: () => local.notes.list(...) })`
 from `better-supabase/powersync/react`. The local database has no RLS: it
 holds only what this device's user synced or wrote.
 

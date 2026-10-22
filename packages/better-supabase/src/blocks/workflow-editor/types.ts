@@ -125,13 +125,13 @@ export interface WorkflowVersion {
   readonly owner: WorkflowVersionOwner | undefined;
   /** The permissions its step nodes need, stored when it was published. */
   readonly permissions: readonly string[];
-  /** Set by `get`, `save` and `publish`; lists leave it out. */
+  /** Set by `get`, `upsert` and `publish`; lists leave it out. */
   readonly graph?: WorkflowGraph;
   /** What the engine's `compile` returned on publish. */
   readonly compiled?: unknown;
   /**
-   * The JSON Schema of the input a run takes, as `versions.save` stored it; set
-   * by `get`, `save` and `publish` when the version has one.
+   * The JSON Schema of the input a run takes, as `versions.upsert` stored it;
+   * set by `get`, `upsert` and `publish` when the version has one.
    */
   readonly inputSchema?: Readonly<Record<string, unknown>>;
 }
@@ -259,7 +259,7 @@ export interface BuilderOptions<
    * A Standard Schema for the definition's extra columns
    * (`blocks["workflow-editor"].options.extraColumns`), keyed by database name.
    * It types and parses them on the `definitions` reads, and validates them on
-   * `definitions.save`.
+   * `definitions.upsert`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `run`, `test` and the methods of each group. */
@@ -459,7 +459,7 @@ export type WorkflowBuilderHooks<F extends object = Record<never, never>> =
 
 export interface WorkflowEditor<F extends object = Record<never, never>> {
   readonly definitions: {
-    save(input: DefinitionInput<F>): AsyncResult<WorkflowDefinition<F>>;
+    upsert(input: DefinitionInput<F>): AsyncResult<WorkflowDefinition<F>>;
     /**
      * The tenant's definitions; with a tenant, the system definitions too,
      * marked `optedOut` when it opted out. `subjectType` keeps the ones that
@@ -499,7 +499,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
   };
   readonly versions: {
     /** Saves the draft: updates the open one, or opens the next version. */
-    save(
+    upsert(
       definition: string,
       graph: WorkflowGraph,
       options?: VersionSaveOptions,
@@ -547,7 +547,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
    */
   test(input: TestRunInput): AsyncResult<string>;
   readonly triggers: {
-    save(input: TriggerInput): AsyncResult<WorkflowTrigger>;
+    upsert(input: TriggerInput): AsyncResult<WorkflowTrigger>;
     list(definition: string): AsyncResult<readonly WorkflowTrigger[]>;
     remove(id: string): AsyncResult<boolean>;
     /** A new token for a webhook trigger; the old one stops working. Shown once. */
@@ -601,7 +601,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     list(run: string): AsyncResult<readonly WorkflowNodeRun[]>;
   };
   readonly alerts: {
-    save(input: AlertInput): AsyncResult<WorkflowAlert>;
+    upsert(input: AlertInput): AsyncResult<WorkflowAlert>;
     list(definition: string): AsyncResult<readonly WorkflowAlert[]>;
     remove(id: string): AsyncResult<boolean>;
     /**

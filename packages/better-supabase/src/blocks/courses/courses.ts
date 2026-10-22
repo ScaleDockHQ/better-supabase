@@ -245,7 +245,7 @@ export interface CourseLearnersFilter {
 
 export interface Courses<F extends object = Record<never, never>> {
   /** Creates or changes a course. */
-  save(course: CourseInput<F>): AsyncResult<Course<F>>;
+  upsert(course: CourseInput<F>): AsyncResult<Course<F>>;
   /** The organization's courses by title; readers get the published ones. */
   list(options?: {
     readonly status?: CourseStatus;
@@ -310,7 +310,7 @@ export interface CoursesOptions<
   /**
    * A Standard Schema for the course's extra columns
    * (`blocks.courses.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `save`.
+   * and parses them on reads, and validates them on `upsert`.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Courses<FieldsOf<S>>>>;
@@ -572,7 +572,7 @@ export function createCourses<
       learnerOf(value, fn);
 
   const client: Courses<F> = {
-    save: (course) => {
+    upsert: (course) => {
       const { fields: extra, ...rest } = course;
 
       return tenant().andThen((organizationId) =>

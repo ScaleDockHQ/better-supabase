@@ -450,7 +450,7 @@ describe("createAiFiles", () => {
 
     const cached = await files.providerFiles.get("f1", "openai");
     expect(cached.ok && cached.data?.reference).toBe("file-abc");
-    await files.providerFiles.set(
+    await files.providerFiles.upsert(
       "f1",
       "openai",
       "file-abc",

@@ -68,7 +68,7 @@ export interface AiCache {
    */
   get<T = unknown>(key: string): AsyncResult<AiCacheEntry<T> | undefined>;
   /** Stores or replaces the entry under `key`. `value` must be JSON. */
-  set(
+  upsert(
     key: string,
     value: unknown,
     options: AiCacheSetOptions,
@@ -178,7 +178,7 @@ export function createAiCache(options: AiCacheOptions): AiCache {
       call("ai_cache_get", { key }, (value) =>
         value === null || value === undefined ? undefined : entryOf<T>(value),
       ),
-    set: (key, value, setOptions) =>
+    upsert: (key, value, setOptions) =>
       call(
         "ai_cache_set",
         {

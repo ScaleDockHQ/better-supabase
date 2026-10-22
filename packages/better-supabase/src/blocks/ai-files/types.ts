@@ -241,7 +241,7 @@ export interface AiFiles<F extends object = Record<never, never>> {
       fileId: string,
       provider: string,
     ): AsyncResult<AiProviderFile | undefined>;
-    set(
+    upsert(
       fileId: string,
       provider: string,
       reference: string,

@@ -387,7 +387,7 @@ export const savedViews = createSavedViews({
 });
 
 await savedViews
-  .save({
+  .upsert({
     organizationId,
     list: "orders",
     name: "To ship",

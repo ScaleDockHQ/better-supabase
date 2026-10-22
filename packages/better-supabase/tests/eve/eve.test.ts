@@ -465,7 +465,7 @@ function fakeMemory() {
       search: vi.fn(() =>
         AsyncResult.ok([{ id: "m1", content: "likes tea", score: 0.9 }]),
       ),
-      save: vi.fn((_org: string, content: string) => {
+      upsert: vi.fn((_org: string, content: string) => {
         saved.push(content);
 
         return AsyncResult.ok({ id: "m2", content });

@@ -19,7 +19,8 @@ describe.skipIf(!url || !secretKey)(
       const customers = createCustomersService(db);
 
       const organization = await db.organizations
-        .findFirst({ select: ["id"] })
+        .list({ select: ["id"], limit: 1 })
+        .map((rows) => rows[0])
         .orThrow();
 
       if (!organization) {

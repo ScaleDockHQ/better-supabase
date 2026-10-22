@@ -3,7 +3,7 @@ import type { SequenceEnrollInput, SequenceInput } from "./sequences.ts";
 
 import { entitySchema } from "../entity-schema.ts";
 
-/** What `save` takes, with the bounds the SQL checks. */
+/** What `upsert` takes, with the bounds the SQL checks. */
 export const sequenceInputSchema: EntitySchema<SequenceInput> =
   entitySchema<SequenceInput>({
     title: "SequenceInput",

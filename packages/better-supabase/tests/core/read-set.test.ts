@@ -22,7 +22,7 @@ const chrome = defineReadSet(
   "app_chrome",
   { params: { organizationId: "uuid", kinds: "text[]", search: "text" } },
   (s, p) => ({
-    customers: s.customers.findMany({
+    customers: s.customers.list({
       select: ["id", "name"],
       where: { organizationId: p.organizationId, name: { contains: p.search } },
       orderBy: { name: "asc" },
@@ -34,9 +34,10 @@ const chrome = defineReadSet(
         kind: { in: p.kinds as readonly ("call" | "email")[] },
       },
     }),
-    first: s.customers.findFirst({
+    first: s.customers.list({
       select: ["id"],
       where: { organizationId: p.organizationId, status: "active" },
+      limit: 1,
     }),
   }),
 );
@@ -237,7 +238,7 @@ describe("compileReadSet", () => {
 
   it("writes an empty entry for a filter that matches nothing", async () => {
     const set = defineReadSet(betterSupabase, "nothing", {}, (s) => ({
-      none: s.customers.findMany({ where: { id: { in: [] } } }),
+      none: s.customers.list({ where: { id: { in: [] } } }),
     }));
 
     expect((await compileReadSet(set)).sql).toContain(
@@ -404,7 +405,7 @@ describe("db.$many over PostgREST", () => {
     expect(result.ok && result.data).toEqual({
       customers: [{ id: "c1", name: "Acme" }],
       calls: 4,
-      first: null,
+      first: [],
     });
     expect(requests).toHaveLength(1);
     expect(requests[0]!.method).toBe("GET");
@@ -438,7 +439,7 @@ describe("db.$many over PostgREST", () => {
     const db = betterSupabase.connect(client);
 
     const result = await db.$many([
-      betterSupabase.spec.tags.findMany({ select: ["id"] }),
+      betterSupabase.spec.tags.list({ select: ["id"] }),
       betterSupabase.spec.notes.count(),
     ]);
 
@@ -455,7 +456,7 @@ describe("db.$many with Executor.batch", () => {
     const result = await betterSupabase
       .connect(executor)
       .$many([
-        betterSupabase.spec.tags.findMany({ select: ["id"] }),
+        betterSupabase.spec.tags.list({ select: ["id"] }),
         betterSupabase.spec.notes.count(),
       ]);
 

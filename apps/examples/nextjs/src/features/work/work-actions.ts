@@ -263,7 +263,7 @@ export const saveWorkView = bsb.action(
       query.facets = { state: [state] };
     }
 
-    const saved = await blocks(supabase).savedViews.save({
+    const saved = await blocks(supabase).savedViews.upsert({
       organizationId: tenant,
       list: WORK_ITEM_LIST,
       name,

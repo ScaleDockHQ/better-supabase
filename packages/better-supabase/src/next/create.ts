@@ -827,7 +827,7 @@ export function createNext<
         const [id] = spec.args;
 
         if (
-          spec.method === "findById" &&
+          spec.method === "get" &&
           (typeof id === "string" || typeof id === "number")
         ) {
           tags.add(tagFor(spec.table, id));

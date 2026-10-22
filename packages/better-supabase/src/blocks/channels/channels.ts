@@ -81,16 +81,18 @@ export interface Channels {
   leave(channelId: string): AsyncResult<boolean>;
   /** Adds members; returns how many joined. */
   invite(channelId: string, userIds: readonly string[]): AsyncResult<number>;
-  /** The caller's channels by name, or with `browse` every channel they can see. */
+  /**
+   * The caller's channels by name, with `browse` every channel they can see, or
+   * with `on` the channels linked to that record that the caller can see.
+   */
   list(options?: {
     readonly browse?: boolean;
     readonly includeArchived?: boolean;
+    readonly on?: RecordRef;
   }): AsyncResult<Channel[]>;
   get(channelId: string): AsyncResult<Channel | undefined>;
   /** A channel by name in the tenant. */
   find(name: string): AsyncResult<Channel | undefined>;
-  /** The channels linked to a record that the caller can see. */
-  forSubject(subject: RecordRef): AsyncResult<Channel[]>;
 }
 
 export interface ChannelsOptions
@@ -196,24 +198,24 @@ export function createChannels(options: ChannelsOptions): Channels {
         Number,
       ),
     list: (list = {}) =>
-      tenant().andThen((organizationId) =>
-        many("list_channels", {
-          tenant: organizationId,
-          browse: list.browse ?? false,
-          include_archived: list.includeArchived ?? false,
-        }),
-      ),
+      list.on === undefined
+        ? tenant().andThen((organizationId) =>
+            many("list_channels", {
+              tenant: organizationId,
+              browse: list.browse ?? false,
+              include_archived: list.includeArchived ?? false,
+            }),
+          )
+        : many("channels_for_record", {
+            subject_type: list.on.type,
+            subject_id: list.on.id,
+          }),
     get: (channelId) =>
       call("get_channel", { channel: channelId }, maybeChannel),
     find: (name) =>
       tenant().andThen((organizationId) =>
         call("find_channel", { tenant: organizationId, name }, maybeChannel),
       ),
-    forSubject: (subject) =>
-      many("channels_for_record", {
-        subject_type: subject.type,
-        subject_id: subject.id,
-      }),
   };
 
   return withBlockHooks(client, options.hooks, {

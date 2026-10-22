@@ -231,6 +231,21 @@ export const REVIEW_0_15: readonly {
     message:
       "The generated schema installs the installed blocks' extensions and `validation` (when a generator writes validators): this `.use()` replaces that one and can go unless it passes options",
   },
+  {
+    pattern: /\.(?:forSubject|untag)\s*\(|\btags\.(?:tag|create)\s*\(/,
+    message:
+      "Block clients use the data verbs: `tags.tag` and `untag` are `attach` and `detach`, `tags.create` takes `{ kind, name, color?, description?, fields? }`, `tags.update` takes `{ name?, fields? }`, `tags.list` takes `{ kind?, on? }`, and `forSubject(record)` on tags, channels and scores is `list({ on: record })`",
+  },
+  {
+    pattern: /\.(?:save|set)\s*\(/,
+    message:
+      "A block client's `save` is `upsert` (segments, courses, memory, automations, workflow-editor, ai-chat sessions, sequences, feature-flags, reminders, templates, saved-views, ai-keys, calendar, goals, pipelines, connector sessions), and so are `set` on ai-cache and on ai-files `providerFiles`; editor controllers and settings keep their verbs",
+  },
+  {
+    pattern: /limit: 1 \}\)\.map\(\(rows\) => rows\[0\] \?\? null\)/,
+    message:
+      "This was `findFirst`. Read sets and query specs have no `.map`: there, use `get({ where }, { optional: true })` when the filter matches one row, or destructure the first row of `list({ limit: 1 })`",
+  },
 ];
 
 const SPECIFIER = /(["'])better-supabase\/([\w./-]+)\1/g;

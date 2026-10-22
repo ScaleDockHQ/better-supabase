@@ -529,14 +529,14 @@ describe.skipIf(!live)("block fields", () => {
       };
 
       expect(
-        await calendar.save(calendarId, { ...event, priority: 0 }).then(kind),
+        await calendar.upsert(calendarId, { ...event, priority: 0 }).then(kind),
       ).toBe("validation");
 
       const { id } = await calendar
-        .save(calendarId, { ...event, label: "daily" })
+        .upsert(calendarId, { ...event, label: "daily" })
         .orThrow();
 
-      await calendar.save(calendarId, { id, priority: 2 }).orThrow();
+      await calendar.upsert(calendarId, { id, priority: 2 }).orThrow();
 
       const [listed] = await calendar
         .events([calendarId], {

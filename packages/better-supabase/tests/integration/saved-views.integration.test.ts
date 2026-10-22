@@ -245,7 +245,7 @@ describe.skipIf(!live)("saved views in Postgres", () => {
     await db.asRole(member);
 
     const saved = await client
-      .save({
+      .upsert({
         organizationId: org,
         list: "deals",
         name: "Board",

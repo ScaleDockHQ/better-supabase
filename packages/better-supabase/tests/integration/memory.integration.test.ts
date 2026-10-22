@@ -185,7 +185,7 @@ describe.skipIf(!live)("memory module", () => {
       await s.asRole(owner);
 
       const fact = await memory.archival
-        .save(tenant, "The user has a dog named Rex.")
+        .upsert(tenant, "The user has a dog named Rex.")
         .orThrow();
 
       expect(fact).toMatchObject({

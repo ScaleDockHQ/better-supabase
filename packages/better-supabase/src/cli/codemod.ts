@@ -24,6 +24,11 @@ import {
   SHELL_FILE,
 } from "./codemod-calls.ts";
 import {
+  DATA_CONTRACT_OPTIONS,
+  DATA_CONTRACT_STRINGS,
+  rewriteDataContract,
+} from "./codemod-data-contract.ts";
+import {
   convertDesignFile,
   DESIGN_FILE_NAME,
   designFileResult,
@@ -31,9 +36,9 @@ import {
 } from "./codemod-preset-code.ts";
 import { migrateCliCall } from "./core/moved.ts";
 import { withBlockNames } from "./sql/config-block-names.ts";
-import { mask } from "./sql/config-edit.ts";
 import { groupConfigJson, groupConfigSource } from "./sql/config-group.ts";
 import {
+  environmentModules,
   moveSqlModulesToBlocks,
   moveSqlModulesToBlocksJson,
 } from "./sql/config-move.ts";
@@ -82,6 +87,11 @@ export interface Codemod {
    * and comments.
    */
   readonly strings?: Readonly<Record<string, string>>;
+  /** A rewrite of every source file, after the renames above. */
+  readonly source?: (text: string) => {
+    readonly text: string;
+    readonly review: readonly ReviewLine[];
+  };
   /** Changes too ambiguous to rewrite; matching lines are listed for review. */
   readonly review?: readonly ReviewHint[];
   /** A rewrite of `better-supabase.config.*`; a refusal is listed for review. */
@@ -169,23 +179,6 @@ const OFFSET_PIN = {
   message:
     'Lists and resources page by cursor (`after`, `nextCursor`, no total) unless `pagination: "offset"` is set. This file shows no page numbers, so the codemod left it: add `pagination: "offset"` if a UI elsewhere reads `page` or the total, or the list sorts by a relation',
 } as const;
-
-/** Review lines for `sql.modules` left in environment blocks after the move. */
-function environmentModules(text: string): ReviewLine[] {
-  return mask(text)
-    .split("\n")
-    .flatMap((line, index) =>
-      /\bmodules\s*:/.test(line)
-        ? [
-            {
-              line: index + 1,
-              message:
-                "`sql.modules` in an environment block moves to `blocks` too",
-            },
-          ]
-        : [],
-    );
-}
 
 const SQL_ADD_HINT: ReviewHint = {
   pattern: /(?<![\w.@-])(?:better-supabase|bsb)(?:@[\w.^~-]+)?\s+sql\s+add\b/,
@@ -473,7 +466,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.15": {
     name: "0.15",
     description:
-      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); renames the blocks 0.15 renamed (work-items to tasks, parties to contacts, engagements to activities, access to permissions, rules to automations, jobs to queue, flags to feature-flags, activity to timeline and the rest of the 0.14 to 0.15 guide's table) in the config's blocks and preset.blocks, in operation names under auth.authorization.operations, in better-supabase/blocks/<name> imports and in the exports named after them; turns a 0.14 preset code in the config's preset into the preset name or object it holds, and a 0.14 design file into a design with its preset inside; moves the plugins key into blocks (timestamps to updated-at, actor to created-by, softDelete to trash, with their columns as the block's options; tenant to auth.organization.column when memberships is not installed) and the better-supabase/plugins/* imports to the block extensions, better-supabase/lint guards and validation from better-supabase; cache tags, query keys and the debug header and route that start with bs are listed for review",
+      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); renames the blocks 0.15 renamed (work-items to tasks, parties to contacts, engagements to activities, access to permissions, rules to automations, jobs to queue, flags to feature-flags, activity to timeline and the rest of the 0.14 to 0.15 guide's table) in the config's blocks and preset.blocks, in operation names under auth.authorization.operations, in better-supabase/blocks/<name> imports and in the exports named after them; turns a 0.14 preset code in the config's preset into the preset name or object it holds, and a 0.14 design file into a design with its preset inside; moves the plugins key into blocks (timestamps to updated-at, actor to created-by, softDelete to trash, with their columns as the block's options; tenant to auth.organization.column when memberships is not installed) and the better-supabase/plugins/* imports to the block extensions, better-supabase/lint guards and validation from better-supabase; moves repository calls to the data contract (findMany to list, paginate to page, findById, findUnique and findOnly to get, findFirst to list with limit: 1, exists to count, createMany and upsertMany to create and upsert with an array, updateMany and deleteMany to update and delete with a { where } filter); cache tags, query keys and the debug header and route that start with bs are listed for review",
     bindings: {
       bs: "bsb",
       SqlModule: "BlockSql",
@@ -507,6 +500,8 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     subpathImports: PLUGIN_IMPORT_RENAMES,
     subpaths: { ...BLOCK_SUBPATH_RENAMES, ...PLUGIN_SUBPATH_RENAMES },
     members: [{ from: "bs", to: "bsb" }],
+    options: DATA_CONTRACT_OPTIONS,
+    strings: DATA_CONTRACT_STRINGS,
     configFile: (source, json) =>
       thenConvertPresetCode(
         withBlockNames(
@@ -520,6 +515,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       ),
     designFile: convertDesignFile,
     cliCalls: migrateCliCall,
+    source: rewriteDataContract,
     review: REVIEW_0_15,
   },
 };
@@ -1169,6 +1165,12 @@ export function applyCodemod(
 
   if (codemod.strings) {
     text = renameStrings(text, codemod.strings);
+  }
+
+  if (codemod.source) {
+    const rewritten = codemod.source(text);
+    text = rewritten.text;
+    refused.push(...rewritten.review);
   }
 
   if (codemod.pins) {

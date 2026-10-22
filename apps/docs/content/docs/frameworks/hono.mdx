@@ -81,7 +81,7 @@ const app = new Hono()
     ]),
   )
   .get("/api/notes", async (c) =>
-    c.json(await c.var.db.notes.findMany().orThrow()),
+    c.json(await c.var.db.notes.list().orThrow()),
   );
 ```
 
@@ -125,7 +125,7 @@ const app = bsb
 ```ts
 app.get(
   "/api/customers/:id",
-  bsb.handler((c, { db }) => db.customers.findById(c.req.param("id"))),
+  bsb.handler((c, { db }) => db.customers.get(c.req.param("id"))),
 );
 app.post(
   "/api/customers",

@@ -3,7 +3,7 @@ import { bsb } from "../../../lib/supabase/server";
 // `projects_view` adds the task rollups, read with the caller's row level
 // security.
 export const GET = bsb.route((_request, { db }) =>
-  db.projectsView.findMany({
+  db.projectsView.list({
     select: [
       "id",
       "name",

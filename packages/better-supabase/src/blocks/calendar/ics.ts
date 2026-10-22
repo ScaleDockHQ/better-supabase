@@ -26,7 +26,7 @@ export interface CalendarAttendee {
   readonly response: AttendeeResponse;
 }
 
-/** One `VEVENT`, ready for `importIcs` or `save`. */
+/** One `VEVENT`, ready for `importIcs` or `upsert`. */
 export interface IcsEvent {
   readonly uid: string;
   readonly title: string;

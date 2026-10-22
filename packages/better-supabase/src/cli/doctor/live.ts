@@ -32,10 +32,7 @@ export interface ExplainRequest {
 const SLOW_MEAN_MS = 50;
 const SLOW_CALLS = 1000;
 
-/**
- * Rows `--explain` reads, like a `findMany()` under Supabase's default
- * `max_rows`.
- */
+/** Rows `--explain` reads, like a `list()` under Supabase's default `max_rows`. */
 const EXPLAIN_LIMIT = 1000;
 
 const escape = (name: string): string =>

@@ -51,7 +51,7 @@ describe("betterSupabase.cache", () => {
       .create({ id: "t1", name: "a", organizationId: ACME })
       .orThrow();
     await db.tags.delete("t1").orThrow();
-    await db.tags.findMany({ limit: 1 }).orThrow();
+    await db.tags.list({ limit: 1 }).orThrow();
     expect(cache.invalidated).toEqual([
       { table: "tags", tables: ["tags"], ids: ["t1"], tenant: ACME },
       {
@@ -202,7 +202,8 @@ describe("defineRepository", () => {
 
   it("adds methods to one table only", async () => {
     const tags = defineRepository(base, "tags", (repo) => ({
-      named: (name: string) => repo.findFirst({ where: { name } }),
+      named: (name: string) =>
+        repo.list({ where: { name }, limit: 1 }).map((rows) => rows[0] ?? null),
     }));
 
     expect(tags.name).toBe("repository:tags");
@@ -216,13 +217,13 @@ describe("defineRepository", () => {
 
   it("sees methods from other plugins and rejects clashes and unknown tables", () => {
     const scoped = defineRepository(base, "tags", (repo) => ({
-      all: () => repo.findMany({}),
+      all: () => repo.list({}),
     }));
 
-    const clash = defineRepository(base, "tags", () => ({ findMany: () => 1 }));
+    const clash = defineRepository(base, "tags", () => ({ list: () => 1 }));
     expect(() => base.use(scoped).use(clash)).toThrow(/already installed/);
     expect(() => base.use(clash).connect(echo()).tags).toThrow(
-      /redefines "tags.findMany"/,
+      /redefines "tags.list"/,
     );
     // @ts-expect-error unknown table
     expect(() => defineRepository(base, "nope", () => ({}))).toThrow(
@@ -260,7 +261,7 @@ describe("pipeline consistency", () => {
         { signal: controller.signal },
       )
       .orThrow();
-    await db.tags.findMany({ limit: 1 }).orThrow();
+    await db.tags.list({ limit: 1 }).orThrow();
     expect(seen).toEqual([controller.signal, controller.signal, undefined]);
   });
 
@@ -316,9 +317,9 @@ describe("pipeline consistency", () => {
 
     await db
       .$withoutPlugins({ keep: ["trace"] })
-      .tags.findMany()
+      .tags.list()
       .orThrow();
-    await db.$withoutPlugins().tags.findMany().orThrow();
+    await db.$withoutPlugins().tags.list().orThrow();
     expect(calls).toEqual(["trace"]);
     expect(() => db.$withoutPlugins({ keep: ["trcae"] })).toThrow(
       '$withoutPlugins({ keep }) names "trcae", which is not installed',

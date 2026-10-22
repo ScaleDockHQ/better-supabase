@@ -36,7 +36,7 @@ describe("collectionOptions", () => {
     const db = betterSupabase.connect(client);
     const queries = createQueries(betterSupabase, db);
     const queryClient = new QueryClient();
-    const query = queries.customers.findMany({ select: ["id", "name"] });
+    const query = queries.customers.list({ select: ["id", "name"] });
 
     const config = collectionOptions(betterSupabase, db, "customers", {
       query,
@@ -60,7 +60,7 @@ describe("collectionOptions", () => {
     const db = betterSupabase.connect(client);
     const queryClient = new QueryClient();
     const queries = createQueries(betterSupabase, db);
-    const query = queries.customers.findMany({});
+    const query = queries.customers.list({});
 
     const config = collectionOptions(betterSupabase, () => db, "customers", {
       query,
@@ -109,7 +109,7 @@ describe("collectionOptions", () => {
     const queries = createQueries(betterSupabase, db);
 
     const config = collectionOptions(betterSupabase, db, "customerTags", {
-      query: queries.customerTags.findMany({}),
+      query: queries.customerTags.list({}),
       queryClient: new QueryClient(),
     });
 
@@ -130,7 +130,7 @@ describe("collectionOptions", () => {
     const queries = createQueries(betterSupabase, db);
 
     const config = collectionOptions(betterSupabase, db, "customers", {
-      query: queries.customers.findMany({}),
+      query: queries.customers.list({}),
       queryClient: new QueryClient(),
     });
 

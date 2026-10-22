@@ -226,7 +226,7 @@ describe("broadcast", () => {
 });
 
 describe("liveQuery", () => {
-  const spec = typed.spec.customers.findMany({ include: { notes: true } });
+  const spec = typed.spec.customers.list({ include: { notes: true } });
 
   it("watches with the claimed tenant, invalidates and rejoins", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);

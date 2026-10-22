@@ -220,7 +220,7 @@ describe("useBroadcast", () => {
 });
 
 describe("useLiveQuery", () => {
-  const spec = typed.spec.customers.findMany({ include: { notes: true } });
+  const spec = typed.spec.customers.list({ include: { notes: true } });
 
   it("needs a query client for a spec", async () => {
     const { browser } = fakeBrowser(signedIn(USER));

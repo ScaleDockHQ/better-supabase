@@ -14,10 +14,7 @@ export type TagChange =
   | { readonly kind: "removed"; readonly tag: Tag };
 
 export interface TagInputControllerOptions {
-  readonly client: Pick<
-    Tags,
-    "list" | "forSubject" | "tag" | "untag" | "create"
-  >;
+  readonly client: Pick<Tags, "attach" | "create" | "detach" | "list">;
   readonly auth: AuthPort;
   /** The subject whose tags to show; the input waits without one. */
   readonly subject: RecordRef | null;
@@ -82,8 +79,8 @@ export function createTagInputController(
         const request = ticket;
 
         const [tags, available] = await Promise.all([
-          client.forSubject(subject),
-          client.list(kind),
+          client.list({ on: subject }),
+          client.list({ kind }),
         ]);
 
         if (request !== ticket) {
@@ -127,7 +124,7 @@ export function createTagInputController(
           error: undefined,
         }));
 
-        const result = await client.tag(subject, tag.id);
+        const result = await client.attach(subject, tag.id);
 
         state.set((current) => ({
           pending: without(current.pending, tag.id),
@@ -180,7 +177,7 @@ export function createTagInputController(
               error: undefined,
             }));
 
-            const result = await client.untag(subject, tagId);
+            const result = await client.detach(subject, tagId);
 
             state.set((current) => ({
               pending: without(current.pending, tagId),
@@ -223,7 +220,7 @@ export function createTagInputController(
               pending: [...current.pending, label],
               error: undefined,
             }));
-            const made = await client.create(kind, label);
+            const made = await client.create({ kind, name: label });
             state.set((current) => ({
               pending: without(current.pending, label),
               ...(made.ok

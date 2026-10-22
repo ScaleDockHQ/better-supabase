@@ -66,7 +66,7 @@ export interface Rule {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** `save`'s input: left-out keys keep their value on an existing rule. */
+/** `upsert`'s input: left-out keys keep their value on an existing rule. */
 export interface RuleInput {
   readonly id?: string;
   /** The version the editor read; a newer stored one fails with `RULE_CONFLICT`. */
@@ -160,7 +160,7 @@ export interface Automations {
    * Creates or changes a rule. `rules.edit` covers disabled rules; enabling a
    * rule or changing an enabled one takes `rules.publish`.
    */
-  save(organizationId: string, input: RuleInput): AsyncResult<Rule>;
+  upsert(organizationId: string, input: RuleInput): AsyncResult<Rule>;
   /** Turns a rule on or off (needs `rules.publish`). */
   setEnabled(id: string, enabled: boolean): AsyncResult<Rule>;
   /** Moves a rule to a rank key from `rankBetween` over its neighbours. */
@@ -417,7 +417,7 @@ export function createAutomations(options: AutomationsOptions): Automations {
       call("rule_get", { id }, (value) =>
         isRecord(value) ? ruleOf(value) : undefined,
       ),
-    save: (organizationId, input) =>
+    upsert: (organizationId, input) =>
       call(
         "save_rule",
         { tenant: organizationId, rule: inputArg(input) },

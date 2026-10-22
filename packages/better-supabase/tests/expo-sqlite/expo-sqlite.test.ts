@@ -140,7 +140,7 @@ describe("expoSqliteExecutor", () => {
     expect(customer.metadata).toEqual({ tier: "pro" });
 
     const found = await client.customers
-      .findMany({ where: { name: "Acme" }, select: ["id", "name"] })
+      .list({ where: { name: "Acme" }, select: ["id", "name"] })
       .orThrow();
 
     expect(found).toEqual([{ id: customer.id, name: "Acme" }]);

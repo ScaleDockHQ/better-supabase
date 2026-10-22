@@ -180,7 +180,7 @@ export interface Connectors<F extends object = Record<never, never>> {
       serverId: string,
       chatKey?: string,
     ): AsyncResult<ConnectorSession | undefined>;
-    save(
+    upsert(
       serverId: string,
       session: {
         readonly chatKey?: string;
@@ -473,7 +473,7 @@ export function createConnectors<
                 }
               : undefined,
         ),
-      save: (serverId, session) =>
+      upsert: (serverId, session) =>
         call(
           "save_connector_session",
           {

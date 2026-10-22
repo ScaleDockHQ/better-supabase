@@ -4,7 +4,6 @@ import type {
   InsertOp,
   Operation,
   OrderTerm,
-  SelectColumn,
   SelectOp,
   Selection,
   UpdateOp,
@@ -20,6 +19,7 @@ import { simplify } from "../ir/simplify.ts";
 import { and } from "../ir/types.ts";
 import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
+import { isPlainObject } from "./clone.ts";
 import { decodeBoundCursor, encodeBoundCursor, sortKey } from "./cursor.ts";
 import { dbError } from "./errors.ts";
 import { keysetCondition } from "./keyset.ts";
@@ -33,8 +33,6 @@ import { countOf, maxAffectedOf } from "./write-args.ts";
 const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
 
 const primaryOrders = new WeakMap<TableMeta, readonly OrderTerm[]>();
-
-const existsSelections = new WeakMap<TableMeta, Selection>();
 
 const RELATED_MEASURES = ["_count", "_sum", "_avg", "_min", "_max"] as const;
 
@@ -187,11 +185,273 @@ export function createRepository(
       }
     });
 
+  const createOne = (data: unknown, args?: Args) =>
+    guarded(async () => {
+      const op = insertOp([data], args, undefined);
+      const result = await run(op, args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return ok(
+        args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
+      );
+    });
+
+  const createRows = (rows: readonly unknown[], args?: Args) =>
+    guarded(async () => {
+      if (rows.length === 0) {
+        return ok(args?.["returning"] === false ? { count: 0 } : []);
+      }
+
+      const result = await run(insertOp(rows, args, undefined), args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return ok(
+        args?.["returning"] === false
+          ? { count: result.data.count ?? rows.length }
+          : result.data.rows,
+      );
+    });
+
+  const updateOne = (id: unknown, patch: unknown, args?: Args) =>
+    guarded(async () => {
+      const key = and(
+        builder.primaryKey(table, id),
+        builder.where(table, args?.["where"]),
+      );
+
+      const expect = args?.["expect"]
+        ? builder.where(table, args["expect"])
+        : undefined;
+
+      const set = builder.row(table, patch, "update");
+      const empty = !mutationHooks && Object.keys(set).length === 0;
+
+      const op: UpdateOp = {
+        kind: "update",
+        table,
+        set,
+        where: and(key, expect),
+        returning: returning(args),
+      };
+
+      // An empty patch changes nothing, so it reads the row instead of
+      // sending an update the database rejects.
+      const result = empty
+        ? await run(
+            selectOp(args, {
+              where: and(key, expect),
+              selection: op.returning ?? { columns: [], includes: [] },
+              limit: 1,
+              orderBy: [],
+              offset: undefined,
+            }),
+            args,
+          )
+        : await run(op, args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      const affected =
+        op.returning || empty
+          ? result.data.rows.length
+          : (result.data.count ?? 0);
+
+      if (affected === 0) {
+        if (!expect) {
+          return notFound();
+        }
+
+        const exists = await run(
+          selectOp(undefined, {
+            where: key,
+            selection: { columns: [], includes: [] },
+            count: "exact",
+            head: true,
+          }),
+          args,
+        );
+
+        if (exists.ok && (exists.data.count ?? 0) > 0) {
+          return runner.fail(
+            table,
+            dbError("stale", `The ${table.key} row changed since it was read`),
+          );
+        }
+
+        return notFound();
+      }
+
+      return ok(op.returning ? (result.data.rows[0] ?? null) : null);
+    });
+
+  const updateWhere = (args: Args) =>
+    guarded(async () => {
+      const where = builder.where(table, args["where"]);
+
+      if (simplify(where) === true && args["allowAll"] !== true) {
+        return runner.fail(
+          table,
+          dbError(
+            "invalid_request",
+            'update needs a "where" that filters rows; pass allowAll: true to update every row',
+          ),
+        );
+      }
+
+      const rows = args["returning"] === true;
+      const bound = maxAffectedOf(args);
+
+      if ("invalid" in bound) {
+        return runner.fail(table, dbError("invalid_request", bound.invalid));
+      }
+
+      const set = builder.row(table, args["data"], "update");
+
+      const op: UpdateOp = {
+        kind: "update",
+        table,
+        set,
+        where,
+        returning: rows ? returning(args) : undefined,
+        ...bound,
+        ...countOf(args),
+      };
+
+      if (!mutationHooks && Object.keys(set).length === 0) {
+        if (!rows) {
+          return ok({ count: 0 });
+        }
+
+        const found = await run(
+          selectOp(args, { where, selection: op.returning ?? selection(args) }),
+          args,
+        );
+
+        return found.ok ? ok(found.data.rows) : found;
+      }
+
+      const result = await run(op, args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
+    });
+
+  const upsertOne = (data: unknown, args?: Args) =>
+    guarded(async () => {
+      const op = insertOp([data], args, conflictColumns(args?.["onConflict"]));
+
+      const result = await run(op, args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return ok(
+        args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
+      );
+    });
+
+  const upsertRows = (rows: readonly unknown[], args?: Args) =>
+    guarded(async () => {
+      if (rows.length === 0) {
+        return ok(args?.["returning"] === false ? { count: 0 } : []);
+      }
+
+      const op = insertOp(rows, args, conflictColumns(args?.["onConflict"]));
+      const result = await run(op, args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return ok(
+        args?.["returning"] === false
+          ? { count: result.data.count ?? rows.length }
+          : result.data.rows,
+      );
+    });
+
+  const deleteOne = (id: unknown, args?: Args) =>
+    guarded(async () => {
+      const op: DeleteOp = {
+        kind: "delete",
+        table,
+        where: builder.primaryKey(table, id),
+        returning: builder.selection(table, table.primaryKey, undefined),
+      };
+
+      const result = await run(op, args);
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return (result.data.count ?? result.data.rows.length) === 0
+        ? notFound()
+        : ok(undefined);
+    });
+
+  const deleteWhere = (args: Args) =>
+    guarded(async () => {
+      const where = builder.where(table, args["where"]);
+
+      if (!where || simplify(where) === true) {
+        return runner.fail(
+          table,
+          dbError(
+            "invalid_request",
+            'delete needs a "where" that filters rows',
+          ),
+        );
+      }
+
+      const rows = args["returning"] === true;
+      const bound = maxAffectedOf(args);
+
+      if ("invalid" in bound) {
+        return runner.fail(table, dbError("invalid_request", bound.invalid));
+      }
+
+      const op: DeleteOp = {
+        kind: "delete",
+        table,
+        where,
+        returning: rows ? returning(args) : undefined,
+        ...bound,
+        ...countOf(args),
+      };
+
+      // Plugins that rewrite the delete (softDelete) read this to keep RETURNING.
+      const result = await runner.run(
+        op,
+        rows ? { ...optionsOf(args), returning: true } : optionsOf(args),
+        signalOf(args),
+        tuningOf(args),
+      );
+
+      if (!result.ok) {
+        return result;
+      }
+
+      return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
+    });
+
   const base = {
     $tableName: table.key,
     $meta: table,
 
-    findMany(args?: Args) {
+    list(args?: Args) {
       return guarded(async () => {
         const op = selectOp(args);
 
@@ -206,68 +466,45 @@ export function createRepository(
       });
     },
 
-    findFirst(args?: Args) {
-      return guarded(async () => {
-        const result = await run(selectOp(args, { limit: 1 }), args);
-
-        return result.ok ? ok(result.data.rows[0] ?? null) : result;
-      });
+    page(args: Args) {
+      return guarded(async () =>
+        "after" in args ? cursorPage(args) : offsetPage(args),
+      );
     },
 
-    findOnly(args: Args) {
+    get(key: unknown, args?: Args) {
       return guarded(async () => {
-        const result = await run(
-          selectOp(args, { limit: 2, unpaged: true }),
-          args,
-        );
+        const filter = filterOf(key);
+
+        const op = selectOp(args, {
+          where: keyCondition(key, filter),
+          limit: filter === undefined ? 1 : 2,
+          unpaged: filter !== undefined,
+        });
+
+        const result = await run(op, args);
 
         if (!result.ok) {
           return result;
         }
 
-        if (result.data.rows.length > 1) {
+        if (filter !== undefined && result.data.rows.length > 1) {
           return runner.fail(
             table,
             dbError(
               "multiple_rows",
-              `More than one ${table.key} row matched; findOnly expects at most one`,
+              `More than one ${table.key} row matched; get expects at most one`,
             ),
           );
         }
 
-        return ok(result.data.rows[0] ?? null);
-      });
-    },
-
-    findUnique(args: Args) {
-      return guarded(async () => {
-        const op = selectOp(args, {
-          where: builder.uniqueKey(table, args["where"]),
-          limit: 1,
-        });
-
-        const result = await run(op, args);
-
-        return result.ok ? ok(result.data.rows[0] ?? null) : result;
-      });
-    },
-
-    findById(id: unknown, args?: Args) {
-      return guarded(async () => {
-        const op = selectOp(args, {
-          where: builder.primaryKey(table, id),
-          limit: 1,
-        });
-
-        const result = await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
         const row = result.data.rows[0];
 
-        return row ? ok(row) : notFound();
+        if (row) {
+          return ok(row);
+        }
+
+        return args?.["optional"] === true ? ok(null) : notFound();
       });
     },
 
@@ -326,303 +563,32 @@ export function createRepository(
       });
     },
 
-    exists(args?: Args) {
-      return guarded(async () => {
-        const op = selectOp(
-          { where: args?.["where"] },
-          { selection: existsSelection(), limit: 1 },
-        );
-
-        const result = await run(op, args);
-
-        return result.ok ? ok(result.data.rows.length > 0) : result;
-      });
-    },
-
-    paginate(args: Args) {
-      return guarded(async () =>
-        "after" in args ? cursorPage(args) : offsetPage(args),
-      );
-    },
-
     create(data: unknown, args?: Args) {
-      return guarded(async () => {
-        const op = insertOp([data], args, undefined);
-        const result = await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return ok(
-          args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
-        );
-      });
+      return Array.isArray(data)
+        ? createRows(data, args)
+        : createOne(data, args);
     },
 
-    createMany(rows: readonly unknown[], args?: Args) {
-      return guarded(async () => {
-        if (rows.length === 0) {
-          return ok(args?.["returning"] === false ? { count: 0 } : []);
-        }
+    update(target: unknown, patch: unknown, args?: Args) {
+      const filter = filterOf(target);
 
-        const result = await run(insertOp(rows, args, undefined), args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return ok(
-          args?.["returning"] === false
-            ? { count: result.data.count ?? rows.length }
-            : result.data.rows,
-        );
-      });
-    },
-
-    update(id: unknown, patch: unknown, args?: Args) {
-      return guarded(async () => {
-        const key = and(
-          builder.primaryKey(table, id),
-          builder.where(table, args?.["where"]),
-        );
-
-        const expect = args?.["expect"]
-          ? builder.where(table, args["expect"])
-          : undefined;
-
-        const set = builder.row(table, patch, "update");
-        const empty = !mutationHooks && Object.keys(set).length === 0;
-
-        const op: UpdateOp = {
-          kind: "update",
-          table,
-          set,
-          where: and(key, expect),
-          returning: returning(args),
-        };
-
-        // An empty patch changes nothing, so it reads the row instead of
-        // sending an update the database rejects.
-        const result = empty
-          ? await run(
-              selectOp(args, {
-                where: and(key, expect),
-                selection: op.returning ?? { columns: [], includes: [] },
-                limit: 1,
-                orderBy: [],
-                offset: undefined,
-              }),
-              args,
-            )
-          : await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        const affected =
-          op.returning || empty
-            ? result.data.rows.length
-            : (result.data.count ?? 0);
-
-        if (affected === 0) {
-          if (!expect) {
-            return notFound();
-          }
-
-          const exists = await run(
-            selectOp(undefined, {
-              where: key,
-              selection: { columns: [], includes: [] },
-              count: "exact",
-              head: true,
-            }),
-            args,
-          );
-
-          if (exists.ok && (exists.data.count ?? 0) > 0) {
-            return runner.fail(
-              table,
-              dbError(
-                "stale",
-                `The ${table.key} row changed since it was read`,
-              ),
-            );
-          }
-
-          return notFound();
-        }
-
-        return ok(op.returning ? (result.data.rows[0] ?? null) : null);
-      });
-    },
-
-    updateMany(args: Args) {
-      return guarded(async () => {
-        const where = builder.where(table, args["where"]);
-
-        if (simplify(where) === true && args["allowAll"] !== true) {
-          return runner.fail(
-            table,
-            dbError(
-              "invalid_request",
-              'updateMany needs a "where" that filters rows; pass allowAll: true to update every row',
-            ),
-          );
-        }
-
-        const rows = args["returning"] === true;
-        const bound = maxAffectedOf(args);
-
-        if ("invalid" in bound) {
-          return runner.fail(table, dbError("invalid_request", bound.invalid));
-        }
-
-        const set = builder.row(table, args["data"], "update");
-
-        const op: UpdateOp = {
-          kind: "update",
-          table,
-          set,
-          where,
-          returning: rows ? returning(args) : undefined,
-          ...bound,
-          ...countOf(args),
-        };
-
-        if (!mutationHooks && Object.keys(set).length === 0) {
-          if (!rows) {
-            return ok({ count: 0 });
-          }
-
-          const found = await run(
-            selectOp(args, {
-              where,
-              selection: op.returning ?? selection(args),
-            }),
-            args,
-          );
-
-          return found.ok ? ok(found.data.rows) : found;
-        }
-
-        const result = await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
-      });
+      return filter === undefined
+        ? updateOne(target, patch, args)
+        : updateWhere({ ...args, where: filter.where, data: patch });
     },
 
     upsert(data: unknown, args?: Args) {
-      return guarded(async () => {
-        const op = insertOp(
-          [data],
-          args,
-          conflictColumns(args?.["onConflict"]),
-        );
-
-        const result = await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return ok(
-          args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
-        );
-      });
+      return Array.isArray(data)
+        ? upsertRows(data, args)
+        : upsertOne(data, args);
     },
 
-    upsertMany(rows: readonly unknown[], args?: Args) {
-      return guarded(async () => {
-        if (rows.length === 0) {
-          return ok(args?.["returning"] === false ? { count: 0 } : []);
-        }
+    delete(target: unknown, args?: Args) {
+      const filter = filterOf(target);
 
-        const op = insertOp(rows, args, conflictColumns(args?.["onConflict"]));
-        const result = await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return ok(
-          args?.["returning"] === false
-            ? { count: result.data.count ?? rows.length }
-            : result.data.rows,
-        );
-      });
-    },
-
-    delete(id: unknown, args?: Args) {
-      return guarded(async () => {
-        const op: DeleteOp = {
-          kind: "delete",
-          table,
-          where: builder.primaryKey(table, id),
-          returning: builder.selection(table, table.primaryKey, undefined),
-        };
-
-        const result = await run(op, args);
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return (result.data.count ?? result.data.rows.length) === 0
-          ? notFound()
-          : ok(undefined);
-      });
-    },
-
-    deleteMany(args: Args) {
-      return guarded(async () => {
-        const where = builder.where(table, args["where"]);
-
-        if (!where || simplify(where) === true) {
-          return runner.fail(
-            table,
-            dbError(
-              "invalid_request",
-              'deleteMany needs a "where" that filters rows',
-            ),
-          );
-        }
-
-        const rows = args["returning"] === true;
-        const bound = maxAffectedOf(args);
-
-        if ("invalid" in bound) {
-          return runner.fail(table, dbError("invalid_request", bound.invalid));
-        }
-
-        const op: DeleteOp = {
-          kind: "delete",
-          table,
-          where,
-          returning: rows ? returning(args) : undefined,
-          ...bound,
-          ...countOf(args),
-        };
-
-        // Plugins that rewrite the delete (softDelete) read this to keep RETURNING.
-        const result = await runner.run(
-          op,
-          rows ? { ...optionsOf(args), returning: true } : optionsOf(args),
-          signalOf(args),
-          tuningOf(args),
-        );
-
-        if (!result.ok) {
-          return result;
-        }
-
-        return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
-      });
+      return filter === undefined
+        ? deleteOne(target, args)
+        : deleteWhere({ ...args, where: filter.where });
     },
   };
 
@@ -649,31 +615,26 @@ export function createRepository(
     };
   }
 
-  /**
-   * One column is enough to see a row: the primary key, or the first
-   * non-sensitive column.
-   */
-  function existsSelection(): Selection {
-    let found = existsSelections.get(table);
+  /** The `{ where }` of `get`, `update` and `delete` when given a filter. */
+  function filterOf(target: unknown): { readonly where: unknown } | undefined {
+    return isPlainObject(target) &&
+      Object.hasOwn(target, "where") &&
+      !Object.hasOwn(table.columns, "where")
+      ? { where: target["where"] }
+      : undefined;
+  }
 
-    if (!found) {
-      const names = Object.keys(table.columns);
-
-      const alias =
-        table.primaryKey[0] ??
-        names.find((name) => !table.columns[name]?.sensitive) ??
-        names[0];
-
-      const columns: SelectColumn[] =
-        alias === undefined
-          ? []
-          : [{ alias, column: builder.column(table, alias) }];
-
-      found = { columns, includes: [] };
-      existsSelections.set(table, found);
+  function keyCondition(
+    key: unknown,
+    filter: { readonly where: unknown } | undefined,
+  ): Condition | undefined {
+    if (filter !== undefined) {
+      return builder.where(table, filter.where);
     }
 
-    return found;
+    return isPlainObject(key)
+      ? builder.uniqueKey(table, key)
+      : builder.primaryKey(table, key);
   }
 
   function conflictColumns(target: unknown): readonly string[] {

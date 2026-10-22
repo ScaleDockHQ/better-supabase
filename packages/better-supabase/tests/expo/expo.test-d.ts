@@ -20,7 +20,7 @@ const bsb = createExpo(defineSupabase(schema), {
 describe("bsb.loader", () => {
   it("is an expo-server LoaderFunction", () => {
     const loader = bsb.loader(({ db }) =>
-      db.customers.findMany({ select: ["id", "name"] }).orThrow(),
+      db.customers.list({ select: ["id", "name"] }).orThrow(),
     );
 
     expectTypeOf(loader).toExtend<
@@ -32,7 +32,7 @@ describe("bsb.loader", () => {
     const loader = createServerLoader(async (request: ImmutableRequest) => {
       const { db } = await bsb.request(request, { allow: ["user"] });
 
-      return db.customers.findMany({ select: ["id"] }).orThrow();
+      return db.customers.list({ select: ["id"] }).orThrow();
     });
 
     expectTypeOf(loader).toExtend<LoaderFunction<readonly { id: string }[]>>();

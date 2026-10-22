@@ -54,7 +54,7 @@ describe("AbortSignal", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.findMany({ signal: controller.signal });
+      .customers.list({ signal: controller.signal });
 
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.kind).toBe("aborted");
@@ -67,7 +67,7 @@ describe("AbortSignal", () => {
 
     const pending = betterSupabase
       .connect(client)
-      .customers.findMany({ signal: controller.signal });
+      .customers.list({ signal: controller.signal });
 
     await new Promise((resolve) => {
       setTimeout(resolve, 0);
@@ -83,7 +83,7 @@ describe("AbortSignal", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.findMany({ signal: AbortSignal.timeout(5) });
+      .customers.list({ signal: AbortSignal.timeout(5) });
 
     expect(!result.ok && result.error.kind).toBe("aborted");
   });
@@ -106,7 +106,7 @@ describe("AbortSignal", () => {
 
     const result = await betterSupabase
       .connect(postgresExecutor(fake.sql))
-      .customers.findMany({ signal: AbortSignal.abort() });
+      .customers.list({ signal: AbortSignal.abort() });
 
     expect(!result.ok && result.error.kind).toBe("aborted");
     expect(fake.calls).toHaveLength(0);

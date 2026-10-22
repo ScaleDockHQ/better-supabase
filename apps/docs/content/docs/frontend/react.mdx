@@ -36,7 +36,7 @@ export const { useDb, useQueries, useAuth, useSupabase } =
 ```tsx
 function CustomerList() {
   const q = useQueries();
-  const { data } = useQuery(q.customers.findMany({ select: ["id", "name"] }));
+  const { data } = useQuery(q.customers.list({ select: ["id", "name"] }));
   const auth = useAuth();
   if (auth.status === "signed-out") return <SignIn />;
   return (

@@ -1,23 +1,22 @@
 ---
 title: Unique keys and errors
-description: findUnique by any unique key, typed constraint names, and narrowing database errors.
+description: get by any unique key, typed constraint names, and narrowing database errors.
 ---
 
-## findUnique
+## Unique keys
 
-`findUnique` takes the primary key or any unique key, as columns in your
-casing. `gen` reads the unique constraints and indexes, so a `where` that
+`get` takes the primary key or any unique key, as columns in your casing. `gen` reads the unique constraints and indexes, so a `where` that
 isn't a complete key is a type error.
 
 ```ts
-await db.customers.findUnique({ where: { id } });
-await db.customers.findUnique({ where: { organizationId, kvk } }); // customers_organization_id_kvk_key
+await db.customers.get({ id }, { optional: true });
+await db.customers.get({ organizationId, kvk }, { optional: true }); // customers_organization_id_kvk_key
 // @ts-expect-error kvk alone is not unique
-await db.customers.findUnique({ where: { kvk } });
+await db.customers.get({ kvk }, { optional: true });
 ```
 
-It returns the row or `null`. `findById(id)` is the primary key shortcut and
-fails with `not_found` instead.
+With `optional: true` it returns the row or `null`; without it, a missing row
+fails with `not_found`. `get(id)` is the primary key shortcut.
 
 ## Constraint names
 
@@ -72,7 +71,7 @@ Every failure is a `DbError` with a `kind`:
 | `check`           | CHECK violation (`constraint` is set)                                              |
 | `foreign_key`     | Foreign key violation (`constraint` is set)                                        |
 | `not_null`        | Missing required value                                                             |
-| `not_found`       | `findById`, `update(id)` or `delete(id)` matched no row                            |
+| `not_found`       | `get`, `update(id)` or `delete(id)` matched no row                                 |
 | `forbidden`       | RLS or a missing grant                                                             |
 | `validation`      | A validator plugin or a `jsonb-schemas` check rejected the input (`issues` is set) |
 | `invalid_request` | Caught before the request: a read-only column, an unknown field, a broken rule     |
@@ -118,7 +117,7 @@ Pass a factory to throw something your framework understands instead:
 
 ```ts
 const customer = await db.customers
-  .findById(id)
+  .get(id)
   .orThrow((error) =>
     error.kind === "not_found" ? notFound() : new Error(error.message),
   );

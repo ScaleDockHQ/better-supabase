@@ -26,7 +26,7 @@ export const rdb = withBetterResult(db, toResult);
 ```
 
 ```ts
-const customer = await rdb.customers.findById(id, { select: ["id", "name"] });
+const customer = await rdb.customers.get(id, { select: ["id", "name"] });
 // Result<{ id: string; name: string }, NotFound | Conflict | DbFailure>
 
 const page = await rdb.$list(customersList, query); // like customersList.run(db, query)
@@ -60,7 +60,7 @@ import { fromBetterResult, toBetterResult } from "better-supabase";
 
 // Result<T> -> better-result, with your error type
 const found: Result<Customer, AppError> = toBetterResult(
-  await db.customers.findById(id),
+  await db.customers.get(id),
   Result,
   toAppError,
 );
@@ -68,7 +68,7 @@ const name = found.map((customer) => customer.name);
 
 // An AsyncResult works too, and awaits it
 async function listCustomers(): Promise<Result<Customer[], AppError>> {
-  return toBetterResult(db.customers.findMany(), Result, toAppError);
+  return toBetterResult(db.customers.list(), Result, toAppError);
 }
 
 // And back: DbErrors pass through, PostgREST errors are classified,
@@ -122,7 +122,7 @@ export const toResult = defineBetterResultErrors(
 
 ```ts
 async function customer(id: string): Promise<Result<Customer, AppDbError>> {
-  return toResult(db.customers.findById(id));
+  return toResult(db.customers.get(id));
 }
 
 const message = (await customer(id)).match({
