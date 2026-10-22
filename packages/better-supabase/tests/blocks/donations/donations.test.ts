@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -1331,5 +1332,77 @@ describe("donations block", () => {
     expect(
       validate(donationFundInputSchema, { key: "roof", name: "Roof" }).issues,
     ).toBeUndefined();
+  });
+});
+
+describe("gift fields", () => {
+  const Fields = v.object({ appeal: v.pipe(v.string(), v.minLength(2)) });
+
+  it("validates the fields of recordGift and give before any call", async () => {
+    const fake = router({
+      record_gift: () => ({ ...GIFT, fields: { appeal: "spring" } }),
+      open_gift: (args) => ({
+        ...GIFT,
+        status: "pending",
+        fields: args["fields"],
+      }),
+      record_gift_payment: () => ({ ...GIFT, fields: { appeal: "spring" } }),
+      list_gifts: () => [{ ...GIFT, fields: { appeal: "spring" } }],
+    });
+
+    const payments = fakePayments();
+
+    const donations = createDonations({
+      transport: fake.transport,
+      tenant: "org-1",
+      payments: payments.provider,
+      fields: Fields,
+    });
+
+    const gift = await donations
+      .recordGift({
+        donor: DONOR,
+        amount: money(2500n, "EUR"),
+        fields: { appeal: "spring" },
+      })
+      .orThrow();
+
+    expect(gift.fields.appeal).toBe("spring");
+    expect(fake.calls[0]?.[1]["fields"]).toEqual({ appeal: "spring" });
+
+    const given = await donations
+      .give({
+        donor: DONOR,
+        amount: money(2500n, "EUR"),
+        fields: { appeal: "spring" },
+      })
+      .orThrow();
+
+    expect(given.gift.fields.appeal).toBe("spring");
+    expect(fake.calls[1]).toEqual([
+      "open_gift",
+      expect.objectContaining({ fields: { appeal: "spring" } }),
+    ]);
+
+    const calls = fake.calls.length;
+
+    expect(
+      await donations.give({
+        donor: DONOR,
+        amount: money(2500n, "EUR"),
+        fields: { appeal: "x" },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(
+      await donations.recordGift({
+        donor: DONOR,
+        amount: money(2500n, "EUR"),
+        fields: { appeal: "x" },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(fake.calls).toHaveLength(calls);
+    expect(
+      (await donations.gifts().orThrow()).map((row) => row.fields.appeal),
+    ).toEqual(["spring"]);
   });
 });

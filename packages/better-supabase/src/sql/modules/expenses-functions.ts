@@ -1,10 +1,22 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, pageSize, raise, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  extraFieldsArg,
+  extraFieldsJson,
+  fail,
+  pageSize,
+  raise,
+  SERVICE_CALLER,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { moduleOperations, OPERATIONS } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { EXPENSE_REPORT_SUBJECT } from "./approvals.ts";
+
+/** The keys the report reads return next to the extra columns. */
+export const EXPENSE_REPORT_RESERVED = ["fields"] as const;
 
 /** One approver step: anyone with the approve permission. */
 function expensePolicy(ctx: ModuleContext): string {
@@ -43,6 +55,8 @@ export function expensesFunctions(ctx: ModuleContext): string {
   const a = (column: string): string => approvals.col("requests", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
+  const extras = ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED);
+  const extra = extraFieldsArg(extras);
   const ops = moduleOperations("expenses");
   const read = ctx.permission("read", ops.read);
   const submit = ctx.permission("submit", ops.submit);
@@ -84,7 +98,7 @@ export function expensesFunctions(ctx: ModuleContext): string {
     `jsonb_build_object('id', ${row}.${x("id")}, 'reportId', ${row}.${x("report")}, 'categoryId', ${row}.${x("category")}, 'spentOn', ${row}.${x("spentOn")}, 'description', ${row}.${x("description")}, 'merchant', ${row}.${x("merchant")}, 'amount', ${row}.${x("amount")}::text, 'currency', (select rc.${r("currency")} from ${reports} rc where rc.${r("id")} = ${row}.${x("report")}), 'receipts', ${receipts(row)}, 'createdAt', ${row}.${x("createdAt")}, 'updatedAt', ${row}.${x("updatedAt")})`;
 
   const reportJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${row}.${r("note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${row}.${r("approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${row}.${r("approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${row}.${r("reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")},
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${row}.${r("note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${row}.${r("approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${row}.${r("approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${row}.${r("reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
       'lines', (select coalesce(jsonb_agg(${lineJson("l")} order by l.${x("spentOn")}, l.${x("createdAt")}), '[]'::jsonb) from ${lines} l where l.${x("report")} = ${row}.${r("id")}))`;
 
   const reportRecord = (
@@ -309,7 +323,9 @@ as $$
 $$;
 revoke execute on function ${fn("expense_report_violations")}(uuid) from public, anon, authenticated;
 
-create or replace function ${fn("create_expense_report")}(tenant ${idType}, title text, currency text, note text default null)
+-- Opens a draft report in one currency. fields: the extra columns to set.
+${extra.drop(fn("create_expense_report"), `${idType}, text, text, text`)}
+create or replace function ${fn("create_expense_report")}(tenant ${idType}, title text, currency text, note text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -332,12 +348,12 @@ begin
   insert into ${reports} (${r("tenant")}, ${r("user")}, ${r("title")}, ${r("currency")}, ${r("note")})
   values (create_expense_report.tenant, auth.uid(), trim(create_expense_report.title), create_expense_report.currency,
     nullif(trim(create_expense_report.note), ''))
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(reports, extras, "create_expense_report.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
   ${reportRecord("expense_report.created", "created an expense report")}
   return ${reportJson("v_row", "v_approval")};
 end;
 $$;
-${userGrant(`${fn("create_expense_report")}(${idType}, text, text, text)`)}
+${userGrant(`${fn("create_expense_report")}(${idType}, text, text, text${extra.type})`)}
 
 create or replace function ${fn("add_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null)
 returns jsonb

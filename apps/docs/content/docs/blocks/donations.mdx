@@ -43,6 +43,26 @@ Members with `donations.read` read every row of the organization. Writes go
 through the functions and need `donations.manage`; provider events are
 applied with the service role.
 
+## Your own columns
+
+`extraColumns` adds columns to the `donations` table, and the client's `fields` schema types them.
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  donations: { options: { extraColumns: { appeal: "text" } } },
+},
+
+// the client
+const donations = createDonations({
+  transport,
+  tenant,
+  fields: v.object({ appeal: v.optional(v.string()) }),
+});
+```
+
+`recordGift` and `give` validate them before any call, and every read that returns a gift parses them under `gift.fields`. A gift a pledge run opens has none set.
+
 ## Funds and gifts
 
 ```ts

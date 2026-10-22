@@ -52,3 +52,6 @@ employees
 collections
 reviews
 leave
+leases
+expenses
+donations

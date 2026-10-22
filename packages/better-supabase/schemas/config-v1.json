@@ -3892,7 +3892,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4021,7 +4023,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4325,7 +4329,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },

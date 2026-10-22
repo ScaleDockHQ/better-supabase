@@ -1,14 +1,22 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
@@ -31,7 +39,9 @@ export type ExpenseReportStatus =
   | "reimbursed"
   | "cancelled";
 
-export interface ExpensesOptions
+export interface ExpensesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+>
   extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
@@ -39,8 +49,14 @@ export interface ExpensesOptions
    * `blocks.generated.ts`.
    */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the report's extra columns
+   * (`blocks.expenses.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `create`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Expenses>>;
+  readonly hooks?: NoInfer<BlockHooks<Expenses<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
@@ -94,7 +110,8 @@ export interface ExpenseLineInput {
 
 export type ExpenseLineUpdate = Partial<ExpenseLineInput>;
 
-export interface ExpenseReport {
+/** A member's expense report. `F` types the extra columns. */
+export interface ExpenseReport<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly userId: string;
@@ -112,13 +129,17 @@ export interface ExpenseReport {
   readonly cancelledAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface ExpenseReportInput {
+export interface ExpenseReportInput<F extends object = Record<never, never>> {
   readonly title: string;
   /** Three-letter code; every line is in it. */
   readonly currency: string;
   readonly note?: string;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 /**
@@ -161,7 +182,7 @@ export interface ReimbursementInput {
   readonly reference?: string;
 }
 
-export interface Expenses {
+export interface Expenses<F extends object = Record<never, never>> {
   /** Creates or updates the category with this key. Needs `expenses.manage`. */
   saveCategory(input: ExpenseCategoryInput): AsyncResult<ExpenseCategory>;
   archiveCategory(categoryId: string): AsyncResult<ExpenseCategory>;
@@ -169,20 +190,20 @@ export interface Expenses {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly ExpenseCategory[]>;
   /** A draft report of the caller. Needs `expenses.submit`. */
-  create(input: ExpenseReportInput): AsyncResult<ExpenseReport>;
+  create(input: ExpenseReportInput<F>): AsyncResult<ExpenseReport<F>>;
   addLine(reportId: string, line: ExpenseLineInput): AsyncResult<ExpenseLine>;
   updateLine(
     lineId: string,
     update: ExpenseLineUpdate,
   ): AsyncResult<ExpenseLine>;
-  removeLine(lineId: string): AsyncResult<ExpenseReport>;
+  removeLine(lineId: string): AsyncResult<ExpenseReport<F>>;
   /** The spend policy findings `submit` would refuse. */
   check(reportId: string): AsyncResult<readonly ExpensePolicyViolation[]>;
   /**
    * Opens an approval for a draft or rejected report. Fails with
    * `EXPENSE_POLICY_VIOLATION` while the report breaks the spend policy.
    */
-  submit(reportId: string): AsyncResult<ExpenseReport>;
+  submit(reportId: string): AsyncResult<ExpenseReport<F>>;
   /**
    * Pays an approved report out of the member's payable. Needs
    * `expenses.manage`.
@@ -190,12 +211,12 @@ export interface Expenses {
   reimburse(
     reportId: string,
     input?: ReimbursementInput,
-  ): AsyncResult<ExpenseReport>;
-  cancel(reportId: string): AsyncResult<ExpenseReport>;
-  get(reportId: string): AsyncResult<ExpenseReport>;
+  ): AsyncResult<ExpenseReport<F>>;
+  cancel(reportId: string): AsyncResult<ExpenseReport<F>>;
+  get(reportId: string): AsyncResult<ExpenseReport<F>>;
   list(
     options?: ExpenseReportListOptions,
-  ): AsyncResult<readonly ExpenseReport[]>;
+  ): AsyncResult<readonly ExpenseReport<F>[]>;
 }
 
 function optional<K extends string, V>(
@@ -276,6 +297,7 @@ function reportOf(value: unknown, fn: string): ExpenseReport {
     status: textOf(row["status"]) as ExpenseReportStatus,
     total: moneyOf(row["total"], row["currency"], "total"),
     lines: recordsOf(row["lines"] ?? [], fn).map((line) => lineOf(line, fn)),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("note", optionalText(row["note"])),
@@ -348,7 +370,11 @@ function violationOf(value: unknown): ExpensePolicyViolation {
 }
 
 /** The `expenses` SQL module as typed calls. */
-export function createExpenses(options: ExpensesOptions): Expenses {
+export function createExpenses<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: ExpensesOptions<S>): Expenses<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
@@ -368,7 +394,12 @@ export function createExpenses(options: ExpensesOptions): Expenses {
     (value: unknown): ExpenseCategory =>
       categoryOf(value, fn);
 
-  const client: Expenses = {
+  const fields: BlockFields<F> = blockFields(
+    options.fields,
+    "expense report fields",
+  );
+
+  const client: Expenses<F> = {
     saveCategory: (input) => {
       const currency = input.limit?.currency ?? input.receiptOver?.currency;
 
@@ -424,18 +455,23 @@ export function createExpenses(options: ExpensesOptions): Expenses {
         ),
       ),
     create: (input) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "create_expense_report",
-          {
-            tenant: organizationId,
-            title: input.title,
-            currency: input.currency,
-            note: input.note ?? null,
-          },
-          report("create_expense_report"),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          tenant().andThen((organizationId) =>
+            call(
+              "create_expense_report",
+              {
+                tenant: organizationId,
+                title: input.title,
+                currency: input.currency,
+                note: input.note ?? null,
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
+              report("create_expense_report"),
+            ).andThen(fields.row),
+          ),
         ),
-      ),
     addLine: (reportId, input) =>
       call(
         "add_expense_line",
@@ -469,7 +505,7 @@ export function createExpenses(options: ExpensesOptions): Expenses {
         "remove_expense_line",
         { line_id: lineId },
         report("remove_expense_line"),
-      ),
+      ).andThen(fields.row),
     check: (reportId) =>
       call("check_expense_report", { report_id: reportId }, (value) =>
         recordsOf(value, "check_expense_report").map(violationOf),
@@ -479,7 +515,7 @@ export function createExpenses(options: ExpensesOptions): Expenses {
         "submit_expense_report",
         { report_id: reportId },
         report("submit_expense_report"),
-      ),
+      ).andThen(fields.row),
     reimburse: (reportId, input = {}) =>
       call(
         "reimburse_expense_report",
@@ -489,19 +525,19 @@ export function createExpenses(options: ExpensesOptions): Expenses {
           reference: input.reference ?? null,
         },
         report("reimburse_expense_report"),
-      ),
+      ).andThen(fields.row),
     cancel: (reportId) =>
       call(
         "cancel_expense_report",
         { report_id: reportId },
         report("cancel_expense_report"),
-      ),
+      ).andThen(fields.row),
     get: (reportId) =>
       call(
         "get_expense_report",
         { report_id: reportId },
         report("get_expense_report"),
-      ),
+      ).andThen(fields.row),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -517,7 +553,7 @@ export function createExpenses(options: ExpensesOptions): Expenses {
             recordsOf(value, "list_expense_reports").map(
               report("list_expense_reports"),
             ),
-        ),
+        ).andThen(fields.rows),
       ),
   };
 

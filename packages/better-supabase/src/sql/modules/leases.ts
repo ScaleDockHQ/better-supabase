@@ -8,11 +8,16 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
-import { leasesFunctions } from "./leases-functions.ts";
+import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
 
 const LEASE_PAYLOAD = [
   "organizationId",
@@ -88,10 +93,10 @@ const NAMES: ModuleNames = {
     },
   },
   events: EVENTS,
-  options: [],
+  options: ["extraColumns"],
   tables: {
     leases: {
-      name: "leases",
+      name: "lease_agreements",
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -201,7 +206,7 @@ create table if not exists ${leases} (
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
   check (${l("endsOn")} is null or ${l("endsOn")} > ${l("startsOn")})
-);
+);${addExtraColumns(leases, ctx.extraColumns("leases", LEASE_RESERVED))}
 create index if not exists ${index("leases", "tenant_idx")} on ${leases} (${l("tenant")}, ${l("status")}, ${l("startsOn")} desc);
 create index if not exists ${index("leases", "unit_idx")} on ${leases} (${l("unit")});
 create index if not exists ${index("leases", "party_idx")} on ${leases} (${l("tenant")}, ${l("partyType")}, ${l("partyId")});
@@ -300,7 +305,11 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${leasesFunctions(ctx)}${partyMerges(ctx)}`;
 }
 
-function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("leases", LEASE_RESERVED),
+  ).contract;
+
   return [
     {
       name: "create_lease",
@@ -317,6 +326,7 @@ function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
         "bigint",
         "text",
         "jsonb",
+        ...extra,
       ],
       returns: "jsonb",
     },

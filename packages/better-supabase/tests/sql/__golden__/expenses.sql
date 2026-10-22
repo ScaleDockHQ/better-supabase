@@ -257,6 +257,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."expense_report_violations"(uuid) from public, anon, authenticated;
 
+-- Opens a draft report in one currency. fields: the extra columns to set.
+drop function if exists "better_supabase"."create_expense_report"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_expense_report"(tenant uuid, title text, currency text, note text default null)
 returns jsonb
 language plpgsql
@@ -1005,6 +1007,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."expense_report_violations"(uuid) from public, anon, authenticated;
 
+-- Opens a draft report in one currency. fields: the extra columns to set.
+drop function if exists "better_supabase"."create_expense_report"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_expense_report"(tenant uuid, title text, currency text, note text default null)
 returns jsonb
 language plpgsql
@@ -1808,6 +1812,8 @@ as $$
 $$;
 revoke execute on function "app_private"."expense_report_violations"(uuid) from public, anon, authenticated;
 
+-- Opens a draft report in one currency. fields: the extra columns to set.
+drop function if exists "app_private"."create_expense_report"(uuid, text, text, text, jsonb);
 create or replace function "app_private"."create_expense_report"(tenant uuid, title text, currency text, note text default null)
 returns jsonb
 language plpgsql
@@ -2559,6 +2565,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."expense_report_violations"(uuid) from public, anon, authenticated;
 
+-- Opens a draft report in one currency. fields: the extra columns to set.
+drop function if exists "better_supabase"."create_expense_report"(uuid, text, text, text, jsonb);
 create or replace function "better_supabase"."create_expense_report"(tenant uuid, title text, currency text, note text default null)
 returns jsonb
 language plpgsql
@@ -3029,6 +3037,8 @@ grant execute on function "better_supabase"."list_expense_reports"(uuid, uuid, t
 -- blocks.expenses.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."create_expense_report"(uuid, text, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

@@ -21,6 +21,11 @@ export const giftInputSchema: EntitySchema<GiftInput> = entitySchema<GiftInput>(
       note: { kind: "string", optional: true, maxLength: 2000 },
       pledgeId: { kind: "uuid", optional: true },
       periodStart: { kind: "plainDate", optional: true },
+      fields: {
+        kind: "json",
+        optional: true,
+        description: "The extra columns to set.",
+      },
     },
   },
 );

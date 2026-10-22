@@ -24,6 +24,11 @@ export const leaseInputSchema: EntitySchema<LeaseInput> =
       deposit: { ...moneyField, optional: true },
       title: { kind: "string", optional: true, minLength: 1, maxLength: 200 },
       metadata: { kind: "json", optional: true },
+      fields: {
+        kind: "json",
+        optional: true,
+        description: "The extra columns to set.",
+      },
     },
   });
 

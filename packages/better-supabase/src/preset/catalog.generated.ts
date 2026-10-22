@@ -3165,6 +3165,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
+      "extraColumns": "leases",
       "entities": {
         "specs": {
           "lease": {
@@ -3193,7 +3194,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "leases": {
-            "name": "leases",
+            "name": "lease_agreements",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -3263,6 +3264,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
+      "extraColumns": "reports",
       "entities": {
         "specs": {
           "expense_report": {
@@ -3374,6 +3376,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
+      "extraColumns": "donations",
       "entities": {
         "specs": {
           "donation": {
@@ -6066,7 +6069,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "Lease"
+          "name": "Lease",
+          "fields": true
         },
         {
           "name": "LeaseCharge"
@@ -6078,7 +6082,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "LeaseEventData"
         },
         {
-          "name": "LeaseInput"
+          "name": "LeaseInput",
+          "fields": true
         },
         {
           "name": "LeaseListOptions"
@@ -6090,7 +6095,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "LeaseRenewal"
         },
         {
-          "name": "Leases"
+          "name": "Leases",
+          "fields": true
         },
         {
           "name": "LeasesEvents"
@@ -6160,6 +6166,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "metadata": {
                 "kind": "json",
                 "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
               }
             },
             "jsonSchema": {
@@ -6239,7 +6250,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "minLength": 1,
                   "maxLength": 200
                 },
-                "metadata": {}
+                "metadata": {},
+                "fields": {
+                  "description": "The extra columns to set."
+                }
               },
               "required": [
                 "unitId",
@@ -6370,13 +6384,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ExpenseLineUpdate"
         },
         {
-          "name": "ExpenseReport"
+          "name": "ExpenseReport",
+          "fields": true
         },
         {
           "name": "ExpenseReportEventData"
         },
         {
-          "name": "ExpenseReportInput"
+          "name": "ExpenseReportInput",
+          "fields": true
         },
         {
           "name": "ExpenseReportListOptions"
@@ -6411,6 +6427,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "string",
                 "optional": true,
                 "maxLength": 2000
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
               }
             },
             "jsonSchema": {
@@ -6432,6 +6453,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "note": {
                   "type": "string",
                   "maxLength": 2000
+                },
+                "fields": {
+                  "description": "The extra columns to set."
                 }
               },
               "required": [
@@ -6646,7 +6670,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DonationFundInput"
         },
         {
-          "name": "DonationPaymentOutcome"
+          "name": "DonationPaymentOutcome",
+          "fields": true
         },
         {
           "name": "DonationReceipt"
@@ -6655,7 +6680,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DonationReceiptEventData"
         },
         {
-          "name": "Donations"
+          "name": "Donations",
+          "fields": true
         },
         {
           "name": "DonationsEvents"
@@ -6667,7 +6693,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Pledge"
         },
         {
-          "name": "PledgeChargeOutcome"
+          "name": "PledgeChargeOutcome",
+          "fields": true
         },
         {
           "name": "PledgeEventData"
@@ -6728,6 +6755,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "periodStart": {
                 "kind": "plainDate",
                 "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
               }
             },
             "jsonSchema": {
@@ -6782,6 +6814,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "periodStart": {
                   "type": "string",
                   "format": "date"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
                 }
               },
               "required": [

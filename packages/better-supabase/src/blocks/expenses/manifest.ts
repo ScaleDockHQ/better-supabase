@@ -4,6 +4,7 @@ import type { ExpensesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { expensesEvents } from "./events.ts";
 import { createExpenses } from "./expenses.ts";
+import { expensesSqlOptions } from "./options.ts";
 import {
   expenseCategoryInputSchema,
   expenseLineInputSchema,
@@ -18,7 +19,7 @@ export const expensesBlock: BlockOf<
 > = defineBlock({
   name: "expenses",
   sql: ["expenses"],
-  options: {},
+  options: { expenses: expensesSqlOptions },
   events: expensesEvents,
   schemas: {
     expense_report: { input: expenseReportInputSchema },

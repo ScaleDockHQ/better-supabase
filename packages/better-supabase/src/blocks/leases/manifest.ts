@@ -4,6 +4,7 @@ import type { LeasesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { leasesEvents } from "./events.ts";
 import { createLeases } from "./leases.ts";
+import { leasesSqlOptions } from "./options.ts";
 import { leaseInputSchema, maintenanceRequestInputSchema } from "./schemas.ts";
 import { leasesSection } from "./section.ts";
 
@@ -18,7 +19,7 @@ export const leasesBlock: BlockOf<
 > = defineBlock({
   name: "leases",
   sql: ["leases"],
-  options: {},
+  options: { leases: leasesSqlOptions },
   events: leasesEvents,
   schemas: {
     lease: { input: leaseInputSchema },

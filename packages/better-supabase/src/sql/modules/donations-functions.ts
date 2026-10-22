@@ -2,12 +2,23 @@ import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  extraFieldsArg,
+  extraFieldsJson,
+  fail,
+  pageSize,
+  SERVICE_CALLER,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const step = (frequency: string): string =>
   `(case ${frequency} when 'weekly' then interval '1 week' when 'monthly' then interval '1 month' when 'quarterly' then interval '3 months' else interval '1 year' end)`;
+
+/** The keys the gift reads return next to the extra columns. */
+export const GIFT_RESERVED = ["fields"] as const;
 
 /** The donations module's functions. */
 export function donationsFunctions(ctx: ModuleContext): string {
@@ -22,6 +33,8 @@ export function donationsFunctions(ctx: ModuleContext): string {
   const d = (column: string): string => ctx.col("donations", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
+  const extras = ctx.extraColumns("donations", GIFT_RESERVED);
+  const extra = extraFieldsArg(extras);
   const ops = moduleOperations("donations");
   const read = ctx.permission("read", ops.read);
   const manage = ctx.permission("manage", ops.manage);
@@ -77,7 +90,7 @@ export function donationsFunctions(ctx: ModuleContext): string {
     `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'donorType', ${row}.${p("donorType")}, 'donorId', ${row}.${p("donorId")}, 'fundId', ${row}.${p("fund")}, 'amount', ${row}.${p("amount")}::text, 'currency', ${row}.${p("currency")}, 'frequency', ${row}.${p("frequency")}, 'startsOn', ${row}.${p("startsOn")}, 'endsOn', ${row}.${p("endsOn")}, 'status', ${row}.${p("status")}, 'provider', ${row}.${p("provider")}, 'providerCustomer', ${row}.${p("providerCustomer")}, 'note', ${row}.${p("note")}, 'createdBy', ${row}.${p("createdBy")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`;
 
   const giftJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'donorType', ${row}.${d("donorType")}, 'donorId', ${row}.${d("donorId")}, 'fundId', ${row}.${d("fund")}, 'pledgeId', ${row}.${d("pledge")}, 'periodStart', ${row}.${d("periodStart")}, 'amount', ${row}.${d("amount")}::text, 'currency', ${row}.${d("currency")}, 'receivedOn', ${row}.${d("receivedOn")}, 'method', ${row}.${d("method")}, 'status', ${row}.${d("status")}, 'provider', ${row}.${d("provider")}, 'paymentReference', ${row}.${d("paymentReference")}, 'transactionId', ${row}.${d("transaction")}, 'refundTransactionId', ${row}.${d("refundTransaction")}, 'receiptId', ${row}.${d("receipt")}, 'note', ${row}.${d("note")}, 'createdBy', ${row}.${d("createdBy")}, 'createdAt', ${row}.${d("createdAt")}, 'updatedAt', ${row}.${d("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'donorType', ${row}.${d("donorType")}, 'donorId', ${row}.${d("donorId")}, 'fundId', ${row}.${d("fund")}, 'pledgeId', ${row}.${d("pledge")}, 'periodStart', ${row}.${d("periodStart")}, 'amount', ${row}.${d("amount")}::text, 'currency', ${row}.${d("currency")}, 'receivedOn', ${row}.${d("receivedOn")}, 'method', ${row}.${d("method")}, 'status', ${row}.${d("status")}, 'provider', ${row}.${d("provider")}, 'paymentReference', ${row}.${d("paymentReference")}, 'transactionId', ${row}.${d("transaction")}, 'refundTransactionId', ${row}.${d("refundTransaction")}, 'receiptId', ${row}.${d("receipt")}, 'note', ${row}.${d("note")}, 'createdBy', ${row}.${d("createdBy")}, 'createdAt', ${row}.${d("createdAt")}, 'updatedAt', ${row}.${d("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const receiptJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'donorType', ${row}.${r("donorType")}, 'donorId', ${row}.${r("donorId")}, 'sequence', ${row}.${r("sequence")}::text, 'number', ${row}.${r("number")}, 'kind', ${row}.${r("kind")}, 'year', ${row}.${r("year")}, 'amount', ${row}.${r("amount")}::text, 'currency', ${row}.${r("currency")}, 'issuedAt', ${row}.${r("issuedAt")}, 'voidedAt', ${row}.${r("voidedAt")}, 'voidReason', ${row}.${r("voidReason")})`;
@@ -306,7 +319,9 @@ revoke execute on function ${fn("donation_settle")}(uuid, text, text, text) from
 -- Records a gift received outside a payments provider (cash, a check, a
 -- bank transfer) and posts it at once. With a pledge and period it pays
 -- that installment; a second call for the same period returns the gift.
-create or replace function ${fn("record_gift")}(tenant ${idType}, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null)
+-- fields: the extra columns to set.
+${extra.drop(fn("record_gift"), `${idType}, text, text, bigint, text, uuid, date, text, text, uuid, date`)}
+create or replace function ${fn("record_gift")}(tenant ${idType}, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -333,19 +348,20 @@ begin
     case when record_gift.pledge_id is null then null else record_gift.period_start end, record_gift.amount, record_gift.currency,
     coalesce(record_gift.received_on, current_date), nullif(trim(record_gift.method), ''), nullif(trim(record_gift.note), ''), auth.uid())
   on conflict (${d("pledge")}, ${d("periodStart")}) do nothing
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(donations, extras, "record_gift.fields", `x.${d("id")} = v_row.${d("id")}`, "v_row")}
   if v_row.${d("id")} is null then
     select * into v_row from ${donations} x where x.${d("pledge")} = record_gift.pledge_id and x.${d("periodStart")} = record_gift.period_start;
   end if;
   return ${fn("donation_settle")}(v_row.${d("id")}, 'succeeded');
 end;
 $$;
-${userGrant(`${fn("record_gift")}(${idType}, text, text, bigint, text, uuid, date, text, text, uuid, date)`)}
+${userGrant(`${fn("record_gift")}(${idType}, text, text, bigint, text, uuid, date, text, text, uuid, date${extra.type})`)}
 
 -- Opens a pending gift a payments provider will charge. With a pledge and
 -- period a second call returns the same gift, so a retried charge run never
--- charges a period twice.
-create or replace function ${fn("open_gift")}(tenant ${idType}, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null)
+-- charges a period twice. fields: the extra columns to set.
+${extra.drop(fn("open_gift"), `${idType}, text, text, bigint, text, uuid, uuid, date, text, text`)}
+create or replace function ${fn("open_gift")}(tenant ${idType}, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -370,14 +386,14 @@ begin
     case when open_gift.pledge_id is null then null else open_gift.period_start end, open_gift.amount, open_gift.currency,
     'card', open_gift.provider, nullif(trim(open_gift.note), ''), auth.uid())
   on conflict (${d("pledge")}, ${d("periodStart")}) do nothing
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(donations, extras, "open_gift.fields", `x.${d("id")} = v_row.${d("id")}`, "v_row")}
   if v_row.${d("id")} is null then
     select * into v_row from ${donations} x where x.${d("pledge")} = open_gift.pledge_id and x.${d("periodStart")} = open_gift.period_start;
   end if;
   return ${giftJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("open_gift")}(${idType}, text, text, bigint, text, uuid, uuid, date, text, text)`)}
+${userGrant(`${fn("open_gift")}(${idType}, text, text, bigint, text, uuid, uuid, date, text, text${extra.type})`)}
 
 -- Records what the payments provider reported for a gift: by its id, or
 -- (gift_id null) by the provider's payment id. succeeded posts it, failed

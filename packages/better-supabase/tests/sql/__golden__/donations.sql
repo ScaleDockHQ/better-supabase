@@ -347,6 +347,8 @@ revoke execute on function "better_supabase"."donation_settle"(uuid, text, text,
 -- Records a gift received outside a payments provider (cash, a check, a
 -- bank transfer) and posts it at once. With a pledge and period it pays
 -- that installment; a second call for the same period returns the gift.
+-- fields: the extra columns to set.
+drop function if exists "better_supabase"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date, jsonb);
 create or replace function "better_supabase"."record_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null)
 returns jsonb
 language plpgsql
@@ -403,7 +405,8 @@ grant execute on function "better_supabase"."record_gift"(uuid, text, text, bigi
 
 -- Opens a pending gift a payments provider will charge. With a pledge and
 -- period a second call returns the same gift, so a retried charge run never
--- charges a period twice.
+-- charges a period twice. fields: the extra columns to set.
+drop function if exists "better_supabase"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text, jsonb);
 create or replace function "better_supabase"."open_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null)
 returns jsonb
 language plpgsql
@@ -1322,6 +1325,8 @@ revoke execute on function "better_supabase"."donation_settle"(uuid, text, text,
 -- Records a gift received outside a payments provider (cash, a check, a
 -- bank transfer) and posts it at once. With a pledge and period it pays
 -- that installment; a second call for the same period returns the gift.
+-- fields: the extra columns to set.
+drop function if exists "better_supabase"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date, jsonb);
 create or replace function "better_supabase"."record_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null)
 returns jsonb
 language plpgsql
@@ -1378,7 +1383,8 @@ grant execute on function "better_supabase"."record_gift"(uuid, text, text, bigi
 
 -- Opens a pending gift a payments provider will charge. With a pledge and
 -- period a second call returns the same gift, so a retried charge run never
--- charges a period twice.
+-- charges a period twice. fields: the extra columns to set.
+drop function if exists "better_supabase"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text, jsonb);
 create or replace function "better_supabase"."open_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null)
 returns jsonb
 language plpgsql
@@ -2320,6 +2326,8 @@ revoke execute on function "app_private"."donation_settle"(uuid, text, text, tex
 -- Records a gift received outside a payments provider (cash, a check, a
 -- bank transfer) and posts it at once. With a pledge and period it pays
 -- that installment; a second call for the same period returns the gift.
+-- fields: the extra columns to set.
+drop function if exists "app_private"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date, jsonb);
 create or replace function "app_private"."record_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null)
 returns jsonb
 language plpgsql
@@ -2376,7 +2384,8 @@ grant execute on function "app_private"."record_gift"(uuid, text, text, bigint, 
 
 -- Opens a pending gift a payments provider will charge. With a pledge and
 -- period a second call returns the same gift, so a retried charge run never
--- charges a period twice.
+-- charges a period twice. fields: the extra columns to set.
+drop function if exists "app_private"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text, jsonb);
 create or replace function "app_private"."open_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null)
 returns jsonb
 language plpgsql
@@ -3268,6 +3277,8 @@ revoke execute on function "better_supabase"."donation_settle"(uuid, text, text,
 -- Records a gift received outside a payments provider (cash, a check, a
 -- bank transfer) and posts it at once. With a pledge and period it pays
 -- that installment; a second call for the same period returns the gift.
+-- fields: the extra columns to set.
+drop function if exists "better_supabase"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date, jsonb);
 create or replace function "better_supabase"."record_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null)
 returns jsonb
 language plpgsql
@@ -3324,7 +3335,8 @@ grant execute on function "better_supabase"."record_gift"(uuid, text, text, bigi
 
 -- Opens a pending gift a payments provider will charge. With a pledge and
 -- period a second call returns the same gift, so a retried charge run never
--- charges a period twice.
+-- charges a period twice. fields: the extra columns to set.
+drop function if exists "better_supabase"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text, jsonb);
 create or replace function "better_supabase"."open_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null)
 returns jsonb
 language plpgsql
@@ -3845,6 +3857,9 @@ grant execute on function "better_supabase"."yearly_giving_summary"(uuid, text, 
 -- blocks.donations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date, jsonb);
+drop function if exists "api"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean

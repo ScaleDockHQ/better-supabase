@@ -55,7 +55,7 @@ begin
     when 'asset_location' then
       return (select s."name"::text from "better_supabase"."asset_locations" s where s."id" = (subject_title.subject_id)::uuid);
     when 'lease' then
-      return (select s."title"::text from "better_supabase"."leases" s where s."id" = (subject_title.subject_id)::uuid);
+      return (select s."title"::text from "better_supabase"."lease_agreements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'maintenance_request' then
       return (select s."title"::text from "better_supabase"."maintenance_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'expense_report' then
@@ -224,7 +224,7 @@ begin
     select jsonb_agg(jsonb_build_object(
       'type', 'lease', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."leases" s
+    from "better_supabase"."lease_agreements" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'lease')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -441,7 +441,7 @@ begin
       );
     when 'lease' then
       return exists (
-        select 1 from "better_supabase"."leases" s
+        select 1 from "better_supabase"."lease_agreements" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.read'), false)
@@ -756,7 +756,7 @@ begin
       );
     when 'lease' then
       return exists (
-        select 1 from "better_supabase"."leases" s
+        select 1 from "better_supabase"."lease_agreements" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'leases.read'), false)

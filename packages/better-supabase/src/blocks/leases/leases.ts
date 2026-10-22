@@ -1,15 +1,23 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
@@ -36,7 +44,9 @@ export type MaintenanceStatus =
   | "resolved"
   | "cancelled";
 
-export interface LeasesOptions
+export interface LeasesOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+>
   extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
@@ -44,15 +54,21 @@ export interface LeasesOptions
    * `blocks.generated.ts`.
    */
   readonly schema?: string;
+  /**
+   * A Standard Schema for the lease's extra columns
+   * (`blocks.leases.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `create`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Leases>>;
+  readonly hooks?: NoInfer<BlockHooks<Leases<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
 }
 
-/** A unit (an asset) let to a party. */
-export interface Lease {
+/** A unit (an asset) let to a party. `F` types the extra columns. */
+export interface Lease<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   /** The asset let. */
@@ -80,9 +96,11 @@ export interface Lease {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
-export interface LeaseInput {
+export interface LeaseInput<F extends object = Record<never, never>> {
   readonly unitId: string;
   readonly party: SubjectRef;
   readonly startsOn: Temporal.PlainDate;
@@ -96,6 +114,8 @@ export interface LeaseInput {
   /** Default: the unit's name and "lease". */
   readonly title?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 export interface LeaseListOptions {
@@ -190,24 +210,24 @@ export interface MaintenanceListOptions {
   readonly pageSize?: number;
 }
 
-export interface Leases {
+export interface Leases<F extends object = Record<never, never>> {
   /** Creates a draft lease. Needs `leases.manage`. */
-  create(input: LeaseInput): AsyncResult<Lease>;
+  create(input: LeaseInput<F>): AsyncResult<Lease<F>>;
   /**
    * Starts a draft lease and holds its deposit on the ledger. Fails with
    * `LEASE_OVERLAP` while another active lease of the unit overlaps it.
    */
-  activate(leaseId: string): AsyncResult<Lease>;
+  activate(leaseId: string): AsyncResult<Lease<F>>;
   /** Extends an active lease with an end, optionally at a new rent. */
-  renew(leaseId: string, renewal: LeaseRenewal): AsyncResult<Lease>;
+  renew(leaseId: string, renewal: LeaseRenewal): AsyncResult<Lease<F>>;
   /** Ends a lease, captures any deduction from the deposit and refunds the rest. */
   terminate(
     leaseId: string,
     termination?: LeaseTermination,
-  ): AsyncResult<Lease>;
+  ): AsyncResult<Lease<F>>;
   /** Needs `leases.read`. */
-  get(leaseId: string): AsyncResult<Lease>;
-  list(options?: LeaseListOptions): AsyncResult<readonly Lease[]>;
+  get(leaseId: string): AsyncResult<Lease<F>>;
+  list(options?: LeaseListOptions): AsyncResult<readonly Lease<F>[]>;
   /**
    * Posts the rent of every due period of the organization's active leases on
    * the ledger, once per period, and returns how many posted.
@@ -296,6 +316,7 @@ function leaseOf(value: unknown, fn: string): Lease {
     depositHeld: moneyOf(row["depositHeld"], currency, "depositHeld"),
     balanceDue: moneyOf(row["balanceDue"], currency, "balanceDue"),
     metadata: metadataOf(row["metadata"]),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("endsOn", optionalDate(row["endsOn"])),
@@ -345,7 +366,11 @@ function maintenanceOf(value: unknown, fn: string): MaintenanceRequest {
 }
 
 /** The `leases` SQL module as typed calls. */
-export function createLeases(options: LeasesOptions): Leases {
+export function createLeases<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: LeasesOptions<S>): Leases<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
@@ -355,7 +380,9 @@ export function createLeases(options: LeasesOptions): Leases {
     (value: unknown): Lease =>
       leaseOf(value, fn);
 
-  const client: Leases = {
+  const fields: BlockFields<F> = blockFields(options.fields, "lease fields");
+
+  const client: Leases<F> = {
     create: (input) => {
       if (
         input.deposit !== undefined &&
@@ -368,29 +395,38 @@ export function createLeases(options: LeasesOptions): Leases {
         );
       }
 
-      return tenant().andThen((organizationId) =>
-        call(
-          "create_lease",
-          {
-            tenant: organizationId,
-            unit_id: input.unitId,
-            party_type: input.party.type,
-            party_id: input.party.id,
-            starts_on: input.startsOn.toString(),
-            rent: amountText(input.rent),
-            currency: input.rent.currency,
-            frequency: input.frequency ?? "monthly",
-            ends_on: input.endsOn?.toString() ?? null,
-            deposit: input.deposit ? amountText(input.deposit) : "0",
-            title: input.title ?? null,
-            metadata: input.metadata ?? null,
-          },
-          lease("create_lease"),
-        ),
-      );
+      return fields
+        .args(input.fields)
+        .andThen((checked) =>
+          tenant().andThen((organizationId) =>
+            call(
+              "create_lease",
+              {
+                tenant: organizationId,
+                unit_id: input.unitId,
+                party_type: input.party.type,
+                party_id: input.party.id,
+                starts_on: input.startsOn.toString(),
+                rent: amountText(input.rent),
+                currency: input.rent.currency,
+                frequency: input.frequency ?? "monthly",
+                ends_on: input.endsOn?.toString() ?? null,
+                deposit: input.deposit ? amountText(input.deposit) : "0",
+                title: input.title ?? null,
+                metadata: input.metadata ?? null,
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
+              lease("create_lease"),
+            ).andThen(fields.row),
+          ),
+        );
     },
     activate: (leaseId) =>
-      call("activate_lease", { lease_id: leaseId }, lease("activate_lease")),
+      call(
+        "activate_lease",
+        { lease_id: leaseId },
+        lease("activate_lease"),
+      ).andThen(fields.row),
     renew: (leaseId, renewal) =>
       call(
         "renew_lease",
@@ -400,7 +436,7 @@ export function createLeases(options: LeasesOptions): Leases {
           rent: renewal.rent ? amountText(renewal.rent) : null,
         },
         lease("renew_lease"),
-      ),
+      ).andThen(fields.row),
     terminate: (leaseId, termination = {}) =>
       call(
         "terminate_lease",
@@ -413,9 +449,11 @@ export function createLeases(options: LeasesOptions): Leases {
             : "0",
         },
         lease("terminate_lease"),
-      ),
+      ).andThen(fields.row),
     get: (leaseId) =>
-      call("get_lease", { lease_id: leaseId }, lease("get_lease")),
+      call("get_lease", { lease_id: leaseId }, lease("get_lease")).andThen(
+        fields.row,
+      ),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -429,7 +467,7 @@ export function createLeases(options: LeasesOptions): Leases {
             page_size: list.pageSize ?? null,
           },
           (value) => recordsOf(value, "list_leases").map(lease("list_leases")),
-        ),
+        ).andThen(fields.rows),
       ),
     postDueRent: (post = {}) =>
       tenant().andThen((organizationId) =>

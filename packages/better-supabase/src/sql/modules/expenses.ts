@@ -8,9 +8,17 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { expensesFunctions } from "./expenses-functions.ts";
+import {
+  EXPENSE_REPORT_RESERVED,
+  expensesFunctions,
+} from "./expenses-functions.ts";
 
 const REPORT_PAYLOAD = [
   "organizationId",
@@ -71,7 +79,7 @@ const NAMES: ModuleNames = {
     },
   },
   events: EVENTS,
-  options: [],
+  options: ["extraColumns"],
   tables: {
     categories: {
       name: "expense_categories",
@@ -186,7 +194,7 @@ create table if not exists ${reports} (
   ${r("cancelledAt")} timestamptz,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("updatedAt")} timestamptz not null default now()
-);
+);${addExtraColumns(reports, ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED))}
 create index if not exists ${index("reports", "tenant_idx")} on ${reports} (${r("tenant")}, ${r("createdAt")} desc);
 create index if not exists ${index("reports", "user_idx")} on ${reports} (${r("user")}, ${r("tenant")});
 create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;
@@ -243,7 +251,11 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${expensesFunctions(ctx)}`;
 }
 
-function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED),
+  ).contract;
+
   return [
     {
       name: "save_expense_category",
@@ -258,7 +270,7 @@ function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     {
       name: "create_expense_report",
-      args: ["{id}", "text", "text", "text"],
+      args: ["{id}", "text", "text", "text", ...extra],
       returns: "jsonb",
     },
     {

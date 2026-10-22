@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -573,5 +574,64 @@ describe("leases block", () => {
         priority: "whenever",
       }).issues,
     ).toBeDefined();
+  });
+});
+
+describe("lease fields", () => {
+  const Fields = v.object({ cost_center: v.pipe(v.string(), v.minLength(2)) });
+
+  it("validates the fields of a create, sends them and parses them back", async () => {
+    const fake = fakeTransport({
+      create_lease: { ...LEASE, fields: { cost_center: "ops" } },
+      list_leases: [{ ...LEASE, fields: { cost_center: "ops" } }],
+      get_lease: { ...LEASE, fields: { cost_center: "x" } },
+    });
+
+    const leases = createLeases({
+      transport: fake.transport,
+      tenant: "org-1",
+      fields: Fields,
+    });
+
+    const input = {
+      unitId: UNIT,
+      party: CONTACT,
+      startsOn: Temporal.PlainDate.from("2026-10-01"),
+      rent: money(120_000n, "EUR"),
+    };
+
+    const lease = await leases
+      .create({ ...input, fields: { cost_center: "ops" } })
+      .orThrow();
+
+    expect(lease.fields.cost_center).toBe("ops");
+    expect(fake.calls[0]?.[1]["fields"]).toEqual({ cost_center: "ops" });
+    expect(
+      await leases.create({ ...input, fields: { cost_center: "x" } }),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(fake.calls).toHaveLength(1);
+    expect(
+      (await leases.list().orThrow()).map((row) => row.fields.cost_center),
+    ).toEqual(["ops"]);
+    expect(await leases.get("l1")).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
+  });
+
+  it("leaves fields out of the call without a schema", async () => {
+    const fake = fakeTransport({ create_lease: LEASE });
+
+    const lease = await createLeases({ transport: fake.transport, tenant: "o" })
+      .create({
+        unitId: UNIT,
+        party: CONTACT,
+        startsOn: Temporal.PlainDate.from("2026-10-01"),
+        rent: money(120_000n, "EUR"),
+      })
+      .orThrow();
+
+    expect(lease.fields).toEqual({});
+    expect(fake.calls[0]?.[1]).not.toHaveProperty("fields");
   });
 });

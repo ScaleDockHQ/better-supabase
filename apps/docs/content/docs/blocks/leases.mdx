@@ -29,7 +29,7 @@ and how recurring charges post on the ledger is in
 
 | Table                  | Holds                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `leases`               | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
+| `lease_agreements`     | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
 | `lease_charges`        | One row per rent period posted: the period, the amount and the ledger transaction, unique per lease and period                        |
 | `maintenance_requests` | A request on a unit, optionally for one of its leases, with a priority, a status and an assignee                                      |
 
@@ -37,6 +37,26 @@ Members with `leases.read` read every lease, charge and request of the
 organization; a member who filed a request reads it without it. Writes go
 through the functions: `leases.manage` for leases and payments, and
 `leases.maintain` (or `leases.manage`) to file a request.
+
+## Your own columns
+
+`extraColumns` adds columns to the `lease_agreements` table, and the client's `fields` schema types them.
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  leases: { options: { extraColumns: { cost_center: "text" } } },
+},
+
+// the client
+const leases = createLeases({
+  transport,
+  tenant,
+  fields: v.object({ cost_center: v.optional(v.string()) }),
+});
+```
+
+`create` validates them before the call, and every read that returns a lease parses them under `lease.fields`.
 
 ## Create and start a lease
 

@@ -1,13 +1,24 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  extraFieldsArg,
+  extraFieldsJson,
+  fail,
+  pageSize,
+  SERVICE_CALLER,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
 
 /** The length of one rent period of a frequency, as an interval. */
 const step = (frequency: string): string =>
   `(case ${frequency} when 'weekly' then interval '1 week' when 'monthly' then interval '1 month' when 'quarterly' then interval '3 months' else interval '1 year' end)`;
+
+/** The keys the lease reads return next to the extra columns. */
+export const LEASE_RESERVED = ["fields"] as const;
 
 /** The leases module's functions. */
 export function leasesFunctions(ctx: ModuleContext): string {
@@ -28,6 +39,8 @@ export function leasesFunctions(ctx: ModuleContext): string {
   const holds = ledger.table("holds");
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
+  const extras = ctx.extraColumns("leases", LEASE_RESERVED);
+  const extra = extraFieldsArg(extras);
   const ops = moduleOperations("leases");
   const read = ctx.permission("read", ops.read);
   const manage = ctx.permission("manage", ops.manage);
@@ -87,7 +100,7 @@ export function leasesFunctions(ctx: ModuleContext): string {
     `coalesce((select h.${lh("amount")} from ${holds} h where h.${lh("id")} = ${row}.${l("depositHold")} and h.${lh("status")} = 'active'), 0)`;
 
   const leaseJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'unitId', ${row}.${l("unit")}, 'partyType', ${row}.${l("partyType")}, 'partyId', ${row}.${l("partyId")}, 'title', ${row}.${l("title")}, 'status', ${row}.${l("status")}, 'startsOn', ${row}.${l("startsOn")}, 'endsOn', ${row}.${l("endsOn")}, 'rent', ${row}.${l("rent")}::text, 'currency', ${row}.${l("currency")}, 'frequency', ${row}.${l("frequency")}, 'deposit', ${row}.${l("deposit")}::text, 'depositHoldId', ${row}.${l("depositHold")}, 'depositHeld', ${depositHeld(row)}::text, 'balanceDue', ${balanceDue(row)}::text, 'renewedAt', ${row}.${l("renewedAt")}, 'terminatedOn', ${row}.${l("terminatedOn")}, 'terminationReason', ${row}.${l("terminationReason")}, 'metadata', ${row}.${l("metadata")}, 'createdBy', ${row}.${l("createdBy")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'unitId', ${row}.${l("unit")}, 'partyType', ${row}.${l("partyType")}, 'partyId', ${row}.${l("partyId")}, 'title', ${row}.${l("title")}, 'status', ${row}.${l("status")}, 'startsOn', ${row}.${l("startsOn")}, 'endsOn', ${row}.${l("endsOn")}, 'rent', ${row}.${l("rent")}::text, 'currency', ${row}.${l("currency")}, 'frequency', ${row}.${l("frequency")}, 'deposit', ${row}.${l("deposit")}::text, 'depositHoldId', ${row}.${l("depositHold")}, 'depositHeld', ${depositHeld(row)}::text, 'balanceDue', ${balanceDue(row)}::text, 'renewedAt', ${row}.${l("renewedAt")}, 'terminatedOn', ${row}.${l("terminatedOn")}, 'terminationReason', ${row}.${l("terminationReason")}, 'metadata', ${row}.${l("metadata")}, 'createdBy', ${row}.${l("createdBy")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const chargeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'leaseId', ${row}.${c("lease")}, 'periodStart', ${row}.${c("periodStart")}, 'periodEnd', ${row}.${c("periodEnd")}, 'amount', ${row}.${c("amount")}::text, 'currency', ${row}.${c("currency")}, 'transactionId', ${row}.${c("transaction")}, 'createdAt', ${row}.${c("createdAt")})`;
@@ -141,7 +154,9 @@ export function leasesFunctions(ctx: ModuleContext): string {
   return `
 -- Creates a draft lease of a unit (an asset) to a party (a registered
 -- subject). Rent is minor units of currency per period of frequency.
-create or replace function ${fn("create_lease")}(tenant ${idType}, unit_id uuid, party_type text, party_id text, starts_on date, rent bigint, currency text, frequency text default 'monthly', ends_on date default null, deposit bigint default 0, title text default null, metadata jsonb default null)
+-- fields: the extra columns to set.
+${extra.drop(fn("create_lease"), `${idType}, uuid, text, text, date, bigint, text, text, date, bigint, text, jsonb`)}
+create or replace function ${fn("create_lease")}(tenant ${idType}, unit_id uuid, party_type text, party_id text, starts_on date, rent bigint, currency text, frequency text default 'monthly', ends_on date default null, deposit bigint default 0, title text default null, metadata jsonb default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -188,12 +203,12 @@ begin
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
     create_lease.rent, create_lease.currency, coalesce(create_lease.frequency, 'monthly'), coalesce(create_lease.deposit, 0),
     coalesce(create_lease.metadata, '{}'::jsonb), auth.uid())
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(leases, extras, "create_lease.fields", `x.${l("id")} = v_row.${l("id")}`, "v_row")}
   ${leaseRecord("lease.created", "v_row", "created a lease")}
   return ${leaseJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("create_lease")}(${idType}, uuid, text, text, date, bigint, text, text, date, bigint, text, jsonb)`)}
+${userGrant(`${fn("create_lease")}(${idType}, uuid, text, text, date, bigint, text, text, date, bigint, text, jsonb${extra.type})`)}
 
 -- Starts a draft lease. Fails while another active lease of the unit
 -- overlaps it. A deposit is received on the lease's deposit account and

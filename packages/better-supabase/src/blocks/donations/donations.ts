@@ -4,18 +4,26 @@ import type {
   PaymentEvent,
   PaymentProvider,
 } from "../../commerce/payments.ts";
+import type {
+  BlockFields,
+  ExtraFields,
+  FieldsOf,
+} from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { paymentProviderOf } from "../../commerce/payments.ts";
+import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, moneyOf } from "../money-codec.ts";
@@ -35,11 +43,19 @@ export type PledgeFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
 
 export type PledgeStatus = "active" | "paused" | "ended";
 
-export interface DonationsOptions extends BlockOptions {
+export interface DonationsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockOptions {
   /** Charges online gifts and pledge installments. */
   readonly payments?: PaymentProvider;
+  /**
+   * A Standard Schema for the gift's extra columns
+   * (`blocks.donations.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `recordGift` and `give`.
+   */
+  readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Donations>>;
+  readonly hooks?: NoInfer<BlockHooks<Donations<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
@@ -71,8 +87,8 @@ export interface DonationFundInput {
   readonly endsOn?: Temporal.PlainDate;
 }
 
-/** One gift. A posted gift is on the ledger. */
-export interface Gift {
+/** One gift. A posted gift is on the ledger. `F` types the extra columns. */
+export interface Gift<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly donor: SubjectRef;
@@ -93,10 +109,12 @@ export interface Gift {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** The extra columns, keyed by database name. */
+  readonly fields: ExtraFields<F>;
 }
 
 /** A gift received outside the payments provider: cash, a check, a transfer. */
-export interface GiftInput {
+export interface GiftInput<F extends object = Record<never, never>> {
   readonly donor: SubjectRef;
   readonly amount: Money;
   readonly fundId?: string;
@@ -107,10 +125,12 @@ export interface GiftInput {
   /** The pledge installment this gift pays, with `periodStart`. */
   readonly pledgeId?: string;
   readonly periodStart?: Temporal.PlainDate;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
 /** A gift charged through the payments provider. */
-export interface GiveInput {
+export interface GiveInput<F extends object = Record<never, never>> {
   readonly donor: SubjectRef;
   readonly amount: Money;
   readonly fundId?: string;
@@ -119,10 +139,12 @@ export interface GiveInput {
   readonly customer?: string;
   readonly description?: string;
   readonly returnUrl?: string;
+  /** The extra columns to set. */
+  readonly fields?: Partial<F>;
 }
 
-export interface GiveOutcome {
-  readonly gift: Gift;
+export interface GiveOutcome<F extends object = Record<never, never>> {
+  readonly gift: Gift<F>;
   /** Hand `clientSecret` or `redirectUrl` to the donor when it needs action. */
   readonly payment: Payment;
 }
@@ -203,11 +225,11 @@ export interface DueInstallmentOptions {
 }
 
 /** What `chargeDuePledges` did with one installment. */
-export type PledgeChargeOutcome =
+export type PledgeChargeOutcome<F extends object = Record<never, never>> =
   | {
       readonly kind: "charged";
       readonly installment: PledgeInstallment;
-      readonly gift: Gift;
+      readonly gift: Gift<F>;
     }
   | {
       readonly kind: "skipped";
@@ -258,15 +280,15 @@ export interface GivingSummary {
 }
 
 /** What `webhook` and `handlePaymentEvent` did with an event. */
-export type DonationPaymentOutcome =
-  | { readonly event: string; readonly kind: "gift"; readonly gift: Gift }
+export type DonationPaymentOutcome<F extends object = Record<never, never>> =
+  | { readonly event: string; readonly kind: "gift"; readonly gift: Gift<F> }
   | {
       readonly event: string;
       readonly kind: "ignored";
       readonly reason: string;
     };
 
-export interface Donations {
+export interface Donations<F extends object = Record<never, never>> {
   /** Creates or updates the fund with this key. Needs `donations.manage`. */
   saveFund(input: DonationFundInput): AsyncResult<DonationFund>;
   archiveFund(fundId: string): AsyncResult<DonationFund>;
@@ -274,14 +296,14 @@ export interface Donations {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly DonationFund[]>;
   /** Records a gift received outside the provider and posts it at once. */
-  recordGift(input: GiftInput): AsyncResult<Gift>;
+  recordGift(input: GiftInput<F>): AsyncResult<Gift<F>>;
   /**
    * Opens a pending gift and charges it through the payments provider. The gift
    * posts when the payment succeeds, here or from the webhook.
    */
-  give(input: GiveInput): AsyncResult<GiveOutcome>;
-  getGift(giftId: string): AsyncResult<Gift>;
-  gifts(options?: GiftListOptions): AsyncResult<readonly Gift[]>;
+  give(input: GiveInput<F>): AsyncResult<GiveOutcome<F>>;
+  getGift(giftId: string): AsyncResult<Gift<F>>;
+  gifts(options?: GiftListOptions): AsyncResult<readonly Gift<F>[]>;
   createPledge(input: PledgeInput): AsyncResult<Pledge>;
   updatePledge(pledgeId: string, update: PledgeUpdate): AsyncResult<Pledge>;
   pledges(options?: PledgeListOptions): AsyncResult<readonly Pledge[]>;
@@ -294,11 +316,15 @@ export interface Donations {
    */
   chargeDuePledges(
     options?: DueInstallmentOptions,
-  ): AsyncResult<readonly PledgeChargeOutcome[]>;
+  ): AsyncResult<readonly PledgeChargeOutcome<F>[]>;
   /** Applies a provider event to its gift. */
-  handlePaymentEvent(event: PaymentEvent): AsyncResult<DonationPaymentOutcome>;
+  handlePaymentEvent(
+    event: PaymentEvent,
+  ): AsyncResult<DonationPaymentOutcome<F>>;
   /** Verifies a provider webhook and applies its events. */
-  webhook(input: WebhookInput): AsyncResult<readonly DonationPaymentOutcome[]>;
+  webhook(
+    input: WebhookInput,
+  ): AsyncResult<readonly DonationPaymentOutcome<F>[]>;
   /** A numbered receipt for one posted gift. */
   issueGiftReceipt(giftId: string): AsyncResult<DonationReceipt>;
   /** A donor's receipt for their posted gifts in a year and currency. */
@@ -407,6 +433,7 @@ function giftOf(value: unknown, fn: string): Gift {
     ...optional("receiptId", optionalText(row["receiptId"])),
     ...optional("note", optionalText(row["note"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
 
@@ -518,7 +545,11 @@ function giftPaymentStatus(
 }
 
 /** The `donations` SQL module as typed calls. */
-export function createDonations(options: DonationsOptions): Donations {
+export function createDonations<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: DonationsOptions<S>): Donations<FieldsOf<S>> {
+  type F = FieldsOf<S>;
+
   applyTemporal(options);
 
   const payments = options.payments
@@ -534,6 +565,7 @@ export function createDonations(options: DonationsOptions): Donations {
   );
 
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const fields: BlockFields<F> = blockFields(options.fields, "gift fields");
 
   const gift =
     (fn: string) =>
@@ -560,12 +592,12 @@ export function createDonations(options: DonationsOptions): Donations {
     provider: string,
     paymentId: string | null,
     status: "pending" | "succeeded" | "failed" | "refunded",
-  ): AsyncResult<Gift> =>
+  ): AsyncResult<Gift<F>> =>
     service(
       "record_gift_payment",
       { gift_id: giftId, provider, payment_id: paymentId, status },
       gift("record_gift_payment"),
-    );
+    ).andThen(fields.row);
 
   const dueInstallments = (
     organizationId: string,
@@ -585,7 +617,7 @@ export function createDonations(options: DonationsOptions): Donations {
     provider: PaymentProvider,
     organizationId: string,
     installment: PledgeInstallment,
-  ): Promise<PledgeChargeOutcome> => {
+  ): Promise<PledgeChargeOutcome<F>> => {
     const opened = await service(
       "open_gift",
       {
@@ -657,8 +689,8 @@ export function createDonations(options: DonationsOptions): Donations {
       : { kind: "failed", installment, error: stored.error };
   };
 
-  const handlePaymentEvent: Donations["handlePaymentEvent"] = (event) =>
-    AsyncResult.from(async (): Promise<Result<DonationPaymentOutcome>> => {
+  const handlePaymentEvent: Donations<F>["handlePaymentEvent"] = (event) =>
+    AsyncResult.from(async (): Promise<Result<DonationPaymentOutcome<F>>> => {
       if (event.type === "refund.failed") {
         return ok({
           event: event.id,
@@ -700,7 +732,7 @@ export function createDonations(options: DonationsOptions): Donations {
       return ok({ event: event.id, kind: "gift", gift: stored.data });
     });
 
-  const client: Donations = {
+  const client: Donations<F> = {
     saveFund: (input) =>
       tenant().andThen((organizationId) =>
         call(
@@ -739,31 +771,42 @@ export function createDonations(options: DonationsOptions): Donations {
         ),
       ),
     recordGift: (input) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "record_gift",
-          {
-            tenant: organizationId,
-            donor_type: input.donor.type,
-            donor_id: input.donor.id,
-            amount: amountText(input.amount),
-            currency: input.amount.currency,
-            fund_id: input.fundId ?? null,
-            received_on: input.receivedOn?.toString() ?? null,
-            method: input.method ?? null,
-            note: input.note ?? null,
-            pledge_id: input.pledgeId ?? null,
-            period_start: input.periodStart?.toString() ?? null,
-          },
-          gift("record_gift"),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          tenant().andThen((organizationId) =>
+            call(
+              "record_gift",
+              {
+                tenant: organizationId,
+                donor_type: input.donor.type,
+                donor_id: input.donor.id,
+                amount: amountText(input.amount),
+                currency: input.amount.currency,
+                fund_id: input.fundId ?? null,
+                received_on: input.receivedOn?.toString() ?? null,
+                method: input.method ?? null,
+                note: input.note ?? null,
+                pledge_id: input.pledgeId ?? null,
+                period_start: input.periodStart?.toString() ?? null,
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
+              gift("record_gift"),
+            ).andThen(fields.row),
+          ),
         ),
-      ),
     give: (input) =>
-      AsyncResult.from(async (): Promise<Result<GiveOutcome>> => {
+      AsyncResult.from(async (): Promise<Result<GiveOutcome<F>>> => {
         if (!payments) {
           return err(
             failure("DONATIONS_NO_PAYMENTS", "give needs a payments provider"),
           );
+        }
+
+        const checked = await fields.args(input.fields);
+
+        if (!checked.ok) {
+          return checked;
         }
 
         const organizationId = await tenant();
@@ -785,6 +828,7 @@ export function createDonations(options: DonationsOptions): Donations {
             period_start: null,
             provider: payments.name,
             note: input.note ?? null,
+            ...(checked.data === undefined ? {} : { fields: checked.data }),
           },
           gift("open_gift"),
         );
@@ -825,7 +869,9 @@ export function createDonations(options: DonationsOptions): Donations {
           : stored;
       }),
     getGift: (giftId) =>
-      call("get_gift", { gift_id: giftId }, gift("get_gift")),
+      call("get_gift", { gift_id: giftId }, gift("get_gift")).andThen(
+        fields.row,
+      ),
     gifts: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -840,7 +886,7 @@ export function createDonations(options: DonationsOptions): Donations {
             page_size: list.pageSize ?? null,
           },
           (value) => recordsOf(value, "list_gifts").map(gift("list_gifts")),
-        ),
+        ).andThen(fields.rows),
       ),
     createPledge: (input) =>
       tenant().andThen((organizationId) =>
@@ -895,7 +941,7 @@ export function createDonations(options: DonationsOptions): Donations {
       ),
     chargeDuePledges: (due = {}) =>
       AsyncResult.from(
-        async (): Promise<Result<readonly PledgeChargeOutcome[]>> => {
+        async (): Promise<Result<readonly PledgeChargeOutcome<F>[]>> => {
           if (!payments) {
             return err(
               failure(
@@ -917,7 +963,7 @@ export function createDonations(options: DonationsOptions): Donations {
             return installments;
           }
 
-          const outcomes: PledgeChargeOutcome[] = [];
+          const outcomes: PledgeChargeOutcome<F>[] = [];
 
           for (const installment of installments.data) {
             if (installment.provider !== payments.name) {
@@ -947,7 +993,7 @@ export function createDonations(options: DonationsOptions): Donations {
     handlePaymentEvent,
     webhook: (input) =>
       AsyncResult.from(
-        async (): Promise<Result<readonly DonationPaymentOutcome[]>> => {
+        async (): Promise<Result<readonly DonationPaymentOutcome<F>[]>> => {
           if (!payments) {
             return err(
               failure(
@@ -963,7 +1009,7 @@ export function createDonations(options: DonationsOptions): Donations {
             return parsed;
           }
 
-          const outcomes: DonationPaymentOutcome[] = [];
+          const outcomes: DonationPaymentOutcome<F>[] = [];
 
           for (const event of parsed.data) {
             const outcome = await handlePaymentEvent(event);

@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -548,5 +549,45 @@ describe("expenses block", () => {
     expect(
       validate(expenseCategoryInputSchema, { key: "travel" }).issues,
     ).toBeDefined();
+  });
+});
+
+describe("expense report fields", () => {
+  const Fields = v.object({ project: v.pipe(v.string(), v.minLength(2)) });
+
+  it("validates the fields of a create, sends them and parses every read", async () => {
+    const fake = fakeTransport({
+      create_expense_report: { ...DRAFT, fields: { project: "apollo" } },
+      list_expense_reports: [{ ...REPORT, fields: { project: "apollo" } }],
+      submit_expense_report: { ...REPORT, fields: { project: "a" } },
+    });
+
+    const expenses = createExpenses({
+      transport: fake.transport,
+      tenant: "org-1",
+      fields: Fields,
+    });
+
+    const report = await expenses
+      .create({ title: "Trip", currency: "EUR", fields: { project: "apollo" } })
+      .orThrow();
+
+    expect(report.fields.project).toBe("apollo");
+    expect(fake.calls[0]?.[1]["fields"]).toEqual({ project: "apollo" });
+    expect(
+      await expenses.create({
+        title: "Trip",
+        currency: "EUR",
+        fields: { project: "a" },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(fake.calls).toHaveLength(1);
+    expect(
+      (await expenses.list().orThrow()).map((row) => row.fields.project),
+    ).toEqual(["apollo"]);
+    expect(await expenses.submit("rep-1")).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
   });
 });

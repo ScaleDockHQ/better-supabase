@@ -8,11 +8,16 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { lockTable, schemaPreamble } from "../shared.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
-import { donationsFunctions } from "./donations-functions.ts";
+import { donationsFunctions, GIFT_RESERVED } from "./donations-functions.ts";
 
 const GIFT_PAYLOAD = [
   "organizationId",
@@ -80,7 +85,7 @@ const NAMES: ModuleNames = {
     donation_receipt: { table: "receipts", singular: "donation_receipt" },
   },
   events: EVENTS,
-  options: [],
+  options: ["extraColumns"],
   tables: {
     funds: {
       name: "donation_funds",
@@ -291,7 +296,7 @@ create table if not exists ${donations} (
   ${d("updatedAt")} timestamptz not null default now(),
   foreign key (${d("tenant")}, ${d("fund")}) references ${funds} (${f("tenant")}, ${f("id")}) on delete restrict,
   unique (${d("pledge")}, ${d("periodStart")})
-);
+);${addExtraColumns(donations, ctx.extraColumns("donations", GIFT_RESERVED))}
 create index if not exists ${index("donations", "tenant_idx")} on ${donations} (${d("tenant")}, ${d("receivedOn")} desc);
 create index if not exists ${index("donations", "donor_idx")} on ${donations} (${d("tenant")}, ${d("donorType")}, ${d("donorId")}, ${d("receivedOn")});
 create index if not exists ${index("donations", "fund_idx")} on ${donations} (${d("tenant")}, ${d("fund")}) where ${d("fund")} is not null;
@@ -347,7 +352,11 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${donationsFunctions(ctx)}${donorMerges(ctx)}`;
 }
 
-function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("donations", GIFT_RESERVED),
+  ).contract;
+
   return [
     {
       name: "save_donation_fund",
@@ -374,6 +383,7 @@ function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
         "text",
         "uuid",
         "date",
+        ...extra,
       ],
       returns: "jsonb",
     },
@@ -390,6 +400,7 @@ function contract(_ctx: ModuleContext): readonly ModuleContractFunction[] {
         "date",
         "text",
         "text",
+        ...extra,
       ],
       returns: "jsonb",
     },

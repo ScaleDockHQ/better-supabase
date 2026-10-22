@@ -20,6 +20,11 @@ export const expenseReportInputSchema: EntitySchema<ExpenseReportInput> =
         description: "A three-letter currency code; every line is in it.",
       },
       note: { kind: "string", optional: true, maxLength: 2000 },
+      fields: {
+        kind: "json",
+        optional: true,
+        description: "The extra columns to set.",
+      },
     },
   });
 
