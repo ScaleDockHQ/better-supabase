@@ -110,6 +110,8 @@
     "vercel-marketplace",
     "guests",
     "passes",
-    "billable-time"
+    "billable-time",
+    "dispatch",
+    "shipments"
   ]
 }
