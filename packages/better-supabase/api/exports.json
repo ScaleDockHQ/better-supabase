@@ -3346,6 +3346,7 @@
       "CheckoutItem",
       "CheckoutOptions",
       "CheckoutStarted",
+      "CustomerAccountOptions",
       "CustomerDetails",
       "PlanCatalog",
       "PlanChange",

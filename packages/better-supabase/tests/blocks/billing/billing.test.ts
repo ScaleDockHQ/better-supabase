@@ -1072,3 +1072,651 @@ describe("createBilling", () => {
     });
   });
 });
+
+interface Row {
+  customer: string | null;
+  account: string | null;
+}
+
+/** A fake `billing_customers` table behind the module's functions. */
+function harness(
+  rows: Record<string, Row> = {},
+  stripeOverrides: Record<string, unknown> = {},
+) {
+  const calls: [string, Record<string, unknown>][] = [];
+
+  const rowOf = (tenant: string): Row => {
+    const row = rows[tenant] ?? { customer: null, account: null };
+    rows[tenant] = row;
+
+    return row;
+  };
+
+  const transport: BlockTransport = {
+    async call(_schema, fn, args) {
+      calls.push([fn, { ...args }]);
+      const tenant = String(args["tenant"]);
+
+      switch (fn) {
+        case "billing_customer": {
+          return rows[tenant]?.customer ?? null;
+        }
+
+        case "billing_account": {
+          return rows[tenant]?.account ?? null;
+        }
+
+        case "link_billing_account": {
+          const row = rowOf(tenant);
+          row.account ??= String(args["account"]);
+
+          return row.account;
+        }
+
+        case "link_billing_customer": {
+          const row = rowOf(tenant);
+          row.customer ??= String(args["customer"]);
+
+          return row.customer;
+        }
+
+        case "billing_customer_tenant": {
+          const id = String(args["customer"]);
+
+          return (
+            Object.entries(rows).find(
+              ([, row]) => row.customer === id || row.account === id,
+            )?.[0] ?? null
+          );
+        }
+
+        case "billing_status": {
+          return {
+            customer: rows[tenant]?.customer ?? null,
+            account: rows[tenant]?.account ?? null,
+            seats: 1,
+            subscription: null,
+          };
+        }
+
+        default: {
+          return null;
+        }
+      }
+    },
+  };
+
+  const stripeCalls: [string, unknown, unknown?][] = [];
+
+  const stripe = {
+    customers: {
+      create: async (params: unknown) => {
+        stripeCalls.push(["customers.create", params]);
+
+        return { id: "cus_v1" };
+      },
+    },
+    checkout: {
+      sessions: {
+        create: async (params: unknown) => {
+          stripeCalls.push(["checkout.create", params]);
+
+          return { id: "cs_1", url: "https://checkout.stripe.com/c/cs_1" };
+        },
+      },
+    },
+    billingPortal: {
+      sessions: {
+        create: async (params: unknown) => {
+          stripeCalls.push(["portal.create", params]);
+
+          return { id: "bps_1", url: "https://billing.stripe.com/p/1" };
+        },
+      },
+    },
+    v2: {
+      core: {
+        accounts: {
+          create: async (params: unknown, options: unknown) => {
+            stripeCalls.push(["accounts.create", params, options]);
+
+            return { id: "acct_new" };
+          },
+        },
+      },
+    },
+    ...stripeOverrides,
+  } as unknown as StripeClient;
+
+  const events = new EventHub();
+  const seen: { type: string; data: unknown }[] = [];
+  events.on("block", (event) =>
+    seen.push({ type: event.type, data: event.data }),
+  );
+
+  return { transport, calls, stripe, stripeCalls, events, seen, rows };
+}
+
+describe("createBilling with customerAccounts", () => {
+  it("creates the tenant's account once and bills it as customer_account", async () => {
+    const t = harness();
+
+    const billing = createBilling({
+      ...t,
+      customerAccounts: {
+        params: (tenant) => ({
+          identity: { country: "de" },
+          metadata: { source: tenant },
+        }),
+      },
+    });
+
+    const session = await billing
+      .checkout("org", {
+        price: "price_1",
+        successUrl: "https://a/ok",
+        email: "billing@acme.test",
+        name: "Acme",
+        params: { customer: "cus_ignored" },
+      })
+      .orThrow();
+
+    expect(session.id).toBe("cs_1");
+    expect(t.stripeCalls[0]).toEqual([
+      "accounts.create",
+      {
+        contact_email: "billing@acme.test",
+        display_name: "Acme",
+        configuration: { customer: {} },
+        identity: { country: "de" },
+        metadata: { source: "org", organization_id: "org" },
+      },
+      { idempotencyKey: "account:org" },
+    ]);
+    expect(t.stripeCalls[1]).toEqual([
+      "checkout.create",
+      {
+        customer_account: "acct_new",
+        mode: "subscription",
+        client_reference_id: "org",
+        line_items: [{ price: "price_1", quantity: 1 }],
+        success_url: "https://a/ok",
+        metadata: { organization_id: "org" },
+        subscription_data: { metadata: { organization_id: "org" } },
+      },
+    ]);
+    expect(t.seen).toContainEqual({
+      type: "billing.account_linked",
+      data: { organizationId: "org", accountId: "acct_new" },
+    });
+
+    await billing
+      .checkout("org", { price: "price_1", successUrl: "https://a/ok" })
+      .orThrow();
+    expect(
+      t.stripeCalls.filter(([name]) => name === "accounts.create"),
+    ).toHaveLength(1);
+    expect(t.stripeCalls.some(([name]) => name === "customers.create")).toBe(
+      false,
+    );
+
+    expect(
+      await billing.portal("org", { returnUrl: "https://a" }).orThrow(),
+    ).toEqual({ url: "https://billing.stripe.com/p/1" });
+    expect(t.stripeCalls.at(-1)).toEqual([
+      "portal.create",
+      { customer_account: "acct_new", return_url: "https://a" },
+    ]);
+    expect(await billing.account("org").orThrow()).toBe("acct_new");
+    expect(await billing.status("org").orThrow()).toMatchObject({
+      customerId: undefined,
+      accountId: "acct_new",
+    });
+  });
+
+  it("reuses the account resolve returns and keeps a tenant's v1 customer", async () => {
+    const t = harness({ legacy: { customer: "cus_old", account: null } });
+
+    const billing = createBilling({
+      ...t,
+      customerAccounts: { resolve: (tenant) => `acct_${tenant}` },
+    });
+
+    expect(await billing.ensureAccount("shop").orThrow()).toBe("acct_shop");
+    expect(t.stripeCalls).toEqual([]);
+
+    await billing
+      .checkout("legacy", { price: "price_1", successUrl: "https://a" })
+      .orThrow();
+    expect(t.stripeCalls.at(-1)).toMatchObject([
+      "checkout.create",
+      { customer: "cus_old" },
+    ]);
+    expect(t.stripeCalls.at(-1)?.[1]).not.toHaveProperty("customer_account");
+  });
+
+  it("waits for Stripe's customer before ensureCustomer returns one", async () => {
+    const t = harness();
+    const billing = createBilling({ ...t, customerAccounts: true });
+
+    expect(await billing.ensureCustomer("org")).toMatchObject({
+      ok: false,
+      error: { kind: "not_found", hint: "BILLING_CUSTOMER_PENDING" },
+    });
+    expect(t.rows["org"]).toEqual({ customer: null, account: "acct_new" });
+    expect(t.stripeCalls.some(([name]) => name === "customers.create")).toBe(
+      false,
+    );
+
+    t.rows["org"]!.customer = "cus_linked";
+    expect(await billing.ensureCustomer("org").orThrow()).toBe("cus_linked");
+  });
+
+  it("explains a Stripe client without the v2 API", async () => {
+    const t = harness({}, { v2: undefined });
+    const billing = createBilling({ ...t, customerAccounts: true });
+
+    expect(await billing.ensureAccount("org")).toMatchObject({
+      ok: false,
+      error: { hint: "BILLING_STRIPE_CLIENT" },
+    });
+  });
+
+  it("records the customer Stripe creates for the account from webhooks", async () => {
+    const t = harness({ org: { customer: null, account: "acct_1" } });
+    const billing = createBilling({ ...t, customerAccounts: true });
+
+    const outcome = await billing
+      .handleStripeEvent({
+        id: "evt_1",
+        type: "customer.subscription.created",
+        data: {
+          object: {
+            id: "sub_1",
+            status: "active",
+            customer: "cus_made",
+            customer_account: "acct_1",
+          },
+        },
+      })
+      .orThrow();
+
+    expect(outcome).toEqual({
+      event: "billing.subscription_created",
+      organizationId: "org",
+      customerId: "cus_made",
+      accountId: "acct_1",
+      invalidated: [],
+    });
+    expect(t.rows["org"]).toEqual({ customer: "cus_made", account: "acct_1" });
+    expect(t.seen.at(-1)).toEqual({
+      type: "billing.subscription_created",
+      data: {
+        organizationId: "org",
+        customerId: "cus_made",
+        accountId: "acct_1",
+        subscriptionId: "sub_1",
+        stripeEventId: "evt_1",
+        status: "active",
+      },
+    });
+  });
+
+  it("records the customer from a checkout session and from other events", async () => {
+    const t = harness({
+      org: { customer: null, account: "acct_1" },
+      other: { customer: null, account: "acct_2" },
+    });
+
+    const billing = createBilling({ ...t, customerAccounts: true });
+
+    const completed = await billing
+      .handleStripeEvent({
+        id: "evt_1",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            client_reference_id: "org",
+            customer: "cus_1",
+            customer_account: "acct_1",
+            subscription: "sub_1",
+          },
+        },
+      })
+      .orThrow();
+
+    expect(completed).toMatchObject({
+      event: "billing.checkout_completed",
+      organizationId: "org",
+      customerId: "cus_1",
+      accountId: "acct_1",
+    });
+    expect(t.rows["org"]?.customer).toBe("cus_1");
+
+    const invoice = await billing
+      .handleStripeEvent({
+        id: "evt_2",
+        type: "invoice.paid",
+        data: {
+          object: {
+            id: "in_1",
+            customer: { id: "cus_2" },
+            customer_account: "acct_2",
+          },
+        },
+      })
+      .orThrow();
+
+    expect(invoice).toEqual({
+      event: undefined,
+      organizationId: "other",
+      customerId: "cus_2",
+      accountId: "acct_2",
+      invalidated: [],
+    });
+    expect(t.rows["other"]?.customer).toBe("cus_2");
+
+    const elsewhere = await billing
+      .handleStripeEvent({
+        id: "evt_3",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            client_reference_id: "org",
+            customer: "cus_x",
+            customer_account: "acct_other",
+          },
+        },
+      })
+      .orThrow();
+
+    expect(elsewhere.event).toBeUndefined();
+    expect(t.rows["org"]).toEqual({ customer: "cus_1", account: "acct_1" });
+  });
+
+  it("links an account a subscription claims through its metadata", async () => {
+    const t = harness();
+    const billing = createBilling({ ...t, customerAccounts: true });
+
+    const outcome = await billing
+      .handleStripeEvent({
+        id: "evt_1",
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_1",
+            customer: "cus_1",
+            customer_account: "acct_1",
+            metadata: { organization_id: "org" },
+          },
+        },
+      })
+      .orThrow();
+
+    expect(outcome.organizationId).toBe("org");
+    expect(t.rows["org"]).toEqual({ customer: "cus_1", account: "acct_1" });
+  });
+});
+
+describe("customerAccounts edge cases", () => {
+  it("reports a failing resolve, a failed account create and a tenant without either id", async () => {
+    const thrown = createBilling({
+      ...harness(),
+      customerAccounts: {
+        resolve: () => {
+          throw new Error("lookup down");
+        },
+      },
+    });
+
+    expect(await thrown.ensureAccount("org")).toMatchObject({ ok: false });
+
+    const t = harness(
+      {},
+      {
+        v2: {
+          core: {
+            accounts: {
+              create: async () => {
+                throw new Error("stripe down");
+              },
+            },
+          },
+        },
+      },
+    );
+
+    const failing = createBilling({ ...t, customerAccounts: true });
+    expect(await failing.ensureCustomer("org")).toMatchObject({ ok: false });
+    expect(
+      await failing.checkout("org", { price: "p", successUrl: "https://a" }),
+    ).toMatchObject({ ok: false });
+    expect(
+      await failing.portal("org", { returnUrl: "https://a" }),
+    ).toMatchObject({ ok: false, error: { hint: "BILLING_NO_CUSTOMER" } });
+  });
+
+  it("creates an account with plain params and no contact", async () => {
+    const t = harness();
+
+    await createBilling({
+      ...t,
+      customerAccounts: { params: { dashboard: "none" } },
+    })
+      .ensureAccount("org")
+      .orThrow();
+    expect(t.stripeCalls[0]?.[1]).toEqual({
+      configuration: { customer: {} },
+      dashboard: "none",
+      metadata: { organization_id: "org" },
+    });
+
+    const plain = harness();
+    await createBilling({ ...plain, customerAccounts: true })
+      .ensureAccount("org")
+      .orThrow();
+    expect(plain.stripeCalls[0]?.[1]).toEqual({
+      configuration: { customer: {} },
+      metadata: { organization_id: "org" },
+    });
+  });
+
+  it("opens the portal for an account-only tenant without customerAccounts", async () => {
+    const t = harness({ org: { customer: null, account: "acct_1" } });
+
+    await createBilling(t).portal("org", { returnUrl: "https://a" }).orThrow();
+    expect(t.stripeCalls.at(-1)).toEqual([
+      "portal.create",
+      { customer_account: "acct_1", return_url: "https://a" },
+    ]);
+  });
+
+  it("handles account events without a customer, and unknown accounts", async () => {
+    const t = harness({ org: { customer: null, account: "acct_1" } });
+    const billing = createBilling({ ...t, customerAccounts: true });
+
+    const completed = await billing
+      .handleStripeEvent({
+        id: "evt_1",
+        type: "checkout.session.completed",
+        data: {
+          object: { client_reference_id: "org", customer_account: "acct_1" },
+        },
+      })
+      .orThrow();
+
+    expect(completed).toMatchObject({
+      event: "billing.checkout_completed",
+      customerId: undefined,
+      accountId: "acct_1",
+    });
+
+    const updated = await billing
+      .handleStripeEvent({
+        id: "evt_2",
+        type: "customer.subscription.updated",
+        data: { object: { id: "sub_1", customer_account: "acct_1" } },
+      })
+      .orThrow();
+
+    expect(updated).toMatchObject({
+      organizationId: "org",
+      accountId: "acct_1",
+    });
+
+    const claimed = await billing
+      .handleStripeEvent({
+        id: "evt_3",
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_2",
+            customer_account: "acct_new",
+            metadata: { organization_id: "fresh" },
+          },
+        },
+      })
+      .orThrow();
+
+    expect(claimed.organizationId).toBe("fresh");
+
+    const refused = await billing
+      .handleStripeEvent({
+        id: "evt_4",
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_3",
+            customer: "cus_9",
+            customer_account: "acct_other",
+            metadata: { organization_id: "org" },
+          },
+        },
+      })
+      .orThrow();
+
+    expect(refused).toMatchObject({
+      event: undefined,
+      organizationId: undefined,
+      accountId: "acct_other",
+    });
+
+    expect(
+      await billing
+        .handleStripeEvent({
+          id: "evt_5",
+          type: "invoice.paid",
+          data: {
+            object: { customer: "cus_x", customer_account: "acct_none" },
+          },
+        })
+        .orThrow(),
+    ).toMatchObject({ organizationId: undefined, accountId: "acct_none" });
+    expect(
+      await billing
+        .handleStripeEvent({
+          id: "evt_6",
+          type: "invoice.paid",
+          data: { object: { customer: "cus_x" } },
+        })
+        .orThrow(),
+    ).toMatchObject({ organizationId: undefined, customerId: undefined });
+    expect(
+      await billing
+        .handleStripeEvent({
+          id: "evt_7",
+          type: "customer.subscription.updated",
+          data: { object: { id: "sub_4" } },
+        })
+        .orThrow(),
+    ).toMatchObject({ event: undefined });
+  });
+
+  it("passes database errors through", async () => {
+    const t = harness();
+
+    const failing: BlockTransport = {
+      async call(schema, fn, args) {
+        if (fn === "billing_customer_tenant" || fn.startsWith("link_")) {
+          throw new Error("db down");
+        }
+
+        return t.transport.call(schema, fn, args);
+      },
+    };
+
+    const billing = createBilling({
+      ...t,
+      transport: failing,
+      customerAccounts: { resolve: () => "acct_1" },
+    });
+
+    expect(await billing.ensureAccount("org")).toMatchObject({ ok: false });
+
+    for (const object of [
+      { client_reference_id: "org", customer_account: "acct_1" },
+      { client_reference_id: "org", customer: "cus_1" },
+    ]) {
+      expect(
+        await billing.handleStripeEvent({
+          id: "evt",
+          type: "checkout.session.completed",
+          data: { object },
+        }),
+      ).toMatchObject({ ok: false });
+    }
+
+    for (const type of ["customer.subscription.updated", "invoice.paid"]) {
+      expect(
+        await billing.handleStripeEvent({
+          id: "evt",
+          type,
+          data: { object: { customer: "cus_1", customer_account: "acct_1" } },
+        }),
+      ).toMatchObject({ ok: false });
+      expect(
+        await billing.handleStripeEvent({
+          id: "evt",
+          type,
+          data: { object: { customer_account: "acct_1" } },
+        }),
+      ).toMatchObject({ ok: type === "invoice.paid" });
+    }
+  });
+});
+
+describe("createBilling with connectEvents", () => {
+  const connect = {
+    id: "evt_1",
+    type: "checkout.session.completed",
+    account: "acct_connected",
+    data: { object: { client_reference_id: "org", customer: "cus_1" } },
+  };
+
+  it("handles Connect events by default", async () => {
+    const t = harness();
+
+    expect(
+      (await createBilling(t).handleStripeEvent(connect).orThrow()).event,
+    ).toBe("billing.checkout_completed");
+  });
+
+  it("skips them with connectEvents: ignore", async () => {
+    const t = harness();
+    const billing = createBilling({ ...t, connectEvents: "ignore" });
+
+    expect(await billing.handleStripeEvent(connect).orThrow()).toEqual({
+      event: undefined,
+      organizationId: undefined,
+      customerId: undefined,
+      accountId: undefined,
+      invalidated: [],
+    });
+    expect(t.calls).toEqual([]);
+
+    expect(
+      (await billing.handleStripeEvent({ ...connect, account: null }).orThrow())
+        .event,
+    ).toBe("billing.checkout_completed");
+  });
+});

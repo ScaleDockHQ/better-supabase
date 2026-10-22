@@ -5,6 +5,7 @@ export {
   type BillingStatus,
   type CheckoutItem,
   type CheckoutOptions,
+  type CustomerAccountOptions,
   type CustomerDetails,
   type PlanChange,
   type PlatformListOptions,
