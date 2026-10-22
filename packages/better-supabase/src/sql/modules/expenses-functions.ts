@@ -339,7 +339,7 @@ end;
 $$;
 ${userGrant(`${fn("create_expense_report")}(${idType}, text, text, text)`)}
 
-create or replace function ${fn("add_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null)
+create or replace function ${fn("add_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -355,6 +355,9 @@ begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${c
   if add_expense_line.spent_on is null then
     ${invalid("EXPENSE_LINE_INVALID", "a line needs spent_on")}
   end if;
+  if add_expense_line.currency is not null and add_expense_line.currency <> v_row.${r("currency")} then
+    ${invalid("EXPENSE_CURRENCY_MISMATCH", "the amount is in another currency than the report")}
+  end if;
   if add_expense_line.amount is null or add_expense_line.amount <= 0 then
     ${invalid("EXPENSE_LINE_INVALID", "an amount is more than zero minor units")}
   end if;
@@ -369,10 +372,10 @@ begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${c
   return ${lineJson("v_line")};
 end;
 $$;
-${userGrant(`${fn("add_expense_line")}(uuid, uuid, date, bigint, text, text)`)}
+${userGrant(`${fn("add_expense_line")}(uuid, uuid, date, bigint, text, text, text)`)}
 
 -- Changes a line of a draft or rejected report; null keeps a value.
-create or replace function ${fn("update_expense_line")}(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null)
+create or replace function ${fn("update_expense_line")}(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -391,6 +394,9 @@ begin
   end if;${loadReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
   if update_expense_line.category_id is not null then${categoryCheck("update_expense_line.category_id", `v_row.${r("tenant")}`)}
   end if;
+  if update_expense_line.currency is not null and update_expense_line.currency <> v_row.${r("currency")} then
+    ${invalid("EXPENSE_CURRENCY_MISMATCH", "the amount is in another currency than the report")}
+  end if;
   if update_expense_line.amount is not null and update_expense_line.amount <= 0 then
     ${invalid("EXPENSE_LINE_INVALID", "an amount is more than zero minor units")}
   end if;
@@ -407,7 +413,7 @@ begin
   return ${lineJson("v_line")};
 end;
 $$;
-${userGrant(`${fn("update_expense_line")}(uuid, uuid, date, bigint, text, text)`)}
+${userGrant(`${fn("update_expense_line")}(uuid, uuid, date, bigint, text, text, text)`)}
 
 create or replace function ${fn("remove_expense_line")}(line_id uuid)
 returns jsonb

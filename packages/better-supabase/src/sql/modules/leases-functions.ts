@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -31,6 +32,9 @@ export function leasesFunctions(ctx: ModuleContext): string {
   const read = ctx.permission("read", ops.read);
   const manage = ctx.permission("manage", ops.manage);
   const maintain = ctx.permission("maintain", ops.maintain);
+  const e = (name: string): string => ctx.resolved.entityNaming.rename(name);
+  const leaseType = ctx.resolved.entities["lease"]?.to.singular ?? "lease";
+  const leaseKey = sqlString(e("leaseId"));
 
   const can = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -48,25 +52,25 @@ export function leasesFunctions(ctx: ModuleContext): string {
   );
 
   const rentCode = (lease: string): string =>
-    `'lease:' || ${lease}::text || ':rent'`;
+    `'leases.rent:' || ${lease}::text`;
 
   const depositCode = (lease: string): string =>
-    `'lease:' || ${lease}::text || ':deposit'`;
+    `'leases.deposit:' || ${lease}::text`;
 
   /** The lease's receivable: what the party owes, rent less payments. */
   const rentAccount = (row: string): string =>
-    `${ledger.fn("ledger_account_for")}(${row}.${l("tenant")}, 'lease_rent', ${rentCode(`${row}.${l("id")}`)}, 'Rent ' || ${row}.${l("title")},
-      ${row}.${l("currency")}::text, 0::smallint, 'leases', ${row}.${l("id")}::text, null, true, ${read}, 'leases',
-      jsonb_build_object('leaseId', ${row}.${l("id")}))`;
+    `${ledger.fn("ledger_account_for")}(${row}.${l("tenant")}, 'rent_receivable', ${rentCode(`${row}.${l("id")}`)}, 'Rent ' || ${row}.${l("title")},
+      ${row}.${l("currency")}::text, 0::smallint, ${sqlString(leaseType)}, ${row}.${l("id")}::text, null, true, ${read}, 'leases',
+      jsonb_build_object(${leaseKey}, ${row}.${l("id")}))`;
 
   /** The deposit the party paid, held while the lease runs. */
   const depositAccount = (row: string): string =>
-    `${ledger.fn("ledger_account_for")}(${row}.${l("tenant")}, 'lease_deposit', ${depositCode(`${row}.${l("id")}`)}, 'Deposit ' || ${row}.${l("title")},
-      ${row}.${l("currency")}::text, 0::smallint, 'leases', ${row}.${l("id")}::text, null, false, ${read}, 'leases',
-      jsonb_build_object('leaseId', ${row}.${l("id")}))`;
+    `${ledger.fn("ledger_account_for")}(${row}.${l("tenant")}, 'rent_deposit', ${depositCode(`${row}.${l("id")}`)}, 'Deposit ' || ${row}.${l("title")},
+      ${row}.${l("currency")}::text, 0::smallint, ${sqlString(leaseType)}, ${row}.${l("id")}::text, null, false, ${read}, 'leases',
+      jsonb_build_object(${leaseKey}, ${row}.${l("id")}))`;
 
   const sharedAccount = (row: string, kind: string, name: string): string =>
-    `${ledger.fn("ledger_account_for")}(${row}.${l("tenant")}, 'lease_${kind}', 'leases:${kind}:' || ${row}.${l("currency")}, '${name} ' || ${row}.${l("currency")},
+    `${ledger.fn("ledger_account_for")}(${row}.${l("tenant")}, 'rent_${kind}', 'leases.${kind}:' || ${row}.${l("currency")}, '${name} ' || ${row}.${l("currency")},
       ${row}.${l("currency")}::text, 0::smallint, null, null, null, true, ${read}, 'leases', null)`;
 
   const incomeAccount = (row: string): string =>
@@ -208,7 +212,7 @@ begin${loadLease("activate_lease.lease_id", manage, true)}
   if v_row.${l("status")} <> 'draft' then
     ${fail("LEASE_STATUS_INVALID", "only a draft lease can be activated", "55000")}
   end if;
-  perform pg_advisory_xact_lock(hashtextextended('leases:unit:' || v_row.${l("unit")}::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row.${l("unit")}::text, 0));
   if exists (
     select 1 from ${leases} x
     where x.${l("unit")} = v_row.${l("unit")} and x.${l("id")} <> v_row.${l("id")} and x.${l("status")} = 'active'
@@ -222,8 +226,8 @@ begin${loadLease("activate_lease.lease_id", manage, true)}
       jsonb_build_array(
         jsonb_build_object('account', v_account, 'amount', v_row.${l("deposit")}),
         jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', -v_row.${l("deposit")})),
-      'leases', v_row.${l("id")}::text, 'Deposit received', 'lease:' || v_row.${l("id")}::text || ':deposit', null,
-      jsonb_build_object('leaseId', v_row.${l("id")}));
+      'leases', v_row.${l("id")}::text, 'Deposit received', 'leases.deposit:' || v_row.${l("id")}::text, null,
+      jsonb_build_object(${leaseKey}, v_row.${l("id")}));
     v_hold := ${ledger.fn("ledger_hold")}(v_account, v_row.${l("deposit")}, 'leases', v_row.${l("id")}::text, null);
   end if;
   update ${leases} x set ${l("status")} = 'active', ${l("depositHold")} = v_hold.${lh("id")}, ${l("updatedAt")} = now()
@@ -310,8 +314,8 @@ begin${loadLease("terminate_lease.lease_id", manage, true)}
         jsonb_build_array(
           jsonb_build_object('account', ${depositAccount("v_row")}, 'amount', -(v_held - v_deduction)),
           jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', v_held - v_deduction)),
-        'leases', v_row.${l("id")}::text, 'Deposit refunded', 'lease:' || v_row.${l("id")}::text || ':deposit_refund', null,
-        jsonb_build_object('leaseId', v_row.${l("id")}));
+        'leases', v_row.${l("id")}::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row.${l("id")}::text, null,
+        jsonb_build_object(${leaseKey}, v_row.${l("id")}));
     end if;
   end if;
   update ${leases} x set
@@ -399,7 +403,7 @@ begin
   elsif not ${can("post_due_rent.tenant", manage)} then
     ${forbidden("not allowed to manage leases")}
   end if;
-  <<leases>>
+  <<periods>>
   for v_row in
     select * from ${leases} x
     where x.${l("status")} = 'active' and x.${l("startsOn")} <= v_through
@@ -412,15 +416,15 @@ begin
       v_start := (v_row.${l("startsOn")} + v_n * ${step(`v_row.${l("frequency")}`)})::date;
       exit when v_start > v_through or (v_row.${l("endsOn")} is not null and v_start >= v_row.${l("endsOn")});
       if not exists (select 1 from ${charges} y where y.${c("lease")} = v_row.${l("id")} and y.${c("periodStart")} = v_start) then
-        exit leases when v_count >= v_max;
+        exit periods when v_count >= v_max;
         v_end := least((v_row.${l("startsOn")} + (v_n + 1) * ${step(`v_row.${l("frequency")}`)})::date, coalesce(v_row.${l("endsOn")}, 'infinity'::date));
         v_tx := ${ledger.fn("ledger_post")}(v_row.${l("tenant")}, 'lease.rent',
           jsonb_build_array(
             jsonb_build_object('account', ${rentAccount("v_row")}, 'amount', v_row.${l("rent")}),
             jsonb_build_object('account', ${incomeAccount("v_row")}, 'amount', -v_row.${l("rent")})),
           'leases', v_row.${l("id")}::text, 'Rent from ' || v_start::text,
-          'lease:' || v_row.${l("id")}::text || ':rent:' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row.${l("id")}, 'periodStart', v_start, 'periodEnd', v_end));
+          'leases.rent:' || v_row.${l("id")}::text || ':' || v_start::text, v_start::timestamptz,
+          jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'periodStart', v_start, 'periodEnd', v_end));
         insert into ${charges} (${c("tenant")}, ${c("lease")}, ${c("periodStart")}, ${c("periodEnd")}, ${c("amount")}, ${c("currency")}, ${c("transaction")})
         values (v_row.${l("tenant")}, v_row.${l("id")}, v_start, v_end, v_row.${l("rent")}, v_row.${l("currency")}, v_tx)
         returning * into v_charge;
@@ -467,7 +471,7 @@ begin${loadLease("record_rent_payment.lease_id", manage)}
     ${invalid("LEASE_PAYMENT_INVALID", "a payment is more than zero minor units")}
   end if;
   v_key := case when nullif(trim(record_rent_payment.reference), '') is not null
-    then 'lease-payment:' || v_row.${l("id")}::text || ':' || trim(record_rent_payment.reference) end;
+    then 'leases.payment:' || v_row.${l("id")}::text || ':' || trim(record_rent_payment.reference) end;
   select x.${lt("id")} into v_tx from ${ledger.table("transactions")} x
     where x.${lt("tenant")} = v_row.${l("tenant")} and x.${lt("key")} = v_key;
   if v_tx is null then
@@ -476,7 +480,7 @@ begin${loadLease("record_rent_payment.lease_id", manage)}
         jsonb_build_object('account', ${rentAccount("v_row")}, 'amount', -record_rent_payment.amount),
         jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', record_rent_payment.amount)),
       'leases', v_row.${l("id")}::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row.${l("id")}, 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'reference', nullif(trim(record_rent_payment.reference), ''))));
     ${ctx.record({
       type: "lease.paid",
       payload: `jsonb_build_object('organizationId', v_row.${l("tenant")}, 'id', v_row.${l("id")}, 'transactionId', v_tx, 'amount', record_rent_payment.amount::text, 'currency', v_row.${l("currency")})`,

@@ -16,8 +16,8 @@ describe("donations module", () => {
 
     expect(sql).toContain(`'donation:' || v_row."id"::text || ':posted'`);
     expect(sql).toContain(`'donation:' || v_row."id"::text || ':refunded'`);
-    expect(sql).toContain("'donations:cash:'");
-    expect(sql).toContain("'donations:fund:'");
+    expect(sql).toContain("'donations.cash:'");
+    expect(sql).toContain("'donations.fund:'");
   });
 
   it("charges a pledge period once", () => {

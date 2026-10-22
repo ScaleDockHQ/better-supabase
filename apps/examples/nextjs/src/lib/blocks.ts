@@ -17,10 +17,12 @@ import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock } from "better-supabase/blocks/deals";
 import { documentsBlock } from "better-supabase/blocks/documents";
+import { donationsBlock } from "better-supabase/blocks/donations";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { expensesBlock } from "better-supabase/blocks/expenses";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { hiringBlock } from "better-supabase/blocks/hiring";
@@ -28,6 +30,7 @@ import { importsBlock } from "better-supabase/blocks/imports";
 import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { leasesBlock } from "better-supabase/blocks/leases";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
 import { moderationBlock } from "better-supabase/blocks/moderation";
@@ -148,6 +151,9 @@ const blockSet = defineBlocks(blockConfig, {
   guests: guestsBlock,
   passes: passesBlock,
   "billable-time": billableTimeBlock,
+  leases: leasesBlock,
+  expenses: expensesBlock,
+  donations: donationsBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
   calendar: calendarBlock,

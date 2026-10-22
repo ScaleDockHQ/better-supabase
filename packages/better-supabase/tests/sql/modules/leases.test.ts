@@ -16,7 +16,7 @@ describe("leases module", () => {
 
     expect(sql).toContain(`unique ("lease_id", "period_start")`);
     expect(sql).toContain(
-      `'lease:' || v_row."id"::text || ':rent:' || v_start::text`,
+      `'leases.rent:' || v_row."id"::text || ':' || v_start::text`,
     );
     expect(sql).toContain("for update skip locked");
     expect(sql).not.toMatch(/\bbalance\s+bigint/);
@@ -53,6 +53,6 @@ describe("leases module", () => {
 
     expect(sql).toContain("leases_unit_idx");
     expect(sql).toContain("lease_charges_transaction_idx");
-    expect(sql).toContain("maintenance_requests_lease_idx");
+    expect(sql).toContain("maintenance_requests_tenancy_idx");
   });
 });

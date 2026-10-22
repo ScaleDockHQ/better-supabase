@@ -110,6 +110,9 @@
     "vercel-marketplace",
     "guests",
     "passes",
-    "billable-time"
+    "billable-time",
+    "leases",
+    "expenses",
+    "donations"
   ]
 }

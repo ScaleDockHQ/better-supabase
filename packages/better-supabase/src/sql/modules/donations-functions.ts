@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -24,6 +25,12 @@ export function donationsFunctions(ctx: ModuleContext): string {
   const ops = moduleOperations("donations");
   const read = ctx.permission("read", ops.read);
   const manage = ctx.permission("manage", ops.manage);
+  const e = (name: string): string => ctx.resolved.entityNaming.rename(name);
+
+  const fundType =
+    ctx.resolved.entities["donation_fund"]?.to.singular ?? "donation_fund";
+
+  const giftKey = sqlString(e("donationId"));
 
   const can = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -118,18 +125,18 @@ export function donationsFunctions(ctx: ModuleContext): string {
       },
     });
 
-  const cashAccount = `${ledger.fn("ledger_account_for")}(v_row.${d("tenant")}, 'donation_cash', 'donations:cash:' || v_row.${d("currency")},
+  const cashAccount = `${ledger.fn("ledger_account_for")}(v_row.${d("tenant")}, 'gift_cash', 'donations.cash:' || v_row.${d("currency")},
       'Donations received ' || v_row.${d("currency")}, v_row.${d("currency")}::text, 0::smallint, null, null, null, true, ${read}, 'donations', null)`;
 
-  const incomeAccount = `${ledger.fn("ledger_account_for")}(v_row.${d("tenant")}, 'donation_income',
-      'donations:fund:' || coalesce(v_fund.${f("key")}, 'general') || ':' || v_row.${d("currency")},
+  const incomeAccount = `${ledger.fn("ledger_account_for")}(v_row.${d("tenant")}, 'gift_income',
+      'donations.fund:' || coalesce(v_fund.${f("key")}, 'general') || ':' || v_row.${d("currency")},
       'Donations: ' || coalesce(v_fund.${f("name")}, 'General'), v_row.${d("currency")}::text, 0::smallint,
-      case when v_fund.${f("id")} is null then null else 'donation_funds' end, v_fund.${f("id")}::text, null, true, ${read}, 'donations', null)`;
+      case when v_fund.${f("id")} is null then null else ${sqlString(fundType)} end, v_fund.${f("id")}::text, null, true, ${read}, 'donations', null)`;
 
   const assignReceiptNumber = (tenant: string): string =>
     assignNumberSql(
       ctx,
-      "donation_receipt",
+      e("donation_receipt"),
       tenant,
       { seq: "v_seq", identifier: "v_number" },
       {
@@ -267,7 +274,7 @@ begin
         jsonb_build_object('account', ${cashAccount}, 'amount', v_row.${d("amount")}),
         jsonb_build_object('account', ${incomeAccount}, 'amount', -v_row.${d("amount")})),
       'donations', v_row.${d("id")}::text, 'Gift', 'donation:' || v_row.${d("id")}::text || ':posted', v_row.${d("receivedOn")}::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row.${d("id")}, 'donorType', v_row.${d("donorType")}, 'donorId', v_row.${d("donorId")}, 'fundId', v_row.${d("fund")})));
+      jsonb_strip_nulls(jsonb_build_object(${giftKey}, v_row.${d("id")}, 'donorType', v_row.${d("donorType")}, 'donorId', v_row.${d("donorId")}, 'fundId', v_row.${d("fund")})));
     update ${donations} x set ${d("status")} = 'posted', ${d("transaction")} = v_tx, ${d("updatedAt")} = now()
       where x.${d("id")} = v_row.${d("id")}
       returning * into v_row;
@@ -283,7 +290,7 @@ begin
         jsonb_build_object('account', ${cashAccount}, 'amount', -v_row.${d("amount")}),
         jsonb_build_object('account', ${incomeAccount}, 'amount', v_row.${d("amount")})),
       'donations', v_row.${d("id")}::text, 'Gift refunded', 'donation:' || v_row.${d("id")}::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row.${d("id")}));
+      jsonb_build_object(${giftKey}, v_row.${d("id")}));
     update ${receipts} x set ${r("voidedAt")} = now(), ${r("voidReason")} = 'the gift was refunded'
       where x.${r("id")} = v_row.${d("receipt")} and x.${r("kind")} = 'gift' and x.${r("voidedAt")} is null;
     update ${donations} x set ${d("status")} = 'refunded', ${d("refundTransaction")} = v_tx, ${d("receipt")} = null, ${d("updatedAt")} = now()
@@ -570,7 +577,7 @@ begin
   if not ${can("due_pledge_installments.tenant", manage)} then
     ${forbidden("not allowed to manage donations")}
   end if;
-  <<pledges>>
+  <<installments>>
   for v_row in
     select * from ${pledges} x
     where x.${p("tenant")} = due_pledge_installments.tenant and x.${p("status")} = 'active' and x.${p("startsOn")} <= v_through
@@ -582,8 +589,8 @@ begin
       exit when v_start > v_through or (v_row.${p("endsOn")} is not null and v_start >= v_row.${p("endsOn")});
       if not exists (select 1 from ${donations} g where g.${d("pledge")} = v_row.${p("id")} and g.${d("periodStart")} = v_start
         and not (g.${d("status")} = 'pending' and g.${d("paymentReference")} is null)) then
-        exit pledges when jsonb_array_length(v_items) >= v_max;
-        v_items := v_items || jsonb_build_array(jsonb_build_object('pledgeId', v_row.${p("id")}, 'periodStart', v_start,
+        exit installments when jsonb_array_length(v_items) >= v_max;
+        v_items := v_items || jsonb_build_array(jsonb_build_object('periodStart', v_start, 'pledgeId', v_row.${p("id")},
           'donorType', v_row.${p("donorType")}, 'donorId', v_row.${p("donorId")}, 'fundId', v_row.${p("fund")},
           'amount', v_row.${p("amount")}::text, 'currency', v_row.${p("currency")},
           'provider', v_row.${p("provider")}, 'providerCustomer', v_row.${p("providerCustomer")}));
@@ -655,7 +662,7 @@ begin
   if issue_yearly_receipt.year is null or issue_yearly_receipt.currency is null then
     ${invalid("DONATION_RECEIPT_INVALID", "a yearly receipt needs a year and a currency")}
   end if;
-  perform pg_advisory_xact_lock(hashtextextended('donations:yearly:' || issue_yearly_receipt.tenant::text || ':' || issue_yearly_receipt.donor_type
+  perform pg_advisory_xact_lock(hashtextextended('donations.yearly:' || issue_yearly_receipt.tenant::text || ':' || issue_yearly_receipt.donor_type
     || ':' || issue_yearly_receipt.donor_id || ':' || issue_yearly_receipt.year::text || ':' || issue_yearly_receipt.currency, 0));
   select * into v_receipt from ${receipts} x
     where x.${r("tenant")} = issue_yearly_receipt.tenant and x.${r("donorType")} = issue_yearly_receipt.donor_type

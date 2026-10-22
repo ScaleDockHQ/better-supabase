@@ -43,7 +43,9 @@ import {
   GlobeIcon,
   GraduationCapIcon,
   HandCoinsIcon,
+  HandHeartIcon,
   HourglassIcon,
+  HouseIcon,
   HandshakeIcon,
   HardDriveIcon,
   HashIcon,
@@ -77,6 +79,7 @@ import {
   RadioIcon,
   ReceiptIcon,
   ReceiptTextIcon,
+  WalletIcon,
   Repeat1Icon,
   RocketIcon,
   SatelliteDishIcon,
@@ -210,6 +213,10 @@ export const BLOCK_ICONS = {
   bookings: CalendarCheckIcon,
   passes: TicketIcon,
   "billable-time": HourglassIcon,
+  // Verticals
+  leases: HouseIcon,
+  expenses: WalletIcon,
+  donations: HandHeartIcon,
   // Content & files
   imports: FileUpIcon,
   versions: HistoryIcon,

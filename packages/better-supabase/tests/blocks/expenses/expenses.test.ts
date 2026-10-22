@@ -305,6 +305,7 @@ describe("createExpenses", () => {
           amount: "4200",
           description: "Train",
           merchant: "NS",
+          currency: "EUR",
         },
       ],
       [
@@ -316,6 +317,7 @@ describe("createExpenses", () => {
           amount: "4200",
           description: "Train",
           merchant: null,
+          currency: "EUR",
         },
       ],
       [
@@ -327,6 +329,7 @@ describe("createExpenses", () => {
           amount: "4300",
           description: "Train back",
           merchant: "NS",
+          currency: "EUR",
         },
       ],
       [
@@ -338,6 +341,7 @@ describe("createExpenses", () => {
           amount: null,
           description: null,
           merchant: null,
+          currency: null,
         },
       ],
       ["remove_expense_line", { line_id: "line-1" }],

@@ -249,7 +249,7 @@ create table if not exists ${maintenance} (
 );
 create index if not exists ${index("maintenance", "tenant_idx")} on ${maintenance} (${m("tenant")}, ${m("status")}, ${m("createdAt")} desc);
 create index if not exists ${index("maintenance", "unit_idx")} on ${maintenance} (${m("unit")});
-create index if not exists ${index("maintenance", "lease_idx")} on ${maintenance} (${m("lease")}) where ${m("lease")} is not null;
+create index if not exists ${index("maintenance", "tenancy_idx")} on ${maintenance} (${m("lease")}) where ${m("lease")} is not null;
 ${lockTable(maintenance, { read: true })}
 drop policy if exists ${index("maintenance", "read")} on ${maintenance};
 create policy ${index("maintenance", "read")} on ${maintenance} for select to authenticated
