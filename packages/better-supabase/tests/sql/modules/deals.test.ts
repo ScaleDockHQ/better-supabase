@@ -32,14 +32,12 @@ describe("deals module", () => {
       render({
         modules: {
           pipelines: {
-            options: {
-              subjects: {
-                deal: {
-                  stages: [
-                    { key: "lead", name: "Lead", category: "open" },
-                    { key: "won", name: "Won", category: "won" },
-                  ],
-                },
+            on: {
+              deal: {
+                stages: [
+                  { key: "lead", name: "Lead", category: "open" },
+                  { key: "won", name: "Won", category: "won" },
+                ],
               },
             },
           },

@@ -4,7 +4,6 @@ import { blockOptions, option } from "../options.ts";
 
 /** `blocks.reviews.options`. */
 export type ReviewsSqlOptions = {
-  readonly subjects?: unknown;
   readonly scale?: number;
   readonly maxBodyLength?: number;
   readonly moderation?: string;
@@ -14,7 +13,6 @@ export type ReviewsSqlOptions = {
 
 export const reviewsSqlOptions: BlockOptionsSchema<ReviewsSqlOptions> =
   blockOptions<ReviewsSqlOptions>({
-    subjects: option.unknown(),
     scale: option.number({ default: 5 }),
     maxBodyLength: option.number({ default: 5000 }),
     moderation: option.string({ default: "pre" }),

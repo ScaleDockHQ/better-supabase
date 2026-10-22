@@ -10,7 +10,8 @@ const SUBJECTS = {
 const sqlOf = (subjects: unknown): string =>
   renderBlocks(["field-history", "subjects"], {
     subjects: SUBJECTS,
-    modules: { "field-history": { options: { subjects } } },
+    // SAFETY: the rejection cases pass malformed values on purpose.
+    modules: { "field-history": { on: subjects as never } },
   })
     .filter((file) => file.module === "field-history")
     .map((file) => file.contents)
@@ -18,7 +19,7 @@ const sqlOf = (subjects: unknown): string =>
 
 describe("field-history module", () => {
   it("adds a trigger per record type on its watched columns", () => {
-    const sql = sqlOf({ deal: ["amount", "stage_id", "amount"] });
+    const sql = sqlOf({ deal: { fields: ["amount", "stage_id", "amount"] } });
 
     expect(sql).toContain(
       'create trigger bsb_field_history_deal after update of "amount", "stage_id" on "public"."deals"',
@@ -38,11 +39,19 @@ describe("field-history module", () => {
   });
 
   it.each([
-    ["a list", [], "blocks.field-history.options.subjects must be an object"],
-    ["an unknown type", { order: ["total"] }, 'register "order"'],
-    ["no columns", { deal: [] }, "non-empty list of column names"],
-    ["a bad column", { deal: ["Amount;"] }, "non-empty list of column names"],
-    ["not a list", { deal: "amount" }, "non-empty list of column names"],
+    ["a type without fields", ["deal"], "blocks.field-history.on.deal.fields"],
+    ["an unknown type", { order: { fields: ["total"] } }, 'register "order"'],
+    ["no columns", { deal: { fields: [] } }, "non-empty list of column names"],
+    [
+      "a bad column",
+      { deal: { fields: ["Amount;"] } },
+      "non-empty list of column names",
+    ],
+    [
+      "not a list",
+      { deal: { fields: "amount" } },
+      "non-empty list of column names",
+    ],
   ])("rejects %s", (_, subjects, message) => {
     expect(() => sqlOf(subjects)).toThrow(message);
   });

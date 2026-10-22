@@ -16,11 +16,11 @@ The module needs `tenant`, `permissions` and `subjects`.
 ```ts title="better-supabase.config.ts"
 blocks: {
   sla: {
+    on: {
+      ticket: { status: "status", priority: "priority", pause: ["waiting"], resolve: ["solved", "closed"] },
+    },
     options: {
       businessHours: { timeZone: "Europe/Amsterdam", start: "09:00", end: "17:00", days: [1, 2, 3, 4, 5] },
-      subjects: {
-        ticket: { status: "status", priority: "priority", pause: ["waiting"], resolve: ["solved", "closed"] },
-      },
     },
   },
 },
@@ -58,7 +58,7 @@ await sla
 
 ## Clocks
 
-Bind a record type in `options.subjects` and the module drives its clocks from the record's own columns:
+Bind a record type in `on` and the module drives its clocks from the record's own columns:
 
 | Change                               | Clocks                                                         |
 | ------------------------------------ | -------------------------------------------------------------- |

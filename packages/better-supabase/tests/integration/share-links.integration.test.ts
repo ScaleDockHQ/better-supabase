@@ -42,11 +42,7 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
        alter table public.bsb_test_docs enable row level security;`,
     );
     await session.install(["organizations", "share-links"], {
-      modules: {
-        "share-links": {
-          options: { subjects: { doc: { table: "bsb_test_docs" } } },
-        },
-      },
+      modules: { "share-links": { on: { doc: { table: "bsb_test_docs" } } } },
     });
     owner = await session.user("owner");
     outsider = await session.user("outsider");

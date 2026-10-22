@@ -90,7 +90,6 @@ const NAMES: BlockSqlNames = {
     "requireScan",
     "maxSize",
     "allowedMimeTypes",
-    "subjects",
     "path",
     "scanBuckets",
     "extraColumns",
@@ -248,8 +247,8 @@ interface SubjectBucket {
 }
 
 /**
- * The subjects with their own bucket or MIME types
- * (`options.subjects.<type>.bucket`, `.allowedMimeTypes`).
+ * The subjects with their own bucket or MIME types (`on.<type>.bucket`,
+ * `.allowedMimeTypes`).
  */
 function subjectBuckets(
   subjects: readonly (readonly [string, Subject])[],
@@ -260,7 +259,7 @@ function subjectBuckets(
 
     if (!isText(bucket) || !BUCKET.test(bucket)) {
       throw new TypeError(
-        `blocks.attachments.options.subjects.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
+        `blocks.attachments.on.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
       );
     }
 
@@ -268,7 +267,7 @@ function subjectBuckets(
 
     if (!Array.isArray(mimeTypes) || !mimeTypes.every(isText)) {
       throw new TypeError(
-        `blocks.attachments.options.subjects.${type}.allowedMimeTypes must be a list of MIME types`,
+        `blocks.attachments.on.${type}.allowedMimeTypes must be a list of MIME types`,
       );
     }
 
@@ -642,7 +641,7 @@ grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("
 grant all on ${t} to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
--- without a subject pass; with options.subjects, an unlisted type fails.
+-- without a subject pass; with on, an unlisted type fails.
 -- plpgsql, so a subject table a later module creates (messages) binds late.
 create or replace function ${fn("attachment_subject_readable")}(subject_type text, subject_id text, tenant ${id})
 returns boolean

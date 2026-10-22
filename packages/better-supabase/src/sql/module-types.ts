@@ -175,8 +175,8 @@ export interface BlockSql {
     ctx: BlockSqlContext,
   ) => Readonly<Record<string, readonly string[]>>;
   /**
-   * Adopted tables a subject carries (`options.subjects.<type>.<key>`), checked
-   * by `adoptedColumnProblems`. A null column is mapped away.
+   * Adopted tables a subject carries (`on.<type>.<key>`), checked by
+   * `adoptedColumnProblems`. A null column is mapped away.
    */
   readonly adoptSubjectTables?: (
     ctx: BlockSqlContext,
@@ -352,7 +352,7 @@ export interface BlockSqlAccessProvider {
   readonly name: string;
   /** The provider scope tenants are. */
   readonly scope: string;
-  /** Every scope it declares, for `options.subjects.<type>.scope`. */
+  /** Every scope it declares, for `on.<type>.scope`. */
   readonly scopes?: readonly string[];
   readonly idType: BlockSqlIdType;
   readonly functions: AuthorizationFunctions;

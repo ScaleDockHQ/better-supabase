@@ -627,12 +627,10 @@ describe.skipIf(!live)("notifications", () => {
       for (const file of renderBlocks(["organizations", "notifications"], {
         modules: {
           notifications: {
-            options: {
-              subjects: {
-                "time-off-request": {
-                  table: "bsb_test_time_off_requests",
-                  cascade: true,
-                },
+            on: {
+              "time-off-request": {
+                table: "bsb_test_time_off_requests",
+                cascade: true,
               },
             },
           },

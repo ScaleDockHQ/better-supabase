@@ -351,15 +351,10 @@ describe("notification subjects", () => {
   it("deletes a subject's notifications and subscriptions when the subject row is deleted", () => {
     const sql = body({
       notifications: {
-        options: {
-          subjects: {
-            "time-off-request": {
-              table: "app.time_off_requests",
-              cascade: true,
-            },
-            expense: { table: "expenses", tenant: false, cascade: true },
-            invoice: { table: "invoices" },
-          },
+        on: {
+          "time-off-request": { table: "app.time_off_requests", cascade: true },
+          expense: { table: "expenses", tenant: false, cascade: true },
+          invoice: { table: "invoices" },
         },
       },
     });
@@ -396,7 +391,7 @@ describe("notification subjects", () => {
     const subjects = { task: { table: "tasks", cascade: true } };
 
     const sql = body({
-      notifications: { tables: { subscriptions: null }, options: { subjects } },
+      notifications: { tables: { subscriptions: null }, on: subjects },
     });
 
     expect(sql).toContain("notifications_subject_deleted");
@@ -405,7 +400,7 @@ describe("notification subjects", () => {
     const untenanted = body({
       notifications: {
         columns: { events: { tenant: null }, subscriptions: { tenant: null } },
-        options: { subjects },
+        on: subjects,
       },
     });
 
@@ -420,23 +415,17 @@ describe("notification subjects", () => {
       body({
         notifications: {
           columns: { events: { subjectType: null } },
-          options: { subjects },
+          on: subjects,
         },
       }),
     ).toThrow(/needs the subjectType and subjectId columns/);
     expect(() =>
       body({
-        notifications: {
-          options: { subjects: { "Time-Off": { table: "t", cascade: true } } },
-        },
+        notifications: { on: { "Time-Off": { table: "t", cascade: true } } },
       }),
     ).toThrow(/lowercase letters, digits, hyphens and underscores/);
     expect(() =>
-      body({
-        notifications: {
-          options: { subjects: { task: { table: "t", cascade: "yes" } } },
-        },
-      }),
+      body({ notifications: { on: { task: { table: "t", cascade: "yes" } } } }),
     ).toThrow(/cascade must be true or false/);
   });
 });

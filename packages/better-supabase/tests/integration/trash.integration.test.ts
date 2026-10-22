@@ -26,16 +26,14 @@ const layout: BlockSqlLayout = {
   },
   modules: {
     trash: {
-      options: {
-        retentionDays: 7,
-        subjects: {
-          project: {
-            unique: ["slug"],
-            children: [{ type: "task", column: "project_id" }],
-          },
-          task: {},
+      on: {
+        project: {
+          unique: ["slug"],
+          children: [{ type: "task", column: "project_id" }],
         },
+        task: {},
       },
+      options: { retentionDays: 7 },
     },
   },
 };

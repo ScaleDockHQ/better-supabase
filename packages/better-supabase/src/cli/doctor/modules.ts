@@ -20,6 +20,7 @@ import { tomlGet } from "../supabase-toml.ts";
 import { attachmentSubjectsOnDefaults } from "./attachment-subjects.ts";
 import { globs, moduleOwned, unauditedTables } from "./audit-coverage.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
+import { onUnknownRecordTypes } from "./block-on.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";
 import { literal } from "./live.ts";
 import { reservedRoles } from "./reserved-roles.ts";
@@ -941,8 +942,16 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Attachments subject on block-wide keys with stricter RLS",
     description:
-      "An `attachments` subject has no `read` or `upload` key of its own, so its files are checked with the block-wide `attachments.read` and `attachments.upload` keys, but the subject table's own policies check more than tenant membership: a permission key of their own, an owner or `auth.uid()` comparison, or another condition. Any member of the tenant then reads and uploads files of rows they can't open. Doctor recognizes `current_tenant_id()`, `tenant_ids_with`, `member_<tenant>_ids`, `can('tenant', ...)` and `member_can` with the block's key as tenant membership. Set `subjects.<type>.permissions.upload`, or `blocks.attachments.options.subjects.<type>.permissions` for `read`, to the keys the table checks.",
+      "An `attachments` subject has no `read` or `upload` key of its own, so its files are checked with the block-wide `attachments.read` and `attachments.upload` keys, but the subject table's own policies check more than tenant membership: a permission key of their own, an owner or `auth.uid()` comparison, or another condition. Any member of the tenant then reads and uploads files of rows they can't open. Doctor recognizes `current_tenant_id()`, `tenant_ids_with`, `member_<tenant>_ids`, `can('tenant', ...)` and `member_can` with the block's key as tenant membership. Set `subjects.<type>.permissions.upload`, or `blocks.attachments.on.<type>.permissions` for `read`, to the keys the table checks.",
     check: attachmentSubjectsOnDefaults,
+  },
+  {
+    code: "BS346",
+    severity: "warning",
+    title: "Block on names an unknown record type",
+    description:
+      "A block entry's `on` lists a type, or has a key, that `config.records` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `config.records` or remove it from `on`.",
+    check: onUnknownRecordTypes,
   },
   {
     code: "BS335",

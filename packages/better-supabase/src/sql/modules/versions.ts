@@ -61,7 +61,7 @@ const NAMES: BlockSqlNames = {
     "before_version_restore",
     "after_version_restore",
   ],
-  options: ["subjects", "keep", "debounce", "extraColumns"],
+  options: ["keep", "debounce", "extraColumns"],
   tables: {
     versions: {
       name: "versions",
@@ -103,7 +103,7 @@ interface Versioned {
 }
 
 function versioned(ctx: BlockSqlContext): readonly Versioned[] {
-  const where = "blocks.versions.options.subjects";
+  const where = "blocks.versions.on";
 
   return subjectsOption(
     ctx,
@@ -765,7 +765,7 @@ end;
 $$;
 ${userGrant(`${fn("delete_version")}(uuid)`)}
 
--- options.subjects.<type>.auto and .freeze: tg_argv is the subject type, its
+-- on.<type>.auto and .freeze: tg_argv is the subject type, its
 -- id and tenant columns, the snapshot columns, then the freeze column and
 -- values (empty for auto). A restore sets ${RESTORING}, so it isn't
 -- snapshotted twice.

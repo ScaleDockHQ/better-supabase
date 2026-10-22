@@ -64,7 +64,7 @@ const NAMES: BlockSqlNames = {
     "before_signature_sign",
     "after_signature_sign",
   ],
-  options: ["subjects", "extraColumns"],
+  options: ["extraColumns"],
   tables: {
     requests: {
       name: "signature_requests",

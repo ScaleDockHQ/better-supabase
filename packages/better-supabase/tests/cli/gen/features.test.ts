@@ -155,14 +155,9 @@ describe("record features", () => {
     );
   });
 
-  it("follows blocks.<name>.options.subjects", () => {
+  it("follows blocks.<instance>.on", () => {
     const files = emitFeatures(
-      config({
-        blocks: {
-          memberships: {},
-          tags: { options: { subjects: ["project"] } },
-        },
-      }),
+      config({ blocks: { memberships: {}, tags: { on: ["project"] } } }),
       [],
     ).map((file) => file.path);
 

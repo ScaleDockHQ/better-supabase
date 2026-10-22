@@ -871,7 +871,7 @@ $$;
 revoke execute on function "better_supabase"."remind_approvals"(interval, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."remind_approvals"(interval, integer) to service_role;
 
--- options.subjects with cascade: deleting a subject row deletes its approvals rows.
+-- on with cascade: deleting a subject row deletes its approvals rows.
 create or replace function "better_supabase"."approvals_subject_deleted"()
 returns trigger
 language plpgsql

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { entryOf } from "../../fixtures/block-entry.ts";
 
 const sqlOf = (
   layout: Parameters<typeof renderBlocks>[1] = {},
@@ -12,7 +13,7 @@ const sqlOf = (
     .join("\n");
 
 const withOptions = (options: Record<string, unknown>) => ({
-  modules: { relations: { options } },
+  modules: { relations: entryOf(options) },
 });
 
 describe("relations module", () => {
@@ -82,7 +83,7 @@ describe("relations module", () => {
   it("checks both ends against the subjects and locks acyclic kinds", () => {
     const sql = sqlOf(
       withOptions({
-        subjects: {
+        on: {
           task: {
             table: "public.tasks",
             permission: "tasks.read",

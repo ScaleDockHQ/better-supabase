@@ -66,7 +66,7 @@ export function defaultPipeline(
 
   return `
 -- The default pipeline of a subject type in a tenant and scope. The first
--- call creates it from the type's stage template in options.subjects.
+-- call creates it from the type's stage template in on.
 create or replace function ${self}(tenant ${ctx.idType}, subject_type text, scope_id text)
 returns uuid
 language plpgsql

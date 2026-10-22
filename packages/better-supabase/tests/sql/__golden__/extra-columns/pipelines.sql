@@ -144,7 +144,7 @@ create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_h
 using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
--- call creates it from the type's stage template in options.subjects.
+-- call creates it from the type's stage template in on.
 create or replace function "better_supabase"."default_pipeline"(tenant uuid, subject_type text, scope_id text)
 returns uuid
 language plpgsql

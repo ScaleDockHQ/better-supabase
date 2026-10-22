@@ -45,7 +45,7 @@ describe("reactions module", () => {
     expect(sql).not.toContain(`when 'inbox_message'`);
   });
 
-  it("keeps messages when options.subjects lists other types", () => {
+  it("keeps messages when on lists other types", () => {
     const modules = ["reactions", "messaging", "comments"];
 
     const sql = sqlOf(modules, "reactions", {
@@ -54,7 +54,7 @@ describe("reactions module", () => {
         modules,
         {},
       ),
-      modules: { reactions: { options: { subjects: ["doc"] } } },
+      modules: { reactions: { on: ["doc"] } },
     });
 
     expect(sql).toContain(`when 'doc' then exists`);

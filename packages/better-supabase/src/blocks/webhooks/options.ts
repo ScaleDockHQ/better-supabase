@@ -30,12 +30,10 @@ export const webhooksOutSqlOptions: BlockOptionsSchema<WebhooksOutSqlOptions> =
 export type WebhooksInSqlOptions = {
   readonly maxBodyBytes?: number;
   readonly secretStorage?: string;
-  readonly subjects?: unknown;
 };
 
 export const webhooksInSqlOptions: BlockOptionsSchema<WebhooksInSqlOptions> =
   blockOptions<WebhooksInSqlOptions>({
     maxBodyBytes: option.number({ default: 1_048_576 }),
     secretStorage: option.string({ default: "vault" }),
-    subjects: option.unknown(),
   });

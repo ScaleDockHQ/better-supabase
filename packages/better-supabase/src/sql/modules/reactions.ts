@@ -39,7 +39,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_react", "after_react"],
-  options: ["subjects", "topic"],
+  options: ["topic"],
   tables: {
     reactions: {
       name: "reactions",
@@ -107,7 +107,7 @@ function topicOf(ctx: BlockSqlContext): string {
 /**
  * The module's subjects. Messages (and so comments) always join them when the
  * messaging module is installed, under the message entity's subject type, even
- * when `options.subjects` lists other types.
+ * when `on` lists other types.
  */
 function reactionSubjects(ctx: BlockSqlContext): readonly [string, Subject][] {
   const messages =

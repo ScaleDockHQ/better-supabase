@@ -10,8 +10,8 @@ import { accessModel } from "./modules/permissions-model.ts";
 import { quotedTable, splitTable } from "./shared.ts";
 
 /**
- * One subject type a module's rows belong to (`options.subjects`): the table
- * its ids point at, and who may read it.
+ * One subject type a module's rows belong to (`on`): the table its ids point
+ * at, and who may read it.
  */
 export interface Subject {
   /** `schema.table`, or a table in `public`. */
@@ -87,7 +87,7 @@ function fromRegistry(
 }
 
 /**
- * The module's subject entries before they are checked: `options.subjects` as
+ * The module's subject entries before they are checked: the instance's `on` as
  * an object (entries for registered types merge onto the registry's), as a list
  * of registered type names, or, when unset, every registered type the module
  * can hold.
@@ -104,7 +104,7 @@ function rawSubjects(
 ): Record<string, unknown> {
   const registry = ctx.subjects;
 
-  const raw = allow.registryOnly === true ? undefined : ctx.option("subjects");
+  const raw = allow.registryOnly === true ? undefined : ctx.on;
 
   const tenantless = allow.tenantless === true;
 
@@ -180,18 +180,18 @@ function withAlways(
 }
 
 /**
- * `blocks.<module>.options.subjects`: subject type to `{ table, id?, tenant?,
- * permission?, cascade? }` plus the `extra` keys the module reads, falling back
- * to the app-wide `config.records` registry.
+ * `blocks.<instance>.on`: subject type to `{ table, id?, tenant?, permission?,
+ * cascade? }` plus the `extra` keys the module reads, falling back to the
+ * app-wide `config.records` registry.
  */
 export function subjectsOption(
   ctx: BlockSqlContext,
   extraKeys: readonly string[] = [],
   allow: {
     readonly tenantless?: boolean;
-    /** `false`: read the registry only for the types `options.subjects` names. */
+    /** `false`: read the registry only for the types `on` names. */
     readonly fallback?: boolean;
-    /** Every registered type, for a module that takes no `options.subjects`. */
+    /** Every registered type, for a module that takes no `on`. */
     readonly registryOnly?: boolean;
     /**
      * Subject types may contain `-` (`purchase-order`), for a module whose
@@ -199,14 +199,14 @@ export function subjectsOption(
      */
     readonly hyphens?: boolean;
     /**
-     * Registered types this picks join the module's subjects even when
-     * `options.subjects` lists others, such as app tables with
-     * `subject.versions` for the versions block.
+     * Registered types this picks join the module's subjects even when `on`
+     * lists others, such as app tables with `subject.versions` for the versions
+     * block.
      */
     readonly always?: (entry: SubjectConfig) => boolean;
   } = {},
 ): readonly [string, Subject][] {
-  const where = `blocks.${ctx.module}.options.subjects`;
+  const where = `blocks.${ctx.instance}.on`;
 
   const raw = withAlways(
     ctx,
@@ -293,14 +293,41 @@ export function subjectsOption(
   });
 }
 
+/**
+ * `blocks.<instance>.on` keyed by record type: a list gives each type empty
+ * settings, and unset gives none.
+ */
+export function onSettings(
+  ctx: BlockSqlContext,
+): Readonly<Record<string, unknown>> {
+  const on = ctx.on;
+
+  if (on === undefined) {
+    return {};
+  }
+
+  if (Array.isArray(on)) {
+    return Object.fromEntries(
+      on.map((type: unknown): [string, object] => [String(type), {}]),
+    );
+  }
+
+  if (!isRecord(on)) {
+    throw new TypeError(
+      `blocks.${ctx.instance}.on must be a list of record types or an object keyed by record type`,
+    );
+  }
+
+  return on;
+}
+
 export const qualifiedTable = (table: string): string => quotedTable(table);
 
 const COLUMN_NAME = /^[a-z_][a-z0-9_]*$/;
 
 /**
- * One adopted table a subject carries (`options.subjects.<type>.<key>`), so a
- * module can write per-entity link or history tables instead of one polymorphic
- * table. ADR 0018.
+ * One adopted table a subject carries (`on.<type>.<key>`), so a module can
+ * write per-entity link or history tables instead of one polymorphic table. ADR 0018.
  */
 export interface SubjectTableBinding {
   readonly type: string;
@@ -313,9 +340,9 @@ export interface SubjectTableBinding {
 }
 
 /**
- * `options.subjects.<type>.<key>` as `{ table, <column>... }`. Undefined when
- * the subject doesn't set it (the module's polymorphic table is used).
- * `columns` are required; `optional` may be omitted.
+ * `on.<type>.<key>` as `{ table, <column>... }`. Undefined when the subject
+ * doesn't set it (the module's polymorphic table is used). `columns` are
+ * required; `optional` may be omitted.
  */
 function subjectTableBinding(
   ctx: BlockSqlContext,
@@ -333,7 +360,7 @@ function subjectTableBinding(
     return undefined;
   }
 
-  const where = `blocks.${ctx.module}.options.subjects.${type}.${key}`;
+  const where = `blocks.${ctx.instance}.on.${type}.${key}`;
 
   if (!isRecord(raw) || typeof raw["table"] !== "string") {
     throw new TypeError(`${where} needs { table, ${spec.columns.join(", ")} }`);
@@ -516,7 +543,7 @@ create trigger ${trigger}
       : "";
 
   return `
--- options.subjects with cascade: deleting a subject row deletes its ${ctx.module} rows.
+-- on with cascade: deleting a subject row deletes its ${ctx.module} rows.
 create or replace function ${fn}()
 returns trigger
 language plpgsql
@@ -556,10 +583,10 @@ export interface SubjectAccess<A extends string> {
 }
 
 /**
- * The checks for `options.subjects.<type>.permissions` (a key per action in
- * place of the module's) and `options.subjects.<type>.scope` (a scope the
- * authorization provider declares, whose ids are the subject ids, so a grant on
- * the record counts as well as one on the tenant).
+ * The checks for `on.<type>.permissions` (a key per action in place of the
+ * module's) and `on.<type>.scope` (a scope the authorization provider declares,
+ * whose ids are the subject ids, so a grant on the record counts as well as one
+ * on the tenant).
  */
 export function subjectAccess<A extends string>(
   ctx: BlockSqlContext,
@@ -577,7 +604,7 @@ export function subjectAccess<A extends string>(
   },
 ): SubjectAccess<A> {
   const { subjects, actions, permission, provider } = options;
-  const where = `blocks.${ctx.module}.options.subjects`;
+  const where = `blocks.${ctx.instance}.on`;
   const allowed: ReadonlySet<string> = new Set(actions);
 
   const entries = subjects.map(([type, subject]) => {
@@ -741,7 +768,7 @@ export function subjectAccess<A extends string>(
   };
 }
 
-/** `options.subjects.<type>.scope`, checked against the provider's scopes. */
+/** `on.<type>.scope`, checked against the provider's scopes. */
 function subjectScope(
   ctx: BlockSqlContext,
   provider: BlockSqlAccessProvider | undefined,
@@ -754,7 +781,7 @@ function subjectScope(
     return undefined;
   }
 
-  const where = `blocks.${ctx.module}.options.subjects.${type}.scope`;
+  const where = `blocks.${ctx.instance}.on.${type}.scope`;
 
   if (typeof scope !== "string") {
     throw new TypeError(`${where} must be the name of a provider scope`);

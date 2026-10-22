@@ -11,7 +11,7 @@ Reading needs `deals.read`, creating and editing needs `deals.write`, and deleti
 better-supabase add deals
 ```
 
-The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it binds the `deal` type in the pipelines module with the categories `open`, `won` and `lost`, and a first pipeline of Qualified (20%), Discovery (35%), Proposal (55%), Negotiation (75%), Closed won and Closed lost. Set `blocks.pipelines.options.subjects.deal` to change the stages or add a rotting limit; your keys are merged over the defaults.
+The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it binds the `deal` type in the pipelines module with the categories `open`, `won` and `lost`, and a first pipeline of Qualified (20%), Discovery (35%), Proposal (55%), Negotiation (75%), Closed won and Closed lost. Set `blocks.pipelines.on.deal` to change the stages or add a rotting limit; your keys are merged over the defaults.
 
 Installing deals and parties registers `deal`, `company` and `person` as subjects. Set the deal page on the entity:
 

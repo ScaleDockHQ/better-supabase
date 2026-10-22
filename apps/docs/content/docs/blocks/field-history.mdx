@@ -17,21 +17,16 @@ better-supabase add field-history   # adds tenant, access and subjects as well
 blocks: {
   deals: {},
   "field-history": {
-    options: {
-      subjects: {
-        deal: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
-        company: ["owner_user_id", "lifecycle"],
-      },
+    on: {
+      deal: { fields: ["amount", "stage_id", "owner_user_id", "expected_close_on"] },
+      company: { fields: ["owner_user_id", "lifecycle"] },
     },
   },
 },
 ```
 
-| Option     | Default | What it does                                               |
-| ---------- | ------- | ---------------------------------------------------------- |
-| `subjects` | `{}`    | the database columns to track, per registered subject type |
-
-Each key must be a [subject](/docs/blocks/subjects) type with a tenant
+The block has no options. `on` names the columns to track per record type,
+and it tracks nothing without one. Each key must be a [subject](/docs/blocks/subjects) type with a tenant
 column, and each column a database name (`stage_id`, not `stageId`). A
 change only writes a row when the value differs, so an update that touches
 other columns records nothing.

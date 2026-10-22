@@ -41,7 +41,7 @@ A write takes the record's id and the write's input, such as
 With a block that adds sections installed, [`gen`](/docs/cli/gen) writes one
 feature per subject in `features/<subject>/` next to the main module, with a
 section for each installed block that serves the subject. A block serves the
-subject types its `options.subjects` names, or every tenant subject when it
+subject types its `on` names, or every tenant subject when it
 names none; `versions` serves the subjects that set `versions`. Set
 `generateFeatures: false` in the config to write none. `gen` writes no UI:
 the cards come from the [UI recipes](/docs/registry/ui-recipes).

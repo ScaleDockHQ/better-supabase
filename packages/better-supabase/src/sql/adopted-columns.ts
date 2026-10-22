@@ -281,7 +281,7 @@ export function adoptedColumnProblems(
         }
 
         problems.push(
-          `blocks.${name} is in adopt mode and uses ${extra.schema}.${extra.table}.${physical} (${extra.logical}.${column}), but that column is not in the table. Set options.subjects so that column matches the table, or add the column.`,
+          `blocks.${name} is in adopt mode and uses ${extra.schema}.${extra.table}.${physical} (${extra.logical}.${column}), but that column is not in the table. Set blocks.${name}.on so that column matches the table, or add the column.`,
         );
       }
     }

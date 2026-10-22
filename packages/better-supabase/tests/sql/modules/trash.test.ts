@@ -40,19 +40,17 @@ describe("trash module", () => {
     const sql = sqlOf({
       modules: {
         trash: {
-          options: {
-            retentionDays: 0,
-            subjects: {
-              project: {
-                table: "app.projects",
-                tenant: "org_id",
-                deletedAt: "deleted_at",
-                unique: ["slug"],
-                children: [{ type: "task", column: "project_id" }],
-              },
-              task: { table: "app.tasks", deletedAt: "removed_at" },
+          on: {
+            project: {
+              table: "app.projects",
+              tenant: "org_id",
+              deletedAt: "deleted_at",
+              unique: ["slug"],
+              children: [{ type: "task", column: "project_id" }],
             },
+            task: { table: "app.tasks", deletedAt: "removed_at" },
           },
+          options: { retentionDays: 0 },
         },
       },
     });
@@ -106,7 +104,8 @@ describe("trash module", () => {
     ],
   ])("rejects a bad %s", (_name, subjects, message) => {
     expect(() =>
-      sqlOf({ modules: { trash: { options: { subjects } } } }),
+      // SAFETY: the cases pass malformed values on purpose.
+      sqlOf({ modules: { trash: { on: subjects as never } } }),
     ).toThrow(message);
   });
 

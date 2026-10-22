@@ -16,10 +16,10 @@ import {
   userGrant,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { onSettings } from "../subjects.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
-  options: ["subjects"],
   tables: {
     changes: {
       name: "field_changes",
@@ -47,20 +47,15 @@ interface HistoryBinding {
   readonly fields: readonly string[];
 }
 
-/** `blocks.field-history.options.subjects`, checked against `config.records`. */
+/**
+ * `blocks.field-history.on`, record type to `{ fields }`, checked against
+ * `config.records`.
+ */
 function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
-  const raw = ctx.option("subjects") ?? {};
-
-  if (!isRecord(raw)) {
-    throw new TypeError(
-      "blocks.field-history.options.subjects must be an object",
-    );
-  }
-
   const registry = registeredSubjects(ctx.subjects, ctx.naming);
 
-  return Object.entries(raw).map(([type, fields]) => {
-    const where = `blocks.field-history.options.subjects.${type}`;
+  return Object.entries(onSettings(ctx)).map(([type, settings]) => {
+    const where = `blocks.field-history.on.${type}`;
     const subject = registry.find((item) => item.type === type);
 
     if (subject?.tenant === undefined) {
@@ -69,12 +64,16 @@ function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
       );
     }
 
+    const fields = isRecord(settings) ? settings["fields"] : undefined;
+
     if (
       !Array.isArray(fields) ||
       fields.length === 0 ||
       fields.some((field) => typeof field !== "string" || !COLUMN.test(field))
     ) {
-      throw new TypeError(`${where} must be a non-empty list of column names`);
+      throw new TypeError(
+        `${where}.fields must be a non-empty list of column names`,
+      );
     }
 
     return { subject, fields: [...new Set(fields.map(String))] };

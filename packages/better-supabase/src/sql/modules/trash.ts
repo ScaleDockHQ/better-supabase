@@ -49,7 +49,7 @@ const EVENTS: BlockSqlEvents<TrashEvents> = {
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
-  options: ["subjects", "retentionDays", "extraColumns", "deletedAt"],
+  options: ["retentionDays", "extraColumns", "deletedAt"],
   tables: {
     items: {
       name: "trash_items",
@@ -128,8 +128,8 @@ function childrenOf(value: unknown, where: string): readonly Child[] {
 }
 
 function trashable(ctx: BlockSqlContext): readonly Trashable[] {
-  const where = "blocks.trash.options.subjects";
-  const explicit = ctx.option("subjects") !== undefined;
+  const where = `blocks.${ctx.instance}.on`;
+  const explicit = ctx.on !== undefined;
 
   const list = subjectsOption(ctx, [
     "deletedAt",

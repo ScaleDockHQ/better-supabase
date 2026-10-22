@@ -8,7 +8,6 @@ export type AttachmentsSqlOptions = {
   readonly requireScan?: boolean;
   readonly maxSize?: number;
   readonly allowedMimeTypes?: readonly string[];
-  readonly subjects?: unknown;
   readonly path?: string;
   readonly scanBuckets?: readonly string[];
   readonly extraColumns?: unknown;
@@ -20,7 +19,6 @@ export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
     requireScan: option.boolean({ default: true, client: true }),
     maxSize: option.number(),
     allowedMimeTypes: option.strings({ default: [] }),
-    subjects: option.unknown(),
     path: option.string({ default: "{organization_id}/attachments/{id}" }),
     scanBuckets: option.strings({ default: [] }),
     extraColumns: option.unknown(),

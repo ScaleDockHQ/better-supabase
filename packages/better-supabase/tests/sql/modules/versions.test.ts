@@ -11,7 +11,8 @@ const sqlOf = (layout: Layout = {}): string =>
     .join("\n");
 
 const withSubjects = (subjects: unknown, options: object = {}): Layout => ({
-  modules: { versions: { options: { subjects, ...options } } },
+  // SAFETY: the rejection cases pass malformed values on purpose.
+  modules: { versions: { on: subjects as never, options: { ...options } } },
 });
 
 describe("versions module", () => {
@@ -171,11 +172,7 @@ describe("versions module", () => {
         },
       },
       modules: {
-        versions: {
-          options: {
-            subjects: { doc: { table: "public.docs", columns: ["title"] } },
-          },
-        },
+        versions: { on: { doc: { table: "public.docs", columns: ["title"] } } },
       },
     });
 

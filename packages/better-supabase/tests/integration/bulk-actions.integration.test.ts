@@ -15,12 +15,10 @@ const layout: BlockSqlLayout = {
     task: { table: "bulk_it.tasks", idType: "uuid", deletedAt: "deleted_at" },
   },
   modules: {
-    trash: { schema: "bulk_it", options: { subjects: { task: {} } } },
+    trash: { schema: "bulk_it", on: { task: {} } },
     relations: {
       schema: "bulk_it",
-      options: {
-        subjects: { task: { table: "bulk_it.tasks", idType: "uuid" } },
-      },
+      on: { task: { table: "bulk_it.tasks", idType: "uuid" } },
     },
     "bulk-actions": {
       schema: "bulk_it",

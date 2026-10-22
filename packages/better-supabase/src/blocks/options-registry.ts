@@ -41,7 +41,6 @@ import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { ExpensesSqlOptions } from "./expenses/options.ts";
 import type { FeatureFlagsSqlOptions } from "./feature-flags/options.ts";
-import type { FieldHistorySqlOptions } from "./field-history/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
 import type { GoalsSqlOptions } from "./goals/options.ts";
 import type { HiringSqlOptions } from "./hiring/options.ts";
@@ -168,7 +167,6 @@ import { employeesSqlOptions } from "./employees/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { expensesSqlOptions } from "./expenses/options.ts";
 import { featureFlagsSqlOptions } from "./feature-flags/options.ts";
-import { fieldHistorySqlOptions } from "./field-history/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
 import { goalsSqlOptions } from "./goals/options.ts";
 import { hiringSqlOptions } from "./hiring/options.ts";
@@ -311,7 +309,7 @@ export interface BlockOptionsRegistry {
   readonly expenses: ExpensesSqlOptions;
   readonly "feature-flags": FeatureFlagsSqlOptions;
   readonly "field-encryption": None;
-  readonly "field-history": FieldHistorySqlOptions;
+  readonly "field-history": None;
   readonly forecasts: None;
   readonly forms: FormsSqlOptions;
   readonly goals: GoalsSqlOptions;
@@ -461,7 +459,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   expenses: expensesSqlOptions,
   "feature-flags": featureFlagsSqlOptions,
   "field-encryption": NO_OPTIONS,
-  "field-history": fieldHistorySqlOptions,
+  "field-history": NO_OPTIONS,
   forecasts: NO_OPTIONS,
   forms: formsSqlOptions,
   goals: goalsSqlOptions,

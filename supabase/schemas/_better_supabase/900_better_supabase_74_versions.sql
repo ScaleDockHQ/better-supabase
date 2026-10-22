@@ -481,7 +481,7 @@ $$;
 revoke execute on function "better_supabase"."delete_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_version"(uuid) to authenticated, service_role;
 
--- options.subjects.<type>.auto and .freeze: tg_argv is the subject type, its
+-- on.<type>.auto and .freeze: tg_argv is the subject type, its
 -- id and tenant columns, the snapshot columns, then the freeze column and
 -- values (empty for auto). A restore sets better_supabase.restoring_version, so it isn't
 -- snapshotted twice.

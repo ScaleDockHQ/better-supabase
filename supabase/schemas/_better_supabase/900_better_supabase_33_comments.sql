@@ -447,7 +447,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) to authenticated, service_role;
--- options.subjects with cascade: deleting a subject row deletes its comments rows.
+-- on with cascade: deleting a subject row deletes its comments rows.
 create or replace function "better_supabase"."comments_subject_deleted"()
 returns trigger
 language plpgsql

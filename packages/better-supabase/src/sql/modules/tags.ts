@@ -52,7 +52,7 @@ const NAMES: BlockSqlNames = {
   entities: { tag: { table: "tags", singular: "tag", primary: true } },
   events: EVENTS,
   hooks: ["before_tag_apply", "after_tag_apply"],
-  options: ["subjects", "extraColumns"],
+  options: ["extraColumns"],
   tables: {
     tags: {
       name: "tags",
@@ -113,7 +113,7 @@ function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
 
   if (!Array.isArray(value)) {
     throw new TypeError(
-      "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
+      "blocks.tags.on.<type>.kinds must be a list of strings",
     );
   }
 
@@ -122,7 +122,7 @@ function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
   for (const item of value) {
     if (typeof item !== "string" || item.length === 0) {
       throw new TypeError(
-        "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
+        "blocks.tags.on.<type>.kinds must be a list of strings",
       );
     }
 

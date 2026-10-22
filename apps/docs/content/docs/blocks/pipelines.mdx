@@ -29,23 +29,21 @@ subjects: {
 },
 blocks: {
   pipelines: {
-    options: {
-      subjects: {
-        deal: {
-          categories: { open: "open", won: "success", lost: "failure" },
-          enteredAt: "stage_entered_at",
-          amount: "amount",
-          currency: "currency",
-          probability: "probability",
-          owner: "owner_id",
-          status: { column: "outcome", values: { open: "open", won: "won", lost: "lost" } },
-          stages: [
-            { key: "qualified", name: "Qualified", category: "open", probability: 20 },
-            { key: "proposal", name: "Proposal", category: "open", probability: 55 },
-            { key: "won", name: "Closed won", category: "won", probability: 100 },
-            { key: "lost", name: "Closed lost", category: "lost", probability: 0 },
-          ],
-        },
+    on: {
+      deal: {
+        categories: { open: "open", won: "success", lost: "failure" },
+        enteredAt: "stage_entered_at",
+        amount: "amount",
+        currency: "currency",
+        probability: "probability",
+        owner: "owner_id",
+        status: { column: "outcome", values: { open: "open", won: "won", lost: "lost" } },
+        stages: [
+          { key: "qualified", name: "Qualified", category: "open", probability: 20 },
+          { key: "proposal", name: "Proposal", category: "open", probability: 55 },
+          { key: "won", name: "Closed won", category: "won", probability: 100 },
+          { key: "lost", name: "Closed lost", category: "lost", probability: 0 },
+        ],
       },
     },
   },
@@ -194,7 +192,7 @@ The ReUI Kanban commits a finished drag through `onValueCommit(value, meta)`. Ca
 | Hint                           | Cause                                                                   |
 | ------------------------------ | ----------------------------------------------------------------------- |
 | `PIPELINE_FORBIDDEN`           | the caller lacks `pipelines.manage`                                     |
-| `PIPELINE_SUBJECT_UNKNOWN`     | the subject type has no binding in `options.subjects`                   |
+| `PIPELINE_SUBJECT_UNKNOWN`     | the subject type has no binding in `on`                                 |
 | `PIPELINE_NOT_FOUND`           | no such pipeline                                                        |
 | `PIPELINE_KEY_TAKEN`           | another pipeline of the type and scope has the key                      |
 | `PIPELINE_IN_USE`              | records are still in the pipeline                                       |

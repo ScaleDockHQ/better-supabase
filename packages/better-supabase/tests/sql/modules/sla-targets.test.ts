@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { entryOf } from "../../fixtures/block-entry.ts";
 
 const body = (
   module: string,
@@ -44,14 +45,12 @@ describe("sla module", () => {
       subjects: SUBJECTS,
       modules: {
         sla: {
-          options: {
-            subjects: {
-              ticket: {
-                status: "status",
-                priority: "priority",
-                pause: ["waiting"],
-                resolve: ["solved"],
-              },
+          on: {
+            ticket: {
+              status: "status",
+              priority: "priority",
+              pause: ["waiting"],
+              resolve: ["solved"],
             },
           },
         },
@@ -65,9 +64,7 @@ describe("sla module", () => {
 
     const plain = body("sla", {
       subjects: SUBJECTS,
-      modules: {
-        sla: { options: { subjects: { ticket: { status: "state" } } } },
-      },
+      modules: { sla: { on: { ticket: { status: "state" } } } },
     });
 
     expect(plain).toContain('after insert or update of "state" on');
@@ -86,25 +83,22 @@ describe("sla module", () => {
     [{ businessHours: { start: "18:00", end: "09:00" } }, /end after start/],
     [{ businessHours: { days: [0] } }, /ISO weekdays/],
     [{ businessHours: "always" }, /must be an object/],
-    [{ subjects: { ghost: { status: "s" } } }, /register "ghost"/],
-    [{ subjects: { note: { status: "s" } } }, /register "note"/],
+    [{ on: { ghost: { status: "s" } } }, /register "ghost"/],
+    [{ on: { note: { status: "s" } } }, /register "note"/],
+    [{ on: { ticket: { status: "Bad Column" } } }, /status must be a column/],
     [
-      { subjects: { ticket: { status: "Bad Column" } } },
-      /status must be a column/,
-    ],
-    [
-      { subjects: { ticket: { status: "s", priority: 3 } } },
+      { on: { ticket: { status: "s", priority: 3 } } },
       /priority must be a column/,
     ],
     [
-      { subjects: { ticket: { status: "s", pause: "waiting" } } },
+      { on: { ticket: { status: "s", pause: "waiting" } } },
       /pause must be a list/,
     ],
-    [{ subjects: { ticket: "x" } }, /must be an object/],
-    [{ subjects: [] }, /subjects must be an object/],
+    [{ on: { ticket: "x" } }, /must be an object/],
+    [{ on: "ticket" }, /must be a list of record types/],
   ])("rejects %j", (options, message) => {
     expect(() =>
-      body("sla", { subjects: SUBJECTS, modules: { sla: { options } } }),
+      body("sla", { subjects: SUBJECTS, modules: { sla: entryOf(options) } }),
     ).toThrow(message);
   });
 

@@ -337,9 +337,9 @@ function healthOf(value: unknown): PipelineHealth {
 
 /**
  * The pipelines block: tenant-editable pipelines and stages for the subject
- * types `blocks.pipelines.options.subjects` binds, and the board, stats and
- * health reads over them. Moving a record is a plain update of its stage
- * column, or `rank.move` with the stage id as the group.
+ * types `blocks.pipelines.on` binds, and the board, stats and health reads over
+ * them. Moving a record is a plain update of its stage column, or `rank.move`
+ * with the stage id as the group.
  */
 export function createPipelines<
   S extends StandardSchemaV1 | undefined = undefined,

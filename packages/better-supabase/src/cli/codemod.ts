@@ -36,6 +36,7 @@ import {
 } from "./codemod-preset-code.ts";
 import { migrateCliCall } from "./core/moved.ts";
 import { withBlockNames } from "./sql/config-block-names.ts";
+import { withSubjectsOn } from "./sql/config-block-on.ts";
 import { groupConfigJson, groupConfigSource } from "./sql/config-group.ts";
 import {
   environmentModules,
@@ -504,9 +505,12 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     strings: DATA_CONTRACT_STRINGS,
     configFile: (source, json) =>
       thenConvertPresetCode(
-        withBlockNames(
-          withoutPlugins(
-            json ? groupConfigJson(source) : groupConfigSource(source),
+        withSubjectsOn(
+          withBlockNames(
+            withoutPlugins(
+              json ? groupConfigJson(source) : groupConfigSource(source),
+              json,
+            ),
             json,
           ),
           json,

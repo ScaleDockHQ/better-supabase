@@ -599,9 +599,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       await s.install(["organizations", "webhooks-in"], {
         modules: {
           "webhooks-in": {
-            options: {
-              subjects: { flow: { table: "bsb_test_flows", cascade: true } },
-            },
+            on: { flow: { table: "bsb_test_flows", cascade: true } },
           },
         },
       });

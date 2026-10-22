@@ -1554,11 +1554,11 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     "(better_supabase.can('tenant'::text, organization_id, 'notes.read'::text) AND (owner_id = ( SELECT auth.uid() AS uid)))";
 
   const config = (
-    subjects: Readonly<Record<string, unknown>>,
+    subjects: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
     registry: Readonly<Record<string, { table: string }>> = {},
   ): BetterSupabaseConfig => ({
     records: registry,
-    blocks: { attachments: { options: { subjects } } },
+    blocks: { attachments: { on: subjects } },
   });
 
   it("reports a subject whose table checks more than tenant membership", async () => {
@@ -1576,7 +1576,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
         severity: "warning",
         target: "public.notes",
         message: expect.stringContaining(
-          "blocks.attachments.options.subjects.note.permissions.read",
+          "blocks.attachments.on.note.permissions.read",
         ),
       }),
     ]);
@@ -1640,9 +1640,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
             note: { table: "public.notes" },
             ghost: { table: "missing" },
           },
-          blocks: {
-            attachments: { options: { subjects: ["note", "ghost", 1] } },
-          },
+          blocks: { attachments: { on: ["note", "ghost"] } },
         },
       ),
     );
@@ -1673,7 +1671,8 @@ describe("attachments subject on block-wide keys (BS345)", () => {
             {},
             {
               records: { note: { table: "notes" } },
-              blocks: { attachments: { options: { subjects } } },
+              // SAFETY: malformed on values, which the rule skips.
+              blocks: { attachments: { on: subjects as never } },
             },
           ),
         ),
@@ -1759,6 +1758,46 @@ describe("attachments subject on block-wide keys (BS345)", () => {
         message: expect.stringContaining("subjects.note.permissions.upload"),
       }),
     ]);
+  });
+});
+
+describe("block on names an unknown record type (BS346)", () => {
+  it("reports list entries and keys that config.records lacks", async () => {
+    const findings = await run(
+      "BS346",
+      context(
+        base,
+        {},
+        {
+          records: { deal: { table: "deals" } },
+          blocks: {
+            tags: { on: ["deal", "ghost"] },
+            attachments: { on: { memo: {} } },
+          },
+        },
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "blocks.tags.on.ghost",
+      "blocks.attachments.on.memo",
+    ]);
+  });
+
+  it("passes registered types and an unset on", async () => {
+    expect(
+      await run(
+        "BS346",
+        context(
+          base,
+          {},
+          {
+            records: { deal: { table: "deals" } },
+            blocks: { tags: { on: ["deal"] }, comments: {} },
+          },
+        ),
+      ),
+    ).toEqual([]);
   });
 });
 

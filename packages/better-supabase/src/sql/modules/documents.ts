@@ -73,7 +73,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_document_create", "after_document_create"],
-  options: ["subjects", "topic", "maxUpdateBytes", "compactAfter"],
+  options: ["topic", "maxUpdateBytes", "compactAfter"],
   tables: {
     documents: {
       name: "documents",

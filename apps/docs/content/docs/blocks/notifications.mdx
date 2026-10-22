@@ -409,7 +409,7 @@ from a job.
 
 `subject_type` and `subject_id` are text with no foreign key, so deleting a
 subject row leaves its notifications in every recipient's inbox. List the
-subject types in `blocks.notifications.options.subjects` with
+subject types in `blocks.notifications.on` with
 `cascade: true`, and the module writes an `after delete` trigger on each
 table that deletes the subject's notifications (their recipients and
 deliveries go with them) and the subscriptions to it:
@@ -417,11 +417,9 @@ deliveries go with them) and the subscriptions to it:
 ```ts title="better-supabase.config.ts"
 blocks: {
   notifications: {
-    options: {
-      subjects: {
-        expense: { table: "expenses", cascade: true },
-        "support-ticket": { table: "support_tickets", cascade: true },
-      },
+    on: {
+      expense: { table: "expenses", cascade: true },
+      "support-ticket": { table: "support_tickets", cascade: true },
     },
   },
 },
@@ -429,9 +427,9 @@ blocks: {
 
 The key is the `subject_type` your notifications store, and it may contain
 hyphens. `id` names the subject's id column when it isn't `id`. Without
-`options.subjects` the module reads `config.records`, so a registered type
+`on` the module reads `config.records`, so a registered type
 with `cascade: true` cleans up its notifications too. A list of registered
-type names (`subjects: ["expense"]`) limits it to those. The subject tables
+type names (`on: ["expense"]`) limits it to those. The subject tables
 must exist before the module file, and the events table needs its
 `subjectType` and `subjectId` columns.
 

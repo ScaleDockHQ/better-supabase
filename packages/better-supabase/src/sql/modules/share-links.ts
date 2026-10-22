@@ -44,7 +44,7 @@ const EVENTS: BlockSqlEvents<ShareLinksEvents> = {
 const NAMES: BlockSqlNames = {
   entities: { link: { table: "links", singular: "share_link", primary: true } },
   events: EVENTS,
-  options: ["subjects", "extraColumns"],
+  options: ["extraColumns"],
   tables: {
     links: {
       name: "share_links",
@@ -172,8 +172,8 @@ function blockSubjects(
 /**
  * Whether the subject a new link names exists in the link's tenant and the
  * caller may share it. Block-owned types come first; registered subjects
- * (`config.records` or `options.subjects`) check the row's tenant and the
- * subject's read permission. Any other type fails.
+ * (`config.records` or `on`) check the row's tenant and the subject's read
+ * permission. Any other type fails.
  */
 function subjectCheck(ctx: BlockSqlContext): string {
   const blocks = blockSubjects(ctx);

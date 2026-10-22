@@ -5,7 +5,6 @@ import type { Framework } from "../project/detect.ts";
 
 import { blockSubjectTypes } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import { resolveBlock } from "../../sql/index.ts";
 import { importPath } from "../core/io.ts";
 import { hasPermissionConstants } from "./block-names.ts";
 import { blockConfigPath, generatorBlocks } from "./blocks.ts";
@@ -78,19 +77,20 @@ function kebab(name: string): string {
 
 /**
  * The subject types a block's SQL serves, which is where its sections load: the
- * types `blocks.<name>.options.subjects` names, or every tenant-scoped
- * registered subject when it names none. Versions keep only the listed types
- * and the subjects with `versions` set.
+ * types `blocks.<instance>.on` names, or every tenant-scoped registered subject
+ * when it names none. Versions keep only the listed types and the subjects with
+ * `versions` set.
  */
 function servedSubjects(config: FeaturesConfig, block: string): Set<string> {
-  const listed = resolveBlock(config.blocks[block]).options["subjects"];
+  const listed = config.blocks[block]?.on;
   const registry = Object.entries(config.subjects);
 
-  const named = Array.isArray(listed)
-    ? listed.filter((type): type is string => typeof type === "string")
-    : typeof listed === "object" && listed !== null
-      ? Object.keys(listed)
-      : undefined;
+  const named: readonly string[] | undefined =
+    listed === undefined
+      ? undefined
+      : Array.isArray(listed)
+        ? listed
+        : Object.keys(listed);
 
   if (block === "versions") {
     const versioned = registry

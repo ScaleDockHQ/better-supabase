@@ -135,11 +135,9 @@ same way the comments block does:
 ```ts title="better-supabase.config.ts"
 blocks: {
   "webhooks-in": {
-    options: {
-      subjects: {
-        workflow: { table: "workflows", cascade: true },
-        integration: { table: "app.integrations", permission: "integrations.read" },
-      },
+    on: {
+      workflow: { table: "workflows", cascade: true },
+      integration: { table: "app.integrations", permission: "integrations.read" },
     },
   },
 },

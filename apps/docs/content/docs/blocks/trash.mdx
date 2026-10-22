@@ -29,12 +29,12 @@ subjects: {
 },
 blocks: {
   trash: {
+    on: {
+      project: { unique: ["slug"], children: [{ type: "task", column: "project_id" }] },
+      task: {},
+    },
     options: {
       retentionDays: 30,
-      subjects: {
-        project: { unique: ["slug"], children: [{ type: "task", column: "project_id" }] },
-        task: {},
-      },
     },
   },
 },

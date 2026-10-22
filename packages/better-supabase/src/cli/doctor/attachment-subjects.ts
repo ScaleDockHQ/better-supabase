@@ -17,7 +17,7 @@ function attachmentSubjects(
   readonly keys: ReadonlySet<string>;
 }[] {
   const registry = context.config.subjects;
-  const raw = context.config.blocks["attachments"]?.options?.["subjects"];
+  const raw = context.config.blocks["attachments"]?.on;
 
   const listed: [string, Readonly<Record<string, unknown>>][] =
     raw === undefined
@@ -247,7 +247,7 @@ export function attachmentSubjectsOnDefaults(
 
       const fixes = stricter.map(({ action }) =>
         action === "read"
-          ? `blocks.attachments.options.subjects.${type}.permissions.read`
+          ? `blocks.attachments.on.${type}.permissions.read`
           : `subjects.${type}.permissions.upload`,
       );
 

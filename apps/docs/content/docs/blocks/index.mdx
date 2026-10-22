@@ -100,6 +100,28 @@ blocks: {
 Two blocks that give one generic instance the same subject or action name
 fail at render with the name and the fix.
 
+### Record types
+
+An attachable block, such as `tags`, `attachments`, `versions`, `trash` or
+`sla`, works on the record types in `config.records`. Without `on` it
+attaches to every registered type. `on` narrows it: a list names the types,
+and an object keyed by type adds the block's settings for each one on top of
+the registry entry:
+
+```ts
+blocks: {
+  tags: { on: ["deal", "contact"] },
+  attachments: { on: { contract: { bucket: "contracts" } } },
+  "field-history": { on: { deal: { fields: ["amount", "stage_id"] } } },
+}
+```
+
+`field-history` tracks only the types and columns its `on` names. The
+block's SQL checks each `subject_type` against the types `on` resolves to,
+and doctor (BS346) reports a type in `on` that `config.records` doesn't
+register. `on` replaces `options.subjects` from 0.14; `better-supabase
+upgrade` moves it.
+
 ## Connections
 
 A block's TypeScript side runs its SQL functions through a connection you
