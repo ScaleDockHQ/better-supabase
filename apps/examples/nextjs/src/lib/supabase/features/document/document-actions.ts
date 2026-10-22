@@ -10,6 +10,18 @@ export const addDocumentComments = documentRecord.actions.comments.add;
 
 export const removeDocumentComments = documentRecord.actions.comments.remove;
 
+export const grantDocumentGuests = documentRecord.actions.guests.grant;
+
+export const revokeDocumentGuests = documentRecord.actions.guests.revoke;
+
+export const issueDocumentPasses = documentRecord.actions.passes.issue;
+
+export const revokeDocumentPasses = documentRecord.actions.passes.revoke;
+
+export const setRateDocumentBillableTime = documentRecord.actions.billableTime.setRate;
+
+export const invoiceDocumentBillableTime = documentRecord.actions.billableTime.invoice;
+
 export const linkDocumentRelations = documentRecord.actions.relations.link;
 
 export const unlinkDocumentRelations = documentRecord.actions.relations.unlink;

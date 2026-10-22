@@ -21,6 +21,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   subjectReadable,
   subjectTableBindings,
@@ -489,7 +490,23 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
-${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}
+${userGrant(`${fn("subject_tags")}(${ctx.idType}, text, text)`)}${
+    taggings === ""
+      ? ""
+      : subjectMergeHandler(
+          ctx,
+          list,
+          moveSubjectRows(
+            {
+              table: taggings,
+              type: ctx.col("taggings", "subjectType"),
+              id: ctx.col("taggings", "subjectId"),
+              unique: [ctx.col("taggings", "tag")],
+            },
+            "v_type",
+          ),
+        )
+  }
 `;
 }
 

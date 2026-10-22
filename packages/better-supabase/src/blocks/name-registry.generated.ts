@@ -190,6 +190,19 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "billable-time": {
+    readonly tables: {
+      readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "createdBy" | "createdAt";
+      readonly "billed": "entry" | "tenant" | "invoice" | "rate" | "currency" | "seconds" | "createdAt";
+    };
+    readonly functions: "billable_time_guard" | "billable_time_release" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_rate" | "unbilled_time";
+    readonly actions: "read" | "manage" | "invoice";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "time_rate": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "rate" | "currency" | "effective_from" | "created_by" | "created_at";
+    };
+    readonly primary: "time_rate";
+  };
   readonly "billing": {
     readonly tables: {
       readonly "customers": "tenant" | "customer" | "createdAt";
@@ -498,6 +511,20 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "guests": {
+    readonly tables: {
+      readonly "guests": "id" | "tenant" | "email" | "name" | "user" | "partyType" | "partyId" | "status" | "tokenHash" | "invitedBy" | "expiresAt" | "acceptedAt" | "revokedAt" | "createdAt" | "updatedAt";
+      readonly "grants": "id" | "tenant" | "guest" | "subjectType" | "subjectId" | "actions" | "grantedBy" | "expiresAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "accept_guest_invite" | "grant_guest_access" | "guest_can" | "invite_guest" | "list_guest_grants" | "list_guests" | "my_guest_access" | "revoke_guest" | "revoke_guest_access";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "guest": "id" | "tenant_id" | "email" | "name" | "user_id" | "party_type" | "party_id" | "status" | "token_hash" | "invited_by" | "expires_at" | "accepted_at" | "revoked_at" | "created_at" | "updated_at";
+      readonly "guest_grant": "id" | "tenant_id" | "guest_id" | "subject_type" | "subject_id" | "actions" | "granted_by" | "expires_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "guest";
   };
   readonly "hiring": {
     readonly tables: {
@@ -809,6 +836,20 @@ export interface BlockNameRegistry {
       readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: never;
+  };
+  readonly "passes": {
+    readonly tables: {
+      readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
+      readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
+    };
+    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
+    readonly actions: "read" | "manage" | "checkIn";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
+      readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
+    };
+    readonly primary: "pass";
   };
   readonly "pgtap": {
     readonly tables: {};

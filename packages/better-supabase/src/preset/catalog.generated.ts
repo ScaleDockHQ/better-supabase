@@ -2939,6 +2939,213 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "guests",
+      "title": "Guests",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invoices",
+        "bookings",
+        "parties"
+      ],
+      "manifest": "guests",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "guest": {
+            "table": "guests",
+            "singular": "guest",
+            "primary": true
+          },
+          "guest_grant": {
+            "table": "grants",
+            "singular": "guest_grant"
+          }
+        },
+        "tables": {
+          "guests": {
+            "name": "guests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "email": "email",
+              "name": "name",
+              "user": "user_id",
+              "partyType": "party_type",
+              "partyId": "party_id",
+              "status": "status",
+              "tokenHash": "token_hash",
+              "invitedBy": "invited_by",
+              "expiresAt": "expires_at",
+              "acceptedAt": "accepted_at",
+              "revokedAt": "revoked_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "grants": {
+            "name": "guest_grants",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "guest": "guest_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "actions": "actions",
+              "grantedBy": "granted_by",
+              "expiresAt": "expires_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "guests.read",
+          "manage": "guests.manage"
+        }
+      }
+    },
+    {
+      "name": "passes",
+      "title": "Passes",
+      "category": "scheduling",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "bookings",
+        "signing-keys"
+      ],
+      "manifest": "passes",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "pass": {
+            "table": "passes",
+            "singular": "pass",
+            "plural": "passes",
+            "primary": true
+          },
+          "pass_check_in": {
+            "table": "checkIns",
+            "singular": "pass_check_in"
+          }
+        },
+        "tables": {
+          "passes": {
+            "name": "passes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "holderUser": "holder_user_id",
+              "holderName": "holder_name",
+              "holderEmail": "holder_email",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "booking": "booking_id",
+              "resource": "resource_id",
+              "usesAllowed": "uses_allowed",
+              "uses": "uses",
+              "validFrom": "valid_from",
+              "validUntil": "valid_until",
+              "status": "status",
+              "nonce": "nonce",
+              "issuedBy": "issued_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "revokedAt": "revoked_at"
+            }
+          },
+          "checkIns": {
+            "name": "pass_check_ins",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "pass": "pass_id",
+              "resource": "resource_id",
+              "booking": "booking_id",
+              "gate": "gate",
+              "method": "method",
+              "admitted": "admitted",
+              "reason": "reason",
+              "checkedInBy": "checked_in_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "passes.read",
+          "manage": "passes.manage",
+          "checkIn": "passes.check_in"
+        }
+      }
+    },
+    {
+      "name": "billable-time",
+      "title": "Billable time",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "time-tracking",
+        "invoices"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "billable-time",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "time_rate": {
+            "table": "rates",
+            "singular": "time_rate",
+            "plural": "time_rates",
+            "primary": true
+          }
+        },
+        "tables": {
+          "rates": {
+            "name": "time_rates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "rate": "rate",
+              "currency": "currency",
+              "effectiveFrom": "effective_from",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "billable_time.read",
+          "manage": "billable_time.manage",
+          "invoice": "billable_time.invoice"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -4983,6 +5190,518 @@ export const PRESET_CATALOG: PresetCatalog = {
           "enrollment.step_completed",
           "enrollment.completed",
           "enrollment.cancelled"
+        ]
+      }
+    },
+    {
+      "name": "guests",
+      "sql": [
+        "guests"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "guestsBlock",
+        "subpath": "better-supabase/blocks/guests"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Guest"
+        },
+        {
+          "name": "GuestAcceptedEventData"
+        },
+        {
+          "name": "GuestAction"
+        },
+        {
+          "name": "GuestGrant"
+        },
+        {
+          "name": "GuestGrantEventData"
+        },
+        {
+          "name": "GuestGrantInput"
+        },
+        {
+          "name": "GuestInvite"
+        },
+        {
+          "name": "GuestInvitedEventData"
+        },
+        {
+          "name": "GuestInviteInput"
+        },
+        {
+          "name": "GuestListOptions"
+        },
+        {
+          "name": "GuestMembership"
+        },
+        {
+          "name": "GuestRevokedEventData"
+        },
+        {
+          "name": "Guests"
+        },
+        {
+          "name": "GuestSectionGrantInput"
+        },
+        {
+          "name": "GuestsEvents"
+        },
+        {
+          "name": "GuestsOptions"
+        },
+        {
+          "name": "GuestStatus"
+        },
+        {
+          "name": "GuestsWrites"
+        },
+        {
+          "name": "RecordGuestGrant"
+        }
+      ],
+      "entitySchemas": {
+        "guest": {
+          "input": {
+            "title": "GuestInviteInput",
+            "fields": {
+              "email": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "party": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the guest acts for: `{ type, id }`."
+              },
+              "expiresAt": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GuestInviteInput",
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "party": {
+                  "description": "The record the guest acts for: `{ type, id }`."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "email"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "guest_grant": {
+          "input": {
+            "title": "GuestGrantInput",
+            "fields": {
+              "actions": {
+                "kind": "enum",
+                "values": [
+                  "read",
+                  "comment",
+                  "upload"
+                ],
+                "optional": true,
+                "array": true,
+                "description": "`read` is always added."
+              },
+              "expiresAt": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GuestGrantInput",
+              "type": "object",
+              "properties": {
+                "actions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "comment",
+                      "upload"
+                    ]
+                  },
+                  "description": "`read` is always added."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "guests": [
+          "grant",
+          "revoke"
+        ]
+      },
+      "events": {
+        "type": "GuestsEvents",
+        "types": [
+          "guest.invited",
+          "guest.accepted",
+          "guest.revoked",
+          "guest_grant.created",
+          "guest_grant.revoked"
+        ]
+      }
+    },
+    {
+      "name": "passes",
+      "sql": [
+        "passes"
+      ],
+      "category": "scheduling",
+      "client": {
+        "export": "passesBlock",
+        "subpath": "better-supabase/blocks/passes"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "IssuedPass"
+        },
+        {
+          "name": "Pass"
+        },
+        {
+          "name": "PassAdmittedEventData"
+        },
+        {
+          "name": "PassCheckIn"
+        },
+        {
+          "name": "PassCheckInListOptions"
+        },
+        {
+          "name": "PassCheckInOptions"
+        },
+        {
+          "name": "Passes"
+        },
+        {
+          "name": "PassesEvents"
+        },
+        {
+          "name": "PassesOptions"
+        },
+        {
+          "name": "PassesSqlOptions"
+        },
+        {
+          "name": "PassesWrites"
+        },
+        {
+          "name": "PassInput"
+        },
+        {
+          "name": "PassIssuedEventData"
+        },
+        {
+          "name": "PassListOptions"
+        },
+        {
+          "name": "PassManualCheckInOptions"
+        },
+        {
+          "name": "PassMethod"
+        },
+        {
+          "name": "PassOccupancy"
+        },
+        {
+          "name": "PassRejectedEventData"
+        },
+        {
+          "name": "PassRejection"
+        },
+        {
+          "name": "PassRevokedEventData"
+        },
+        {
+          "name": "PassScan"
+        },
+        {
+          "name": "PassSectionInput"
+        },
+        {
+          "name": "PassStatus"
+        },
+        {
+          "name": "PassTokenClaims"
+        }
+      ],
+      "entitySchemas": {
+        "pass": {
+          "input": {
+            "title": "PassInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "holderUserId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "holderName": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "holderEmail": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the pass is for: `{ type, id }`."
+              },
+              "bookingId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "resourceId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "usesAllowed": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "validFrom": {
+                "kind": "instant",
+                "optional": true
+              },
+              "validUntil": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PassInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "holderUserId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "holderName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "holderEmail": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "subject": {
+                  "description": "The record the pass is for: `{ type, id }`."
+                },
+                "bookingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "resourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "usesAllowed": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "validFrom": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "validUntil": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "passes": [
+          "issue",
+          "revoke"
+        ]
+      },
+      "events": {
+        "type": "PassesEvents",
+        "types": [
+          "pass.issued",
+          "pass.revoked",
+          "pass.admitted",
+          "pass.rejected"
+        ]
+      }
+    },
+    {
+      "name": "billable-time",
+      "sql": [
+        "billable-time"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "billableTimeBlock",
+        "subpath": "better-supabase/blocks/billable-time"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "TimeRate"
+        },
+        {
+          "name": "TimeRateInput"
+        },
+        {
+          "name": "TimeRateListOptions"
+        },
+        {
+          "name": "TimeRateLookup"
+        },
+        {
+          "name": "TimeRateSectionInput"
+        }
+      ],
+      "entitySchemas": {
+        "time_rate": {
+          "input": {
+            "title": "TimeRateInput",
+            "fields": {
+              "rate": {
+                "kind": "custom"
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the rate applies to: `{ type, id }`."
+              },
+              "effectiveFrom": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TimeRateInput",
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record the rate applies to: `{ type, id }`."
+                },
+                "effectiveFrom": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "rate"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "billableTime": [
+          "setRate",
+          "invoice"
+        ]
+      },
+      "events": {
+        "type": "BillableTimeEvents",
+        "types": [
+          "time.invoiced"
         ]
       }
     },

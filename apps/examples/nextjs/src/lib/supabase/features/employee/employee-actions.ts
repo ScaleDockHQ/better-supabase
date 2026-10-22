@@ -10,6 +10,18 @@ export const addEmployeeComments = employeeRecord.actions.comments.add;
 
 export const removeEmployeeComments = employeeRecord.actions.comments.remove;
 
+export const grantEmployeeGuests = employeeRecord.actions.guests.grant;
+
+export const revokeEmployeeGuests = employeeRecord.actions.guests.revoke;
+
+export const issueEmployeePasses = employeeRecord.actions.passes.issue;
+
+export const revokeEmployeePasses = employeeRecord.actions.passes.revoke;
+
+export const setRateEmployeeBillableTime = employeeRecord.actions.billableTime.setRate;
+
+export const invoiceEmployeeBillableTime = employeeRecord.actions.billableTime.invoice;
+
 export const linkEmployeeRelations = employeeRecord.actions.relations.link;
 
 export const unlinkEmployeeRelations = employeeRecord.actions.relations.unlink;

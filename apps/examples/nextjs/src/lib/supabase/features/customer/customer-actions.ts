@@ -10,6 +10,18 @@ export const addCustomerComments = customerRecord.actions.comments.add;
 
 export const removeCustomerComments = customerRecord.actions.comments.remove;
 
+export const grantCustomerGuests = customerRecord.actions.guests.grant;
+
+export const revokeCustomerGuests = customerRecord.actions.guests.revoke;
+
+export const issueCustomerPasses = customerRecord.actions.passes.issue;
+
+export const revokeCustomerPasses = customerRecord.actions.passes.revoke;
+
+export const setRateCustomerBillableTime = customerRecord.actions.billableTime.setRate;
+
+export const invoiceCustomerBillableTime = customerRecord.actions.billableTime.invoice;
+
 export const linkCustomerRelations = customerRecord.actions.relations.link;
 
 export const unlinkCustomerRelations = customerRecord.actions.relations.unlink;

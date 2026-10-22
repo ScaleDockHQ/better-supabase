@@ -10,6 +10,12 @@ import {
   removeProductVariantAttachments,
   addProductVariantComments,
   removeProductVariantComments,
+  grantProductVariantGuests,
+  revokeProductVariantGuests,
+  issueProductVariantPasses,
+  revokeProductVariantPasses,
+  setRateProductVariantBillableTime,
+  invoiceProductVariantBillableTime,
   linkProductVariantRelations,
   unlinkProductVariantRelations,
   createProductVariantShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addProductVariantComments,
     remove: removeProductVariantComments,
+  },
+  guests: {
+    grant: grantProductVariantGuests,
+    revoke: revokeProductVariantGuests,
+  },
+  passes: {
+    issue: issueProductVariantPasses,
+    revoke: revokeProductVariantPasses,
+  },
+  billableTime: {
+    setRate: setRateProductVariantBillableTime,
+    invoice: invoiceProductVariantBillableTime,
   },
   relations: {
     link: linkProductVariantRelations,

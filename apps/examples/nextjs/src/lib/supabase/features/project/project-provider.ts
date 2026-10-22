@@ -10,6 +10,12 @@ import {
   removeProjectAttachments,
   addProjectComments,
   removeProjectComments,
+  grantProjectGuests,
+  revokeProjectGuests,
+  issueProjectPasses,
+  revokeProjectPasses,
+  setRateProjectBillableTime,
+  invoiceProjectBillableTime,
   linkProjectRelations,
   unlinkProjectRelations,
   createProjectShareLinks,
@@ -31,6 +37,18 @@ const writes = {
   comments: {
     add: addProjectComments,
     remove: removeProjectComments,
+  },
+  guests: {
+    grant: grantProjectGuests,
+    revoke: revokeProjectGuests,
+  },
+  passes: {
+    issue: issueProjectPasses,
+    revoke: revokeProjectPasses,
+  },
+  billableTime: {
+    setRate: setRateProjectBillableTime,
+    invoice: invoiceProjectBillableTime,
   },
   relations: {
     link: linkProjectRelations,

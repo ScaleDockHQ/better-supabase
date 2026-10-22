@@ -10,6 +10,18 @@ export const addTaskComments = taskRecord.actions.comments.add;
 
 export const removeTaskComments = taskRecord.actions.comments.remove;
 
+export const grantTaskGuests = taskRecord.actions.guests.grant;
+
+export const revokeTaskGuests = taskRecord.actions.guests.revoke;
+
+export const issueTaskPasses = taskRecord.actions.passes.issue;
+
+export const revokeTaskPasses = taskRecord.actions.passes.revoke;
+
+export const setRateTaskBillableTime = taskRecord.actions.billableTime.setRate;
+
+export const invoiceTaskBillableTime = taskRecord.actions.billableTime.invoice;
+
 export const linkTaskRelations = taskRecord.actions.relations.link;
 
 export const unlinkTaskRelations = taskRecord.actions.relations.unlink;

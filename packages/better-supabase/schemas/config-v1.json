@@ -883,6 +883,12 @@
             },
             "permitted": {
               "type": "string"
+            },
+            "portalSubjects": {
+              "type": "string"
+            },
+            "portalParties": {
+              "type": "string"
             }
           },
           "required": ["idsWith", "isPlatform"],
@@ -1769,6 +1775,7 @@
               "assets",
               "attachments",
               "audit",
+              "billable-time",
               "billing",
               "bookings",
               "bulk",
@@ -1794,6 +1801,7 @@
               "flags",
               "forms",
               "grants",
+              "guests",
               "hiring",
               "idempotency",
               "identities",
@@ -1819,6 +1827,7 @@
               "organizations",
               "outbox",
               "parties",
+              "passes",
               "pgtap",
               "pipelines",
               "profiles",
@@ -1923,6 +1932,9 @@
             "audit": {
               "$ref": "#/$defs/blocks/audit"
             },
+            "billable-time": {
+              "$ref": "#/$defs/blocks/billable-time"
+            },
             "billing": {
               "$ref": "#/$defs/blocks/billing"
             },
@@ -1998,6 +2010,9 @@
             "grants": {
               "$ref": "#/$defs/blocks/grants"
             },
+            "guests": {
+              "$ref": "#/$defs/blocks/guests"
+            },
             "hiring": {
               "$ref": "#/$defs/blocks/hiring"
             },
@@ -2072,6 +2087,9 @@
             },
             "parties": {
               "$ref": "#/$defs/blocks/parties"
+            },
+            "passes": {
+              "$ref": "#/$defs/blocks/passes"
             },
             "pgtap": {
               "$ref": "#/$defs/blocks/pgtap"
@@ -3546,6 +3564,17 @@
           }
         }
       },
+      "billable-time": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "billing": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4002,6 +4031,17 @@
             "properties": {
               "fromPolicies": {}
             }
+          }
+        }
+      },
+      "guests": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4578,6 +4618,26 @@
               "companyLifecycles": {},
               "personLifecycles": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "passes": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checkInOpens": {
+                "type": "string",
+                "default": "1 hour"
+              },
+              "dropInLength": {
+                "type": "string",
+                "default": "2 hours"
+              }
             }
           }
         }

@@ -10,6 +10,12 @@ import {
   removeDocumentAttachments,
   addDocumentComments,
   removeDocumentComments,
+  grantDocumentGuests,
+  revokeDocumentGuests,
+  issueDocumentPasses,
+  revokeDocumentPasses,
+  setRateDocumentBillableTime,
+  invoiceDocumentBillableTime,
   linkDocumentRelations,
   unlinkDocumentRelations,
   createDocumentShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addDocumentComments,
     remove: removeDocumentComments,
+  },
+  guests: {
+    grant: grantDocumentGuests,
+    revoke: revokeDocumentGuests,
+  },
+  passes: {
+    issue: issueDocumentPasses,
+    revoke: revokeDocumentPasses,
+  },
+  billableTime: {
+    setRate: setRateDocumentBillableTime,
+    invoice: invoiceDocumentBillableTime,
   },
   relations: {
     link: linkDocumentRelations,

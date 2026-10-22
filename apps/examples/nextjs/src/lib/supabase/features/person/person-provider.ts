@@ -10,6 +10,12 @@ import {
   removePersonAttachments,
   addPersonComments,
   removePersonComments,
+  grantPersonGuests,
+  revokePersonGuests,
+  issuePersonPasses,
+  revokePersonPasses,
+  setRatePersonBillableTime,
+  invoicePersonBillableTime,
   linkPersonRelations,
   unlinkPersonRelations,
   createPersonShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addPersonComments,
     remove: removePersonComments,
+  },
+  guests: {
+    grant: grantPersonGuests,
+    revoke: revokePersonGuests,
+  },
+  passes: {
+    issue: issuePersonPasses,
+    revoke: revokePersonPasses,
+  },
+  billableTime: {
+    setRate: setRatePersonBillableTime,
+    invoice: invoicePersonBillableTime,
   },
   relations: {
     link: linkPersonRelations,

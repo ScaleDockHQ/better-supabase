@@ -10,6 +10,18 @@ export const addCompanyComments = companyRecord.actions.comments.add;
 
 export const removeCompanyComments = companyRecord.actions.comments.remove;
 
+export const grantCompanyGuests = companyRecord.actions.guests.grant;
+
+export const revokeCompanyGuests = companyRecord.actions.guests.revoke;
+
+export const issueCompanyPasses = companyRecord.actions.passes.issue;
+
+export const revokeCompanyPasses = companyRecord.actions.passes.revoke;
+
+export const setRateCompanyBillableTime = companyRecord.actions.billableTime.setRate;
+
+export const invoiceCompanyBillableTime = companyRecord.actions.billableTime.invoice;
+
 export const linkCompanyRelations = companyRecord.actions.relations.link;
 
 export const unlinkCompanyRelations = companyRecord.actions.relations.unlink;

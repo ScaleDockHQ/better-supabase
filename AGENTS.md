@@ -184,6 +184,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0065: balances live in one double-entry `ledger`; inventory stock, leave balances and invoice payments move onto it (breaking).
 - 0066: `assets` stores coordinates as numbers; PostGIS geography columns and area lookups are the `postgis` option.
 - 0067: votes are reactions of kind `vote`; `scores` computes versioned scores from tenant-editable models (breaking).
+- 0070: guests reach granted records through `ctx.scope.guest`, never as members; providers answer through `portalSubjects`.
+- 0072: a record merge moves every module's rows through handlers marked `better-supabase:subject-merge`.
+- 0073: admission passes carry a signed token; the database keeps the nonce and decides every scan.
+- 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
 - 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
 - 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
 

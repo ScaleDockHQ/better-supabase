@@ -52,6 +52,8 @@ const NO_FIELDS: readonly string[] = [
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",
+  // A rate is a price on the rate card; it carries no app fields.
+  "billable-time",
   // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
   // Run records of the block's own bulk jobs.
@@ -67,6 +69,8 @@ const NO_FIELDS: readonly string[] = [
   // Programs and enrollments track steps of a subject the app owns; the
   // subject's data stays in its own table.
   "enrollments",
+  // Guests and grants are access rows; who the guest is lives in their party.
+  "guests",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.
@@ -93,6 +97,8 @@ const NO_FIELDS: readonly string[] = [
   "oauth-server",
   // An event log; the app's data goes in each event's payload.
   "outbox",
+  // A pass is an admission credential; what it admits to lives on its booking or record.
+  "passes",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   "reactions",
   // Rules hold a filter tree and action references the editor writes; the

@@ -1,0 +1,61 @@
+export {
+  createPasses,
+  PASS_TOKEN_TYPE,
+  type IssuedPass,
+  type Pass,
+  type PassCheckIn,
+  type PassCheckInListOptions,
+  type PassCheckInOptions,
+  type Passes,
+  type PassesOptions,
+  type PassInput,
+  type PassListOptions,
+  type PassManualCheckInOptions,
+  type PassMethod,
+  type PassOccupancy,
+  type PassRejection,
+  type PassScan,
+  type PassStatus,
+  type PassTokenClaims,
+} from "./passes.ts";
+
+export {
+  extendBlock,
+  withBlockHooks,
+  wrapTransport,
+} from "../../core/block-hooks.ts";
+
+export type {
+  BlockHooks,
+  BlockTransportMiddleware,
+} from "../../core/block-hooks.ts";
+
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
+
+export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
+
+export { passesBlock } from "./manifest.ts";
+
+export { passesSqlOptions, type PassesSqlOptions } from "./options.ts";
+
+export { passesSection, type PassesWrites } from "./section.ts";
+
+export {
+  passInputSchema,
+  passSectionInputSchema,
+  type PassSectionInput,
+} from "./schemas.ts";
+
+export { passesEvents } from "./events.ts";
+
+export type {
+  PassAdmittedEventData,
+  PassesEvents,
+  PassIssuedEventData,
+  PassRejectedEventData,
+  PassRevokedEventData,
+} from "./events.ts";

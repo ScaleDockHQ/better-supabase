@@ -15,6 +15,7 @@ import { approvalsBlock } from "./approvals/manifest.ts";
 import { assetsBlock } from "./assets/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
+import { billableTimeBlock } from "./billable-time/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
 import { bulkBlock } from "./bulk/manifest.ts";
@@ -38,6 +39,7 @@ import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
 import { formsBlock, signaturesBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
+import { guestsBlock } from "./guests/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
 import { identitiesBlock } from "./identities/manifest.ts";
 import { importsBlock } from "./imports/manifest.ts";
@@ -66,6 +68,7 @@ import { ordersBlock } from "./orders/manifest.ts";
 import { organizationsBlock } from "./organizations/manifest.ts";
 import { outboxBlock } from "./outbox/manifest.ts";
 import { partiesBlock } from "./parties/manifest.ts";
+import { passesBlock } from "./passes/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
@@ -156,6 +159,9 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   scoresBlock,
   moderationBlock,
   enrollmentsBlock,
+  guestsBlock,
+  passesBlock,
+  billableTimeBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

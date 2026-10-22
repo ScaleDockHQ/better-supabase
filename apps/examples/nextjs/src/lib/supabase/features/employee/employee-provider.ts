@@ -10,6 +10,12 @@ import {
   removeEmployeeAttachments,
   addEmployeeComments,
   removeEmployeeComments,
+  grantEmployeeGuests,
+  revokeEmployeeGuests,
+  issueEmployeePasses,
+  revokeEmployeePasses,
+  setRateEmployeeBillableTime,
+  invoiceEmployeeBillableTime,
   linkEmployeeRelations,
   unlinkEmployeeRelations,
   createEmployeeShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addEmployeeComments,
     remove: removeEmployeeComments,
+  },
+  guests: {
+    grant: grantEmployeeGuests,
+    revoke: revokeEmployeeGuests,
+  },
+  passes: {
+    issue: issueEmployeePasses,
+    revoke: revokeEmployeePasses,
+  },
+  billableTime: {
+    setRate: setRateEmployeeBillableTime,
+    invoice: invoiceEmployeeBillableTime,
   },
   relations: {
     link: linkEmployeeRelations,

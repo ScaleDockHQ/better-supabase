@@ -10,6 +10,12 @@ import {
   removeCalendarEventAttachments,
   addCalendarEventComments,
   removeCalendarEventComments,
+  grantCalendarEventGuests,
+  revokeCalendarEventGuests,
+  issueCalendarEventPasses,
+  revokeCalendarEventPasses,
+  setRateCalendarEventBillableTime,
+  invoiceCalendarEventBillableTime,
   linkCalendarEventRelations,
   unlinkCalendarEventRelations,
   createCalendarEventShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addCalendarEventComments,
     remove: removeCalendarEventComments,
+  },
+  guests: {
+    grant: grantCalendarEventGuests,
+    revoke: revokeCalendarEventGuests,
+  },
+  passes: {
+    issue: issueCalendarEventPasses,
+    revoke: revokeCalendarEventPasses,
+  },
+  billableTime: {
+    setRate: setRateCalendarEventBillableTime,
+    invoice: invoiceCalendarEventBillableTime,
   },
   relations: {
     link: linkCalendarEventRelations,

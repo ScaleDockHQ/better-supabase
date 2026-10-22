@@ -10,6 +10,12 @@ import {
   removeTaskAttachments,
   addTaskComments,
   removeTaskComments,
+  grantTaskGuests,
+  revokeTaskGuests,
+  issueTaskPasses,
+  revokeTaskPasses,
+  setRateTaskBillableTime,
+  invoiceTaskBillableTime,
   linkTaskRelations,
   unlinkTaskRelations,
   createTaskShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addTaskComments,
     remove: removeTaskComments,
+  },
+  guests: {
+    grant: grantTaskGuests,
+    revoke: revokeTaskGuests,
+  },
+  passes: {
+    issue: issueTaskPasses,
+    revoke: revokeTaskPasses,
+  },
+  billableTime: {
+    setRate: setRateTaskBillableTime,
+    invoice: invoiceTaskBillableTime,
   },
   relations: {
     link: linkTaskRelations,

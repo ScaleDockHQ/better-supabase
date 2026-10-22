@@ -7,6 +7,7 @@ import type {
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
+import { providerGuestFunctions } from "../guest-sql.ts";
 import {
   activeMembership,
   addForeignKey,
@@ -1054,7 +1055,7 @@ as $$
   select coalesce(better_supabase.platform_can(auth.uid(), is_platform.permission), false)
 $$;
 
-${myPermissionsSql(id)}
+${myPermissionsSql(id)}${providerGuestFunctions(ctx.installedModules, layout)}
 
 ${[
   "permission_matches(text, text)",

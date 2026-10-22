@@ -10,6 +10,12 @@ import {
   removeCompanyAttachments,
   addCompanyComments,
   removeCompanyComments,
+  grantCompanyGuests,
+  revokeCompanyGuests,
+  issueCompanyPasses,
+  revokeCompanyPasses,
+  setRateCompanyBillableTime,
+  invoiceCompanyBillableTime,
   linkCompanyRelations,
   unlinkCompanyRelations,
   createCompanyShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addCompanyComments,
     remove: removeCompanyComments,
+  },
+  guests: {
+    grant: grantCompanyGuests,
+    revoke: revokeCompanyGuests,
+  },
+  passes: {
+    issue: issueCompanyPasses,
+    revoke: revokeCompanyPasses,
+  },
+  billableTime: {
+    setRate: setRateCompanyBillableTime,
+    invoice: invoiceCompanyBillableTime,
   },
   relations: {
     link: linkCompanyRelations,

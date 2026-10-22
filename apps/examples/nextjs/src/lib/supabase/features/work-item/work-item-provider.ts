@@ -10,6 +10,12 @@ import {
   removeWorkItemAttachments,
   addWorkItemComments,
   removeWorkItemComments,
+  grantWorkItemGuests,
+  revokeWorkItemGuests,
+  issueWorkItemPasses,
+  revokeWorkItemPasses,
+  setRateWorkItemBillableTime,
+  invoiceWorkItemBillableTime,
   linkWorkItemRelations,
   unlinkWorkItemRelations,
   createWorkItemShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addWorkItemComments,
     remove: removeWorkItemComments,
+  },
+  guests: {
+    grant: grantWorkItemGuests,
+    revoke: revokeWorkItemGuests,
+  },
+  passes: {
+    issue: issueWorkItemPasses,
+    revoke: revokeWorkItemPasses,
+  },
+  billableTime: {
+    setRate: setRateWorkItemBillableTime,
+    invoice: invoiceWorkItemBillableTime,
   },
   relations: {
     link: linkWorkItemRelations,

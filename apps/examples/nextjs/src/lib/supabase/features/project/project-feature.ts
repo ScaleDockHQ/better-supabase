@@ -3,11 +3,14 @@
 import { accessBlock } from "better-supabase/blocks/access";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { guestsBlock } from "better-supabase/blocks/guests";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
+import { passesBlock } from "better-supabase/blocks/passes";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -31,6 +34,9 @@ export const projectFeature = defineRecordFeature({
     scores: scoresBlock,
     moderation: moderationBlock,
     enrollments: enrollmentsBlock,
+    guests: guestsBlock,
+    passes: passesBlock,
+    billableTime: billableTimeBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

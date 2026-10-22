@@ -20,6 +20,7 @@ import {
   SERVICE_CALLER,
   withExtraFields,
 } from "../shared.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   subjectAccess,
   subjectCascades,
@@ -274,6 +275,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     actions: ["read", "upload", "manage"],
     permission: (action) => ctx.permission(action, permissions[action]),
     provider: layout.accessProvider,
+    guest: { read: "read", upload: "upload" },
   });
 
   const orTenantless = (tenant: string, check: string): string =>
@@ -417,11 +419,12 @@ end;`;
           mimeRules.map((rule) => `(${rule})`).join(" and "),
         );
 
-  const subjectReadableSql = subjectReadable(ctx, subjects, {
-    type: "subject_type",
-    id: "subject_id",
-    tenant: "tenant",
-  });
+  const subjectReadableSql = subjectReadable(
+    ctx,
+    subjects,
+    { type: "subject_type", id: "subject_id", tenant: "tenant" },
+    { guest: true },
+  );
 
   const cascades = subjectCascades(
     ctx,
@@ -868,7 +871,7 @@ create trigger bs_object_scan_pending
   for each row when (new.bucket_id in (${scanBuckets.map(sqlString).join(", ")}))
   execute function ${fn("object_scan_pending")}();`
 }
-${cascades}
+${cascades}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: t, type: c("subjectType"), id: c("subjectId") }, "v_type"))}
 revoke execute on function ${fn("object_clean")}(text, text) from public, anon;
 revoke execute on function ${fn("object_scan")}(text, text) from public, anon, authenticated;
 revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from public, anon, authenticated;

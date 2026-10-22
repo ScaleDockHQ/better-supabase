@@ -492,6 +492,27 @@ begin
 end;
 $$;
 
+-- Moves this module's rows from one subject record to another when
+-- better_supabase.merge_subject_refs merges them.
+create or replace function "better_supabase"."comments_subject_merge"(subject_table text, keep text, drop text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text;
+  v_keep text := keep;
+  v_drop text := drop;
+begin
+  for v_type in select unnest(case subject_table when 'centrakit.tasks' then array['task'] when 'centrakit.projects' then array['project'] when 'centrakit.customers' then array['customer'] else '{}'::text[] end) loop
+    update "better_supabase"."comments" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."comments_subject_merge"(text, text, text) from public, anon, authenticated;
+comment on function "better_supabase"."comments_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
 revoke execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) from public, anon;
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;

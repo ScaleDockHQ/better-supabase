@@ -7,6 +7,7 @@ import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { bulkBlock } from "better-supabase/blocks/bulk";
 import { calendarBlock } from "better-supabase/blocks/calendar";
@@ -21,6 +22,7 @@ import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { formsBlock } from "better-supabase/blocks/forms";
+import { guestsBlock } from "better-supabase/blocks/guests";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { importsBlock } from "better-supabase/blocks/imports";
 import { inboxBlock } from "better-supabase/blocks/inbox";
@@ -38,6 +40,7 @@ import { ordersBlock } from "better-supabase/blocks/orders";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { partiesBlock } from "better-supabase/blocks/parties";
+import { passesBlock } from "better-supabase/blocks/passes";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { promotionsBlock } from "better-supabase/blocks/promotions";
 import { quotesBlock } from "better-supabase/blocks/quotes";
@@ -142,6 +145,9 @@ const blockSet = defineBlocks(blockConfig, {
   catalog: catalogBlock,
   inventory: inventoryBlock,
   ledger: ledgerBlock,
+  guests: guestsBlock,
+  passes: passesBlock,
+  "billable-time": billableTimeBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
   calendar: calendarBlock,

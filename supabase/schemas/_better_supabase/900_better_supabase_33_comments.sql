@@ -79,7 +79,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select case subject_type
+  select (((tenant)::text, (subject_type)::text, (subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case subject_type
     when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'comments.read'), false)
     when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
     when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
@@ -100,17 +100,17 @@ as $$
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     else false
-  end
+  end)
 $$;
 
 drop policy if exists "comments_read" on "better_supabase"."comments";
 create policy "comments_read" on "better_supabase"."comments" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id"));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id"));
 drop policy if exists "comments_insert" on "better_supabase"."comments";
 create policy "comments_insert" on "better_supabase"."comments" for insert to authenticated
   with check ((
     "author_id" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id")
+    and (coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('comment') g)) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "comments_update" on "better_supabase"."comments";
 create policy "comments_update" on "better_supabase"."comments" for update to authenticated
@@ -346,7 +346,7 @@ as $$
   from "better_supabase"."comments" y
   join "better_supabase"."profiles" pr on pr."id" = y."author_id"
   where y."id" = any ($1)
-    and y."organization_id" in (select better_supabase.tenant_ids_with('comments.read'))
+    and (y."organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or ((y."organization_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
 $$;
 revoke execute on function "better_supabase"."comment_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."comment_authors"(uuid[]) to authenticated, service_role;
@@ -643,6 +643,27 @@ drop trigger if exists "bs_comments_product_variant_cascade" on "better_supabase
 create trigger "bs_comments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id');
+
+-- Moves this module's rows from one subject record to another when
+-- better_supabase.merge_subject_refs merges them.
+create or replace function "better_supabase"."comments_subject_merge"(subject_table text, keep text, drop text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text;
+  v_keep text := keep;
+  v_drop text := drop;
+begin
+  for v_type in select unnest(case subject_table when 'better_supabase.comments' then array['comment'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+    update "better_supabase"."comments" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."comments_subject_merge"(text, text, text) from public, anon, authenticated;
+comment on function "better_supabase"."comments_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
 revoke execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) from public, anon;
 revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;

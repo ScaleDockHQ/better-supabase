@@ -107,6 +107,9 @@
     "leave",
     "rules",
     "scores",
-    "vercel-marketplace"
+    "vercel-marketplace",
+    "guests",
+    "passes",
+    "billable-time"
   ]
 }

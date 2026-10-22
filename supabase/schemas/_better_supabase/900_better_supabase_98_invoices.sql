@@ -93,7 +93,7 @@ grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
 drop policy if exists invoices_read on "better_supabase"."invoices";
 create policy invoices_read on "better_supabase"."invoices" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
+using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
 
 
 -- Creates a draft invoice. attrs: title (required), currency, company and

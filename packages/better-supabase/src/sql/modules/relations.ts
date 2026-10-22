@@ -20,6 +20,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   qualifiedTable,
   subjectCascades,
@@ -305,6 +306,50 @@ ${lockTable(relations, { read: true })}
     `delete from ${relations}
   where (${sourceType} = v_type and ${sourceId} = v_id)
      or (${targetType} = v_type and ${targetId} = v_id);`,
+  );
+
+  const symmetric = kinds
+    .filter((k) => k.symmetric)
+    .map((k) => sqlString(k.name));
+
+  // A merge points drop's relations at keep: a relation between the two goes,
+  // a symmetric kind keeps its smaller end first, and a relation keep already
+  // has goes instead of turning into a duplicate.
+  const merges = subjectMergeHandler(
+    ctx,
+    list,
+    `declare
+      v_row record;
+      v_st text; v_si text; v_tt text; v_ti text;
+    begin
+      for v_row in
+        select x.${id} as id, x.${tenant}::text as tenant, x.${kind} as kind, x.${sourceType} as st, x.${sourceId} as si, x.${targetType} as tt, x.${targetId} as ti
+        from ${relations} x
+        where (x.${sourceType} = v_type and x.${sourceId} = v_drop) or (x.${targetType} = v_type and x.${targetId} = v_drop)
+        for update
+      loop
+        v_st := v_row.st; v_tt := v_row.tt;
+        v_si := case when v_row.st = v_type and v_row.si = v_drop then v_keep else v_row.si end;
+        v_ti := case when v_row.tt = v_type and v_row.ti = v_drop then v_keep else v_row.ti end;${
+          symmetric.length === 0
+            ? ""
+            : `
+        if v_row.kind in (${symmetric.join(", ")}) and (v_st, v_si) > (v_tt, v_ti) then
+          select v_tt, v_ti, v_st, v_si into v_st, v_si, v_tt, v_ti;
+        end if;`
+        }
+        if (v_st = v_tt and v_si = v_ti) or exists (
+          select 1 from ${relations} y
+          where y.${id} <> v_row.id and y.${tenant}::text = v_row.tenant and y.${kind} = v_row.kind
+            and y.${sourceType} = v_st and y.${sourceId} = v_si and y.${targetType} = v_tt and y.${targetId} = v_ti
+        ) then
+          delete from ${relations} y where y.${id} = v_row.id;
+        else
+          update ${relations} y set ${sourceType} = v_st, ${sourceId} = v_si, ${targetType} = v_tt, ${targetId} = v_ti
+          where y.${id} = v_row.id;
+        end if;
+      end loop;
+    end;`,
   );
 
   // Puts (source, target) in the stored direction: an inverse name swaps the
@@ -700,7 +745,7 @@ ${tableCase}
 end;
 $$;
 ${userGrant(`${fn("relation_rollup")}(${ctx.idType}, text, text, text, text, text, text)`)}
-${cascades}`;
+${cascades}${merges}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {

@@ -10,6 +10,18 @@ export const addApplicationComments = applicationRecord.actions.comments.add;
 
 export const removeApplicationComments = applicationRecord.actions.comments.remove;
 
+export const grantApplicationGuests = applicationRecord.actions.guests.grant;
+
+export const revokeApplicationGuests = applicationRecord.actions.guests.revoke;
+
+export const issueApplicationPasses = applicationRecord.actions.passes.issue;
+
+export const revokeApplicationPasses = applicationRecord.actions.passes.revoke;
+
+export const setRateApplicationBillableTime = applicationRecord.actions.billableTime.setRate;
+
+export const invoiceApplicationBillableTime = applicationRecord.actions.billableTime.invoice;
+
 export const linkApplicationRelations = applicationRecord.actions.relations.link;
 
 export const unlinkApplicationRelations = applicationRecord.actions.relations.unlink;

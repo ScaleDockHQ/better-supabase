@@ -225,6 +225,8 @@ const authorization = v.strictObject({
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
     permitted: v.optional(v.string()),
+    portalSubjects: v.optional(v.string()),
+    portalParties: v.optional(v.string()),
   }),
   requires: v.optional(
     v.array(

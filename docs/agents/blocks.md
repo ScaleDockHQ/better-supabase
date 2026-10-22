@@ -18,10 +18,17 @@ workflow; this page is the checklist for a new block.
   `create table if not exists`, and no line of a schema file starts with
   `insert`, `select` or another data statement (`tests/sql/registry.test.ts`).
   Rows go in `data(ctx)` instead.
+- A module that stores rows per subject (a `subject_type` and `subject_id`)
+  renders `subjectMergeHandler` with `moveSubjectRows` from
+  `src/sql/subject-merge-sql.ts`, so record merges move its rows (ADR 0072).
+  A block that merges its own records renders `recordMergeFunction`.
 - Permissions go through the scope port, never the access contract by name:
   `ctx.scope.can(id, key)` in functions, `ctx.scope.check(column, key)` in
   policies, `ctx.scope.ids(key)` for the set of scope ids, `ctx.scope.canUser`,
-  `ctx.scope.platform` and `ctx.scope.members()`. In `tenant` scope they render
+  `ctx.scope.platform`, `ctx.scope.members()`, and `ctx.scope.guest(tenant,
+  type, id, action)` or `ctx.scope.guestParty(tenant, type, id)` to let guests
+  in, or-ed onto the member check with `guestOr` (`false` without guests, ADR
+  0070). In `tenant` scope they render
   the access contract (`can`, `tenant_ids_with`, `is_platform`);
   `tests/sql/scope.test.ts` fails on a literal call in `src/sql/modules`. A
   module that needs tenants declares `scopes: ["tenant"]`. One that runs per

@@ -3,6 +3,7 @@ import type { ModuleContext, ModuleIdType } from "./context.ts";
 import type { ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
+import { providerAnswersForGuests } from "./guest-sql.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
 export interface ModuleRegistry {
@@ -52,6 +53,7 @@ export function moduleContext(
       ...(installed ? { installed } : {}),
       ...(layout.scope ? { scope: layout.scope } : {}),
       ...providerIdType(layout),
+      ...providerGuests(layout),
       integrations(module) {
         const definition = registry().modules[module];
 
@@ -185,4 +187,14 @@ export function providerIdType(layout: ModuleLayout): {
     layout.accessProvider?.idType ?? layout.entitlementsProvider?.idType;
 
   return idType ? { providerIdType: idType } : {};
+}
+
+/**
+ * Whether the authorization provider answers for guests, which only counts
+ * under the `provider` model.
+ */
+export function providerGuests(layout: ModuleLayout): {
+  providerGuests?: boolean;
+} {
+  return providerAnswersForGuests(layout) ? { providerGuests: true } : {};
 }

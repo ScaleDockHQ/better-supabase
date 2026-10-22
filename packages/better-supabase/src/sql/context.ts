@@ -532,6 +532,12 @@ export interface ModuleContextSource {
   readonly installed?: readonly string[];
   /** The id type the authorization provider gives, when the layout has one. */
   readonly providerIdType?: ModuleIdType;
+  /**
+   * Whether the authorization provider answers for guests
+   * (`functions.portalSubjects` or `portalParties`) under the `provider`
+   * model.
+   */
+  readonly providerGuests?: boolean;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   /**
@@ -993,6 +999,7 @@ export function createModuleContext(
     kind: scopeKind,
     idType,
     access: installed.has("access"),
+    guests: installed.has("guests") || source.providerGuests === true,
     members: () =>
       createModuleContext("tenant", namesOf, source).fn(
         "member_organization_ids",

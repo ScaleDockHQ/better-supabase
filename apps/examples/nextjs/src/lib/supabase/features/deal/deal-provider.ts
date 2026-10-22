@@ -10,6 +10,12 @@ import {
   removeDealAttachments,
   addDealComments,
   removeDealComments,
+  grantDealGuests,
+  revokeDealGuests,
+  issueDealPasses,
+  revokeDealPasses,
+  setRateDealBillableTime,
+  invoiceDealBillableTime,
   linkDealRelations,
   unlinkDealRelations,
   createDealShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addDealComments,
     remove: removeDealComments,
+  },
+  guests: {
+    grant: grantDealGuests,
+    revoke: revokeDealGuests,
+  },
+  passes: {
+    issue: issueDealPasses,
+    revoke: revokeDealPasses,
+  },
+  billableTime: {
+    setRate: setRateDealBillableTime,
+    invoice: invoiceDealBillableTime,
   },
   relations: {
     link: linkDealRelations,

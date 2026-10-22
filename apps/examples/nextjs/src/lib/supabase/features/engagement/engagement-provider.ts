@@ -10,6 +10,12 @@ import {
   removeEngagementAttachments,
   addEngagementComments,
   removeEngagementComments,
+  grantEngagementGuests,
+  revokeEngagementGuests,
+  issueEngagementPasses,
+  revokeEngagementPasses,
+  setRateEngagementBillableTime,
+  invoiceEngagementBillableTime,
   linkEngagementRelations,
   unlinkEngagementRelations,
   createEngagementShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addEngagementComments,
     remove: removeEngagementComments,
+  },
+  guests: {
+    grant: grantEngagementGuests,
+    revoke: revokeEngagementGuests,
+  },
+  passes: {
+    issue: issueEngagementPasses,
+    revoke: revokeEngagementPasses,
+  },
+  billableTime: {
+    setRate: setRateEngagementBillableTime,
+    invoice: invoiceEngagementBillableTime,
   },
   relations: {
     link: linkEngagementRelations,

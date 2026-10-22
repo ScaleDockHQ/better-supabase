@@ -10,6 +10,18 @@ export const addPersonComments = personRecord.actions.comments.add;
 
 export const removePersonComments = personRecord.actions.comments.remove;
 
+export const grantPersonGuests = personRecord.actions.guests.grant;
+
+export const revokePersonGuests = personRecord.actions.guests.revoke;
+
+export const issuePersonPasses = personRecord.actions.passes.issue;
+
+export const revokePersonPasses = personRecord.actions.passes.revoke;
+
+export const setRatePersonBillableTime = personRecord.actions.billableTime.setRate;
+
+export const invoicePersonBillableTime = personRecord.actions.billableTime.invoice;
+
 export const linkPersonRelations = personRecord.actions.relations.link;
 
 export const unlinkPersonRelations = personRecord.actions.relations.unlink;

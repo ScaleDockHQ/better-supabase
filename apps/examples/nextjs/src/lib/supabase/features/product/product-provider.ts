@@ -10,6 +10,12 @@ import {
   removeProductAttachments,
   addProductComments,
   removeProductComments,
+  grantProductGuests,
+  revokeProductGuests,
+  issueProductPasses,
+  revokeProductPasses,
+  setRateProductBillableTime,
+  invoiceProductBillableTime,
   linkProductRelations,
   unlinkProductRelations,
   createProductShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addProductComments,
     remove: removeProductComments,
+  },
+  guests: {
+    grant: grantProductGuests,
+    revoke: revokeProductGuests,
+  },
+  passes: {
+    issue: issueProductPasses,
+    revoke: revokeProductPasses,
+  },
+  billableTime: {
+    setRate: setRateProductBillableTime,
+    invoice: invoiceProductBillableTime,
   },
   relations: {
     link: linkProductRelations,

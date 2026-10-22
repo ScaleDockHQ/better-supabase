@@ -13,6 +13,7 @@ import type { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import type { assetsBlock } from "../../src/blocks/assets/manifest.ts";
 import type { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
 import type { auditBlock } from "../../src/blocks/audit/manifest.ts";
+import type { billableTimeBlock } from "../../src/blocks/billable-time/manifest.ts";
 import type { billingBlock } from "../../src/blocks/billing/manifest.ts";
 import type { bookingsBlock } from "../../src/blocks/bookings/manifest.ts";
 import type { bulkBlock } from "../../src/blocks/bulk/manifest.ts";
@@ -40,6 +41,7 @@ import type {
   signaturesBlock,
 } from "../../src/blocks/forms/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
+import type { guestsBlock } from "../../src/blocks/guests/manifest.ts";
 import type { hiringBlock } from "../../src/blocks/hiring/manifest.ts";
 import type { identitiesBlock } from "../../src/blocks/identities/manifest.ts";
 import type { importsBlock } from "../../src/blocks/imports/manifest.ts";
@@ -68,6 +70,7 @@ import type { ordersBlock } from "../../src/blocks/orders/manifest.ts";
 import type { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import type { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
 import type { partiesBlock } from "../../src/blocks/parties/manifest.ts";
+import type { passesBlock } from "../../src/blocks/passes/manifest.ts";
 import type { pgtapBlock } from "../../src/blocks/pgtap/manifest.ts";
 import type { pipelinesBlock } from "../../src/blocks/pipelines/manifest.ts";
 import type { profilesBlock } from "../../src/blocks/profiles/manifest.ts";
@@ -170,6 +173,9 @@ export type AllBlocks = {
   readonly jobs: typeof jobsBlock;
   readonly rateLimit: typeof rateLimitBlock;
   readonly webhookInbox: typeof webhookInboxBlock;
+  readonly guests: typeof guestsBlock;
+  readonly passes: typeof passesBlock;
+  readonly "billable-time": typeof billableTimeBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

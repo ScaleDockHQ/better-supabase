@@ -1,6 +1,7 @@
 import type { SubjectConfig } from "../config/types/subjects.ts";
 import type { ModuleContext } from "./context.ts";
 import type { ModuleAccessProvider } from "./module-types.ts";
+import type { GuestAction } from "./scope.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
 import { isRecord } from "../core/guards.ts";
@@ -421,13 +422,23 @@ export function subjectReadable(
      * with the `deletedAt` extra key) is null.
      */
     readonly live?: boolean;
+    /**
+     * Also let in a guest granted `read` on the record (ADR 0070), whom the
+     * subject table's policies and the tenant permission don't.
+     */
+    readonly guest?: boolean;
   } = {},
 ): string {
   if (subjects.length === 0) {
     return "true";
   }
 
-  return `case ${args.type}\n${subjects
+  const guest =
+    options.guest === true
+      ? ctx.scope.guest(args.tenant, args.type, args.id, "read")
+      : "false";
+
+  const readable = `case ${args.type}\n${subjects
     .map(([type, subject]) => {
       const deletedAt = subject.extra["deletedAt"];
 
@@ -447,6 +458,8 @@ export function subjectReadable(
       return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live})${extra}`;
     })
     .join("\n")}\n    else false\n  end`;
+
+  return guest === "false" ? readable : `(${guest} or ${readable})`;
 }
 
 /**
@@ -521,7 +534,8 @@ export interface SubjectAccess<A extends string> {
   /**
    * Whether the caller holds the action's key for a row of subject `type` and
    * `id` in `tenant`: in the tenant, or on the subject record itself when its
-   * type sets `scope`. One `can()` call per row, for functions.
+   * type sets `scope`. One `can()` call per row, for functions. A guest granted
+   * the action's guest action on the record passes too.
    */
   canOn(tenant: string, type: string, id: string, action: A): string;
   /**
@@ -547,6 +561,11 @@ export function subjectAccess<A extends string>(
     /** The module's key for an action, as a SQL literal. */
     readonly permission: (action: A) => string;
     readonly provider: ModuleAccessProvider | undefined;
+    /**
+     * The guest action each module action needs (ADR 0070): a guest granted it
+     * on the record passes the check without being a member.
+     */
+    readonly guest?: Partial<Readonly<Record<A, GuestAction>>>;
   },
 ): SubjectAccess<A> {
   const { subjects, actions, permission, provider } = options;
@@ -644,33 +663,59 @@ export function subjectAccess<A extends string>(
   const can = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
 
+  const orGuest = (
+    sql: string,
+    tenant: string,
+    type: string,
+    id: string,
+    action: A,
+  ): string => {
+    const as = options.guest?.[action];
+
+    const check =
+      as === undefined ? "false" : ctx.scope.guest(tenant, type, id, as);
+
+    return check === "false" ? sql : `(${sql} or ${check})`;
+  };
+
+  const member = (tenant: string, type: string, id: string, action: A) => {
+    const list = keyed(action);
+
+    if (list.length === 0) {
+      return can(tenant, permission(action));
+    }
+
+    if (scoped) {
+      return branches(action, type, id, (key) => can(tenant, key));
+    }
+
+    const cases = list.map(
+      (entry) => `when ${sqlString(entry.type)} then ${entry.key}`,
+    );
+
+    return ctx.scope.can(
+      tenant,
+      `case ${type} ${cases.join(" ")} else ${permission(action)} end`,
+    );
+  };
+
   return {
     canOn(tenant, type, id, action) {
-      const list = keyed(action);
-
-      if (list.length === 0) {
-        return can(tenant, permission(action));
-      }
-
-      if (scoped) {
-        return branches(action, type, id, (key) => can(tenant, key));
-      }
-
-      const cases = list.map(
-        (entry) => `when ${sqlString(entry.type)} then ${entry.key}`,
-      );
-
-      return ctx.scope.can(
+      return orGuest(
+        member(tenant, type, id, action),
         tenant,
-        `case ${type} ${cases.join(" ")} else ${permission(action)} end`,
+        type,
+        id,
+        action,
       );
     },
     memberOn(tenant, type, id, action) {
-      if (keyed(action).length === 0) {
-        return ctx.scope.check(tenant, permission(action));
-      }
+      const check =
+        keyed(action).length === 0
+          ? ctx.scope.check(tenant, permission(action))
+          : branches(action, type, id, (key) => ctx.scope.check(tenant, key));
 
-      return branches(action, type, id, (key) => ctx.scope.check(tenant, key));
+      return orGuest(check, tenant, type, id, action);
     },
     keyFor(type, action) {
       const cases = entries.flatMap((entry) => {

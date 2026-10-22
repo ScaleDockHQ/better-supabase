@@ -9,6 +9,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { guestOr } from "../guest-sql.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -250,7 +251,7 @@ create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresA
 ${lockTable(p.bookings, { read: true })}
 drop policy if exists bookings_read on ${p.bookings};
 create policy bookings_read on ${p.bookings} for select to authenticated
-using (${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid()));
+using (${guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")])});
 `;
 }
 

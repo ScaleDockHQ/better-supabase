@@ -10,6 +10,18 @@ export const addDealComments = dealRecord.actions.comments.add;
 
 export const removeDealComments = dealRecord.actions.comments.remove;
 
+export const grantDealGuests = dealRecord.actions.guests.grant;
+
+export const revokeDealGuests = dealRecord.actions.guests.revoke;
+
+export const issueDealPasses = dealRecord.actions.passes.issue;
+
+export const revokeDealPasses = dealRecord.actions.passes.revoke;
+
+export const setRateDealBillableTime = dealRecord.actions.billableTime.setRate;
+
+export const invoiceDealBillableTime = dealRecord.actions.billableTime.invoice;
+
 export const linkDealRelations = dealRecord.actions.relations.link;
 
 export const unlinkDealRelations = dealRecord.actions.relations.unlink;

@@ -24,6 +24,7 @@ import { APPROVALS } from "./modules/approvals.ts";
 import { ASSETS } from "./modules/assets.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
+import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
@@ -48,6 +49,7 @@ import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
+import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
@@ -73,6 +75,7 @@ import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PARTIES } from "./modules/parties.ts";
+import { PASSES } from "./modules/passes.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
@@ -317,6 +320,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ASSETS),
       built(SCORES),
       built(ENROLLMENTS),
+      built(GUESTS),
+      built(PASSES),
+      built(BILLABLE_TIME),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

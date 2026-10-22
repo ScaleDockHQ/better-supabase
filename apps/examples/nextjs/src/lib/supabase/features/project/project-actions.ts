@@ -10,6 +10,18 @@ export const addProjectComments = projectRecord.actions.comments.add;
 
 export const removeProjectComments = projectRecord.actions.comments.remove;
 
+export const grantProjectGuests = projectRecord.actions.guests.grant;
+
+export const revokeProjectGuests = projectRecord.actions.guests.revoke;
+
+export const issueProjectPasses = projectRecord.actions.passes.issue;
+
+export const revokeProjectPasses = projectRecord.actions.passes.revoke;
+
+export const setRateProjectBillableTime = projectRecord.actions.billableTime.setRate;
+
+export const invoiceProjectBillableTime = projectRecord.actions.billableTime.invoice;
+
 export const linkProjectRelations = projectRecord.actions.relations.link;
 
 export const unlinkProjectRelations = projectRecord.actions.relations.unlink;

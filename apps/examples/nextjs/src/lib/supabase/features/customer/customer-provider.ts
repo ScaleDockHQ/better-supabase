@@ -10,6 +10,12 @@ import {
   removeCustomerAttachments,
   addCustomerComments,
   removeCustomerComments,
+  grantCustomerGuests,
+  revokeCustomerGuests,
+  issueCustomerPasses,
+  revokeCustomerPasses,
+  setRateCustomerBillableTime,
+  invoiceCustomerBillableTime,
   linkCustomerRelations,
   unlinkCustomerRelations,
   createCustomerShareLinks,
@@ -31,6 +37,18 @@ const writes = {
   comments: {
     add: addCustomerComments,
     remove: removeCustomerComments,
+  },
+  guests: {
+    grant: grantCustomerGuests,
+    revoke: revokeCustomerGuests,
+  },
+  passes: {
+    issue: issueCustomerPasses,
+    revoke: revokeCustomerPasses,
+  },
+  billableTime: {
+    setRate: setRateCustomerBillableTime,
+    invoice: invoiceCustomerBillableTime,
   },
   relations: {
     link: linkCustomerRelations,

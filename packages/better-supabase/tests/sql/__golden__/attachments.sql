@@ -605,12 +605,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 drop policy if exists "attachments_read" on "better_supabase"."attachments";
 create policy "attachments_read" on "better_supabase"."attachments" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
 drop policy if exists "attachments_insert" on "better_supabase"."attachments";
 create policy "attachments_insert" on "better_supabase"."attachments" for insert to authenticated
   with check ((
     "uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
+    and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "attachments_delete" on "better_supabase"."attachments";
@@ -638,7 +638,7 @@ as $$
     where a."bucket" = attachment_object_allowed.bucket and a."object_path" = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."uploaded_at" is null and a."uploaded_by" = auth.uid()
-        when 'select' then (a."status" = 'clean' and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))
+        when 'select' then (a."status" = 'clean' and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or ((a."organization_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
           or a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         else false
@@ -793,7 +793,7 @@ as $$
   from "better_supabase"."attachments" y
   join "better_supabase"."profiles" pr on pr."id" = y."uploaded_by"
   where y."id" = any ($1)
-    and y."organization_id" in (select better_supabase.tenant_ids_with('attachments.read'))
+    and (y."organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or ((y."organization_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
 $$;
 revoke execute on function "better_supabase"."attachment_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."attachment_authors"(uuid[]) to authenticated, service_role;

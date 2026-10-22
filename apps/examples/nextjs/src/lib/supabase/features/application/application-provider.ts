@@ -10,6 +10,12 @@ import {
   removeApplicationAttachments,
   addApplicationComments,
   removeApplicationComments,
+  grantApplicationGuests,
+  revokeApplicationGuests,
+  issueApplicationPasses,
+  revokeApplicationPasses,
+  setRateApplicationBillableTime,
+  invoiceApplicationBillableTime,
   linkApplicationRelations,
   unlinkApplicationRelations,
   createApplicationShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addApplicationComments,
     remove: removeApplicationComments,
+  },
+  guests: {
+    grant: grantApplicationGuests,
+    revoke: revokeApplicationGuests,
+  },
+  passes: {
+    issue: issueApplicationPasses,
+    revoke: revokeApplicationPasses,
+  },
+  billableTime: {
+    setRate: setRateApplicationBillableTime,
+    invoice: invoiceApplicationBillableTime,
   },
   relations: {
     link: linkApplicationRelations,

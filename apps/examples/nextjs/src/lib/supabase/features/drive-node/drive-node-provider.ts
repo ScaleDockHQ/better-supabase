@@ -10,6 +10,12 @@ import {
   removeDriveNodeAttachments,
   addDriveNodeComments,
   removeDriveNodeComments,
+  grantDriveNodeGuests,
+  revokeDriveNodeGuests,
+  issueDriveNodePasses,
+  revokeDriveNodePasses,
+  setRateDriveNodeBillableTime,
+  invoiceDriveNodeBillableTime,
   linkDriveNodeRelations,
   unlinkDriveNodeRelations,
   createDriveNodeShareLinks,
@@ -29,6 +35,18 @@ const writes = {
   comments: {
     add: addDriveNodeComments,
     remove: removeDriveNodeComments,
+  },
+  guests: {
+    grant: grantDriveNodeGuests,
+    revoke: revokeDriveNodeGuests,
+  },
+  passes: {
+    issue: issueDriveNodePasses,
+    revoke: revokeDriveNodePasses,
+  },
+  billableTime: {
+    setRate: setRateDriveNodeBillableTime,
+    invoice: invoiceDriveNodeBillableTime,
   },
   relations: {
     link: linkDriveNodeRelations,

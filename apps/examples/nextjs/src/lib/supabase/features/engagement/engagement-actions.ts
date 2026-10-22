@@ -10,6 +10,18 @@ export const addEngagementComments = engagementRecord.actions.comments.add;
 
 export const removeEngagementComments = engagementRecord.actions.comments.remove;
 
+export const grantEngagementGuests = engagementRecord.actions.guests.grant;
+
+export const revokeEngagementGuests = engagementRecord.actions.guests.revoke;
+
+export const issueEngagementPasses = engagementRecord.actions.passes.issue;
+
+export const revokeEngagementPasses = engagementRecord.actions.passes.revoke;
+
+export const setRateEngagementBillableTime = engagementRecord.actions.billableTime.setRate;
+
+export const invoiceEngagementBillableTime = engagementRecord.actions.billableTime.invoice;
+
 export const linkEngagementRelations = engagementRecord.actions.relations.link;
 
 export const unlinkEngagementRelations = engagementRecord.actions.relations.unlink;

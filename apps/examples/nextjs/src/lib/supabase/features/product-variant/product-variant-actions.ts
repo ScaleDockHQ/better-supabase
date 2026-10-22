@@ -10,6 +10,18 @@ export const addProductVariantComments = productVariantRecord.actions.comments.a
 
 export const removeProductVariantComments = productVariantRecord.actions.comments.remove;
 
+export const grantProductVariantGuests = productVariantRecord.actions.guests.grant;
+
+export const revokeProductVariantGuests = productVariantRecord.actions.guests.revoke;
+
+export const issueProductVariantPasses = productVariantRecord.actions.passes.issue;
+
+export const revokeProductVariantPasses = productVariantRecord.actions.passes.revoke;
+
+export const setRateProductVariantBillableTime = productVariantRecord.actions.billableTime.setRate;
+
+export const invoiceProductVariantBillableTime = productVariantRecord.actions.billableTime.invoice;
+
 export const linkProductVariantRelations = productVariantRecord.actions.relations.link;
 
 export const unlinkProductVariantRelations = productVariantRecord.actions.relations.unlink;
