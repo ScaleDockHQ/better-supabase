@@ -539,16 +539,13 @@ export interface BlockNameRegistry {
       readonly "contacts": "id" | "tenant" | "user" | "name" | "email" | "phone" | "avatarUrl" | "metadata" | "createdAt" | "updatedAt";
       readonly "identities": "id" | "tenant" | "contact" | "channel" | "externalId" | "createdAt";
       readonly "conversations": "id" | "tenant" | "inbox" | "contact" | "subject" | "status" | "priority" | "assignee" | "team" | "botMode" | "thread" | "snoozedUntil" | "lastMessageAt" | "preview" | "firstResponseAt" | "resolvedAt" | "metadata" | "createdAt" | "updatedAt";
-      readonly "participants": "conversation" | "user" | "role" | "createdAt";
       readonly "events": "id" | "tenant" | "conversation" | "type" | "actor" | "data" | "createdAt";
-      readonly "reads": "conversation" | "user" | "lastReadAt";
-      readonly "messages": "id" | "tenant" | "conversation" | "direction" | "kind" | "authorType" | "author" | "body" | "format" | "attachments" | "reactions" | "mentions" | "externalId" | "replyTo" | "metadata" | "createdAt" | "editedAt" | "deletedAt";
+      readonly "details": "message" | "tenant" | "conversation" | "direction" | "authorType" | "format" | "externalId" | "replyTo" | "metadata";
       readonly "deliveries": "id" | "tenant" | "message" | "channel" | "status" | "externalId" | "error" | "attempts" | "createdAt" | "updatedAt";
-      readonly "mentions": "message" | "user" | "tenant" | "createdAt";
       readonly "inbound": "id" | "tenant" | "adapter" | "externalId" | "inbox" | "headers" | "body" | "status" | "error" | "attempts" | "receivedAt" | "processedAt";
       readonly "templates": "id" | "tenant" | "inbox" | "name" | "channel" | "language" | "body" | "variables" | "externalId" | "createdAt" | "updatedAt";
     };
-    readonly functions: "assign_conversation" | "create_inbox" | "create_inbox_team" | "delete_message_template" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_contact_conversation_ids" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_message_broadcast" | "inbox_read_broadcast" | "inbox_resolve_contact" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "purge_contact" | "purge_inbound_events" | "react_to_message" | "record_delivery" | "record_inbound" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "set_inbox_typing" | "start_conversation" | "store_inbound_event" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
+    readonly functions: "assign_conversation" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "inbox_resolve_contact" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -649,7 +646,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "conversations": "id" | "tenant" | "kind" | "access" | "subjectType" | "subjectId" | "title" | "memberKey" | "createdBy" | "lastMessageAt" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "members": "conversation" | "tenant" | "user" | "role" | "notify" | "lastReadAt" | "joinedAt";
-      readonly "messages": "id" | "tenant" | "conversation" | "parent" | "thread" | "author" | "body" | "document" | "anchor" | "mentions" | "mentionScope" | "broadcast" | "replyCount" | "lastReplyAt" | "replyUsers" | "pinnedAt" | "pinnedBy" | "resolvedAt" | "resolvedBy" | "scheduledFor" | "sentAt" | "editedAt" | "deletedAt" | "createdAt";
+      readonly "messages": "id" | "tenant" | "conversation" | "parent" | "thread" | "author" | "kind" | "body" | "document" | "anchor" | "mentions" | "mentionScope" | "broadcast" | "replyCount" | "lastReplyAt" | "replyUsers" | "pinnedAt" | "pinnedBy" | "resolvedAt" | "resolvedBy" | "scheduledFor" | "sentAt" | "editedAt" | "deletedAt" | "createdAt";
       readonly "edits": "id" | "tenant" | "message" | "body" | "document" | "editor" | "editedAt";
       readonly "reads": "tenant" | "user" | "conversation" | "thread" | "lastReadAt";
     };
@@ -657,7 +654,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {
-      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_for" | "sent_at" | "edited_at" | "deleted_at" | "created_at";
+      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_for" | "sent_at" | "edited_at" | "deleted_at" | "created_at";
       readonly "conversation": "id" | "tenant_id" | "kind" | "access" | "subject_type" | "subject_id" | "title" | "member_key" | "created_by" | "last_message_at" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "message";

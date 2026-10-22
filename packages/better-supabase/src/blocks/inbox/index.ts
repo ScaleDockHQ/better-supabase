@@ -25,6 +25,12 @@ export type {
 export { INBOX_CHANNELS } from "./rows.ts";
 
 export type {
+  MessageFile,
+  MessageKind,
+  MessageReaction,
+} from "../messaging/messaging.ts";
+
+export type {
   AuthorType,
   BotMode,
   Contact,
@@ -36,13 +42,14 @@ export type {
   InboundResult,
   InboxChannel,
   InboxCounts,
+  InboxFileSource,
   InboxMessage,
   InboxRow,
-  MessageAttachment,
+  InboxUpload,
   MessageDelivery,
   MessageDirection,
-  MessageKind,
   MessageTemplate,
+  PendingInboxFile,
   PurgedContact,
   StoredInboundEvent,
 } from "./types.ts";
@@ -58,6 +65,7 @@ export type {
   ConversationController,
   ConversationControllerOptions,
   ConversationSnapshot,
+  Identified,
   InboxController,
   InboxControllerOptions,
   InboxListActions,

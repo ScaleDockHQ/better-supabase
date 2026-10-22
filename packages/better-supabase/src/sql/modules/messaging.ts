@@ -3,6 +3,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { schemaPreamble } from "../shared.ts";
 import { messagingFunctions } from "./messaging-functions.ts";
+import { messagingInbox } from "./messaging-inbox.ts";
 import { MESSAGING_NAMES, messagingSql } from "./messaging-names.ts";
 import { messagingRealtime, messagingTables } from "./messaging-tables.ts";
 
@@ -22,7 +23,13 @@ ${messagingTables(q)}
 
 ${messagingFunctions(q)}
 
-${messagingRealtime(q)}`;
+${messagingRealtime(q)}${
+    ctx.installed("inbox")
+      ? `
+
+${messagingInbox(q)}`
+      : ""
+  }`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -69,7 +76,11 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["uuid", "text"],
       returns: "boolean",
     },
-    { name: "set_typing", args: ["uuid", "boolean"], returns: "boolean" },
+    {
+      name: "set_typing",
+      args: ["uuid", "boolean", "text"],
+      returns: "boolean",
+    },
     {
       name: "send_message",
       args: ["uuid", "text", "jsonb", "uuid[]"],
@@ -133,6 +144,7 @@ export const MESSAGING: ModuleDefinition = {
     "attachments",
     "reactions",
     "data-lifecycle",
+    "inbox",
   ],
   target: "schema",
   modes: ["managed", "custom"],

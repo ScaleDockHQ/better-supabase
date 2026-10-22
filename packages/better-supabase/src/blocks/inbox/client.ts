@@ -110,30 +110,61 @@ export interface ConversationActions extends InboxListActions {
   readonly setTyping: (typing: boolean) => void;
 }
 
-export interface ConversationControllerOptions<T> {
+export interface ConversationControllerOptions<T extends Identified> {
   readonly auth: AuthPort;
   readonly ports: Ports;
   /** `null` waits, e.g. before the widget opens a conversation. */
   readonly conversationId: string | null;
-  /** The messages, oldest first. */
+  /** The messages, oldest first: on start and after a rejoin. */
   readonly load: InboxSource<T>;
+  /**
+   * One message after a ping, e.g. a server action that calls
+   * `inbox.messages.get(id)`; `null` when the caller cannot read it.
+   */
+  readonly get: (messageId: string) => Promise<T | null>;
+  /**
+   * `blockConfig.messaging.options.topic` from `blocks.generated.ts`. Defaults
+   * to `messages`.
+   */
   readonly topic?: string;
+  /** Runs for the other pings, such as `conversation` and `read`. */
+  readonly onEvent?: (event: string, payload: unknown) => void;
   /** How long a typing ping counts. Defaults to 5000 ms. */
   readonly typingMs?: number;
 }
 
-export type ConversationController<T> = Controller<
+/** What the conversation controller needs of a message. */
+export interface Identified {
+  readonly id: string;
+}
+
+export type ConversationController<T extends Identified> = Controller<
   ConversationSnapshot<T>,
   ConversationActions
 >;
 
 const NO_TYPERS: readonly string[] = [];
 
+const textOf = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+/** `items` with `message` replaced in place, or added last. */
+function upsert<T extends Identified>(
+  items: readonly T[],
+  message: T,
+): readonly T[] {
+  const at = items.findIndex((item) => item.id === message.id);
+
+  return at === -1 ? [...items, message] : items.with(at, message);
+}
+
 /**
- * One conversation's messages, kept current over `inbox:<id>`, with typing
- * pings between staff and the contact. Notes never reach this topic.
+ * One conversation's messages, kept current over the messaging topic
+ * `messages:<id>`: each ping fetches the one message it names, so the thread
+ * never reloads on a change. Typing pings go both ways between staff and the
+ * contact; notes stay out for the contact because `get` returns `null`.
  */
-export function createConversationController<T>(
+export function createConversationController<T extends Identified>(
   options: ConversationControllerOptions<T>,
 ): ConversationController<T> {
   const typingMs = options.typingMs ?? 5000;
@@ -141,7 +172,7 @@ export function createConversationController<T>(
   const topic =
     options.conversationId === null
       ? null
-      : `${options.topic ?? "inbox"}:${options.conversationId}`;
+      : `${options.topic ?? "messages"}:${options.conversationId}`;
 
   let joined:
     | { readonly userId: string; readonly send: (on: boolean) => void }
@@ -151,6 +182,20 @@ export function createConversationController<T>(
     { items: undefined, status: "closed", error: undefined, typing: NO_TYPERS },
     (state) => {
       const refresh = loader(options.load, state);
+
+      const fetchOne = async (messageId: string): Promise<void> => {
+        try {
+          const message = await options.get(messageId);
+
+          if (message !== null) {
+            state.set((current) => ({
+              items: upsert(current.items ?? [], message),
+            }));
+          }
+        } catch (cause) {
+          state.set({ error: cause });
+        }
+      };
 
       const join = (name: string, userId: string): (() => void) => {
         const seen = new Map<string, ReturnType<typeof setTimeout>>();
@@ -178,21 +223,30 @@ export function createConversationController<T>(
 
         const handle = options.ports.topic(name, {
           onMessage: (event, payload) => {
-            if (event !== "typing") {
-              void refresh();
+            const data: Record<string, unknown> =
+              typeof payload === "object" && payload !== null
+                ? { ...payload }
+                : {};
+
+            if (event === "typing") {
+              const who = textOf(data["userId"]);
+
+              if (who !== undefined && who !== userId) {
+                typer(who, data["typing"] !== false);
+              }
 
               return;
             }
 
-            if (typeof payload !== "object" || payload === null) {
+            const messageId = textOf(data["messageId"]);
+
+            if (messageId === undefined) {
+              options.onEvent?.(event, payload);
+
               return;
             }
 
-            const who = "user_id" in payload ? String(payload.user_id) : "";
-
-            if (who !== "" && who !== userId) {
-              typer(who, !("typing" in payload) || payload.typing !== false);
-            }
+            void fetchOne(messageId);
           },
           onRejoin: () => void refresh(),
           onStatus: (status) => {
@@ -203,7 +257,11 @@ export function createConversationController<T>(
         joined = {
           userId,
           send: (on) => {
-            handle.send("typing", { user_id: userId, typing: on });
+            handle.send("typing", {
+              conversationId: options.conversationId,
+              userId,
+              typing: on,
+            });
           },
         };
 
@@ -241,7 +299,7 @@ export function createConversationController<T>(
   );
 }
 
-export interface InboxWidgetControllerOptions<T> {
+export interface InboxWidgetControllerOptions<T extends Identified> {
   readonly auth: AuthPort;
   readonly ports: Ports & { readonly storage?: StoragePort };
   /**
@@ -253,6 +311,8 @@ export interface InboxWidgetControllerOptions<T> {
   /** Sends into the open conversation. */
   readonly send: (conversationId: string, message: string) => Promise<void>;
   readonly load: (conversationId: string) => Promise<readonly T[]>;
+  /** One message after a ping; `null` when the visitor cannot read it. */
+  readonly get: (messageId: string) => Promise<T | null>;
   /**
    * Remembers the conversation across reloads in the storage port. Defaults to
    * `better-supabase:inbox-widget`; `null` forgets it.
@@ -272,7 +332,7 @@ export interface InboxWidgetActions extends ConversationActions {
   readonly reset: () => void;
 }
 
-export type InboxWidgetController<T> = Controller<
+export type InboxWidgetController<T extends Identified> = Controller<
   InboxWidgetSnapshot<T>,
   InboxWidgetActions
 >;
@@ -282,7 +342,7 @@ export type InboxWidgetController<T> = Controller<
  * conversation, later ones go into it, and the messages and typing pings stay
  * current. Visitors without an account sign in anonymously first.
  */
-export function createInboxWidgetController<T>(
+export function createInboxWidgetController<T extends Identified>(
   options: InboxWidgetControllerOptions<T>,
 ): InboxWidgetController<T> {
   const key =
@@ -321,6 +381,7 @@ export function createInboxWidgetController<T>(
           ports: options.ports,
           conversationId: id,
           load: () => (id === null ? Promise.resolve([]) : options.load(id)),
+          get: options.get,
           ...(options.topic === undefined ? {} : { topic: options.topic }),
         });
 
@@ -364,7 +425,6 @@ export function createInboxWidgetController<T>(
             }
 
             await options.send(conversationId, message);
-            await inner?.actions.refresh();
           },
           reset: () => {
             if (key !== null) {

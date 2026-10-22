@@ -22,13 +22,18 @@ describe("inbox react-server build", () => {
       "useInbox() runs in Client Components only",
     );
     expect(() =>
-      server.useConversation({ conversationId: null, load }),
+      server.useConversation({
+        conversationId: null,
+        load,
+        get: async () => null,
+      }),
     ).toThrow("useConversation() runs in Client Components only");
     expect(() =>
       server.useInboxWidget({
         open: async () => "",
         send: async () => undefined,
         load,
+        get: async () => null,
       }),
     ).toThrow("useInboxWidget() runs in Client Components only");
   });

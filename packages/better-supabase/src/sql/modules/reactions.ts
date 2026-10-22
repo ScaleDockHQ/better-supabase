@@ -68,9 +68,6 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** The subject type of an inbox message from the `inbox` module. */
-const INBOX_MESSAGE_SUBJECT = "inbox_message";
-
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const SHORTCODE = "^:[a-z0-9_+-]{1,32}:$";
 
@@ -111,57 +108,7 @@ function visibleCase(
   ctx: ModuleContext,
   args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
-  const subjects = reactionSubjects(ctx);
-  const whens: string[] = [];
-
-  if (ctx.installed("inbox") && ctx.of("inbox").mode !== "custom") {
-    const inbox = ctx.of("inbox");
-    const mc = (column: string): string => inbox.col("messages", column);
-    whens.push(
-      `    when ${sqlString(INBOX_MESSAGE_SUBJECT)} then exists (select 1 from ${inbox.table("messages")} m where m.${mc("id")}::text = ${args.id} and m.${mc("tenant")} = ${args.tenant})`,
-    );
-  }
-
-  const rest = subjectReadable(ctx, subjects, args, { live: true });
-
-  if (whens.length === 0) {
-    return rest;
-  }
-
-  return `case ${args.type}
-${whens.join("\n")}
-    else ${rest}
-  end`;
-}
-
-function inboxBackfill(ctx: ModuleContext): string {
-  if (!ctx.manages || !ctx.installed("inbox")) {
-    return "";
-  }
-
-  const inbox = ctx.of("inbox");
-
-  if (inbox.mode === "custom") {
-    return "";
-  }
-
-  const mc = (column: string): string => inbox.col("messages", column);
-  const c = (column: string): string => ctx.col("reactions", column);
-
-  return `-- Copies the reactions inbox messages kept in their jsonb column, without
--- recording them as new reactions.
-select set_config('better_supabase.bs_reactions_backfill', 'on', true);
-insert into ${ctx.table("reactions")} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("emoji")})
-select m.${mc("tenant")}, ${sqlString(INBOX_MESSAGE_SUBJECT)}, m.${mc("id")}::text, a.actor,
-  case when a.actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then a.actor::uuid end,
-  e.key
-from ${inbox.table("messages")} m
-cross join lateral jsonb_each(case when jsonb_typeof(m.${mc("reactions")}) = 'object' then m.${mc("reactions")} else '{}'::jsonb end) e
-cross join lateral jsonb_array_elements_text(case when jsonb_typeof(e.value) = 'array' then e.value else '[]'::jsonb end) a(actor)
-where length(e.key) between 1 and 64 and e.key !~ '\\s' and e.key !~ ${sqlString(SHORTCODE)}
-on conflict do nothing;
-select set_config('better_supabase.bs_reactions_backfill', '', true);
-`;
+  return subjectReadable(ctx, reactionSubjects(ctx), args, { live: true });
 }
 
 function build(ctx: ModuleContext): string {
@@ -194,18 +141,6 @@ function build(ctx: ModuleContext): string {
       subject: `'reactions/' || ${row}.${c("id")}::text`,
       tenant: `${row}.${c("tenant")}`,
     });
-
-  const inboxReact = ctx.installed("inbox")
-    ? `
-  if react.subject_type = ${sqlString(INBOX_MESSAGE_SUBJECT)} then
-    perform ${ctx.of("inbox").fn("react_to_message")}(react.subject_id::uuid, react.emoji, coalesce(react.present, true), react.actor);
-    return ${fn("reaction_list")}(react.tenant, react.subject_type, react.subject_id);
-  end if;`
-    : "";
-
-  const insertCheck = ctx.installed("inbox")
-    ? ` and ${c("subjectType")} <> ${sqlString(INBOX_MESSAGE_SUBJECT)}`
-    : "";
 
   const tables = ctx.manages
     ? `create table if not exists ${reactions} (
@@ -274,12 +209,12 @@ create policy ${sqlIdent(`${ctx.tableName("reactions").name}_insert`)} on ${reac
   with check (
     ${c("user")} = (select auth.uid())
     and ${c("actor")} = (select auth.uid())::text
-    and ${ctx.scope.check(c("tenant"), create)}${insertCheck}
+    and ${ctx.scope.check(c("tenant"), create)}
     and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
 drop policy if exists ${sqlIdent(`${ctx.tableName("reactions").name}_delete`)} on ${reactions};
 create policy ${sqlIdent(`${ctx.tableName("reactions").name}_delete`)} on ${reactions} for delete to authenticated
-  using (${c("user")} = (select auth.uid())${insertCheck});
+  using (${c("user")} = (select auth.uid()));
 
 drop trigger if exists ${ctx.trigger("reactions_check")} on ${reactions};
 drop trigger if exists ${ctx.trigger("reactions_changed")} on ${reactions};
@@ -373,7 +308,7 @@ as $$
 declare
   v_actor text;
   v_user uuid;
-begin${inboxReact}
+begin
   if ${SERVICE_CALLER} then
     v_actor := coalesce(react.actor, 'service');
   elsif react.actor is not null then
@@ -531,9 +466,9 @@ export const REACTIONS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Reactions",
   description:
-    "Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.",
+    "Emoji reactions on any subject and on messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.",
   requires: ["tenant", "access"],
-  integrates: ["outbox", "messaging", "inbox"],
+  integrates: ["outbox", "messaging"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,
@@ -541,5 +476,4 @@ export const REACTIONS: ModuleDefinition = {
   topics: (ctx) => [`${topicOf(ctx)}:{tenant}`],
   contract,
   build,
-  data: inboxBackfill,
 };

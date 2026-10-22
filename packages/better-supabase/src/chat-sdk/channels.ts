@@ -12,8 +12,9 @@ import type { Inbox } from "../blocks/inbox/inbox.ts";
 import type {
   Conversation,
   InboundResult,
+  InboxFileSource,
   InboxMessage,
-  MessageAttachment,
+  PendingInboxFile,
   StoredInboundEvent,
 } from "../blocks/inbox/types.ts";
 import type {
@@ -202,12 +203,13 @@ export interface InboundHandlerOptions {
   /**
    * Copies a platform file into storage for the inbox. Without it a file is
    * kept only when it has a public URL; platform URLs often need the bot's
-   * token, so copy them.
+   * token, so copy them. Either way the inbox stores it as a pending attachment
+   * that `importFiles` fetches.
    */
   readonly copyFile?: (
     file: Attachment,
     context: { readonly adapter: string; readonly threadId: string },
-  ) => Promise<MessageAttachment | null>;
+  ) => Promise<InboxFileSource | null>;
   /**
    * The URL replayed requests carry. Defaults to
    * `https://inbox.local/<adapter>`.
@@ -237,6 +239,41 @@ export interface InboundHandler {
    * `null` for those.
    */
   mirror(thread: MirrorThread, message: Message): Promise<InboundResult | null>;
+  /**
+   * Fetches the channel files the inbox holds as pending attachments, writes
+   * each to Storage and confirms it; a file that fails is marked `failed`.
+   */
+  importFiles(options: ImportFilesOptions): Promise<DrainResult>;
+}
+
+export interface ImportFilesOptions {
+  /**
+   * Writes the bytes to `file.bucket` at `file.path`, such as
+   * `supabase.storage.from(file.bucket).upload(file.path, data)` with the
+   * service role.
+   */
+  readonly write: (file: PendingInboxFile, data: Blob) => Promise<void>;
+  /**
+   * Reads a file. Defaults to fetching `file.source.url`; a source with only a
+   * `path` (in `file.source.bucket`) fails until you pass `read`.
+   */
+  readonly read?: (file: PendingInboxFile) => Promise<Blob>;
+  /** Defaults to 50. */
+  readonly limit?: number;
+}
+
+async function readSource(file: PendingInboxFile): Promise<Blob> {
+  if (file.source.url === undefined) {
+    throw new Error(`file ${file.id} has no URL; pass read`);
+  }
+
+  const response = await fetch(file.source.url);
+
+  if (!response.ok) {
+    throw new Error(`${file.source.url} answered ${String(response.status)}`);
+  }
+
+  return response.blob();
 }
 
 /** Replays stored webhook events and mirrors channel messages into the inbox. */
@@ -315,8 +352,8 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     message: Message,
     adapter: string,
     threadId: string,
-  ): Promise<MessageAttachment[]> => {
-    const out: MessageAttachment[] = [];
+  ): Promise<InboxFileSource[]> => {
+    const out: InboxFileSource[] = [];
 
     for (const file of message.attachments) {
       if (options.copyFile) {
@@ -385,7 +422,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         throw new Error(`inboundHandler: no inbox for adapter "${adapter}"`);
       }
 
-      const attachments = await files(message, adapter, thread.id);
+      const sources = await files(message, adapter, thread.id);
 
       return inbox.inbound
         .record({
@@ -401,10 +438,33 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
           message: {
             body: message.text,
             externalId: message.id,
-            ...(attachments.length > 0 ? { attachments } : {}),
+            ...(sources.length > 0 ? { files: sources } : {}),
           },
         })
         .orThrow();
+    },
+    importFiles: async (importOptions) => {
+      const read = importOptions.read ?? readSource;
+
+      const pending = await inbox.files
+        .pending(importOptions.limit ?? 50)
+        .orThrow();
+
+      let processed = 0;
+      let failed = 0;
+
+      for (const file of pending) {
+        try {
+          await importOptions.write(file, await read(file));
+          await inbox.files.stored(file.id).orThrow();
+          processed += 1;
+        } catch (error) {
+          await inbox.files.failed(file.id, errorText(error));
+          failed += 1;
+        }
+      }
+
+      return { processed, failed };
     },
   };
 }
@@ -477,7 +537,7 @@ export function deliver(
   return async (job) => {
     const message = await inbox.messages.get(job.message_id).orThrow();
 
-    if (message?.kind !== "message" || message.deletedAt !== null) {
+    if (message?.kind !== "message" || message.deletedAt !== undefined) {
       return null;
     }
 

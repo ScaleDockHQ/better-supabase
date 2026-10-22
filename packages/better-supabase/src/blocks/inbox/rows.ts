@@ -13,11 +13,14 @@ import type {
   InboxCounts,
   InboxMessage,
   InboxRow,
-  MessageAttachment,
+  InboxFileSource,
+  InboxUpload,
   MessageTemplate,
+  PendingInboxFile,
   StoredInboundEvent,
 } from "./types.ts";
 
+import { messageOf as coreMessageOf } from "../messaging/messaging.ts";
 import {
   isRecord,
   oneOf,
@@ -135,61 +138,22 @@ export function conversationOf(value: unknown): Conversation {
   };
 }
 
-function attachmentOf(value: unknown): MessageAttachment {
-  const row = recordOrEmpty(value);
-  const path = optionalText(row["path"]);
-  const url = optionalText(row["url"]);
-  const name = optionalText(row["name"]);
-  const contentType = optionalText(row["content_type"]);
-  const size = row["size"];
-
-  return {
-    ...(path === undefined ? {} : { path }),
-    ...(url === undefined ? {} : { url }),
-    ...(name === undefined ? {} : { name }),
-    ...(contentType === undefined ? {} : { contentType }),
-    ...(typeof size === "number" ? { size } : {}),
-  };
-}
-
-export function reactionsOf(value: unknown): Record<string, readonly string[]> {
-  const out: Record<string, readonly string[]> = {};
-
-  for (const [emoji, actors] of Object.entries(recordOrEmpty(value))) {
-    out[emoji] = stringsOf(actors);
-  }
-
-  return out;
-}
-
 export function messageOf(value: unknown): InboxMessage {
   const row = recordOf(value, "message");
   const delivery = isRecord(row["delivery"]) ? row["delivery"] : undefined;
 
   return {
-    id: textOf(row["id"]),
-    conversationId: textOf(row["conversation_id"]),
+    ...coreMessageOf(row),
     direction: row["direction"] === "outbound" ? "outbound" : "inbound",
-    kind: row["kind"] === "note" ? "note" : "message",
     authorType: oneOf<AuthorType>(
       row["author_type"],
       ["contact", "agent", "bot", "system"],
       "system",
     ),
-    authorId: nullableText(row["author_id"]),
-    body: textOf(row["body"] ?? ""),
     format: row["format"] === "markdown" ? "markdown" : "text",
-    attachments: Array.isArray(row["attachments"])
-      ? row["attachments"].map(attachmentOf)
-      : [],
-    reactions: reactionsOf(row["reactions"]),
-    mentions: stringsOf(row["mentions"]),
     externalId: nullableText(row["external_id"]),
     replyTo: nullableText(row["reply_to"]),
     metadata: recordOrEmpty(row["metadata"]),
-    createdAt: requiredInstant(row["created_at"], "message.created_at"),
-    editedAt: nullableInstant(row["edited_at"]),
-    deletedAt: nullableInstant(row["deleted_at"]),
     ...(row["delivery"] === undefined
       ? {}
       : {
@@ -239,13 +203,18 @@ export function countsOf(value: unknown): InboxCounts {
 
 export function purgedOf(value: unknown): PurgedContact {
   const row = recordOf(value, "purge_contact");
-  const paths = row["attachments"];
+  const files = row["attachments"];
 
   return {
     conversations: Number(row["conversations"] ?? 0),
     messages: Number(row["messages"] ?? 0),
-    attachments: Array.isArray(paths)
-      ? paths.filter((path): path is string => typeof path === "string")
+    attachments: Array.isArray(files)
+      ? files
+          .filter(isRecord)
+          .map((file) => ({
+            bucket: textOf(file["bucket"]),
+            path: textOf(file["path"]),
+          }))
       : [],
   };
 }
@@ -302,3 +271,45 @@ export const storedEventsOf = (value: unknown): readonly StoredInboundEvent[] =>
       ),
     };
   });
+
+function sourceOf(value: unknown): InboxFileSource {
+  const row = recordOrEmpty(value);
+  const url = optionalText(row["url"]);
+  const path = optionalText(row["path"]);
+  const bucket = optionalText(row["bucket"]);
+  const name = optionalText(row["name"]);
+  const contentType = optionalText(row["content_type"]);
+  const size = row["size"];
+
+  return {
+    ...(url === undefined ? {} : { url }),
+    ...(path === undefined ? {} : { path }),
+    ...(bucket === undefined ? {} : { bucket }),
+    ...(name === undefined ? {} : { name }),
+    ...(contentType === undefined ? {} : { contentType }),
+    ...(typeof size === "number" ? { size } : {}),
+  };
+}
+
+export const pendingFilesOf = (value: unknown): readonly PendingInboxFile[] =>
+  recordsOf(value, "pending_inbox_files").map((row) => ({
+    id: textOf(row["id"]),
+    conversationId: textOf(row["conversation_id"]),
+    messageId: textOf(row["message_id"]),
+    tenant: textOf(row["tenant_id"]),
+    bucket: textOf(row["bucket"]),
+    path: textOf(row["object_path"]),
+    name: textOf(row["name"]),
+    mimeType: optionalText(row["mime_type"]),
+    source: sourceOf(row["source"]),
+  }));
+
+export function uploadOf(value: unknown): InboxUpload {
+  const row = recordOf(value, "create_inbox_attachment");
+
+  return {
+    id: textOf(row["id"]),
+    bucket: textOf(row["bucket"]),
+    path: textOf(row["object_path"]),
+  };
+}

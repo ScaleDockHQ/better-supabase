@@ -21,6 +21,7 @@ onboarding
 waitlist
 announcements
 workflow-builder
+inbox
 ai-chat
 ai-files
 knowledge

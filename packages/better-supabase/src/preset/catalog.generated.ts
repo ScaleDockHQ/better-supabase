@@ -649,7 +649,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "access",
         "updated-at",
-        "teams"
+        "teams",
+        "messaging",
+        "attachments"
       ],
       "integrates": [
         "jobs",
@@ -1292,8 +1294,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "messaging",
-        "inbox"
+        "messaging"
       ],
       "manifest": "reactions",
       "scopes": [
@@ -2520,7 +2521,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "profiles",
         "attachments",
         "reactions",
-        "data-lifecycle"
+        "data-lifecycle",
+        "inbox"
       ],
       "manifest": "messaging",
       "scopes": [
@@ -2571,6 +2573,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "parent": "parent_id",
               "thread": "thread_id",
               "author": "author_id",
+              "kind": "kind",
               "body": "body",
               "document": "document",
               "anchor": "anchor",
@@ -5185,6 +5188,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "MessageFile"
+        },
+        {
+          "name": "MessageKind"
         },
         {
           "name": "MessageListOptions"

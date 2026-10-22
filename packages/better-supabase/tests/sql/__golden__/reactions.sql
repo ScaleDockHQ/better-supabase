@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject and on messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -380,7 +380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject and on messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -468,10 +468,7 @@ security invoker
 set search_path = ''
 as $$
 begin
-  return case reaction_subject_visible.subject_type
-    when 'inbox_message' then exists (select 1 from "better_supabase"."inbox_messages" m where m."id"::text = reaction_subject_visible.subject_id and m."tenant_id" = reaction_subject_visible.tenant)
-    else true
-  end;
+  return true;
 end;
 $$;
 revoke execute on function "better_supabase"."reaction_subject_visible"(text, text, uuid) from public, anon;
@@ -485,12 +482,12 @@ create policy "reactions_insert" on "better_supabase"."reactions" for insert to 
   with check ((
     "user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
-    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create')) and "subject_type" <> 'inbox_message'
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
     and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "reactions_delete" on "better_supabase"."reactions";
 create policy "reactions_delete" on "better_supabase"."reactions" for delete to authenticated
-  using (("user_id" = (select auth.uid()) and "subject_type" <> 'inbox_message') and (select better_supabase.actor_may_write()));
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 drop trigger if exists "bs_reactions_check" on "better_supabase"."reactions";
 drop trigger if exists "bs_reactions_changed" on "better_supabase"."reactions";
@@ -588,10 +585,6 @@ declare
   v_actor text;
   v_user uuid;
 begin
-  if react.subject_type = 'inbox_message' then
-    perform "better_supabase"."react_to_message"(react.subject_id::uuid, react.emoji, coalesce(react.present, true), react.actor);
-    return "better_supabase"."reaction_list"(react.tenant, react.subject_type, react.subject_id);
-  end if;
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_actor := coalesce(react.actor, 'service');
   elsif react.actor is not null then
@@ -758,20 +751,6 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- Copies the reactions inbox messages kept in their jsonb column, without
--- recording them as new reactions.
-select set_config('better_supabase.bs_reactions_backfill', 'on', true);
-insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "emoji")
-select m."tenant_id", 'inbox_message', m."id"::text, a.actor,
-  case when a.actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then a.actor::uuid end,
-  e.key
-from "better_supabase"."inbox_messages" m
-cross join lateral jsonb_each(case when jsonb_typeof(m."reactions") = 'object' then m."reactions" else '{}'::jsonb end) e
-cross join lateral jsonb_array_elements_text(case when jsonb_typeof(e.value) = 'array' then e.value else '[]'::jsonb end) a(actor)
-where length(e.key) between 1 and 64 and e.key !~ '\s' and e.key !~ '^:[a-z0-9_+-]{1,32}:$'
-on conflict do nothing;
-select set_config('better_supabase.bs_reactions_backfill', '', true);
-
 insert into better_supabase.modules (name, version, mode)
 values ('reactions', 1, 'managed')
 on conflict (name) do update
@@ -780,7 +759,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject and on messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1161,7 +1140,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_76_reactions.sql
 -- better-supabase module: reactions
 -- @bs-module reactions@1 managed
--- Emoji reactions on any subject, messages and inbox messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
+-- Emoji reactions on any subject and on messages, with per-tenant custom emoji, counts per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

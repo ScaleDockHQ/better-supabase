@@ -110,7 +110,14 @@ begin
   end if;
   if ${q.service} then
     return true;
-  end if;
+  end if;${
+    ctx.installed("inbox")
+      ? `
+  if v_conv.${cv("kind")} = 'inbox' then
+    return ${ctx.of("inbox").fn("inbox_can_conversation")}(v_conv.${cv("id")}, can_conversation.action);
+  end if;`
+      : ""
+  }
   case can_conversation.action
     when 'read' then
       return true;
@@ -356,7 +363,11 @@ as $$
     select c.* from ${t("conversations")} c
     join ${t("members")} k on k.${mb("conversation")} = c.${cv("id")} and k.${mb("user")} = auth.uid()
     where ${ctx.scope.eq(`c.${cv("tenant")}`, "list_conversations.tenant")}
-      and (list_conversations.kinds is null or c.${cv("kind")} = any (list_conversations.kinds))
+      and (${
+        ctx.installed("inbox")
+          ? `list_conversations.kinds is null and c.${cv("kind")} <> 'inbox'`
+          : "list_conversations.kinds is null"
+      } or c.${cv("kind")} = any (list_conversations.kinds))
     order by c.${cv("lastMessageAt")} desc nulls last, c.${cv("id")}
     limit ${pageSize("list_conversations.max_rows", 100, 500)}
   ) c
@@ -396,7 +407,12 @@ as $$
       and m.${ms("author")} is distinct from auth.uid()
   ) u
   where k.${mb("user")} = auth.uid()
-    and ${ctx.scope.eq(`k.${mb("tenant")}`, "unread_counts.tenant")}
+    and ${ctx.scope.eq(`k.${mb("tenant")}`, "unread_counts.tenant")}${
+      ctx.installed("inbox")
+        ? `
+    and not exists (select 1 from ${t("conversations")} c where c.${cv("id")} = k.${mb("conversation")} and c.${cv("kind")} = 'inbox')`
+        : ""
+    }
     and u.unread > 0
 $$;
 ${userGrant(`${fn("unread_counts")}(${id})`)}
@@ -474,22 +490,30 @@ $$;
 ${userGrant(`${fn("set_conversation_notify")}(uuid, text)`)}
 
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
--- private topic, for clients that don't send the broadcast themselves.
-create or replace function ${fn("set_typing")}(conversation uuid, typing boolean default true)
+-- private topic, for clients that don't send the broadcast themselves. The
+-- service names who types in actor (a bot's name), default 'bot'.
+drop function if exists ${fn("set_typing")}(uuid, boolean);
+create or replace function ${fn("set_typing")}(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_who text;
 begin
-  if auth.uid() is null or not ${fn("can_conversation")}(set_typing.conversation, 'send') then
+  if ${q.service} then
+    v_who := coalesce(set_typing.actor, 'bot');
+  elsif auth.uid() is null or not ${fn("can_conversation")}(set_typing.conversation, 'send') then
     return false;
+  else
+    v_who := auth.uid()::text;
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is null then
     return false;
   end if;
   perform realtime.send(
-    jsonb_build_object(${sqlString(q.e("conversationId"))}, set_typing.conversation, 'userId', auth.uid(), 'typing', set_typing.typing),
+    jsonb_build_object(${sqlString(q.e("conversationId"))}, set_typing.conversation, 'userId', v_who, 'typing', coalesce(set_typing.typing, true)),
     'typing',
     ${conversationTopic(q, "set_typing.conversation")},
     true
@@ -497,6 +521,6 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("set_typing")}(uuid, boolean)`)}
+${userGrant(`${fn("set_typing")}(uuid, boolean, text)`)}
 ${follow}`;
 }

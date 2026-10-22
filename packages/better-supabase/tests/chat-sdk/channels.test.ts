@@ -464,8 +464,107 @@ describe("inboundHandler", () => {
     );
     expect(call.mock.calls[0]?.[2]["input"]).toMatchObject({
       contact: { name: "ada", email: "a@x.test" },
-      message: { attachments: [{ path: "org/a.png" }] },
+      message: { files: [{ path: "org/a.png" }] },
     });
+  });
+});
+
+describe("importFiles", () => {
+  const pendingRow = (id: string, source: Record<string, unknown>) => ({
+    id,
+    tenant_id: "org",
+    conversation_id: "c1",
+    message_id: "m1",
+    bucket: "attachments",
+    object_path: `org/conversation/c1/${id}`,
+    name: `${id}.png`,
+    mime_type: "image/png",
+    source,
+  });
+
+  function setup() {
+    const { transport, call } = fakeTransport({
+      pending_inbox_files: [
+        pendingRow("f1", { url: "https://cdn.test/f1.png" }),
+        pendingRow("f2", { url: "https://cdn.test/missing.png" }),
+        pendingRow("f3", { path: "org/c1/f3.png", bucket: "inbox-files" }),
+      ],
+      confirm_attachment: { id: "f1", status: "clean" },
+      inbox_file_failed: true,
+    });
+
+    const handler = inboundHandler({
+      chat: chatOf().chat,
+      inbox: createInbox({ transport }),
+      inboxes: {},
+    });
+
+    const calls = (fn: string) =>
+      call.mock.calls
+        .filter(([, name]) => name === fn)
+        .map(([, , args]) => args);
+
+    return { handler, calls };
+  }
+
+  it("fetches each source, writes it and confirms the attachment", async () => {
+    const fetch = vi.fn(async (url: string) =>
+      url.endsWith("missing.png")
+        ? new Response(null, { status: 404 })
+        : new Response("png"),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      const { handler, calls } = setup();
+      const write = vi.fn(async (_file: { id: string }) => undefined);
+
+      expect(await handler.importFiles({ write, limit: 3 })).toEqual({
+        processed: 1,
+        failed: 2,
+      });
+      expect(calls("pending_inbox_files")).toEqual([{ max: 3 }]);
+      expect(write).toHaveBeenCalledOnce();
+      expect(write.mock.calls[0]?.[0]).toMatchObject({
+        id: "f1",
+        bucket: "attachments",
+        path: "org/conversation/c1/f1",
+      });
+      expect(calls("confirm_attachment")).toEqual([{ id: "f1" }]);
+      expect(calls("inbox_file_failed")).toEqual([
+        {
+          attachment: "f2",
+          detail: "https://cdn.test/missing.png answered 404",
+        },
+        { attachment: "f3", detail: "file f3 has no URL; pass read" },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reads through read and marks a failed write", async () => {
+    const { handler, calls } = setup();
+    const read = vi.fn(async (_file: unknown) => new Blob(["x"]));
+
+    const write = vi.fn(async (file: { id: string }) => {
+      if (file.id === "f2") {
+        throw new Error("quota");
+      }
+    });
+
+    expect(await handler.importFiles({ read, write })).toEqual({
+      processed: 2,
+      failed: 1,
+    });
+    expect(calls("pending_inbox_files")).toEqual([{ max: 50 }]);
+    expect(read.mock.calls[2]?.[0]).toMatchObject({
+      source: { path: "org/c1/f3.png", bucket: "inbox-files" },
+    });
+    expect(calls("inbox_file_failed")).toEqual([
+      { attachment: "f2", detail: "quota" },
+    ]);
   });
 });
 
@@ -660,6 +759,7 @@ describe("maintain", () => {
       process: vi.fn(),
       mirror: vi.fn(),
       drain: vi.fn(async () => ({ processed: 1, failed: 0 })),
+      importFiles: vi.fn(),
     };
 
     const state = { purge: vi.fn(async () => 7) };

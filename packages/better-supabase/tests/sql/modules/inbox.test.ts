@@ -31,12 +31,9 @@ describe("inbox module", () => {
       "contacts",
       "contact_identities",
       "inbox_conversations",
-      "conversation_participants",
       "conversation_events",
-      "conversation_reads",
-      "inbox_messages",
+      "inbox_message_details",
       "message_deliveries",
-      "inbox_mentions",
       "inbound_events",
       "message_templates",
     ]) {
@@ -46,11 +43,22 @@ describe("inbox module", () => {
     }
 
     expect(sql).toContain("tenant_ids_with('inbox.read')");
+
+    for (const table of [
+      "inbox_messages",
+      "conversation_participants",
+      "conversation_reads",
+      "inbox_mentions",
+    ]) {
+      expect(sql).not.toContain(
+        `create table if not exists "better_supabase"."${table}"`,
+      );
+    }
   });
 
   it("hides notes from contacts", () => {
     expect(body()).toContain(
-      `("kind" = 'message' and "conversation_id" in (select "better_supabase"."inbox_contact_conversation_ids"()))`,
+      `(m."kind" = 'message' or "better_supabase"."inbox_note_readable"(d."conversation_id"));`,
     );
   });
 
@@ -88,8 +96,9 @@ describe("inbox module", () => {
     }
 
     expect(sql).toContain(
-      'grant execute on function "better_supabase"."set_inbox_typing"(uuid, boolean, text) to authenticated, service_role;',
+      'grant execute on function "better_supabase"."react_to_inbox_message"(uuid, text, boolean, text) to authenticated, service_role;',
     );
+    expect(sql).not.toContain("set_inbox_typing");
   });
 
   it("checks its permission keys", () => {
@@ -102,29 +111,21 @@ describe("inbox module", () => {
     );
   });
 
-  it("publishes conversation and organization topics", () => {
-    expect(
-      moduleTopics(["inbox"]).filter((entry) => entry.module === "inbox"),
-    ).toEqual([
-      { module: "inbox", topic: "inbox:{conversationId}" },
+  it("publishes the organization topic and leaves conversations to messaging", () => {
+    expect(moduleTopics(["inbox"])).toEqual([
       { module: "inbox", topic: "inbox:org:{organizationId}" },
+      { module: "messaging", topic: "messages:{conversationId}" },
     ]);
     expect(body({ inbox: { options: { topic: "support" } } })).toContain(
       "'support:'",
     );
   });
 
-  it("creates its private bucket", () => {
-    const data = INBOX.data?.(moduleContext("inbox", { modules: {} }), {});
-    expect(data).toContain(
-      "values ('inbox-files', 'inbox-files', false, 26214400)",
-    );
+  it("keeps files in attachments instead of a bucket of its own", () => {
     expect(
-      INBOX.data?.(
-        moduleContext("inbox", { modules: { inbox: { mode: "custom" } } }),
-        {},
-      ),
-    ).toBe("");
+      INBOX.data?.(moduleContext("inbox", { modules: {} }), {}),
+    ).toBeUndefined();
+    expect(body()).not.toContain("inbox-files");
   });
 
   it("rejects bad options", () => {

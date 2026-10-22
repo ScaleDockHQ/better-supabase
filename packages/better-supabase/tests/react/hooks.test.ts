@@ -1605,6 +1605,13 @@ describe("useComments", () => {
         return true;
       }
 
+      if (fn === "get_comment") {
+        return (
+          thread.find((each) => each.id === args["message"]) ??
+          row(String(args["message"]), "Pinged")
+        );
+      }
+
       return thread;
     });
 
@@ -1645,8 +1652,15 @@ describe("useComments", () => {
 
     const calls = rpc.mock.calls.length;
     emit("chat:conv-1", "message", {});
+    emit("chat:conv-1", "message", { messageId: "c3" });
     await flush();
     expect(rpc).toHaveBeenCalledTimes(calls + 1);
+    expect(rpc).toHaveBeenLastCalledWith("get_comment", { message: "c3" });
+    expect(view.result.comments?.map((comment) => comment.id)).toEqual([
+      "c1",
+      "c2",
+      "c3",
+    ]);
     view.unmount();
   });
 

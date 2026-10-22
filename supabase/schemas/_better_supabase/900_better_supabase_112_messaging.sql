@@ -105,13 +105,15 @@ grant execute on function "better_supabase"."is_conversation_member"(uuid) to au
 
 drop policy if exists conversations_read on "better_supabase"."conversations";
 create policy conversations_read on "better_supabase"."conversations" for select to authenticated
-using (("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
+using ((case when "better_supabase"."conversations"."kind" = 'inbox'
+    then "better_supabase"."inbox_conversation_allowed"("better_supabase"."conversations"."id"::text)
+    else ("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('messages.read'))
     and case "better_supabase"."conversations"."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"("better_supabase"."conversations"."id")
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
-    end));
+    end) end));
 
 drop policy if exists conversation_members_read on "better_supabase"."conversation_members";
 create policy conversation_members_read on "better_supabase"."conversation_members" for select to authenticated
@@ -127,6 +129,7 @@ create table if not exists "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "kind" text not null default 'message' check ("kind" in ('message', 'note')),
   "body" text not null default '' check (length("body") <= 40000),
   "document" jsonb,
   "anchor" jsonb,
@@ -165,6 +168,7 @@ create policy messages_read on "better_supabase"."messages" for select to authen
 using (
   ("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id")
+  and ("kind" = 'message' or "better_supabase"."inbox_note_readable"("conversation_id"))
 );
 
 create table if not exists "better_supabase"."message_edits" (
@@ -262,13 +266,15 @@ as $$
   from "better_supabase"."messages" y
   join "better_supabase"."profiles" pr on pr."id" = y."author_id"
   where y."id" = any ($1)
-    and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and (case when c."kind" = 'inbox'
+    then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
+    else (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
       when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
       else false
-    end))
+    end) end))
 $$;
 revoke execute on function "better_supabase"."message_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."message_authors"(uuid[]) to authenticated, service_role;
@@ -440,18 +446,23 @@ declare
 begin
   select * into v_conv from "better_supabase"."conversations" c
   where c."id" = can_conversation.conversation
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
+    then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
+    else (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
       when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
       else false
-    end));
+    end) end));
   if not found then
     return false;
   end if;
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     return true;
+  end if;
+  if v_conv."kind" = 'inbox' then
+    return "better_supabase"."inbox_can_conversation"(v_conv."id", can_conversation.action);
   end if;
   case can_conversation.action
     when 'read' then
@@ -715,7 +726,7 @@ as $$
     select c.* from "better_supabase"."conversations" c
     join "better_supabase"."conversation_members" k on k."conversation_id" = c."id" and k."user_id" = auth.uid()
     where c."tenant_id" = list_conversations.tenant
-      and (list_conversations.kinds is null or c."kind" = any (list_conversations.kinds))
+      and (list_conversations.kinds is null and c."kind" <> 'inbox' or c."kind" = any (list_conversations.kinds))
     order by c."last_message_at" desc nulls last, c."id"
     limit least(greatest(coalesce(list_conversations.max_rows, 100), 1), 500)
   ) c
@@ -757,6 +768,7 @@ as $$
   ) u
   where k."user_id" = auth.uid()
     and k."tenant_id" = unread_counts.tenant
+    and not exists (select 1 from "better_supabase"."conversations" c where c."id" = k."conversation_id" and c."kind" = 'inbox')
     and u.unread > 0
 $$;
 revoke execute on function "better_supabase"."unread_counts"(uuid) from public, anon;
@@ -844,22 +856,30 @@ revoke execute on function "better_supabase"."set_conversation_notify"(uuid, tex
 grant execute on function "better_supabase"."set_conversation_notify"(uuid, text) to authenticated, service_role;
 
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
--- private topic, for clients that don't send the broadcast themselves.
-create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true)
+-- private topic, for clients that don't send the broadcast themselves. The
+-- service names who types in actor (a bot's name), default 'bot'.
+drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_who text;
 begin
-  if auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
+  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    v_who := coalesce(set_typing.actor, 'bot');
+  elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
+  else
+    v_who := auth.uid()::text;
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is null then
     return false;
   end if;
   perform realtime.send(
-    jsonb_build_object('conversationId', set_typing.conversation, 'userId', auth.uid(), 'typing', set_typing.typing),
+    jsonb_build_object('conversationId', set_typing.conversation, 'userId', v_who, 'typing', coalesce(set_typing.typing, true)),
     'typing',
     'messages:' || set_typing.conversation::text,
     true
@@ -867,8 +887,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."set_typing"(uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."set_typing"(uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_typing"(uuid, boolean, text) from public, anon;
+grant execute on function "better_supabase"."set_typing"(uuid, boolean, text) to authenticated, service_role;
 
 -- Follows or unfollows a conversation or a thread (its root message) through
 -- the notifications module's subscriptions: following hears of every message
@@ -964,6 +984,9 @@ begin
   select * into v_conv from "better_supabase"."conversations" c where c."id" = send_message.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+  end if;
+  if v_conv."kind" = 'inbox' then
+    raise exception 'write to an inbox conversation through send_inbox_message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
@@ -1416,6 +1439,19 @@ begin
 end;
 $$;
 
+
+-- The inbox's conversations and message details belong to core rows.
+alter table "better_supabase"."inbox_conversations" drop constraint if exists "inbox_conversations_core_fkey";
+alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_core_fkey"
+  foreign key ("id") references "better_supabase"."conversations" ("id") on delete cascade;
+alter table "better_supabase"."inbox_message_details" drop constraint if exists "inbox_message_details_core_fkey";
+alter table "better_supabase"."inbox_message_details" add constraint "inbox_message_details_core_fkey"
+  foreign key ("message_id") references "better_supabase"."messages" ("id") on delete cascade;
+
+drop trigger if exists "bs_messaging_inbox_broadcast" on "better_supabase"."messages";
+create trigger "bs_messaging_inbox_broadcast" after insert or update on "better_supabase"."messages"
+  for each row execute function "better_supabase"."inbox_message_broadcast"();
+
 -- blocks.messaging.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1426,6 +1462,8 @@ drop function if exists "api"."message_authors"(uuid[]);
 drop function if exists "api"."messaging_messages_json"(uuid[]);
 drop function if exists "api"."parse_mentions"(text);
 drop function if exists "api"."conversation_topic_allowed"(text);
+
+drop function if exists "api"."set_typing"(uuid, boolean);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1535,14 +1573,14 @@ as $$ select "better_supabase"."set_conversation_notify"($1, $2) $$;
 revoke execute on function "api"."set_conversation_notify"(uuid, text) from public, anon;
 grant execute on function "api"."set_conversation_notify"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."set_typing"(conversation uuid, typing boolean default true)
+create or replace function "api"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."set_typing"($1, $2) $$;
-revoke execute on function "api"."set_typing"(uuid, boolean) from public, anon;
-grant execute on function "api"."set_typing"(uuid, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."set_typing"($1, $2, $3) $$;
+revoke execute on function "api"."set_typing"(uuid, boolean, text) from public, anon;
+grant execute on function "api"."set_typing"(uuid, boolean, text) to authenticated, service_role;
 
 create or replace function "api"."follow"(target_type text, target_id uuid, following boolean default true)
 returns boolean

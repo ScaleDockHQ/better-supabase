@@ -170,7 +170,7 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "set_inbox_typing",
+    "set_typing",
     {
       "actor": undefined,
       "conversation": "c1",
@@ -195,17 +195,20 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
       "conversation": "c1",
       "input": {
         "attachments": [
-          {
-            "content_type": "image/png",
-            "name": undefined,
-            "path": "a.png",
-            "size": 1,
-            "url": undefined,
-          },
+          "f2",
         ],
         "author_type": "bot",
         "body": "**hi**",
         "delivered_by_caller": true,
+        "files": [
+          {
+            "content_type": "image/png",
+            "name": undefined,
+            "path": undefined,
+            "size": 1,
+            "url": "https://cdn.test/a.png",
+          },
+        ],
         "format": "markdown",
         "mentions": [
           "u2",
@@ -255,12 +258,46 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
-    "react_to_message",
+    "react_to_inbox_message",
     {
       "actor": "bot",
       "emoji": "👍",
       "message": "m1",
       "present": true,
+    },
+  ],
+  [
+    "create_inbox_attachment",
+    {
+      "conversation": "c1",
+      "mime_type": "image/png",
+      "name": "a.png",
+      "size": 1,
+    },
+  ],
+  [
+    "confirm_attachment",
+    {
+      "id": "f2",
+    },
+  ],
+  [
+    "pending_inbox_files",
+    {
+      "max": 5,
+    },
+  ],
+  [
+    "confirm_attachment",
+    {
+      "id": "f3",
+    },
+  ],
+  [
+    "inbox_file_failed",
+    {
+      "attachment": "f4",
+      "detail": "404",
     },
   ],
   [

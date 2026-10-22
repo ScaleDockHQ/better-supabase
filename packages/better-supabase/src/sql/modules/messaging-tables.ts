@@ -39,13 +39,28 @@ export function conversationReadable(
       : `(${inTenant}
     or (${alias}.${cv("access")} = 'subject' and ${onRecord}))`;
 
-  return `(${held}
+  const readable = `(${held}
     and case ${alias}.${cv("access")}
       when 'tenant' then true
       when 'members' then ${q.fn("is_conversation_member")}(${alias}.${cv("id")})
       when 'subject' then coalesce(${q.ctx.of("subjects").fn("can_subject")}(${alias}.${cv("subjectType")}, ${alias}.${cv("subjectId")}, 'read'), false)
       else false
     end)`;
+
+  if (!q.ctx.installed("inbox")) {
+    return readable;
+  }
+
+  return `(case when ${alias}.${cv("kind")} = 'inbox'
+    then ${q.ctx.of("inbox").fn("inbox_conversation_allowed")}(${alias}.${cv("id")}::text)
+    else ${readable} end)`;
+}
+
+/** With the inbox: a note shows to the inbox's staff only. */
+export function noteReadable(q: MessagingSql, conversation: string): string {
+  return q.ctx.installed("inbox")
+    ? `\n  and (${q.cols("messages")("kind")} = 'message' or ${q.ctx.of("inbox").fn("inbox_note_readable")}(${conversation}))`
+    : "";
 }
 
 interface TableDdl {
@@ -106,6 +121,7 @@ ${lockTable(t("members"), { read: true })}`,
   ${ms("parent")} uuid references ${t("messages")} (${ms("id")}) on delete set null,
   ${ms("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
   ${ms("author")} uuid,
+  ${ms("kind")} text not null default 'message' check (${ms("kind")} in ('message', 'note')),
   ${ms("body")} text not null default '' check (length(${ms("body")}) <= ${String(q.maxBody)}),
   ${ms("document")} jsonb,
   ${ms("anchor")} jsonb,
@@ -236,7 +252,7 @@ drop policy if exists ${policy("messages", "read")} on ${t("messages")};
 create policy ${policy("messages", "read")} on ${t("messages")} for select to authenticated
 using (
   (${ms("sentAt")} is not null or ${ms("author")} = (select auth.uid()))
-  and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})
+  and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})${noteReadable(q, ms("conversation"))}
 );
 
 ${ddl.edits}

@@ -104,6 +104,8 @@ export interface MessageReaction {
   readonly actors: readonly string[];
 }
 
+export type MessageKind = "message" | "note";
+
 /** A message. `F` types the extra columns the `fields` schema describes. */
 export interface Message<F extends object = Record<never, never>> {
   readonly id: string;
@@ -117,6 +119,8 @@ export interface Message<F extends object = Record<never, never>> {
   readonly authorId: string | undefined;
   /** The author's name and avatar, with the `profiles` module. */
   readonly author: Author | undefined;
+  /** `note` is an inbox's internal note, which only its staff read. */
+  readonly kind: MessageKind;
   /** Empty for a deleted message. */
   readonly body: string;
   /** The rich-text document an editor wrote, next to `body` as plain text. */
@@ -376,7 +380,7 @@ function filesOf(value: unknown): readonly MessageFile[] {
     : [];
 }
 
-function reactionsOf(value: unknown): readonly MessageReaction[] {
+export function reactionsOf(value: unknown): readonly MessageReaction[] {
   return Array.isArray(value)
     ? value
         .filter(isRecord)
@@ -403,6 +407,7 @@ export function messageOf(value: unknown): Message {
     threadId: optionalText(row["thread_id"]),
     authorId: optionalText(row["author_id"]),
     author: authorOf(row["author"]),
+    kind: row["kind"] === "note" ? "note" : "message",
     body: textOf(row["body"] ?? ""),
     document: row["document"] ?? undefined,
     anchor: row["anchor"] ?? undefined,

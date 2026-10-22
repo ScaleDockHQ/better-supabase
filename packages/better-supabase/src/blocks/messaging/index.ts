@@ -11,6 +11,7 @@ export {
   type MessageEdit,
   type MessageEdition,
   type MessageFile,
+  type MessageKind,
   type MessageListOptions,
   type MessageReaction,
   type Messaging,

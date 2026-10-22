@@ -138,6 +138,7 @@ export const MESSAGING_NAMES: ModuleNames = {
         parent: "parent_id",
         thread: "thread_id",
         author: "author_id",
+        kind: "kind",
         body: "body",
         document: "document",
         anchor: "anchor",

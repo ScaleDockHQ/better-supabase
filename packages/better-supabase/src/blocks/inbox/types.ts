@@ -1,3 +1,5 @@
+import type { Message } from "../messaging/messaging.ts";
+
 /** The channels an inbox can sit on. */
 export type InboxChannel =
   | "in_app"
@@ -22,8 +24,6 @@ export type ConversationStatus = "open" | "pending" | "snoozed" | "resolved";
 export type ConversationPriority = "low" | "normal" | "high" | "urgent";
 
 export type MessageDirection = "inbound" | "outbound";
-
-export type MessageKind = "message" | "note";
 
 export type AuthorType = "contact" | "agent" | "bot" | "system";
 
@@ -92,12 +92,42 @@ export interface Conversation {
   readonly unread?: boolean;
 }
 
-export interface MessageAttachment {
-  readonly path?: string;
+/**
+ * A file that arrived on a channel. The inbox stores it as a pending
+ * attachment; the service fetches it with `files.pending()` and uploads it.
+ */
+export interface InboxFileSource {
+  /** Where the channel serves it. */
   readonly url?: string;
+  /** Or a Storage object the caller already wrote. */
+  readonly path?: string;
+  /** The bucket of `path`; files migrated from the inbox are in `inbox-files`. */
+  readonly bucket?: string;
   readonly name?: string;
   readonly contentType?: string;
   readonly size?: number;
+}
+
+/** A channel file waiting to be fetched, from `files.pending()`. */
+export interface PendingInboxFile {
+  /** The attachment id: confirm it after the upload. */
+  readonly id: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly tenant: string;
+  readonly bucket: string;
+  /** Where to upload it. */
+  readonly path: string;
+  readonly name: string;
+  readonly mimeType: string | undefined;
+  readonly source: InboxFileSource;
+}
+
+/** A Storage upload slot from `messages.createUpload`. */
+export interface InboxUpload {
+  readonly id: string;
+  readonly bucket: string;
+  readonly path: string;
 }
 
 export interface MessageDelivery {
@@ -106,25 +136,18 @@ export interface MessageDelivery {
   readonly error: string | null;
 }
 
-export interface InboxMessage {
-  readonly id: string;
-  readonly conversationId: string;
+/**
+ * A core message with the inbox's details. `kind: "note"` is an internal note
+ * only staff read.
+ */
+export interface InboxMessage extends Message {
   readonly direction: MessageDirection;
-  readonly kind: MessageKind;
   readonly authorType: AuthorType;
-  readonly authorId: string | null;
-  readonly body: string;
   readonly format: "text" | "markdown";
-  readonly attachments: readonly MessageAttachment[];
-  /** Emoji to the actors (user ids or channel ids) who reacted. */
-  readonly reactions: Readonly<Record<string, readonly string[]>>;
-  readonly mentions: readonly string[];
   readonly externalId: string | null;
   readonly replyTo: string | null;
   readonly metadata: Readonly<Record<string, unknown>>;
-  readonly createdAt: Temporal.Instant;
-  readonly editedAt: Temporal.Instant | null;
-  readonly deletedAt: Temporal.Instant | null;
+  /** For staff: the first delivery on the channel. */
   readonly delivery?: MessageDelivery | null;
 }
 
@@ -147,11 +170,11 @@ export interface InboxCounts {
 export interface PurgedContact {
   readonly conversations: number;
   readonly messages: number;
-  /**
-   * Storage paths of the erased messages' attachments, for the caller to
-   * remove.
-   */
-  readonly attachments: readonly string[];
+  /** The erased attachments' Storage objects, for the caller to remove. */
+  readonly attachments: readonly {
+    readonly bucket: string;
+    readonly path: string;
+  }[];
 }
 
 export interface InboundResult {

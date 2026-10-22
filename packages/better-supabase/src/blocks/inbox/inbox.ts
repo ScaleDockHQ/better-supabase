@@ -3,6 +3,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { MessageReaction } from "../messaging/messaging.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type {
   BotMode,
@@ -16,14 +17,17 @@ import type {
   InboxChannel,
   InboxCounts,
   InboxMessage,
+  InboxFileSource,
   InboxRow,
-  MessageAttachment,
+  InboxUpload,
   MessageTemplate,
+  PendingInboxFile,
   PurgedContact,
   StoredInboundEvent,
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { reactionsOf } from "../messaging/messaging.ts";
 import {
   applyTemporal,
   blockCall,
@@ -46,8 +50,9 @@ import {
   inboxOf,
   messageOf,
   messagesOf,
+  pendingFilesOf,
+  uploadOf,
   purgedOf,
-  reactionsOf,
   storedEventsOf,
   templateOf,
 } from "./rows.ts";
@@ -110,7 +115,13 @@ export interface MessageInput {
   /** `note` is an internal note only staff see. */
   readonly kind?: "message" | "note";
   readonly format?: "text" | "markdown";
-  readonly attachments?: readonly MessageAttachment[];
+  /** Ids from `messages.createUpload`, uploaded by the caller. */
+  readonly attachments?: readonly string[];
+  /**
+   * For the service: files that arrived on a channel. Each becomes a pending
+   * attachment for `files.pending()`.
+   */
+  readonly files?: readonly InboxFileSource[];
   /** User ids; those who cannot read the inbox are dropped. */
   readonly mentions?: readonly string[];
   readonly replyTo?: string;
@@ -148,7 +159,7 @@ export interface InboundInput {
     /** Shorthand for `identity` on the inbox's channel. */
     readonly externalId?: string;
   };
-  readonly message: Omit<MessageInput, "kind" | "authorType">;
+  readonly message: Omit<MessageInput, "kind" | "authorType" | "attachments">;
   readonly subject?: string;
   /** `outbound` records a message sent from the platform by someone else. */
   readonly direction?: "inbound" | "outbound";
@@ -188,6 +199,7 @@ export type InboxHooks = BlockHooks<Inbox> & {
   readonly contacts?: BlockHooks<Inbox["contacts"]>;
   readonly conversations?: BlockHooks<Inbox["conversations"]>;
   readonly messages?: BlockHooks<Inbox["messages"]>;
+  readonly files?: BlockHooks<Inbox["files"]>;
   readonly deliveries?: BlockHooks<Inbox["deliveries"]>;
   readonly templates?: BlockHooks<Inbox["templates"]>;
   readonly inbound?: BlockHooks<Inbox["inbound"]>;
@@ -256,7 +268,10 @@ export interface Inbox {
       reason?: string,
     ): AsyncResult<Conversation>;
     markRead(conversationId: string): AsyncResult<Temporal.Instant>;
-    /** A typing ping on `inbox:<id>`; the service names the bot in `actor`. */
+    /**
+     * A typing ping on the conversation's messaging topic; the service names
+     * the bot in `actor`.
+     */
     typing(
       conversationId: string,
       typing?: boolean,
@@ -282,13 +297,38 @@ export interface Inbox {
     ): AsyncResult<readonly InboxMessage[]>;
     get(messageId: string): AsyncResult<InboxMessage | null>;
     edit(messageId: string, body: string): AsyncResult<InboxMessage>;
-    /** Leaves a tombstone with an empty body. */
+    /** Leaves a tombstone with an empty body and deletes its attachments. */
     remove(messageId: string): AsyncResult<InboxMessage>;
+    /** Needs the `reactions` module; returns the message's reactions. */
     react(
       messageId: string,
       emoji: string,
       options?: { readonly present?: boolean; readonly actor?: string },
-    ): AsyncResult<Readonly<Record<string, readonly string[]>>>;
+    ): AsyncResult<readonly MessageReaction[]>;
+    /**
+     * A pending attachment on the conversation to upload a file to. Upload it
+     * to `bucket` at `path`, call `confirmUpload`, then pass its id in
+     * `attachments`.
+     */
+    createUpload(
+      conversationId: string,
+      file: {
+        readonly name: string;
+        readonly mimeType?: string;
+        readonly size?: number;
+      },
+    ): AsyncResult<InboxUpload>;
+    /** Marks the uploaded file as stored (the `attachments` module). */
+    confirmUpload(attachmentId: string): AsyncResult<void>;
+  };
+  /** Service only: the files that arrived on channels. */
+  readonly files: {
+    /** The channel files to fetch and upload, oldest first. */
+    pending(limit?: number): AsyncResult<readonly PendingInboxFile[]>;
+    /** Confirms a fetched and uploaded file. */
+    stored(attachmentId: string): AsyncResult<void>;
+    /** Gives up on a file the channel no longer serves. */
+    failed(attachmentId: string, detail?: string): AsyncResult<boolean>;
   };
   readonly deliveries: {
     /** Service only: after posting a message on its channel. */
@@ -344,8 +384,8 @@ export interface Inbox {
   wakeSnoozed(): AsyncResult<number>;
   /**
    * Erases a contact and its conversations for a data subject request
-   * (`inbox.manage` or the service). Remove the returned attachment paths from
-   * Storage afterwards.
+   * (`inbox.manage` or the service). Remove the returned Storage objects
+   * afterwards.
    */
   purgeContact(contactId: string): AsyncResult<PurgedContact>;
 }
@@ -374,7 +414,8 @@ function messageArg(input: MessageInput): Record<string, unknown> {
     body: input.body,
     kind: input.kind,
     format: input.format,
-    attachments: input.attachments?.map((file) => ({
+    attachments: input.attachments,
+    files: input.files?.map((file) => ({
       path: file.path,
       url: file.url,
       name: file.name,
@@ -486,6 +527,9 @@ export function createInbox(options: InboxOptions): Inbox {
       { conversation: conversationId, input: compact(messageArg(input)) },
       messageOf,
     );
+
+  const confirm = (attachmentId: string): AsyncResult<void> =>
+    call("confirm_attachment", { id: attachmentId }, () => undefined);
 
   const client: Inbox = {
     inboxes: {
@@ -607,7 +651,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
       typing: (conversationId, typing = true, actor) =>
         call(
-          "set_inbox_typing",
+          "set_typing",
           { conversation: conversationId, typing, actor },
           (value) => value === true,
         ),
@@ -647,7 +691,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
       react: (messageId, emoji, reactOptions = {}) =>
         call(
-          "react_to_message",
+          "react_to_inbox_message",
           {
             message: messageId,
             emoji,
@@ -655,6 +699,29 @@ export function createInbox(options: InboxOptions): Inbox {
             actor: reactOptions.actor,
           },
           reactionsOf,
+        ),
+      createUpload: (conversationId, file) =>
+        call(
+          "create_inbox_attachment",
+          {
+            conversation: conversationId,
+            name: file.name,
+            mime_type: file.mimeType,
+            size: file.size,
+          },
+          uploadOf,
+        ),
+      confirmUpload: (attachmentId) => confirm(attachmentId),
+    },
+    files: {
+      pending: (limit) =>
+        call("pending_inbox_files", { max: limit }, pendingFilesOf),
+      stored: (attachmentId) => confirm(attachmentId),
+      failed: (attachmentId, detail) =>
+        call(
+          "inbox_file_failed",
+          { attachment: attachmentId, detail },
+          (value) => value === true,
         ),
     },
     deliveries: {
@@ -779,6 +846,7 @@ export function createInbox(options: InboxOptions): Inbox {
     contacts,
     conversations,
     messages,
+    files,
     deliveries,
     templates,
     inbound,
@@ -790,6 +858,7 @@ export function createInbox(options: InboxOptions): Inbox {
     contacts,
     conversations,
     messages,
+    files,
     deliveries,
     templates,
     inbound,
@@ -815,6 +884,10 @@ export function createInbox(options: InboxOptions): Inbox {
       ),
       messages: withBlockHooks(client.messages, groups.messages, {
         block: "inbox.messages",
+        ...logger,
+      }),
+      files: withBlockHooks(client.files, groups.files, {
+        block: "inbox.files",
         ...logger,
       }),
       deliveries: withBlockHooks(client.deliveries, groups.deliveries, {

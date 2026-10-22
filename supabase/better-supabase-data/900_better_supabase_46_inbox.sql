@@ -5,11 +5,7 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('inbox-files', 'inbox-files', false, 26214400)
-on conflict (id) do nothing;
-
 insert into better_supabase.modules (name, version, mode)
-values ('inbox', 3, 'managed')
+values ('inbox', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -372,7 +372,14 @@ begin
   select * into v_conv from ${t("conversations")} c where c.${cv("id")} = send_message.conversation;
   if not found or not ${fn("can_conversation")}(v_conv.${cv("id")}, 'read') then
     ${fail("MESSAGING_NOT_FOUND", "no such conversation you can read", "P0002")}
-  end if;
+  end if;${
+    q.ctx.installed("inbox")
+      ? `
+  if v_conv.${cv("kind")} = 'inbox' then
+    ${fail("MESSAGING_FORBIDDEN", "write to an inbox conversation through send_inbox_message")}
+  end if;`
+      : ""
+  }
   if v_conv.${cv("access")} = 'tenant' and not ${q.service} and v_conv.${cv("archivedAt")} is null
     and ${q.can(`v_conv.${cv("tenant")}`, "send")} then
     perform ${fn("add_conversation_members")}(v_conv.${cv("id")}, array[auth.uid()]);

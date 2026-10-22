@@ -128,6 +128,7 @@ create table if not exists "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "kind" text not null default 'message' check ("kind" in ('message', 'note')),
   "body" text not null default '' check (length("body") <= 40000),
   "document" jsonb,
   "anchor" jsonb,
@@ -841,22 +842,30 @@ revoke execute on function "better_supabase"."set_conversation_notify"(uuid, tex
 grant execute on function "better_supabase"."set_conversation_notify"(uuid, text) to authenticated, service_role;
 
 -- Broadcasts that the caller is typing (or stopped) on the conversation's
--- private topic, for clients that don't send the broadcast themselves.
-create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true)
+-- private topic, for clients that don't send the broadcast themselves. The
+-- service names who types in actor (a bot's name), default 'bot'.
+drop function if exists "better_supabase"."set_typing"(uuid, boolean);
+create or replace function "better_supabase"."set_typing"(conversation uuid, typing boolean default true, actor text default null)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_who text;
 begin
-  if auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
+  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    v_who := coalesce(set_typing.actor, 'bot');
+  elsif auth.uid() is null or not "better_supabase"."can_conversation"(set_typing.conversation, 'send') then
     return false;
+  else
+    v_who := auth.uid()::text;
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is null then
     return false;
   end if;
   perform realtime.send(
-    jsonb_build_object('conversationId', set_typing.conversation, 'userId', auth.uid(), 'typing', set_typing.typing),
+    jsonb_build_object('conversationId', set_typing.conversation, 'userId', v_who, 'typing', coalesce(set_typing.typing, true)),
     'typing',
     'messages:' || set_typing.conversation::text,
     true
@@ -864,8 +873,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."set_typing"(uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."set_typing"(uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_typing"(uuid, boolean, text) from public, anon;
+grant execute on function "better_supabase"."set_typing"(uuid, boolean, text) to authenticated, service_role;
 
 -- Follows or unfollows a conversation or a thread (its root message) through
 -- the notifications module's subscriptions: following hears of every message
