@@ -277,6 +277,7 @@ export interface BlockOptionsRegistry {
   readonly "mail-sync": MailSyncSqlOptions;
   readonly segments: SegmentsSqlOptions;
   readonly assignment: None;
+  readonly enrichment: None;
   readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -402,6 +403,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "mail-sync": mailSyncSqlOptions,
   segments: segmentsSqlOptions,
   assignment: NO_OPTIONS,
+  enrichment: NO_OPTIONS,
   activity: NO_OPTIONS,
   messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,

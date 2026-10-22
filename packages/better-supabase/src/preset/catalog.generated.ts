@@ -2916,6 +2916,54 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "enrichment",
+      "title": "Enrichment",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "parties"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "enrichment",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "enrichment": {
+            "table": "enrichments",
+            "singular": "enrichment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "enrichments": {
+            "name": "enrichments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "company": "company_id",
+              "person": "person_id",
+              "provider": "provider",
+              "status": "status",
+              "data": "data",
+              "filled": "filled",
+              "fetchedAt": "fetched_at",
+              "requestedBy": "requested_by"
+            }
+          }
+        },
+        "keys": {
+          "read": "enrichment.read",
+          "run": "enrichment.run"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -6200,6 +6248,48 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      }
+    },
+    {
+      "name": "enrichment",
+      "sql": [
+        "enrichment"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "enrichmentBlock",
+        "subpath": "better-supabase/blocks/enrichment"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Enrichment"
+        },
+        {
+          "name": "EnrichmentEvents"
+        },
+        {
+          "name": "EnrichmentOptions"
+        },
+        {
+          "name": "EnrichmentProvider"
+        },
+        {
+          "name": "EnrichmentReport"
+        },
+        {
+          "name": "EnrichmentResult"
+        },
+        {
+          "name": "EnrichmentSubject"
+        }
+      ],
+      "events": {
+        "type": "EnrichmentEvents",
+        "types": [
+          "party.enriched"
+        ]
       }
     },
     {

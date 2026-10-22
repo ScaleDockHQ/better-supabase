@@ -867,6 +867,7 @@ export type {
   SegmentEventData,
   SegmentMemberEventData,
   AssignmentEventData,
+  EnrichmentEventData,
   MessageEventData,
   PartyEventData,
   PipelineEventData,

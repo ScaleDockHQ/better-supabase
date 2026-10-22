@@ -33,6 +33,7 @@ import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
 import type { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts";
+import type { enrichmentBlock } from "../../src/blocks/enrichment/manifest.ts";
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
@@ -158,6 +159,7 @@ export type AllBlocks = {
   readonly "mail-sync": typeof mailSyncBlock;
   readonly segments: typeof segmentsBlock;
   readonly assignment: typeof assignmentBlock;
+  readonly enrichment: typeof enrichmentBlock;
   readonly ensureRls: typeof ensureRlsBlock;
   readonly entitlements: typeof entitlementsBlock;
   readonly flags: typeof flagsBlock;

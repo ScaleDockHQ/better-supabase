@@ -782,6 +782,11 @@
       "types": "./dist/blocks/assignment/index.d.ts",
       "default": "./dist/blocks/assignment/index.js"
     },
+    "./blocks/enrichment": {
+      "@better-supabase/source": "./src/blocks/enrichment/index.ts",
+      "types": "./dist/blocks/enrichment/index.d.ts",
+      "default": "./dist/blocks/enrichment/index.js"
+    },
     "./blocks/messaging": {
       "@better-supabase/source": "./src/blocks/messaging/index.ts",
       "types": "./dist/blocks/messaging/index.d.ts",
@@ -2205,6 +2210,10 @@
       "./blocks/assignment": {
         "types": "./dist/blocks/assignment/index.d.ts",
         "default": "./dist/blocks/assignment/index.js"
+      },
+      "./blocks/enrichment": {
+        "types": "./dist/blocks/enrichment/index.d.ts",
+        "default": "./dist/blocks/enrichment/index.js"
       },
       "./blocks/messaging": {
         "types": "./dist/blocks/messaging/index.d.ts",

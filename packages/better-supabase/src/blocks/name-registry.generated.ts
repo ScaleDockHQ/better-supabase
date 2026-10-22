@@ -455,6 +455,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: "engagement";
   };
+  readonly "enrichment": {
+    readonly tables: {
+      readonly "enrichments": "id" | "tenant" | "company" | "person" | "provider" | "status" | "data" | "filled" | "fetchedAt" | "requestedBy";
+    };
+    readonly functions: "enrichment_due" | "enrichment_target" | "enrichments_of" | "record_enrichment";
+    readonly actions: "read" | "run";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "enrichment": "id" | "tenant_id" | "company_id" | "person_id" | "provider" | "status" | "data" | "filled" | "fetched_at" | "requested_by";
+    };
+    readonly primary: "enrichment";
+  };
   readonly "ensure-rls": {
     readonly tables: {};
     readonly functions: never;

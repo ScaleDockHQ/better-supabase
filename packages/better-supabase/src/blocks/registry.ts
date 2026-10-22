@@ -34,6 +34,7 @@ import { domainsBlock } from "./domains/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { engagementsBlock } from "./engagements/manifest.ts";
+import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
@@ -181,6 +182,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   mailSyncBlock,
   segmentsBlock,
   assignmentBlock,
+  enrichmentBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

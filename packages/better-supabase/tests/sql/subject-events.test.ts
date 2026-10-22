@@ -135,6 +135,7 @@ const SUBJECT_EVENTS = [
   "segment.entered",
   "segment.left",
   "subject.assigned",
+  "party.enriched",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

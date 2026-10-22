@@ -2738,6 +2738,7 @@
       "DealEventData",
       "EmployeeEventData",
       "EngagementEventData",
+      "EnrichmentEventData",
       "EventMap",
       "EventMapOf",
       "Events",
@@ -4946,6 +4947,41 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "RpcClient"
+    ]
+  },
+  "./blocks/enrichment": {
+    "values": [
+      "createEnrichment",
+      "dbTransport",
+      "domainOf",
+      "enrichmentBlock",
+      "enrichmentEvents",
+      "enrichmentProviderOf",
+      "extendBlock",
+      "peopleDataLabsEnrichment",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "CompanyLookup",
+      "CompanyProfile",
+      "Enrichment",
+      "EnrichmentEvents",
+      "EnrichmentOptions",
+      "EnrichmentProvider",
+      "EnrichmentReport",
+      "EnrichmentResult",
+      "EnrichmentSubject",
+      "EnrichOptions",
+      "PeopleDataLabsOptions",
+      "PersonLookup",
+      "PersonProfile",
       "RpcClient"
     ]
   },

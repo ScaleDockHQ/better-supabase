@@ -100,6 +100,20 @@ export interface AssignmentEventData {
   readonly strategy: "round_robin" | "weighted";
 }
 
+/**
+ * `party.enriched`: a provider's result for a company or a person was stored,
+ * with the empty columns the match filled.
+ */
+export interface EnrichmentEventData {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly provider: string;
+  readonly status: "matched" | "not_found";
+  /** The record's columns the match filled, such as `domain` or `title`. */
+  readonly filled: readonly string[];
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;
