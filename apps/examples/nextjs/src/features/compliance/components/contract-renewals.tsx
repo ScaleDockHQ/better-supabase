@@ -48,39 +48,7 @@ async function retry() {
   refresh();
 }
 
-type Translate = Awaited<ReturnType<typeof getExtracted>>;
-
 const SOON_DAYS = 30;
-
-function RenewalBadge({ row, t }: { row: RenewalRow; t: Translate }) {
-  const days = row.noticeInDays;
-
-  if (days === null) {
-    return <Badge variant="secondary">{t("No end date")}</Badge>;
-  }
-
-  if (days < 0) {
-    return (
-      <Badge variant="destructive-light">
-        {row.autoRenew ? t("Renews, notice passed") : t("Notice passed")}
-      </Badge>
-    );
-  }
-
-  if (days <= SOON_DAYS) {
-    return (
-      <Badge variant="warning-light">
-        {t("Notice in {days, number} days", { days })}
-      </Badge>
-    );
-  }
-
-  return row.autoRenew ? (
-    <Badge variant="info-light">{t("Auto-renews")}</Badge>
-  ) : (
-    <Badge variant="success-light">{t("Active")}</Badge>
-  );
-}
 
 /**
  * Render inside `<Suspense>`: the organization's active contracts, the nearest
@@ -101,6 +69,36 @@ export async function ContractRenewals() {
 
   const day = (date: string) =>
     format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  const renewal = (row: RenewalRow) => {
+    const days = row.noticeInDays;
+
+    if (days === null) {
+      return <Badge variant="secondary">{t("No end date")}</Badge>;
+    }
+
+    if (days < 0) {
+      return (
+        <Badge variant="destructive-light">
+          {row.autoRenew ? t("Renews, notice passed") : t("Notice passed")}
+        </Badge>
+      );
+    }
+
+    if (days <= SOON_DAYS) {
+      return (
+        <Badge variant="warning-light">
+          {t("Notice in {days, number} days", { days })}
+        </Badge>
+      );
+    }
+
+    return row.autoRenew ? (
+      <Badge variant="info-light">{t("Auto-renews")}</Badge>
+    ) : (
+      <Badge variant="success-light">{t("Active")}</Badge>
+    );
+  };
 
   return (
     <Card data-recipe="contract-renewals">
@@ -171,9 +169,7 @@ export async function ContractRenewals() {
                   <TableCell className="text-xs text-muted-foreground">
                     {row.noticeDeadline ? day(row.noticeDeadline) : "–"}
                   </TableCell>
-                  <TableCell>
-                    <RenewalBadge row={row} t={t} />
-                  </TableCell>
+                  <TableCell>{renewal(row)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

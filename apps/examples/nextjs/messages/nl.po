@@ -82,6 +82,16 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "De evenementen van je organisatie per maand."
 
+#: src/app/[locale]/(app)/compliance/page.tsx
+msgctxt "compliance.NIi2K2"
+msgid "Compliance"
+msgstr "Compliance"
+
+#: src/app/[locale]/(app)/compliance/page.tsx
+msgctxt "compliance.aN_4X-"
+msgid "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
+msgstr "Hoe de beheersmaatregelen per raamwerk ervoor staan, welk bewijs nodig is en welke contracten verlengd moeten worden."
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -2454,6 +2464,183 @@ msgstr "Geen komende afspraken"
 msgctxt "calendar.SxCBpE"
 msgid "Add an event, then set a reminder for it here."
 msgstr "Voeg een afspraak toe en stel er hier een herinnering voor in."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.CrEhnK"
+msgid "No end date"
+msgstr "Geen einddatum"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.r68ulP"
+msgid "Renews, notice passed"
+msgstr "Verlengt, opzegtermijn verstreken"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.-3oUIX"
+msgid "Notice passed"
+msgstr "Opzegtermijn verstreken"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.tkoBM1"
+msgid "Notice in {days, number} days"
+msgstr "Opzeggen binnen {days, number} dagen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.eehNZO"
+msgid "Auto-renews"
+msgstr "Verlengt automatisch"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.aVrws_"
+msgid "Contract renewals"
+msgstr "Contractverlengingen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.4GKQKq"
+msgid "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline."
+msgstr "Actieve contracten, de dichtstbijzijnde opzegdatum eerst. Een contract dat automatisch verlengt, loopt door tenzij iemand voor de opzegdatum opzegt."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.lXkTYj"
+msgid "The contracts didn't load"
+msgstr "De contracten zijn niet geladen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.PmqZKj"
+msgid "No active contracts"
+msgstr "Geen actieve contracten"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.p8eLNP"
+msgid "A contract becomes active once every signer has signed. Draft one from a customer's record."
+msgstr "Een contract wordt actief zodra iedere ondertekenaar heeft getekend. Stel er een op vanuit de pagina van een klant."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GmW-DP"
+msgid "Open customers"
+msgstr "Klanten openen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.nV7Cv-"
+msgid "Contract"
+msgstr "Contract"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GufXy5"
+msgid "Value"
+msgstr "Waarde"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.04xGLE"
+msgid "Ends"
+msgstr "Eindigt"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.u75FWG"
+msgid "Notice by"
+msgstr "Opzeggen voor"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.NRVEF5"
+msgid "Renewal"
+msgstr "Verlenging"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.F1fkR9"
+msgid "The control posture didn't load"
+msgstr "De compliancestatus is niet geladen"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.Z2grkH"
+msgid "No frameworks yet"
+msgstr "Nog geen raamwerken"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.cVqZZ3"
+msgid "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control."
+msgstr "Voeg met het controls-blok een raamwerk toe, zoals SOC 2 of ISO 27001, en koppel daarna bewijs aan elke beheersmaatregel."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GNiGeO"
+msgid "Read the controls guide"
+msgstr "Lees de handleiding voor controls"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.BgYrIK"
+msgid "{passing, number} of {applicable, number} controls passing"
+msgstr "{passing, number} van {applicable, number} beheersmaatregelen in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NrYcZf"
+msgid "Controls passing"
+msgstr "Beheersmaatregelen in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.b8oEdI"
+msgid "{count, number} passing"
+msgstr "{count, number} in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.P5PLAQ"
+msgid "{count, number} failing"
+msgstr "{count, number} niet in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GBTCb5"
+msgid "{count, number} not started"
+msgstr "{count, number} niet gestart"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.CjoNmW"
+msgid "{count, number} overdue tasks"
+msgstr "{count, number} achterstallige taken"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.pKHQpG"
+msgid "Overdue evidence"
+msgstr "Achterstallig bewijs"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0oUYk6"
+msgid "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date."
+msgstr "Terugkerende taken waarvan het bewijs over tijd is. Bewijs verzamelen zet de taak op de volgende vervaldatum."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.06A-9M"
+msgid "Every evidence task is on schedule."
+msgstr "Elke bewijstaak ligt op schema."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NZ9-vv"
+msgid "Control"
+msgstr "Beheersmaatregel"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr "Vervalt"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -5870,6 +6057,11 @@ msgstr "Prullenbak"
 msgctxt "navigation.HNBpJ4"
 msgid "Metrics"
 msgstr "Statistieken"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.NIi2K2"
+msgid "Compliance"
+msgstr "Compliance"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
@@ -9408,6 +9600,126 @@ msgstr "Metadata geüpload als XML"
 msgctxt "sso.jUqYir"
 msgid "Added {date}"
 msgstr "Toegevoegd op {date}"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.HLDzpl"
+msgid "The status page didn't load"
+msgstr "De statuspagina is niet geladen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Dnob31"
+msgid "Operational"
+msgstr "Operationeel"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.dudqv_"
+msgid "Maintenance"
+msgstr "Onderhoud"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.SsC4IV"
+msgid "Degraded performance"
+msgstr "Verminderde prestaties"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Fh9xh1"
+msgid "Partial outage"
+msgstr "Gedeeltelijke storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.sSIbEd"
+msgid "Major outage"
+msgstr "Grote storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.RVjGF7"
+msgid "All systems operational"
+msgstr "Alle systemen werken"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.caRJuT"
+msgid "Scheduled maintenance in progress"
+msgstr "Gepland onderhoud bezig"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.9M-5lH"
+msgid "Some systems are affected"
+msgstr "Sommige systemen hebben last van een storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._GKH_w"
+msgid "Investigating"
+msgstr "Onderzoek"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.7cv4Uf"
+msgid "Identified"
+msgstr "Oorzaak gevonden"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.1P6GMj"
+msgid "Monitoring"
+msgstr "Monitoren"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.AcAA5x"
+msgid "Components"
+msgstr "Onderdelen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.LfjXKs"
+msgid "Uptime over the last {days, number} days."
+msgstr "Beschikbaarheid over de laatste {days, number} dagen."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.N8Mlqy"
+msgid "No components yet"
+msgstr "Nog geen onderdelen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.o1tnzb"
+msgid "Components appear here once the team marks them public. Check back later."
+msgstr "Onderdelen verschijnen hier zodra het team ze openbaar maakt. Kom later terug."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._2ICQ5"
+msgid "{percent, number}% uptime"
+msgstr "{percent, number}% beschikbaar"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.mtr3R4"
+msgid "Incidents"
+msgstr "Incidenten"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.U8Td13"
+msgid "Open incidents and those resolved in the last {days, number} days."
+msgstr "Open incidenten en incidenten die in de laatste {days, number} dagen zijn opgelost."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wgm9yH"
+msgid "No incidents reported."
+msgstr "Geen incidenten gemeld."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wnbY9R"
+msgid "Affects {components}"
+msgstr "Betreft {components}"
 
 #: src/features/subjects/components/subject-chip.tsx
 msgctxt "subjects.UpwcFd"

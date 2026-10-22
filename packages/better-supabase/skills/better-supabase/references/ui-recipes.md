@@ -17974,39 +17974,7 @@ async function retry() {
   refresh();
 }
 
-type Translate = Awaited<ReturnType<typeof getExtracted>>;
-
 const SOON_DAYS = 30;
-
-function RenewalBadge({ row, t }: { row: RenewalRow; t: Translate }) {
-  const days = row.noticeInDays;
-
-  if (days === null) {
-    return <Badge variant="secondary">{t("No end date")}</Badge>;
-  }
-
-  if (days < 0) {
-    return (
-      <Badge variant="destructive-light">
-        {row.autoRenew ? t("Renews, notice passed") : t("Notice passed")}
-      </Badge>
-    );
-  }
-
-  if (days <= SOON_DAYS) {
-    return (
-      <Badge variant="warning-light">
-        {t("Notice in {days, number} days", { days })}
-      </Badge>
-    );
-  }
-
-  return row.autoRenew ? (
-    <Badge variant="info-light">{t("Auto-renews")}</Badge>
-  ) : (
-    <Badge variant="success-light">{t("Active")}</Badge>
-  );
-}
 
 /**
  * Render inside `<Suspense>`: the organization's active contracts, the nearest
@@ -18027,6 +17995,36 @@ export async function ContractRenewals() {
 
   const day = (date: string) =>
     format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  const renewal = (row: RenewalRow) => {
+    const days = row.noticeInDays;
+
+    if (days === null) {
+      return <Badge variant="secondary">{t("No end date")}</Badge>;
+    }
+
+    if (days < 0) {
+      return (
+        <Badge variant="destructive-light">
+          {row.autoRenew ? t("Renews, notice passed") : t("Notice passed")}
+        </Badge>
+      );
+    }
+
+    if (days <= SOON_DAYS) {
+      return (
+        <Badge variant="warning-light">
+          {t("Notice in {days, number} days", { days })}
+        </Badge>
+      );
+    }
+
+    return row.autoRenew ? (
+      <Badge variant="info-light">{t("Auto-renews")}</Badge>
+    ) : (
+      <Badge variant="success-light">{t("Active")}</Badge>
+    );
+  };
 
   return (
     <Card data-recipe="contract-renewals">
@@ -18097,9 +18095,7 @@ export async function ContractRenewals() {
                   <TableCell className="text-xs text-muted-foreground">
                     {row.noticeDeadline ? day(row.noticeDeadline) : "–"}
                   </TableCell>
-                  <TableCell>
-                    <RenewalBadge row={row} t={t} />
-                  </TableCell>
+                  <TableCell>{renewal(row)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -18324,8 +18320,6 @@ async function retry() {
   refresh();
 }
 
-type Translate = Awaited<ReturnType<typeof getExtracted>>;
-
 type BadgeVariant =
   | "success-light"
   | "info-light"
@@ -18333,74 +18327,31 @@ type BadgeVariant =
   | "destructive-light";
 
 interface StatusLook {
-  readonly label: string;
   readonly badge: BadgeVariant;
   /** The background of an uptime cell. */
   readonly cell: string;
 }
 
-function statusLook(status: ComponentStatus, t: Translate): StatusLook {
+function statusLook(status: ComponentStatus): StatusLook {
   switch (status) {
     case "operational": {
-      return {
-        label: t("Operational"),
-        badge: "success-light",
-        cell: "bg-success",
-      };
+      return { badge: "success-light", cell: "bg-success" };
     }
 
     case "maintenance": {
-      return { label: t("Maintenance"), badge: "info-light", cell: "bg-info" };
+      return { badge: "info-light", cell: "bg-info" };
     }
 
     case "degraded": {
-      return {
-        label: t("Degraded performance"),
-        badge: "warning-light",
-        cell: "bg-warning",
-      };
+      return { badge: "warning-light", cell: "bg-warning" };
     }
 
     case "partial_outage": {
-      return {
-        label: t("Partial outage"),
-        badge: "warning-light",
-        cell: "bg-warning",
-      };
+      return { badge: "warning-light", cell: "bg-warning" };
     }
 
     case "major_outage": {
-      return {
-        label: t("Major outage"),
-        badge: "destructive-light",
-        cell: "bg-destructive",
-      };
-    }
-
-    default: {
-      const never: never = status;
-
-      return never;
-    }
-  }
-}
-
-function updateLabel(status: IncidentStatus, t: Translate): string {
-  switch (status) {
-    case "investigating": {
-      return t("Investigating");
-    }
-
-    case "identified": {
-      return t("Identified");
-    }
-
-    case "monitoring": {
-      return t("Monitoring");
-    }
-
-    case "resolved": {
-      return t("Resolved");
+      return { badge: "destructive-light", cell: "bg-destructive" };
     }
 
     default: {
@@ -18413,17 +18364,17 @@ function updateLabel(status: IncidentStatus, t: Translate): string {
 
 function OverallAlert({
   status,
-  t,
+  title,
 }: {
   status: ComponentStatus;
-  t: Translate;
+  title: string;
 }) {
   switch (status) {
     case "operational": {
       return (
         <Alert variant="success">
           <CircleCheckIcon />
-          <AlertTitle>{t("All systems operational")}</AlertTitle>
+          <AlertTitle>{title}</AlertTitle>
         </Alert>
       );
     }
@@ -18432,7 +18383,7 @@ function OverallAlert({
       return (
         <Alert variant="info">
           <WrenchIcon />
-          <AlertTitle>{t("Scheduled maintenance in progress")}</AlertTitle>
+          <AlertTitle>{title}</AlertTitle>
         </Alert>
       );
     }
@@ -18442,7 +18393,7 @@ function OverallAlert({
       return (
         <Alert variant="warning">
           <TriangleAlertIcon />
-          <AlertTitle>{t("Some systems are affected")}</AlertTitle>
+          <AlertTitle>{title}</AlertTitle>
         </Alert>
       );
     }
@@ -18451,7 +18402,7 @@ function OverallAlert({
       return (
         <Alert variant="destructive">
           <TriangleAlertIcon />
-          <AlertTitle>{t("Major outage")}</AlertTitle>
+          <AlertTitle>{title}</AlertTitle>
         </Alert>
       );
     }
@@ -18505,6 +18456,29 @@ export async function StatusPage({
 
   const { data } = page;
 
+  const labels: Record<ComponentStatus, string> = {
+    operational: t("Operational"),
+    maintenance: t("Maintenance"),
+    degraded: t("Degraded performance"),
+    partial_outage: t("Partial outage"),
+    major_outage: t("Major outage"),
+  };
+
+  const overall: Record<ComponentStatus, string> = {
+    operational: t("All systems operational"),
+    maintenance: t("Scheduled maintenance in progress"),
+    degraded: t("Some systems are affected"),
+    partial_outage: t("Some systems are affected"),
+    major_outage: t("Major outage"),
+  };
+
+  const updates: Record<IncidentStatus, string> = {
+    investigating: t("Investigating"),
+    identified: t("Identified"),
+    monitoring: t("Monitoring"),
+    resolved: t("Resolved"),
+  };
+
   const day = (date: string) =>
     format.dateTime(new Date(`${date}T12:00:00Z`), {
       dateStyle: "medium",
@@ -18522,7 +18496,7 @@ export async function StatusPage({
           <p className="text-sm text-muted-foreground">{data.description}</p>
         ) : null}
       </div>
-      <OverallAlert status={data.status} t={t} />
+      <OverallAlert status={data.status} title={overall[data.status]} />
       <Card>
         <CardHeader>
           <CardTitle>{t("Components")}</CardTitle>
@@ -18550,7 +18524,7 @@ export async function StatusPage({
           ) : (
             <ul className="flex flex-col gap-6">
               {data.components.map((component) => {
-                const look = statusLook(component.status, t);
+                const look = statusLook(component.status);
 
                 return (
                   <li key={component.id} className="flex flex-col gap-2">
@@ -18558,14 +18532,16 @@ export async function StatusPage({
                       <span className="text-sm font-medium">
                         {component.name}
                       </span>
-                      <Badge variant={look.badge}>{look.label}</Badge>
+                      <Badge variant={look.badge}>
+                        {labels[component.status]}
+                      </Badge>
                     </div>
                     <div className="flex h-8 gap-px" aria-hidden="true">
                       {component.uptime.map((entry) => (
                         <span
                           key={entry.date}
-                          className={`flex-1 rounded-sm ${statusLook(entry.status, t).cell}`}
-                          title={`${day(entry.date)}: ${statusLook(entry.status, t).label}`}
+                          className={`flex-1 rounded-sm ${statusLook(entry.status).cell}`}
+                          title={`${day(entry.date)}: ${labels[entry.status]}`}
                         />
                       ))}
                     </div>
@@ -18611,7 +18587,7 @@ export async function StatusPage({
                           : "warning-light"
                       }
                     >
-                      {updateLabel(incident.status, t)}
+                      {updates[incident.status]}
                     </Badge>
                   </div>
                   {incident.components.length > 0 ? (
@@ -18630,7 +18606,7 @@ export async function StatusPage({
                         className="flex flex-col gap-1"
                       >
                         <span className="text-xs text-muted-foreground">
-                          {updateLabel(update.status, t)}
+                          {updates[update.status]}
                           {" · "}
                           {when(update.createdAt)}
                         </span>

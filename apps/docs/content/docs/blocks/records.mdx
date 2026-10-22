@@ -29,6 +29,7 @@ section never takes the page down:
 | `guests`        | `guests`       | the guests who reach the record  | `grant`, `revoke`     | none                    |
 | `passes`        | `passes`       | the passes issued for the record | `issue`, `revoke`     | none                    |
 | `billable-time` | `billableTime` | the record's unbilled time       | `setRate`, `invoice`  | none                    |
+| `contracts`     | `contracts`    | the contracts with the record    | none                  | none                    |
 
 A write takes the record's id and the write's input, such as
 `{ id, input: { kind: "relates", target } }` for `relations.link`.
