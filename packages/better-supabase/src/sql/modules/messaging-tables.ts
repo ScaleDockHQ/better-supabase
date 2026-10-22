@@ -48,7 +48,7 @@ export function conversationReadable(
       when 'members' then ${q.fn("is_conversation_member")}(${alias}.${cv("id")})
       when 'subject' then coalesce(${q.ctx.of("subjects").fn("can_subject")}(${alias}.${cv("subjectType")}, ${alias}.${cv("subjectId")}, 'read'), false)
       else false
-    end)`;
+    end)${guestOnRecord(q, alias, "read")}`;
 
   if (!q.ctx.installed("inbox")) {
     return readable;
@@ -57,6 +57,30 @@ export function conversationReadable(
   return `(case when ${alias}.${cv("kind")} = 'inbox'
     then ${q.ctx.of("inbox").fn("inbox_conversation_allowed")}(${alias}.${cv("id")}::text)
     else ${readable} end)`;
+}
+
+/**
+ * A guest granted `action` on the record of a record conversation (ADR 0070);
+ * empty without the guests module.
+ */
+export function guestOnRecord(
+  q: MessagingSql,
+  alias: string,
+  action: "read" | "comment",
+): string {
+  const cv = q.cols("conversations");
+
+  const guest = q.ctx.scope.guest(
+    `${alias}.${cv("tenant")}`,
+    `${alias}.${cv("subjectType")}`,
+    `${alias}.${cv("subjectId")}`,
+    action,
+  );
+
+  return guest === "false"
+    ? ""
+    : `
+    or (${alias}.${cv("kind")} = 'subject' and ${guest})`;
 }
 
 /** With the inbox: a note shows to the inbox's staff only. */

@@ -3,7 +3,7 @@ import type { MessagingSql } from "./messaging-names.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { conversationTopic } from "./messaging-names.ts";
-import { conversationReadable } from "./messaging-tables.ts";
+import { conversationReadable, guestOnRecord } from "./messaging-tables.ts";
 
 /** `ctx.record` of a conversation event over the row variable `row`. */
 function conversationRecord(
@@ -89,6 +89,23 @@ ${userGrant(`${fn("follow")}(text, uuid, boolean)`)}
         })()
       : "";
 
+  const guestRead = ctx.scope.guest(
+    "open_conversation.tenant",
+    "open_conversation.attrs ->> 'subjectType'",
+    "open_conversation.attrs ->> 'subjectId'",
+    "read",
+  );
+
+  // A guest granted read on a record opens its conversation (ADR 0070).
+  const guestOpen =
+    guestRead === "false"
+      ? { declare: "", or: "", unless: "" }
+      : {
+          declare: `\n  v_guest boolean := open_conversation.kind = 'subject' and coalesce(${guestRead}, false);`,
+          or: " or v_guest",
+          unless: "not v_guest and ",
+        };
+
   return `
 -- Whether the caller may act on a conversation: read it, send to it (the send
 -- key, and membership unless anyone in the tenant may post), or moderate it.
@@ -123,8 +140,8 @@ begin
       return true;
     when 'send' then
       return v_conv.${cv("archivedAt")} is null
-        and ${q.can(`v_conv.${cv("tenant")}`, "send")}
-        and (v_conv.${cv("access")} <> 'members' or ${fn("is_conversation_member")}(v_conv.${cv("id")}));
+        and ((${q.can(`v_conv.${cv("tenant")}`, "send")}
+        and (v_conv.${cv("access")} <> 'members' or ${fn("is_conversation_member")}(v_conv.${cv("id")})))${guestOnRecord(q, "v_conv", "comment")});
     when 'moderate' then
       return ${q.can(`v_conv.${cv("tenant")}`, "moderate")};
     else
@@ -151,16 +168,16 @@ declare
   v_id uuid;
   v_access text;
   v_conv ${t("conversations")};
-  v_created boolean := false;
+  v_created boolean := false;${guestOpen.declare}
 begin
-  if not (${q.service} or ${q.can("open_conversation.tenant", "send")}) then
+  if not (${q.service} or ${q.can("open_conversation.tenant", "send")}${guestOpen.or}) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to send messages here")}
   end if;
   v_users := array(
     select distinct x from unnest(coalesce(open_conversation.members, '{}') || case when auth.uid() is null then '{}'::uuid[] else array[auth.uid()] end) x
     where x is not null order by 1
   );
-  if exists (
+  if ${guestOpen.unless}exists (
     select 1 from unnest(v_users) x
     where not ${ctx.scope.canUser("x", "open_conversation.tenant", q.key("read"))}
   ) then
@@ -182,7 +199,7 @@ begin
       if nullif(open_conversation.attrs ->> 'subjectType', '') is null or nullif(open_conversation.attrs ->> 'subjectId', '') is null then
         ${fail("MESSAGING_SUBJECT_REQUIRED", "a record conversation needs attrs.subjectType and attrs.subjectId", "22023")}
       end if;
-      if not (${q.service} or coalesce(${subjects.fn("can_subject")}(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
+      if not (${q.service}${guestOpen.or} or coalesce(${subjects.fn("can_subject")}(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         ${fail("MESSAGING_NOT_FOUND", "no such record you can read", "P0002")}
       end if;
       select c.${cv("id")} into v_id from ${t("conversations")} c

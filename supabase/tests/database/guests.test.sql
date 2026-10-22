@@ -111,13 +111,15 @@ select is(
   'the grant lets the guest comment on the customer'
 );
 select lives_ok(
-  $$insert into better_supabase.comments (organization_id, subject_type, subject_id, body)
-    values ('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 'Thanks for the update')$$,
-  'the guest comments through the comments policy'
+  $$select better_supabase.send_message(
+    (better_supabase.open_conversation('00000000-0000-4000-8000-000000000001', 'subject',
+      '{"subjectType": "customer", "subjectId": "00000000-0000-4000-8000-00000000a001"}') ->> 'id')::uuid,
+    'Thanks for the update')$$,
+  'the guest comments on the record''s conversation'
 );
 select throws_ok(
-  $$insert into better_supabase.comments (organization_id, subject_type, subject_id, body)
-    values ('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a002', 'Not mine')$$,
+  $$select better_supabase.open_conversation('00000000-0000-4000-8000-000000000001', 'subject',
+    '{"subjectType": "customer", "subjectId": "00000000-0000-4000-8000-00000000a002"}')$$,
   '42501',
   null,
   'the guest cannot comment on a customer they were not granted'

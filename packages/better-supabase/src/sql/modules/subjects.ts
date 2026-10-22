@@ -263,7 +263,7 @@ function workBranches(ctx: ModuleContext): readonly string[] {
   const work = of("work-items");
   const approvals = of("approvals");
   const reminders = of("reminders");
-  const comments = of("comments");
+  const messaging = of("comments") === undefined ? undefined : of("messaging");
   const sla = of("sla");
   const branches: string[] = [];
 
@@ -306,17 +306,21 @@ function workBranches(ctx: ModuleContext): readonly string[] {
     where ${ctx.fn("can_subject")}(d.subject_type, d.subject_id, 'read')`);
   }
 
-  if (comments !== undefined) {
-    const c = (column: string): string =>
-      `c.${comments.col("comments", column)}`;
+  if (messaging !== undefined) {
+    const m = (column: string): string =>
+      `m.${messaging.col("messages", column)}`;
 
-    branches.push(`select 'mention'::text, ${c("subjectType")}::text, ${c("subjectId")}::text, ${c("id")}::text, null::text,
-      ${c("createdAt")}
-    from ${comments.table("comments")} c
-    where v_me = any (${c("mentions")})
-      and ${c("deletedAt")} is null
-      and ${c("createdAt")} > now() - interval '30 days'
-      and ${tenant(c("tenant"))}`);
+    const c = (column: string): string =>
+      `c.${messaging.col("conversations", column)}`;
+
+    branches.push(`select 'mention'::text, ${c("subjectType")}::text, ${c("subjectId")}::text, ${m("id")}::text, null::text,
+      ${m("sentAt")}
+    from ${messaging.table("messages")} m
+    join ${messaging.table("conversations")} c on ${c("id")} = ${m("conversation")} and ${c("kind")} = 'subject'
+    where v_me = any (${m("mentions")})
+      and ${m("deletedAt")} is null
+      and ${m("sentAt")} > now() - interval '30 days'
+      and ${tenant(m("tenant"))}`);
   }
 
   if (sla !== undefined && work !== undefined && workType !== undefined) {

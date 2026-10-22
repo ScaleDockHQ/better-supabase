@@ -11,9 +11,15 @@ insert into better_supabase.companies (id, tenant_id, name, lifecycle) values
   ('00000000-0000-4000-8000-00000000c002', '00000000-0000-4000-8000-000000000001', 'Acme Drop', 'lead'),
   ('00000000-0000-4000-8000-00000000c003', '00000000-0000-4000-8000-000000000001', 'Partner', 'lead');
 
-insert into better_supabase.comments (organization_id, subject_type, subject_id, body) values
-  ('00000000-0000-4000-8000-000000000001', 'company', '00000000-0000-4000-8000-00000000c002', 'on drop'),
-  ('00000000-0000-4000-8000-000000000001', 'company', '00000000-0000-4000-8000-00000000c002', 'also on drop');
+-- Both companies have a record conversation: the dropped one's messages join
+-- the kept one's.
+insert into better_supabase.conversations (id, tenant_id, kind, access, subject_type, subject_id) values
+  ('00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-000000000001', 'subject', 'subject', 'company', '00000000-0000-4000-8000-00000000c001'),
+  ('00000000-0000-4000-8000-0000000cf002', '00000000-0000-4000-8000-000000000001', 'subject', 'subject', 'company', '00000000-0000-4000-8000-00000000c002');
+insert into better_supabase.messages (tenant_id, conversation_id, body) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', 'on keep'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf002', 'on drop'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf002', 'also on drop');
 
 insert into better_supabase.tags (id, tenant_id, kind, name, slug) values
   ('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-000000000001', 'default', 'VIP', 'vip'),
@@ -84,14 +90,14 @@ select is(
   'the dropped company points at the kept one'
 );
 select is(
-  (select count(*)::integer from better_supabase.comments where subject_type = 'company' and subject_id = '00000000-0000-4000-8000-00000000c001'),
-  2,
-  'the comments move to the kept company'
+  (select count(*)::integer from better_supabase.messages where conversation_id = '00000000-0000-4000-8000-0000000cf001'),
+  3,
+  'the comments join the kept company''s conversation'
 );
 select is(
-  (select count(*)::integer from better_supabase.comments where subject_id = '00000000-0000-4000-8000-00000000c002'),
+  (select count(*)::integer from better_supabase.conversations where subject_id = '00000000-0000-4000-8000-00000000c002'),
   0,
-  'no comment stays on the dropped company'
+  'no conversation stays on the dropped company'
 );
 select results_eq(
   $$select tag_id::text from better_supabase.taggings where subject_id = '00000000-0000-4000-8000-00000000c001' order by tag_id$$,

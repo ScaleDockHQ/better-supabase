@@ -144,7 +144,7 @@ describe("rendered modules", () => {
       .map((file) => file.module);
 
     for (const module of [
-      "comments",
+      "messaging",
       "attachments",
       "reactions",
       "tags",
