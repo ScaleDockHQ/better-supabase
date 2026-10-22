@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getSession } from "../user-queries";
 
 /**
- * Shown during a support session (`bs.startSupport`): staff see the app as the
+ * Shown during a support session (`bsb.startSupport`): staff see the app as the
  * user, and the audit log records who acted. Render inside `<Suspense>`.
  */
 export async function ImpersonationBanner() {

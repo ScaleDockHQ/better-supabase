@@ -45,7 +45,7 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 const files = defineBucket({
-  id: "bs-it-support",
+  id: "bsb-it-support",
   path: "{organizationId}/{...rest}",
   policy: "tenant",
 });
@@ -221,14 +221,14 @@ beforeAll(async () => {
 });
 
 const plain = defineBucket({
-  id: "bs-it-support-plain",
+  id: "bsb-it-support-plain",
   path: "{organizationId}/{...rest}",
   policy: "tenant",
   allowedMimeTypes: ["text/plain"],
 });
 
-const INSERT_ONLY = "bs-it-support-insert-only";
-const REVOCABLE = "bs-it-support-revocable";
+const INSERT_ONLY = "bsb-it-support-insert-only";
+const REVOCABLE = "bsb-it-support-revocable";
 
 describe.skipIf(!live)("support storage writes against the local stack", () => {
   const supabase = createClient(url, publishableKey, {

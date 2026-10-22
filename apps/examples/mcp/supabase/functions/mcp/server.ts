@@ -18,7 +18,7 @@ const requiredRole = (tool: ToolRef): string | undefined => {
   return meta.success ? meta.output.role : undefined;
 };
 
-export const bs = createMcp(betterSupabase, {
+export const bsb = createMcp(betterSupabase, {
   name: "crm",
   version: "0.1.0",
   // Users without a CRM role get 403 before any tool is listed.

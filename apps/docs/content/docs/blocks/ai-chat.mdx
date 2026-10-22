@@ -244,7 +244,7 @@ Components the hooks throw; call the block on the server instead.
 `better-supabase/blocks/ai-chat/vue` exports `useAiChats`, `useAiChatTree`,
 `useAiModels` and `useAiShare`. Each takes the options of the controller it
 wraps (`useAiChats` those of `createAiChatsController`); `auth` and `ports`
-come from `app.use(betterSupabase(bs))` unless you pass them. `state` is a
+come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a
 shallow ref of the snapshot and `actions` are the controller's actions. The
 work starts on mount, and the controller is disposed with the component.
 
@@ -275,7 +275,7 @@ const { state, actions } = useAiChats({
 `better-supabase/blocks/ai-chat/svelte` exports `useAiChats`,
 `useAiChatTree`, `useAiModels` and `useAiShare`. Each takes the options of
 the controller it wraps (`useAiChats` those of `createAiChatsController`);
-`auth` and `ports` come from `setBetterSupabase(bs)` unless you pass them.
+`auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them.
 The hook returns a readable store of the snapshot, read with `$`, with the
 actions on `.actions`. The work starts on mount, and the controller is
 disposed with the component.
@@ -307,7 +307,7 @@ disposed with the component.
 `better-supabase/blocks/ai-chat/solid` exports `useAiChats`,
 `useAiChatTree`, `useAiModels` and `useAiShare`. Each takes the options of
 the controller it wraps (`useAiChats` those of `createAiChatsController`);
-`auth` and `ports` come from `<BetterSupabaseProvider client={bs}>` unless
+`auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless
 you pass them. `state()` reads the snapshot through `from`, and `actions`
 are the controller's actions. The work starts on mount, and the controller
 is disposed with the owner.

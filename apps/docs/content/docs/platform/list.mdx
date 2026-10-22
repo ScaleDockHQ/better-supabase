@@ -35,7 +35,7 @@ input. Facet values can be comma-separated or repeated
 
 ```ts title="app/customers/page.tsx"
 export default async function Page({ searchParams }: PageProps<'/customers'>) {
-  const { db } = await bs.context();
+  const { db } = await bsb.context();
   const query = customerList.parse(await searchParams);
   if (!query.ok) return <InvalidFilters issues={query.issues} />;
 
@@ -291,7 +291,7 @@ customerList.parse(new URLSearchParams("sort=oldest&page=0&status=bogus"))
 ```
 
 `customerList.schema` is a [Standard Schema](/docs/standards), so it plugs into
-any router or form library that accepts one. Pass it to `bs.action({ input })`
+any router or form library that accepts one. Pass it to `bsb.action({ input })`
 or an oRPC procedure without writing a validator.
 
 ## URLs and nuqs

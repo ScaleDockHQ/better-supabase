@@ -56,7 +56,7 @@ describe("withBetterSupabase", () => {
         authMode: ctx.authMode,
         sub: ctx.jwtClaims?.sub,
         user: ctx.userClaims?.id,
-        kind: ctx.bs.auth.kind,
+        kind: ctx.bsb.auth.kind,
         actor: ctx.db.$context.actor?.id,
         sql: ctx.sql,
         tenant: ctx.tenant,
@@ -72,7 +72,7 @@ describe("withBetterSupabase", () => {
     expect(seen).toEqual({
       keys: [
         "authMode",
-        "bs",
+        "bsb",
         "db",
         "jwtClaims",
         "replica",
@@ -123,7 +123,7 @@ describe("withBetterSupabase", () => {
     expect((await fetch(request("not-a-jwt"))).status).toBe(401);
   });
 
-  it("sets bs-primary-until on the way out after a write", async () => {
+  it("sets bsb-primary-until on the way out after a write", async () => {
     const token = await signer.sign({ sub: USER });
 
     const fetch = pipeline([withBetterSupabase(server)], (_req, ctx) => {
@@ -352,7 +352,8 @@ describe("session cookies", () => {
           encode: "tokens-only",
         }),
       ],
-      (_req, ctx) => Promise.resolve(Response.json({ kind: ctx.bs.auth.kind })),
+      (_req, ctx) =>
+        Promise.resolve(Response.json({ kind: ctx.bsb.auth.kind })),
     );
 
     const response = await fetch(

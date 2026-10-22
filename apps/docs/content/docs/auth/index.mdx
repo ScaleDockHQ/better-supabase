@@ -61,7 +61,7 @@ policy that should not serve a guest session checks
 `(select (auth.jwt() ->> 'is_anonymous')::boolean) is not true`.
 
 ```ts
-app.use("/cart/*", bs.middleware({ allow: ["user", "anonymous"] }));
+app.use("/cart/*", bsb.middleware({ allow: ["user", "anonymous"] }));
 ```
 
 <Callout title="Use asymmetric signing keys">
@@ -200,8 +200,8 @@ that one instead.
   level deep: a nested object in the schema, like `app_metadata`, replaces
   the payload's, so describe it with `v.looseObject()` (or your library's
   equivalent) to keep its other keys.
-- `ctx.auth.claims`, `await bs.session()` and the `useSession` from
-  `createHooks<typeof bs>()` are typed `JWTClaims & Claims`. The
+- `ctx.auth.claims`, `await bsb.session()` and the `useSession` from
+  `createHooks<typeof bsb>()` are typed `JWTClaims & Claims`. The
   standalone `useSession<Claims>()` takes the type explicitly.
 - `tenant<Claims>({ claim })` only accepts dotted paths to string claims,
   such as `'tenant_id'` or `'app_metadata.tenant_id'`. Without `claim` it
@@ -250,7 +250,7 @@ export const betterSupabase = defineSupabase(schema)
 ```
 
 ```tsx title="src/app/account/page.tsx"
-const session = await bs.session();
+const session = await bsb.session();
 if (session.kind === "user") {
   return <h1>Hello, {session.profile?.display_name ?? session.user.email}</h1>;
 }
@@ -266,7 +266,7 @@ policy come from the verified claims, never from `profile` or
   one warning per schema through the `logger` of `defineSupabase` with the
   failing paths, never the values. The request still resolves as the user.
 - `session.profile` is typed `Profile | undefined` in `ctx.auth`,
-  `bs.session()` and the `useSession` from `createHooks<typeof bs>()`.
+  `bsb.session()` and the `useSession` from `createHooks<typeof bsb>()`.
 - Supabase Auth copies `user_metadata` into the access token. A custom access
   token hook must keep that claim for `profile` to be
   set. The claims budget ([BS405](/docs/cli/doctor#bs405)) counts it, so

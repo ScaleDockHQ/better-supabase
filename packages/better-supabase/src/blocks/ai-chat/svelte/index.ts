@@ -47,7 +47,7 @@ export type {
  * `createAiChatsController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useAiChats(
   options: BlockOptions<AiChatsControllerOptions>,
@@ -63,7 +63,7 @@ export function useAiChats(
  * `createAiChatTreeController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useAiChatTree(
   options: BlockOptions<AiChatTreeControllerOptions>,
@@ -79,7 +79,7 @@ export function useAiChatTree(
  * `createAiModelsController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useAiModels(
   options: BlockOptions<AiModelsControllerOptions>,
@@ -95,7 +95,7 @@ export function useAiModels(
  * `createAiShareController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useAiShare(
   options: BlockOptions<AiShareControllerOptions>,

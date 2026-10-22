@@ -641,7 +641,7 @@ returns a table's settings.
 
 ### Writes the secret key makes for a member
 
-`server.admin({}, { as: userId })` sends the `x-bs-actor` header on every
+`server.admin({}, { as: userId })` sends the `x-bsb-actor` header on every
 request. `better_supabase.acting_member()` returns that user for a service
 caller (the `service_role` key or a direct admin connection) and null for
 anyone else, so a signed-in user cannot name another user by sending the

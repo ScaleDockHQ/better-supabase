@@ -38,7 +38,7 @@ import {
 } from "better-supabase/blocks/ai-cache";
 
 export const aiCache = createAiCache({
-  transport: rpcTransport(bs.admin().$client, { schema: "api" }),
+  transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
   schema: "api",
 });
 ```

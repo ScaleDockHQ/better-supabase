@@ -60,12 +60,12 @@ export interface BetterAstro<
 > extends BetterServer<M, F, E, C, P, B> {
   /**
    * Astro middleware: verifies the caller, refreshes the session cookie on
-   * navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and
+   * navigations and form posts, and puts `db`, `bsb`, `auth`, `tenant` and
    * `session` on `locals`. Response-phase entries see the page's response.
    *
    * ```ts
    * // src/middleware.ts
-   * export const onRequest = bs.onRequest;
+   * export const onRequest = bsb.onRequest;
    * ```
    */
   readonly onRequest: (
@@ -81,7 +81,7 @@ export interface BetterAstro<
    *
    * ```astro
    * ---
-   * const refused = await bs.guard(Astro, { roles: ['admin'] })
+   * const refused = await bsb.guard(Astro, { roles: ['admin'] })
    * if (refused) return refused
    * ---
    * ```
@@ -118,7 +118,7 @@ export interface BetterAstro<
    * export const server = {
    *   addNote: defineAction({
    *     accept: "form",
-   *     handler: bs.action({ input: NoteInput }, (input, { db }) =>
+   *     handler: bsb.action({ input: NoteInput }, (input, { db }) =>
    *       db.notes.create(input),
    *     ),
    *   }),
@@ -173,9 +173,9 @@ export function createAstro<
   type Locals = FrameworkLocals<M, F, E, C, P, B>;
 
   const scopeOf = (context: AstroContextLike): Locals => {
-    if (!("bs" in context.locals)) {
+    if (!("bsb" in context.locals)) {
       throw new TypeError(
-        "better-supabase: no context; export bs.onRequest from src/middleware.ts",
+        "better-supabase: no context; export bsb.onRequest from src/middleware.ts",
       );
     }
 
@@ -196,7 +196,7 @@ export function createAstro<
     const scope = scopeOf(context);
 
     const caller = await requireCaller(
-      scope.bs.auth,
+      scope.bsb.auth,
       requireOptions,
       scope.tenant,
       options.authorizer,
@@ -253,7 +253,7 @@ export function createAstro<
         const scope = scopeOf(context);
 
         const result = await runAction(
-          scope.bs.auth,
+          scope.bsb.auth,
           actionOptions,
           input,
           scope.tenant,

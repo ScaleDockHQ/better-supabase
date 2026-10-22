@@ -8,7 +8,7 @@ Query. The payload type of your `select`/`include` flows into `useQuery`,
 `useSuspenseQuery` and `queryClient.getQueryData`.
 
 ```ts
-const q = bs.queries; // or createQueries(betterSupabase, () => db)
+const q = bsb.queries; // or createQueries(betterSupabase, () => db)
 
 useQuery(
   q.customers.findMany({ select: ["id", "name"], where: { status: "active" } }),
@@ -81,7 +81,7 @@ memory on a long feed: `q.customers.infinite({ size: 50 }, { maxPages: 5 })`.
 
 ## Keys and invalidation
 
-Keys are `['bs', table, operation, args]`. Arguments are part of the key, so
+Keys are `['bsb', table, operation, args]`. Arguments are part of the key, so
 different filters are different cache entries.
 
 Every query also carries `meta: { bsTables }`, the tables it read, includes
@@ -95,7 +95,7 @@ a table no cached query read skips the cache scan.
 ## Clearing on sign-out
 
 Cached rows belong to the user who loaded them. `clearOnUserChange` removes
-every `['bs', ...]` query when the user signs out or another user signs in,
+every `['bsb', ...]` query when the user signs out or another user signs in,
 and returns the function that stops listening. With React,
 `<BetterSupabaseProvider queryClient={queryClient}>` calls it for you; with
 Vue, Solid, Svelte or Angular Query, call it once where you create the client:
@@ -103,7 +103,7 @@ Vue, Solid, Svelte or Angular Query, call it once where you create the client:
 ```ts
 import { clearOnUserChange } from "better-supabase/query";
 
-const stop = clearOnUserChange(queryClient, bs.auth);
+const stop = clearOnUserChange(queryClient, bsb.auth);
 ```
 
 It waits until the session has loaded before it records the first user, and
@@ -178,7 +178,7 @@ it. `$rpcMutation` invalidates the tables declared with
 `blockQueries(clients)` gives the block clients the same option factories,
 under their own method names. A read method (`get*`, `list*`, `find*`,
 `search*`, `tree` and the other `BLOCK_READ_PREFIXES`) becomes query options
-keyed `["bs-block", block, method, ...args]`; every other method becomes
+keyed `["bsb-block", block, method, ...args]`; every other method becomes
 mutation options that make the block's queries stale when they succeed.
 
 ```ts title="lib/block-queries.ts"
@@ -210,7 +210,7 @@ function that stops listening.
 
 `recordQueries(feature, clients, options?)` gives one record page's
 [sections](/docs/blocks/records) the same factories: `sections.<name>(id)`
-query options keyed `["bs-record", type, id, section]`, `writes.<section>.<write>(id)`
+query options keyed `["bsb-record", type, id, section]`, `writes.<section>.<write>(id)`
 mutation options that make that section stale, and `can()` from the `access`
 client you pass as `options.access`. `gen` writes a `<subject>-queries.ts`
 per [generated feature](/docs/blocks/records#generated-features) when
@@ -238,7 +238,7 @@ declare module "@tanstack/react-query" {
 The same factories work on the server with the request-scoped `db`:
 
 ```tsx
-const { db } = await bs.context();
+const { db } = await bsb.context();
 const q = createQueries(betterSupabase, db);
 await queryClient.prefetchQuery(
   q.customers.findMany({ select: ["id", "name"] }),

@@ -6,7 +6,7 @@ import { workflowStarter } from "better-supabase/workflow-sdk";
 import { serviceBuilder } from "@/features/workflows/builder/builder-server";
 import { scheduledWorkflows } from "@/features/workflows/workflow-definitions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * The publisher a schedule runs as: its organization's owner, never the member
@@ -17,7 +17,7 @@ async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
     return null;
   }
 
-  const owner = await bs
+  const owner = await bsb
     .admin()
     .memberships.findFirst({
       select: ["userId"],
@@ -56,7 +56,7 @@ export async function GET(request: Request): Promise<Response> {
   );
 
   const admitted = builder.starter(workflowStarter(scheduledWorkflows));
-  const workflows = blocks(bs.admin().$client).workflows;
+  const workflows = blocks(bsb.admin().$client).workflows;
 
   const [schedules, admission] = await Promise.all([
     workflows.schedules.tick({ start: scheduled }).orThrow(),

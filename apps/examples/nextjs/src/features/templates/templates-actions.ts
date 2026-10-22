@@ -5,7 +5,7 @@ import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import {
   CustomerTemplateBody,
@@ -16,7 +16,7 @@ import {
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
 
 /** Saves a customer template and publishes its first version. */
-export const createTemplate = bs.action(
+export const createTemplate = bsb.action(
   {
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
     requireTenant: true,
@@ -54,7 +54,7 @@ export const createTemplate = bs.action(
 );
 
 /** Creates a customer from the template's newest published version. */
-export const applyTemplate = bs.action(
+export const applyTemplate = bsb.action(
   {
     input: v.object({ templateId: v.pipe(v.string(), v.uuid()), name: Name }),
     requireTenant: true,

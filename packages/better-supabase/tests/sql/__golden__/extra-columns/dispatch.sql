@@ -205,7 +205,7 @@ begin
   if v_ends <= v_starts then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || create_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || create_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = create_work_order.tenant and o."technician_id" = create_work_order.technician
@@ -323,7 +323,7 @@ begin
   if v_ends <= schedule_work_order.starts_at then
     raise exception 'a slot ends after it starts' using errcode = '22023', hint = 'DISPATCH_SLOT_INVALID';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || schedule_work_order.technician::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || schedule_work_order.technician::text, 0));
   if exists (
     select 1 from "better_supabase"."work_orders" o
     where o."tenant_id" = v_row."tenant_id" and o."technician_id" = schedule_work_order.technician

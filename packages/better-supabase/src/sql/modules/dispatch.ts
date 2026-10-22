@@ -311,7 +311,7 @@ function functions(ctx: ModuleContext, extras: readonly ExtraColumn[]): string {
   if ${ends} <= ${starts} then
     ${fail("DISPATCH_SLOT_INVALID", "a slot ends after it starts", "22023")}
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:dispatch:' || ${technician}::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:dispatch:' || ${technician}::text, 0));
   if exists (
     select 1 from ${orders} o
     where o.${w("tenant")} = ${tenant} and o.${w("technician")} = ${technician}

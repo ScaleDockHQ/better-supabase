@@ -3,7 +3,7 @@ import { Temporal } from "temporal-polyfill";
 
 import { blocks } from "@/lib/blocks";
 import { workspaceSummary } from "@/lib/read-sets";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * Four numbers, one GET: the read set runs as a single `stable` function.
@@ -12,8 +12,8 @@ import { bs } from "@/lib/supabase/server";
  */
 export async function getWorkspaceSummary() {
   "use cache: private";
-  const { db, session } = await bs.cached();
-  bs.cacheTags(workspaceSummary);
+  const { db, session } = await bsb.cached();
+  bsb.cacheTags(workspaceSummary);
 
   if (session.kind !== "user") {
     return null;
@@ -40,7 +40,7 @@ export async function getCustomerCounts(
   organizationId: string,
 ): Promise<CustomerCounts> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = { from: until.subtract({ milliseconds: 30 * DAY_MS }), until };

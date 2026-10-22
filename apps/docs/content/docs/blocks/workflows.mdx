@@ -45,7 +45,7 @@ stored as `subject_type` and `subject_id`. List a record's runs with
 `runs.list({ subject: { type: "deal", id: dealId } })`, and the run's
 outbox events carry `subjectType` and `subjectId`, so a record's activity
 feed can show them. The Workflow SDK adapter records the subject from the
-`subject` option of `startFor` (stored on the run as the `bs.subject`
+`subject` option of `startFor` (stored on the run as the `bsb.subject`
 attribute), and queued starts take one in `admission.request({ subject })`.
 
 A run also records who its steps act as: `principal_kind` is `user`,
@@ -121,7 +121,7 @@ instead.
 `better-supabase/blocks/workflows/vue` exports `useWorkflowRuns` and
 `useWorkflowRun`. Each takes the options of the controller it wraps
 (`useWorkflowRuns` those of `createWorkflowRunsController`); `auth` and
-`ports` come from `app.use(betterSupabase(bs))` unless you pass them.
+`ports` come from `app.use(betterSupabase(bsb))` unless you pass them.
 `state` is a shallow ref of the snapshot and `actions` are the controller's
 actions. The work starts on mount, and the controller is disposed with the
 component.
@@ -157,7 +157,7 @@ const { state } = useWorkflowRuns({
 `better-supabase/blocks/workflows/svelte` exports `useWorkflowRuns` and
 `useWorkflowRun`. Each takes the options of the controller it wraps
 (`useWorkflowRuns` those of `createWorkflowRunsController`); `auth` and
-`ports` come from `setBetterSupabase(bs)` unless you pass them. The hook
+`ports` come from `setBetterSupabase(bsb)` unless you pass them. The hook
 returns a readable store of the snapshot, read with `$`, with the actions on
 `.actions`. The work starts on mount, and the controller is disposed with
 the component.
@@ -188,7 +188,7 @@ the component.
 `better-supabase/blocks/workflows/solid` exports `useWorkflowRuns` and
 `useWorkflowRun`. Each takes the options of the controller it wraps
 (`useWorkflowRuns` those of `createWorkflowRunsController`); `auth` and
-`ports` come from `<BetterSupabaseProvider client={bs}>` unless you pass
+`ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass
 them. `state()` reads the snapshot through `from`, and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the owner.

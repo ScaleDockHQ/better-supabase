@@ -6,12 +6,12 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Opens the organization's feedback board. */
-export const createFeedbackBoard = bs.action(
+export const createFeedbackBoard = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -37,7 +37,7 @@ export const createFeedbackBoard = bs.action(
 );
 
 /** Posts an idea or a question on a board. */
-export const createPost = bs.action(
+export const createPost = bsb.action(
   {
     input: v.object({
       boardId: Id,
@@ -64,7 +64,7 @@ export const createPost = bs.action(
 );
 
 /** Sets the caller's vote: 1 up, 0 to clear. */
-export const voteOnPost = bs.action(
+export const voteOnPost = bsb.action(
   {
     input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
     requireTenant: true,

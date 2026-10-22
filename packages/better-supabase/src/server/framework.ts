@@ -122,7 +122,7 @@ export function localsOf<
   // SAFETY: frameworkEntry contributes exactly BetterSupabaseContributions for this server.
   const base = contributions as BetterSupabaseContributions<M, F, E, C, P, B>;
 
-  return { ...base, session: toSession(base.bs.auth) };
+  return { ...base, session: toSession(base.bsb.auth) };
 }
 
 interface WaitUntilHost {

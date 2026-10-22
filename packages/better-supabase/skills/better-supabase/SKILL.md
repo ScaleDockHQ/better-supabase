@@ -87,18 +87,18 @@ Done when `gen --check`, `doctor` and the typecheck pass.
 
 ## Where `db` comes from
 
-Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runtime instance `bs` (`lib/supabase/server.ts`, `lib/supabase/client.ts`, or the Hono, oRPC or Edge Function entry).
+Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runtime instance `bsb` (`lib/supabase/server.ts`, `lib/supabase/client.ts`, or the Hono, oRPC or Edge Function entry).
 
-- Next.js: `const { db } = await bs.context()`, `bs.route(...)`, `bs.action(...)`
-- Next.js Cache Components: keep layouts synchronous; read `bs.session()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
-- Next.js with the tenant in the route (`/[organizationId]/...`): `bs.context({ tenant: organizationId })`, `bs.cached({ tenant })` inside a `'use cache: private'` function that takes the tenant as an argument, and `bs.action({ input, tenant: (input) => input.organizationId }, fn)`. The tenant gets the resolver's membership checks. Client Components get the id as a prop and pass it to actions and to `useLiveQuery(spec, { tenant })`; the browser client only knows the claim's tenant
-- Hono: `c.var.db` after `bs.middleware()`
-- oRPC: `context.db` after `bs.middleware()`
-- Edge Functions: `bs.handler((request, { db }) => ...)`
+- Next.js: `const { db } = await bsb.context()`, `bsb.route(...)`, `bsb.action(...)`
+- Next.js Cache Components: keep layouts synchronous; read `bsb.session()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
+- Next.js with the tenant in the route (`/[organizationId]/...`): `bsb.context({ tenant: organizationId })`, `bsb.cached({ tenant })` inside a `'use cache: private'` function that takes the tenant as an argument, and `bsb.action({ input, tenant: (input) => input.organizationId }, fn)`. The tenant gets the resolver's membership checks. Client Components get the id as a prop and pass it to actions and to `useLiveQuery(spec, { tenant })`; the browser client only knows the claim's tenant
+- Hono: `c.var.db` after `bsb.middleware()`
+- oRPC: `context.db` after `bsb.middleware()`
+- Edge Functions: `bsb.handler((request, { db }) => ...)`
 - Express: `res.locals.db`; Fastify: `request.locals.db`; Koa: `ctx.state.db`; NestJS: `@Ctx("db")`
 - SvelteKit: `event.locals.db`; H3, Nitro and Nuxt: `event.context.db`; TanStack Start: the middleware `context.db`
-- Astro: `bs.locals(Astro).db`; SolidStart: `(await bs.require()).db`
-- Browser: `bs.db`, or the hooks from `createHooks<typeof bs>()`
+- Astro: `bsb.locals(Astro).db`; SolidStart: `(await bsb.require()).db`
+- Browser: `bsb.db`, or the hooks from `createHooks<typeof bsb>()`
 - Vue, Solid and Svelte, TanStack DB collections and a local expo-sqlite database: [references/frontend.md](references/frontend.md)
 - UI for a block (notification bell, notification list, command search, onboarding checklist): build it from the app's shadcn or React Native components and the block's hook, following [references/ui-recipes.md](references/ui-recipes.md). There is no better-supabase UI package; install glue with `npx shadcn add @better-supabase/<item>`.
 
@@ -108,9 +108,9 @@ the `better-supabase-auth` skill.
 ## Forms and actions (Next.js)
 
 - Put the permission check in the action's options, not its body:
-  `bs.action({ input, requireTenant: true, authorize: (session, input) => can(session, "members.invite") }, (input, { db, tenant, session }) => ...)`.
+  `bsb.action({ input, requireTenant: true, authorize: (session, input) => can(session, "members.invite") }, (input, { db, tenant, session }) => ...)`.
   `requireTenant` types `tenant` as a string; a refusal is a `forbidden`
-  `ActionResult`. `bs.route(handler, { requireTenant, authorize })` takes the same.
+  `ActionResult`. `bsb.route(handler, { requireTenant, authorize })` takes the same.
 - A form: `const form = useActionForm(action, { onSuccess })` from
   `better-supabase/react`, then `<form {...form.formProps}>`, `form.pending`
   and `form.fieldErrors.<field>`. Fields survive a failed submit. Pass
@@ -119,7 +119,7 @@ the `better-supabase-auth` skill.
   `remove.run(input)`, and `remove.pendingInputs` to mark the row in flight.
 - Error copy: `createErrorMessages({ ...one entry per DbError kind })` from
   `better-supabase`; a missing kind is a type error.
-- A page only some callers may see: `await bs.require({ authorize })` throws
+- A page only some callers may see: `await bsb.require({ authorize })` throws
   `forbidden()` or `unauthorized()` (needs `experimental.authInterrupts`).
   Under Cache Components, check the privately cached session and call
   `forbidden()` instead, so the page stays prefetchable.
@@ -146,7 +146,7 @@ const customers = result.data;
 - Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.
 - Page lists with a cursor: `paginate({ after: null, size: 25, orderBy })`, then pass `nextCursor` back as `after` with the same `orderBy` and `where`. Use `page` numbers only when users jump to a page and need a total, and `paginate({ offset, limit, count: 'exact' })` when the caller already has an offset; both return the rows and the total in one request.
 - Handlers may return a `Result` directly. Adapters turn errors into RFC 9457 Problem Details with the right status.
-- Jobs and webhooks run as a user so RLS applies: `bs.forContext(job.context)` for a job enqueued with `{ context: db.$context }`, `bs.actingAs(userId, { tenant_id })` for a webhook or script. `bs.admin()` bypasses RLS: use it only for work no user owns, never for a user's request.
+- Jobs and webhooks run as a user so RLS applies: `bsb.forContext(job.context)` for a job enqueued with `{ context: db.$context }`, `bsb.actingAs(userId, { tenant_id })` for a webhook or script. `bsb.admin()` bypasses RLS: use it only for work no user owns, never for a user's request.
 - PostgREST has no multi-request transactions. Put multi-step writes in a database function (`db.$rpc()`) or use `postgres.transaction()` on the server.
 - `$rpc` types each `returns table` column and scalar result `| null`, because Postgres can't declare them not null. Don't cast them: add `@notNull(a, b)` to the function's comment (or `functions.<name>.notNull` in the config), type the column with a `not null` domain, or return `setof` a table. `gen` prints a notice for each function still nullable. Arguments accept `null` too; that only widens the input.
 

@@ -55,7 +55,7 @@ export interface DbBudgetExpectation {
    */
   readonly settleMs?: number;
   /**
-   * When no document or RSC response carries `x-bs-request-id`, throw (the
+   * When no document or RSC response carries `x-bsb-request-id`, throw (the
    * default) or return `[]`. Cache-only navigations never hit the proxy, so
    * they have no request id.
    */
@@ -101,7 +101,7 @@ function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
 export interface ResponseBudgetExpectation {
   readonly maxCalls?: number;
   readonly maxWaves?: number;
-  /** The header `withDbStats` wrote. Defaults to `x-bs-db-calls`. */
+  /** The header `withDbStats` wrote. Defaults to `x-bsb-db-calls`. */
   readonly header?: string;
 }
 
@@ -146,7 +146,7 @@ export function expectDbBudget(
 /**
  * Measures every document and RSC navigation response during `during` and fails
  * when one render makes more database calls or waves than allowed. Needs
- * `createNext(betterSupabase, { debug })` and `bs.debugRoute()` in the app.
+ * `createNext(betterSupabase, { debug })` and `bsb.debugRoute()` in the app.
  */
 export function expectDbBudget(
   page: BudgetPage,
@@ -172,8 +172,8 @@ async function expectPageBudget(
 
   const listener = (response: BudgetResponse): void => {
     const headers = response.headers();
-    const id = headers["x-bs-request-id"];
-    const stats = headers["x-bs-stats"];
+    const id = headers["x-bsb-request-id"];
+    const stats = headers["x-bsb-stats"];
 
     if (!id || !stats || (!expectation.prefetches && isPrefetch(response))) {
       return;
@@ -242,7 +242,7 @@ async function expectPageBudget(
       }
 
       throw new Error(
-        "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
+        "expectDbBudget: no response carried x-bsb-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
       );
     }
 
@@ -260,7 +260,7 @@ async function expectPageBudget(
 
     if (!reply.ok()) {
       throw new Error(
-        `expectDbBudget: ${url} answered ${reply.status()}. Mount bs.debugRoute() at that path.`,
+        `expectDbBudget: ${url} answered ${reply.status()}. Mount bsb.debugRoute() at that path.`,
       );
     }
 

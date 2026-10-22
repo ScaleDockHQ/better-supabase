@@ -9,7 +9,7 @@ import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { toMembers, toOrganizationSummaries } from "./organization-queries";
 
@@ -37,12 +37,12 @@ function slugify(name: string): string {
  * The caller's organizations with their plans, loaded by `useOrganizations` in
  * the switcher after each switch.
  */
-export const loadMyOrganizations = bs.action({}, async (_input, { db }) =>
+export const loadMyOrganizations = bsb.action({}, async (_input, { db }) =>
   db.$rpc("my_organizations").map((rows) => toOrganizationSummaries(rows)),
 );
 
 /** Creates an organization owned by the caller, then switches to it. */
-export const createOrganization = bs.action(
+export const createOrganization = bsb.action(
   { input: v.object({ name: Name }) },
   async ({ name }, { supabase }) => {
     const { organizations } = blocks(supabase);
@@ -67,7 +67,7 @@ export const createOrganization = bs.action(
   },
 );
 
-export const updateOrganization = bs.action(
+export const updateOrganization = bsb.action(
   {
     input: v.object({ name: Name, slug: Slug }),
     requireTenant: true,
@@ -104,7 +104,7 @@ export const updateOrganization = bs.action(
  * invitations module checks and audits the invite itself): completes the
  * onboarding step and renders the pending invitations again.
  */
-export const invitationSent = bs.action(
+export const invitationSent = bsb.action(
   {
     requireTenant: true,
     authorize: (session) => can(session, "members.invite"),
@@ -125,7 +125,7 @@ export const invitationSent = bs.action(
  * The active organization's members with their profiles, loaded by `useMembers`
  * in the members table after a removal.
  */
-export const loadMembers = bs.action(
+export const loadMembers = bsb.action(
   { requireTenant: true },
   async (_input, { tenant: organizationId, db, supabase }) =>
     db
@@ -133,7 +133,7 @@ export const loadMembers = bs.action(
       .map((rows) => toMembers(rows, supabase)),
 );
 
-export const revokeInvitation = bs.action(
+export const revokeInvitation = bsb.action(
   {
     input: v.object({ invitationId: Id }),
     requireTenant: true,
@@ -167,7 +167,7 @@ export const revokeInvitation = bs.action(
  * browser (the organizations module checks and audits the change itself). The
  * member's token still carries the old role until it refreshes.
  */
-export const memberChanged = bs.action(
+export const memberChanged = bsb.action(
   {
     input: v.object({ userId: Id }),
     requireTenant: true,
@@ -175,27 +175,27 @@ export const memberChanged = bs.action(
       can(session, "members.update_role") || can(session, "members.remove"),
   },
   ({ userId }) => {
-    bs.invalidateSession(userId);
+    bsb.invalidateSession(userId);
 
     return ok(true);
   },
 );
 
 /** Leaves the active organization; the owner has to transfer ownership first. */
-export const leaveOrganization = bs.action(
+export const leaveOrganization = bsb.action(
   { requireTenant: true },
   async (_input, { tenant: organizationId, supabase }) =>
     blocks(supabase).organizations.leave(organizationId),
 );
 
-export const declineInvitation = bs.action(
+export const declineInvitation = bsb.action(
   { input: v.object({ token: v.pipe(v.string(), v.minLength(8)) }) },
   async ({ token }, { supabase }) =>
     blocks(supabase).organizations.declineInvitation(token),
 );
 
 /** Accepts an invitation for the signed-in user and switches to it. */
-export const acceptInvitation = bs.action(
+export const acceptInvitation = bsb.action(
   { input: v.object({ token: v.pipe(v.string(), v.minLength(8)) }) },
   async ({ token }, { supabase }) => {
     const { organizations } = blocks(supabase);

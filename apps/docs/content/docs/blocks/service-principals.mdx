@@ -35,11 +35,11 @@ import {
 
 const principals = createServicePrincipals({
   transport: sqlTransport(postgres.admin),
-  admin: bs.admin().$authAdmin,
+  admin: bsb.admin().$authAdmin,
 });
 
 export async function addAutomationAccount(organizationId: string) {
-  const ctx = await bs.context();
+  const ctx = await bsb.context();
   return principals
     .create(organizationId, "Automations", "member", {
       default: true,

@@ -5,7 +5,7 @@ import { betterSupabase } from "./lib/supabase";
 import { partnerApi } from "./marketplace";
 import { authorize, jwks, token } from "./oauth";
 
-const bs = createHono(betterSupabase);
+const bsb = createHono(betterSupabase);
 
 const customers = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
@@ -16,24 +16,24 @@ const customers = defineListQuery(betterSupabase, "customers", {
 });
 
 /** The fixture's token hook writes the role to the top-level `user_role` claim. */
-const admins = bs.require({
+const admins = bsb.require({
   roles: ["admin"],
   roleClaim: "user_role",
   requireTenant: true,
 });
 
 /**
- * `bs.app()` installs `bs.onError`: a thrown `DbException`, such as an
+ * `bsb.app()` installs `bsb.onError`: a thrown `DbException`, such as an
  * `.orThrow()` in a block call, answers as RFC 9457 Problem Details.
  */
-const app = bs
+const app = bsb
   .app()
   // Registered before the `/api/*` middleware: Vercel sends its own OIDC
   // token as the bearer, which the handler verifies and Supabase Auth can't.
   .all("/api/vercel/*", (c) => partnerApi(c.req.raw))
   .post("/oauth/token", (c) => token(c.req.raw))
   .get("/.well-known/jwks.json", () => jwks())
-  .post("/oauth/authorize", bs.middleware({ allow: ["user"] }), async (c) => {
+  .post("/oauth/authorize", bsb.middleware({ allow: ["user"] }), async (c) => {
     if (c.var.auth.kind !== "user") {
       return c.json({ error: "login_required" }, 401);
     }
@@ -43,11 +43,11 @@ const app = bs
 
     return c.json({ redirect: redirect.href });
   })
-  .use("/api/*", bs.middleware())
+  .use("/api/*", bsb.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }))
   .route(
     "/api/customers",
-    bs.resource("customers", {
+    bsb.resource("customers", {
       list: customers,
       select: ["id", "name", "status", "organizationId", "createdAt"],
     }),

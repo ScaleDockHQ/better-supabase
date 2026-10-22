@@ -73,7 +73,7 @@ function useClientOf<C>(explicit: C | undefined, hook: string): C {
 
   if (!client) {
     throw new Error(
-      `better-supabase: ${hook} needs <BetterSupabaseProvider client={bs}> or { client: supabase }`,
+      `better-supabase: ${hook} needs <BetterSupabaseProvider client={bsb}> or { client: supabase }`,
     );
   }
 

@@ -695,7 +695,7 @@ begin
     end if;
   end if;
   if v_reason is null and v_pass."booking_id" is null and v_resource is not null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:passes:' || v_resource::text, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:passes:' || v_resource::text, 0));
     select rs."capacity" into v_capacity from "better_supabase"."booking_resources" rs
       where rs."id" = v_resource and rs."tenant_id" = v_pass."tenant_id";
     if v_capacity is null then

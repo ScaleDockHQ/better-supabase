@@ -324,7 +324,7 @@ describe("createSupabaseWorld", () => {
     expect(headers.get("x-vqs-queue-name")).toBe("__wkf_workflow_test");
     expect(headers.get("x-vqs-message-attempt")).toBe("1");
     expect(headers.get("x-h")).toBe("v");
-    expect(headers.get("x-bs-signature")).toMatch(/^t=\d+,v1=/);
+    expect(headers.get("x-bsb-signature")).toMatch(/^t=\d+,v1=/);
     // timeoutSeconds re-queues the message as its next attempt.
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ attempt: 2 });
@@ -482,13 +482,13 @@ describe("createSupabaseWorld", () => {
       });
 
     const ok = await handler(
-      request({ "x-bs-job": job, "x-bs-signature": signed }),
+      request({ "x-bsb-job": job, "x-bsb-signature": signed }),
     );
 
     expect(ok.status).toBe(200);
     const forwarded = inner.mock.calls[0]![0];
     expect(forwarded.headers.get("x-vqs-message-id")).toBe("msg_1");
-    expect(forwarded.headers.get("x-bs-job")).toBeNull();
+    expect(forwarded.headers.get("x-bsb-job")).toBeNull();
     expect(await forwarded.text()).toBe(JSON.stringify({ runId: "wrun_1" }));
     expect(
       queries.find((query) => query.fn === "complete_job")?.params,
@@ -497,7 +497,7 @@ describe("createSupabaseWorld", () => {
     expect(
       (
         await handler(
-          request({ "x-bs-job": job, "x-bs-signature": "t=1,v1=0" }),
+          request({ "x-bsb-job": job, "x-bsb-signature": "t=1,v1=0" }),
         )
       ).status,
     ).toBe(401);
@@ -506,8 +506,8 @@ describe("createSupabaseWorld", () => {
       (
         await handler(
           request({
-            "x-bs-job": badJob,
-            "x-bs-signature": await signDelivery("sec", badJob, body),
+            "x-bsb-job": badJob,
+            "x-bsb-signature": await signDelivery("sec", badJob, body),
           }),
         )
       ).status,
@@ -515,7 +515,7 @@ describe("createSupabaseWorld", () => {
     expect((await handler(request({}))).status).toBe(401);
 
     const plain = await handler(
-      request({ "x-bs-signature": await signDelivery("sec", "", "{}") }, "{}"),
+      request({ "x-bsb-signature": await signDelivery("sec", "", "{}") }, "{}"),
     );
 
     expect(plain.status).toBe(200);
@@ -524,8 +524,8 @@ describe("createSupabaseWorld", () => {
     await expect(
       handler(
         request({
-          "x-bs-job": job,
-          "x-bs-signature": await signDelivery("sec", job, body),
+          "x-bsb-job": job,
+          "x-bsb-signature": await signDelivery("sec", job, body),
         }),
       ),
     ).rejects.toThrow("crash");

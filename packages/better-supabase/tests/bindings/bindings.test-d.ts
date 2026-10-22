@@ -58,14 +58,14 @@ describe("solid", () => {
 
 describe("svelte", () => {
   it("types the bound client", () => {
-    const bs = svelte.getBetterSupabase<Client>();
-    expectTypeOf(bs.db).toEqualTypeOf<Client["db"]>();
-    expectTypeOf(bs.queries).toEqualTypeOf<Client["queries"]>();
-    expectTypeOf(bs.auth.current).toEqualTypeOf<AuthSnapshot>();
+    const bsb = svelte.getBetterSupabase<Client>();
+    expectTypeOf(bsb.db).toEqualTypeOf<Client["db"]>();
+    expectTypeOf(bsb.queries).toEqualTypeOf<Client["queries"]>();
+    expectTypeOf(bsb.auth.current).toEqualTypeOf<AuthSnapshot>();
     expectTypeOf(
-      bs.liveQuery(() => null).current,
+      bsb.liveQuery(() => null).current,
     ).toEqualTypeOf<SubscriptionStatus>();
-    const remove = bs.action(removeMember);
+    const remove = bsb.action(removeMember);
     expectTypeOf(remove.error?.kind).not.toBeAny();
     expectTypeOf(remove.run).parameter(0).toEqualTypeOf<{ userId: string }>();
   });

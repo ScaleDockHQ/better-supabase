@@ -1,11 +1,11 @@
-import { bs } from "../../../../lib/supabase/server";
+import { bsb } from "../../../../lib/supabase/server";
 
 /**
  * The REST API for the API model, as the caller (RLS): `GET /api/v1/customers`,
  * `GET|PATCH|DELETE /api/v1/customers/{id}` and the `archive` action. Paths
  * outside the map answer 404 before auth resolves.
  */
-export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(
+export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
   {
     customers: {
       operations: ["list", "get", "update", "delete"],

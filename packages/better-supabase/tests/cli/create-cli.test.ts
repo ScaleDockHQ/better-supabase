@@ -24,7 +24,7 @@ describe("createCli", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "bs-create-cli-"));
+    dir = await mkdtemp(join(tmpdir(), "bsb-create-cli-"));
     await writeFile(join(dir, "package.json"), "{}");
   });
 

@@ -36,7 +36,7 @@ export function identityKey(
 }
 
 /**
- * Resets every `['bs', ...]` query when the caller changes: another user,
+ * Resets every `['bsb', ...]` query when the caller changes: another user,
  * signing out, or new claims for the same user (an organization switch, a role
  * change). Mounted queries refetch, so no one sees the previous identity's
  * rows. Returns the function that stops listening. `BetterSupabaseProvider`
@@ -48,7 +48,7 @@ export function identityKey(
  * (hydrated from the server) stays.
  *
  * ```ts
- * const stop = clearOnUserChange(queryClient, bs.auth);
+ * const stop = clearOnUserChange(queryClient, bsb.auth);
  * ```
  */
 export function clearOnUserChange(
@@ -59,7 +59,7 @@ export function clearOnUserChange(
   let before: Map<string, number> | undefined;
 
   const bsQueries = () =>
-    queryClient.getQueryCache().findAll({ queryKey: ["bs"] });
+    queryClient.getQueryCache().findAll({ queryKey: ["bsb"] });
 
   const check = (): void => {
     const snapshot = auth.current();
@@ -78,7 +78,7 @@ export function clearOnUserChange(
     const next = identityKey(snapshot);
 
     if (identity !== undefined && identity !== next) {
-      void queryClient.resetQueries({ queryKey: ["bs"] });
+      void queryClient.resetQueries({ queryKey: ["bsb"] });
     } else if (identity === undefined && next !== null && before) {
       const known = before;
 
@@ -94,7 +94,7 @@ export function clearOnUserChange(
 
       if (fetchedAsAnon.size > 0) {
         void queryClient.resetQueries({
-          queryKey: ["bs"],
+          queryKey: ["bsb"],
           predicate: (query) => fetchedAsAnon.has(query.queryHash),
         });
       }

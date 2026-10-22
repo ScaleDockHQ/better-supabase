@@ -13,7 +13,7 @@ import {
 import { Link } from "@/i18n/navigation";
 
 /**
- * `forbidden()`, e.g. from `bs.require()`: signed in, but not allowed. Next
+ * `forbidden()`, e.g. from `bsb.require()`: signed in, but not allowed. Next
  * answers 403.
  */
 export default function Forbidden() {

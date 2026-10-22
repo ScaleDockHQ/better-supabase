@@ -2,7 +2,7 @@ import "server-only";
 import * as v from "valibot";
 
 import { serverFetch } from "@/lib/latency";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const AuthError = v.object({ msg: v.optional(v.string()) });
 
@@ -78,7 +78,7 @@ async function attempt<T>(read: () => Promise<T>): Promise<AuthRead<T>> {
 /** The caller's verified TOTP factor, or `null` without one. */
 export async function getTotpFactorId(): Promise<AuthRead<string | null>> {
   "use cache: private";
-  const { auth } = await bs.cached();
+  const { auth } = await bsb.cached();
 
   if (auth.kind !== "user") {
     return { ok: true, value: null };
@@ -101,7 +101,7 @@ export async function getTotpFactorId(): Promise<AuthRead<string | null>> {
 /** The OAuth clients the caller approved on the consent page. */
 export async function getOAuthGrants(): Promise<AuthRead<readonly Grant[]>> {
   "use cache: private";
-  const { auth } = await bs.cached();
+  const { auth } = await bsb.cached();
 
   if (auth.kind !== "user") {
     return { ok: true, value: [] };

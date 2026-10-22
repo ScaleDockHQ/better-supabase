@@ -36,10 +36,10 @@ import { specReference, specResponse } from "better-supabase/spec";
 import { api } from "./lib/api";
 import { betterSupabase } from "./lib/supabase";
 
-const bs = createHono(betterSupabase);
+const bsb = createHono(betterSupabase);
 const { document } = api.openapi();
 
-export const app = bs
+export const app = bsb
   .app()
   .get("/api/openapi.json", (c) => specResponse(document, c.req.raw))
   .get("/api/docs", (c) =>

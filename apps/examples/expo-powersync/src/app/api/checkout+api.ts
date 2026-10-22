@@ -1,7 +1,7 @@
 import { dbError, err } from "better-supabase";
 import * as v from "valibot";
 
-import { bs } from "../../lib/supabase/server";
+import { bsb } from "../../lib/supabase/server";
 
 const Body = v.object({ plan: v.string() });
 
@@ -12,7 +12,7 @@ const Body = v.object({ plan: v.string() });
  * successUrl, cancelUrl })`; the fixture installs neither, so it answers
  * `unsupported`.
  */
-export const POST = bs.handler(
+export const POST = bsb.handler(
   async (request) => {
     const body = v.safeParse(Body, await request.json());
 

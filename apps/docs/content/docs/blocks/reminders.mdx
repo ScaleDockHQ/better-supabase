@@ -57,7 +57,7 @@ no such policy, it uses `subjectReaders`, so a user who lost read access to
 the subject stops getting its reminders:
 
 ```ts
-createReminders({ ...context, authorization: bs.authorization });
+createReminders({ ...context, authorization: bsb.authorization });
 ```
 
 `reminder.sent` carries `organizationId`, `id`, `subjectType`, `subjectId`

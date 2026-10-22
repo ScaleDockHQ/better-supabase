@@ -74,7 +74,7 @@ export interface HonoEnv<
   B = unknown,
 > {
   Variables: {
-    readonly bs: ServerContext<M, F, E, C, P, B>;
+    readonly bsb: ServerContext<M, F, E, C, P, B>;
     readonly db: ServerContext<M, F, E, C, P, B>["db"];
     readonly auth: AuthState<C, P>;
     /** The caller as plain data, safe to return in a response. */
@@ -118,14 +118,14 @@ export interface BetterHono<
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
-   * The app's Hono `Env`, for `new Hono<typeof bs.Env>()` and `Context<typeof
-   * bs.Env>`. Type only: `undefined` at runtime.
+   * The app's Hono `Env`, for `new Hono<typeof bsb.Env>()` and `Context<typeof
+   * bsb.Env>`. Type only: `undefined` at runtime.
    */
   readonly Env: HonoEnv<M, F, E, C, P, B>;
-  /** `new Hono<typeof bs.Env>()` with `onError(bs.onError)` installed. */
+  /** `new Hono<typeof bsb.Env>()` with `onError(bsb.onError)` installed. */
   app(): Hono<HonoEnv<M, F, E, C, P, B>>;
   /**
-   * Resolves the caller, enforces `allow` and sets `c.var.bs`, `c.var.db`,
+   * Resolves the caller, enforces `allow` and sets `c.var.bsb`, `c.var.db`,
    * `c.var.auth`.
    */
   middleware(
@@ -138,7 +138,7 @@ export interface BetterHono<
    * ```ts
    * app.post(
    *   "/invites",
-   *   bs.require({ requireTenant: true, roles: ["admin"] }),
+   *   bsb.require({ requireTenant: true, roles: ["admin"] }),
    *   handler,
    * );
    * ```
@@ -160,7 +160,7 @@ export interface BetterHono<
    * ```ts
    * app.use(
    *   "/api/*",
-   *   bs.rateLimit({
+   *   bsb.rateLimit({
    *     limiter,
    *     scope: "api",
    *     rule: { max: 100, period: "1 minute" },
@@ -184,7 +184,7 @@ export interface BetterHono<
     options?: { readonly status?: number },
   ): (c: Context<HonoEnv<M, F, E, C, P, B>>) => Promise<Response>;
   /**
-   * `app.onError(bs.onError)`: `DbException`s (and errors caused by a
+   * `app.onError(bsb.onError)`: `DbException`s (and errors caused by a
    * `DbError`) become Problem Details, Hono's `HTTPException`s keep their own
    * response, and anything else is a 500.
    */
@@ -192,7 +192,7 @@ export interface BetterHono<
   /**
    * REST routes for a table matching the API model: the collection, the item
    * and each action's path. Mount with `app.route('/customers',
-   * bs.resource('customers'))` behind `middleware()`.
+   * bsb.resource('customers'))` behind `middleware()`.
    */
   resource<T extends TableKey<M>>(
     table: T,
@@ -208,12 +208,12 @@ export interface BetterHono<
 function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P, B>(
   c: Context<HonoEnv<M, F, E, C, P, B>>,
 ): ServerContext<M, F, E, C, P, B> {
-  // SAFETY: the middleware stores the ServerContext for this app's generics under "bs".
-  const ctx = c.get("bs") as ServerContext<M, F, E, C, P, B> | undefined;
+  // SAFETY: the middleware stores the ServerContext for this app's generics under "bsb".
+  const ctx = c.get("bsb") as ServerContext<M, F, E, C, P, B> | undefined;
 
   if (!ctx) {
     throw new TypeError(
-      "better-supabase: no context on this request; add app.use(bs.middleware()) first",
+      "better-supabase: no context on this request; add app.use(bsb.middleware()) first",
     );
   }
 
@@ -311,16 +311,16 @@ export function createHono<
       const run = honoMiddleware(
         [withBetterSupabase(server, { ...middlewareOptions, expose })],
         (c, ctx) => {
-          // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bs`.
-          const bs = (ctx as { readonly bs: ServerContext<M, F, E, C, P, B> })
-            .bs;
+          // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bsb`.
+          const bsb = (ctx as { readonly bsb: ServerContext<M, F, E, C, P, B> })
+            .bsb;
 
           // SAFETY: withBetterSupabase contributes the resolved tenant as `tenant`.
           const { tenant } = ctx as { readonly tenant: string | undefined };
-          c.set("bs", bs);
-          c.set("db", bs.db);
-          c.set("auth", bs.auth);
-          c.set("session", toSession(bs.auth));
+          c.set("bsb", bsb);
+          c.set("db", bsb.db);
+          c.set("auth", bsb.auth);
+          c.set("session", toSession(bsb.auth));
           c.set("tenant", tenant);
         },
       );

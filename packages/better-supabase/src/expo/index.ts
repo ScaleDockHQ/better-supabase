@@ -49,7 +49,7 @@ export interface ExpoContextOptions
   /**
    * Refresh an expired cookie session and write the new cookies with
    * `setResponseHeaders`. Defaults to true; bearer tokens never refresh. When
-   * `bs.middleware()` already ran for the request, the context reads the
+   * `bsb.middleware()` already ran for the request, the context reads the
    * session it refreshed and never calls Auth again, whatever this option
    * says.
    */
@@ -99,7 +99,7 @@ export interface BetterExpo<
     options?: ExpoContextOptions,
   ): Promise<ServerContext<M, F, E, C, P, B>>;
   /**
-   * A server loader (`export const loader = bs.loader(...)`) that runs `fn` as
+   * A server loader (`export const loader = bsb.loader(...)`) that runs `fn` as
    * the caller. A `DbException` from `.orThrow()` becomes a `StatusError` with
    * the error's status. Throws during static rendering, which has no request.
    */
@@ -112,7 +112,7 @@ export interface BetterExpo<
     options?: ExpoContextOptions,
   ): (request: ImmutableRequest | undefined, params: ExpoParams) => Promise<T>;
   /**
-   * An API route handler (`export const GET = bs.handler(...)`): `Result`s
+   * An API route handler (`export const GET = bsb.handler(...)`): `Result`s
    * become JSON or Problem Details, `undefined` becomes 204.
    */
   handler(
@@ -289,7 +289,7 @@ export function createExpo<
         if (!incoming) {
           throw new StatusError(
             500,
-            'better-supabase: bs.loader() needs a request, and static rendering has none. Turn on unstable_useServerRendering on Expo SDK 57, or read public data in a loader built with createStaticLoader from "expo-server".',
+            'better-supabase: bsb.loader() needs a request, and static rendering has none. Turn on unstable_useServerRendering on Expo SDK 57, or read public data in a loader built with createStaticLoader from "expo-server".',
           );
         }
 
@@ -314,7 +314,7 @@ export function createExpo<
           const instance = new URL(incoming.url).pathname;
 
           try {
-            return await respond(() => fn(incoming, ctx.bs, params), {
+            return await respond(() => fn(incoming, ctx.bsb, params), {
               instance,
               expose,
             });

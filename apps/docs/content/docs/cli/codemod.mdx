@@ -30,6 +30,7 @@ directory that holds the discovered config file, or `--cwd` when there is none.
 | `0.6`   | Renames the `Kit` and `Org` exports to their `Block`, `Module` and `Organization` names and `maxUrlLength` to `urlLengthLimit`; lists every `$rpc` call (rows in the configured casing), `.publicUrl(` and `.path({` calls (a `Result`) and imports from the moved subpaths, for review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `0.9`   | Moves `sql.modules` to the top-level `blocks` key in `better-supabase.config.*` and renames `ModulesConfig`, `ModuleConfig`, `AccessModuleConfig` and `ModuleMode` to their `Block` names; lists `supportSessions(` (denied without `authorize`, second approver), `canApprove` (now `isApprover`), `createWebhooks(` (CloudEvents), `gatewayOptions(`, `publish_webhook_event(` and the old generic problem types and titles, for review; also `token_scope_allows(` and the role helpers (the delegation cap), `workflowStarter(` and `startOnEvent(` (`runAs`), `createWorkflowBuilder(`, `createNotifications(`, `createReminders(` and `.fanOut(` (subject readers), agent `act` levels, `create_share_link`, `before_promotion_activate` and `comments` options; pins `options.defaultFormat: "standard"` on an adopted `webhooks-out` block that maps no `columns.endpoints.format`, and lists `sql add` calls in scripts and workflows (use `add`, which also wires clients) |
 | `0.11`  | Pins `options.defaultFormat: "cloudevents"` on an adopted `webhooks-out` block that maps no `columns.endpoints.format`, which adopt mode requires from 0.11, and lists the edit for review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `0.15`  | Renames the runtime instance `bs` to `bsb` where a file creates, imports or destructures it, and the `bs` key on request contexts (`ctx.bs`, `c.var.bs`, `locals.bs`); lists cache tags, query keys, realtime topics and the debug header and route that start with `bs`, for review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 | Command        | Side effects  |
 | -------------- | ------------- |
@@ -38,6 +39,7 @@ directory that holds the discovered config file, or `--cwd` when there is none.
 | `codemod 0.6`  | Writes files. |
 | `codemod 0.9`  | Writes files. |
 | `codemod 0.11` | Writes files. |
+| `codemod 0.15` | Writes files. |
 
 ## What it rewrites
 
@@ -61,7 +63,7 @@ scopes }`. Nested objects keep their keys.
 ## What it leaves for you
 
 Some renames depend on what a variable holds (`next.server()` is
-`bs.context()` only on a `createNext()` instance). The codemod doesn't guess:
+`bsb.context()` only on a `createNext()` instance). The codemod doesn't guess:
 it lists those lines after the summary, as `path:line: message`, so you can
 change them by hand.
 
@@ -72,7 +74,7 @@ Updated 3 of 41 files:
   src/app/api/mcp/route.ts
 
 Check these by hand:
-  src/app/page.tsx:12: `next.server()` is `bs.context()` on the createNext() instance
+  src/app/page.tsx:12: `next.server()` is `bsb.context()` on the createNext() instance
 ```
 
 Run your type checker afterwards; a rename the codemod missed shows up there.

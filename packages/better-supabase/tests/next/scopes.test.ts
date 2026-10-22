@@ -74,7 +74,7 @@ const signer = await createTestSigner();
 describe("private-cache scopes", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createNext(betterSupabase, {
+  const bsb = createNext(betterSupabase, {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -93,7 +93,7 @@ describe("private-cache scopes", () => {
 
     // Twelve islands, each its own scope: four read data, eight only the session.
     for (let island = 0; island < 12; island += 1) {
-      const ctx = await bs.context(
+      const ctx = await bsb.context(
         new Request("https://app.test/", { headers: bearer }),
       );
 
@@ -108,7 +108,7 @@ describe("private-cache scopes", () => {
     // A user's ctx.db runs on a bare PostgREST client.
     expect(mocks.clients).toBe(0);
 
-    const ctx = await bs.context(
+    const ctx = await bsb.context(
       new Request("https://app.test/", { headers: bearer }),
     );
 
@@ -120,7 +120,7 @@ describe("private-cache scopes", () => {
     const exp = Math.floor(Date.now() / 1000) + 120;
     const token = await signer.sign({ sub: USER, expiresIn: 120 });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
-    const ctx = await bs.cached({ life: { expire: 3600 } });
+    const ctx = await bsb.cached({ life: { expire: 3600 } });
     expect(ctx.session).toMatchObject({ kind: "user", user: { id: USER } });
     expect(ctx.auth.kind).toBe("user");
 
@@ -135,31 +135,31 @@ describe("private-cache scopes", () => {
     expect(life.stale).toBeLessThanOrEqual(120);
     expect(mocks.cacheTag).toHaveBeenCalledWith(sessionTag(USER));
 
-    bs.invalidateSession(USER);
-    expect(mocks.updateTag).toHaveBeenCalledWith(`bs:session:${USER}`);
+    bsb.invalidateSession(USER);
+    expect(mocks.updateTag).toHaveBeenCalledWith(`bsb:session:${USER}`);
   });
 
   it("adds tags and caps stale with life.stale", async () => {
     const token = await signer.sign({ sub: USER, expiresIn: 3600 });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
     const tags = [`authz:${USER}`, "organization:acme"];
-    await bs.cached({ tags, life: { stale: 45 } });
+    await bsb.cached({ tags, life: { stale: 45 } });
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 45 });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(sessionTag(USER), ...tags);
 
     // A ceiling above the session's stale time leaves it alone.
-    await bs.cached({ life: { stale: 900 } });
+    await bsb.cached({ life: { stale: 900 } });
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 300 });
 
     mocks.headers = new Headers();
-    await bs.cached({ tags: ["public:pricing"] });
+    await bsb.cached({ tags: ["public:pricing"] });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith("public:pricing");
     mocks.cacheTag.mockReset();
-    await bs.cached();
+    await bsb.cached();
     expect(mocks.cacheTag).not.toHaveBeenCalled();
 
     mocks.updateTag.mockReset();
-    bs.invalidateSession(USER, { tags: [`authz:${USER}`] });
+    bsb.invalidateSession(USER, { tags: [`authz:${USER}`] });
     expect(mocks.updateTag.mock.calls).toEqual([
       [sessionTag(USER)],
       [`authz:${USER}`],
@@ -176,10 +176,10 @@ describe("private-cache scopes", () => {
       expiresAt: null,
     } as never;
 
-    const ctx = await bs.contextForSession(session, { token });
+    const ctx = await bsb.contextForSession(session, { token });
     expect(ctx.auth).toMatchObject({ kind: "user", user: { id: USER } });
 
-    const foreign = await bs.contextForSession(session, {
+    const foreign = await bsb.contextForSession(session, {
       token: await signer.sign({ sub: OTHER }),
     });
 
@@ -188,14 +188,14 @@ describe("private-cache scopes", () => {
       error: { kind: "unauthorized" },
     });
 
-    const anon = await bs.contextForSession(
+    const anon = await bsb.contextForSession(
       { kind: "anon", reason: "none" },
       { token: null },
     );
 
     expect(anon.auth.kind).toBe("anon");
 
-    const service = await bs.contextForSession(
+    const service = await bsb.contextForSession(
       { kind: "service", keyName: "cron" },
       { token: null },
     );
@@ -216,7 +216,7 @@ describe("private-cache scopes", () => {
       expiresAt: null,
     } as never;
 
-    const ctx = await bs.contextForSession(session, { token });
+    const ctx = await bsb.contextForSession(session, { token });
     expect(ctx.auth.kind).toBe("invalid");
     expect(
       ctx.auth.kind === "invalid" ? ctx.auth.error.message : undefined,
@@ -253,7 +253,7 @@ describe("private-cache scopes", () => {
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
 
       mocks.updateTag.mockReset();
-      expect(await bs.deleteAccount(USER)).toMatchObject({
+      expect(await bsb.deleteAccount(USER)).toMatchObject({
         ok: false,
         error: { kind: "unexpected" },
       });
@@ -268,16 +268,16 @@ describe("suspending accounts", () => {
   const betterSupabase = defineSupabase(schema);
 
   it("needs postgres to end sessions", async () => {
-    const bs = createNext(betterSupabase, {
+    const bsb = createNext(betterSupabase, {
       env: { ...env, secretKey: "sb_secret_test" },
       cacheTags: false,
     });
 
-    expect(await bs.endSessions(USER)).toMatchObject({
+    expect(await bsb.endSessions(USER)).toMatchObject({
       ok: false,
       error: { kind: "invalid_request" },
     });
-    expect(await bs.suspendAccount(USER, { suspended: true })).toMatchObject({
+    expect(await bsb.suspendAccount(USER, { suspended: true })).toMatchObject({
       ok: false,
       error: { kind: "invalid_request" },
     });
@@ -296,7 +296,7 @@ describe("suspending accounts", () => {
 
     const queryRaw = vi.fn(async () => [{ ended: 2 }]);
 
-    const bs = createNext(betterSupabase, {
+    const bsb = createNext(betterSupabase, {
       env: { ...env, secretKey: "sb_secret_test" },
       cacheTags: false,
       postgres: { admin: { queryRaw } } as never,
@@ -305,16 +305,15 @@ describe("suspending accounts", () => {
     mocks.updateTag.mockReset();
 
     try {
-      expect(await bs.endSessions(USER)).toMatchObject({
+      expect(await bsb.endSessions(USER)).toMatchObject({
         ok: true,
         data: { userId: USER, ended: 2 },
       });
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
       mocks.updateTag.mockReset();
-      expect(await bs.suspendAccount(USER, { suspended: true })).toMatchObject({
-        ok: true,
-        data: { userId: USER, suspended: true, ended: 0 },
-      });
+      expect(await bsb.suspendAccount(USER, { suspended: true })).toMatchObject(
+        { ok: true, data: { userId: USER, suspended: true, ended: 0 } },
+      );
       expect(calls).toEqual([`PUT ${PROJECT_URL}/auth/v1/admin/users/${USER}`]);
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
       expect(queryRaw).toHaveBeenCalledOnce();
@@ -334,7 +333,7 @@ describe("explicit tenants", () => {
     return request.headers.get("x-organization") ?? undefined;
   });
 
-  const bs = createNext(defineSupabase(schema), {
+  const bsb = createNext(defineSupabase(schema), {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks },
@@ -349,7 +348,7 @@ describe("explicit tenants", () => {
   });
 
   it("puts a tenant from route params where the resolver's goes", async () => {
-    const resolved = await bs.context(
+    const resolved = await bsb.context(
       new Request("https://app.test/", {
         headers: {
           authorization: mocks.headers.get("authorization")!,
@@ -358,27 +357,27 @@ describe("explicit tenants", () => {
       }),
     );
 
-    const explicit = await bs.context({ tenant: TENANT });
+    const explicit = await bsb.context({ tenant: TENANT });
     expect(explicit.db.$context).toEqual(resolved.db.$context);
     expect(explicit.db.$context.tenant).toBe(TENANT);
     expect(resolver).toHaveBeenCalledOnce();
   });
 
   it("falls back to the resolver, even when an async one finds no tenant", async () => {
-    expect((await bs.context()).db.$context.tenant).toBeUndefined();
+    expect((await bsb.context()).db.$context.tenant).toBeUndefined();
     mocks.headers.set("x-organization", OTHER_TENANT);
-    expect((await bs.context()).db.$context.tenant).toBe(OTHER_TENANT);
-    expect((await bs.context({ tenant: TENANT })).db.$context.tenant).toBe(
+    expect((await bsb.context()).db.$context.tenant).toBe(OTHER_TENANT);
+    expect((await bsb.context({ tenant: TENANT })).db.$context.tenant).toBe(
       TENANT,
     );
   });
 
-  it("scopes bs.cached() and actions to the tenant passed in", async () => {
-    const ctx = await bs.cached({ tenant: TENANT });
+  it("scopes bsb.cached() and actions to the tenant passed in", async () => {
+    const ctx = await bsb.cached({ tenant: TENANT });
     expect(ctx.db.$context.tenant).toBe(TENANT);
     expect(ctx.session).toMatchObject({ kind: "user" });
 
-    const action = bs.action(
+    const action = bsb.action(
       {
         input: v.object({ organizationId: v.string() }),
         tenant: (input) => input.organizationId,
@@ -392,7 +391,7 @@ describe("explicit tenants", () => {
       error: null,
     });
 
-    const unscoped = bs.action(
+    const unscoped = bsb.action(
       {},
       (_input, actionCtx) => actionCtx.db.$context.tenant ?? null,
     );

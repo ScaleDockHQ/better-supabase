@@ -89,7 +89,7 @@ describe("strict parsing", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "bs-parse-"));
+    dir = await mkdtemp(join(tmpdir(), "bsb-parse-"));
     await writeFile(join(dir, "package.json"), "{}");
   });
 

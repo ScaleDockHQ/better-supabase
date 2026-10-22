@@ -32,14 +32,14 @@ const suffix = String(Date.now());
 
 describe.skipIf(!live)("Storage buckets through the API", () => {
   const reports = defineBucket({
-    id: `bs-it-apply-${suffix}`,
+    id: `bsb-it-apply-${suffix}`,
     path: "{organizationId}/{file}",
     fileSizeLimit: "1MiB",
     allowedMimeTypes: ["application/pdf"],
   });
 
   const embeddings = defineVectorBucket({
-    id: `bs-it-vectors-${suffix}`,
+    id: `bsb-it-vectors-${suffix}`,
     indexes: { documents: { dimension: 3 } },
   });
 

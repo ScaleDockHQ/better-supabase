@@ -9,14 +9,14 @@ import * as v from "valibot";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { PlanOption } from "./billing-queries";
 
 import { getPlans } from "./billing-queries";
 
 /** Completes the "Review your plan" onboarding step. */
-export const markPlanReviewed = bs.action(
+export const markPlanReviewed = bsb.action(
   {
     requireTenant: true,
     authorize: (session) => can(session, "onboarding.complete"),
@@ -39,7 +39,7 @@ export const markPlanReviewed = bs.action(
 );
 
 /** The plan catalog and the organization's plan, for `usePlanPicker`. */
-export const loadPlanCatalog = bs.action(
+export const loadPlanCatalog = bsb.action(
   { requireTenant: true, authorize: (session) => can(session, "billing.read") },
   async (_input, { tenant: organizationId, db }) => {
     const plans = await getPlans();
@@ -57,7 +57,7 @@ export const loadPlanCatalog = bs.action(
  * `billing.checkout(organizationId, { plan, successUrl, cancelUrl })`. This
  * example installs neither, so it answers `unsupported`.
  */
-export const startCheckout = bs.action(
+export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
     requireTenant: true,

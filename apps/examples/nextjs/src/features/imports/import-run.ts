@@ -6,7 +6,7 @@ import { rpcTransport } from "better-supabase/blocks";
 
 import { blocks } from "@/lib/blocks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig.imports.api;
 
@@ -24,7 +24,7 @@ export function importRunHooks(
   kind: string,
   mapping: Readonly<Record<string, string>>,
 ) {
-  const service = rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
+  const service = rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });
   let runId: string | undefined;
 
   const finish = async (

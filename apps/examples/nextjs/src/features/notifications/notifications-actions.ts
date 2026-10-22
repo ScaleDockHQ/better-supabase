@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { toNotificationRow } from "./notification-types";
 
@@ -13,7 +13,7 @@ import { toNotificationRow } from "./notification-types";
  * Sends the caller a notification (the notifications SQL module checks
  * `notifications.send`); the badge updates on `notifications:<user id>`.
  */
-export const notifyMe = bs.action(
+export const notifyMe = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
@@ -43,7 +43,7 @@ export const notifyMe = bs.action(
 );
 
 /** Marks the caller's notifications in the active organization read. */
-export const markAllRead = bs.action(
+export const markAllRead = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const updated = await blocks(supabase).notifications.markRead({ tenant });
@@ -59,7 +59,7 @@ export const markAllRead = bs.action(
 );
 
 /** The badge numbers, loaded by `useNotifications` after each broadcast. */
-export const loadNotificationCounts = bs.blockAction(
+export const loadNotificationCounts = bsb.blockAction(
   ({ supabase }) => blocks(supabase).notifications,
   "counts",
   { requireTenant: true, args: (_input, { tenant }) => [{ tenant }] },
@@ -69,7 +69,7 @@ export const loadNotificationCounts = bs.blockAction(
  * The caller's latest notifications, loaded by `useNotifications` after each
  * broadcast.
  */
-export const loadNotifications = bs.action(
+export const loadNotifications = bsb.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const items = await blocks(supabase).notifications.list({

@@ -142,7 +142,7 @@ describe("createNext", () => {
   const fresh = vi.fn<typeof fetch>();
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createNext(betterSupabase, {
+  const bsb = createNext(betterSupabase, {
     env,
     auth: { jwks: signer.jwks, fetch: fresh },
   });
@@ -166,7 +166,7 @@ describe("createNext", () => {
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
 
-    const response = await bs.proxy(page({ cookie }));
+    const response = await bsb.proxy(page({ cookie }));
     expect(response.headers.getSetCookie()).toEqual([]);
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(fresh).not.toHaveBeenCalled();
@@ -183,7 +183,7 @@ describe("createNext", () => {
       }),
     );
 
-    const response = await bs.proxy(
+    const response = await bsb.proxy(
       page({ cookie: cookieFor(stale, "next-1") }),
     );
 
@@ -204,7 +204,7 @@ describe("createNext", () => {
       Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
     );
 
-    const response = await bs.proxy(
+    const response = await bsb.proxy(
       page({ cookie: cookieFor(stale, "next-dead") }),
       {
         protect: (auth, request) =>
@@ -228,7 +228,7 @@ describe("createNext", () => {
     fresh.mockResolvedValue(new Response("busy", { status: 503 }));
     const stale = await signer.sign({ sub: USER, expiresIn: 20 });
 
-    const kept = await bs.proxy(page({ cookie: cookieFor(stale, "o-1") }), {
+    const kept = await bsb.proxy(page({ cookie: cookieFor(stale, "o-1") }), {
       onAuthOutage,
     });
 
@@ -240,7 +240,7 @@ describe("createNext", () => {
 
     fresh.mockRejectedValue(new TypeError("fetch failed"));
 
-    const lost = await bs.proxy(page({ cookie: cookieFor("opaque", "o-2") }), {
+    const lost = await bsb.proxy(page({ cookie: cookieFor("opaque", "o-2") }), {
       onAuthOutage,
       protect: () => NextResponse.redirect("https://app.test/login"),
     });
@@ -253,7 +253,7 @@ describe("createNext", () => {
 
     fresh.mockRejectedValue(new TypeError("fetch failed"));
 
-    const thrown = await bs.proxy(
+    const thrown = await bsb.proxy(
       page({ cookie: cookieFor("opaque", "o-3") }),
       {
         onAuthOutage: () => {
@@ -292,7 +292,7 @@ describe("createNext", () => {
       fresh.mockResolvedValue(ended());
       const protect = vi.fn(() => undefined);
 
-      const response = await bs.proxy(page({ cookie }), {
+      const response = await bsb.proxy(page({ cookie }), {
         protect,
         endedSession: { redirect: "/login" },
       });
@@ -325,7 +325,7 @@ describe("createNext", () => {
       const { cookie } = await session();
       fresh.mockResolvedValue(banned());
 
-      const response = await bs.proxy(page({ cookie }), {
+      const response = await bsb.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
 
@@ -334,7 +334,7 @@ describe("createNext", () => {
       );
       fresh.mockResolvedValue(banned());
 
-      const named = await bs.proxy(page({ cookie }), {
+      const named = await bsb.proxy(page({ cookie }), {
         endedSession: {
           redirect: "/login",
           reasons: { banned: "suspended", ended: "expired" },
@@ -346,7 +346,7 @@ describe("createNext", () => {
       );
       fresh.mockResolvedValue(ended());
 
-      const gone = await bs.proxy(page({ cookie }), {
+      const gone = await bsb.proxy(page({ cookie }), {
         endedSession: { redirect: "/login", reasons: { banned: "suspended" } },
       });
 
@@ -360,7 +360,7 @@ describe("createNext", () => {
       fresh.mockResolvedValue(ended());
       const protect = vi.fn((_auth: unknown) => undefined);
 
-      const response = await bs.proxy(page({ cookie }), {
+      const response = await bsb.proxy(page({ cookie }), {
         protect,
         endedSession: true,
       });
@@ -372,7 +372,7 @@ describe("createNext", () => {
       expect(response.headers.get("x-middleware-next")).toBe("1");
       expect(response.headers.getSetCookie().length).toBeGreaterThan(0);
 
-      const onLogin = await bs.proxy(
+      const onLogin = await bsb.proxy(
         new NextRequest("https://app.test/login", {
           headers: { "sec-fetch-dest": "document", cookie },
         }),
@@ -387,7 +387,7 @@ describe("createNext", () => {
       const { cookie } = await session();
       fresh.mockResolvedValueOnce(Response.json({ id: USER }));
 
-      const live = await bs.proxy(page({ cookie }), {
+      const live = await bsb.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
 
@@ -396,7 +396,7 @@ describe("createNext", () => {
 
       fresh.mockRejectedValueOnce(new TypeError("fetch failed"));
 
-      const offline = await bs.proxy(page({ cookie }), {
+      const offline = await bsb.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
 
@@ -404,7 +404,7 @@ describe("createNext", () => {
 
       fresh.mockResolvedValueOnce(Response.json({}, { status: 500 }));
 
-      const failing = await bs.proxy(page({ cookie }), {
+      const failing = await bsb.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
 
@@ -414,17 +414,17 @@ describe("createNext", () => {
     it("asks Auth only on the requests it checks", async () => {
       const { cookie } = await session();
       fresh.mockResolvedValue(ended());
-      await bs.proxy(page({ cookie }));
+      await bsb.proxy(page({ cookie }));
 
       const navigation = page({
         cookie,
         headers: { "sec-fetch-dest": "empty", rsc: "1" },
       });
 
-      await bs.proxy(navigation, { endedSession: { redirect: "/login" } });
+      await bsb.proxy(navigation, { endedSession: { redirect: "/login" } });
       expect(fresh).not.toHaveBeenCalled();
 
-      const listed = await bs.proxy(navigation, {
+      const listed = await bsb.proxy(navigation, {
         endedSession: { redirect: "/login", paths: ["/dashboard"] },
       });
 
@@ -463,7 +463,7 @@ describe("createNext", () => {
         headers: { "accept-language": "nl" },
       });
 
-      const response = await bs.proxy(request, { before });
+      const response = await bsb.proxy(request, { before });
       expect(before).toHaveBeenCalledWith(request);
       expect(response.headers.get("x-middleware-rewrite")).toBe(
         "https://app.test/nl/dashboard",
@@ -494,7 +494,7 @@ describe("createNext", () => {
     it("keeps before() redirects and adds cookies to them", async () => {
       await renew();
 
-      const response = await bs.proxy(
+      const response = await bsb.proxy(
         page({ cookie: cookieFor(await stale(), "compose-2") }),
         {
           before: (request) =>
@@ -509,7 +509,7 @@ describe("createNext", () => {
     });
 
     it("never refreshes a prefetch, whatever before() does", async () => {
-      const response = await bs.proxy(
+      const response = await bsb.proxy(
         page({
           cookie: cookieFor(await stale(), "compose-3"),
           headers: { "next-router-prefetch": "1", rsc: "1" },
@@ -538,7 +538,7 @@ describe("createNext", () => {
         .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
         .join("; ");
 
-      const edited = await bs.proxy(page({ cookie }), {
+      const edited = await bsb.proxy(page({ cookie }), {
         after: (response, auth) => {
           response.headers.set(
             "x-user",
@@ -551,10 +551,10 @@ describe("createNext", () => {
       expect(edited.headers.get("x-user")).toBe(USER);
       expect(edited.headers.get("x-middleware-next")).toBe("1");
       expect(edited.headers.get("server-timing")).toMatch(
-        /^bs-proxy;dur=\d+\.\d, bs-verify;dur=\d+\.\d$/,
+        /^bsb-proxy;dur=\d+\.\d, bsb-verify;dur=\d+\.\d$/,
       );
 
-      const replaced = await bs.proxy(page(), {
+      const replaced = await bsb.proxy(page(), {
         after: () => new Response("maintenance", { status: 503 }),
       });
 
@@ -591,7 +591,7 @@ describe("createNext", () => {
     });
 
     fresh.mockClear();
-    await bs.proxy(
+    await bsb.proxy(
       page({
         cookie: cookieFor(
           await signer.sign({ sub: USER, expiresIn: 20 }),
@@ -609,7 +609,7 @@ describe("createNext", () => {
   });
 
   it("guards route handlers and answers with Problem Details", async () => {
-    const handler = bs.route<{ id: string }>(async (_request, ctx) => {
+    const handler = bsb.route<{ id: string }>(async (_request, ctx) => {
       if (ctx.params.id === "missing") {
         throw new DbException(dbError("not_found", "No customer"));
       }
@@ -687,7 +687,7 @@ describe("createNext", () => {
   });
 
   it("unwraps AsyncResults returned without await", async () => {
-    const handler = bs.route<{ id: string }>((_request, ctx) =>
+    const handler = bsb.route<{ id: string }>((_request, ctx) =>
       ctx.params.id === "gone"
         ? AsyncResult.err(dbError("not_found", "Gone"))
         : AsyncResult.ok({ id: ctx.params.id }),
@@ -722,7 +722,7 @@ describe("createNext", () => {
       );
     };
 
-    const route = bs.route(() => {
+    const route = bsb.route(() => {
       sending();
 
       return { ok: true };
@@ -744,7 +744,7 @@ describe("createNext", () => {
     await Promise.resolve();
     expect(flushed).toBe(true);
 
-    const action = bs.action({}, () => {
+    const action = bsb.action({}, () => {
       sending();
 
       return "done";
@@ -753,7 +753,7 @@ describe("createNext", () => {
     expect(await action(undefined)).toMatchObject({ ok: true });
     expect(mocks.after).toHaveBeenCalledTimes(2);
     release();
-    await bs.route(() => ({ ok: true }))(
+    await bsb.route(() => ({ ok: true }))(
       new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
       { params: Promise.resolve({}) },
     );
@@ -772,12 +772,12 @@ describe("createNext", () => {
       );
     });
 
-    await bs.proxy(page(), { protect });
+    await bsb.proxy(page(), { protect });
     expect(protect).toHaveBeenCalledOnce();
     expect(mocks.after).toHaveBeenCalledOnce();
     release();
     await betterSupabase.events.settled();
-    await bs.proxy(page());
+    await bsb.proxy(page());
     expect(mocks.after).toHaveBeenCalledOnce();
   });
 
@@ -813,14 +813,14 @@ describe("createNext", () => {
       },
     };
 
-    const create = bs.blockAction(() => invoices, "create", {
+    const create = bsb.blockAction(() => invoices, "create", {
       input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
     });
 
     const invoicesFor = (_supabase: unknown) => invoices;
 
     // A callback that reads the context, so TypeScript infers the client late.
-    const issue = bs.blockAction(
+    const issue = bsb.blockAction(
       ({ supabase }) => invoicesFor(supabase),
       "issue",
       {
@@ -830,12 +830,12 @@ describe("createNext", () => {
     );
 
     // @ts-expect-error: issue takes two arguments, so `args` is required
-    bs.blockAction(() => invoices, "issue", {
+    bsb.blockAction(() => invoices, "issue", {
       input: v.object({ invoiceId: v.string() }),
     });
 
     // @ts-expect-error: not a method of the client
-    bs.blockAction(({ supabase }) => invoicesFor(supabase), "refund", {});
+    bsb.blockAction(({ supabase }) => invoicesFor(supabase), "refund", {});
 
     const created = await create({ title: "Ship" });
 
@@ -889,7 +889,7 @@ describe("createNext", () => {
         ),
     };
 
-    const addComment = bs.sectionAction(() => comments, "create", {
+    const addComment = bsb.sectionAction(() => comments, "create", {
       input: v.object({ customerId: v.string(), body: v.string() }),
       section: "comments",
       subject: ({ customerId }) => ({ type: "customer", id: customerId }),
@@ -904,8 +904,8 @@ describe("createNext", () => {
       data: { id: "c1" },
     });
     expect(mocks.updateTag.mock.calls).toEqual([
-      ["bs:record:customer:7#comments"],
-      ["bs:record:customer:7"],
+      ["bsb:record:customer:7#comments"],
+      ["bsb:record:customer:7"],
     ]);
 
     mocks.updateTag.mockClear();
@@ -917,7 +917,7 @@ describe("createNext", () => {
   });
 
   it("runs actions with validation, FormData and serializable results", async () => {
-    const save = bs.action(
+    const save = bsb.action(
       {
         input: v.object({
           name: v.pipe(v.string(), v.minLength(2)),
@@ -974,7 +974,7 @@ describe("createNext", () => {
       (_session: unknown, input: { name: string }) => input.name !== "nope",
     );
 
-    const save = bs.action(
+    const save = bsb.action(
       { input: v.object({ name: v.string() }), requireTenant: true, authorize },
       (input, ctx) => {
         const tenant: string = ctx.tenant;
@@ -1009,7 +1009,7 @@ describe("createNext", () => {
       error: { kind: "forbidden", code: "NOT_AUTHORIZED" },
     });
 
-    const scoped = bs.action(
+    const scoped = bsb.action(
       { input: v.object({ org: v.string() }), tenant: (input) => input.org },
       (_input, { tenant }) => tenant,
     );
@@ -1043,7 +1043,7 @@ describe("createNext", () => {
     }));
 
     const call = (authorized: boolean) =>
-      bs.route(handler, {
+      bsb.route(handler, {
         requireTenant: true,
         authorize: (session, request) =>
           authorized && session.kind === "user" && request.method === "GET",
@@ -1071,56 +1071,56 @@ describe("createNext", () => {
     };
 
     // Without authInterrupts, unauthorized() and forbidden() fall back to notFound().
-    expect(await digest(() => bs.require())).toBe(
+    expect(await digest(() => bsb.require())).toBe(
       "NEXT_HTTP_ERROR_FALLBACK;404",
     );
     vi.stubEnv("__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS", "true");
 
     try {
-      expect(await digest(() => bs.require())).toBe(
+      expect(await digest(() => bsb.require())).toBe(
         "NEXT_HTTP_ERROR_FALLBACK;401",
       );
       mocks.headers = new Headers({
         authorization: `Bearer ${await signer.sign({ sub: USER, tenant_id: "org-1" })}`,
       });
-      expect(await digest(() => bs.require({ authorize: () => false }))).toBe(
+      expect(await digest(() => bsb.require({ authorize: () => false }))).toBe(
         "NEXT_HTTP_ERROR_FALLBACK;403",
       );
     } finally {
       vi.unstubAllEnvs();
     }
 
-    const ctx = await bs.require({ requireTenant: true });
+    const ctx = await bsb.require({ requireTenant: true });
     const tenant: string = ctx.tenant;
     expect(tenant).toBe("org-1");
     expect(ctx.session.kind).toBe("user");
   });
 
-  it("tags bs.cached() entries with the tables they read", async () => {
+  it("tags bsb.cached() entries with the tables they read", async () => {
     mocks.cacheTag.mockReset();
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER })}`,
     });
-    await bs.cached({ tables: ["customers", "notes"], id: "c1" });
+    await bsb.cached({ tables: ["customers", "notes"], id: "c1" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
-      `bs:session:${USER}`,
-      "bs:customers",
-      "bs:notes",
-      "bs:customers:c1",
+      `bsb:session:${USER}`,
+      "bsb:customers",
+      "bsb:notes",
+      "bsb:customers:c1",
     );
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER, tenant_id: "org-1" })}`,
     });
-    await bs.cached({ tables: ["customers"] });
+    await bsb.cached({ tables: ["customers"] });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
-      `bs:session:${USER}`,
-      "bs:customers@org-1",
-      "bs:customers@*",
+      `bsb:session:${USER}`,
+      "bsb:customers@org-1",
+      "bsb:customers@*",
     );
   });
 
   it("reads the session as serializable data without the token", async () => {
-    expect(await bs.session()).toEqual({ kind: "anon", reason: "none" });
+    expect(await bsb.session()).toEqual({ kind: "anon", reason: "none" });
 
     const token = await signer.sign({
       sub: USER,
@@ -1129,7 +1129,7 @@ describe("createNext", () => {
     });
 
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
-    const session = await bs.session();
+    const session = await bsb.session();
     expect(session).toMatchObject({
       kind: "user",
       user: { id: USER, email: "ada@example.com" },
@@ -1139,7 +1139,7 @@ describe("createNext", () => {
     expect(structuredClone(session)).toEqual(session);
 
     mocks.headers = new Headers({ authorization: "Bearer not-a-jwt" });
-    expect(await bs.session()).toMatchObject({
+    expect(await bsb.session()).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized" },
     });
@@ -1162,12 +1162,12 @@ describe("createNext", () => {
     });
 
     mocks.headers = new Headers({ authorization: `Bearer ${aal2}` });
-    expect(await bs.session()).toMatchObject({
+    expect(await bsb.session()).toMatchObject({
       aal: "aal2",
       amr: [{ method: "totp" }, { method: "password" }],
     });
 
-    const handler = bs.route(() => ({ ok: true }), { aal: "aal2" });
+    const handler = bsb.route(() => ({ ok: true }), { aal: "aal2" });
 
     const call = (token: string) =>
       handler(
@@ -1186,7 +1186,7 @@ describe("createNext", () => {
     });
     expect((await call(aal2)).status).toBe(200);
 
-    const rotate = bs.action({ aal: "aal2" }, () => "rotated");
+    const rotate = bsb.action({ aal: "aal2" }, () => "rotated");
     mocks.headers = new Headers({ authorization: `Bearer ${aal1}` });
     expect(await rotate(undefined)).toMatchObject({
       ok: false,
@@ -1215,7 +1215,7 @@ describe("createNext", () => {
       match: (path) => path.startsWith("/dashboard"),
     });
 
-    const redirected = await bs.proxy(page({ cookie: cookie(aal1) }), {
+    const redirected = await bsb.proxy(page({ cookie: cookie(aal1) }), {
       protect,
     });
 
@@ -1224,7 +1224,7 @@ describe("createNext", () => {
       "https://app.test/mfa?next=%2Fdashboard",
     );
 
-    const passed = await bs.proxy(page({ cookie: cookie(aal2) }), { protect });
+    const passed = await bsb.proxy(page({ cookie: cookie(aal2) }), { protect });
 
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
@@ -1248,7 +1248,7 @@ describe("createNext", () => {
       NextResponse.redirect(new URL("/login", request.url)),
     );
 
-    const redirected = await bs.proxy(prefetch(), { protect });
+    const redirected = await bsb.proxy(prefetch(), { protect });
     expect(redirected.status).toBe(307);
     expect(protect).toHaveBeenLastCalledWith(
       { kind: "anon", reason: "expired" },
@@ -1257,7 +1257,7 @@ describe("createNext", () => {
 
     protect.mockClear();
 
-    const rendered = await bs.proxy(prefetch(), {
+    const rendered = await bsb.proxy(prefetch(), {
       protect,
       expiredPrefetch: "render",
     });
@@ -1266,14 +1266,14 @@ describe("createNext", () => {
     expect(rendered.headers.get("x-middleware-next")).toBe("1");
     expect(fresh).not.toHaveBeenCalled();
 
-    const signedOut = await bs.proxy(
+    const signedOut = await bsb.proxy(
       page({ headers: { "next-router-prefetch": "1", rsc: "1" } }),
       { protect, expiredPrefetch: "render" },
     );
 
     expect(signedOut.status).toBe(307);
 
-    const api = await bs.proxy(
+    const api = await bsb.proxy(
       new NextRequest("https://app.test/api/x", {
         method: "POST",
         headers: { cookie: expired },
@@ -1296,13 +1296,13 @@ describe("createNext", () => {
       },
     });
 
-    const skipped = await bs.proxy(action, { protect });
+    const skipped = await bsb.proxy(action, { protect });
     expect(protect).not.toHaveBeenCalled();
     expect(skipped.headers.get("x-middleware-next")).toBe("1");
 
     protect.mockClear();
 
-    const guarded = await bs.proxy(action, { protect, protectMethods: true });
+    const guarded = await bsb.proxy(action, { protect, protectMethods: true });
 
     expect(protect).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1317,7 +1317,7 @@ describe("createNext", () => {
   it("never refreshes an expiring cookie session, and keeps it valid until exp", async () => {
     const token = await signer.sign({ sub: USER });
     mocks.headers = new Headers({ cookie: cookieFor(token, "refresh-1") });
-    expect(await bs.session()).toMatchObject({ kind: "user" });
+    expect(await bsb.session()).toMatchObject({ kind: "user" });
     expect(fresh).not.toHaveBeenCalled();
   });
 
@@ -1335,23 +1335,25 @@ describe("createNext", () => {
       });
 
       const proxied = await debugged.proxy(page());
-      const id = proxied.headers.get("x-bs-request-id")!;
+      const id = proxied.headers.get("x-bsb-request-id")!;
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
-      expect(proxied.headers.get("x-bs-stats")).toBe(`/api/bs-stats?id=${id}`);
-      expect(proxied.headers.get("x-middleware-request-x-bs-request-id")).toBe(
+      expect(proxied.headers.get("x-bsb-stats")).toBe(
+        `/api/bsb-stats?id=${id}`,
+      );
+      expect(proxied.headers.get("x-middleware-request-x-bsb-request-id")).toBe(
         id,
       );
 
-      mocks.headers = new Headers({ "x-bs-request-id": id });
+      mocks.headers = new Headers({ "x-bsb-request-id": id });
       const ctx = await debugged.context();
       await Promise.all([ctx.db.customers.findMany(), ctx.db.notes.findMany()]);
       await ctx.db.tags.findMany();
 
       const stats = await debugged.debugRoute()(
-        new Request(`https://app.test/api/bs-stats?id=${id}`),
+        new Request(`https://app.test/api/bsb-stats?id=${id}`),
       );
 
-      expect(stats.headers.get("x-bs-db-calls")).toMatch(/^3;2;/);
+      expect(stats.headers.get("x-bsb-db-calls")).toMatch(/^3;2;/);
       expect(await stats.json()).toMatchObject({
         calls: 3,
         waves: 2,
@@ -1359,7 +1361,7 @@ describe("createNext", () => {
       });
 
       const cached = await debugged.debugRoute()(
-        new Request("https://app.test/api/bs-stats?id=nope"),
+        new Request("https://app.test/api/bsb-stats?id=nope"),
       );
 
       expect(await cached.json()).toMatchObject({ calls: 0, waves: 0 });
@@ -1379,18 +1381,18 @@ describe("createNext", () => {
         { params: Promise.resolve({}) },
       );
 
-      expect(routed.headers.get("x-bs-db-calls")).toMatch(/^1;1;/);
+      expect(routed.headers.get("x-bsb-db-calls")).toMatch(/^1;1;/);
     } finally {
       rest.mockRestore();
     }
   });
 
   it("collects nothing without debug", async () => {
-    const proxied = await bs.proxy(page());
-    expect(proxied.headers.get("x-bs-request-id")).toBeNull();
+    const proxied = await bsb.proxy(page());
+    expect(proxied.headers.get("x-bsb-request-id")).toBeNull();
 
-    const reply = await bs.debugRoute()(
-      new Request("https://app.test/api/bs-stats?id=x"),
+    const reply = await bsb.debugRoute()(
+      new Request("https://app.test/api/bsb-stats?id=x"),
     );
 
     expect(reply.status).toBe(404);
@@ -1414,40 +1416,43 @@ describe("createNext", () => {
     expect(mocks.updateTag).toHaveBeenCalledOnce();
     expect(mocks.revalidateTag.mock.calls).toEqual([
       [tagFor("customers"), { expire: 0 }],
-      ["bs:customers@*", { expire: 0 }],
+      ["bsb:customers@*", { expire: 0 }],
       [tagFor("customers", "c1"), { expire: 0 }],
     ]);
 
-    bs.cacheTag("customers", "c1");
+    bsb.cacheTag("customers", "c1");
     expect(mocks.cacheTag).toHaveBeenCalledWith(
-      "bs:customers",
-      "bs:customers:c1",
+      "bsb:customers",
+      "bsb:customers:c1",
     );
 
-    bs.cacheTags(
+    bsb.cacheTags(
       betterSupabase.spec.customers.findById("c1", {
         include: { notes: true },
       }),
     );
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
-      "bs:customers",
-      "bs:notes",
-      "bs:customers:c1",
+      "bsb:customers",
+      "bsb:notes",
+      "bsb:customers:c1",
     );
 
-    bs.cacheTags([
+    bsb.cacheTags([
       betterSupabase.spec.tags.count(),
       betterSupabase.spec.notes.count(),
     ]);
-    expect(mocks.cacheTag).toHaveBeenLastCalledWith("bs:tags", "bs:notes");
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith("bsb:tags", "bsb:notes");
 
-    bs.cacheTags(
+    bsb.cacheTags(
       defineReadSet(betterSupabase, "chrome", {}, (s) => ({
         customers: s.customers.count(),
         notes: s.notes.findMany({ include: { customer: true } }),
       })),
     );
-    expect(mocks.cacheTag).toHaveBeenLastCalledWith("bs:customers", "bs:notes");
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      "bsb:customers",
+      "bsb:notes",
+    );
   });
 
   it("invalidates each tag once when createNext runs again for a definition", async () => {
@@ -1464,7 +1469,7 @@ describe("createNext", () => {
       .orThrow();
     expect(mocks.updateTag.mock.calls).toEqual([
       [tagFor("customers")],
-      ["bs:customers@*"],
+      ["bsb:customers@*"],
       [tagFor("customers", "c1")],
     ]);
   });
@@ -1480,34 +1485,34 @@ describe("createNext", () => {
       .customers.update("c1", { name: "Acme" })
       .orThrow();
     expect(mocks.updateTag.mock.calls).toEqual([
-      ["bs:customers"],
-      ["bs:customers@t1"],
-      ["bs:customers:c1"],
+      ["bsb:customers"],
+      ["bsb:customers@t1"],
+      ["bsb:customers:c1"],
     ]);
-    expect(mocks.updateTag.mock.calls.flat()).not.toContain("bs:customers@t2");
+    expect(mocks.updateTag.mock.calls.flat()).not.toContain("bsb:customers@t2");
 
-    bs.cacheTag("customers", undefined, { tenant: "t1" });
+    bsb.cacheTag("customers", undefined, { tenant: "t1" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
-      "bs:customers@t1",
-      "bs:customers@*",
+      "bsb:customers@t1",
+      "bsb:customers@*",
     );
-    bs.cacheTags(betterSupabase.spec.customers.findById("c1"), {
+    bsb.cacheTags(betterSupabase.spec.customers.findById("c1"), {
       tenant: "t1",
     });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
-      "bs:customers@t1",
-      "bs:customers@*",
-      "bs:customers:c1",
+      "bsb:customers@t1",
+      "bsb:customers@*",
+      "bsb:customers:c1",
     );
     expect(tagFor("customers", undefined, { tenant: "t1" })).toBe(
-      "bs:customers@t1",
+      "bsb:customers@t1",
     );
 
     // A read across tenants carries the table tag, which t1's update above invalidated.
-    bs.cacheTag("customers", undefined, { tenant: "*" });
+    bsb.cacheTag("customers", undefined, { tenant: "*" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
-      "bs:customers",
-      "bs:customers@*",
+      "bsb:customers",
+      "bsb:customers@*",
     );
   });
 });
@@ -1538,7 +1543,7 @@ describe("next.route conformance", () => {
 describe("next.liveCount", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createNext(betterSupabase, { env, auth: { jwks: signer.jwks } });
+  const bsb = createNext(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
   const spec = betterSupabase.spec.notes.count({
     where: { body: { contains: "x" } },
@@ -1547,7 +1552,7 @@ describe("next.liveCount", () => {
   it("returns a serializable seed from the db passed in", async () => {
     const run = vi.fn(() => AsyncResult.ok(4));
     const before = Date.now();
-    const seed = await bs.liveCount(spec, { $run: run });
+    const seed = await bsb.liveCount(spec, { $run: run });
     expect(seed).toEqual({ spec, count: 4, at: expect.any(Number) });
     expect(seed.at).toBeGreaterThanOrEqual(before);
     expect(JSON.parse(JSON.stringify(seed))).toEqual(seed);
@@ -1555,7 +1560,7 @@ describe("next.liveCount", () => {
   });
 
   it("gives count null instead of throwing", async () => {
-    const seed = await bs.liveCount(spec, {
+    const seed = await bsb.liveCount(spec, {
       $run: () => AsyncResult.err(dbError("forbidden", "no")),
     });
 
@@ -1581,7 +1586,7 @@ describe("read replicas", () => {
 
     const token = await signer.sign({ sub: USER });
 
-    const bs = createNext(defineSupabase(schema), {
+    const bsb = createNext(defineSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks },
       cacheTags: false,
@@ -1597,11 +1602,11 @@ describe("read replicas", () => {
     const segment = { params: Promise.resolve({}) };
 
     try {
-      const read = bs.route((_request, { db }) =>
+      const read = bsb.route((_request, { db }) =>
         db.customers.findMany({ select: ["id"] }),
       );
 
-      const write = bs.route((_request, { db }) =>
+      const write = bsb.route((_request, { db }) =>
         db.customers.create(
           { name: "Acme", organizationId: "o1" },
           { select: ["id"] },
@@ -1617,13 +1622,13 @@ describe("read replicas", () => {
       );
 
       expect(cookie).toMatch(
-        /^bs-primary-until=\d+; Max-Age=2; Path=\/; HttpOnly; SameSite=Lax$/,
+        /^bsb-primary-until=\d+; Max-Age=2; Path=\/; HttpOnly; SameSite=Lax$/,
       );
 
       mocks.headers = new Headers({ authorization: `Bearer ${token}` });
       mocks.setCookie.mockReset();
 
-      const action = bs.action({}, (_input, { db }) =>
+      const action = bsb.action({}, (_input, { db }) =>
         db.customers.create(
           { name: "Acme", organizationId: "o1" },
           { select: ["id"] },
@@ -1632,7 +1637,7 @@ describe("read replicas", () => {
 
       expect(await action(undefined)).toMatchObject({ ok: true });
       expect(mocks.setCookie).toHaveBeenCalledWith(
-        "bs-primary-until",
+        "bsb-primary-until",
         expect.stringMatching(/^\d+$/),
         { path: "/", maxAge: 2, httpOnly: true, sameSite: "lax" },
       );
@@ -1654,7 +1659,7 @@ describe("read replicas", () => {
     const token = await signer.sign({ sub: USER });
     const definition = defineSupabase(schema);
 
-    const bs = createNext(definition, {
+    const bsb = createNext(definition, {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks },
       cacheTags: false,
@@ -1665,7 +1670,7 @@ describe("read replicas", () => {
 
     const writeThenRedirect = async ({
       db,
-    }: Awaited<ReturnType<typeof bs.context>>): Promise<never> => {
+    }: Awaited<ReturnType<typeof bsb.context>>): Promise<never> => {
       await db.customers
         .create({ name: "Acme", organizationId: "o1" }, { select: ["id"] })
         .orThrow();
@@ -1681,12 +1686,12 @@ describe("read replicas", () => {
       mocks.headers = new Headers({ authorization: `Bearer ${token}` });
       mocks.setCookie.mockReset();
       mocks.after.mockReset();
-      const action = bs.action({}, (_input, ctx) => writeThenRedirect(ctx));
+      const action = bsb.action({}, (_input, ctx) => writeThenRedirect(ctx));
       await expect(action(undefined)).rejects.toMatchObject({
         digest: expect.stringContaining("NEXT_REDIRECT"),
       });
       expect(mocks.setCookie).toHaveBeenCalledWith(
-        "bs-primary-until",
+        "bsb-primary-until",
         expect.stringMatching(/^\d+$/),
         expect.objectContaining({ maxAge: 2 }),
       );
@@ -1695,7 +1700,7 @@ describe("read replicas", () => {
 
       mocks.setCookie.mockReset();
       mocks.after.mockReset();
-      const route = bs.route((_request, ctx) => writeThenRedirect(ctx));
+      const route = bsb.route((_request, ctx) => writeThenRedirect(ctx));
       await expect(
         route(
           new NextRequest("https://app.test/api/customers", {
@@ -1708,7 +1713,7 @@ describe("read replicas", () => {
         digest: expect.stringContaining("NEXT_REDIRECT"),
       });
       expect(mocks.setCookie).toHaveBeenCalledWith(
-        "bs-primary-until",
+        "bsb-primary-until",
         expect.stringMatching(/^\d+$/),
         expect.objectContaining({ maxAge: 2 }),
       );

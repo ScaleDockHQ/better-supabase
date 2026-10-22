@@ -575,6 +575,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "0.15",
+        description:
+          "Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, on request contexts too",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

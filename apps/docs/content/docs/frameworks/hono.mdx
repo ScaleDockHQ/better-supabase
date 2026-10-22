@@ -7,49 +7,49 @@ description: Middleware, Result-aware handlers and REST resources matching your 
 import { createHono } from "better-supabase/hono";
 import { betterSupabase } from "./lib/supabase";
 
-const bs = createHono(betterSupabase);
+const bsb = createHono(betterSupabase);
 
-const app = bs
+const app = bsb
   .app()
-  .use("/api/*", bs.middleware())
+  .use("/api/*", bsb.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }));
 
 export default app;
 ```
 
 `createHono(betterSupabase)` is [`createServer`](/docs/auth/server) plus the pieces
-below, so `bs.admin()` and `bs.actingAs()` work too. `bs.app()` is
-`new Hono<typeof bs.Env>()` with [`bs.onError`](#handlers) installed.
-`typeof bs.Env` is the app's Hono `Env`, inferred from the definition, for
+below, so `bsb.admin()` and `bsb.actingAs()` work too. `bsb.app()` is
+`new Hono<typeof bsb.Env>()` with [`bsb.onError`](#handlers) installed.
+`typeof bsb.Env` is the app's Hono `Env`, inferred from the definition, for
 sub-apps and helpers that take a `Context`:
 
 ```ts
 import type { Context } from "hono";
 import { Hono } from "hono";
 
-type Env = typeof bs.Env;
+type Env = typeof bsb.Env;
 const admin = new Hono<Env>();
 const tenantOf = (c: Context<Env>) =>
   c.var.auth.kind === "user" ? c.var.auth.claims.tenant_id : undefined;
 ```
 
-`bs.Env` holds only a type and is `undefined` at runtime. `HonoEnv<Models,
+`bsb.Env` holds only a type and is `undefined` at runtime. `HonoEnv<Models,
 Functions, unknown>` is the same type with the generics written out.
 
 ## Middleware
 
-`bs.middleware()` resolves the caller (Bearer header first, then the session
+`bsb.middleware()` resolves the caller (Bearer header first, then the session
 cookie), rejects anyone not in `allow` with Problem Details, and sets:
 
 | Variable     | Value                                                   |
 | ------------ | ------------------------------------------------------- |
 | `c.var.db`   | Repositories bound to the caller; RLS applies           |
 | `c.var.auth` | The resolved `AuthState`                                |
-| `c.var.bs`   | The full server context, including `supabase` and `sql` |
+| `c.var.bsb`  | The full server context, including `supabase` and `sql` |
 
 ```ts
-app.use("/public/*", bs.middleware({ allow: ["user", "anon"] }));
-app.use("/app/*", bs.middleware({ refresh: true })); // browser routes with cookies
+app.use("/public/*", bsb.middleware({ allow: ["user", "anon"] }));
+app.use("/app/*", bsb.middleware({ refresh: true })); // browser routes with cookies
 ```
 
 Tokens are verified locally against the cached JWKS, so the middleware makes
@@ -59,7 +59,7 @@ cookies; bearer tokens never refresh.
 
 ### Entry arrays with `toHono`
 
-`bs.middleware()` runs [`withBetterSupabase`](/docs/auth/middleware) in
+`bsb.middleware()` runs [`withBetterSupabase`](/docs/auth/middleware) in
 Hono's middleware slot. To compose it with other `@supabase/middleware`
 entries (`withPostgresClient`, `withCors`, your own), pass the array to
 `toHono`. Every contributed key lands on `c.var`, and Hono's response passes
@@ -71,11 +71,14 @@ import { withPostgresClient } from "@supabase/server/middleware/postgres";
 import { toHono } from "better-supabase/hono";
 import { createServer, withBetterSupabase } from "better-supabase/server";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 
 const app = new Hono()
   .use(
-    toHono([withBetterSupabase(bs, { allow: ["user"] }), withPostgresClient()]),
+    toHono([
+      withBetterSupabase(bsb, { allow: ["user"] }),
+      withPostgresClient(),
+    ]),
   )
   .get("/api/notes", async (c) =>
     c.json(await c.var.db.notes.findMany().orThrow()),
@@ -87,21 +90,21 @@ through the chained call's type. `c.env` seeds the pipeline, so on Workers
 `getEnv` inside the entries reads the bindings.
 
 `@supabase/server/adapters/hono` is deprecated upstream and removed on
-2026-12-01. Replace `withSupabase` from it with `toHono([withBetterSupabase(bs)])`,
+2026-12-01. Replace `withSupabase` from it with `toHono([withBetterSupabase(bsb)])`,
 which contributes the same `jwtClaims`, `userClaims` and `authMode` keys.
 
 ## Typed claims
 
 When the definition has [`.claims(schema)`](/docs/auth#typed-claims),
-`c.var.auth`, `c.var.bs` and the handler context are typed by the schema's
-output, and so is `profile` with `.userMetadata(schema)`. `bs.app()` and
-`typeof bs.Env` carry both types; with a hand-written `HonoEnv`, pass the
+`c.var.auth`, `c.var.bsb` and the handler context are typed by the schema's
+output, and so is `profile` with `.userMetadata(schema)`. `bsb.app()` and
+`typeof bsb.Env` carry both types; with a hand-written `HonoEnv`, pass the
 claims as its fourth parameter:
 
 ```ts
-const app = bs
+const app = bsb
   .app()
-  .use("/api/*", bs.middleware())
+  .use("/api/*", bsb.middleware())
   .get("/api/role", (c) =>
     c.json({
       role: c.var.auth.kind === "user" ? c.var.auth.claims.user_role : null,
@@ -111,7 +114,7 @@ const app = bs
 
 ## Handlers
 
-`bs.handler` unwraps what the handler returns:
+`bsb.handler` unwraps what the handler returns:
 
 - A `Result` or `AsyncResult` becomes JSON on success, or Problem Details on
   failure.
@@ -122,17 +125,17 @@ const app = bs
 ```ts
 app.get(
   "/api/customers/:id",
-  bs.handler((c, { db }) => db.customers.findById(c.req.param("id"))),
+  bsb.handler((c, { db }) => db.customers.findById(c.req.param("id"))),
 );
 app.post(
   "/api/customers",
-  bs.handler(async (c, { db }) => db.customers.create(await c.req.json()), {
+  bsb.handler(async (c, { db }) => db.customers.create(await c.req.json()), {
     status: 201,
   }),
 );
 ```
 
-`bs.onError` handles errors thrown outside `bs.handler`. It sends a
+`bsb.onError` handles errors thrown outside `bsb.handler`. It sends a
 `DbException` as its Problem Details, returns the response of Hono's
 `HTTPException` unchanged, and sends anything else as a 500 without internal
 details (unless `exposeErrors`).
@@ -143,14 +146,14 @@ Event sink sends a handler started (see
 invocation after the response, pass the runtime's function:
 
 ```ts
-const bs = createHono(betterSupabase, {
+const bsb = createHono(betterSupabase, {
   waitUntil: (promise) => EdgeRuntime.waitUntil(promise),
 });
 ```
 
 ## Rate limits
 
-`bs.rateLimit()` counts one hit per request with
+`bsb.rateLimit()` counts one hit per request with
 [`createRateLimit`](/docs/blocks/sql#limits-in-route-handlers) and adds the
 `RateLimit` response field. With a `rule`, it also adds `RateLimit-Policy`.
 A refused request gets a `problem+json` 429 with `Retry-After`, and `key`
@@ -163,7 +166,7 @@ const limiter = createRateLimit({ sql: postgres.admin });
 
 app.use(
   "/api/*",
-  bs.rateLimit({
+  bsb.rateLimit({
     limiter,
     scope: "api",
     rule: { max: 100, period: "1 minute" },
@@ -178,7 +181,7 @@ answers with its status unless `failOpen` is set.
 
 ## Resources
 
-`bs.resource(table)` mounts REST routes that match what
+`bsb.resource(table)` mounts REST routes that match what
 [`defineApi`](/docs/specs) documents: the same paths, status codes and
 bodies.
 
@@ -194,7 +197,7 @@ const customerList = defineListQuery(betterSupabase, "customers", {
 
 app.route(
   "/api/customers",
-  bs.resource("customers", {
+  bsb.resource("customers", {
     list: customerList,
     select: ["id", "name", "status"],
     input: { create: CustomerInput, update: CustomerPatch },
@@ -232,11 +235,11 @@ and `permissions` that the server's authorizer checks:
 ```ts
 import { createHono, defineAction } from "better-supabase/hono";
 
-const bs = createHono(betterSupabase, { authorizer });
+const bsb = createHono(betterSupabase, { authorizer });
 
 app.route(
   "/api/customers",
-  bs.resource("customers", {
+  bsb.resource("customers", {
     permissions: { delete: "customers.delete" },
     actions: {
       archive: defineAction({
@@ -267,7 +270,7 @@ the same claims that PostgREST and RLS see:
 ```ts
 import { signLocalJwt } from "better-supabase/testing";
 
-const bs = createHono(betterSupabase);
+const bsb = createHono(betterSupabase);
 const token = await signLocalJwt({ sub: userId, tenant_id: organizationId });
 await app.request("/api/customers", {
   headers: { authorization: `Bearer ${token}` },

@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { calendarEventFeature } from "./calendar-event-feature.ts";
 
 /**
  * Loads a calendar_event's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const calendarEventRecord = recordServer(bs, calendarEventFeature);
+export const calendarEventRecord = recordServer(bsb, calendarEventFeature);

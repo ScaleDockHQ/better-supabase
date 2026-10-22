@@ -3,4 +3,4 @@ import { createNext } from "better-supabase/next";
 
 import { betterSupabase } from "./index";
 
-export const bs = createNext(betterSupabase);
+export const bsb = createNext(betterSupabase);

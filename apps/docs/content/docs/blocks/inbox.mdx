@@ -283,7 +283,7 @@ can use directly.
 `better-supabase/blocks/inbox/vue` exports `useInbox`, `useConversation` and
 `useInboxWidget`. Each takes the options of the controller it wraps
 (`useInbox` those of `createInboxController`); `auth` and `ports` come from
-`app.use(betterSupabase(bs))` unless you pass them. `state` is a shallow ref
+`app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref
 of the snapshot and `actions` are the controller's actions. The work starts
 on mount, and the controller is disposed with the component.
 
@@ -312,7 +312,7 @@ const { state } = useInbox({
 `better-supabase/blocks/inbox/svelte` exports `useInbox`, `useConversation`
 and `useInboxWidget`. Each takes the options of the controller it wraps
 (`useInbox` those of `createInboxController`); `auth` and `ports` come from
-`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+`setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
 
@@ -339,7 +339,7 @@ work starts on mount, and the controller is disposed with the component.
 `better-supabase/blocks/inbox/solid` exports `useInbox`, `useConversation`
 and `useInboxWidget`. Each takes the options of the controller it wraps
 (`useInbox` those of `createInboxController`); `auth` and `ports` come from
-`<BetterSupabaseProvider client={bs}>` unless you pass them. `state()` reads
+`<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads
 the snapshot through `from`, and `actions` are the controller's actions. The
 work starts on mount, and the controller is disposed with the owner.
 

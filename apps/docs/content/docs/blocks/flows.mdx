@@ -30,7 +30,7 @@ Add the sink to the outbox consumers next to your other ones:
 ```ts title="src/app/api/outbox/route.ts"
 import { conversationToWorkItem, createFlows } from "better-supabase/flows";
 
-const admin = bs.admin();
+const admin = bsb.admin();
 
 const flows = createFlows({
   flows: [conversationToWorkItem()],

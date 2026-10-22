@@ -133,7 +133,7 @@ export interface BetterSupabasePlugin {
  * ```ts
  * app
  *   .use(VueQueryPlugin, { queryClient })
- *   .use(betterSupabase(bs, { queryClient }));
+ *   .use(betterSupabase(bsb, { queryClient }));
  * ```
  */
 export function betterSupabase(
@@ -200,7 +200,7 @@ export function useSession<C = unknown, P = unknown>(): ComputedRef<
     );
   }
 
-  // SAFETY: provideSession receives `bs.session()` from the same
+  // SAFETY: provideSession receives `bsb.session()` from the same
   // `betterSupabase`, whose schemas fix `C` and `P`.
   return computed(() => toValue(session) as AuthSession<C, P>);
 }
@@ -232,7 +232,7 @@ export interface BetterComposables<B extends ClientLike> {
  *
  * ```ts
  * export const { useDb, useQueries, useAuth } =
- *   createBindings<typeof bs>();
+ *   createBindings<typeof bsb>();
  * ```
  */
 export function createBindings<B extends ClientLike>(): BetterComposables<B> {
@@ -282,7 +282,7 @@ function supabaseFor(
 
   if (!supabase) {
     throw new Error(
-      `better-supabase: ${hook} needs app.use(betterSupabase(bs)) or { client: supabase }`,
+      `better-supabase: ${hook} needs app.use(betterSupabase(bsb)) or { client: supabase }`,
     );
   }
 
@@ -384,7 +384,7 @@ export function useLiveQuery(
 
     if (current && !queryClient) {
       throw new Error(
-        "better-supabase: useLiveQuery needs betterSupabase(bs, { queryClient })",
+        "better-supabase: useLiveQuery needs betterSupabase(bsb, { queryClient })",
       );
     }
 
@@ -436,7 +436,7 @@ export interface LiveCount {
 
 /**
  * A count that stays current: refetches only the `count` spec after each
- * debounced change to a table it reads. Takes a spec or a `bs.liveCount()`
+ * debounced change to a table it reads. Takes a spec or a `bsb.liveCount()`
  * seed; `null` pauses. The returned object's fields are reactive.
  *
  * ```ts

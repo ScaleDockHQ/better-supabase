@@ -32,7 +32,7 @@ describe("withBetterSupabaseMcp", () => {
       async (args, ctx) => {
         expectTypeOf(args).toEqualTypeOf<{ id: string; name: string }>();
         expectTypeOf(ctx.auth).toEqualTypeOf<AuthState>();
-        expectTypeOf(ctx.db).toEqualTypeOf(ctx.bs.db);
+        expectTypeOf(ctx.db).toEqualTypeOf(ctx.bsb.db);
         expectTypeOf(ctx.http).not.toBeAny();
 
         const found = await ctx.db.customers.findUnique({

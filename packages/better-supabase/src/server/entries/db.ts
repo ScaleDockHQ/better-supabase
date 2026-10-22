@@ -8,7 +8,7 @@ import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
 /**
  * Entry contributing `ctx.db`: repositories over PostgREST as the caller (RLS
- * applies), from `ctx.bs`. Reads go to the read replica when one is
+ * applies), from `ctx.bsb`. Reads go to the read replica when one is
  * configured.
  */
 export function withDb<
@@ -18,16 +18,16 @@ export function withDb<
   B,
 >(): SingleKeyEntry<
   "db",
-  { readonly bs: { readonly db: Db<M, F, E, SupabaseClient, B> } },
+  { readonly bsb: { readonly db: Db<M, F, E, SupabaseClient, B> } },
   Db<M, F, E, SupabaseClient, B>
 > {
   return defineMiddleware<
     "db",
     undefined,
-    { readonly bs: { readonly db: Db<M, F, E, SupabaseClient, B> } },
+    { readonly bsb: { readonly db: Db<M, F, E, SupabaseClient, B> } },
     Db<M, F, E, SupabaseClient, B>
   >({
     key: "db",
-    run: () => (_request, ctx) => Promise.resolve({ db: ctx.bs.db }),
+    run: () => (_request, ctx) => Promise.resolve({ db: ctx.bsb.db }),
   })();
 }

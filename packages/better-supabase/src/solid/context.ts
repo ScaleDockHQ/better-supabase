@@ -24,7 +24,7 @@ export function useContext(): Context {
 
   if (!context) {
     throw new Error(
-      "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
+      "better-supabase: wrap your app in <BetterSupabaseProvider client={bsb}>",
     );
   }
 

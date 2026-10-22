@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { channelFeature } from "./channel-feature.ts";
 
 /**
  * Loads a channel's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const channelRecord = recordServer(bs, channelFeature);
+export const channelRecord = recordServer(bsb, channelFeature);

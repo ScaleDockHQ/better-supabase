@@ -27,7 +27,7 @@ export type {
  * `createOnboardingController` as a Solid primitive: `state()` reads the
  * snapshot. Call it in a component; the work starts on mount and the controller
  * is disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useOnboarding<Id extends string, Scope extends ChecklistScope>(
   options: BlockOptions<OnboardingControllerOptions<Id, Scope>>,

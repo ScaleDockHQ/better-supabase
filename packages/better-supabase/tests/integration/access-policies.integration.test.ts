@@ -63,7 +63,7 @@ const SQL = {
 };
 
 const files = defineBucket({
-  id: `bs-it-pd-${RUN}`,
+  id: `bsb-it-pd-${RUN}`,
   path: "{organizationId}/{file}",
   policy: {
     access: { read: "files.read", list: "files.list", write: "files.write" },

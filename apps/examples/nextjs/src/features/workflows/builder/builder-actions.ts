@@ -8,7 +8,7 @@ import { resumeHook } from "workflow/api";
 
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { builderFor } from "./builder-server";
 
@@ -49,7 +49,7 @@ const slugOf = (name: string): string =>
     .replaceAll(/^-|-$/gu, "")
     .slice(0, 60) || "workflow";
 
-export const createDefinition = bs.action(
+export const createDefinition = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
@@ -92,7 +92,7 @@ export const createDefinition = bs.action(
   },
 );
 
-export const saveDraft = bs.action(
+export const saveDraft = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
     requireTenant: true,
@@ -110,7 +110,7 @@ export const saveDraft = bs.action(
 );
 
 /** Saves the canvas as the draft, then publishes it. */
-export const publishGraph = bs.action(
+export const publishGraph = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
     requireTenant: true,
@@ -136,7 +136,7 @@ export const publishGraph = bs.action(
   },
 );
 
-export const runDefinition = bs.action(
+export const runDefinition = bsb.action(
   {
     input: v.object({
       definition: Id,
@@ -160,7 +160,7 @@ export const runDefinition = bs.action(
 
 const TriggerKind = v.picklist(["manual", "webhook", "schedule", "event"]);
 
-export const saveTrigger = bs.action(
+export const saveTrigger = bsb.action(
   {
     input: v.object({
       definition: Id,
@@ -201,7 +201,7 @@ export const saveTrigger = bs.action(
   },
 );
 
-export const removeTrigger = bs.action(
+export const removeTrigger = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -221,7 +221,7 @@ export const removeTrigger = bs.action(
 );
 
 /** A new webhook token; the caller shows it once. */
-export const rotateWebhookToken = bs.action(
+export const rotateWebhookToken = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -234,7 +234,7 @@ export const rotateWebhookToken = bs.action(
  * Stores a Slack bot token in Vault and the reference to it in the tenant's
  * credentials.
  */
-export const createCredential = bs.action(
+export const createCredential = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
@@ -265,7 +265,7 @@ export const createCredential = bs.action(
   },
 );
 
-export const revokeCredential = bs.action(
+export const revokeCredential = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -289,7 +289,7 @@ export const revokeCredential = bs.action(
  * belong to the active organization, so a caller can only decide the runs they
  * can see.
  */
-export const decideNode = bs.action(
+export const decideNode = bsb.action(
   {
     input: v.object({ run: Id, node: Id, approved: v.boolean() }),
     requireTenant: true,
@@ -306,7 +306,7 @@ export const decideNode = bs.action(
       return found;
     }
 
-    const key = found.data?.attributes["bs.key"];
+    const key = found.data?.attributes["bsb.key"];
 
     if (found.data?.tenant !== tenant || !v.is(v.string(), key)) {
       return err(dbError("not_found", "No such run"));

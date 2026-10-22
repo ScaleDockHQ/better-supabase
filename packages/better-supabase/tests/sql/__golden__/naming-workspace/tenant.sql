@@ -60,7 +60,7 @@ grant execute on function better_supabase.tenant_disabled(uuid) to service_role,
 grant execute on function better_supabase.user_disabled(uuid) to service_role, supabase_auth_admin;
 
 -- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
--- the x-bs-tenant header over the Data API), then the `tenant_id` claim.
+-- the x-bsb-tenant header over the Data API), then the `tenant_id` claim.
 -- A tenant the caller isn't a member of counts as none.
 create or replace function better_supabase.current_tenant_id()
 returns uuid
@@ -71,7 +71,7 @@ set search_path = ''
 as $$
   select coalesce(
     (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(current_setting('better_supabase.tenant', true), '') and m."user_id" = auth.uid() limit 1),
-    (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(current_setting('request.headers', true)::jsonb ->> 'x-bs-tenant', '') and m."user_id" = auth.uid() limit 1),
+    (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(current_setting('request.headers', true)::jsonb ->> 'x-bsb-tenant', '') and m."user_id" = auth.uid() limit 1),
     (select m."workspace_id"::text from "better_supabase"."memberships" m where m."workspace_id"::text = nullif(coalesce(auth.jwt() ->> 'tenant_id', auth.jwt() -> 'app_metadata' ->> 'tenant_id'), '') and m."user_id" = auth.uid() limit 1)
   )::uuid
 $$;

@@ -34,7 +34,7 @@ autoRefreshOnForeground(supabase, AppState);
  * the block hooks (`useNotifications` and the rest) their React Native deep
  * links, push token and uploads, and `blocks` the schema they call.
  */
-export const bs = createNativeClient(betterSupabase, supabase, {
+export const bsb = createNativeClient(betterSupabase, supabase, {
   blocks: blockConfig,
   ports: nativePorts({
     supabase,

@@ -130,24 +130,24 @@ export type { LiveCountSeed } from "../realtime/live.ts";
 function clientOnly(name: string): () => never {
   return () => {
     throw new Error(
-      `better-supabase: ${name}() runs in Client Components only. In Server Components use \`bs.context()\` or \`db.$run(spec)\`.`,
+      `better-supabase: ${name}() runs in Client Components only. In Server Components use \`bsb.context()\` or \`db.$run(spec)\`.`,
     );
   };
 }
 
-/** The `react-server` build of `useSession`: await `bs.session()` instead. */
+/** The `react-server` build of `useSession`: await `bsb.session()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
 
 /**
  * The `react-server` build of `useSupportSession`: use `supportOf(await
- * bs.session())` instead.
+ * bsb.session())` instead.
  */
 export const useSupportSession: () => SupportView | undefined =
   clientOnly("useSupportSession");
 
 /**
- * The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed
+ * The `react-server` build of `useLiveCount`: render the `bsb.liveCount()` seed
  * instead.
  */
 export const useLiveCount: (

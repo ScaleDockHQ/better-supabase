@@ -6,7 +6,7 @@ import { after } from "next/server";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { knowledge } from "./knowledge-server";
 
@@ -14,7 +14,7 @@ import { knowledge } from "./knowledge-server";
  * Stores pasted text as one of the caller's documents and embeds it after the
  * response; a queue (`knowledge.embedJob()`) does the same in an app.
  */
-export const addDocument = bs.action(
+export const addDocument = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -43,7 +43,7 @@ export const addDocument = bs.action(
   },
 );
 
-export const removeDocument = bs.action(
+export const removeDocument = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
@@ -70,7 +70,7 @@ export interface SearchHit {
 }
 
 /** Hybrid search over the documents the caller can read. */
-export const searchKnowledge = bs.action(
+export const searchKnowledge = bsb.action(
   {
     input: v.object({
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),

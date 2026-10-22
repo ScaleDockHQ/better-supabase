@@ -17,14 +17,14 @@ const Claims = v.object({ tenant_id: v.string(), user_role: v.string() });
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in Hono", () => {
-  const bs = createHono(defineSupabase(schema).claims(Claims));
+  const bsb = createHono(defineSupabase(schema).claims(Claims));
 
   it("types the claims in c.var and the handler context", () => {
     new Hono<HonoEnv<Models, Functions, unknown, Claims>>()
-      .use(bs.middleware())
+      .use(bsb.middleware())
       .get(
         "/",
-        bs.handler((c, ctx) => {
+        bsb.handler((c, ctx) => {
           expectTypeOf(c.var.auth).toEqualTypeOf<AuthState<Claims>>();
           expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
 
@@ -47,21 +47,22 @@ describe("betterSupabase.claims(schema) in Hono", () => {
   });
 });
 
-describe("bs.Env and bs.app()", () => {
+describe("bsb.Env and bsb.app()", () => {
   const Profile = v.object({ display_name: v.string() });
 
-  const bs = createHono(
+  const bsb = createHono(
     defineSupabase(schema).claims(Claims).userMetadata(Profile),
   );
 
-  type Env = typeof bs.Env;
+  type Env = typeof bsb.Env;
 
   it("types c.var from the definition without repeating the generics", () => {
     expectTypeOf<Env>().toEqualTypeOf<
       HonoEnv<Models, Functions, unknown, Claims, { display_name: string }>
     >();
-    bs.app()
-      .use(bs.middleware())
+    bsb
+      .app()
+      .use(bsb.middleware())
       .get("/", (c) => {
         expectTypeOf(c.var.auth).toEqualTypeOf<
           AuthState<Claims, { display_name: string }>
@@ -76,26 +77,26 @@ describe("bs.Env and bs.app()", () => {
 
         return c.json({});
       });
-    expectTypeOf(bs.app()).toEqualTypeOf<Hono<Env>>();
+    expectTypeOf(bsb.app()).toEqualTypeOf<Hono<Env>>();
   });
 });
 
 describe("betterSupabase.buckets() in Hono", () => {
   const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-  const bs = createHono(defineSupabase(schema).buckets({ logos }));
+  const bsb = createHono(defineSupabase(schema).buckets({ logos }));
 
   type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 
   it("types db.$buckets in c.var, the handler context and the server", () => {
-    new Hono<typeof bs.Env>().use(bs.middleware()).get(
+    new Hono<typeof bsb.Env>().use(bsb.middleware()).get(
       "/",
-      bs.handler((c, ctx) => {
+      bsb.handler((c, ctx) => {
         expectTypeOf(c.var.db.$buckets.logos).toEqualTypeOf<Logos>();
         expectTypeOf(ctx.db.$buckets.logos).toEqualTypeOf<Logos>();
 
         return null;
       }),
     );
-    expectTypeOf(bs.admin().$buckets.logos).toEqualTypeOf<Logos>();
+    expectTypeOf(bsb.admin().$buckets.logos).toEqualTypeOf<Logos>();
   });
 });

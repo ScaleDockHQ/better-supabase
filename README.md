@@ -56,7 +56,7 @@ Each call is still one PostgREST request, and it runs as the signed-in user, so 
 - **A typed repository per table.** [`findMany`, `findUnique`, `create`, `upsert`, `paginate`, counts and aggregates](https://bettersupabase.com/docs/repository), with nested relation filters and includes, compiled to PostgREST or to SQL on a direct Postgres connection.
 - **Results instead of exceptions.** Every call returns a [`Result` with a plain, serializable `DbError`](https://bettersupabase.com/docs/concepts/results) that you can return from server actions and RPC handlers. `.orThrow()` is opt-in, and adapters turn errors into RFC 9457 Problem Details with the right status.
 - **Your casing.** Keep database names with `casing: 'snake'`, or get [camelCase rows](https://bettersupabase.com/docs/concepts/casing) renamed inside the PostgREST query.
-- **Auth without extra round trips.** Valid access tokens are [verified locally](https://bettersupabase.com/docs/auth) against the JWKS and never reach the Auth server. Refresh happens once, in the proxy. The service role is an explicit `bs.admin()` call.
+- **Auth without extra round trips.** Valid access tokens are [verified locally](https://bettersupabase.com/docs/auth) against the JWKS and never reach the Auth server. Refresh happens once, in the proxy. The service role is an explicit `bsb.admin()` call.
 - **Cache tags that follow writes.** Mutations [invalidate the tables they change](https://bettersupabase.com/docs/concepts/caching), with read-your-writes in Next.js server actions and table-based invalidation in TanStack Query.
 - **Plugins.** [Timestamps, soft delete, tenant scoping, actor columns, validation and rules](https://bettersupabase.com/docs/plugins), each versioned and opt-in.
 - **Blocks for the SQL every app repeats.** [Jobs on Supabase Queues](https://bettersupabase.com/docs/blocks/jobs), webhook inboxes, idempotency keys, organizations and invitations, notifications, outgoing webhooks, API keys, billing, usage quotas, feature flags, SSO and SCIM, vector search and Stripe entitlements. [`better-supabase add`](https://bettersupabase.com/docs/blocks/sql) writes the tables, functions and policies into your declarative schema.
@@ -107,14 +107,14 @@ An adapter verifies the session, refreshes it where it should and gives each han
 
 ```tsx
 // src/lib/supabase/server.ts
-export const bs = createNext(betterSupabase);
+export const bsb = createNext(betterSupabase);
 
 // src/proxy.ts
-export const proxy = (request: NextRequest) => bs.proxy(request);
+export const proxy = (request: NextRequest) => bsb.proxy(request);
 
 // app/customers/page.tsx
 export default async function Customers() {
-  const { db } = await bs.context();
+  const { db } = await bsb.context();
   const customers = await db.customers
     .findMany({ select: ["id", "name"] })
     .orThrow();
@@ -316,7 +316,7 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `support-sessions` a
 ## Good to know
 
 - **It does not replace supabase-js.** Auth flows, Storage and Realtime stay on the supabase-js client, which is one property away as `db.$client`.
-- **It does not replace RLS.** Queries run as the caller and your policies decide. Bypassing them takes an explicit `bs.admin()`.
+- **It does not replace RLS.** Queries run as the caller and your policies decide. Bypassing them takes an explicit `bsb.admin()`.
 - **A direct Postgres connection is optional.** Queries go through PostgREST by default. [`better-supabase/postgres`](https://bettersupabase.com/docs/auth/postgres) runs the same repository API over SQL for jobs, scripts and transactions.
 - **PostgREST's limits still apply.** There are no transactions across requests, and a few filters only work on reads. The [limitations page](https://bettersupabase.com/docs/guides/limitations) lists each one and what to use instead.
 

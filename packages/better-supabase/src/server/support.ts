@@ -94,7 +94,7 @@ export interface SupportOptions {
   readonly cookie?: SupportCookieOptions;
   /**
    * Where a request names its support session, for apps that keep it in a
-   * header or their own request store instead of the `bs-support` cookie.
+   * header or their own request store instead of the `bsb-support` cookie.
    * Defaults to reading the cookie.
    */
   readonly sessionId?: (request: Request) => string | undefined;
@@ -128,7 +128,7 @@ export interface ActiveSupport {
   readonly claims: Readonly<Record<string, unknown>>;
 }
 
-/** `bs.support`: start, stop and inspect support sessions. */
+/** `bsb.support`: start, stop and inspect support sessions. */
 export interface SupportApi {
   /**
    * Starts a session for a signed-in admin and returns it with the `Set-Cookie`
@@ -228,7 +228,7 @@ function storeError(cause: unknown): DbError {
 export interface SupportSessions {
   readonly options: SupportOptions;
   /**
-   * Builds `bs.support`; `createServer` calls it once, with the definition's
+   * Builds `bsb.support`; `createServer` calls it once, with the definition's
    * `temporal`, which goes on to the store's `withTemporal`, and the server's
    * authorization hooks.
    */

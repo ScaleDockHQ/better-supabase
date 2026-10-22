@@ -58,12 +58,12 @@ export interface NextDebugOptions {
   readonly enabled?: boolean;
   /**
    * Header with `calls;waves;ms` on route handler responses. Defaults to
-   * `x-bs-db-calls`.
+   * `x-bsb-db-calls`.
    */
   readonly header?: string;
   /** Warns in development when one render goes over it. */
   readonly budget?: DbBudget;
-  /** Where `bs.debugRoute()` is mounted. Defaults to `/api/bs-stats`. */
+  /** Where `bsb.debugRoute()` is mounted. Defaults to `/api/bsb-stats`. */
   readonly route?: string;
 }
 
@@ -105,7 +105,7 @@ export interface ProxyOptions<C = unknown, P = unknown> {
     auth: AuthState<C, P>,
   ) => Response | undefined | void | Promise<Response | undefined | void>;
   /**
-   * Adds `Server-Timing: bs-proxy;dur=..., bs-verify;dur=...` (ms): the whole
+   * Adds `Server-Timing: bsb-proxy;dur=..., bsb-verify;dur=...` (ms): the whole
    * proxy, and resolving the session (a local verify, or a refresh).
    */
   readonly serverTiming?: boolean;
@@ -190,7 +190,7 @@ export interface RequireOptions<
   X = ResourceLoaderContext<C, P>,
 >
   extends GuardOptions, AuthorizeOptions<undefined, C, P, R, Ref, X> {
-  /** The active tenant, as for `bs.context({ tenant })`. */
+  /** The active tenant, as for `bsb.context({ tenant })`. */
   readonly tenant?: string;
 }
 
@@ -220,7 +220,7 @@ export interface BetterNext<
    * reads the incoming headers and is memoized per request and tenant.
    *
    * ```ts
-   * const { db } = await bs.context({ tenant: organizationId });
+   * const { db } = await bsb.context({ tenant: organizationId });
    * ```
    */
   context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P, B>>;
@@ -246,13 +246,13 @@ export interface BetterNext<
   /**
    * First statement of an app-authored `'use cache: private'` function: sets
    * `cacheLife` from the session's expiry (`sessionStale`, capped by
-   * `life.stale`), tags the entry `bs:session:<user id>` plus `tags`, and
+   * `life.stale`), tags the entry `bsb:session:<user id>` plus `tags`, and
    * returns the caller's context plus `session`.
    *
    * ```ts
    * async function getCustomers() {
    *   "use cache: private";
-   *   const { db } = await bs.cached();
+   *   const { db } = await bsb.cached();
    *   return db.customers.findMany().orThrow();
    * }
    * ```
@@ -261,7 +261,7 @@ export interface BetterNext<
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B>>;
   /**
-   * Drops every `bs.cached()` entry of a user, e.g. after a role change, and
+   * Drops every `bsb.cached()` entry of a user, e.g. after a role change, and
    * the entries tagged with `tags` (such as a permission snapshot's tag). In a
    * Server Action it also re-renders the caller's page, so no `refresh()` is
    * needed. It reaches server caches and the caller's router only: another
@@ -276,7 +276,7 @@ export interface BetterNext<
    * Counts on the server and returns a serializable seed for
    * `useLiveCount(seed)`, so the badge renders with a number and the client
    * only refetches on changes. Pass `db` inside `'use cache: private'` (from
-   * `bs.cached()`); otherwise it uses `bs.context()`. A failed count gives
+   * `bsb.cached()`); otherwise it uses `bsb.context()`. A failed count gives
    * `count: null` instead of throwing.
    */
   liveCount<T extends Extract<keyof M, string>>(
@@ -299,7 +299,7 @@ export interface BetterNext<
    * Server action returning a serializable `ActionResult`.
    *
    * ```ts
-   * export const invite = bs.action(
+   * export const invite = bsb.action(
    *   { input: Invite, requireTenant: true, roles: ["admin"] },
    *   async (input, { db, tenant }) =>
    *     db.invitations.create({ ...input, organizationId: tenant }),
@@ -318,7 +318,7 @@ export interface BetterNext<
    * guard, validation and authorize checks as `action`.
    *
    * ```ts
-   * export const issueInvoice = bs.blockAction(
+   * export const issueInvoice = bsb.blockAction(
    *   ({ supabase }) => blocks(supabase).invoices,
    *   "issue",
    *   {
@@ -354,7 +354,7 @@ export interface BetterNext<
    * tenant (`invalidateSection`).
    *
    * ```ts
-   * export const addComment = bs.sectionAction(
+   * export const addComment = bsb.sectionAction(
    *   ({ db }) => blockSet.client(db, "comments"),
    *   "create",
    *   {
@@ -400,7 +400,7 @@ export interface BetterNext<
    * and `not_found` calls `notFound()`.
    *
    * ```ts
-   * const { db, tenant } = await bs.require({
+   * const { db, tenant } = await bsb.require({
    *   requireTenant: true,
    *   roles: ["admin"],
    * });
@@ -416,7 +416,7 @@ export interface BetterNext<
    *
    * ```ts
    * // app/api/[...path]/route.ts
-   * export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(
+   * export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
    *   { customers: true },
    *   { basePath: "/api" },
    * );
@@ -490,7 +490,7 @@ export interface SessionStaleOptions {
 
 export interface CachedOptions<T extends string = string> extends ScopeOptions {
   /**
-   * The active tenant, as for `bs.context({ tenant })`. Next.js keys the
+   * The active tenant, as for `bsb.context({ tenant })`. Next.js keys the
    * private cache on your function's arguments, so take the tenant as an
    * argument and pass it through; never read it from anywhere else.
    */
@@ -512,11 +512,11 @@ export interface CachedOptions<T extends string = string> extends ScopeOptions {
   readonly tags?: readonly string[];
   /**
    * Tables the entry reads, so the `updateTag` after a mutation drops it:
-   * `bs:<table>`, or with an active tenant `bs:<table>@<tenant>` and
-   * `bs:<table>@*`, so other tenants' writes leave it cached.
+   * `bsb:<table>`, or with an active tenant `bsb:<table>@<tenant>` and
+   * `bsb:<table>@*`, so other tenants' writes leave it cached.
    */
   readonly tables?: readonly T[];
-  /** With `tables`, also tags the row `bs:<first table>:<id>`. */
+  /** With `tables`, also tags the row `bsb:<first table>:<id>`. */
   readonly id?: string | number;
 }
 

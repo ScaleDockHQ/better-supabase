@@ -897,7 +897,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Admin Auth call without a secret key in env files",
     description:
-      "`deleteAccount` and `bs.admin()` need `SUPABASE_SECRET_KEY`. The env files doctor reads do not set it, so those calls fail at run time.",
+      "`deleteAccount` and `bsb.admin()` need `SUPABASE_SECRET_KEY`. The env files doctor reads do not set it, so those calls fail at run time.",
     check: missingSecretKey,
   },
   {
@@ -1121,7 +1121,7 @@ function missingSecretKey(context: DoctorContext): FindingInput[] {
   return [
     {
       message:
-        "The app calls deleteAccount or bs.admin(), which need SUPABASE_SECRET_KEY, but no env file doctor reads sets it. Add it to .env.local (and the hosted environments), listed without a value in .env.example.",
+        "The app calls deleteAccount or bsb.admin(), which need SUPABASE_SECRET_KEY, but no env file doctor reads sets it. Add it to .env.local (and the hosted environments), listed without a value in .env.example.",
       target: "SUPABASE_SECRET_KEY",
     },
   ];

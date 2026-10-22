@@ -10,7 +10,7 @@ import type { Claims } from "@/lib/claims";
 
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { shopOrders } from "./shop-server";
 
@@ -20,7 +20,7 @@ const canPrepare = (session: AuthSession<Claims>): boolean =>
   can(session, "orders.prepare") || can(session, "orders.manage");
 
 /** Sends a paid order's lines to their stations as queued tickets. */
-export const sendToKitchen = bs.action(
+export const sendToKitchen = bsb.action(
   {
     input: v.object({ orderId: Id }),
     requireTenant: true,
@@ -43,7 +43,7 @@ export const sendToKitchen = bs.action(
  * Moves an order's lines up to a state, at one station or at every station.
  * Lines already further along stay where they are.
  */
-export const bumpTicket = bs.action(
+export const bumpTicket = bsb.action(
   {
     input: v.object({
       orderId: Id,
@@ -71,7 +71,7 @@ export const bumpTicket = bs.action(
 );
 
 /** Sets one line's state, forward or back. */
-export const setLineState = bs.action(
+export const setLineState = bsb.action(
   {
     input: v.object({ lineId: Id, state: v.picklist(PREPARATION_STATES) }),
     requireTenant: true,

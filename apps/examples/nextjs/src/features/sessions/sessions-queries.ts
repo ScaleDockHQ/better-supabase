@@ -2,7 +2,7 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface CurrentSession {
   readonly id: string;
@@ -49,7 +49,7 @@ export type OtherSession = v.InferOutput<typeof OtherSession>;
  */
 export async function getOtherSessions(): Promise<readonly OtherSession[]> {
   "use cache: private";
-  const { auth, supabase } = await bs.cached();
+  const { auth, supabase } = await bsb.cached();
 
   if (auth.kind !== "user") {
     return [];
@@ -66,7 +66,7 @@ export async function getOtherSessions(): Promise<readonly OtherSession[]> {
 /** The session behind this request's token, or null for a caller without one. */
 export async function getCurrentSession(): Promise<CurrentSession | null> {
   "use cache: private";
-  const { auth } = await bs.cached();
+  const { auth } = await bsb.cached();
 
   if (auth.kind !== "user") {
     return null;

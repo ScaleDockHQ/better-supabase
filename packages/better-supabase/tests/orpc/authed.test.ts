@@ -11,19 +11,19 @@ import {
   USER,
 } from "../fixtures/test-server.ts";
 
-const bs = createOrpc(betterSupabase, {
+const bsb = createOrpc(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
 });
 
-const me = bs
+const me = bsb
   .authed()
   .handler(({ context }) =>
     context.auth.kind === "user" ? context.auth.user.id : null,
   );
 
-const admin = bs
+const admin = bsb
   .authed({
     authorize: (session) =>
       session.kind === "user" &&
@@ -31,12 +31,12 @@ const admin = bs
   })
   .handler(() => "ok");
 
-const scoped = bs.authed({ requireTenant: true }).handler(() => "ok");
+const scoped = bsb.authed({ requireTenant: true }).handler(() => "ok");
 
 const failureOf = (promise: Promise<unknown>) =>
   promise.catch((cause: unknown) => cause);
 
-describe("bs.authed()", () => {
+describe("bsb.authed()", () => {
   it("adds the caller's context", async () => {
     const request = await requestAs({ role: "member" });
     expect(await call(me, undefined, { context: { request } })).toBe(USER);

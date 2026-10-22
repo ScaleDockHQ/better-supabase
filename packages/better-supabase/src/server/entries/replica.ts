@@ -12,7 +12,7 @@ import { withPrimaryPin } from "../replicas.ts";
 /**
  * Entry contributing `ctx.replica`, where `ctx.db` reads go when a read URL is
  * configured (`undefined` without one). On the way out it sets the
- * `bs-primary-until` cookie after a write, so the caller's next reads see it.
+ * `bsb-primary-until` cookie after a write, so the caller's next reads see it.
  */
 export function withReplica<
   M extends AnyModels,
@@ -25,13 +25,13 @@ export function withReplica<
   core: ServerCore<M, F, E, C, P, B>,
 ): SingleKeyEntry<
   "replica",
-  { readonly bs: ServerContext<M, F, E, C, P, B> },
+  { readonly bsb: ServerContext<M, F, E, C, P, B> },
   ReplicaState | undefined
 > {
   return defineMiddleware<
     "replica",
     undefined,
-    { readonly bs: ServerContext<M, F, E, C, P, B> },
+    { readonly bsb: ServerContext<M, F, E, C, P, B> },
     ReplicaState | undefined
   >({
     key: "replica",
@@ -39,10 +39,10 @@ export function withReplica<
       // The seam needs no await: it only edits the response on the way out.
       // oxlint-disable-next-line typescript/require-await -- an async generator is the response-seam shape `defineMiddleware` takes.
       async function* run(_request, ctx) {
-        const { replica } = ctx.bs;
+        const { replica } = ctx.bsb;
         const response = yield { replica };
 
-        return withPrimaryPin(response, ctx.bs.replica, core.pinMs);
+        return withPrimaryPin(response, ctx.bsb.replica, core.pinMs);
       },
   })();
 }

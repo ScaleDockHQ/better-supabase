@@ -49,10 +49,10 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
 
-  const bs = createEdge(betterSupabase, { env });
+  const bsb = createEdge(betterSupabase, { env });
 
   // The same function as apps/examples/edge/supabase/functions/create-customer.
-  const createCustomer = defineFunction(bs, {
+  const createCustomer = defineFunction(bsb, {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1)),
       organizationId: v.pipe(v.string(), v.uuid()),

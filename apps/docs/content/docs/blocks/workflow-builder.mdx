@@ -178,7 +178,7 @@ export const builderFor = (sql: Sql) =>
 ```
 
 ```ts
-const builder = builderFor(await bs.sql());
+const builder = builderFor(await bsb.sql());
 
 const definition = await builder.definitions
   .save({ tenant: organizationId, slug: "onboarding", name: "Onboarding" })
@@ -377,7 +377,7 @@ then asks `automation.runAs` for the claims the step runs with:
 export async function crmLookup(call: GraphStepCall) {
   "use step";
   const claims = await serviceBuilder.versions.runAs(call.version).orThrow();
-  const db = bs.actingAs(String(claims["sub"]), {
+  const db = bsb.actingAs(String(claims["sub"]), {
     tenant_id: claims["tenant_id"],
   });
   return db.contacts.findMany({ where: { email: call.input.email } }).orThrow();
@@ -569,7 +569,7 @@ Server Components, call `builder.definitions.list()` and
 `better-supabase/blocks/workflow-builder/vue` exports `useWorkflowBuilder`
 and `useWorkflowCanvasRun`. Each takes the options of the controller it
 wraps (`useWorkflowBuilder` those of `createWorkflowBuilderController`);
-`auth` and `ports` come from `app.use(betterSupabase(bs))` unless you pass
+`auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass
 them. `state` is a shallow ref of the snapshot and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the component.
@@ -606,7 +606,7 @@ const { state } = useWorkflowBuilder({
 `useWorkflowBuilder` and `useWorkflowCanvasRun`. Each takes the options of
 the controller it wraps (`useWorkflowBuilder` those of
 `createWorkflowBuilderController`); `auth` and `ports` come from
-`setBetterSupabase(bs)` unless you pass them. The hook returns a readable
+`setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
 
@@ -636,7 +636,7 @@ work starts on mount, and the controller is disposed with the component.
 `better-supabase/blocks/workflow-builder/solid` exports `useWorkflowBuilder`
 and `useWorkflowCanvasRun`. Each takes the options of the controller it
 wraps (`useWorkflowBuilder` those of `createWorkflowBuilderController`);
-`auth` and `ports` come from `<BetterSupabaseProvider client={bs}>` unless
+`auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless
 you pass them. `state()` reads the snapshot through `from`, and `actions`
 are the controller's actions. The work starts on mount, and the controller
 is disposed with the owner.
@@ -688,7 +688,7 @@ fires from `alerts.check()` when a run is still unfinished `threshold`
 seconds after it started. Each alert fires once per run and emits a
 `workflow_alert.triggered` outbox event with the alert, its `channel` and the run.
 Your outbox consumer sends it; the module only stores the channel. Runs
-match a definition on their `bs.definition` attribute, which
+match a definition on their `bsb.definition` attribute, which
 `graphStarter` sets.
 
 ## Functions

@@ -4,7 +4,7 @@ import { defineRecordList } from "better-supabase/records";
 
 import { customerList } from "@/lib/lists";
 import { customerFeature } from "@/lib/supabase/features/customer/customer-feature";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * The customer list with the comment count per row, filled for the whole page
@@ -14,4 +14,4 @@ const customerRecordList = defineRecordList(customerFeature, customerList, {
   columns: { comments: "count" },
 });
 
-export const customerRecords = recordListServer(bs, customerRecordList);
+export const customerRecords = recordListServer(bsb, customerRecordList);

@@ -6,7 +6,7 @@ import { around } from "./shared.ts";
 export type BeforeRoute =
   | {
       readonly reached: true;
-      /** Everything the entries contributed (`db`, `bs`, ...). */
+      /** Everything the entries contributed (`db`, `bsb`, ...). */
       readonly contributions: Record<string, unknown>;
       /** The headers and cookies the entries set, for the framework's response. */
       readonly headers: Headers;

@@ -8,7 +8,7 @@ import type {
 import { unstable_rethrow } from "next/navigation";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -77,7 +77,7 @@ export async function loadStatusPage(
   slug: string,
 ): Promise<StatusPageView | null> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
 
   const page = await blocks(supabase)
     .incidents.publicStatusPage(slug, UPTIME_DAYS)

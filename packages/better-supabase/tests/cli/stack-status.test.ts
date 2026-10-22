@@ -26,7 +26,7 @@ describe("readStackStatus", () => {
   let root = "";
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bs-stack-status-"));
+    root = await mkdtemp(join(tmpdir(), "bsb-stack-status-"));
   });
 
   afterEach(() => rm(root, { recursive: true, force: true }));

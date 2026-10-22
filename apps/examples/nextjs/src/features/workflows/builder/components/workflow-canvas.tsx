@@ -80,7 +80,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
   const overlay = useWorkflowCanvasRun(runId, { schema: "api" });
 
   const definitionRuns = (runs ?? []).filter(
-    (run) => run.attributes["bs.definition"] === detail.definition.id,
+    (run) => run.attributes["bsb.definition"] === detail.definition.id,
   );
 
   const graph = fromFlow(nodes, edges);

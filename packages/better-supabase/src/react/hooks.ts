@@ -94,7 +94,7 @@ function useClientContext(): ContextValue {
 
   if (!value) {
     throw new Error(
-      "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
+      "better-supabase: wrap your app in <BetterSupabaseProvider client={bsb}>",
     );
   }
 
@@ -147,7 +147,7 @@ export interface BetterHooks<B extends ClientLike> {
  * Hooks typed for your schema.
  *
  * ```ts
- * export const { useDb, useQueries, useAuth } = createHooks<typeof bs>();
+ * export const { useDb, useQueries, useAuth } = createHooks<typeof bsb>();
  * ```
  */
 export function createHooks<B extends ClientLike>(): BetterHooks<B> {
@@ -194,7 +194,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
 
   if (!supabase) {
     throw new Error(
-      "better-supabase: useBroadcast needs <BetterSupabaseProvider client={bs}> or { client: supabase }",
+      "better-supabase: useBroadcast needs <BetterSupabaseProvider client={bsb}> or { client: supabase }",
     );
   }
 
@@ -379,11 +379,11 @@ export interface LiveCount {
 /**
  * A count that stays current: refetches only the `count` spec (a HEAD request)
  * after each debounced change to a table it reads, and after the channel
- * rejoins. Takes a spec or a `bs.liveCount()` seed; pass `null` to pause.
+ * rejoins. Takes a spec or a `bsb.liveCount()` seed; pass `null` to pause.
  * Doesn't need a `QueryClient`.
  *
  * ```tsx
- * const { count } = useLiveCount(seed); // seed = await bs.liveCount(spec)
+ * const { count } = useLiveCount(seed); // seed = await bsb.liveCount(spec)
  * ```
  */
 export function useLiveCount(

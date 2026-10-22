@@ -263,7 +263,7 @@ const LEGACY_INSTANCE =
 const LEGACY_PATH = /supabase\.(?:browser|server|client)(?:\.tsx?)?["'`]/;
 
 describe("naming", () => {
-  it("names the definition betterSupabase and every instance bs", async () => {
+  it("names the definition betterSupabase and every instance bsb", async () => {
     const files = [
       ...(await sources()),
       ...INTEGRATIONS.flatMap((name) =>
@@ -314,7 +314,7 @@ describe("naming", () => {
   });
 });
 
-/** The factories whose result apps name `bs` (or that the adapters build on). */
+/** The factories whose result apps name `bsb` (or that the adapters build on). */
 const FACTORIES = new Set([
   "createClient",
   "createServer",

@@ -189,7 +189,7 @@ export function createIdentities(options: IdentitiesOptions): Identities {
 }
 
 /**
- * A `PrincipalByIdentity` over the `identities` table, for `createServer(bs, {
+ * A `PrincipalByIdentity` over the `identities` table, for `createServer(bsb, {
  * authorization: { identities: { principalByIdentity } } })` or a chat helper's
  * `principalByIdentity` option. `transport` runs as the service role. A
  * database error rejects, so the caller retries instead of treating a linked

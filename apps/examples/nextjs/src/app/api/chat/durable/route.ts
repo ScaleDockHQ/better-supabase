@@ -6,13 +6,13 @@ import {
   durable,
   durableContext,
 } from "../../../../features/assistant/durable/durable-server";
-import { bs } from "../../../../lib/supabase/server";
+import { bsb } from "../../../../lib/supabase/server";
 
 /**
  * `POST /api/chat/durable`: starts the turn's workflow, or decides its
  * approvals, and streams the answer with the `x-workflow-run-id` header.
  */
-export const POST = bs.route(
+export const POST = bsb.route(
   async (request, { session, tenant, supabase }) => {
     if (session.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to use the assistant"));

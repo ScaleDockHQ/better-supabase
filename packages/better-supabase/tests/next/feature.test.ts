@@ -216,8 +216,8 @@ describe("recordServer", () => {
       error: null,
     });
     expect(mocks.updateTag.mock.calls).toEqual([
-      ["bs:record@org:customer:7#notes"],
-      ["bs:record@org:customer:7"],
+      ["bsb:record@org:customer:7#notes"],
+      ["bsb:record@org:customer:7"],
     ]);
 
     mocks.updateTag.mockClear();
@@ -243,12 +243,12 @@ describe("recordServer", () => {
 
   it("lists the record's cache tags", () => {
     expect(customer.tags("7", "org")).toEqual([
-      "bs:record@org:customer:7",
-      "bs:record@org:customer:7#notes",
+      "bsb:record@org:customer:7",
+      "bsb:record@org:customer:7#notes",
     ]);
   });
 
-  it("accepts the bs that createNext returns", () => {
+  it("accepts the bsb that createNext returns", () => {
     expectTypeOf<ReturnType<typeof createNext>>().toExtend<RecordServerHost>();
   });
 });

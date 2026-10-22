@@ -6,7 +6,7 @@ import { tenantOf } from "better-supabase/next";
 
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { aiTasks } from "./ai-tasks-server";
 
@@ -41,7 +41,7 @@ export type AiTasksRead =
 export async function getAiTasks(): Promise<AiTasksRead> {
   const [session, { supabase }] = await Promise.all([
     getSession(),
-    bs.context(),
+    bsb.context(),
   ]);
 
   const organizationId = tenantOf(session);

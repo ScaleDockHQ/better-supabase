@@ -11,7 +11,7 @@ import { requiredPermission } from "./features/navigation/nav-items";
 import { can } from "./features/user/user-permissions";
 import { pricingFlags } from "./flags";
 import { routing } from "./i18n/routing";
-import { bs } from "./lib/supabase/server";
+import { bsb } from "./lib/supabase/server";
 
 const intl = createMiddleware(routing);
 
@@ -104,7 +104,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
 };
 
 export const proxy = (request: NextRequest) =>
-  bs.proxy(request, {
+  bsb.proxy(request, {
     // Adds the locale prefix (Accept-Language, then the NEXT_LOCALE cookie).
     before: (req) =>
       req.nextUrl.pathname.startsWith("/api/") ? undefined : intl(req),

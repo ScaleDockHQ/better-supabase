@@ -100,11 +100,11 @@ export function createAcme<M extends AnyModels, D, F extends AnyFunctions, E>(
   betterSupabase: BetterSupabase<M, D, F, E>,
   options: ServerOptions & { readonly exposeErrors?: boolean } = {},
 ): BetterAcme<M, F, E> {
-  const bs = createServer(betterSupabase, options);
-  return extendServer<BetterAcme<M, F, E>>(bs, {
+  const bsb = createServer(betterSupabase, options);
+  return extendServer<BetterAcme<M, F, E>>(bsb, {
     route(fn, routeOptions = {}) {
       return (c) =>
-        handle(bs, c.request, (ctx) => fn(c, ctx), {
+        handle(bsb, c.request, (ctx) => fn(c, ctx), {
           ...routeOptions,
           ...(options.exposeErrors === undefined
             ? {}

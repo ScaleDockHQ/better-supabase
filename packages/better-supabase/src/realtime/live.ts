@@ -66,7 +66,7 @@ export interface LiveSubscription extends Disposable, AsyncDisposable {
 
 /**
  * A count from the server plus the spec to keep it live on the client:
- * `bs.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count` is
+ * `bsb.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count` is
  * `null` when the server read failed; the client then fetches it.
  */
 export interface LiveCountSeed<T extends string = string> {
@@ -81,8 +81,8 @@ export interface LiveCountSeed<T extends string = string> {
 
 /**
  * Topic a `realtime-tables` trigger broadcasts on:
- * `bs:t:<schema>.<table>[:<tenant>]`, or `bs:t:<schema>.<table>:u:<user>` for a
- * `realtime.users` table.
+ * `bsb:t:<schema>.<table>[:<tenant>]`, or `bsb:t:<schema>.<table>:u:<user>` for
+ * a `realtime.users` table.
  */
 export function liveTopic(
   meta: SchemaMeta,
@@ -96,7 +96,7 @@ export function liveTopic(
     throw new TypeError(`better-supabase: unknown table "${table}"`);
   }
 
-  const base = `bs:t:${found.schema}.${found.name}`;
+  const base = `bsb:t:${found.schema}.${found.name}`;
 
   if (meta.realtime?.[table]?.user) {
     if (user === undefined) {

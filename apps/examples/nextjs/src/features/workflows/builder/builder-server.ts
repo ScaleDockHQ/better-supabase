@@ -12,7 +12,7 @@ import {
 import "server-only";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { graphSteps } from "./graph-steps";
 import { graphExecutor } from "./graph-workflow";
@@ -29,7 +29,7 @@ const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
  * through the service role.
  */
 export function builderFor(supabase: RpcClient) {
-  const service = rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
+  const service = rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });
 
   return createWorkflowBuilder({
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
@@ -44,5 +44,5 @@ export function builderFor(supabase: RpcClient) {
 
 /** The builder for calls no user makes: webhook deliveries and the step sync. */
 export function serviceBuilder() {
-  return builderFor(bs.admin().$client);
+  return builderFor(bsb.admin().$client);
 }

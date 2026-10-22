@@ -107,8 +107,8 @@ export interface RealtimeConfig {
   /**
    * Tables in `tables` whose rows belong to one user: table to its user column
    * (`{ notifications: "user_id" }`). They broadcast on a topic per user,
-   * `bs:t:<schema>.<table>:u:<user id>`, which only that user receives, instead
-   * of the tenant's topic.
+   * `bsb:t:<schema>.<table>:u:<user id>`, which only that user receives,
+   * instead of the tenant's topic.
    */
   readonly users?: Readonly<Record<string, string>>;
   /**

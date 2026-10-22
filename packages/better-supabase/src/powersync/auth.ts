@@ -7,7 +7,7 @@ export interface SyncedDatabaseLike<C> {
   disconnectAndClear(): Promise<void>;
 }
 
-/** `bs.auth` from a browser or native client. */
+/** `bsb.auth` from a browser or native client. */
 export interface AuthSourceLike {
   readonly current: () => AuthSnapshot;
   readonly subscribe: (listener: () => void) => () => void;
@@ -34,7 +34,7 @@ export interface SyncWithAuthOptions<C> {
  * function that stops following the session and disconnects.
  *
  * ```ts
- * useEffect(() => syncWithAuth(powersync, bs.auth, { connector }), []);
+ * useEffect(() => syncWithAuth(powersync, bsb.auth, { connector }), []);
  * ```
  */
 export function syncWithAuth<C>(

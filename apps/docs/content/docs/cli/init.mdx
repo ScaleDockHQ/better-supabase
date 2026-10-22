@@ -225,16 +225,16 @@ or a new package in a workspace gets its glue. When `--integration` names
 integrations the config doesn't list yet, `add` prints the `integrations`
 entry to paste.
 
-| Integration | Writes                                                                                                                                 |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                     |
-| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                                                                  |
-| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                    |
-| `hono`      | `server.ts`, which creates `bs` and adds the middleware and error handler                                                              |
-| `orpc`      | `router.ts`, which creates `bs` and adds the auth middleware                                                                           |
-| `edge`      | `supabase/functions/api` (`server.ts` creates `bs`) plus `supabase/functions/_shared/supabase.ts`                                      |
-| `expo`      | `lib/supabase/expo.ts` (`bs` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts` |
-| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bs`)                                                 |
+| Integration | Writes                                                                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                      |
+| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                                                                   |
+| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                     |
+| `hono`      | `server.ts`, which creates `bsb` and adds the middleware and error handler                                                              |
+| `orpc`      | `router.ts`, which creates `bsb` and adds the auth middleware                                                                           |
+| `edge`      | `supabase/functions/api` (`server.ts` creates `bsb`) plus `supabase/functions/_shared/supabase.ts`                                      |
+| `expo`      | `lib/supabase/expo.ts` (`bsb` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts` |
+| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bsb`)                                                 |
 
 Relative imports follow your `tsconfig.json`: they keep `.ts` when
 `allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.

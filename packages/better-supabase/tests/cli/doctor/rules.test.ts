@@ -2869,7 +2869,7 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
 
   const rpc = {
     path: "src/actions.ts",
-    text: 'import { bs } from "./bs";\n\nawait bs.$rpc("note_count");',
+    text: 'import { bsb } from "./bsb";\n\nawait bsb.$rpc("note_count");',
   };
 
   const realtime = {
@@ -2931,7 +2931,7 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
 describe("session cookie encoding (BS412)", () => {
   const browser = (encode?: string) => ({
     path: "src/lib/client.ts",
-    text: `import { createClient } from "better-supabase/client";\nexport const bs = createClient(betterSupabase, {\n  env,${encode ? `\n  cookies: { encode: "${encode}" },` : ""}\n});`,
+    text: `import { createClient } from "better-supabase/client";\nexport const bsb = createClient(betterSupabase, {\n  env,${encode ? `\n  cookies: { encode: "${encode}" },` : ""}\n});`,
   });
 
   const server = (encode?: string) => ({

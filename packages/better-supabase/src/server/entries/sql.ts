@@ -15,7 +15,7 @@ export interface SqlIn<
   P,
   B,
 > {
-  readonly bs: {
+  readonly bsb: {
     readonly auth: AuthState<C, P>;
     readonly sql: Db<M, F, E, undefined, B> | undefined;
   };
@@ -47,6 +47,6 @@ export function withSql<
     Db<M, F, E, undefined, B> | undefined
   >({
     key: "sql",
-    run: () => (_request, ctx) => Promise.resolve({ sql: ctx.bs.sql }),
+    run: () => (_request, ctx) => Promise.resolve({ sql: ctx.bsb.sql }),
   })();
 }

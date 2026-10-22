@@ -12,7 +12,7 @@ import { DbException } from "../core/errors.ts";
 import { keyPart } from "./queries.ts";
 
 /** The first key part of every block query. */
-const BLOCK_KEY = "bs-block";
+const BLOCK_KEY = "bsb-block";
 
 /**
  * Method name prefixes that read: these become query options, every other
@@ -225,7 +225,7 @@ function clientQueries(
 
 /**
  * Query options for each read method of each block client (`get*`, `list*`,
- * `find*`, `search*` and the other `BLOCK_READ_PREFIXES`), keyed `["bs-block",
+ * `find*`, `search*` and the other `BLOCK_READ_PREFIXES`), keyed `["bsb-block",
  * block, method, ...args]`, and mutation options for every other method. A
  * mutation makes its block's queries stale; `invalidateOnBlockEvents` does the
  * same for block events. Renamed blocks (`renameBlock`) keep their renamed

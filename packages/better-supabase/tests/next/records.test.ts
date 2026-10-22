@@ -26,13 +26,15 @@ describe("record cache tags", () => {
   });
 
   it("scopes the record and section tags to a tenant", () => {
-    expect(recordTag(customer)).toBe("bs:record:customer:42");
-    expect(recordTag(customer, { tenant: null })).toBe("bs:record:customer:42");
+    expect(recordTag(customer)).toBe("bsb:record:customer:42");
+    expect(recordTag(customer, { tenant: null })).toBe(
+      "bsb:record:customer:42",
+    );
     expect(recordTag(customer, { tenant: "org1" })).toBe(
-      "bs:record@org1:customer:42",
+      "bsb:record@org1:customer:42",
     );
     expect(sectionTag(customer, "comments", { tenant: "org1" })).toBe(
-      "bs:record@org1:customer:42#comments",
+      "bsb:record@org1:customer:42#comments",
     );
   });
 
@@ -40,8 +42,8 @@ describe("record cache tags", () => {
     invalidateSection(customer, "tags", { tenant: "org1" });
 
     expect(mocks.updateTag.mock.calls).toEqual([
-      ["bs:record@org1:customer:42#tags"],
-      ["bs:record@org1:customer:42"],
+      ["bsb:record@org1:customer:42#tags"],
+      ["bsb:record@org1:customer:42"],
     ]);
   });
 
@@ -53,8 +55,8 @@ describe("record cache tags", () => {
     invalidateSection(customer, "tags", { revalidate: "max" });
 
     expect(mocks.revalidateTag.mock.calls).toEqual([
-      ["bs:record:customer:42#tags", "max"],
-      ["bs:record:customer:42", "max"],
+      ["bsb:record:customer:42#tags", "max"],
+      ["bsb:record:customer:42", "max"],
     ]);
   });
 });

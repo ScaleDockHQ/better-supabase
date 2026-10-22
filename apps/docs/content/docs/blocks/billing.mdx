@@ -36,11 +36,11 @@ import { stripeFromKey } from "better-supabase/stripe";
 export const billing = createBilling({
   stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
   transport: sqlTransport(postgres.admin),
-  events: bs.events, // billing.* block events
+  events: bsb.events, // billing.* block events
   seatPrice: env.STRIPE_SEAT_PRICE,
   sessions: {
     sql: postgres.admin,
-    invalidate: (id) => bs.invalidateSession(id),
+    invalidate: (id) => bsb.invalidateSession(id),
   },
 });
 ```
@@ -222,7 +222,7 @@ DOM and React Native.
 ```ts title="app/settings/billing/actions.ts"
 "use server";
 
-export const startCheckout = bs.action(
+export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
     requireTenant: true,
@@ -622,7 +622,7 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 `organizationId` and, where they apply, `customerId`, `accountId`,
 `subscriptionId`,
 `status`, `quantity`, `previousQuantity` and `stripeEventId`. Listen with
-`onBlockEvent(bs, billingEvents, "billing.*", handler)`, with
+`onBlockEvent(bsb, billingEvents, "billing.*", handler)`, with
 `billingEvents` from `better-supabase/blocks/billing`.
 
 ## Functions

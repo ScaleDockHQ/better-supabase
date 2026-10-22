@@ -10,7 +10,7 @@ export interface RecordTagOptions {
 
 /**
  * The cache tag of a record's header and tab badges (`record_summary`):
- * `bs:record@<tenant>:<type>:<id>`, or `bs:record:<type>:<id>` without a
+ * `bsb:record@<tenant>:<type>:<id>`, or `bsb:record:<type>:<id>` without a
  * tenant.
  */
 export function recordTag(
@@ -22,7 +22,7 @@ export function recordTag(
       ? ""
       : `@${options.tenant}`;
 
-  return `bs:record${scope}:${subject.type}:${subject.id}`;
+  return `bsb:record${scope}:${subject.type}:${subject.id}`;
 }
 
 /** The cache tag of one section of a record, such as its comments. */

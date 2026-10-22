@@ -394,14 +394,14 @@ export const thread = defineTopic("thread:{threadId}");
       join(root, "topics.ts"),
       `import { defineTopic } from ${JSON.stringify(realtime)};
 export const inbox = defineTopic("notifications:{userId}");
-export const rows = defineTopic("bs:t:public.notes:{organizationId}");
+export const rows = defineTopic("bsb:t:public.notes:{organizationId}");
 export const chat = defineTopic("notifications:{user}:chat");
 `,
     );
     await writeFile(
       join(root, "send.ts"),
       `import { defineTopic } from ${JSON.stringify(realtime)};
-export const typing = defineTopic("bs:t:{room}", { send: true });
+export const typing = defineTopic("bsb:t:{room}", { send: true });
 `,
     );
     const output = "supabase/schemas/905_topics.sql";
@@ -419,7 +419,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     await sql(["sync"], config);
     const written = await readFile(join(root, output), "utf-8");
     expect(written).toContain(
-      "-- Skipped topic bs:t:public.notes:{organizationId}: the realtime-tables module writes its receive policy.\n-- Skipped topic notifications:{userId}: the notifications module writes its receive policy.\n",
+      "-- Skipped topic bsb:t:public.notes:{organizationId}: the realtime-tables module writes its receive policy.\n-- Skipped topic notifications:{userId}: the notifications module writes its receive policy.\n",
     );
     expect(written).not.toContain(
       "-- better-supabase: topic notifications:{userId}",
@@ -427,7 +427,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(written).toContain(
       "-- better-supabase: topic notifications:{user}:chat",
     );
-    expect(written).toContain("-- better-supabase: topic bs:t:{room}");
+    expect(written).toContain("-- better-supabase: topic bsb:t:{room}");
     expect(written).toContain("for insert to authenticated");
     expect((await sql(["sync", "--check"], config)).code).toBe(0);
 

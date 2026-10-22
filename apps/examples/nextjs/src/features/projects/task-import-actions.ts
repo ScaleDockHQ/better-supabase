@@ -16,7 +16,7 @@ import * as v from "valibot";
 import { importRunHooks } from "@/features/imports/import-run";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { TaskStatus } from "./project-types";
 
@@ -92,7 +92,7 @@ export interface TaskImportOutcome {
  * task with the same title in the project is the same task (the `(project_id,
  * title)` unique set). Nothing is written.
  */
-export const previewTaskImport = bs.action(
+export const previewTaskImport = bsb.action(
   {
     input: Input,
     requireTenant: true,
@@ -120,7 +120,7 @@ export const previewTaskImport = bs.action(
  * Upserts the file's tasks into the project. An existing task keeps the fields
  * it already has and gains the ones that were empty (`fill`).
  */
-export const runTaskImport = bs.action(
+export const runTaskImport = bsb.action(
   {
     input: Input,
     requireTenant: true,

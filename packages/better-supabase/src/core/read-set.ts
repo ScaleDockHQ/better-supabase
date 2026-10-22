@@ -117,23 +117,23 @@ const TYPE = /^(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*(?:\[\])?$/;
 const MAX_ENTRIES = 50;
 
 /**
- * Placeholders are `NUL bs:<name> NUL`: no real parameter value holds a NUL.
+ * Placeholders are `NUL bsb:<name> NUL`: no real parameter value holds a NUL.
  * Auth placeholders start with `@`, which no parameter name can.
  */
 const NUL = "\u0000";
 
 const SENTINEL = /* @__PURE__ */ new RegExp(
-  `${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}`,
+  `${NUL}bsb:(@?[a-z_][a-z0-9_]*)${NUL}`,
   "gi",
 );
 
 const EXACT = /* @__PURE__ */ new RegExp(
-  `^${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}$`,
+  `^${NUL}bsb:(@?[a-z_][a-z0-9_]*)${NUL}$`,
   "i",
 );
 
 function sentinel(name: string): string {
-  return `${NUL}bs:${name}${NUL}`;
+  return `${NUL}bsb:${name}${NUL}`;
 }
 
 const AUTH: ReadSetAuth = { uid: sentinel("@uid") };
@@ -353,7 +353,7 @@ export function splitPlaceholders(
 }
 
 export function hasPlaceholder(value: string): boolean {
-  return value.includes(`${NUL}bs:`);
+  return value.includes(`${NUL}bsb:`);
 }
 
 /** Whether any string inside `value` is (or holds) a placeholder. */

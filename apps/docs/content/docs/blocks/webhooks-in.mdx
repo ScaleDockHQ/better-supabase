@@ -211,7 +211,7 @@ either while the step is pending.
 ## Processing
 
 Deliveries are inbox messages of source `webhook-in` (or `source`), with the
-endpoint's tenant and its id in the `x-bs-endpoint-id` header:
+endpoint's tenant and its id in the `x-bsb-endpoint-id` header:
 
 ```ts
 import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";

@@ -49,7 +49,7 @@ the cards come from the [UI recipes](/docs/registry/ui-recipes).
 | File                    | Written when                     | Exports                                                    |
 | ----------------------- | -------------------------------- | ---------------------------------------------------------- |
 | `<subject>-feature.ts`  | always                           | `<subject>Feature`, from `defineRecordFeature`             |
-| `<subject>-server.ts`   | Next.js is installed             | `<subject>Record`, from `recordServer(bs, feature)`        |
+| `<subject>-server.ts`   | Next.js is installed             | `<subject>Record`, from `recordServer(bsb, feature)`       |
 | `<subject>-actions.ts`  | Next.js is installed             | one Server Action per write, such as `addCustomerComments` |
 | `<subject>-provider.ts` | Next.js, Vite or Expo is used    | `<Subject>RecordProvider` and `use<Subject>Record`         |
 | `<subject>-queries.ts`  | `@tanstack/react-query` is found | `<subject>Queries(clients)`, from `recordQueries`          |
@@ -217,7 +217,7 @@ import { topicPort } from "better-supabase/realtime";
 
 const record = createRecordController({
   source: { blocks: blockSet.blocks, clients: blocks(supabase) },
-  auth: bs.auth,
+  auth: bsb.auth,
   ports: { topic: topicPort(supabase) },
   subject: { type: "customer", id },
   sections: ["comments", "attachments"],
@@ -247,7 +247,7 @@ startTransition(async () => {
 });
 ```
 
-On the server, [`bs.sectionAction`](/docs/frameworks/next#record-sections)
+On the server, [`bsb.sectionAction`](/docs/frameworks/next#record-sections)
 runs the write and drops the cached section.
 
 ## Write a section

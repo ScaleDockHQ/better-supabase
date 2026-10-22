@@ -77,7 +77,7 @@ export function refusalResponse(
 
 /** What a route guard reads: the request's contributions. */
 export interface GuardedLocals {
-  readonly bs: { readonly auth: AuthState };
+  readonly bsb: { readonly auth: AuthState };
   readonly tenant?: string | undefined;
 }
 
@@ -110,7 +110,7 @@ export async function routeRefusal(
   options: RouteGuardOptions,
 ): Promise<Response | undefined> {
   const caller = await requireCaller(
-    locals.bs.auth,
+    locals.bsb.auth,
     options,
     locals.tenant,
     options.authorizer,
@@ -156,9 +156,9 @@ export function errorResponse(
  * `withBetterSupabase`.
  */
 export function guardedLocals(contributions: object): GuardedLocals {
-  const bs: unknown = "bs" in contributions ? contributions.bs : undefined;
+  const bsb: unknown = "bsb" in contributions ? contributions.bsb : undefined;
 
-  if (typeof bs !== "object" || bs === null || !("auth" in bs)) {
+  if (typeof bsb !== "object" || bsb === null || !("auth" in bsb)) {
     throw new Error(
       "better-supabase: the route guard needs withBetterSupabase(server) in the entries",
     );
@@ -168,8 +168,8 @@ export function guardedLocals(contributions: object): GuardedLocals {
     "tenant" in contributions ? contributions.tenant : undefined;
 
   return {
-    // SAFETY: withBetterSupabase is the only entry that contributes `bs.auth`, and it is an AuthState.
-    bs: bs as GuardedLocals["bs"],
+    // SAFETY: withBetterSupabase is the only entry that contributes `bsb.auth`, and it is an AuthState.
+    bsb: bsb as GuardedLocals["bsb"],
     tenant: typeof tenant === "string" ? tenant : undefined,
   };
 }

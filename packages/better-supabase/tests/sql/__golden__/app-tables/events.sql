@@ -135,7 +135,7 @@ select extensions.table_privs_are('public', 'tasks', 'authenticated', array['DEL
 
 with o as (
   insert into "better_supabase"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."tasks" ("organization_id", "title") select o.id, repeat('x', 1) from o;
@@ -156,7 +156,7 @@ select extensions.table_privs_are('public', 'notes', 'authenticated', array['DEL
 
 with o as (
   insert into "better_supabase"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."notes" ("organization_id") select o.id from o;

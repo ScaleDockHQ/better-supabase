@@ -6,7 +6,7 @@ import { generatedOptions } from "better-supabase/blocks";
 import { createAiTasks, rpcTransport } from "better-supabase/blocks/ai-tasks";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["ai-tasks"].api;
 
@@ -18,6 +18,6 @@ export function aiTasks(supabase: RpcClient): AiTasks {
   return createAiTasks({
     ...generatedOptions(blockConfig["ai-tasks"]),
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-    service: rpcTransport(bs.admin().$client, { schema: API_SCHEMA }),
+    service: rpcTransport(bsb.admin().$client, { schema: API_SCHEMA }),
   });
 }

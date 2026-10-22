@@ -27,7 +27,7 @@ type PayloadOut<
 /**
  * What a job records about the request that enqueued it, under wire names: the
  * actor, the tenant, the ticket, and the delegation of the token, so
- * `bs.forContext(job.context)` runs the job under the same terms.
+ * `bsb.forContext(job.context)` runs the job under the same terms.
  */
 export interface JobContext {
   readonly actor?: Actor;
@@ -64,7 +64,7 @@ export interface Job<P = unknown> {
   readonly lastError: string | null;
   /**
    * The actor and tenant recorded at enqueue, ready for
-   * `bs.forContext(job.context)`, which runs as that user with RLS. Without a
+   * `bsb.forContext(job.context)`, which runs as that user with RLS. Without a
    * recorded tenant, `tenant()` applies its `onMissing` unless the worker runs
    * with `allTenants: true`.
    */
@@ -103,7 +103,7 @@ export interface EnqueueOptions {
   readonly context?: RequestContext;
   /**
    * An opaque ticket, recorded instead of `context.ticket`.
-   * `bs.forContext(job.context)` resolves it through the authorization
+   * `bsb.forContext(job.context)` resolves it through the authorization
    * provider's `tickets.subject` and runs as the context it returns.
    */
   readonly ticket?: string;

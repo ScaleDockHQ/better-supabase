@@ -4,7 +4,7 @@ import type { DbStats } from "../core/stats.ts";
 import { StatsRecorder } from "../core/stats.ts";
 
 /** Forwarded by the proxy so every scope of one render shares an id. */
-export const REQUEST_ID_HEADER = "x-bs-request-id";
+export const REQUEST_ID_HEADER = "x-bsb-request-id";
 
 export interface DbBudget {
   readonly calls?: number;

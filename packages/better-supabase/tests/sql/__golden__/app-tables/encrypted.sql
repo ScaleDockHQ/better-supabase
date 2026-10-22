@@ -389,27 +389,27 @@ select extensions.ok(not has_function_privilege('anon', '"public"."patients_reve
 
 with o as (
   insert into "better_supabase"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."patients" ("organization_id", "name") select o.id, repeat('x', 1) from o;
 update "public"."patients" set "ssn" = (repeat('x', 9))::text, "email" = ('test@example.com')::text, "born_on" = ('2026-01-01'::date)::text, "diagnosis" = (repeat('x', 1))::text;
-select set_config('bs.app_reveal_ids', (select array_agg(id)::text from "public"."patients"), true);
+select set_config('bsb.app_reveal_ids', (select array_agg(id)::text from "public"."patients"), true);
 select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
 select extensions.ok((select bool_and(left("ssn", 5) = 'bsf1:' and "ssn" <> (repeat('x', 9))::text) from "public"."patients"), 'public.patients.ssn is ciphertext at rest');
-select extensions.is((select r."ssn"::text from "public"."patients_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 9))::text, 'the service role reveals public.patients.ssn');
+select extensions.is((select r."ssn"::text from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 9))::text, 'the service role reveals public.patients.ssn');
 select extensions.ok((select bool_and(left("email", 5) = 'bsf1:' and "email" <> ('test@example.com')::text) from "public"."patients"), 'public.patients.email is ciphertext at rest');
-select extensions.is((select r."email"::text from "public"."patients_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), ('test@example.com')::text, 'the service role reveals public.patients.email');
+select extensions.is((select r."email"::text from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), ('test@example.com')::text, 'the service role reveals public.patients.email');
 select extensions.ok((select bool_and(left("born_on", 5) = 'bsf1:' and "born_on" <> ('2026-01-01'::date)::text) from "public"."patients"), 'public.patients.born_on is ciphertext at rest');
-select extensions.is((select r."born_on"::text from "public"."patients_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), ('2026-01-01'::date)::text, 'the service role reveals public.patients.born_on');
+select extensions.is((select r."born_on"::text from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), ('2026-01-01'::date)::text, 'the service role reveals public.patients.born_on');
 select extensions.ok((select bool_and(left("diagnosis", 5) = 'bsf1:' and "diagnosis" <> (repeat('x', 1))::text) from "public"."patients"), 'public.patients.diagnosis is ciphertext at rest');
-select extensions.is((select r."diagnosis"::text from "public"."patients_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.patients.diagnosis');
+select extensions.is((select r."diagnosis"::text from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.patients.diagnosis');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.is((select count(*)::integer from "public"."patients"), 0, 'a signed-in user does not read a row of public.patients outside their scope');
 select extensions.throws_ok($$insert into "public"."patients" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.patients outside their scope');
-select extensions.is((select count(*)::integer from "public"."patients_reveal"(current_setting('bs.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.patients outside their scope');
+select extensions.is((select count(*)::integer from "public"."patients_reveal"(current_setting('bsb.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.patients outside their scope');
 select extensions.throws_ok($$select "ssn" from "public"."patients"$$, '42501', null, 'a signed-in user cannot read public.patients.ssn');
 select extensions.throws_ok($$select "email" from "public"."patients"$$, '42501', null, 'a signed-in user cannot read public.patients.email');
 select extensions.throws_ok($$select "born_on" from "public"."patients"$$, '42501', null, 'a signed-in user cannot read public.patients.born_on');
@@ -431,21 +431,21 @@ select extensions.ok(not has_function_privilege('anon', '"public"."notes_reveal"
 
 with u as (
   insert into auth.users (id, email, aud, role, instance_id)
-  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  values (gen_random_uuid(), 'bsb-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
   returning id
 )
 insert into "public"."notes" ("user_id", "body") select u.id, repeat('x', 1) from u;
 update "public"."notes" set "body" = (repeat('x', 1))::text;
-select set_config('bs.app_reveal_ids', (select array_agg(id)::text from "public"."notes"), true);
+select set_config('bsb.app_reveal_ids', (select array_agg(id)::text from "public"."notes"), true);
 select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
 select extensions.ok((select bool_and(left("body", 5) = 'bsf1:' and "body" <> (repeat('x', 1))::text) from "public"."notes"), 'public.notes.body is ciphertext at rest');
-select extensions.is((select r."body"::text from "public"."notes_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.notes.body');
+select extensions.is((select r."body"::text from "public"."notes_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.notes.body');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.is((select count(*)::integer from "public"."notes"), 0, 'a signed-in user does not read a row of public.notes outside their scope');
 select extensions.throws_ok($$insert into "public"."notes" ("user_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.notes outside their scope');
-select extensions.is((select count(*)::integer from "public"."notes_reveal"(current_setting('bs.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.notes outside their scope');
+select extensions.is((select count(*)::integer from "public"."notes_reveal"(current_setting('bsb.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.notes outside their scope');
 select extensions.throws_ok($$select "body" from "public"."notes"$$, '42501', null, 'a signed-in user cannot read public.notes.body');
 reset role;
 

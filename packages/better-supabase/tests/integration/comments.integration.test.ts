@@ -837,7 +837,7 @@ describe.skipIf(!live)("comments", () => {
             {},
           ),
           modules: {
-            attachments: { options: { bucket: "bs-it-comment-files" } },
+            attachments: { options: { bucket: "bsb-it-comment-files" } },
           },
         },
       );

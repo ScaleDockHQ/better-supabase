@@ -485,7 +485,7 @@ afterEach(() => {
 describe("BetterSupabaseProvider", () => {
   it("resets better-supabase queries when the user changes, not on first sign-in or loading", () => {
     const { browser, setAuth, listeners } = fakeBrowser(LOADING);
-    const { queryClient } = cachedClient(["bs", "customers"], ["other"]);
+    const { queryClient } = cachedClient(["bsb", "customers"], ["other"]);
     const remove = vi.spyOn(queryClient, "resetQueries");
 
     const view = renderHook(() => useAuth(), undefined, {
@@ -502,8 +502,8 @@ describe("BetterSupabaseProvider", () => {
     expect(remove).not.toHaveBeenCalled();
 
     setAuth(SIGNED_OUT);
-    expect(remove).toHaveBeenCalledExactlyOnceWith({ queryKey: ["bs"] });
-    expect(queryClient.getQueryData(["bs", "customers"])).toBeUndefined();
+    expect(remove).toHaveBeenCalledExactlyOnceWith({ queryKey: ["bsb"] });
+    expect(queryClient.getQueryData(["bsb", "customers"])).toBeUndefined();
     expect(queryClient.getQueryData(["other"])).toBe(1);
 
     setAuth(signedIn(OTHER));
@@ -603,7 +603,7 @@ describe("useBroadcast", () => {
     };
 
     const created = vi.fn();
-    const { queryClient, invalidated } = cachedClient(["bs", "notes"]);
+    const { queryClient, invalidated } = cachedClient(["bsb", "notes"]);
 
     const view = renderHook(
       () =>
@@ -625,7 +625,7 @@ describe("useBroadcast", () => {
     realtime.emit("room:r1", "created", { title: "Hi" });
     await flush();
     expect(created).toHaveBeenCalledOnce();
-    expect(invalidated(["bs", "notes"])).toBe(true);
+    expect(invalidated(["bsb", "notes"])).toBe(true);
     signIn(OTHER);
     expect(realtime.client.channel).toHaveBeenCalledTimes(2);
     view.unmount();
@@ -794,8 +794,8 @@ describe("useBroadcast", () => {
     const { browser, emit } = fakeBrowser(signedIn(USER));
 
     const cache = cachedClient(
-      ["bs", "notes"],
-      ["bs", "customers"],
+      ["bsb", "notes"],
+      ["bsb", "customers"],
       ["custom", "r1"],
     );
 
@@ -808,8 +808,8 @@ describe("useBroadcast", () => {
     await flush();
     emit("room:r1", "created", { title: "x" });
     await flush();
-    expect(cache.invalidated(["bs", "notes"])).toBe(true);
-    expect(cache.invalidated(["bs", "customers"])).toBe(false);
+    expect(cache.invalidated(["bsb", "notes"])).toBe(true);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(false);
     byTables.unmount();
 
     const keys = vi.fn((message: { topic: string }) => [
@@ -827,7 +827,7 @@ describe("useBroadcast", () => {
     await flush();
     expect(keys).toHaveBeenCalledOnce();
     expect(cache.invalidated(["custom", "r1"])).toBe(true);
-    expect(cache.invalidated(["bs", "customers"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(false);
     byKeys.unmount();
   });
 
@@ -872,7 +872,7 @@ describe("useLiveQuery", () => {
 
   it("watches with the claimed tenant and invalidates changed tables", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+    const cache = cachedClient(["bsb", "customers"], ["bsb", "organizations"]);
 
     const view = renderHook(
       () => useLiveQuery(spec, { debounceMs: 1 }),
@@ -884,17 +884,17 @@ describe("useLiveQuery", () => {
 
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
     expect(client.channel.mock.calls.map(([topic]) => topic)).toEqual([
-      "bs:t:public.customers:org-1",
-      "bs:t:public.notes",
+      "bsb:t:public.customers:org-1",
+      "bsb:t:public.notes",
     ]);
     expect(view.result).toBe("joining");
     await flush();
     expect(view.result).toBe("subscribed");
 
-    emit("bs:t:public.customers:org-1", "change");
+    emit("bsb:t:public.customers:org-1", "change");
     await wait(10);
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
-    expect(cache.invalidated(["bs", "organizations"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "organizations"])).toBe(false);
 
     view.unmount();
     await flush();
@@ -915,12 +915,12 @@ describe("useLiveQuery", () => {
     );
 
     expect(client.channel.mock.calls[0]![0]).toBe(
-      "bs:t:public.customers:organization-a",
+      "bsb:t:public.customers:organization-a",
     );
     view.rerender("organization-b");
     await flush();
     expect(client.channel.mock.calls.map(([topic]) => topic)).toContain(
-      "bs:t:public.customers:organization-b",
+      "bsb:t:public.customers:organization-b",
     );
     view.unmount();
   });
@@ -946,7 +946,7 @@ describe("useLiveQuery", () => {
 
   it("invalidates the spec's tables after rejoining the same query", async () => {
     const { browser } = fakeBrowser(signedIn(USER, { tenant_id: "t" }));
-    const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+    const cache = cachedClient(["bsb", "customers"], ["bsb", "organizations"]);
 
     const view = renderHook<number, SubscriptionStatus>(
       (debounceMs) => useLiveQuery(spec, { debounceMs }),
@@ -955,11 +955,11 @@ describe("useLiveQuery", () => {
     );
 
     await flush();
-    expect(cache.invalidated(["bs", "customers"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(false);
     view.rerender(2);
     await flush();
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
-    expect(cache.invalidated(["bs", "organizations"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "organizations"])).toBe(false);
     view.unmount();
   });
 
@@ -1002,7 +1002,7 @@ describe("useLiveCount", () => {
       error: undefined,
     });
 
-    emit("bs:t:public.notes", "change");
+    emit("bsb:t:public.notes", "change");
     await wait(10);
     expect(view.result.count).toBe(4);
     expect(view.result.error?.kind).toBe("network");
@@ -1022,7 +1022,7 @@ describe("useLiveCount", () => {
     await flush();
     expect(view.result.count).toBe(3);
     expect(run).not.toHaveBeenCalled();
-    emit("bs:t:public.notes", "change");
+    emit("bsb:t:public.notes", "change");
     await wait(10);
     expect(view.result.count).toBe(9);
     view.unmount();

@@ -8,7 +8,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { SHOP_CURRENCY } from "./shop-currency";
 import { shopOrders } from "./shop-server";
@@ -33,7 +33,7 @@ const Count = v.pipe(
  * Creates an active product with one variant and its base price, so the grid
  * has something to show and a draft order something to add.
  */
-export const createProduct = bs.action(
+export const createProduct = bsb.action(
   {
     input: v.object({
       title: Text(200),
@@ -78,7 +78,7 @@ export const createProduct = bs.action(
 );
 
 /** The first stock location, so counts have somewhere to go. */
-export const createMainLocation = bs.action(
+export const createMainLocation = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
@@ -101,7 +101,7 @@ export const createMainLocation = bs.action(
 );
 
 /** Adds or removes units at a location; a negative quantity removes them. */
-export const adjustStock = bs.action(
+export const adjustStock = bsb.action(
   {
     input: v.object({
       variantId: Id,
@@ -142,7 +142,7 @@ export const adjustStock = bs.action(
  * Adds a product to the caller's open cart, which the shop shows as the draft
  * order. `createCart` returns the open cart when there is one.
  */
-export const createDraftOrder = bs.action(
+export const createDraftOrder = bsb.action(
   {
     input: v.object({
       variantId: Id,
@@ -172,7 +172,7 @@ export const createDraftOrder = bs.action(
 );
 
 /** Places the draft: prices the cart, reserves its stock and creates the order. */
-export const placeOrder = bs.action(
+export const placeOrder = bsb.action(
   {
     input: v.object({ cartId: Id }),
     requireTenant: true,
@@ -195,7 +195,7 @@ export const placeOrder = bs.action(
  * Records a manual payment for the order's full total. The example has no
  * payments provider; a real shop records payments from its webhook.
  */
-export const markOrderPaid = bs.action(
+export const markOrderPaid = bsb.action(
   {
     input: v.object({ orderId: Id }),
     requireTenant: true,
@@ -243,7 +243,7 @@ export const markOrderPaid = bs.action(
 );
 
 /** Cancels an unpaid order and releases its stock. */
-export const cancelOrder = bs.action(
+export const cancelOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
     requireTenant: true,
@@ -266,7 +266,7 @@ export const cancelOrder = bs.action(
 );
 
 /** Creates a fulfillment for every unit not fulfilled yet. */
-export const fulfillOrder = bs.action(
+export const fulfillOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
     requireTenant: true,
@@ -285,7 +285,7 @@ export const fulfillOrder = bs.action(
   },
 );
 
-export const shipFulfillment = bs.action(
+export const shipFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
     requireTenant: true,
@@ -304,7 +304,7 @@ export const shipFulfillment = bs.action(
   },
 );
 
-export const deliverFulfillment = bs.action(
+export const deliverFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
     requireTenant: true,
@@ -332,7 +332,7 @@ const Code = v.pipe(
 );
 
 /** Applies a promotion code to the draft order's cart. */
-export const applyPromotionCode = bs.action(
+export const applyPromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
     requireTenant: true,
@@ -351,7 +351,7 @@ export const applyPromotionCode = bs.action(
   },
 );
 
-export const removePromotionCode = bs.action(
+export const removePromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
     requireTenant: true,
@@ -371,7 +371,7 @@ export const removePromotionCode = bs.action(
 );
 
 /** Creates a percentage promotion with one code, such as `WELCOME10` for 10%. */
-export const createPromotionCode = bs.action(
+export const createPromotionCode = bsb.action(
   {
     input: v.object({
       code: Code,

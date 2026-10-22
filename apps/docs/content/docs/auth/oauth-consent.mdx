@@ -117,7 +117,7 @@ import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
 
 const grants = createOAuthGrantsController({
   oauth: supabase.auth.oauth,
-  auth: bs.auth,
+  auth: bsb.auth,
 });
 ```
 

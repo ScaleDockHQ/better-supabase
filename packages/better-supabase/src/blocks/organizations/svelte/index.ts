@@ -51,7 +51,7 @@ export type {
  * `createOrganizationsController` as a Svelte readable store of the snapshot,
  * with the actions on `.actions`. Call it in a component's script; the work
  * starts on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useOrganizations<
   T extends { readonly id: string } = OrganizationMembership,
@@ -69,7 +69,7 @@ export function useOrganizations<
  * `createMembersController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useMembers<
   T extends { readonly userId: string; readonly role: string } =
@@ -88,7 +88,7 @@ export function useMembers<
  * `createInvitationsController` as a Svelte readable store of the snapshot,
  * with the actions on `.actions`. Call it in a component's script; the work
  * starts on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useInvitations<
   T extends { readonly id: string } = OrganizationInvitationRow,

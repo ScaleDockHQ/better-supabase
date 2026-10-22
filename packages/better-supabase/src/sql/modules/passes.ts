@@ -349,7 +349,7 @@ function functions(ctx: ModuleContext): string {
     end if;
   end if;
   if v_reason is null and v_pass.${p("booking")} is null and v_resource is not null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bs:passes:' || v_resource::text, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:passes:' || v_resource::text, 0));
     select rs.${r("capacity")} into v_capacity from ${bookings.table("resources")} rs
       where rs.${r("id")} = v_resource and rs.${r("tenant")} = v_pass.${p("tenant")};
     if v_capacity is null then

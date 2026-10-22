@@ -298,11 +298,11 @@ function closingParen(text: string, open: number): number {
 }
 
 /**
- * `acting_member()`: the member a secret-key writer names in the `x-bs-actor`
+ * `acting_member()`: the member a secret-key writer names in the `x-bsb-actor`
  * request header, for a service caller only. Any other caller gets null, so a
  * user cannot write the header to be recorded as someone else.
  */
-export const ACTING_MEMBER: string = `-- The user a service caller acts for, from the x-bs-actor header. Null for
+export const ACTING_MEMBER: string = `-- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
 -- Only service_role may call it; the security definer functions and triggers
 -- that record an actor call it as their owner.
@@ -318,7 +318,7 @@ begin
   if not (${SERVICE_CALLER}) then
     return null;
   end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
   return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
 exception when others then
   return null;

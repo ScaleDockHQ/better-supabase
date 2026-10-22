@@ -27,9 +27,9 @@ const signer = await createTestSigner();
 describe("createOrpc", () => {
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createOrpc(betterSupabase, { env, auth: { jwks: signer.jwks } });
+  const bsb = createOrpc(betterSupabase, { env, auth: { jwks: signer.jwks } });
 
-  const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
+  const authed = os.$context<OrpcRequestContext>().use(bsb.middleware());
 
   const me = authed.handler(({ context }) => ({
     id: context.auth.kind === "user" ? context.auth.user.id : null,
@@ -40,8 +40,8 @@ describe("createOrpc", () => {
     .input(v.object({ id: v.string(), name: v.string() }))
     .handler(({ input }) =>
       input.id === "taken"
-        ? bs.unwrap(err(dbError("conflict", "Taken")))
-        : bs.unwrap<{ id: string }>(ok({ id: input.id })),
+        ? bsb.unwrap(err(dbError("conflict", "Taken")))
+        : bsb.unwrap<{ id: string }>(ok({ id: input.id })),
     );
 
   const thrown = authed.handler(() => {
@@ -89,7 +89,7 @@ describe("createOrpc", () => {
     });
   });
 
-  it("serves a router and sets bs-primary-until after a write", async () => {
+  it("serves a router and sets bsb-primary-until after a write", async () => {
     const pinned = createOrpc(betterSupabase, {
       env,
       auth: { jwks: signer.jwks },
@@ -100,7 +100,7 @@ describe("createOrpc", () => {
 
     const router = {
       write: base.handler(({ context }) => {
-        context.bs.replica?.pin();
+        context.bsb.replica?.pin();
 
         return { ok: true };
       }),
@@ -127,7 +127,7 @@ describe("createOrpc", () => {
 
     const wrote = await post("write");
     expect(wrote.status).toBe(200);
-    expect(wrote.headers.get("set-cookie")).toMatch(/^bs-primary-until=\d+/);
+    expect(wrote.headers.get("set-cookie")).toMatch(/^bsb-primary-until=\d+/);
     const read = await post("read");
     expect(read.status).toBe(200);
     expect(read.headers.get("set-cookie")).toBeNull();

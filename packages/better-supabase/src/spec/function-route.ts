@@ -34,7 +34,7 @@ function descriptorOf(fn: unknown): FunctionDescriptor | undefined {
  * `basePath` goes in front of it like any other route.
  *
  * ```ts
- * defineApi(bs, { routes: [functionRoute("send-invite", sendInvite)] });
+ * defineApi(bsb, { routes: [functionRoute("send-invite", sendInvite)] });
  * ```
  */
 export function functionRoute(

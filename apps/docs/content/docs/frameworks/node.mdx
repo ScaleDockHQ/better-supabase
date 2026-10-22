@@ -23,11 +23,11 @@ import {
 } from "better-supabase/server";
 import { betterSupabase } from "./lib/supabase";
 
-const bs = createBetterServer(betterSupabase);
+const bsb = createBetterServer(betterSupabase);
 
 createServer(
   toNodeHandler(
-    [withBetterSupabase(bs, { allow: ["user"] })],
+    [withBetterSupabase(bsb, { allow: ["user"] })],
     (request, { db }) =>
       db.notes.findMany({ select: ["id", "title"] }).orThrow(),
   ),
@@ -47,12 +47,12 @@ Details:
 import express from "express";
 import { guard, problemErrorHandler, toExpress } from "better-supabase/node";
 import { withBetterSupabase } from "better-supabase/server";
-import { bs } from "./lib/server";
+import { bsb } from "./lib/server";
 
 const app = express();
 app.use(
   toExpress([
-    withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+    withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
   ]),
 );
 
@@ -120,13 +120,13 @@ puts these together, with a smoke test against the local stack.
 import Fastify from "fastify";
 import { fastifyGuard, toFastify } from "better-supabase/node";
 import { withBetterSupabase } from "better-supabase/server";
-import { bs } from "./lib/server";
+import { bsb } from "./lib/server";
 
 const app = Fastify();
 app.decorateRequest("locals", null);
 app.addHook(
   "onRequest",
-  toFastify([withBetterSupabase(bs, { allow: ["user"] })]),
+  toFastify([withBetterSupabase(bsb, { allow: ["user"] })]),
 );
 
 app.get("/notes", (request) => request.locals.db.notes.findMany().orThrow());
@@ -147,10 +147,10 @@ refuses callers on the routes it guards:
 import Koa from "koa";
 import { koaGuard, toKoa } from "better-supabase/node";
 import { withBetterSupabase } from "better-supabase/server";
-import { bs } from "./lib/server";
+import { bsb } from "./lib/server";
 
 const app = new Koa();
-app.use(toKoa([withBetterSupabase(bs, { allow: ["user"] })]));
+app.use(toKoa([withBetterSupabase(bsb, { allow: ["user"] })]));
 app.use(koaGuard({ roles: ["admin"] }));
 app.use(async (ctx) => {
   ctx.body = await ctx.state.db.members.findMany().orThrow();

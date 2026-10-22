@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bs-module realtime-tables@1 managed
--- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
+-- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -16,7 +16,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name
+  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name
     || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;
   payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);
   source text;
@@ -173,7 +173,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
--- user_column broadcasts per user (bs:t:<table>:u:<user id>) instead.
+-- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
 drop function if exists better_supabase.track_realtime(regclass, text);
 create or replace function better_supabase.track_realtime(
   target regclass,
@@ -241,13 +241,13 @@ revoke execute on function better_supabase.track_realtime(regclass, text, text) 
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, topics of their active tenant and
--- their own user topics (bs:t:<table>:u:<user id>).
+-- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
-    and (select realtime.topic()) like 'bs:t:%'
+    and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
@@ -289,7 +289,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bs-module realtime-tables@1 managed
--- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
+-- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -304,7 +304,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name
+  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name
     || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;
   payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);
   source text;
@@ -461,7 +461,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
--- user_column broadcasts per user (bs:t:<table>:u:<user id>) instead.
+-- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
 drop function if exists better_supabase.track_realtime(regclass, text);
 create or replace function better_supabase.track_realtime(
   target regclass,
@@ -529,13 +529,13 @@ revoke execute on function better_supabase.track_realtime(regclass, text, text) 
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, topics of their active tenant and
--- their own user topics (bs:t:<table>:u:<user id>).
+-- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
-    and (select realtime.topic()) like 'bs:t:%'
+    and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
@@ -577,7 +577,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bs-module realtime-tables@1 managed
--- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
+-- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -592,7 +592,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name
+  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name
     || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;
   payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);
   source text;
@@ -749,7 +749,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
--- user_column broadcasts per user (bs:t:<table>:u:<user id>) instead.
+-- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
 drop function if exists better_supabase.track_realtime(regclass, text);
 create or replace function better_supabase.track_realtime(
   target regclass,
@@ -817,13 +817,13 @@ revoke execute on function better_supabase.track_realtime(regclass, text, text) 
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, topics of their active tenant and
--- their own user topics (bs:t:<table>:u:<user id>).
+-- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
-    and (select realtime.topic()) like 'bs:t:%'
+    and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
@@ -865,7 +865,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_10_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bs-module realtime-tables@1 managed
--- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
+-- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -880,7 +880,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name
+  base text := 'bsb:t:' || tg_table_schema || '.' || tg_table_name
     || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;
   payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);
   source text;
@@ -1037,7 +1037,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
--- user_column broadcasts per user (bs:t:<table>:u:<user id>) instead.
+-- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
 drop function if exists better_supabase.track_realtime(regclass, text);
 create or replace function better_supabase.track_realtime(
   target regclass,
@@ -1105,13 +1105,13 @@ revoke execute on function better_supabase.track_realtime(regclass, text, text) 
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, topics of their active tenant and
--- their own user topics (bs:t:<table>:u:<user id>).
+-- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
-    and (select realtime.topic()) like 'bs:t:%'
+    and (select realtime.topic()) like 'bsb:t:%'
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''

@@ -4,7 +4,7 @@ import type { CookieWrite } from "../auth/session.ts";
 import type { Executor } from "../core/executor.ts";
 
 /** Cookie holding the epoch ms until which reads stay on the primary. */
-export const PRIMARY_COOKIE = "bs-primary-until";
+export const PRIMARY_COOKIE = "bsb-primary-until";
 
 /** Default time reads stay on the primary after a write. */
 export const DEFAULT_PIN_MS = 5000;
@@ -42,7 +42,7 @@ export function replicaState(
   };
 }
 
-/** `bs-primary-until` from a `cookie` header or parsed cookies, or 0. */
+/** `bsb-primary-until` from a `cookie` header or parsed cookies, or 0. */
 export function pinnedUntil(
   cookies: string | null | readonly { name: string; value: string }[],
 ): number {
@@ -59,7 +59,7 @@ export function pinnedUntil(
   return value !== undefined && Number.isFinite(until) ? until : 0;
 }
 
-/** Options of the `bs-primary-until` cookie. */
+/** Options of the `bsb-primary-until` cookie. */
 function primaryCookieOptions(pinMs: number): {
   readonly path: "/";
   readonly maxAge: number;
@@ -74,7 +74,7 @@ function primaryCookieOptions(pinMs: number): {
   };
 }
 
-/** The `bs-primary-until` cookie write after a write, for cookie-jar APIs. */
+/** The `bsb-primary-until` cookie write after a write, for cookie-jar APIs. */
 export function primaryCookieWrite(
   replica: ReplicaState | undefined,
   pinMs: number,
@@ -101,7 +101,7 @@ export function primaryCookie(pinMs: number, now: number = Date.now()): string {
 }
 
 /**
- * `response` with the `bs-primary-until` cookie when the request wrote, so the
+ * `response` with the `bsb-primary-until` cookie when the request wrote, so the
  * caller's next requests read their own writes. A response with immutable
  * headers is copied.
  */

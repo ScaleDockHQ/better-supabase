@@ -8,7 +8,7 @@ import type {
 
 import { tenantOf } from "better-supabase/next";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { Loaded } from "./shop-queries";
 
@@ -92,7 +92,7 @@ async function loadKitchen(
   station: string | null,
 ): Promise<KitchenView | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -125,7 +125,7 @@ export function getKitchen(
 
 async function loadBoard(): Promise<BoardView | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

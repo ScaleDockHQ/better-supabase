@@ -83,8 +83,8 @@ describe("toNodeHandler", () => {
     const url = await listen(
       toNodeHandler(
         [...entries, withServerTiming()],
-        async (request, { bs }) => ({
-          kind: bs.auth.kind,
+        async (request, { bsb }) => ({
+          kind: bsb.auth.kind,
           body: request.method === "POST" ? await request.text() : null,
         }),
       ),
@@ -141,8 +141,8 @@ describe("toExpress", () => {
 
   it("puts the contributions on res.locals", async () => {
     const url = await app((_req, res) => {
-      const bs = res.locals["bs"] as { auth: { kind: string } };
-      res.end(bs.auth.kind);
+      const bsb = res.locals["bsb"] as { auth: { kind: string } };
+      res.end(bsb.auth.kind);
     });
 
     expect(await (await fetch(url, { headers: await bearer() })).text()).toBe(
@@ -244,8 +244,8 @@ describe("toFastify", () => {
       void (async () => {
         await hook(request, reply);
         await admins(request, reply);
-        const bs = request.locals?.["bs"] as { auth: { kind: string } };
-        seen.kind = bs.auth.kind;
+        const bsb = request.locals?.["bsb"] as { auth: { kind: string } };
+        seen.kind = bsb.auth.kind;
         seen.status = reply.state.status;
         res.statusCode = reply.state.status;
         res.end(reply.state.sent ? "refused" : "admin");
@@ -314,9 +314,9 @@ describe("toKoa", () => {
             throw new DbException(dbError("conflict", "Taken"));
           }
 
-          const bs = ctx.state["bs"] as { auth: { kind: string } };
+          const bsb = ctx.state["bsb"] as { auth: { kind: string } };
           ctx.status = 200;
-          ctx.body = bs.auth.kind;
+          ctx.body = bsb.auth.kind;
 
           return Promise.resolve();
         }),

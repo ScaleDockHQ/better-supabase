@@ -80,7 +80,7 @@ function run<T>(app: App, setup: () => T): { result: T; stop: () => void } {
 describe("betterSupabase plugin", () => {
   it("shares the auth state and resets queries when the user changes", async () => {
     const { browser, setAuth } = fakeBrowser(signedIn(USER));
-    const { queryClient } = cachedClient(["bs", "customers"]);
+    const { queryClient } = cachedClient(["bsb", "customers"]);
     const reset = vi.spyOn(queryClient, "resetQueries");
     const app = withApp(browser, queryClient);
 
@@ -99,7 +99,7 @@ describe("betterSupabase plugin", () => {
   it("explains a missing plugin", () => {
     const app = withApp(null);
     expect(() => run(app, () => useAuth())).toThrow(
-      /app.use\(betterSupabase\(bs\)\)/,
+      /app.use\(betterSupabase\(bsb\)\)/,
     );
   });
 
@@ -188,7 +188,7 @@ describe("useBroadcast", () => {
 
   it("subscribes, forwards messages, pauses on null and resubscribes on a new user", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"]);
+    const cache = cachedClient(["bsb", "customers"]);
     const app = withApp(browser, cache.queryClient);
     const roomId = ref<string | null>("r1");
     const created = vi.fn();
@@ -211,7 +211,7 @@ describe("useBroadcast", () => {
     emit("room:r1", "created", {});
     await flush();
     expect(created).toHaveBeenCalledOnce();
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
 
     setAuth(signedIn(OTHER));
     await nextTick();
@@ -256,19 +256,19 @@ describe("useBroadcast", () => {
 
   it("invalidates the keys a function returns", async () => {
     const { browser, emit } = fakeBrowser(signedIn(USER));
-    const cache = cachedClient(["bs", "x", 1]);
+    const cache = cachedClient(["bsb", "x", 1]);
     const app = withApp(browser, cache.queryClient);
     const plain = defineTopic("plain:{id}");
 
     const { stop } = run(app, () =>
       useBroadcast(plain, { id: "p" }, undefined, {
-        invalidate: () => [["bs", "x"]],
+        invalidate: () => [["bsb", "x"]],
       }),
     );
 
     emit("plain:p", "anything");
     await flush();
-    expect(cache.invalidated(["bs", "x", 1])).toBe(true);
+    expect(cache.invalidated(["bsb", "x", 1])).toBe(true);
     stop();
   });
 
@@ -319,7 +319,7 @@ describe("useLiveQuery", () => {
 
   it("watches with the claimed tenant, invalidates and rejoins", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+    const cache = cachedClient(["bsb", "customers"], ["bsb", "organizations"]);
     const app = withApp(browser, cache.queryClient);
     const current = ref<typeof spec | null>(spec);
 
@@ -330,15 +330,15 @@ describe("useLiveQuery", () => {
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
     await nextTick();
     expect(client.channel.mock.calls.map(([topic]) => topic)).toEqual([
-      "bs:t:public.customers:org-1",
-      "bs:t:public.notes",
+      "bsb:t:public.customers:org-1",
+      "bsb:t:public.notes",
     ]);
     await flush();
     expect(result.value).toBe("subscribed");
-    emit("bs:t:public.customers:org-1", "change");
+    emit("bsb:t:public.customers:org-1", "change");
     await wait(10);
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
-    expect(cache.invalidated(["bs", "organizations"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "organizations"])).toBe(false);
 
     current.value = null;
     await wait(5);
@@ -367,7 +367,7 @@ describe("useLiveCount", () => {
     await flush();
     expect(counted.result.count).toBe(4);
     expect(counted.result.status).toBe("subscribed");
-    emit("bs:t:public.notes", "change");
+    emit("bsb:t:public.notes", "change");
     await wait(10);
     expect(counted.result.count).toBe(4);
     expect(counted.result.error?.kind).toBe("network");

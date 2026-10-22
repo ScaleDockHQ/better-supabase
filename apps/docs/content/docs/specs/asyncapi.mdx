@@ -121,13 +121,13 @@ the default, for all of them, or a list of app keys. A key that isn't in
 tables out.
 
 Each table gets the channel `table<Key>` with the address
-`bs:t:<schema>.<table>`:
+`bsb:t:<schema>.<table>`:
 
-| Table setting in `realtime` | Address                          | Parameter                               |
-| --------------------------- | -------------------------------- | --------------------------------------- |
-| none                        | `bs:t:public.tags`               | none                                    |
-| `tenant`                    | `bs:t:public.customers:{tenant}` | `tenant`, the row's tenant column value |
-| `user`                      | `bs:t:public.notes:u:{userId}`   | `userId`, the signed-in user's id       |
+| Table setting in `realtime` | Address                           | Parameter                               |
+| --------------------------- | --------------------------------- | --------------------------------------- |
+| none                        | `bsb:t:public.tags`               | none                                    |
+| `tenant`                    | `bsb:t:public.customers:{tenant}` | `tenant`, the row's tenant column value |
+| `user`                      | `bsb:t:public.notes:u:{userId}`   | `userId`, the signed-in user's id       |
 
 The channel has one `change` message whose payload is `schema`, `table` and
 `operation` (`INSERT`, `UPDATE` or `DELETE`). It carries no row: clients

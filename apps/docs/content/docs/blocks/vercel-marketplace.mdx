@@ -85,16 +85,16 @@ Errors answer as Problem Details. Internal messages stay hidden unless you pass 
 
 ## Hono
 
-On [Hono](/docs/frameworks/hono), pass the raw request to the handler. Register the route before `bs.middleware()` on the same prefix: Vercel sends its OIDC token as the bearer, which `partnerApi` verifies and Supabase Auth would refuse.
+On [Hono](/docs/frameworks/hono), pass the raw request to the handler. Register the route before `bsb.middleware()` on the same prefix: Vercel sends its OIDC token as the bearer, which `partnerApi` verifies and Supabase Auth would refuse.
 
 ```ts title="src/server.ts"
-const app = bs
+const app = bsb
   .app()
   .all("/api/vercel/*", (c) => partnerApi(c.req.raw))
-  .use("/api/*", bs.middleware());
+  .use("/api/*", bsb.middleware());
 ```
 
-`bs.app()` installs `bs.onError`, so a `.orThrow()` that fails inside one of your hooks answers as Problem Details too. The [Hono example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/hono-api) provisions an organization per resource, hands out a tenant API key from the [API keys block](/docs/blocks/api-keys) as the secret, and revokes the previous key after a rotation.
+`bsb.app()` installs `bsb.onError`, so a `.orThrow()` that fails inside one of your hooks answers as Problem Details too. The [Hono example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/hono-api) provisions an organization per resource, hands out a tenant API key from the [API keys block](/docs/blocks/api-keys) as the secret, and revokes the previous key after a rotation.
 
 ## One tenant shared by Hono and Next
 

@@ -27,8 +27,8 @@ import { createNotificationsController } from "better-supabase/blocks/notificati
 import { topicPort } from "better-supabase/realtime";
 
 const unread = createNotificationsController({
-  auth: bs.auth,
-  ports: { topic: topicPort(bs.supabase) },
+  auth: bsb.auth,
+  ports: { topic: topicPort(bsb.supabase) },
   topic: `notifications:${userId}`,
   load: () => listNotifications(),
 });
@@ -112,11 +112,11 @@ import { blockEvents } from "@/lib/supabase/blocks.generated";
 
 export function TaskList({ tasks, workspaceId }: Props) {
   const list = useBlockQuery(tasks, "list", [workspaceId, { open: true }], {
-    refetchOn: { source: bs, types: ["task.created", "task.updated"] },
+    refetchOn: { source: bsb, types: ["task.created", "task.updated"] },
   });
   const rename = useBlockMutation(tasks, "update");
 
-  useBlockEvent(bs, blockEvents, "task.*", (event) => {
+  useBlockEvent(bsb, blockEvents, "task.*", (event) => {
     console.log(event.type, event.data.taskId);
   });
 
@@ -133,7 +133,7 @@ event's data from `blockEvents` in `blocks.generated.ts`.
 ## Ports
 
 A controller reaches the platform only through ports, small interfaces the
-client carries in `bs.ports`. `createClient` from `better-supabase/client`
+client carries in `bsb.ports`. `createClient` from `better-supabase/client`
 fills the web ones; a React Native app passes `nativePorts()` from
 `better-supabase/client/native` to `createNativeClient`.
 
@@ -147,8 +147,8 @@ fills the web ones; a React Native app passes `nativePorts()` from
 | `push`     | `PushTokenPort`  | `webPushToken({ vapidPublicKey })` | `expoPushToken(Notifications)`     | Apps, for now             |
 | `links`    | `DeepLinkPort`   | `webDeepLinks()`                   | `nativeDeepLinks(Linking)`         | Apps, for now             |
 
-The topic port defaults to `topicPort(bs.supabase)` from
-`better-supabase/realtime` when `bs.ports` has none. A port the platform lacks stays unset, and the controller works
+The topic port defaults to `topicPort(bsb.supabase)` from
+`better-supabase/realtime` when `bsb.ports` has none. A port the platform lacks stays unset, and the controller works
 without it: `useCommandSearch` on a phone has no Cmd+K.
 
 ```ts title="src/lib/supabase/client.native.ts"
@@ -157,7 +157,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 
-export const bs = createNativeClient(betterSupabase, supabase, {
+export const bsb = createNativeClient(betterSupabase, supabase, {
   ports: nativePorts({
     supabase,
     storage: AsyncStorage,
@@ -174,7 +174,7 @@ ports over the defaults, for example a push port with your VAPID key:
 ```ts title="lib/supabase/client.ts"
 import { createClient, webPushToken } from "better-supabase/client";
 
-export const bs = createClient(betterSupabase, {
+export const bsb = createClient(betterSupabase, {
   env,
   ports: { push: webPushToken({ vapidPublicKey: env.vapidPublicKey }) },
 });

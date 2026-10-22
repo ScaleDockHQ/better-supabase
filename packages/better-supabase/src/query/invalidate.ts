@@ -30,7 +30,7 @@ function queryTables(query: Query): readonly string[] | undefined {
 
   const [prefix, table] = query.queryKey;
 
-  return prefix === "bs" && typeof table === "string" ? [table] : undefined;
+  return prefix === "bsb" && typeof table === "string" ? [table] : undefined;
 }
 
 /**
@@ -128,7 +128,7 @@ function indexOf(cache: QueryCache): TableIndex {
 
 /**
  * Invalidates every query that read one of `tables`: better-supabase queries by
- * their `meta.bsTables`, and other `['bs', table, ...]` keys by prefix. An
+ * their `meta.bsTables`, and other `['bsb', table, ...]` keys by prefix. An
  * index from table to queries finds them, so a write to a table nothing read
  * skips the cache scan.
  */

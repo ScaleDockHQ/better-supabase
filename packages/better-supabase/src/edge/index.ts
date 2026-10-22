@@ -188,7 +188,7 @@ export interface BetterEdge<
    *
    * ```ts
    * Deno.serve(
-   *   bs.routes(
+   *   bsb.routes(
    *     {
    *       "GET /customers": (req, ctx) => ctx.db.customers.findMany(),
    *       "GET /customers/:id": (req, ctx) =>
@@ -212,7 +212,7 @@ export interface BetterEdge<
     options?: ResourcesOptions,
   ): EdgeHandler;
   /**
-   * REST resources matching the API model, e.g. `Deno.serve(bs.resources({
+   * REST resources matching the API model, e.g. `Deno.serve(bsb.resources({
    * customers: true }))`: collection, item and action paths. An unknown path
    * answers 404 before auth resolves.
    */
@@ -264,7 +264,7 @@ export function createEdge<
         const instance = new URL(request.url).pathname;
 
         try {
-          return await respond(() => run(request, ctx.bs, ctx.tenant), {
+          return await respond(() => run(request, ctx.bsb, ctx.tenant), {
             instance,
             expose,
           });

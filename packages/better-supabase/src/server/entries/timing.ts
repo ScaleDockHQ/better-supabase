@@ -5,7 +5,7 @@ import { defineMiddleware } from "@supabase/middleware";
 import type { DbStats } from "../../core/stats.ts";
 
 /** The header `withDbStats` sets: `calls;waves;ms`, what `expectDbBudget` reads. */
-export const DB_CALLS_HEADER = "x-bs-db-calls";
+export const DB_CALLS_HEADER = "x-bsb-db-calls";
 
 /** `calls;waves;ms`, the value of the stats header. */
 export function formatDbStats(stats: DbStats): string {
@@ -72,7 +72,7 @@ function metric(name: string, dur: number, description?: string): string {
 
 /**
  * Entry contributing `ctx.timing`, and adding `Server-Timing` to the response:
- * `bs;dur=<ms>` for everything after it, plus the metrics handlers add with
+ * `bsb;dur=<ms>` for everything after it, plus the metrics handlers add with
  * `ctx.timing.add()` or `measure()`. Put it first, so it times the whole
  * request. Browsers show it in the network panel.
  */
@@ -108,7 +108,7 @@ export function withServerTiming(
         };
 
         const response = yield { timing };
-        const total = metric("bs", now() - started);
+        const total = metric("bsb", now() - started);
 
         return withHeaders(response, (headers) => {
           headers.append("server-timing", [total, ...metrics].join(", "));
@@ -119,15 +119,15 @@ export function withServerTiming(
 
 /**
  * Entry adding the request's database totals to the response, after the handler
- * ran: `x-bs-db-calls: calls;waves;ms`, which `expectDbBudget(response)` reads,
- * and a `bs-db` `Server-Timing` metric. Put it after `withBetterSupabase`,
- * which contributes `ctx.bs`.
+ * ran: `x-bsb-db-calls: calls;waves;ms`, which `expectDbBudget(response)`
+ * reads, and a `bsb-db` `Server-Timing` metric. Put it after
+ * `withBetterSupabase`, which contributes `ctx.bsb`.
  */
 export function withDbStats(
   options: { readonly header?: string } = {},
 ): SingleKeyEntry<
   "dbStats",
-  { readonly bs: { stats(): DbStats } },
+  { readonly bsb: { stats(): DbStats } },
   () => DbStats
 > {
   const header = options.header ?? DB_CALLS_HEADER;
@@ -135,14 +135,14 @@ export function withDbStats(
   return defineMiddleware<
     "dbStats",
     undefined,
-    { readonly bs: { stats(): DbStats } },
+    { readonly bsb: { stats(): DbStats } },
     () => DbStats
   >({
     key: "dbStats",
     run: () =>
       // oxlint-disable-next-line typescript/require-await -- an async generator is the response-seam shape `defineMiddleware` takes.
       async function* run(_request, ctx) {
-        const dbStats = (): DbStats => ctx.bs.stats();
+        const dbStats = (): DbStats => ctx.bsb.stats();
         const response = yield { dbStats };
         const stats = dbStats();
 
@@ -151,7 +151,7 @@ export function withDbStats(
           headers.append(
             "server-timing",
             metric(
-              "bs-db",
+              "bsb-db",
               stats.ms,
               `${stats.calls} calls, ${stats.waves} waves`,
             ),

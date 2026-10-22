@@ -89,9 +89,9 @@ import { createBlockClient } from "better-supabase/blocks";
 import { commentsBlock } from "better-supabase/blocks/comments";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
-const ctx = await bs.context();
+const ctx = await bsb.context();
 const comments = createBlockClient(ctx.db, commentsBlock, {
   config: blockConfig,
 });

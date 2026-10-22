@@ -26,7 +26,7 @@ export type {
  * `createPlanPickerController` as a Vue composable: `state` is a shallow ref of
  * the snapshot. Call it in `setup` or an effect scope; the work starts on mount
  * and the controller is disposed with the scope. `auth` and `ports` default to
- * the client of `app.use(betterSupabase(bs))`.
+ * the client of `app.use(betterSupabase(bsb))`.
  */
 export function usePlanPicker<P extends { readonly key: string } = PlanOption>(
   options: BlockOptions<PlanPickerControllerOptions<P>>,

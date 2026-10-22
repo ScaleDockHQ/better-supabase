@@ -16,7 +16,7 @@ function contextClient(): ClientLike {
 
   if (!bound) {
     throw new Error(
-      "better-supabase: call setBetterSupabase(bs) in a parent component",
+      "better-supabase: call setBetterSupabase(bsb) in a parent component",
     );
   }
 

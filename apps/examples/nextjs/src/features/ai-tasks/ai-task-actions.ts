@@ -5,12 +5,12 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { aiTasks } from "./ai-tasks-server";
 
 /** Schedules a weekday summary for the caller, so the queue has a row to show. */
-export const scheduleSampleTask = bs.action(
+export const scheduleSampleTask = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
@@ -35,7 +35,7 @@ export const scheduleSampleTask = bs.action(
 );
 
 /** Turns a task off or back on; a resumed task runs at its next occurrence. */
-export const setAiTaskEnabled = bs.action(
+export const setAiTaskEnabled = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
     requireTenant: true,

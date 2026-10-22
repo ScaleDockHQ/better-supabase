@@ -47,7 +47,7 @@ export type {
  * `createAiChatsController` as a Solid primitive: `state()` reads the snapshot.
  * Call it in a component; the work starts on mount and the controller is
  * disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useAiChats(
   options: BlockOptions<AiChatsControllerOptions>,
@@ -63,7 +63,7 @@ export function useAiChats(
  * `createAiChatTreeController` as a Solid primitive: `state()` reads the
  * snapshot. Call it in a component; the work starts on mount and the controller
  * is disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useAiChatTree(
   options: BlockOptions<AiChatTreeControllerOptions>,
@@ -79,7 +79,7 @@ export function useAiChatTree(
  * `createAiModelsController` as a Solid primitive: `state()` reads the
  * snapshot. Call it in a component; the work starts on mount and the controller
  * is disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useAiModels(
   options: BlockOptions<AiModelsControllerOptions>,
@@ -95,7 +95,7 @@ export function useAiModels(
  * `createAiShareController` as a Solid primitive: `state()` reads the snapshot.
  * Call it in a component; the work starts on mount and the controller is
  * disposed with the owner. `auth` and `ports` default to the client of
- * `<BetterSupabaseProvider client={bs}>`.
+ * `<BetterSupabaseProvider client={bsb}>`.
  */
 export function useAiShare(
   options: BlockOptions<AiShareControllerOptions>,

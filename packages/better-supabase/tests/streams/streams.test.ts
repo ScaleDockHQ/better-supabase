@@ -154,7 +154,7 @@ describe("redisStreamStore", () => {
     expect(await store.open("r", { ttl: "2 hours" }).orThrow()).toBe(true);
     await store.append("r", 0, ["a"]).orThrow();
     await store.append("r", 0, ["a"]).orThrow();
-    expect(published).toEqual(["bs:stream:r append"]);
+    expect(published).toEqual(["bsb:stream:r append"]);
     const bad = await store.open("x", { ttl: "soon" });
     expect(bad.ok ? undefined : bad.error.kind).toBe("invalid_input");
     const badDefault = redisStreamStore({ client, ttl: 0 });
@@ -168,8 +168,8 @@ describe("redisStreamStore", () => {
     await store.open("c").orThrow();
     expect(await store.cancel("c").orThrow()).toBe(true);
     expect(published).toEqual([
-      "bs:stream:c cancel",
-      "bs:stream:c:cancel cancel",
+      "bsb:stream:c cancel",
+      "bsb:stream:c:cancel cancel",
     ]);
   });
 

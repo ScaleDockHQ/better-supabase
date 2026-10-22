@@ -4,13 +4,13 @@ import {
   durable,
   durableContext,
 } from "../../../../../../features/assistant/durable/durable-server";
-import { bs } from "../../../../../../lib/supabase/server";
+import { bsb } from "../../../../../../lib/supabase/server";
 
 /**
  * `POST /api/chat/durable/[id]/stop`: stops the running turn through its stop
  * hook.
  */
-export const POST = bs.route<{ id: string }, true>(
+export const POST = bsb.route<{ id: string }, true>(
   (_request, { session, tenant, supabase, params }) =>
     session.kind === "user"
       ? durable().stop(

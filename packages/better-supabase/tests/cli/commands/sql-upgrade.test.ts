@@ -30,7 +30,7 @@ vi.mock(import("../../../src/sql/index.ts"), async (original) => ({
 describe("sql upgrade with forward steps", () => {
   let root: string;
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bs-sql-upgrade-"));
+    root = await mkdtemp(join(tmpdir(), "bsb-sql-upgrade-"));
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-03T08:09:10Z"));
   });

@@ -1,3 +1,3 @@
-import { bs } from "../../../lib/supabase/server";
+import { bsb } from "../../../lib/supabase/server";
 
-export const GET = bs.debugRoute();
+export const GET = bsb.debugRoute();

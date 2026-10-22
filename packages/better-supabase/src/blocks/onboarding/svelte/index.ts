@@ -27,7 +27,7 @@ export type {
  * `createOnboardingController` as a Svelte readable store of the snapshot, with
  * the actions on `.actions`. Call it in a component's script; the work starts
  * on mount and the controller is disposed with the component. `auth` and
- * `ports` default to the client of `setBetterSupabase(bs)`.
+ * `ports` default to the client of `setBetterSupabase(bsb)`.
  */
 export function useOnboarding<Id extends string, Scope extends ChecklistScope>(
   options: BlockOptions<OnboardingControllerOptions<Id, Scope>>,

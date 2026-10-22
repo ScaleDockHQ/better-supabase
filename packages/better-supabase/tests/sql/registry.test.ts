@@ -70,7 +70,7 @@ describe("moduleTopics", () => {
     expect(
       moduleTopics(["notifications", "announcements", "realtime-tables"]),
     ).toEqual([
-      { module: "realtime-tables", topic: "bs:t:*" },
+      { module: "realtime-tables", topic: "bsb:t:*" },
       { module: "notifications", topic: "notifications:{userId}" },
       { module: "announcements", topic: "announcements" },
     ]);

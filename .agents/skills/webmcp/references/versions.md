@@ -1,6 +1,6 @@
 # Versions and upgrades
 
-Read this when choosing a target version, reading page code written against an earlier WebMCP draft, or upgrading it. Sources: the spec source `index.bs` at the pinned commit `d61d0e6` and at commit `a816d2e` (the last commit before pull request #184), pull request #184, and the commit history of `index.bs`, listed in [Sources](../SKILL.md#sources).
+Read this when choosing a target version, reading page code written against an earlier WebMCP draft, or upgrading it. Sources: the spec source `index.bsb` at the pinned commit `d61d0e6` and at commit `a816d2e` (the last commit before pull request #184), pull request #184, and the commit history of `index.bsb`, listed in [Sources](../SKILL.md#sources).
 
 WebMCP has no numbered releases. The W3C Web Machine Learning Community Group publishes the editor's draft from the main branch as a Draft Community Group Report, so a line here is a range of commits with the same entry point. Section names (§ ModelContext Interface) refer to the draft of the line being discussed.
 
@@ -23,7 +23,7 @@ Statuses: **current** is the default target; **supported** is released and still
 
 ### WebMCP Draft Community Group Report
 
-Changes since the navigator era, from the `index.bs` commit history and the draft at `d61d0e6`:
+Changes since the navigator era, from the `index.bsb` commit history and the draft at `d61d0e6`:
 
 - The `modelContext` getter moved from `Navigator` to `Document`, with `[SecureContext, SameObject]`; each `Document` has its own `ModelContext` (§ Extensions to Document; pull request #184, 2026-05-27).
 - `registerTool()` returns a promise (#200), which rejects when the `signal` is already aborted (#202) (§ ModelContext Interface).
@@ -33,11 +33,11 @@ Changes since the navigator era, from the `index.bs` commit history and the draf
 - `toolactivated` and `toolcancel` events, with `ToolActivatedEvent` and `ToolCancelEvent`, sit next to `toolchange` (§ ModelContext Interface).
 - Permissions Policy is documented as a security mitigation (#275). A gate on `document.domain` being disabled was added to `registerTool()` (#197) and the origin-keyed agent cluster requirement was removed again at the pinned commit (#330), so the pinned draft has no such gate.
 
-A later commit on the main branch, `6891d0e` (2026-10-02, #327), only adds `continuations-explainer.md`; it does not change `index.bs`, so the pin stands.
+A later commit on the main branch, `6891d0e` (2026-10-02, #327), only adds `continuations-explainer.md`; it does not change `index.bsb`, so the pin stands.
 
 ### WebMCP navigator.modelContext drafts
 
-What the navigator era looked like, from `index.bs` at `a816d2e` and earlier commits:
+What the navigator era looked like, from `index.bsb` at `a816d2e` and earlier commits:
 
 - `partial interface Navigator { [SecureContext] readonly attribute ModelContext modelContext; }`. The `Navigator`'s `ModelContext` was replaced the first time the getter was read after navigating away from the initial `about:blank`, so tools of the two documents did not mix (§ Extensions to the Navigator Interface, at `a816d2e`).
 - `registerTool(tool, options)` returned `undefined`; `options` had `signal` and `exposedTo` (§ ModelContext Interface, at `a816d2e`).

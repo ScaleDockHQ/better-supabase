@@ -235,11 +235,11 @@ function currentTenant(ctx: ModuleContext): string {
     requested = member(claim);
   } else if (source === "resolver") {
     comment = `-- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
--- the x-bs-tenant header over the Data API), then the \`${ctx.claims.tenant}\` claim.
+-- the x-bsb-tenant header over the Data API), then the \`${ctx.claims.tenant}\` claim.
 -- A tenant the caller isn't a member of counts as none.`;
     requested = `coalesce(
     ${member(`nullif(current_setting('better_supabase.tenant', true), '')`)},
-    ${member(`nullif(current_setting('request.headers', true)::jsonb ->> 'x-bs-tenant', '')`)},
+    ${member(`nullif(current_setting('request.headers', true)::jsonb ->> 'x-bsb-tenant', '')`)},
     ${member(claim)}
   )`;
   } else {

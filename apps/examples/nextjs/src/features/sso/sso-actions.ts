@@ -12,7 +12,7 @@ import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const DOMAIN = v.pipe(
   v.string(),
@@ -34,7 +34,7 @@ function ssoAdmin(): SsoAdmin | null {
   }
 
   return createSsoAdmin({
-    transport: rpcTransport(bs.admin().$client, {
+    transport: rpcTransport(bsb.admin().$client, {
       schema: blockConfig.sso.api,
     }),
     schema: blockConfig.sso.api,
@@ -48,7 +48,7 @@ const NO_ADMIN = dbError(
   { hint: "SSO_ADMIN_MISSING" },
 );
 
-export const addSsoDomain = bs.action(
+export const addSsoDomain = bsb.action(
   {
     input: v.object({ domain: DOMAIN }),
     requireTenant: true,
@@ -67,7 +67,7 @@ export const addSsoDomain = bs.action(
   },
 );
 
-export const removeSsoDomain = bs.action(
+export const removeSsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
@@ -86,7 +86,7 @@ export const removeSsoDomain = bs.action(
   },
 );
 
-export const verifySsoDomain = bs.action(
+export const verifySsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
@@ -120,7 +120,7 @@ interface DomainSettingsDraft {
   enforceSso?: boolean;
 }
 
-export const updateSsoDomain = bs.action(
+export const updateSsoDomain = bsb.action(
   {
     input: v.object({
       id: v.pipe(v.string(), v.uuid()),
@@ -153,7 +153,7 @@ export const updateSsoDomain = bs.action(
   },
 );
 
-export const addSamlConnection = bs.action(
+export const addSamlConnection = bsb.action(
   {
     input: v.object({
       metadataUrl: v.pipe(
@@ -194,7 +194,7 @@ export const addSamlConnection = bs.action(
   },
 );
 
-export const removeSamlConnection = bs.action(
+export const removeSamlConnection = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,

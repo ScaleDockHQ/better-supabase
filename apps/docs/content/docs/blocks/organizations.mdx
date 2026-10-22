@@ -136,11 +136,11 @@ import {
 } from "better-supabase/blocks/organizations";
 import { betterSupabase } from "@/lib/supabase/client";
 import { postgres } from "@/lib/supabase/postgres";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 import { sendInvitationEmail } from "@/lib/email";
 
 export async function inviteMember(organizationId: string, email: string) {
-  const ctx = await bs.context();
+  const ctx = await bsb.context();
   if (ctx.auth.kind !== "user") throw new Error("Sign in first");
   const organizations = createOrganizations({
     transport: sqlTransport(postgres.asUser(ctx.auth.claims)),

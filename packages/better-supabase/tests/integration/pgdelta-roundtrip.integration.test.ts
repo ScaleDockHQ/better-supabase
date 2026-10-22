@@ -117,11 +117,11 @@ describe.skipIf(!available)(
       runSql(resolveConfig({ blocks: NAMES }, root), parseArgs(argv, SQL_ARGS));
 
     beforeAll(async () => {
-      root = await mkdtemp(join(tmpdir(), "bs-pgdelta-"));
+      root = await mkdtemp(join(tmpdir(), "bsb-pgdelta-"));
       await mkdir(join(root, "supabase/migrations"), { recursive: true });
       await writeFile(
         join(root, "supabase/config.toml"),
-        `project_id = "bs-pgdelta-roundtrip"
+        `project_id = "bsb-pgdelta-roundtrip"
 [api]
 port = 56421
 [db]

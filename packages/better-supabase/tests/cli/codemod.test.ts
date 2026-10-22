@@ -36,14 +36,14 @@ obj.createBrowser();
 
   it("renames members, keeping db.$table(name)", () => {
     const source = `next.serverFor(session, { token });
-bs.toORPCError(error);
+bsb.toORPCError(error);
 const name = repository.$table;
 const table = db.$table("notes");
 `;
 
     expect(applyCodemod(v04, source).text)
       .toBe(`next.contextForSession(session, { token });
-bs.toOrpcError(error);
+bsb.toOrpcError(error);
 const name = repository.$tableName;
 const table = db.$table("notes");
 `);
@@ -63,11 +63,11 @@ const table = db.$table("notes");
   it("lists the changes it leaves for review", () => {
     const { review } = applyCodemod(
       v04,
-      `const ctx = await next.server();\napp.get("/", bs.handle());\nconst x = client.sb;\n`,
+      `const ctx = await next.server();\napp.get("/", bsb.handle());\nconst x = client.sb;\n`,
     );
 
     expect(review.map((hint) => hint.line)).toEqual([1, 2, 3]);
-    expect(review[0]!.message).toContain("bs.context()");
+    expect(review[0]!.message).toContain("bsb.context()");
   });
 });
 
@@ -293,12 +293,12 @@ describe("codemod 0.9", () => {
   sorts: { name: { name: "asc" } },
   defaultSort: "name",
 });
-const notes = defineListQuery(bs, "notes", { sorts, defaultSort: "new" });
-const tags = defineListQuery(bs, "tags", {});
-const kept = defineListQuery(bs, "tags", { sorts, pagination: "cursor" });
-const api = defineResource(bs, "customers");
-const trailing = defineResource(bs, "notes",);
-const listed = defineResource(bs, "customers", { list: customers });
+const notes = defineListQuery(bsb, "notes", { sorts, defaultSort: "new" });
+const tags = defineListQuery(bsb, "tags", {});
+const kept = defineListQuery(bsb, "tags", { sorts, pagination: "cursor" });
+const api = defineResource(bsb, "customers");
+const trailing = defineResource(bsb, "notes",);
+const listed = defineResource(bsb, "customers", { list: customers });
 
 export const total = (page) => page.page.total;
 `;
@@ -311,12 +311,12 @@ export const total = (page) => page.page.total;
   sorts: { name: { name: "asc" } },
   defaultSort: "name",
 });
-const notes = defineListQuery(bs, "notes", { pagination: "offset", sorts, defaultSort: "new" });
-const tags = defineListQuery(bs, "tags", { pagination: "offset" });
-const kept = defineListQuery(bs, "tags", { sorts, pagination: "cursor" });
-const api = defineResource(bs, "customers", { pagination: "offset" });
-const trailing = defineResource(bs, "notes", { pagination: "offset" });
-const listed = defineResource(bs, "customers", { list: customers });
+const notes = defineListQuery(bsb, "notes", { pagination: "offset", sorts, defaultSort: "new" });
+const tags = defineListQuery(bsb, "tags", { pagination: "offset" });
+const kept = defineListQuery(bsb, "tags", { sorts, pagination: "cursor" });
+const api = defineResource(bsb, "customers", { pagination: "offset" });
+const trailing = defineResource(bsb, "notes", { pagination: "offset" });
+const listed = defineResource(bsb, "customers", { list: customers });
 
 export const total = (page) => page.page.total;
 `);
@@ -326,15 +326,15 @@ export const total = (page) => page.page.total;
   it("lists the calls it can't pin, and those in files without page numbers", () => {
     const result = applyCodemod(
       v09,
-      `const a = defineListQuery(bs, "customers", { ...shared });
-const b = defineListQuery(bs, "customers", config);
-const c = defineResource(bs, "customers");
-const api = defineApi(bs, { resources: { customers: {} } });
+      `const a = defineListQuery(bsb, "customers", { ...shared });
+const b = defineListQuery(bsb, "customers", config);
+const c = defineResource(bsb, "customers");
+const api = defineApi(bsb, { resources: { customers: {} } });
 `,
       "src/lists.ts",
     );
 
-    expect(result.text).toContain('defineResource(bs, "customers");');
+    expect(result.text).toContain('defineResource(bsb, "customers");');
     expect(result.review.map((hint) => hint.line)).toEqual([1, 2, 3, 4]);
     expect(result.review[0]!.message).toContain('pagination: "offset"');
     expect(result.review[3]!.message).toContain("defineApi");
@@ -440,5 +440,61 @@ describe("sql add hint", () => {
     expect(
       applyCodemod(v09, "bsb sql add teams\n", "/app/scripts/setup.sh").review,
     ).toEqual([expect.objectContaining({ line: 1 })]);
+  });
+});
+
+describe("codemod 0.15", () => {
+  const v015 = CODEMODS["0.15"]!;
+
+  it("renames the bs instance where a file creates or imports it", () => {
+    const created = `import { createNext } from "better-supabase/next";
+import { betterSupabase } from "@/lib/supabase";
+
+export const bs = createNext(betterSupabase);
+const note = "bs stays in strings"; // and bs in comments
+`;
+
+    expect(applyCodemod(v015, created).text)
+      .toBe(`import { createNext } from "better-supabase/next";
+import { betterSupabase } from "@/lib/supabase";
+
+export const bsb = createNext(betterSupabase);
+const note = "bs stays in strings"; // and bs in comments
+`);
+
+    const imported = `import { bs } from "@/lib/supabase/server";
+
+export async function load() {
+  const { db } = await bs.context();
+  return ctx.bs.auth;
+}
+`;
+
+    expect(applyCodemod(v015, imported).text)
+      .toBe(`import { bsb } from "@/lib/supabase/server";
+
+export async function load() {
+  const { db } = await bsb.context();
+  return ctx.bsb.auth;
+}
+`);
+  });
+
+  it("leaves a bs the file neither declares nor imports", () => {
+    const source = `import { thing } from "./local";
+
+const bs = 1;
+`;
+
+    expect(applyCodemod(v015, source).text).toBe(source);
+  });
+
+  it("lists cache tags and the debug route for review", () => {
+    const { review } = applyCodemod(
+      v015,
+      `revalidateTag("bs:customers");\nfetch("/api/bs-stats");\n`,
+    );
+
+    expect(review.map((line) => line.line)).toEqual([1, 2]);
   });
 });

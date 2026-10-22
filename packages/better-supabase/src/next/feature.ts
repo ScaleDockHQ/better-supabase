@@ -56,8 +56,8 @@ export interface RecordServerContext {
 }
 
 /**
- * What `recordServer` needs of `bs` (`createNext`): its context and its
- * actions, typed loosely so any app's `bs` fits.
+ * What `recordServer` needs of `bsb` (`createNext`): its context and its
+ * actions, typed loosely so any app's `bsb` fits.
  */
 export interface RecordServerHost {
   context(): Promise<RecordServerContext>;
@@ -221,7 +221,7 @@ function readableSections(can: object): ReadonlyMap<string, boolean> {
  * the section's and the record's cache tags (`invalidateSection`).
  *
  * ```ts
- * const customer = recordServer(bs, customerFeature);
+ * const customer = recordServer(bsb, customerFeature);
  * const view = await customer.load(id, { sections: ["comments"] });
  * ```
  */
@@ -230,7 +230,7 @@ export function recordServer<
   B extends FeatureBlocks,
   N extends SectionName<B>,
 >(
-  bs: RecordServerHost,
+  bsb: RecordServerHost,
   feature: RecordFeature<T, B> & { readonly sections: readonly N[] },
 ): RecordServer<T, B, N> {
   const actionOf = (section: string, write: string) => {
@@ -245,7 +245,7 @@ export function recordServer<
       );
     }
 
-    return bs.action(
+    return bsb.action(
       { input: recordWriteInput(found.write.input), requireTenant: true },
       async ({ id, input }, ctx): Promise<Result<unknown>> => {
         const subject = recordSubject(feature, id);
@@ -289,7 +289,7 @@ export function recordServer<
 
   return {
     async load(id, options = {}) {
-      const ctx = await bs.context();
+      const ctx = await bsb.context();
       const subject = recordSubject(feature, id);
       const permissions = await permissionsOf(feature, ctx.db);
       const can = recordCan(feature, permissions.set);
@@ -325,7 +325,7 @@ export function recordServer<
       };
     },
     async timeline(id, options = {}) {
-      const ctx = await bs.context();
+      const ctx = await bsb.context();
       const permissions = await permissionsOf(feature, ctx.db);
       const readable = readableSections(recordCan(feature, permissions.set));
 
@@ -393,7 +393,7 @@ export interface RecordListServer<
  * block clients and the caller's permissions, then runs `recordList.load`.
  *
  * ```ts
- * const customers = recordListServer(bs, customerRecordList);
+ * const customers = recordListServer(bsb, customerRecordList);
  * const view = await customers.load(await searchParams);
  * ```
  */
@@ -405,14 +405,14 @@ export function recordListServer<
   P extends { readonly items: readonly unknown[] },
   Cols,
 >(
-  bs: Pick<RecordServerHost, "context">,
+  bsb: Pick<RecordServerHost, "context">,
   recordList: RecordList<T, B, N, Q, P, Cols>,
 ): RecordListServer<B, N, Q, P, Cols> {
   const { feature } = recordList;
 
   return {
     async load(input, options) {
-      const ctx = await bs.context();
+      const ctx = await bsb.context();
       const permissions = await permissionsOf(feature, ctx.db);
 
       const result = await recordList.load(

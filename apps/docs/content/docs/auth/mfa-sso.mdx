@@ -12,7 +12,7 @@ claim, so enforcing MFA costs no Auth server call.
 ## The session
 
 ```ts
-const session = await bs.session();
+const session = await bsb.session();
 if (session.kind === "user") {
   session.aal; // 'aal1' | 'aal2'
   session.amr; // [{ method: 'totp', timestamp: 1767225600 }, { method: 'password', ... }]
@@ -29,15 +29,16 @@ with `code: 'INSUFFICIENT_AAL'` and `required: 'aal2'`, so the client knows to
 start a challenge rather than show a generic error:
 
 ```ts title="src/app/api/billing/route.ts"
-export const POST = bs.route(
+export const POST = bsb.route(
   async (request, { db }) => db.invoices.create(await request.json()),
   { aal: "aal2" },
 );
 ```
 
 ```ts title="src/features/security/security-actions.ts"
-export const rotateApiKey = bs.action({ aal: "aal2" }, async (_input, { db }) =>
-  db.$rpc("rotate_api_key"),
+export const rotateApiKey = bsb.action(
+  { aal: "aal2" },
+  async (_input, { db }) => db.$rpc("rotate_api_key"),
 );
 ```
 
@@ -71,7 +72,7 @@ const mfa = requireAal("aal2", {
 });
 
 export function proxy(request: NextRequest) {
-  return bs.proxy(request, { protect: mfa });
+  return bsb.proxy(request, { protect: mfa });
 }
 ```
 
@@ -173,7 +174,7 @@ import { createStepUpController } from "better-supabase/blocks/mfa";
 
 const stepUp = createStepUpController({
   mfa: supabase.auth.mfa,
-  auth: bs.auth,
+  auth: bsb.auth,
 });
 const stop = stepUp.subscribe(() => render(stepUp.getSnapshot()));
 ```

@@ -5,7 +5,7 @@ description: Run bot jobs as the chat author's linked user, decide approval butt
 
 A chat message names a platform user, not an app user. These helpers resolve the author through `principalByIdentity`, usually the [identities block](/docs/blocks/identities), and act only for a linked user. An unlinked author stays anonymous.
 
-Each helper takes `principalByIdentity` directly or reads it from `bs.authorization.identities`, where `bs` is the `createServer(betterSupabase, { authorization })` instance; pass it as `server: bs`. The option passed to the helper wins.
+Each helper takes `principalByIdentity` directly or reads it from `bsb.authorization.identities`, where `bsb` is the `createServer(betterSupabase, { authorization })` instance; pass it as `server: bsb`. The option passed to the helper wins.
 
 ## Bot jobs as the linked user
 
@@ -15,7 +15,7 @@ Each helper takes `principalByIdentity` directly or reads it from `bs.authorizat
 import { botJobs, chatIdentityOf } from "better-supabase/chat-sdk";
 
 const botQueue = botJobs({
-  server: bs,
+  server: bsb,
   enqueue: (payload, options) => jobs.enqueue("bot_reply", payload, options),
   ticketFor: (userId) => tickets.issue(userId),
 });
@@ -39,7 +39,7 @@ Pass the `options` argument to `jobs.enqueue` as it is. Adding a `context` there
 ```ts title="lib/bot.ts"
 import { chatActionOf, chatActions } from "better-supabase/chat-sdk";
 
-const decide = chatActions({ server: bs });
+const decide = chatActions({ server: bsb });
 
 bot.onAction("approve", async (event) => {
   const decision = await decide(chatActionOf(event));

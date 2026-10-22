@@ -9,40 +9,40 @@ import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
 import * as v from "valibot";
 import { betterSupabase } from "./lib/supabase";
 
-export const bs = createOrpc(betterSupabase);
+export const bsb = createOrpc(betterSupabase);
 
 const base = os.$context<OrpcRequestContext>();
-const authed = base.use(bs.middleware());
-const open = base.use(bs.middleware({ allow: ["user", "anon"] }));
+const authed = base.use(bsb.middleware());
+const open = base.use(bsb.middleware({ allow: ["user", "anon"] }));
 
 export const router = {
   customers: {
     list: authed.handler(({ context }) =>
-      bs.unwrap(context.db.customers.findMany({ select: ["id", "name"] })),
+      bsb.unwrap(context.db.customers.findMany({ select: ["id", "name"] })),
     ),
     rename: authed
       .input(
         v.object({ id: v.string(), name: v.pipe(v.string(), v.minLength(2)) }),
       )
       .handler(({ input, context }) =>
-        bs.unwrap(context.db.customers.update(input.id, { name: input.name })),
+        bsb.unwrap(context.db.customers.update(input.id, { name: input.name })),
       ),
   },
   health: open.handler(() => ({ ok: true })),
 };
 ```
 
-Serve the router with `bs.fetchHandler`. It passes the request as the
+Serve the router with `bsb.fetchHandler`. It passes the request as the
 initial context, answers 404 when no procedure matches, and adds the
 request's cookies to the response: refreshed session cookies with
-`middleware({ refresh: true })`, and `bs-primary-until` after a write when
+`middleware({ refresh: true })`, and `bsb-primary-until` after a write when
 [read replicas](/docs/guides/read-replicas) are configured.
 
 ```ts
 import { RPCHandler } from "@orpc/server/fetch";
 
 export default {
-  fetch: bs.fetchHandler(new RPCHandler(router), { prefix: "/rpc" }),
+  fetch: bsb.fetchHandler(new RPCHandler(router), { prefix: "/rpc" }),
 };
 ```
 
@@ -56,7 +56,7 @@ procedure started.
 
 ## Block routers
 
-`bs.blockRouter(client, options)` exposes block methods as procedures behind
+`bsb.blockRouter(client, options)` exposes block methods as procedures behind
 `middleware()`, one per name in `methods`. The client is built per request
 from the caller's context, so the block runs as the caller. A method that
 takes more than one argument takes them as a tuple, and each procedure's
@@ -67,7 +67,7 @@ import { openapi } from "@orpc/openapi";
 
 import { blocks } from "./lib/blocks";
 
-const tasks = bs.blockRouter(({ supabase }) => blocks(supabase).tasks, {
+const tasks = bsb.blockRouter(({ supabase }) => blocks(supabase).tasks, {
   name: "tasks",
   methods: ["list", "create", "update"],
   guard: { requireTenant: true },
@@ -90,7 +90,7 @@ export const router = { tasks: tasks.procedures, health };
 `tasks.routes` lists the same routes for
 [`routes`](/docs/specs/customize#routes) of `defineApi`, so the OpenAPI document
 describes them. A failed call becomes an `ORPCError` with the `DbError` as
-Problem Details, as `bs.unwrap` does.
+Problem Details, as `bsb.unwrap` does.
 
 ## Entry arrays with `toOrpc`
 
@@ -98,29 +98,29 @@ Problem Details, as `bs.unwrap` does.
 array around an oRPC fetch handler. The procedures' initial context is
 `{ request }` plus every contributed key, and the response passes back
 through the entries, so refreshed cookies reach the client without
-`bs.middleware()`:
+`bsb.middleware()`:
 
 ```ts
 import { RPCHandler } from "@orpc/server/fetch";
 import { toOrpc } from "better-supabase/orpc";
 import { createServer, withBetterSupabase } from "better-supabase/server";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 // The router's procedures read context.db.
 const base = os.$context<{
   request: Request;
-  db: ReturnType<typeof bs.admin>;
+  db: ReturnType<typeof bsb.admin>;
 }>();
 
 export default {
-  fetch: toOrpc([withBetterSupabase(bs)], new RPCHandler(router), {
+  fetch: toOrpc([withBetterSupabase(bsb)], new RPCHandler(router), {
     prefix: "/rpc",
   }),
 };
 ```
 
 A refused caller gets the guard's 401 Problem Details before oRPC runs. Use
-`bs.unwrap` from `createOrpc` to turn a `Result` into an `ORPCError`.
+`bsb.unwrap` from `createOrpc` to turn a `Result` into an `ORPCError`.
 
 ## Contract-first routers
 
@@ -155,19 +155,19 @@ import { contract } from "./contract";
 
 const os = implement(contract)
   .$context<OrpcRequestContext>()
-  .use(bs.middleware());
+  .use(bsb.middleware());
 
 const router = os.router({
   customers: {
     get: os.customers.get.handler(({ context, input }) =>
-      bs.unwrap(
+      bsb.unwrap(
         context.db.customers.findById(input.id, { select: ["id", "name"] }),
       ),
     ),
   },
 });
 
-const handle = bs.fetchHandler(new OpenAPIHandler(router), { prefix: "/api" });
+const handle = bsb.fetchHandler(new OpenAPIHandler(router), { prefix: "/api" });
 
 export const app = new Hono().all("/api/*", (c) => handle(c.req.raw));
 ```
@@ -181,15 +181,15 @@ has both styles.
 
 ## Context
 
-`bs.middleware()` resolves the caller and rejects anyone not in `allow`
+`bsb.middleware()` resolves the caller and rejects anyone not in `allow`
 (default `['user']`). It adds:
 
 - `context.db`: repositories bound to the caller, so RLS applies.
 - `context.auth`: the resolved `AuthState`.
-- `context.bs`: the full server context.
+- `context.bsb`: the full server context.
 
 With [`.claims(schema)`](/docs/auth#typed-claims) on the definition,
-`context.auth` and `context.bs` are typed by the schema's output:
+`context.auth` and `context.bsb` are typed by the schema's output:
 
 ```ts
 export const role = authed.handler(({ context }) =>
@@ -199,11 +199,11 @@ export const role = authed.handler(({ context }) =>
 
 ## Rate limits
 
-`bs.rateLimit()` counts one hit per call with
+`bsb.rateLimit()` counts one hit per call with
 [`createRateLimit`](/docs/blocks/sql#limits-in-route-handlers). `key` gets
 the context and the procedure path; returning `undefined` skips the limit.
 Its type parameter is the context `key` reads, `OrpcRequestContext` by
-default. `bs.fetchHandler`
+default. `bsb.fetchHandler`
 adds the `RateLimit` field to the response, plus `RateLimit-Policy` with a
 `rule`. A refused call throws `TOO_MANY_REQUESTS`, and the response carries
 `Retry-After`:
@@ -214,7 +214,7 @@ import { createRateLimit } from "better-supabase/blocks/jobs";
 const limiter = createRateLimit({ sql: postgres.admin });
 
 const limited = os.$context<OrpcRequestContext>().use(
-  bs.rateLimit({
+  bsb.rateLimit({
     limiter,
     scope: "rpc",
     rule: { max: 60, period: "1 minute" },
@@ -226,12 +226,12 @@ const limited = os.$context<OrpcRequestContext>().use(
 );
 ```
 
-The headers reach the client only through `bs.fetchHandler`.
+The headers reach the client only through `bsb.fetchHandler`.
 
 ## Permissions
 
-`createOrpc` takes the server's `authorizer` option. `bs.middleware()` and
-`bs.authed()` take the guard options `allow`, `aal` and `scopes`, and the
+`createOrpc` takes the server's `authorizer` option. `bsb.middleware()` and
+`bsb.authed()` take the guard options `allow`, `aal` and `scopes`, and the
 checks `requireTenant`, `roles`, `permission` and `authorize`. A
 `permission` is decided by that authorizer, with a resource of
 `{ type: "route" }`:
@@ -242,27 +242,27 @@ import * as v from "valibot";
 import { authorizer } from "./lib/authorizer";
 import { betterSupabase } from "./lib/supabase";
 
-export const bs = createOrpc(betterSupabase, { authorizer });
+export const bsb = createOrpc(betterSupabase, { authorizer });
 
-export const remove = bs
+export const remove = bsb
   .authed({ requireTenant: true, permission: "customers.delete" })
   .input(v.object({ id: v.string() }))
   .handler(({ input, context }) =>
-    bs.unwrap(context.db.customers.delete(input.id)),
+    bsb.unwrap(context.db.customers.delete(input.id)),
   );
 ```
 
-To decide on the row the procedure acts on, put `bs.middleware()` after
+To decide on the row the procedure acts on, put `bsb.middleware()` after
 `.input()` and pass `resource`. It gets the validated input and the context
 (`db`, `session`, `tenant`), and its return value is the resource the
 authorizer sees ([Load the resource](/docs/extending/authorizers#load-the-resource)):
 
 ```ts title="src/router.ts"
-export const rename = bs
+export const rename = bsb
   .authed()
   .input(v.object({ id: v.string(), name: v.string() }))
   .use(
-    bs.middleware({
+    bsb.middleware({
       permission: "customers.update",
       resource: async (input, { db }) => {
         const { id } = v.parse(v.object({ id: v.string() }), input);
@@ -275,7 +275,7 @@ export const rename = bs
     }),
   )
   .handler(({ input, context }) =>
-    bs.unwrap(context.db.customers.update(input.id, { name: input.name })),
+    bsb.unwrap(context.db.customers.update(input.id, { name: input.name })),
   );
 ```
 
@@ -288,27 +288,27 @@ with a `permission` refuses every caller. See
 
 ### Permissions in a contract-first router
 
-`bs.authed()` builds a procedure from scratch, so it doesn't apply to an
+`bsb.authed()` builds a procedure from scratch, so it doesn't apply to an
 implementer from `implement(contract)`. Guard the router with
-`bs.middleware()`, then add `.use(bs.middleware({ ... }))` to each procedure
+`bsb.middleware()`, then add `.use(bsb.middleware({ ... }))` to each procedure
 that needs more, with the same guard options:
 
 ```ts title="src/server.ts"
 const os = implement(contract)
   .$context<OrpcRequestContext>()
-  .use(bs.middleware());
+  .use(bsb.middleware());
 
 const router = os.router({
   customers: {
     get: os.customers.get.handler(({ context, input }) =>
-      bs.unwrap(context.db.customers.findById(input.id)),
+      bsb.unwrap(context.db.customers.findById(input.id)),
     ),
     remove: os.customers.remove
       .use(
-        bs.middleware({ requireTenant: true, permission: "customers.delete" }),
+        bsb.middleware({ requireTenant: true, permission: "customers.delete" }),
       )
       .handler(async ({ context, input }) => {
-        await bs.unwrap(context.db.customers.delete(input.id));
+        await bsb.unwrap(context.db.customers.delete(input.id));
         return { deleted: true };
       }),
   },
@@ -323,7 +323,7 @@ the procedures.
 
 ## Errors
 
-`bs.unwrap(result)` returns the data, or throws an `ORPCError` when the
+`bsb.unwrap(result)` returns the data, or throws an `ORPCError` when the
 `Result` failed. It accepts a `Result`, an `AsyncResult` or a promise of
 either, and the procedure's output type is the data type. The middleware also
 converts thrown `DbException`s.

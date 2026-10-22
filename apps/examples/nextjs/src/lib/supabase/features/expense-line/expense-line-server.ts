@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { expenseLineFeature } from "./expense-line-feature.ts";
 
 /**
  * Loads a expense_line's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const expenseLineRecord = recordServer(bs, expenseLineFeature);
+export const expenseLineRecord = recordServer(bsb, expenseLineFeature);

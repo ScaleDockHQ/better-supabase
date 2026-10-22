@@ -50,7 +50,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
 
-  const bs = createHono(betterSupabase, { env });
+  const bsb = createHono(betterSupabase, { env });
 
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
@@ -60,11 +60,11 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
   });
 
   const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-    .onError(bs.onError)
-    .use("/api/*", bs.middleware())
+    .onError(bsb.onError)
+    .use("/api/*", bsb.middleware())
     .route(
       "/api/customers",
-      bs.resource("customers", {
+      bsb.resource("customers", {
         list,
         select: ["id", "name", "organizationId"],
       }),

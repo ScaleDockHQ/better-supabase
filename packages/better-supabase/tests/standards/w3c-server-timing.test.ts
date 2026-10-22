@@ -40,7 +40,7 @@ function metrics(header: string): Map<string, number> {
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
 
-const bs = createNext(defineSupabase(schema), {
+const bsb = createNext(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
@@ -56,29 +56,29 @@ const page = () =>
 
 describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
   it("formats metrics as name;dur=milliseconds", () => {
-    const value = serverTimingValue({ "bs-proxy": 1.234, "bs-verify": 0.04 });
-    expect(value).toBe("bs-proxy;dur=1.2, bs-verify;dur=0.0");
+    const value = serverTimingValue({ "bsb-proxy": 1.234, "bsb-verify": 0.04 });
+    expect(value).toBe("bsb-proxy;dur=1.2, bsb-verify;dur=0.0");
     expect(value).toMatch(HEADER);
   });
 
-  it("next.proxy({ serverTiming: true }) emits bs-proxy and bs-verify with non-negative durations", async () => {
-    const response = await bs.proxy(page(), { serverTiming: true });
+  it("next.proxy({ serverTiming: true }) emits bsb-proxy and bsb-verify with non-negative durations", async () => {
+    const response = await bsb.proxy(page(), { serverTiming: true });
     const header = response.headers.get("server-timing")!;
     expect(header).toMatch(HEADER);
     const values = metrics(header);
-    expect([...values.keys()]).toEqual(["bs-proxy", "bs-verify"]);
+    expect([...values.keys()]).toEqual(["bsb-proxy", "bsb-verify"]);
 
     for (const dur of values.values()) {
       expect(dur).toBeGreaterThanOrEqual(0);
     }
 
-    expect(values.get("bs-proxy")!).toBeGreaterThanOrEqual(
-      values.get("bs-verify")!,
+    expect(values.get("bsb-proxy")!).toBeGreaterThanOrEqual(
+      values.get("bsb-verify")!,
     );
   });
 
   it("appends to metrics the app already set, so both stay in one valid header", async () => {
-    const response = await bs.proxy(page(), {
+    const response = await bsb.proxy(page(), {
       serverTiming: true,
       after: (res) => {
         res.headers.set("server-timing", 'app;dur=3;desc="render"');
@@ -89,12 +89,12 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
     expect(header).toMatch(HEADER);
     expect([...metrics(header).keys()]).toEqual([
       "app",
-      "bs-proxy",
-      "bs-verify",
+      "bsb-proxy",
+      "bsb-verify",
     ]);
   });
 
   it("adds no header unless asked", async () => {
-    expect((await bs.proxy(page())).headers.has("server-timing")).toBe(false);
+    expect((await bsb.proxy(page())).headers.has("server-timing")).toBe(false);
   });
 });

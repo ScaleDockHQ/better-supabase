@@ -59,8 +59,8 @@ the verified `tenant_id` claim (renamed with `claims.tenant` in
 `better-supabase.config.ts`), then `app_metadata.tenant_id`. A resolver may
 read the URL, but `current_tenant_id()` only returns a tenant the caller is a
 member of. In Next.js Server Components and actions there is no request URL:
-pass the route's tenant with `bs.context({ tenant })`, `bs.cached({ tenant })`
-or `bs.action({ tenant: (input) => input.organizationId })`, which take the
+pass the route's tenant with `bsb.context({ tenant })`, `bsb.cached({ tenant })`
+or `bsb.action({ tenant: (input) => input.organizationId })`, which take the
 resolver's path and get the same check. Never trust a tenant from
 `user_metadata`, and never use one from a request body outside those options. When the config
 has an `authorization` provider whose hook owns `memberships`, that hook

@@ -60,8 +60,8 @@ export interface BetterReactRouter<
   B = unknown,
 > extends BetterServer<M, F, E, C, P, B> {
   /**
-   * The context key the middleware sets: `context.get(bs.contextKey)`, or
-   * `bs.locals(args)`.
+   * The context key the middleware sets: `context.get(bsb.contextKey)`, or
+   * `bsb.locals(args)`.
    */
   readonly contextKey: unknown;
   /**
@@ -72,7 +72,10 @@ export interface BetterReactRouter<
     args: ReactRouterArgs,
     next: () => Promise<Response>,
   ) => Promise<Response>;
-  /** `db`, `bs`, `auth`, `tenant` and the serializable `session` of the request. */
+  /**
+   * `db`, `bsb`, `auth`, `tenant` and the serializable `session` of the
+   * request.
+   */
   locals(args: ReactRouterArgs): FrameworkLocals<M, F, E, C, P, B>;
   /**
    * A loader that runs the guard first. A refused caller gets a redirect to
@@ -147,9 +150,9 @@ export function createReactRouter<
       value = undefined;
     }
 
-    if (typeof value !== "object" || value === null || !("bs" in value)) {
+    if (typeof value !== "object" || value === null || !("bsb" in value)) {
       throw new TypeError(
-        "better-supabase: no context; add bs.middleware to the root route's middleware export",
+        "better-supabase: no context; add bsb.middleware to the root route's middleware export",
       );
     }
 
@@ -184,7 +187,7 @@ export function createReactRouter<
           const scope = locals(args);
 
           const caller = await requireCaller(
-            scope.bs.auth,
+            scope.bsb.auth,
             loaderOptions,
             scope.tenant,
             options.authorizer,
@@ -218,7 +221,7 @@ export function createReactRouter<
           const scope = locals(args);
 
           const result = await runAction(
-            scope.bs.auth,
+            scope.bsb.auth,
             actionOptions,
             await actionInput(args.request),
             scope.tenant,

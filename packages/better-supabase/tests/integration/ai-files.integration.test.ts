@@ -12,7 +12,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const BUCKET = "bs-it-ai-files";
+const BUCKET = "bsb-it-ai-files";
 
 /** Signs nothing: the test stores objects through SQL as the caller. */
 const storage: AiFileStorage = {

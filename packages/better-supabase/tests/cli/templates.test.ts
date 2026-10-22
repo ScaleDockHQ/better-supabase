@@ -84,7 +84,7 @@ describe("import paths", () => {
       imports: { "better-supabase": "npm:better-supabase@^1.2.3" },
     });
     expect(contents(files, "supabase/functions/api/index.ts")).toContain(
-      "import { bs } from './server.ts';",
+      "import { bsb } from './server.ts';",
     );
     expect(TEMPLATES.mcp.files(context()).map((file) => file.path)).toEqual([
       "supabase/functions/_shared/supabase.ts",
@@ -118,10 +118,10 @@ describe("import paths", () => {
     ).toContain("import { betterSupabase } from './lib/supabase';");
     const next = TEMPLATES.next.files(context());
     expect(contents(next, "src/lib/supabase/server.ts")).toMatch(
-      /^import 'server-only';[\s\S]*import \{ betterSupabase \} from '\.\/index';[\s\S]*export const bs = createNext\(betterSupabase\);/,
+      /^import 'server-only';[\s\S]*import \{ betterSupabase \} from '\.\/index';[\s\S]*export const bsb = createNext\(betterSupabase\);/,
     );
     expect(contents(next, "src/proxy.ts")).toContain(
-      "import { bs } from './lib/supabase/server';",
+      "import { bsb } from './lib/supabase/server';",
     );
     const kept = TEMPLATES.next.files(context({ tsExtensions: true }));
     expect(contents(kept, "src/lib/supabase/server.ts")).toContain(
@@ -132,7 +132,7 @@ describe("import paths", () => {
     );
   });
 
-  it("names every runtime instance bs", () => {
+  it("names every runtime instance bsb", () => {
     const files = INTEGRATIONS.flatMap((name) =>
       TEMPLATES[name].files(context()),
     );

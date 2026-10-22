@@ -3,7 +3,7 @@ import * as v from "valibot";
 
 import { avatars, avatarSrc } from "@/lib/buckets";
 import { Role } from "@/lib/claims";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface OrganizationSummary {
   readonly id: string;
@@ -68,7 +68,7 @@ export async function getMyOrganizations(): Promise<
   readonly OrganizationSummary[]
 > {
   "use cache: private";
-  const { db, session } = await bs.cached();
+  const { db, session } = await bsb.cached();
 
   if (session.kind !== "user") {
     return [];
@@ -117,7 +117,7 @@ export async function getMembers(
   organizationId: string,
 ): Promise<readonly Member[]> {
   "use cache: private";
-  const { db, supabase } = await bs.cached();
+  const { db, supabase } = await bsb.cached();
 
   const rows = await db
     .$rpc("organization_members", { organization: organizationId })
@@ -131,7 +131,7 @@ export async function getInvitations(
   organizationId: string,
 ): Promise<readonly PendingInvitation[]> {
   "use cache: private";
-  const { db } = await bs.cached();
+  const { db } = await bsb.cached();
 
   const rows = await db
     .$rpc("organization_invitations", { organization: organizationId })

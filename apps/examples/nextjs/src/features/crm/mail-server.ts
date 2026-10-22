@@ -12,7 +12,7 @@ import {
 import { vercelConnectCredentials } from "better-supabase/vercel-connect";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["mail-sync"].api;
 
@@ -31,7 +31,7 @@ export function mailSync(
 ): MailSync {
   const base = {
     ...generatedOptions(blockConfig["mail-sync"]),
-    transport: rpcTransport(supabase ?? bs.admin().$client, {
+    transport: rpcTransport(supabase ?? bsb.admin().$client, {
       schema: API_SCHEMA,
     }),
     credentials: vercelConnectCredentials(),

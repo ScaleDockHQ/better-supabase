@@ -160,7 +160,7 @@ export interface MutationOptionsOf<V, R> {
 
 export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   /** Prefix of every key for this table's own queries. */
-  readonly key: readonly ["bs", T];
+  readonly key: readonly ["bsb", T];
   findMany<const A extends FindManyArgs<M, T> & FindExt<E, M, T>>(
     args?: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A>[]>;
@@ -231,7 +231,7 @@ type RpcArgsOf<F extends AnyFunctions, N extends keyof F> = F[N]["Args"];
 
 export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
   /** Prefix of every better-supabase key. */
-  readonly $key: readonly ["bs"];
+  readonly $key: readonly ["bsb"];
   /**
    * Query options for a `QuerySpec`, for example one sent from a Server
    * Component.
@@ -339,7 +339,7 @@ function specQuery(
 
   if (isSkip(spec)) {
     return {
-      queryKey: scoped(runtime, key ?? ["bs", "$skip"]),
+      queryKey: scoped(runtime, key ?? ["bsb", "$skip"]),
       queryFn: spec,
       meta: { bsTables: [] },
       ...stale,
@@ -349,7 +349,7 @@ function specQuery(
   return {
     queryKey: scoped(
       runtime,
-      key ?? ["bs", spec.table, spec.method, ...spec.args.map(keyPart)],
+      key ?? ["bsb", spec.table, spec.method, ...spec.args.map(keyPart)],
     ),
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       runtime.db().$run(spec, { signal }).orThrow(asException),
@@ -371,7 +371,7 @@ function tableQueries(
   runtime: Runtime,
   table: string,
 ): Record<string, unknown> {
-  const key = ["bs", table] as const;
+  const key = ["bsb", table] as const;
   // SAFETY: spec is generic over the schema; entries are looked up by table name.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `spec` is generic over the schema; entries are looked up by table name.
   const tables = runtime.betterSupabase.spec as unknown as SpecTables;
@@ -574,7 +574,7 @@ function tableQueries(
  * table.
  *
  * ```ts
- * const q = createQueries(betterSupabase, () => bs.db);
+ * const q = createQueries(betterSupabase, () => bsb.db);
  * const { data } = useQuery(
  *   q.customers.findMany({ select: ["id", "name"] }),
  * );
@@ -605,7 +605,7 @@ export function createQueries<
   // SAFETY: specQuery returns query options that prefetchQuery accepts; the
   // generics differ only by the erased schema.
   const queries: Record<string, unknown> = {
-    $key: ["bs"],
+    $key: ["bsb"],
     $spec: (spec: QuerySpec | SkipToken) => specQuery(runtime, spec),
     $prefetch: (client: QueryClient, spec: QuerySpec) =>
       // oxlint-disable-next-line typescript/no-deprecated -- `query()` needs @tanstack/query-core 5.104; the peer range is ^5.
@@ -616,7 +616,7 @@ export function createQueries<
       rpcOptions: { tables?: readonly string[] } = {},
     ) => ({
       queryKey: scoped(runtime, [
-        "bs",
+        "bsb",
         "$rpc",
         name,
         isSkip(args) ? "$skip" : keyPart(args ?? {}),
@@ -632,7 +632,7 @@ export function createQueries<
       ...stale,
     }),
     $rpcMutation: (name: string) => ({
-      mutationKey: ["bs", "$rpc", name],
+      mutationKey: ["bsb", "$rpc", name],
       mutationFn: (args: unknown) =>
         runtime
           .db()

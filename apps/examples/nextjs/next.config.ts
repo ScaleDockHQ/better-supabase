@@ -32,7 +32,7 @@ const config: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "*.localhost"],
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
   experimental: {
-    // `forbidden()` and `unauthorized()` (and `bs.require()`) render
+    // `forbidden()` and `unauthorized()` (and `bsb.require()`) render
     // forbidden.tsx and unauthorized.tsx with a 403 or 401.
     authInterrupts: true,
     // `pnpm test:e2e` builds with it so `instant()` can hold the navigation;

@@ -14,11 +14,11 @@ import { createServer, withBetterSupabase } from "better-supabase/server";
 import { toTanStackStart } from "better-supabase/tanstack-start";
 import { betterSupabase } from "./lib/supabase";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 
 export const supabase = createMiddleware().server(
   toTanStackStart([
-    withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+    withBetterSupabase(bsb, { refresh: true, allow: ["user", "anon"] }),
   ]),
 );
 

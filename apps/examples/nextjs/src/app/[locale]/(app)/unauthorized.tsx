@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/empty";
 import { Link } from "@/i18n/navigation";
 
-/** `unauthorized()`, e.g. from `bs.require()` without a session. Next answers 401. */
+/** `unauthorized()`, e.g. from `bsb.require()` without a session. Next answers 401. */
 export default function Unauthorized() {
   const t = useExtracted("app");
 

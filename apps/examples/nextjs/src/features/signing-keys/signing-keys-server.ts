@@ -8,7 +8,7 @@ import { rpcTransport } from "better-supabase/blocks/organizations";
 import { createSigningKeys } from "better-supabase/blocks/signing-keys";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const API_SCHEMA = blockConfig["signing-keys"].api;
 
@@ -18,7 +18,7 @@ const API_SCHEMA = blockConfig["signing-keys"].api;
  */
 export function signingKeys(): SigningKeys {
   return createSigningKeys({
-    transport: rpcTransport(bs.admin().$client, { schema: API_SCHEMA }),
+    transport: rpcTransport(bsb.admin().$client, { schema: API_SCHEMA }),
     schema: API_SCHEMA,
   });
 }

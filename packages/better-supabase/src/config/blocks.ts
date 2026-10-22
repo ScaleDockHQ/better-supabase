@@ -165,7 +165,7 @@ export type ActiveTenantSource =
   | "claim"
   /**
    * A TypeScript resolver (`ServerOptions.tenant`), e.g. from a URL slug (the
-   * default). The server sends it as the `x-bs-tenant` header, then the
+   * default). The server sends it as the `x-bsb-tenant` header, then the
    * `claims.tenant` claim is the fallback.
    */
   | "resolver"

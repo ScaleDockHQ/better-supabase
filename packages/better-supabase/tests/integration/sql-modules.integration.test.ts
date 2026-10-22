@@ -2042,7 +2042,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       queues: { [queue]: v.object({ kind: v.string() }) },
     });
 
-    const name = `bs-module-${RUN}`;
+    const name = `bsb-module-${RUN}`;
     await pool.query(
       "create extension if not exists pg_cron with schema pg_catalog",
     );
@@ -2263,7 +2263,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("runs jobs and time-zone schedules on the table backend", async () => {
     const queue = `block_${RUN}_table`;
-    const name = `bs-module-table-${RUN}`;
+    const name = `bsb-module-table-${RUN}`;
     await pool.query(
       moduleBody("jobs", {
         modules: {

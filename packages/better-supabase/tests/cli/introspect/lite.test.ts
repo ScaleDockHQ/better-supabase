@@ -11,7 +11,7 @@ import { readSupabaseToml } from "../../../src/cli/supabase-toml.ts";
 const dirs: string[] = [];
 
 async function project(files: Record<string, string>): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "bs-lite-"));
+  const root = await mkdtemp(join(tmpdir(), "bsb-lite-"));
   dirs.push(root);
   await writeFile(join(root, ".git"), "");
 

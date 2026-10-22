@@ -36,7 +36,7 @@ export async function addEndpoint(
   organizationId: string,
   input: { url: string; events: string[] },
 ) {
-  const ctx = await bs.context();
+  const ctx = await bsb.context();
   const db = postgres.asUser(ctx.auth.claims);
   const [endpoint] = await db.queryRaw<{ id: string }>(
     `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)

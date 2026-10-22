@@ -18,7 +18,7 @@ export interface ServerContextIn<C, P> {
 }
 
 /**
- * Entry contributing `ctx.bs`, the request's `ServerContext`: `auth`, `db`,
+ * Entry contributing `ctx.bsb`, the request's `ServerContext`: `auth`, `db`,
  * `sql`, `supabase`, `replica`, `stats()` and the rest, each built on first
  * read. In a support session `auth`, `db` and `sql` are the target's.
  */
@@ -32,29 +32,29 @@ export function withServerContext<
 >(
   core: ServerCore<M, F, E, C, P, B>,
 ): SingleKeyEntry<
-  "bs",
+  "bsb",
   ServerContextIn<C, P>,
   ServerContext<M, F, E, C, P, B>
 > {
   return defineMiddleware<
-    "bs",
+    "bsb",
     undefined,
     ServerContextIn<C, P>,
     ServerContext<M, F, E, C, P, B>
   >({
-    key: "bs",
+    key: "bsb",
     run: () => (request, ctx) => {
       const call = callOf(ctx);
       const options = call?.options ?? {};
 
-      const bs = core.context(
+      const bsb = core.context(
         ctx.session,
         request,
         ctx.support ? { ...options, support: ctx.support } : options,
         ctx.tenant,
       );
 
-      return Promise.resolve({ bs });
+      return Promise.resolve({ bsb });
     },
   })();
 }

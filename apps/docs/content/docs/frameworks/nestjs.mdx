@@ -20,13 +20,13 @@ import {
 import { toNestMiddleware } from "better-supabase/nestjs";
 import { withBetterSupabase } from "better-supabase/server";
 import { NotesController } from "./notes.controller";
-import { bs } from "./supabase";
+import { bsb } from "./supabase";
 
 @Module({ controllers: [NotesController] })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(toNestMiddleware([withBetterSupabase(bs, { allow: ["user"] })]))
+      .apply(toNestMiddleware([withBetterSupabase(bsb, { allow: ["user"] })]))
       .forRoutes("*");
   }
 }

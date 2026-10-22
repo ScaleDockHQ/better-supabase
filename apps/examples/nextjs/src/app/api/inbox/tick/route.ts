@@ -1,5 +1,5 @@
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /**
  * Reopens conversations whose snooze ended and sends scheduled replies whose
@@ -14,7 +14,7 @@ export async function GET(request: Request): Promise<Response> {
     return new Response(null, { status: 401 });
   }
 
-  const { inbox } = blocks(bs.admin().$client);
+  const { inbox } = blocks(bsb.admin().$client);
   const woken = await inbox.wakeSnoozed().orThrow();
   const published = await inbox.publishDue().orThrow();
 

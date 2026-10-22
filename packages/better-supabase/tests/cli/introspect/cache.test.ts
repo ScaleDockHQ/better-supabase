@@ -62,7 +62,7 @@ function reader(...names: string[]) {
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "bs-cache-"));
+  root = await mkdtemp(join(tmpdir(), "bsb-cache-"));
 });
 
 afterEach(async () => {

@@ -55,7 +55,7 @@ const COMMANDS = ["select", "insert", "update", "delete"] as const;
 /** A literal of each scope id type no tenant holds, for the RLS test. */
 const FOREIGN_ID: Readonly<Record<ModuleIdType, string>> = {
   uuid: "gen_random_uuid()",
-  text: "'bs-app-tables-test'",
+  text: "'bsb-app-tables-test'",
   bigint: "-1",
   integer: "-1",
 };
@@ -924,7 +924,7 @@ function foreignRow(table: AppTable): string | undefined {
   if (ctx.scope.kind === "user") {
     return `with u as (
   insert into auth.users (id, email, aud, role, instance_id)
-  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  values (gen_random_uuid(), 'bsb-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
   returning id
 )
 ${insert("u.id")} from u;`;
@@ -940,7 +940,7 @@ ${insert("u.id")} from u;`;
 
     return `with o as (
   insert into ${organizations.table("organizations")} (${org("name")}${slug ? `, ${org("slug")}` : ""})
-  values ('bs-app-tables-test'${slug ? ", 'bs-app-tables-' || substr(md5(random()::text), 1, 8)" : ""})
+  values ('bsb-app-tables-test'${slug ? ", 'bsb-app-tables-' || substr(md5(random()::text), 1, 8)" : ""})
   returning ${org("id")} as id
 )
 ${insert("o.id")} from o;`;

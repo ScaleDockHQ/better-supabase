@@ -136,7 +136,7 @@ describe.skipIf(!live)("block fields", () => {
         modules: {
           "ai-files": {
             options: {
-              bucket: "bs-it-ai-file-fields",
+              bucket: "bsb-it-ai-file-fields",
               extraColumns: { label: "text", priority: "integer" },
             },
           },
@@ -385,7 +385,7 @@ describe.skipIf(!live)("block fields", () => {
         modules: {
           attachments: {
             options: {
-              bucket: "bs-it-attachment-fields",
+              bucket: "bsb-it-attachment-fields",
               requireScan: false,
               extraColumns: {
                 label: "text",

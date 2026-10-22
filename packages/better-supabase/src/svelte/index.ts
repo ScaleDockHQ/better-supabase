@@ -142,7 +142,7 @@ export interface BetterSvelte<B extends ClientLike = ClientLike> {
   readonly db: B["db"];
   /**
    * TanStack Query option factories: `createQuery(() =>
-   * bs.queries.customers.findMany())`.
+   * bsb.queries.customers.findMany())`.
    */
   readonly queries: B["queries"];
   readonly supabase: SupabaseClient;
@@ -335,7 +335,7 @@ export function createBetterSvelte<B extends ClientLike>(
 
           if (current && !queryClient) {
             throw new Error(
-              "better-supabase: liveQuery needs setBetterSupabase(bs, { queryClient })",
+              "better-supabase: liveQuery needs setBetterSupabase(bsb, { queryClient })",
             );
           }
 
@@ -561,7 +561,7 @@ const SESSION = Symbol("better-supabase-session");
  *
  * ```svelte
  * <script lang="ts">
- *   setBetterSupabase(bs, { queryClient });
+ *   setBetterSupabase(bsb, { queryClient });
  * </script>
  * ```
  */
@@ -581,7 +581,7 @@ export function setBetterSupabase<B extends ClientLike>(
 
 /**
  * The client `setBetterSupabase` bound, typed with `getBetterSupabase<typeof
- * bs>()`.
+ * bsb>()`.
  */
 export function getBetterSupabase<
   B extends ClientLike = ClientLike,
@@ -590,7 +590,7 @@ export function getBetterSupabase<
 
   if (!bound) {
     throw new Error(
-      "better-supabase: call setBetterSupabase(bs) in a parent component",
+      "better-supabase: call setBetterSupabase(bsb) in a parent component",
     );
   }
 
@@ -679,7 +679,7 @@ export function useSession<C = unknown, P = unknown>(): Current<
 
   return {
     get current() {
-      // SAFETY: setSession receives `bs.session()` from the same
+      // SAFETY: setSession receives `bsb.session()` from the same
       // `betterSupabase`, whose schemas fix `C` and `P`.
       return session() as AuthSession<C, P>;
     },

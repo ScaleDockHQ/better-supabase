@@ -15,7 +15,7 @@ export type NextResourceHandler = (request: Request) => Promise<Response>;
 
 /**
  * The exports of `app/api/[...path]/route.ts`: `export const { GET, POST,
- * PATCH, PUT, DELETE } = bs.resources({ ... })`.
+ * PATCH, PUT, DELETE } = bsb.resources({ ... })`.
  */
 export interface NextResourceRoutes {
   readonly GET: NextResourceHandler;

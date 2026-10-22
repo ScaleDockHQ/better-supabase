@@ -21,7 +21,7 @@ export interface Controller<S, A> {
   readonly dispose: () => void;
 }
 
-/** The session a controller follows: `bs.auth` from `createClient()`. */
+/** The session a controller follows: `bsb.auth` from `createClient()`. */
 export type AuthPort = Pick<ClientAuth, "current" | "subscribe">;
 
 export interface ControllerState<S> {

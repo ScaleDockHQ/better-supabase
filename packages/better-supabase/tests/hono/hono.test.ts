@@ -25,12 +25,12 @@ const env = {
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
-describe("bs.app()", () => {
-  it("installs bs.onError, and Env carries only a type", async () => {
-    const bs = createHono(defineSupabase(schema), { env });
-    expect(bs.Env).toBeUndefined();
+describe("bsb.app()", () => {
+  it("installs bsb.onError, and Env carries only a type", async () => {
+    const bsb = createHono(defineSupabase(schema), { env });
+    expect(bsb.Env).toBeUndefined();
 
-    const app = bs
+    const app = bsb
       .app()
       .get("/thrown", () => {
         throw new DbException(dbError("not_found", "Gone"));
@@ -52,7 +52,7 @@ describe("createHono", () => {
   const betterSupabase = defineSupabase(schema);
   const refresh = vi.fn<typeof fetch>();
 
-  const bs = createHono(betterSupabase, {
+  const bsb = createHono(betterSupabase, {
     env,
     auth: { jwks: signer.jwks, fetch: refresh },
   });
@@ -60,23 +60,23 @@ describe("createHono", () => {
   type Env = HonoEnv<Models, Functions, unknown>;
 
   const app = new Hono<Env>()
-    .onError(bs.onError)
-    .use("/public/*", bs.middleware({ allow: ["user", "anon"] }))
-    .use("/api/*", bs.middleware())
+    .onError(bsb.onError)
+    .use("/public/*", bsb.middleware({ allow: ["user", "anon"] }))
+    .use("/api/*", bsb.middleware())
     .get("/public/who", (c) => c.json({ kind: c.var.auth.kind }))
     .get(
       "/api/me",
-      bs.handler((_c, ctx) =>
+      bsb.handler((_c, ctx) =>
         ok({ id: ctx.auth.kind === "user" ? ctx.auth.user.id : null }),
       ),
     )
     .get(
       "/api/conflict",
-      bs.handler(() => err(dbError("conflict", "Taken"))),
+      bsb.handler(() => err(dbError("conflict", "Taken"))),
     )
     .get(
       "/api/empty",
-      bs.handler(() => undefined),
+      bsb.handler(() => undefined),
     )
     .get("/api/thrown", () => {
       throw new DbException(dbError("not_found", "Gone"));
@@ -128,40 +128,40 @@ describe("createHono", () => {
 
   it("explains a missing middleware", async () => {
     const bare = new Hono<Env>()
-      .onError(bs.onError)
-      .route("/customers", bs.resource("customers"));
+      .onError(bsb.onError)
+      .route("/customers", bsb.resource("customers"));
 
     const response = await bare.request("/customers");
     expect(response.status).toBe(500);
   });
 
   it("only mounts item routes for single-column keys", () => {
-    const routes = bs.resource("customers").routes.map((route) => route.path);
+    const routes = bsb.resource("customers").routes.map((route) => route.path);
     expect(routes).toEqual(["/", "/:id", "/*"]);
-    expect(() => bs.resource("nope" as never)).toThrow('Unknown table "nope"');
+    expect(() => bsb.resource("nope" as never)).toThrow('Unknown table "nope"');
   });
 });
 
-describe("bs.require()", () => {
-  const bs = createHono(defineSupabase(schema), {
+describe("bsb.require()", () => {
+  const bsb = createHono(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });
 
-  const app = bs
+  const app = bsb
     .app()
-    .use("*", bs.middleware({ allow: ["user", "anon"] }))
+    .use("*", bsb.middleware({ allow: ["user", "anon"] }))
     .get("/open", (c) => c.json(c.var.session.kind))
     .get(
       "/admin",
-      bs.require({
+      bsb.require({
         authorize: (session) =>
           session.kind === "user" &&
           session.claims.app_metadata?.["role"] === "admin",
       }),
       (c) => c.json("ok"),
     )
-    .get("/scoped", bs.require({ requireTenant: true }), (c) =>
+    .get("/scoped", bsb.require({ requireTenant: true }), (c) =>
       c.json(c.var.tenant),
     );
 
@@ -201,19 +201,21 @@ describe("authorizer", () => {
           : { outcome: "denied" },
   });
 
-  const bs = createHono(defineSupabase(schema), {
+  const bsb = createHono(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer,
   });
 
-  const app = bs
+  const app = bsb
     .app()
-    .use("*", bs.middleware())
-    .post("/invites", bs.require({ permission: "invite" }), (c) => c.json("ok"))
+    .use("*", bsb.middleware())
+    .post("/invites", bsb.require({ permission: "invite" }), (c) =>
+      c.json("ok"),
+    )
     .route(
       "/customers",
-      bs.resource("customers", {
+      bsb.resource("customers", {
         actions: {
           export: defineAction({
             method: "GET",
@@ -244,7 +246,7 @@ describe("authorizer", () => {
     expect(await sent.json()).toEqual({ id: "c1", user: USER });
     expect((await call("/customers/c1/send")).status).toBe(405);
     expect(
-      bs
+      bsb
         .resource("customers", {
           actions: {
             ping: { method: "POST", path: "/ping", handler: () => undefined },
@@ -280,9 +282,9 @@ describe("authorizer", () => {
 
   it("types permissions from the authorizer", () => {
     // @ts-expect-error "delete" is not a permission of this authorizer
-    bs.require({ permission: "delete" });
+    bsb.require({ permission: "delete" });
     // @ts-expect-error "delete" is not a permission of this authorizer
-    bs.resource("customers", { permissions: { list: "delete" } });
+    bsb.resource("customers", { permissions: { list: "delete" } });
   });
 });
 
@@ -290,16 +292,16 @@ describe("createHono buckets", () => {
   it("reads db.$buckets in a handler", async () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
 
-    const bs = createHono(defineSupabase(schema).buckets({ logos }), {
+    const bsb = createHono(defineSupabase(schema).buckets({ logos }), {
       env,
       auth: { jwks: signer.jwks },
     });
 
-    const app = new Hono<typeof bs.Env>()
-      .use(bs.middleware({ allow: ["anon"] }))
+    const app = new Hono<typeof bsb.Env>()
+      .use(bsb.middleware({ allow: ["anon"] }))
       .get(
         "/",
-        bs.handler((_c, ctx) => ok({ id: ctx.db.$buckets.logos.bucket.id })),
+        bsb.handler((_c, ctx) => ok({ id: ctx.db.$buckets.logos.bucket.id })),
       );
 
     const response = await app.request("/");
@@ -309,12 +311,12 @@ describe("createHono buckets", () => {
 
 describe("createHono options", () => {
   it("answers a preflight and adds CORS headers with cors", async () => {
-    const bs = createHono(defineSupabase(schema), {
+    const bsb = createHono(defineSupabase(schema), {
       env,
       cors: { origin: "https://app.example.com" },
     });
 
-    const app = bs.app().get("/ping", (c) => c.text("pong"));
+    const app = bsb.app().get("/ping", (c) => c.text("pong"));
 
     const preflight = await app.request("/ping", {
       method: "OPTIONS",

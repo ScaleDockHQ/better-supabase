@@ -166,7 +166,7 @@ from a daily job.
 
 The [Hono example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/hono-api)
 serves an authorization server on these calls. `POST /oauth/authorize` runs
-behind `bs.middleware({ allow: ["user"] })`, stores a code for the signed-in
+behind `bsb.middleware({ allow: ["user"] })`, stores a code for the signed-in
 user and returns the redirect. `POST /oauth/token` verifies the client
 (`client_secret_basic`, `client_secret_post` or a public client), redeems the
 code and signs an RFC 9068 access token (`typ: at+jwt`) with
@@ -174,11 +174,11 @@ code and signs an RFC 9068 access token (`typ: at+jwt`) with
 revocation. `GET /.well-known/jwks.json` publishes the keys.
 
 ```ts title="src/server.ts"
-const app = bs
+const app = bsb
   .app()
   .post("/oauth/token", (c) => token(c.req.raw))
   .get("/.well-known/jwks.json", () => jwks())
-  .post("/oauth/authorize", bs.middleware({ allow: ["user"] }), async (c) => {
+  .post("/oauth/authorize", bsb.middleware({ allow: ["user"] }), async (c) => {
     if (c.var.auth.kind !== "user") {
       return c.json({ error: "login_required" }, 401);
     }
@@ -192,8 +192,8 @@ const app = bs
 
 The token endpoint answers a refused request in the RFC 6749 format
 (`{ "error": "invalid_grant" }`), which OAuth clients expect. Anything else,
-such as a database error from an `.orThrow()`, reaches `bs.onError`, which
-`bs.app()` installs, and answers as [Problem Details](/docs/auth/problems).
+such as a database error from an `.orThrow()`, reaches `bsb.onError`, which
+`bsb.app()` installs, and answers as [Problem Details](/docs/auth/problems).
 The [oRPC example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/orpc-api)
 serves its router on Hono the same way, so both can share one app.
 

@@ -100,7 +100,7 @@ describe("useBlockController (Svelte)", () => {
 
     expect(() =>
       mount(() => useBlockController(startCounter().create, {})),
-    ).toThrow(/setBetterSupabase\(bs\)/);
+    ).toThrow(/setBetterSupabase\(bsb\)/);
   });
 
   it("starts nothing until the component mounts", () => {

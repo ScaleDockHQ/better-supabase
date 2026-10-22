@@ -9,7 +9,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import {
   PROJECT_HISTORY_FIELDS,
@@ -36,7 +36,7 @@ const OptionalDate = v.pipe(
 );
 
 /** Creates a project; budget and currency keep their column defaults. */
-export const createProject = bs.action(
+export const createProject = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -64,7 +64,7 @@ export const createProject = bs.action(
  * caller's organization, and the composite foreign key keeps the project in it
  * too.
  */
-export const createTask = bs.action(
+export const createTask = bsb.action(
   {
     input: v.pipe(
       v.object({
@@ -105,7 +105,7 @@ export const createTask = bs.action(
  * Moves a task between two cards, into a status column. `rank.move` writes the
  * status and the new key in one statement, as the caller.
  */
-export const moveTask = bs.action(
+export const moveTask = bsb.action(
   {
     input: v.object({
       id: Id,
@@ -129,7 +129,7 @@ export const moveTask = bs.action(
 );
 
 /** Sets the status of the selected tasks, or deletes them, in one statement. */
-export const runTaskBulkAction = bs.action(
+export const runTaskBulkAction = bsb.action(
   {
     input: v.variant("kind", [
       v.object({
@@ -167,7 +167,7 @@ export const runTaskBulkAction = bs.action(
  * `appTables.set`. Each row runs as the caller, so the policies and column
  * grants decide what changes, and a failing row leaves the others.
  */
-export const setTaskField = bs.action(
+export const setTaskField = bsb.action(
   {
     input: v.object({
       ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
@@ -207,7 +207,7 @@ type TaskViewQuery = {
 };
 
 /** Saves the current screen, search and filters as a named view. */
-export const saveTaskView = bs.action(
+export const saveTaskView = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -257,7 +257,7 @@ export const saveTaskView = bs.action(
   },
 );
 
-export const deleteTaskView = bs.action(
+export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -281,7 +281,7 @@ export const deleteTaskView = bs.action(
  * as they are (`versions.restoreFields`). The snapshot trigger already kept the
  * current values, so the restore can be undone from the history.
  */
-export const restoreProjectFields = bs.action(
+export const restoreProjectFields = bsb.action(
   {
     input: v.object({
       projectId: Id,

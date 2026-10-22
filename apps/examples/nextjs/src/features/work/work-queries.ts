@@ -6,7 +6,7 @@ import { unstable_rethrow } from "next/navigation";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type {
   MemberOption,
@@ -67,7 +67,7 @@ export async function getWorkBoard(
   teamId: string | null,
 ): Promise<WorkBoardData | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -103,7 +103,7 @@ export async function getWorkBoard(
 /** The organization's teams, for the team picker. */
 export async function getTeams(): Promise<readonly TeamOption[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -179,7 +179,7 @@ export async function getWorkGrid(
   query: WorkGridQuery,
 ): Promise<WorkGridData | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -221,7 +221,7 @@ export async function getWorkViews(): Promise<
   readonly SavedViewOption[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

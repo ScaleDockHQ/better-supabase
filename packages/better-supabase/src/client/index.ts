@@ -104,7 +104,7 @@ export interface ClientOptions {
     readonly userStorage?: UserStorage;
   };
   /**
-   * `staleTime` for every query option in `bs.queries`. Above zero, a remount
+   * `staleTime` for every query option in `bsb.queries`. Above zero, a remount
    * or a window focus reuses cached rows instead of refetching.
    */
   readonly staleTime?: number;
@@ -172,7 +172,7 @@ function clientFor(options: ClientOptions): SupabaseClient {
  * TanStack Query options and an auth store for UI state.
  *
  * ```ts
- * export const bs = createClient(betterSupabase, {
+ * export const bsb = createClient(betterSupabase, {
  *   env: { url, publishableKey },
  * });
  * ```

@@ -212,7 +212,7 @@ describe("stack commands through the CLI", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "bs-stack-"));
+    dir = await mkdtemp(join(tmpdir(), "bsb-stack-"));
   });
 
   afterEach(async () => {

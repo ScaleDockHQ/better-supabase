@@ -39,7 +39,7 @@ const minimal = (asyncapi: string) => ({
   },
   channels: {
     customers: {
-      address: "bs:t:public.customers",
+      address: "bsb:t:public.customers",
       messages: {
         change: {
           payload: {

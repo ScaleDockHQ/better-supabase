@@ -59,7 +59,7 @@ describe("useBlockController (Vue)", () => {
 
     expect(() =>
       effectScope().run(() => useBlockController(startCounter().create, {})),
-    ).toThrow(/betterSupabase\(bs\)/);
+    ).toThrow(/betterSupabase\(bsb\)/);
   });
 
   it("starts nothing while rendering on the server", async () => {

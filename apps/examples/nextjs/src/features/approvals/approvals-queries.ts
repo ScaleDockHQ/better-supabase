@@ -4,7 +4,7 @@ import { unstable_rethrow } from "next/navigation";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import type { ApprovalRow, SubjectOption } from "./approvals-types";
 
@@ -26,7 +26,7 @@ export type Loaded<T> =
  */
 async function loadQueue(): Promise<ApprovalsQueue | null> {
   "use cache: private";
-  const { session, supabase, db } = await bs.cached();
+  const { session, supabase, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

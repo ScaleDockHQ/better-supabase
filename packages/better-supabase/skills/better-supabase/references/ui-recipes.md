@@ -5894,7 +5894,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
   const overlay = useWorkflowCanvasRun(runId, { schema: "api" });
 
   const definitionRuns = (runs ?? []).filter(
-    (run) => run.attributes["bs.definition"] === detail.definition.id,
+    (run) => run.attributes["bsb.definition"] === detail.definition.id,
   );
 
   const graph = fromFlow(nodes, edges);
@@ -6438,7 +6438,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getSession } from "../user-queries";
 
 /**
- * Shown during a support session (`bs.startSupport`): staff see the app as the
+ * Shown during a support session (`bsb.startSupport`): staff see the app as the
  * user, and the audit log records who acted. Render inside `<Suspense>`.
  */
 export async function ImpersonationBanner() {
@@ -7636,7 +7636,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 import { metrics } from "@/metrics";
 
 const DAYS = 30;
@@ -7664,7 +7664,7 @@ async function loadPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = {
@@ -7860,7 +7860,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** The flags `src/flags.ts` defines. */
 const FLAG_KEYS = ["beta-page", "pricing-banner"] as const;
@@ -7885,7 +7885,7 @@ type FlagValues =
  */
 async function loadFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

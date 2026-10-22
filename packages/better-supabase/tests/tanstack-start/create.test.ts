@@ -10,13 +10,13 @@ import {
   USER,
 } from "../fixtures/test-server.ts";
 
-const bs = createTanStackStart(betterSupabase, {
+const bsb = createTanStackStart(betterSupabase, {
   env,
   auth: { jwks: signer.jwks },
   prefetchJwks: false,
 });
 
-type Context = Parameters<typeof bs.require>[0];
+type Context = Parameters<typeof bsb.require>[0];
 
 /** Runs the request middleware and hands its context to `fn`. */
 async function serve(
@@ -25,7 +25,7 @@ async function serve(
 ) {
   let out: unknown;
   let thrown: unknown;
-  await bs.middleware({
+  await bsb.middleware({
     request,
     next: async ({ context }) => {
       try {
@@ -49,7 +49,7 @@ async function serve(
 describe("createTanStackStart", () => {
   it("puts the caller on context, and require returns it", async () => {
     const caller = await serve(await requestAs({ role: "member" }), (context) =>
-      bs.require(context),
+      bsb.require(context),
     );
 
     expect(caller).toMatchObject({ session: { user: { id: USER } } });
@@ -57,14 +57,14 @@ describe("createTanStackStart", () => {
 
   it("throws a Problem Details response for refused callers", async () => {
     const refused = await serve(await requestAs(), (context) =>
-      bs.require(context),
+      bsb.require(context),
     ).catch((error: unknown) => error);
 
     expect((refused as Response).status).toBe(401);
   });
 
   it("runs server function handlers into ActionResults", async () => {
-    const handler = bs.action({ requireTenant: true }, () => ok(1));
+    const handler = bsb.action({ requireTenant: true }, () => ok(1));
 
     const result = await serve(await requestAs({ role: "member" }), (context) =>
       handler({ data: {}, context }),
@@ -74,6 +74,6 @@ describe("createTanStackStart", () => {
   });
 
   it("require fails without the middleware", async () => {
-    await expect(bs.require({} as never)).rejects.toThrow(/middleware/);
+    await expect(bsb.require({} as never)).rejects.toThrow(/middleware/);
   });
 });

@@ -14,7 +14,7 @@ import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { SHOP_CURRENCY } from "./shop-currency";
 import { shopOrders } from "./shop-server";
@@ -78,7 +78,7 @@ export interface Product {
  */
 async function loadProducts(): Promise<readonly Product[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -134,7 +134,7 @@ export type StockLevels = v.InferOutput<typeof StockLevels>;
  */
 async function loadStockLevels(): Promise<StockLevels | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -197,7 +197,7 @@ export interface Orders {
 /** The organization's placed orders and the caller's open carts (draft orders). */
 async function loadOrders(): Promise<Orders | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -332,7 +332,7 @@ async function loadOrderDetail(
   id: string,
 ): Promise<OrderView | DraftView | null> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const orders = shopOrders(supabase);
 
   const order = await orders.getOrder(id);

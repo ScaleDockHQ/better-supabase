@@ -241,7 +241,7 @@ export interface ModelChannelOperation {
 
 export interface ModelChannel {
   readonly id: string;
-  /** The address with `{param}` placeholders, e.g. `bs:t:{schema}.{table}`. */
+  /** The address with `{param}` placeholders, e.g. `bsb:t:{schema}.{table}`. */
   readonly address: string;
   readonly title?: string;
   readonly summary?: string;

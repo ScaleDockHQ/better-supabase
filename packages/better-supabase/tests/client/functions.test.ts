@@ -16,7 +16,7 @@ const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
-const bs = createEdge(defineSupabase(schema), {
+const bsb = createEdge(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
@@ -25,7 +25,7 @@ const bs = createEdge(defineSupabase(schema), {
   auth: { jwks: signer.jwks },
 });
 
-const sendInvite = defineFunction(bs, {
+const sendInvite = defineFunction(bsb, {
   input: v.object({ email: v.pipe(v.string(), v.email()) }),
   output: v.object({ email: v.string(), by: v.string() }),
   handler: (input, ctx) => ({
@@ -34,12 +34,12 @@ const sendInvite = defineFunction(bs, {
   }),
 });
 
-const echo = defineFunction(bs, {
+const echo = defineFunction(bsb, {
   input: v.string(),
   handler: (input) => input.toUpperCase(),
 });
 
-const ping = defineFunction(bs, {
+const ping = defineFunction(bsb, {
   input: v.optional(v.object({})),
   handler: () => undefined,
 });

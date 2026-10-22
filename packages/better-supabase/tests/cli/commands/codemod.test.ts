@@ -16,12 +16,12 @@ import { usageError } from "../fixtures/usage.ts";
 describe("runCodemod", () => {
   let root: string;
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bs-codemod-"));
+    root = await mkdtemp(join(tmpdir(), "bsb-codemod-"));
     await mkdir(join(root, "src/lib"), { recursive: true });
     await mkdir(join(root, "node_modules/x"), { recursive: true });
     await writeFile(
       join(root, "src/lib/client.ts"),
-      `import { createBrowser } from "better-supabase/react";\nexport const bs = createBrowser(betterSupabase);\nconst ctx = next.server();\n`,
+      `import { createBrowser } from "better-supabase/react";\nexport const bsb = createBrowser(betterSupabase);\nconst ctx = next.server();\n`,
     );
     await writeFile(join(root, "src/lib/other.ts"), "export const a = 1;\n");
     await writeFile(
@@ -68,7 +68,7 @@ describe("runCodemod", () => {
       "Would update src/lib/client.ts\nWould update 1 of 2 files.",
     );
     expect(dry.output).toContain(
-      "Check these by hand:\n  src/lib/client.ts:3: `next.server()` is `bs.context()`",
+      "Check these by hand:\n  src/lib/client.ts:3: `next.server()` is `bsb.context()`",
     );
     expect(await readFile(path, "utf-8")).toBe(before);
 
@@ -79,7 +79,7 @@ describe("runCodemod", () => {
       changed: ["src/lib/client.ts"],
     });
     expect(await readFile(path, "utf-8")).toContain(
-      "export const bs = createClient(betterSupabase);",
+      "export const bsb = createClient(betterSupabase);",
     );
     expect((await codemod(["0.4", "src/lib/client.ts"])).output).toContain(
       "Nothing to change in 1 files.",

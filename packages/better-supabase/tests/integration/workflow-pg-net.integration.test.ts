@@ -220,8 +220,8 @@ describe.skipIf(!live)("pg_net delivery", () => {
       new Request("http://localhost/.well-known/workflow/v1/flow", {
         method: "POST",
         headers: {
-          "x-bs-job": `${WORKFLOW_DELIVERY_QUEUE}:1:1`,
-          "x-bs-signature": "t=1,v1=00",
+          "x-bsb-job": `${WORKFLOW_DELIVERY_QUEUE}:1:1`,
+          "x-bsb-signature": "t=1,v1=00",
         },
         body: "{}",
       }),

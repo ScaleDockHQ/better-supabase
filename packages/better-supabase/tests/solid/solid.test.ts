@@ -96,7 +96,7 @@ const anything: StandardSchemaV1<unknown, unknown> = {
 describe("BetterSupabaseProvider", () => {
   it("shares the auth state and resets queries when the user changes", async () => {
     const { browser, setAuth, listeners } = fakeBrowser(signedIn(USER));
-    const { queryClient } = cachedClient(["bs", "customers"]);
+    const { queryClient } = cachedClient(["bsb", "customers"]);
     const reset = vi.spyOn(queryClient, "resetQueries");
 
     const view = mount(
@@ -117,7 +117,7 @@ describe("BetterSupabaseProvider", () => {
 
   it("explains a missing provider and types createBindings", () => {
     expect(() => mount(null, () => useAuth())).toThrow(
-      /<BetterSupabaseProvider client=\{bs\}>/,
+      /<BetterSupabaseProvider client=\{bsb\}>/,
     );
     const { browser } = fakeBrowser(SIGNED_OUT);
     const bindings = createBindings<typeof browser>();
@@ -162,7 +162,7 @@ describe("useBroadcast", () => {
 
   it("subscribes, forwards messages, pauses on null and resubscribes on a new user", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"]);
+    const cache = cachedClient(["bsb", "customers"]);
     const [roomId, setRoomId] = createSignal<string | null>("r1");
     const created = vi.fn();
 
@@ -191,7 +191,7 @@ describe("useBroadcast", () => {
     emit("room:r1", "created", {});
     await flush();
     expect(created).toHaveBeenCalledOnce();
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
 
     setAuth(signedIn(OTHER));
     expect(client.channel).toHaveBeenCalledTimes(2);
@@ -233,7 +233,7 @@ describe("useLiveQuery", () => {
 
   it("watches with the claimed tenant, invalidates and rejoins", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
-    const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+    const cache = cachedClient(["bsb", "customers"], ["bsb", "organizations"]);
     const [current, setCurrent] = createSignal<typeof spec | null>(spec);
 
     const view = mount(
@@ -245,15 +245,15 @@ describe("useLiveQuery", () => {
     await flush();
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
     expect(client.channel.mock.calls.map(([topic]) => topic)).toEqual([
-      "bs:t:public.customers:org-1",
-      "bs:t:public.notes",
+      "bsb:t:public.customers:org-1",
+      "bsb:t:public.notes",
     ]);
     await flush();
     expect(view.result()).toBe("subscribed");
-    emit("bs:t:public.customers:org-1", "change");
+    emit("bsb:t:public.customers:org-1", "change");
     await wait(10);
-    expect(cache.invalidated(["bs", "customers"])).toBe(true);
-    expect(cache.invalidated(["bs", "organizations"])).toBe(false);
+    expect(cache.invalidated(["bsb", "customers"])).toBe(true);
+    expect(cache.invalidated(["bsb", "organizations"])).toBe(false);
     setCurrent(null);
     await wait(5);
     expect(client.removeChannel).toHaveBeenCalledTimes(2);
@@ -279,7 +279,7 @@ describe("useLiveCount", () => {
     await flush();
     expect(counted.result.count).toBe(4);
     expect(counted.result.status).toBe("subscribed");
-    emit("bs:t:public.notes", "change");
+    emit("bsb:t:public.notes", "change");
     await wait(10);
     expect(counted.result.count).toBe(4);
     expect(counted.result.error?.kind).toBe("network");

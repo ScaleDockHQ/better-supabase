@@ -33,7 +33,7 @@ async function signingKey(): Promise<SigningJwk> {
 }
 
 async function project(key: SigningJwk): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "bs-local-key-"));
+  const root = await mkdtemp(join(tmpdir(), "bsb-local-key-"));
   await mkdir(join(root, "supabase"));
   await writeFile(
     join(root, "supabase", "config.toml"),

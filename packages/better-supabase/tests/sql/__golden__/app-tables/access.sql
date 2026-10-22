@@ -128,7 +128,7 @@ select extensions.table_privs_are('public', 'projects_view', 'authenticated', ar
 
 with o as (
   insert into "better_supabase"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;

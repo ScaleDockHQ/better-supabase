@@ -10,7 +10,7 @@ import { claimAt, tenantClaimPaths } from "../core/claims.ts";
  * or the client's `useAuth()` snapshot.
  *
  * ```ts
- * const organizationId = tenantOf(await bs.session());
+ * const organizationId = tenantOf(await bsb.session());
  * const organizationId = tenantOf(useAuth());
  * ```
  */

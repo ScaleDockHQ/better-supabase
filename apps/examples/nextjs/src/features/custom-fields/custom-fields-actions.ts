@@ -7,7 +7,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { FieldEntitySchema, FieldTypeSchema } from "./custom-fields-types";
 
@@ -17,7 +17,7 @@ const Id = v.pipe(v.string(), v.uuid());
  * Adds a field, or relabels the entity's field with the same key. Keys are
  * lower snake case, since they name the value in the API.
  */
-export const saveField = bs.action(
+export const saveField = bsb.action(
   {
     input: v.object({
       entity: FieldEntitySchema,
@@ -51,7 +51,7 @@ export const saveField = bs.action(
   },
 );
 
-export const deleteField = bs.action(
+export const deleteField = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -74,7 +74,7 @@ export const deleteField = bs.action(
  * Moves a field one place up or down. Fields saved before any reorder have no
  * rank key yet, so the first move ranks the whole list in its new order.
  */
-export const moveField = bs.action(
+export const moveField = bsb.action(
   {
     input: v.object({
       entity: FieldEntitySchema,

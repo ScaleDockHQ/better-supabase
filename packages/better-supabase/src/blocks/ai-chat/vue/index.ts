@@ -47,7 +47,7 @@ export type {
  * `createAiChatsController` as a Vue composable: `state` is a shallow ref of
  * the snapshot. Call it in `setup` or an effect scope; the work starts on mount
  * and the controller is disposed with the scope. `auth` and `ports` default to
- * the client of `app.use(betterSupabase(bs))`.
+ * the client of `app.use(betterSupabase(bsb))`.
  */
 export function useAiChats(
   options: BlockOptions<AiChatsControllerOptions>,
@@ -63,7 +63,7 @@ export function useAiChats(
  * `createAiChatTreeController` as a Vue composable: `state` is a shallow ref of
  * the snapshot. Call it in `setup` or an effect scope; the work starts on mount
  * and the controller is disposed with the scope. `auth` and `ports` default to
- * the client of `app.use(betterSupabase(bs))`.
+ * the client of `app.use(betterSupabase(bsb))`.
  */
 export function useAiChatTree(
   options: BlockOptions<AiChatTreeControllerOptions>,
@@ -79,7 +79,7 @@ export function useAiChatTree(
  * `createAiModelsController` as a Vue composable: `state` is a shallow ref of
  * the snapshot. Call it in `setup` or an effect scope; the work starts on mount
  * and the controller is disposed with the scope. `auth` and `ports` default to
- * the client of `app.use(betterSupabase(bs))`.
+ * the client of `app.use(betterSupabase(bsb))`.
  */
 export function useAiModels(
   options: BlockOptions<AiModelsControllerOptions>,
@@ -95,7 +95,7 @@ export function useAiModels(
  * `createAiShareController` as a Vue composable: `state` is a shallow ref of
  * the snapshot. Call it in `setup` or an effect scope; the work starts on mount
  * and the controller is disposed with the scope. `auth` and `ports` default to
- * the client of `app.use(betterSupabase(bs))`.
+ * the client of `app.use(betterSupabase(bsb))`.
  */
 export function useAiShare(
   options: BlockOptions<AiShareControllerOptions>,

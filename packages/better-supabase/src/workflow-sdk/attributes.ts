@@ -3,36 +3,39 @@
  * `workflow_runs`.
  */
 export const WORKFLOW_ATTRIBUTES = {
-  tenant: "bs.tenant",
-  actor: "bs.actor",
-  key: "bs.key",
+  tenant: "bsb.tenant",
+  actor: "bsb.actor",
+  key: "bsb.key",
   /** The builder definition a run started from; its alerts match on it. */
-  definition: "bs.definition",
+  definition: "bsb.definition",
   /** The builder version number a run started from. */
-  version: "bs.version",
-  /** The opaque ticket `bs.forContext` resolves into the context a step runs as. */
-  ticket: "bs.ticket",
+  version: "bsb.version",
+  /**
+   * The opaque ticket `bsb.forContext` resolves into the context a step runs
+   * as.
+   */
+  ticket: "bsb.ticket",
   /** The user an event or schedule start runs as (`runAs`). */
-  publisher: "bs.publisher",
+  publisher: "bsb.publisher",
   /** The event actor or schedule creator behind a `runAs` start, for audit only. */
-  trigger: "bs.trigger",
+  trigger: "bsb.trigger",
   /** The record a run belongs to, as `<type>/<id>`. */
-  subject: "bs.subject",
+  subject: "bsb.subject",
   /**
    * What a `runAs` run's steps run as: `user`, `service_principal`, `system` or
    * `external`.
    */
-  principalKind: "bs.principal_kind",
+  principalKind: "bsb.principal_kind",
   /** The id of that principal, when it has one. */
-  principal: "bs.principal",
+  principal: "bsb.principal",
   /** `test` for a builder test run; anything else records `live`. */
-  mode: "bs.mode",
+  mode: "bsb.mode",
   /** The trigger node a builder run started at. */
-  triggerNode: "bs.trigger_node",
+  triggerNode: "bsb.trigger_node",
 } as const;
 
 /**
- * The `bs.subject` value for a record: `<type>/<id>`. Throws a `TypeError` for
+ * The `bsb.subject` value for a record: `<type>/<id>`. Throws a `TypeError` for
  * a type with a slash or an empty type or id, which the mirror can't split
  * back.
  */

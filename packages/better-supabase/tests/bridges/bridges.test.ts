@@ -30,11 +30,11 @@ const betterSupabase = defineSupabase(schema);
 type Bs = Parameters<AdapterRun>[0];
 
 /** What a route does with the module's `run`: a Result-aware response. */
-async function answer(run: AdapterRun, bs: Bs, request: Request) {
+async function answer(run: AdapterRun, bsb: Bs, request: Request) {
   const instance = new URL(request.url).pathname;
 
   try {
-    return await respond(() => run(bs), { instance, expose: false });
+    return await respond(() => run(bsb), { instance, expose: false });
   } catch (cause) {
     return unexpectedResponse(cause, { instance, expose: false });
   }
@@ -61,7 +61,7 @@ describe("bridges pass testAdapter", () => {
       serve: (server, run, { allow, waitUntil }) => {
         const app = new Hono()
           .use(toHono(entriesFor(server, allow, waitUntil)))
-          .get("*", (c) => answer(run, c.var.bs, c.req.raw));
+          .get("*", (c) => answer(run, c.var.bsb, c.req.raw));
 
         return async (request) => app.fetch(request);
       },
@@ -73,7 +73,7 @@ describe("bridges pass testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) =>
         toEdge(entriesFor(server, allow, waitUntil), (request, ctx) =>
-          answer(run, ctx.bs, request),
+          answer(run, ctx.bsb, request),
         ),
     });
   });
@@ -84,7 +84,7 @@ describe("bridges pass testAdapter", () => {
       serve: (server, run, { allow, waitUntil }) => {
         const handler = toExpo(
           entriesFor(server, allow, waitUntil),
-          (request, ctx) => answer(run, ctx.bs, request),
+          (request, ctx) => answer(run, ctx.bsb, request),
         );
 
         return (request) => handler(request);
@@ -99,9 +99,9 @@ describe("bridges pass testAdapter", () => {
         const orpc = createOrpc(betterSupabase, server);
 
         const procedure = os
-          .$context<{ request: Request; bs: Bs }>()
+          .$context<{ request: Request; bsb: Bs }>()
           .handler(({ context }) =>
-            orpc.unwrap((async () => run(context.bs))()),
+            orpc.unwrap((async () => run(context.bsb))()),
           );
 
         const fetch = toOrpc(
@@ -137,7 +137,7 @@ describe("bridges pass testAdapter", () => {
             const result = await middleware({
               request,
               next: async ({ context }) => ({
-                response: await answer(run, context.bs, request),
+                response: await answer(run, context.bsb, request),
               }),
             });
 
@@ -165,7 +165,7 @@ describe("bridges pass testAdapter", () => {
 
           return handle({
             event: { request, locals },
-            resolve: (event) => answer(run, event.locals.bs!, event.request),
+            resolve: (event) => answer(run, event.locals.bsb!, event.request),
           });
         };
       },
@@ -184,11 +184,11 @@ describe("bridges pass testAdapter", () => {
         );
 
         return (request) => {
-          const store = new Map<symbol, { readonly bs: Bs }>();
+          const store = new Map<symbol, { readonly bsb: Bs }>();
 
           return middleware(
             { request, context: { set: (k, v) => store.set(k, v) } },
-            () => answer(run, store.get(key)!.bs, request),
+            () => answer(run, store.get(key)!.bsb, request),
           );
         };
       },
@@ -208,7 +208,7 @@ describe("bridges pass testAdapter", () => {
           };
 
           return middleware(event, () =>
-            answer(run, event.context.bs!, request),
+            answer(run, event.context.bsb!, request),
           );
         };
       },
@@ -222,7 +222,7 @@ describe("bridges pass testAdapter", () => {
         const bridge = toElysia(entriesFor(server, allow, waitUntil));
 
         return bridge.wrap((request) =>
-          answer(run, bridge.context(request).bs, request),
+          answer(run, bridge.context(request).bsb, request),
         );
       },
     });

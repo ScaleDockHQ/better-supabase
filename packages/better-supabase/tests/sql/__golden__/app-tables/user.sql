@@ -83,7 +83,7 @@ select extensions.table_privs_are('public', 'projects', 'authenticated', array['
 
 with u as (
   insert into auth.users (id, email, aud, role, instance_id)
-  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  values (gen_random_uuid(), 'bsb-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
   returning id
 )
 insert into "public"."projects" ("user_id", "name") select u.id, repeat('x', 1) from u;

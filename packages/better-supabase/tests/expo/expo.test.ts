@@ -73,7 +73,7 @@ describe("createExpo", () => {
 
   const betterSupabase = defineSupabase(schema);
 
-  const bs = createExpo(betterSupabase, {
+  const bsb = createExpo(betterSupabase, {
     env,
     auth: { jwks: signer.jwks, fetch: refreshed },
   });
@@ -86,7 +86,7 @@ describe("createExpo", () => {
   it("verifies a bearer token before the cookie and writes nothing", async () => {
     const token = await signer.sign({ sub: USER });
 
-    const ctx = await bs.request(
+    const ctx = await bsb.request(
       immutable("https://app.test/", {
         authorization: `Bearer ${token}`,
         cookie: await sessionCookie(3600, "r-unused"),
@@ -101,7 +101,7 @@ describe("createExpo", () => {
   it("refreshes an expired cookie session and sets the cookies on the response", async () => {
     const cookie = await sessionCookie(5, "r-loader");
 
-    const loader = bs.loader((ctx, params) => ({
+    const loader = bsb.loader((ctx, params) => ({
       user: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
       params,
     }));
@@ -115,7 +115,7 @@ describe("createExpo", () => {
     expect(written.headers.getSetCookie().join("\n")).toContain(COOKIE);
     expect(written.headers.get("cache-control")).toContain("no-store");
 
-    const middleware = bs.middleware();
+    const middleware = bsb.middleware();
     const before = written.headers.getSetCookie().length;
     expect(
       await middleware(immutable("https://app.test/", { cookie })),
@@ -128,11 +128,11 @@ describe("createExpo", () => {
     const cookie = await sessionCookie(5, "r-handoff");
     const url = "https://app.test/handoff";
 
-    expect(await bs.middleware()(immutable(url, { cookie }))).toBeUndefined();
+    expect(await bsb.middleware()(immutable(url, { cookie }))).toBeUndefined();
     expect(refreshed).toHaveBeenCalledOnce();
 
     const cookies = written.headers.getSetCookie().length;
-    const ctx = await bs.request(immutable(url, { cookie }));
+    const ctx = await bsb.request(immutable(url, { cookie }));
 
     expect(ctx.auth).toMatchObject({ kind: "user", source: "cookie" });
     expect(refreshed).toHaveBeenCalledOnce();
@@ -143,9 +143,9 @@ describe("createExpo", () => {
     const cookie = await sessionCookie(-60, "r-handoff-off");
     const url = "https://app.test/handoff-off";
 
-    await bs.middleware()(immutable(url, { cookie }));
+    await bsb.middleware()(immutable(url, { cookie }));
 
-    const loader = bs.loader((ctx) => ctx.auth.kind, { refresh: false });
+    const loader = bsb.loader((ctx) => ctx.auth.kind, { refresh: false });
 
     expect(await loader(immutable(url, { cookie }), {})).toBe("user");
     expect(refreshed).toHaveBeenCalledOnce();
@@ -153,7 +153,7 @@ describe("createExpo", () => {
 
   it("refreshes once in a loader when no middleware ran", async () => {
     const cookie = await sessionCookie(5, "r-no-middleware");
-    const loader = bs.loader((ctx) => ctx.auth.kind);
+    const loader = bsb.loader((ctx) => ctx.auth.kind);
 
     expect(
       await loader(immutable("https://app.test/no-middleware", { cookie }), {}),
@@ -162,7 +162,7 @@ describe("createExpo", () => {
   });
 
   it("throws a StatusError for a refused caller and in static rendering", async () => {
-    const loader = bs.loader(() => "secret", { allow: ["user"] });
+    const loader = bsb.loader(() => "secret", { allow: ["user"] });
 
     const refused = await loader(immutable("https://app.test/"), {}).catch(
       (cause: unknown) => cause,
@@ -176,7 +176,7 @@ describe("createExpo", () => {
   });
 
   it("answers a DbException from a loader with its status", async () => {
-    const missing = bs.loader(() => {
+    const missing = bsb.loader(() => {
       throw new DbException(dbError("not_found", "No customer"));
     });
 
@@ -187,7 +187,7 @@ describe("createExpo", () => {
     expect(refused).toBeInstanceOf(StatusError);
     expect(refused).toMatchObject({ status: 404 });
 
-    const failing = bs.loader(() => {
+    const failing = bsb.loader(() => {
       throw new TypeError("boom");
     });
 
@@ -197,7 +197,7 @@ describe("createExpo", () => {
   });
 
   it("redirects refused callers from middleware", async () => {
-    const middleware = bs.middleware({ redirectTo: "/sign-in" });
+    const middleware = bsb.middleware({ redirectTo: "/sign-in" });
 
     const response = await middleware(
       immutable("https://app.test/account?tab=1"),
@@ -222,7 +222,7 @@ describe("createExpo", () => {
   });
 
   it("lets callers through to paths under redirectTo and publicPaths", async () => {
-    const middleware = bs.middleware({
+    const middleware = bsb.middleware({
       redirectTo: "/sign-in",
       publicPaths: ["/", "/legal"],
     });
@@ -243,7 +243,7 @@ describe("createExpo", () => {
   it("answers API routes with JSON and Problem Details", async () => {
     const token = await signer.sign({ sub: USER });
 
-    const handler = bs.handler((_request, ctx, params) =>
+    const handler = bsb.handler((_request, ctx, params) =>
       params["fail"]
         ? err(dbError("not_found", "No such row"))
         : ok({ user: ctx.auth.kind === "user" ? ctx.auth.user.id : null }),
@@ -259,7 +259,7 @@ describe("createExpo", () => {
       401,
     );
 
-    const throwing = bs.handler(() => {
+    const throwing = bsb.handler(() => {
       throw new Error("boom");
     });
 

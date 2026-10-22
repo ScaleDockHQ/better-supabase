@@ -15,15 +15,15 @@ app calls it through `functions()` from `better-supabase/client` and gets a
 import { createEdge } from "better-supabase/edge";
 import { betterSupabase } from "../_shared/supabase.ts";
 
-export const bs = createEdge(betterSupabase, { cors: true });
+export const bsb = createEdge(betterSupabase, { cors: true });
 ```
 
 ```ts title="supabase/functions/create-customer/handler.ts"
 import { type ContractOf, defineFunction } from "better-supabase/edge";
 import * as v from "valibot";
-import { bs } from "./server.ts";
+import { bsb } from "./server.ts";
 
-export const createCustomer = defineFunction(bs, {
+export const createCustomer = defineFunction(bsb, {
   input: v.object({
     name: v.pipe(v.string(), v.trim(), v.minLength(1)),
     organizationId: v.pipe(v.string(), v.uuid()),
@@ -47,7 +47,7 @@ Deno.serve(createCustomer);
 ```
 
 `defineFunction` returns the same fetch handler as
-[`bs.handler`](/docs/frameworks/edge), with these steps in front of your code:
+[`bsb.handler`](/docs/frameworks/edge), with these steps in front of your code:
 
 | Step                                | Answer when it fails                            |
 | ----------------------------------- | ----------------------------------------------- |
@@ -61,7 +61,7 @@ takes no input uses an optional schema (`v.optional(v.object({}))`). The
 handler gets the parsed input and the request context (`db`, `auth`,
 `request` and the rest), and returns data, a `Result` or a `Response`, which
 is sent as is. `output` is optional; without it, the contract's output is
-what the handler returns. The options of `bs.handler` (`allow`, `aal`,
+what the handler returns. The options of `bsb.handler` (`allow`, `aal`,
 `scopes`) go next to `input`.
 
 ## Call it from the app
@@ -78,7 +78,7 @@ export const edgeFunctions = (supabase: SupabaseClient) =>
 ```
 
 ```ts
-const fns = edgeFunctions(bs.supabase);
+const fns = edgeFunctions(bsb.supabase);
 
 const result = await fns.invoke("create-customer", {
   name: "Acme",
@@ -112,7 +112,7 @@ installed in the app, write the contract by hand with
 `FunctionContract<Input, Output>`.
 
 `functions()` takes anything with supabase-js's `functions` client: the
-`bs.supabase` of `createClient`, a server's supabase-js client, or a plain
+`bsb.supabase` of `createClient`, a server's supabase-js client, or a plain
 `createClient` from supabase-js.
 
 ## Document it in the spec

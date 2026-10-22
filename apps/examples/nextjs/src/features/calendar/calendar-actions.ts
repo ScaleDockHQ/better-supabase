@@ -7,14 +7,14 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { EVENT_SUBJECT, REMINDER_OFFSETS } from "./calendar-subjects";
 
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Reminds the caller `offsetMinutes` before each occurrence of an event. */
-export const addEventReminder = bs.action(
+export const addEventReminder = bsb.action(
   {
     input: v.object({
       eventId: Id,
@@ -40,7 +40,7 @@ export const addEventReminder = bs.action(
 );
 
 /** Removes one of the caller's reminders. */
-export const removeEventReminder = bs.action(
+export const removeEventReminder = bsb.action(
   {
     input: v.object({ reminderId: Id }),
     requireTenant: true,
@@ -68,7 +68,7 @@ const WORKDAYS = [1, 2, 3, 4, 5] as const;
 const Clock = v.pipe(v.string(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
 
 /** Creates the organization's team calendar, in the zone the browser reports. */
-export const createCalendar = bs.action(
+export const createCalendar = bsb.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
@@ -98,7 +98,7 @@ export const createCalendar = bs.action(
  * Adds an event on a day, timed or all day, in the calendar's zone. An all-day
  * event ends at the start of the next day.
  */
-export const createEvent = bs.action(
+export const createEvent = bsb.action(
   {
     input: v.pipe(
       v.object({
@@ -155,7 +155,7 @@ export const createEvent = bs.action(
  * Replaces the caller's working hours with the same hours Monday to Friday, in
  * their browser's zone.
  */
-export const setWorkingHours = bs.action(
+export const setWorkingHours = bsb.action(
   {
     input: v.pipe(
       v.object({

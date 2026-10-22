@@ -137,7 +137,7 @@ export const betterSupabase = defineSupabase(schema);
   };
 }
 
-/** `supabase/functions/<name>/server.ts`: the function's `bs`. */
+/** `supabase/functions/<name>/server.ts`: the function's `bsb`. */
 function functionServer(
   name: string,
   contents: (shared: string) => string,
@@ -289,7 +289,7 @@ import { betterSupabase } from '${importLib(context, path)}';${
               : `\n\nimport { blockConfig } from '${blocks}';`
           }
 
-export const bs = createClient(betterSupabase, {${
+export const bsb = createClient(betterSupabase, {${
             blocks === undefined ? "" : "\n  blocks: blockConfig,"
           }
   env: {
@@ -317,16 +317,16 @@ import { createNext } from 'better-supabase/next';
 
 import { betterSupabase } from '${importLib(context, server)}';
 
-export const bs = createNext(betterSupabase);
+export const bsb = createNext(betterSupabase);
 `,
         },
         {
           path: proxy,
           contents: `import type { NextRequest } from 'next/server';
 
-import { bs } from '${importFrom(context, proxy, server)}';
+import { bsb } from '${importFrom(context, proxy, server)}';
 
-export const proxy = (request: NextRequest) => bs.proxy(request);
+export const proxy = (request: NextRequest) => bsb.proxy(request);
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\\\.(?:svg|png|jpg|webp)$).*)'],
@@ -336,7 +336,7 @@ export const config = {
       ];
     },
     next: [
-      "Read the session in Server Components with `const { db } = await bs.context()`.",
+      "Read the session in Server Components with `const { db } = await bsb.context()`.",
     ],
   },
   react: {
@@ -357,13 +357,13 @@ export const config = {
 import { BetterSupabaseProvider } from 'better-supabase/react';
 import { type ReactNode, useState } from 'react';
 
-import { bs } from '${importFrom(context, providers, client)}';
+import { bsb } from '${importFrom(context, providers, client)}';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={queryClient}>
-      <BetterSupabaseProvider client={bs} queryClient={queryClient}>
+      <BetterSupabaseProvider client={bsb} queryClient={queryClient}>
         {children}
       </BetterSupabaseProvider>
     </QueryClientProvider>
@@ -375,9 +375,9 @@ export function Providers({ children }: { children: ReactNode }) {
           path: hooks,
           contents: `import { createHooks } from 'better-supabase/react';
 
-import type { bs } from '${importFrom(context, hooks, client)}';
+import type { bsb } from '${importFrom(context, hooks, client)}';
 
-export const { useDb, useQueries, useAuth, useSupabase } = createHooks<typeof bs>();
+export const { useDb, useQueries, useAuth, useSupabase } = createHooks<typeof bsb>();
 `,
         },
       ];
@@ -397,11 +397,11 @@ import { type HonoEnv, createHono } from 'better-supabase/hono';
 
 import { betterSupabase, type Functions, type Models } from '${importLib(context, path)}';
 
-export const bs = createHono(betterSupabase);
+export const bsb = createHono(betterSupabase);
 
 const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-  .onError(bs.onError)
-  .use('/api/*', bs.middleware())
+  .onError(bsb.onError)
+  .use('/api/*', bsb.middleware())
   .get('/api/me', (c) => c.json({ kind: c.var.auth.kind }));
 
 export default app;
@@ -423,10 +423,10 @@ import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
 
 import { betterSupabase } from '${importLib(context, path)}';
 
-export const bs = createOrpc(betterSupabase);
+export const bsb = createOrpc(betterSupabase);
 
 const base = os.$context<OrpcRequestContext>();
-const authed = base.use(bs.middleware());
+const authed = base.use(bsb.middleware());
 
 export const router = {
   me: authed.handler(({ context }) => ({ kind: context.auth.kind })),
@@ -446,14 +446,14 @@ export const router = {
 
 import { betterSupabase } from '${shared}';
 
-export const bs = createEdge(betterSupabase, { cors: true });
+export const bsb = createEdge(betterSupabase, { cors: true });
 `,
       ),
       {
         path: "supabase/functions/api/index.ts",
-        contents: `import { bs } from './server.ts';
+        contents: `import { bsb } from './server.ts';
 
-Deno.serve(bs.handler((_request, { auth }) => ({ kind: auth.kind })));
+Deno.serve(bsb.handler((_request, { auth }) => ({ kind: auth.kind })));
 `,
       },
       { path: "supabase/functions/api/deno.json", contents: denoJson(context) },
@@ -480,7 +480,7 @@ Deno.serve(bs.handler((_request, { auth }) => ({ kind: auth.kind })));
 
 import { betterSupabase } from '${importLib(context, server)}';
 
-export const bs = createExpo(betterSupabase);
+export const bsb = createExpo(betterSupabase);
 `,
         },
         {
@@ -503,20 +503,20 @@ const supabase = createSupabaseClient(${env.url}, ${env.key}, {
 
 autoRefreshOnForeground(supabase, AppState);
 
-export const bs = createNativeClient(betterSupabase, supabase);
+export const bsb = createNativeClient(betterSupabase, supabase);
 `,
         },
         {
           path: middleware,
-          contents: `import { bs } from '${importFrom(context, middleware, server)}';
+          contents: `import { bsb } from '${importFrom(context, middleware, server)}';
 
-export default bs.middleware();
+export default bsb.middleware();
 `,
         },
       ];
     },
     next: [
-      "Load data as the caller with `export const loader = bs.loader((ctx) => ctx.db.customers.findMany())`.",
+      "Load data as the caller with `export const loader = bsb.loader((ctx) => ctx.db.customers.findMany())`.",
       "Metro picks `client.native.ts` on iOS and Android and `client.ts` (cookie sessions) on the web.",
     ],
   },
@@ -530,7 +530,7 @@ export default bs.middleware();
 
 import { betterSupabase } from '${shared}';
 
-export const bs = createMcp(betterSupabase, {
+export const bsb = createMcp(betterSupabase, {
   name: 'app',
   version: '0.1.0',
   resources: {},
@@ -539,9 +539,9 @@ export const bs = createMcp(betterSupabase, {
       ),
       {
         path: "supabase/functions/mcp/index.ts",
-        contents: `import { bs } from './server.ts';
+        contents: `import { bsb } from './server.ts';
 
-Deno.serve(bs.fetch);
+Deno.serve(bsb.fetch);
 `,
       },
       { path: "supabase/functions/mcp/deno.json", contents: denoJson(context) },

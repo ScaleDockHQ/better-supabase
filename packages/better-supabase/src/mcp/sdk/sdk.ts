@@ -128,7 +128,7 @@ export interface BetterToolExtra<
   readonly db: ServerContext<M, F, E, C, P, B>["db"];
   readonly auth: AuthState<C, P>;
   /** The full server context: `db`, `auth`, `supabase` and the rest. */
-  readonly bs: ServerContext<M, F, E, C, P, B>;
+  readonly bsb: ServerContext<M, F, E, C, P, B>;
 }
 
 export type BetterToolContext<
@@ -174,7 +174,7 @@ export type BetterToolCallback<
     ) => ToolReturn
   : (ctx: Ctx) => ToolReturn;
 
-/** An SDK server whose tool callbacks also get `db`, `auth` and `bs`. */
+/** An SDK server whose tool callbacks also get `db`, `auth` and `bsb`. */
 export type BetterMcpServer<
   S,
   M extends AnyModels = AnyModels,
@@ -403,8 +403,8 @@ export function createMcpAuth<
 }
 
 /**
- * Wraps `server.registerTool` so every tool callback gets `db`, `auth` and `bs`
- * for the caller on its context. Wrap after an authorization wrapper so
+ * Wraps `server.registerTool` so every tool callback gets `db`, `auth` and
+ * `bsb` for the caller on its context. Wrap after an authorization wrapper so
  * permissions are checked before the context is built.
  */
 export function withBetterSupabaseMcp<
@@ -433,8 +433,8 @@ export function withBetterSupabaseMcp<
       async (...params: unknown[]) => {
         // SAFETY: the SDK passes its ServerContext as the last argument.
         const ctx = params.at(-1) as McpContext;
-        const bs = await auth.contextOf(ctx);
-        const extended = withExtra(ctx, { db: bs.db, auth: bs.auth, bs });
+        const bsb = await auth.contextOf(ctx);
+        const extended = withExtra(ctx, { db: bsb.db, auth: bsb.auth, bsb });
 
         return cb(...params.slice(0, -1), extended);
       },

@@ -8,13 +8,13 @@ the clients (`client`, `client/native`) and the local-first entries
 
 - Every server adapter takes the same guard options, `BlockRequireOptions`
   (`roles`, `roleClaim`, `requireTenant`, `authorize`), and every
-  `bs.action` takes `BlockActionOptions` (the same guards plus `input`).
-  Add a guard there, not in one adapter, so `bs.require`, `bs.authed`,
-  `bs.routes`, `bs.action` and the Next.js helpers stay in step.
+  `bsb.action` takes `BlockActionOptions` (the same guards plus `input`).
+  Add a guard there, not in one adapter, so `bsb.require`, `bsb.authed`,
+  `bsb.routes`, `bsb.action` and the Next.js helpers stay in step.
 - The fixture puts the role in the top-level `user_role` claim, so the
   examples pass `roleClaim: "user_role"`. The default is `app_metadata.role`;
   the top-level `role` claim is `authenticated` for every signed-in user.
-- `bs.routes` types `ctx.params` from the route key. Keep the compiled
+- `bsb.routes` types `ctx.params` from the route key. Keep the compiled
   routes typed with `never` params (`src/edge/routes.ts`): a cast from the
   key-typed map to a record of handlers is not comparable.
 

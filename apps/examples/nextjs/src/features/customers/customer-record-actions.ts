@@ -11,7 +11,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { customerAttachments } from "./customer-attachments";
 
@@ -32,7 +32,7 @@ const SHARE_EXPIRY_DAYS = [1, 7, 30, 0] as const;
  * Creates a view link to the customer. The token comes back once, so the dialog
  * shows it and nothing stores it.
  */
-export const createShareLink = bs.action(
+export const createShareLink = bsb.action(
   {
     input: v.object({
       customerId: Id,
@@ -81,7 +81,7 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
  * Records a pending file and returns its signed upload URL for
  * `useAttachmentUpload`, which sends the bytes and calls `confirmAttachment`.
  */
-export const startAttachmentUpload = bs.action(
+export const startAttachmentUpload = bsb.action(
   {
     input: v.object({
       customerId: Id,
@@ -121,7 +121,7 @@ export const startAttachmentUpload = bs.action(
   },
 );
 
-export const confirmAttachment = bs.action(
+export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -137,7 +137,7 @@ export const confirmAttachment = bs.action(
 );
 
 /** A short-lived download URL; refused until the file was scanned clean. */
-export const downloadAttachment = bs.action(
+export const downloadAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
@@ -158,7 +158,7 @@ export const downloadAttachment = bs.action(
  * Keeps the current details as a version, then writes the chosen version's
  * `name` and `kvk` back to the customer (`versions.restore`).
  */
-export const restoreCustomerVersion = bs.action(
+export const restoreCustomerVersion = bsb.action(
   {
     input: v.object({ customerId: Id, versionId: Id }),
     requireTenant: true,
@@ -205,7 +205,7 @@ export const restoreCustomerVersion = bs.action(
 );
 
 /** The changes from one version to a later one, as JSON Patch operations. */
-export const compareCustomerVersions = bs.action(
+export const compareCustomerVersions = bsb.action(
   {
     input: v.object({ fromId: Id, toId: Id }),
     requireTenant: true,
@@ -234,7 +234,7 @@ const DEFAULT_CUSTOMER_POLICY = {
  * Starts the customer's SLA clocks. With no policy for customers, a caller who
  * may manage policies gets the default one first.
  */
-export const startCustomerSla = bs.action(
+export const startCustomerSla = bsb.action(
   {
     input: v.object({ customerId: Id }),
     requireTenant: true,

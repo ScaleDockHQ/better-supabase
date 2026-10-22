@@ -5,20 +5,20 @@ import { defineMiddleware } from "@supabase/middleware";
 
 import type { AuthState } from "./resolve.ts";
 
-/** Entry contributing `ctx.auth`, the typed caller, from `ctx.bs`. */
+/** Entry contributing `ctx.auth`, the typed caller, from `ctx.bsb`. */
 export function withAuth<C, P>(): SingleKeyEntry<
   "auth",
-  { readonly bs: { readonly auth: AuthState<C, P> } },
+  { readonly bsb: { readonly auth: AuthState<C, P> } },
   AuthState<C, P>
 > {
   return defineMiddleware<
     "auth",
     undefined,
-    { readonly bs: { readonly auth: AuthState<C, P> } },
+    { readonly bsb: { readonly auth: AuthState<C, P> } },
     AuthState<C, P>
   >({
     key: "auth",
-    run: () => (_request, ctx) => Promise.resolve({ auth: ctx.bs.auth }),
+    run: () => (_request, ctx) => Promise.resolve({ auth: ctx.bsb.auth }),
   })();
 }
 

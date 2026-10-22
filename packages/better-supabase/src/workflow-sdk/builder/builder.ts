@@ -386,9 +386,9 @@ function contextOf(call: BuilderStartCall): RequestContext {
  * The `start` for `createWorkflowBuilder`: starts the published version as
  * dynamic source when dynamic workflows are on, and through `executor`
  * otherwise. The source is always compiled from the version's graph; a stored
- * compiled form is never run. Runs carry `bs.tenant`, `bs.actor`,
- * `bs.definition`, `bs.version` and `bs.key`, plus `bs.subject`, `bs.mode` and
- * `bs.trigger_node` when set. A live run also records its principal: the
+ * compiled form is never run. Runs carry `bsb.tenant`, `bsb.actor`,
+ * `bsb.definition`, `bsb.version` and `bsb.key`, plus `bsb.subject`, `bsb.mode`
+ * and `bsb.trigger_node` when set. A live run also records its principal: the
  * publisher (`user`), or the app's service principal for an organization-owned
  * version. A repeated key returns the first run.
  */

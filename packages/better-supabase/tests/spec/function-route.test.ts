@@ -27,7 +27,7 @@ function described<T>(
 
 const betterSupabase = defineSupabase(schema);
 
-const bs = createEdge(betterSupabase, {
+const bsb = createEdge(betterSupabase, {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
@@ -46,7 +46,7 @@ const output = described<{ sent: boolean }>({
   properties: { sent: { type: "boolean" } },
 });
 
-const sendInvite = defineFunction(bs, {
+const sendInvite = defineFunction(bsb, {
   input,
   output,
   summary: "Send an invite",

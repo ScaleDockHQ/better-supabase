@@ -4,7 +4,7 @@ import type { ApprovalStatus } from "better-supabase/blocks/approvals";
 import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { driveOf } from "./drive-client";
 
@@ -44,7 +44,7 @@ export type DriveFolderView =
  */
 async function loadFolder(folderId: string | null) {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -320,7 +320,7 @@ export interface SealChecks {
   readonly behaviour: readonly string[];
 }
 
-const REVEAL_IDS = "bs.app_reveal_ids";
+const REVEAL_IDS = "bsb.app_reveal_ids";
 
 /** Fixed plaintexts for the types `sampleValue` fills with a random value. */
 const FIXED_SAMPLES: Partial<Record<AppColumnConfig["type"], string>> = {

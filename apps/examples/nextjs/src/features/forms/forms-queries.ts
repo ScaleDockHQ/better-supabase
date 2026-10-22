@@ -11,7 +11,7 @@ import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -71,7 +71,7 @@ export type Loaded<T> =
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadForms(): Promise<readonly FormSummary[] | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -115,7 +115,7 @@ function answerCells(answers: FormSubmission["answers"]) {
 
 async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const { forms } = blocks(supabase);
 
   const [detail, submissions] = await Promise.all([

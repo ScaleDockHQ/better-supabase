@@ -12,7 +12,7 @@ import { createSolidStart } from "better-supabase/solid-start";
 import { getRequestEvent } from "solid-js/web";
 import { betterSupabase } from "./supabase";
 
-export const bs = createSolidStart(betterSupabase, {
+export const bsb = createSolidStart(betterSupabase, {
   getRequestEvent,
   signIn: "/sign-in",
 });
@@ -20,47 +20,47 @@ export const bs = createSolidStart(betterSupabase, {
 
 ```ts title="src/middleware.ts"
 import { createMiddleware } from "@solidjs/start/middleware";
-import { bs } from "./lib/server";
+import { bsb } from "./lib/server";
 
-export default createMiddleware(bs.middleware);
+export default createMiddleware(bsb.middleware);
 ```
 
 Register the file as `middleware: "src/middleware.ts"` in `app.config.ts`. The
 middleware verifies the caller, refreshes the session cookie on navigations and
-form posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
+form posts, and puts `db`, `bsb`, `auth`, `tenant` and `session` on
 `event.locals`.
 
 ## Queries
 
-`bs.require(options)` returns the caller and its repositories inside a
+`bsb.require(options)` returns the caller and its repositories inside a
 `"use server"` function, or throws the refusal: a redirect to `signIn` or
 `mfa`, else Problem Details:
 
 ```ts title="src/lib/notes.ts"
 import { query } from "@solidjs/router";
-import { bs } from "./server";
+import { bsb } from "./server";
 
 export const getNotes = query(async () => {
   "use server";
-  const { db } = await bs.require();
+  const { db } = await bsb.require();
   return db.notes.findMany({ select: ["id", "title"] }).orThrow();
 }, "notes");
 ```
 
-`bs.locals()` returns the request's locals without a check.
+`bsb.locals()` returns the request's locals without a check.
 
 ## Actions
 
-`bs.action(options, fn)` returns a server function that takes `FormData` or a
+`bsb.action(options, fn)` returns a server function that takes `FormData` or a
 plain object, validates it with any Standard Schema, and returns an
 `ActionResult`:
 
 ```ts title="src/lib/notes.ts"
 import { action } from "@solidjs/router";
-import { bs } from "./server";
+import { bsb } from "./server";
 import { NoteInput } from "./schemas";
 
-const createNote = bs.action({ input: NoteInput }, (input, { db }) =>
+const createNote = bsb.action({ input: NoteInput }, (input, { db }) =>
   db.notes.create(input),
 );
 

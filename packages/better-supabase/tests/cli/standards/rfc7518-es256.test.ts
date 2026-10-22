@@ -34,7 +34,7 @@ const decode = (part: string): Record<string, unknown> =>
 const bytes = (part: string) =>
   atob(part.replaceAll("-", "+").replaceAll("_", "/")).length;
 
-const dir = await mkdtemp(join(tmpdir(), "bs-es256-"));
+const dir = await mkdtemp(join(tmpdir(), "bsb-es256-"));
 
 afterAll(() => rm(dir, { recursive: true, force: true }));
 

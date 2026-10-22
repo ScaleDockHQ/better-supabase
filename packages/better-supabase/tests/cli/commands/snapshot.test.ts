@@ -134,7 +134,7 @@ describe("openSource on the local stack", () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bs-local-source-"));
+    root = await mkdtemp(join(tmpdir(), "bsb-local-source-"));
     await writeFile(join(root, ".git"), "");
     await mkdir(join(root, "supabase"));
   });
@@ -192,7 +192,7 @@ describe("openSource on a Supabase Lite project", () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "bs-lite-source-"));
+    root = await mkdtemp(join(tmpdir(), "bsb-lite-source-"));
     await writeFile(join(root, ".git"), "");
     await mkdir(join(root, "supabase"));
     await writeFile(

@@ -281,7 +281,7 @@ ES256 test tokens verify against the local stack's JWKS, so your
 the same claims that RLS sees:
 
 ```ts
-const bs = createHono(betterSupabase);
+const bsb = createHono(betterSupabase);
 await app.request("/api/customers", {
   headers: { authorization: `Bearer ${alice.token}` },
 });
@@ -302,7 +302,7 @@ import { createTestSigner } from "better-supabase/testing";
 
 const signer = await createTestSigner();
 
-const bs = createServer(betterSupabase, {
+const bsb = createServer(betterSupabase, {
   env: {
     SUPABASE_URL: "http://127.0.0.1:54321",
     SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
@@ -310,7 +310,7 @@ const bs = createServer(betterSupabase, {
   auth: { jwks: signer.jwks },
 });
 
-const ctx = await bs.context(
+const ctx = await bsb.context(
   new Request("https://app.test/", {
     headers: { authorization: `Bearer ${await signer.sign({ sub: aliceId })}` },
   }),
@@ -340,7 +340,7 @@ const authorizer = staticAuthorizer({
   approvals: ["invoices.void"],
 });
 
-const bs = createHono(betterSupabase, { authorizer });
+const bsb = createHono(betterSupabase, { authorizer });
 ```
 
 | Option      | What it grants                                                                                                         |
@@ -405,7 +405,7 @@ a command before a test has to.
 test when one render makes more database calls or sequential waves than
 allowed. It reads the request id from every document and `_rsc` response
 during `during` (a reload by default) and fetches each render's totals from
-[`bs.debugRoute()`](/docs/frameworks/next-cache-components#budget):
+[`bsb.debugRoute()`](/docs/frameworks/next-cache-components#budget):
 
 ```ts
 import { expectDbBudget } from "better-supabase/testing";
@@ -468,7 +468,7 @@ test("customers come from the per-session App Shell", async ({ page }) => {
 - The app needs a `next build` with
   `experimental.exposeTestingApiInProductionBuild`; without it the lock is
   ignored and the check passes without testing anything. The budget options
-  also need `debug.enabled` and `bs.debugRoute()`, as above.
+  also need `debug.enabled` and `bsb.debugRoute()`, as above.
 - A missing `visible` locator fails after `timeoutMs` (5 seconds by
   default) with the locator in the message. Content that should stream in
   after the navigation, such as a count read per request, goes in `absent`

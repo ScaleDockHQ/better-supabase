@@ -462,7 +462,7 @@ describe("module modes", () => {
     })!;
 
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
-    expect(claim).not.toContain("x-bs-tenant");
+    expect(claim).not.toContain("x-bsb-tenant");
     expect(claim).toContain('and m."user_id" = auth.uid() limit 1');
     expect(claim).toContain("raw_app_meta_data - 'tenant_id'");
     const resolver = moduleBody("tenant", {})!;
@@ -470,7 +470,7 @@ describe("module modes", () => {
     expect(resolver).toContain(
       "current_setting('better_supabase.tenant', true)",
     );
-    expect(resolver).toContain("->> 'x-bs-tenant'");
+    expect(resolver).toContain("->> 'x-bsb-tenant'");
 
     const profile = moduleBody("tenant", {
       modules: {

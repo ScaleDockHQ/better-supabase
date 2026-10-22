@@ -416,14 +416,14 @@ describe("graphStarter", () => {
     ]);
     expect(options).toMatchObject({
       attributes: {
-        "bs.tenant": "t1",
-        "bs.actor": "u1",
-        "bs.definition": "d1",
-        "bs.version": "3",
-        "bs.key": "run:k",
-        "bs.trigger_node": "start",
-        "bs.principal_kind": "user",
-        "bs.principal": "u1",
+        "bsb.tenant": "t1",
+        "bsb.actor": "u1",
+        "bsb.definition": "d1",
+        "bsb.version": "3",
+        "bsb.key": "run:k",
+        "bsb.trigger_node": "start",
+        "bsb.principal_kind": "user",
+        "bsb.principal": "u1",
       },
       experimental_dynamic: { exportName: "workflow" },
     });
@@ -499,7 +499,7 @@ describe("graphStarter", () => {
     expect(options).toMatchObject({ world });
     expect(
       (options as { attributes: Record<string, string> }).attributes,
-    ).not.toHaveProperty("bs.actor");
+    ).not.toHaveProperty("bsb.actor");
     await expect(graphStarter({ steps })(CALL)).rejects.toThrow(
       "pass an executor",
     );
@@ -523,10 +523,10 @@ describe("graphStarter", () => {
       .attributes;
 
     expect(attributes).toMatchObject({
-      "bs.subject": "deal/d9",
-      "bs.mode": "test",
+      "bsb.subject": "deal/d9",
+      "bsb.mode": "test",
     });
-    expect(attributes).not.toHaveProperty("bs.principal_kind");
+    expect(attributes).not.toHaveProperty("bsb.principal_kind");
   });
 
   it("records the service principal for an organization-owned version", async () => {
@@ -543,8 +543,8 @@ describe("graphStarter", () => {
     const attributes = (options as { attributes: Record<string, string> })
       .attributes;
 
-    expect(attributes["bs.principal_kind"]).toBe("service_principal");
-    expect(attributes).not.toHaveProperty("bs.principal");
+    expect(attributes["bsb.principal_kind"]).toBe("service_principal");
+    expect(attributes).not.toHaveProperty("bsb.principal");
   });
 
   it("refuses a test run on a static executor that doesn't take its stubs", async () => {

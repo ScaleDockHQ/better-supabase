@@ -185,14 +185,14 @@ Pass the request context to `enqueue` and the job records its actor and
 tenant next to the payload. The tenant is `context.tenant`, the one
 `tenant()` resolved for the connection, or the `tenant_id` claim (then
 `app_metadata.tenant_id`). The handler gets them back as `job.context`, and
-[`bs.forContext`](/docs/auth/server#explicit-identities) turns that into
+[`bsb.forContext`](/docs/auth/server#explicit-identities) turns that into
 repositories running as that user, in that tenant, over direct Postgres:
 
 ```ts
 await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
 
 await jobs.work("send_invoice", async (payload, job) => {
-  const db = await bs.forContext(job.context).orThrow();
+  const db = await bsb.forContext(job.context).orThrow();
   const invoice = await db.invoices.findById(payload.invoiceId).orThrow();
   // ...
 });
@@ -228,7 +228,7 @@ for a token no client acts with, and for a delegated token only when its
 `permissions` only narrows it:
 
 ```ts
-await bs.forContext(job.context, { permissions: ["posts.write"] });
+await bsb.forContext(job.context, { permissions: ["posts.write"] });
 ```
 
 A context whose `act` chain or delegation claims are malformed is refused:
@@ -248,20 +248,20 @@ await jobs.enqueue(
 );
 
 await jobs.work("export_report", async (payload, job) => {
-  const db = await bs.forContext(job.context).orThrow();
+  const db = await bsb.forContext(job.context).orThrow();
 });
 ```
 
 `forContext` resolves a recorded ticket through its `ticket` option, or
 else the provider's `tickets.subject` hook from
-`createServer(bs, { authorization })`, and runs as the context it returns.
+`createServer(bsb, { authorization })`, and runs as the context it returns.
 A ticket without a resolver, a `null` answer and a throw all fail with
 `forbidden`; `forContext` never falls back to the recorded actor or the
 service role.
 
 `forContext` fails with `forbidden` when the job recorded no user, for
 example one enqueued by a cron schedule, and never falls back to the service
-role. Work that no user owns uses `bs.admin(job.context)` on purpose: it
+role. Work that no user owns uses `bsb.admin(job.context)` on purpose: it
 stamps `createdBy` and applies the `tenant()` filter, but bypasses RLS, so
 keep it visible in code review. `admin.$with(job.context)` is the same
 service-role connection and does not apply RLS either. See
@@ -809,19 +809,19 @@ export const GET = async () =>
 A webhook carries no session, so pick the identity in the handler. Look up
 the user and tenant the event belongs to (a Stripe customer id maps to an
 organization and its owner), then run the work with
-`bs.actingAs(userId, { tenant_id })` so RLS applies:
+`bsb.actingAs(userId, { tenant_id })` so RLS applies:
 
 ```ts
 await inbox.process(async (message) => {
   const owner = await ownerOfCustomer(message.payload.customer);
-  const db = bs.actingAs(owner.userId, { tenant_id: owner.organizationId });
+  const db = bsb.actingAs(owner.userId, { tenant_id: owner.organizationId });
   await db.invoices
     .update(message.payload.invoice, { status: "paid" })
     .orThrow();
 });
 ```
 
-Use `bs.admin()` only for events no user owns, such as a provider-wide
+Use `bsb.admin()` only for events no user owns, such as a provider-wide
 status change. See
 [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
 

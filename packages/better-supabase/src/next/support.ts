@@ -10,8 +10,8 @@ import { checkAal } from "../auth/mfa.ts";
 import { problemResponse } from "../core/problem.ts";
 import { isPrefetch } from "../server/refresh.ts";
 
-/** Response header with the URL of the request's totals on `bs.debugRoute()`. */
-export const STATS_URL_HEADER = "x-bs-stats";
+/** Response header with the URL of the request's totals on `bsb.debugRoute()`. */
+export const STATS_URL_HEADER = "x-bsb-stats";
 
 export function endedRedirect(
   request: NextRequest,
@@ -78,7 +78,7 @@ export function shouldRefresh(request: Request): boolean {
  * it with your sign-in redirect.
  *
  * ```ts
- * bs.proxy(request, {
+ * bsb.proxy(request, {
  *   protect: requireAal("aal2", {
  *     redirect: "/mfa",
  *     match: (path) => path.startsWith("/settings"),

@@ -40,7 +40,7 @@ describe("withServerTiming", () => {
     const response = await fetch(new Request("https://app.test/"));
     expect(response.status).toBe(201);
     expect(response.headers.get("server-timing")).toBe(
-      'bs;dur=15.0, db__main_;dur=2.3;desc="reads x", render;dur=5.0',
+      'bsb;dur=15.0, db__main_;dur=2.3;desc="reads x", render;dur=5.0',
     );
   });
 });
@@ -55,7 +55,7 @@ describe("withDbStats", () => {
     const response = await fetch(await requestAs());
     expect(await response.json()).toBe(0);
     expect(response.headers.get(DB_CALLS_HEADER)).toBe("0;0;0");
-    expect(response.headers.get("server-timing")).toContain("bs-db;dur=0.0");
+    expect(response.headers.get("server-timing")).toContain("bsb-db;dur=0.0");
   });
 
   it("writes a custom header", async () => {

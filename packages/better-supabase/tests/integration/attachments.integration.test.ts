@@ -13,7 +13,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const BUCKET = "bs-it-attachments";
+const BUCKET = "bsb-it-attachments";
 
 /** Signs nothing: the test stores objects through SQL as the caller. */
 const storage = (files = new Map<string, Blob>()): AttachmentStorage => ({
@@ -518,8 +518,8 @@ describe.skipIf(!live)("attachments", () => {
 
   it("routes subjects to their buckets and gates any bucket on a scan", async () => {
     const s = await BlockSession.open(pool);
-    const DOCS = "bs-it-docs";
-    const DRIVE = "bs-it-drive";
+    const DOCS = "bsb-it-docs";
+    const DRIVE = "bsb-it-drive";
 
     try {
       await s.rows(

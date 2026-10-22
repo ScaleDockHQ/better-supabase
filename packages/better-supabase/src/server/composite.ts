@@ -56,7 +56,7 @@ export interface BetterSupabaseContributions<
    * The full request context: `auth`, `supabase`, `stats()`, `apply()` and the
    * rest.
    */
-  bs: ServerContext<M, F, E, C, P, B>;
+  bsb: ServerContext<M, F, E, C, P, B>;
   /** The verified token's payload, or `null`; the key `withSupabase` uses. */
   jwtClaims: (JWTClaims & C) | null;
   userClaims: UserClaims | null;
@@ -115,10 +115,10 @@ export type BetterSupabaseParts<
     { readonly session: AuthResolution<C, P> },
     ActiveSupport | undefined
   >,
-  SingleKeyEntry<"bs", ServerContextIn<C, P>, Ctx<M, F, E, C, P, B>>,
+  SingleKeyEntry<"bsb", ServerContextIn<C, P>, Ctx<M, F, E, C, P, B>>,
   SingleKeyEntry<
     "auth",
-    { readonly bs: { readonly auth: AuthState<C, P> } },
+    { readonly bsb: { readonly auth: AuthState<C, P> } },
     AuthState<C, P>
   >,
   SingleKeyEntry<"guard", { readonly auth: AuthState<C, P> }, GuardOptions>,
@@ -135,7 +135,7 @@ export type BetterSupabaseParts<
   SingleKeyEntry<"authMode", { readonly auth: AuthState<C, P> }, AuthMode>,
   SingleKeyEntry<
     "db",
-    { readonly bs: { readonly db: Db<M, F, E, SupabaseClient, B> } },
+    { readonly bsb: { readonly db: Db<M, F, E, SupabaseClient, B> } },
     Db<M, F, E, SupabaseClient, B>
   >,
   SingleKeyEntry<
@@ -145,7 +145,7 @@ export type BetterSupabaseParts<
   >,
   SingleKeyEntry<
     "replica",
-    { readonly bs: Ctx<M, F, E, C, P, B> },
+    { readonly bsb: Ctx<M, F, E, C, P, B> },
     ReplicaState | undefined
   >,
 ];
@@ -216,9 +216,9 @@ function isDefinition<
  * The whole better-supabase server as one `@supabase/middleware` entry: it
  * verifies the caller (bearer token or session cookie), refuses callers the
  * guard rejects with Problem Details, and contributes `ctx.db`, `ctx.sql`,
- * `ctx.bs` and the `withSupabase` keys (`jwtClaims`, `userClaims`, `authMode`),
- * so `withPostgresClient` and `withOpenFeature` compose after it. Refreshed
- * cookies and `bs-primary-until` go out on the response.
+ * `ctx.bsb` and the `withSupabase` keys (`jwtClaims`, `userClaims`,
+ * `authMode`), so `withPostgresClient` and `withOpenFeature` compose after it.
+ * Refreshed cookies and `bsb-primary-until` go out on the response.
  *
  * ```ts
  * export default {

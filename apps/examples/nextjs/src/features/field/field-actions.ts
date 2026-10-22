@@ -9,7 +9,7 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
@@ -36,7 +36,7 @@ const Optional = (max: number) =>
   );
 
 /** Opens a work order in the backlog, for the board to schedule. */
-export const createWorkOrder = bs.action(
+export const createWorkOrder = bsb.action(
   {
     input: v.object({
       title: Text(200),
@@ -69,7 +69,7 @@ export const createWorkOrder = bs.action(
 );
 
 /** Moves one of the caller's work orders on: en route, on site, then done. */
-export const advanceWorkOrder = bs.action(
+export const advanceWorkOrder = bsb.action(
   {
     input: v.object({
       id: v.pipe(v.string(), v.uuid()),
@@ -92,7 +92,7 @@ export const advanceWorkOrder = bs.action(
 );
 
 /** Creates a draft shipment of one package from the warehouse. */
-export const createShipment = bs.action(
+export const createShipment = bsb.action(
   {
     input: v.object({
       name: Text(200),

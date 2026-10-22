@@ -183,14 +183,14 @@ import { createMcp } from "better-supabase/mcp";
 
 import { betterSupabase } from "../_shared/supabase.ts";
 
-const bs = createMcp(betterSupabase, {
+const bsb = createMcp(betterSupabase, {
   name: Deno.env.get("MCP_SERVER_NAME") ?? "app",
   version: "1.0.0",
   instructions: Deno.env.get("MCP_SERVER_DESCRIPTION"),
   resources: { customers: { select: ["id", "name", "status"] } },
 });
 
-Deno.serve(bs.fetch);
+Deno.serve(bsb.fetch);
 ```
 
 The headless app's consent page, connected-agents page and `tasks` table keep

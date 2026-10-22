@@ -4,7 +4,7 @@ import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
 import { blocks } from "@/lib/blocks";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 /** What a loader gives a component: the data, a failed read, or nothing to show. */
 export type Loaded<T> =
@@ -94,7 +94,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
  */
 export async function loadBookingSetup(): Promise<BookingSetup | null> {
   "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const { session, supabase } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant || session.kind !== "user") {
@@ -211,7 +211,7 @@ export async function loadPublicBooking(
   from: string | undefined,
 ): Promise<PublicBookingPage | null> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
   const { bookings } = blocks(supabase);
   const service = await bookings.public.service(token);
 

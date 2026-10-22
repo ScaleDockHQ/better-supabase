@@ -4,11 +4,11 @@ import "server-only";
 
 import { recordServer } from "better-supabase/next";
 
-import { bs } from "../../server.ts";
+import { bsb } from "../../server.ts";
 import { personFeature } from "./person-feature.ts";
 
 /**
  * Loads a person's sections in a Server Component, outside `"use cache"`,
  * and runs its section writes as Server Actions.
  */
-export const personRecord = recordServer(bs, personFeature);
+export const personRecord = recordServer(bsb, personFeature);

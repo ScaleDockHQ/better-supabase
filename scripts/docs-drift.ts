@@ -230,7 +230,7 @@ function titledBlocks(text: string): CodeBlock[] {
 /**
  * The Naming page's file layout: the definition from `defineSupabase` lives in
  * `lib/supabase/index.ts`, never in the `server.ts` or `client.ts` that create
- * `bs`, and a Next.js `server.ts` starts with `import "server-only"`.
+ * `bsb`, and a Next.js `server.ts` starts with `import "server-only"`.
  */
 function naming(): string[] {
   const files = [
@@ -258,7 +258,7 @@ function naming(): string[] {
         !block.body.trimStart().startsWith('import "server-only";')
       ) {
         problems.push(
-          `${where} creates bs with createNext in ${block.title} without starting with import "server-only" (concepts/naming.mdx)`,
+          `${where} creates bsb with createNext in ${block.title} without starting with import "server-only" (concepts/naming.mdx)`,
         );
       }
 
@@ -271,7 +271,7 @@ function naming(): string[] {
 const RETIRED: readonly (readonly [RegExp, string])[] = [
   [
     /(?<![\w.$])sb\.\w/u,
-    "`sb.` (the instance is `bs`, the definition `betterSupabase`)",
+    "`sb.` (the instance is `bsb`, the definition `betterSupabase`)",
   ],
   [/lib\/supabase\.ts\b/u, "`lib/supabase.ts` (now `lib/supabase/index.ts`)"],
   [

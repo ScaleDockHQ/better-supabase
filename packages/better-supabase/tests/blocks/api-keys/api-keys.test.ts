@@ -495,7 +495,7 @@ describe("API keys in a server", () => {
       transport: fakeTransport(() => ({ status: "ok", key: row() })).transport,
     });
 
-    const bs = createHono(defineSupabase(schema), {
+    const bsb = createHono(defineSupabase(schema), {
       env,
       postgres,
       auth: { resolvers: [apiKeyResolver({ keys })] },
@@ -504,19 +504,19 @@ describe("API keys in a server", () => {
     type Env = HonoEnv<Models, Functions, unknown>;
 
     const app = new Hono<Env>()
-      .onError(bs.onError)
+      .onError(bsb.onError)
       .use(
         "/keys/*",
-        bs.middleware({ allow: ["apiKey"], scopes: ["deals:read"] }),
+        bsb.middleware({ allow: ["apiKey"], scopes: ["deals:read"] }),
       )
       .use(
         "/write/*",
-        bs.middleware({ allow: ["apiKey"], scopes: ["deals:write"] }),
+        bsb.middleware({ allow: ["apiKey"], scopes: ["deals:write"] }),
       )
-      .use("/users/*", bs.middleware())
+      .use("/users/*", bsb.middleware())
       .get(
         "/keys/who",
-        bs.handler(async (_c, ctx) => {
+        bsb.handler(async (_c, ctx) => {
           void ctx.db;
           let client = "available";
 

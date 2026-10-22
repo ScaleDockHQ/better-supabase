@@ -1,4 +1,4 @@
-import { bs } from "./server.ts";
+import { bsb } from "./server.ts";
 
 const customer = ["id", "name", "status", "organizationId"] as const;
 
@@ -9,7 +9,7 @@ const admin = { roles: ["admin"], roleClaim: "user_role" } as const;
  * Every route runs as the caller, so RLS decides the rows. Unknown paths answer
  * 404 and wrong methods 405 before auth resolves.
  */
-export const handler = bs.routes(
+export const handler = bsb.routes(
   {
     "GET /me": (_request, { auth, tenant }) => ({ kind: auth.kind, tenant }),
     "GET /customers": (_request, { db }) =>

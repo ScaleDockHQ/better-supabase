@@ -1,3 +1,3 @@
-import { bs } from "./server.ts";
+import { bsb } from "./server.ts";
 
-Deno.serve(bs.fetch);
+Deno.serve(bsb.fetch);

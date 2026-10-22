@@ -3,7 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 
 import { can } from "@/features/user/user-permissions";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -31,7 +31,7 @@ export type Loaded<T> =
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadDocuments(): Promise<readonly DocumentSummary[] | null> {
   "use cache: private";
-  const { session, db } = await bs.cached();
+  const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
@@ -72,7 +72,7 @@ async function loadTarget(
   customerId: string,
 ): Promise<DocumentTarget | "not-found" | null> {
   "use cache: private";
-  const { session, db } = await bs.cached();
+  const { session, db } = await bsb.cached();
   const organizationId = tenantOf(session);
 
   if (!organizationId) {

@@ -23,7 +23,7 @@ import { after } from "next/server";
 
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 import { demoModel } from "./demo-model";
 
@@ -47,7 +47,7 @@ function languageModel(id: string): LanguageModel {
 
 /** The service-role transport for what only the server writes. */
 export function serviceTransport() {
-  return rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
+  return rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });
 }
 
 /** The chat block acting as the caller, with service writes on the side. */
@@ -123,7 +123,7 @@ export function aiFiles(supabase: UserClient): AiFiles {
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     storage: supabase.storage,
     service: serviceTransport(),
-    serviceStorage: bs.admin().$client.storage,
+    serviceStorage: bsb.admin().$client.storage,
   });
 }
 

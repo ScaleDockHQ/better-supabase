@@ -68,7 +68,7 @@ export const streams = redisStreamStore({ url: process.env.REDIS_URL });
 With `url`, the store loads `redis` the first time it is used and opens a
 second connection for pub/sub. Pass `client` (and `subscriber`) instead to
 use connections the app already has; any client with the node-redis method
-names works. `keyPrefix` (`bs:stream` by default) namespaces the keys, and
+names works. `keyPrefix` (`bsb:stream` by default) namespaces the keys, and
 `ttl` (one day) sets their expiry. A Redis store has no owner check: the
 route that resumes a stream must check the caller first.
 

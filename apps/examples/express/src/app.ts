@@ -4,7 +4,7 @@ import express from "express";
 
 import { betterSupabase } from "./lib/supabase/index.ts";
 
-const bs = createServer(betterSupabase);
+const bsb = createServer(betterSupabase);
 
 const customer = ["id", "name", "status", "organizationId"] as const;
 
@@ -16,9 +16,9 @@ const admins = guard({
 });
 
 export const app = express()
-  .use("/api", toExpress([withBetterSupabase(bs, { allow: ["user"] })]))
+  .use("/api", toExpress([withBetterSupabase(bsb, { allow: ["user"] })]))
   .get("/api/me", (_req, res) => {
-    res.json({ kind: res.locals.bs.auth.kind, tenant: res.locals.tenant });
+    res.json({ kind: res.locals.bsb.auth.kind, tenant: res.locals.tenant });
   })
   .get("/api/customers", async (_req, res) => {
     res.json(

@@ -323,8 +323,8 @@ function whereOf(names: Names, extra: string[] = []): string {
 
 function requireCall(names: Names): string {
   return names.tenant
-    ? "const { db, tenant } = await bs.require({ requireTenant: true });"
-    : "const { db } = await bs.require();";
+    ? "const { db, tenant } = await bsb.require({ requireTenant: true });"
+    : "const { db } = await bsb.require();";
 }
 
 const SHOW = `/** A column value as text for the list and detail pages. */
@@ -384,7 +384,7 @@ function listPage(
   return `import Link from 'next/link';
 import { Suspense } from 'react';
 
-import { bs } from '${importFrom(context, paths.list, paths.server)}';
+import { bsb } from '${importFrom(context, paths.list, paths.server)}';
 import { show } from '${importFrom(context, paths.list, paths.show)}';
 
 export const metadata = { title: '${labelOf(context.table)}' };
@@ -453,7 +453,7 @@ function detailPage(
 import { notFound } from '${NEXT_NAVIGATION}';
 import { Suspense } from 'react';
 
-import { bs } from '${importFrom(context, paths.detail, paths.server)}';
+import { bsb } from '${importFrom(context, paths.detail, paths.server)}';
 import { show } from '${importFrom(context, paths.detail, paths.show)}';
 
 export const metadata = { title: '${labelOf(context.table)}' };
@@ -549,7 +549,7 @@ export default function New${names.component}Page() {
 
   return `import { Suspense } from 'react';
 
-import { bs } from '${importFrom(context, paths.newPage, paths.server)}';
+import { bsb } from '${importFrom(context, paths.newPage, paths.server)}';
 import { ${names.component}Form } from '${importFrom(context, paths.newPage, paths.form)}';
 
 ${header}
@@ -566,7 +566,7 @@ export default function New${names.component}Page() {
 
 /** Loads the rows each reference picker lists. */
 async function ${names.component}FormLoader() {
-  const { db } = await bs.require(${names.tenant ? "{ requireTenant: true }" : ""});
+  const { db } = await bsb.require(${names.tenant ? "{ requireTenant: true }" : ""});
 
   const lists = ${targets.length === 1 ? `await ${loads[0]}` : `await Promise.all([\n    ${loads.join(",\n    ")},\n  ])`};
 
@@ -758,7 +758,7 @@ function actionsModule(
 
 import { redirect } from '${NEXT_NAVIGATION}';
 
-import { bs } from '${importFrom(context, paths.actions, paths.server)}';
+import { bsb } from '${importFrom(context, paths.actions, paths.server)}';
 
 export interface CreateState {
   readonly error: string | null;

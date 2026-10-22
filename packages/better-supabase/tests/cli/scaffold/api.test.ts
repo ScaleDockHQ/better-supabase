@@ -33,7 +33,7 @@ describe("scaffoldApiFiles", () => {
 
   it("names the next steps once the entry already points at the module", () => {
     expect(scaffoldNextSteps(context, "lib/api.ts")).toEqual([
-      "Mount the routes in server.ts: `.route('/', apiRoutes(bs))`.",
+      "Mount the routes in server.ts: `.route('/', apiRoutes(bsb))`.",
       "Describe the resources in lib/api.ts; `scaffold api` only rewrites api.generated.ts.",
     ]);
     expect(

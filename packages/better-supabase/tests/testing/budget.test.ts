@@ -27,8 +27,8 @@ function fakePage(
     url: () => `https://app.test${path}`,
     request: () => ({ headers: () => request }),
     headers: () => ({
-      "x-bs-request-id": id,
-      "x-bs-stats": `/api/bs-stats?id=${id}`,
+      "x-bsb-request-id": id,
+      "x-bsb-stats": `/api/bsb-stats?id=${id}`,
     }),
     finished: () => Promise.resolve(null),
   });
@@ -169,12 +169,12 @@ describe("expectDbBudget", () => {
   it("explains a missing debug route", async () => {
     await expect(
       expectDbBudget(fakePage({ doc: stats(1, 1) }), { maxCalls: 8 }),
-    ).rejects.toThrow(/answered 404\. Mount bs\.debugRoute\(\)/);
+    ).rejects.toThrow(/answered 404\. Mount bsb\.debugRoute\(\)/);
   });
 });
 
 describe("expectDbBudget(response)", () => {
-  const withStats = (value?: string, header = "x-bs-db-calls") =>
+  const withStats = (value?: string, header = "x-bsb-db-calls") =>
     new Response(null, value ? { headers: { [header]: value } } : {});
 
   it("returns the stats within budget", () => {

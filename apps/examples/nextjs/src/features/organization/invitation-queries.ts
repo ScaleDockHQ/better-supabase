@@ -3,7 +3,7 @@ import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
-import { bs } from "@/lib/supabase/server";
+import { bsb } from "@/lib/supabase/server";
 
 export interface InvitationSummary {
   readonly status: "pending" | "accepted" | "declined" | "revoked" | "expired";
@@ -22,7 +22,7 @@ export async function getInvitationPreview(
   token: string,
 ): Promise<InvitationSummary | null> {
   "use cache: private";
-  const { supabase } = await bs.cached();
+  const { supabase } = await bsb.cached();
 
   const preview = await blocks(supabase)
     .organizations.previewInvitation(token)

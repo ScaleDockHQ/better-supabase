@@ -47,7 +47,7 @@ describe("toH3V1", () => {
     const event = await eventAs("member");
     expect(await middleware(event)).toBeUndefined();
     expect(event.context).toHaveProperty("db");
-    expect(event.context).toMatchObject({ bs: { auth: { kind: "user" } } });
+    expect(event.context).toMatchObject({ bsb: { auth: { kind: "user" } } });
   });
 
   it("returns the entries' short circuit", async () => {
