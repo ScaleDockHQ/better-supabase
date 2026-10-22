@@ -444,7 +444,7 @@ ${presenceSql(ctx)}`;
 }
 
 /** The prefix of a subject's presence topic, `presence:<type>:<id>`. */
-export const PRESENCE_TOPIC_PREFIX = "presence";
+const PRESENCE_TOPIC_PREFIX = "presence";
 
 /**
  * Realtime presence on `presence:<type>:<id>`: who has a record open. A caller
