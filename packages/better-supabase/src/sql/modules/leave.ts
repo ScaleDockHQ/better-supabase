@@ -23,6 +23,7 @@ import {
 import { OPERATIONS, moduleOperations } from "./access-model.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { LEAVE_REQUEST_SUBJECT } from "./approvals.ts";
+import { leaveLedgerFunctions, leaveLedgerUpgrade } from "./leave-ledger.ts";
 
 const WHERE = "blocks.leave.options";
 
@@ -100,24 +101,6 @@ const NAMES: ModuleNames = {
         cancelledBy: "cancelled_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
-      },
-    },
-    ledger: {
-      name: "leave_ledger",
-      lifecycle: { tenant: "tenant", user: "user", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        user: "user_id",
-        type: "type_id",
-        kind: "kind",
-        amount: "amount",
-        period: "period",
-        request: "request_id",
-        note: "note",
-        key: "idempotency_key",
-        createdBy: "created_by",
-        createdAt: "created_at",
       },
     },
   },
@@ -200,10 +183,8 @@ function build(ctx: ModuleContext): string {
 
   const types = ctx.table("types");
   const requests = ctx.table("requests");
-  const ledger = ctx.table("ledger");
   const ty = (column: string): string => ctx.col("types", column);
   const q = (column: string): string => ctx.col("requests", column);
-  const l = (column: string): string => ctx.col("ledger", column);
   const ar = approvals.table("requests");
   const a = (column: string): string => approvals.col("requests", column);
   const fn = (name: string): string => ctx.fn(name);
@@ -237,9 +218,6 @@ function build(ctx: ModuleContext): string {
   const requestJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${row}.${q("user")}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${row}.${q("partial")}, 'amount', ${row}.${q("amount")}::text, 'note', ${row}.${q("note")}, 'status', ${status(row, approval)}, 'approvalId', ${row}.${q("approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
 
-  const ledgerJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'userId', ${row}.${l("user")}, 'typeId', ${row}.${l("type")}, 'kind', ${row}.${l("kind")}, 'amount', ${row}.${l("amount")}::text, 'period', ${row}.${l("period")}, 'requestId', ${row}.${l("request")}, 'note', ${row}.${l("note")}, 'createdAt', ${row}.${l("createdAt")})`;
-
   const requestRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
       type,
@@ -251,20 +229,6 @@ function build(ctx: ModuleContext): string {
         targetType: "leave_request",
         recordId: `${row}.${q("id")}::text`,
         summary: `${sqlString(summary)} || ' from ' || ${row}.${q("startsOn")}::text || ' to ' || ${row}.${q("endsOn")}::text`,
-      },
-    });
-
-  const ledgerRecord = (row: string): string =>
-    ctx.record({
-      type: "leave.adjusted",
-      payload: `jsonb_build_object('organizationId', ${row}.${l("tenant")}, 'id', ${row}.${l("id")}, 'userId', ${row}.${l("user")}, 'typeId', ${row}.${l("type")}, 'kind', ${row}.${l("kind")}, 'amount', ${row}.${l("amount")}::text, 'period', ${row}.${l("period")})`,
-      subject: `'leave-ledger-entries/' || ${row}.${l("id")}::text`,
-      tenant: `${row}.${l("tenant")}`,
-      audit: {
-        category: "data",
-        targetType: "leave_balance",
-        recordId: `${row}.${l("id")}::text`,
-        summary: `'adjusted a leave balance by ' || ${row}.${l("amount")}::text`,
       },
     });
 
@@ -336,36 +300,23 @@ drop policy if exists "leave_requests_read" on ${requests};
 create policy "leave_requests_read" on ${requests} for select to authenticated
   using (${q("user")} = (select auth.uid()) or ${ctx.scope.check(q("tenant"), read)});
 
-create table if not exists ${ledger} (
-  ${l("id")} uuid primary key default gen_random_uuid(),
-  ${l("tenant")} ${idType} not null,
-  ${l("user")} uuid not null,
-  ${l("type")} uuid not null,
-  ${l("kind")} text not null check (${l("kind")} in ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry')),
-  -- Signed: grants add, taken leave subtracts, a cancelled request adds back.
-  ${l("amount")} numeric(8, 2) not null check (${l("amount")} <> 0),
-  -- The year the entry counts toward.
-  ${l("period")} integer not null check (${l("period")} between 1900 and 9999),
-  ${l("request")} uuid references ${requests} (${q("id")}) on delete set null,
-  ${l("note")} text check (${l("note")} is null or length(${l("note")}) <= 2000),
-  ${l("key")} text,
-  ${l("createdBy")} uuid,
-  ${l("createdAt")} timestamptz not null default now(),
-  foreign key (${l("tenant")}, ${l("type")}) references ${types} (${ty("tenant")}, ${ty("id")}) on delete restrict
-);
-create index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_balance_idx`)} on ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("period")});
-create unique index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_key_idx`)} on ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("key")}) where ${l("key")} is not null;
-create index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_type_idx`)} on ${ledger} (${l("tenant")}, ${l("type")});
-create index if not exists ${sqlIdent(`${ctx.tableName("ledger").name}_request_idx`)} on ${ledger} (${l("request")}) where ${l("request")} is not null;
-${lockTable(ledger, { read: true })}
-drop policy if exists "leave_ledger_read" on ${ledger};
-create policy "leave_ledger_read" on ${ledger} for select to authenticated
-  using (${l("user")} = (select auth.uid()) or ${ctx.scope.check(l("tenant"), read)});
 `
     : "";
 
+  const pending = (
+    tenant: string,
+    user: string,
+    type: string,
+    year: string,
+  ): string =>
+    `coalesce((select sum(r.${q("amount")}) from ${requests} r
+      left join ${ar} p on p.${a("id")} = r.${q("approval")}
+      where r.${q("tenant")} = ${tenant} and r.${q("user")} = ${user}
+        and r.${q("type")} = ${type} and ${period("r")} = ${year}
+        and ${pendingIn("r", "p")}), 0)`;
+
   return `${schemaPreamble(ctx)}
-${tables}
+${tables}${leaveLedgerFunctions(ctx, { isMember, pending })}
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function ${fn("leave_working_days")}(starts_on date, ends_on date)
 returns integer
@@ -378,26 +329,6 @@ as $$
   where extract(isodow from d)::integer = any (${working})
 $$;
 ${userGrant(`${fn("leave_working_days")}(date, date)`)}
-
--- A member's balance of one type for one period: every ledger entry, minus
--- the requests still waiting for approval.
-create or replace function ${fn("leave_available")}(tenant ${idType}, user_id uuid, type_id uuid, period integer)
-returns numeric
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select sum(x.${l("amount")}) from ${ledger} x
-      where x.${l("tenant")} = leave_available.tenant and x.${l("user")} = leave_available.user_id
-        and x.${l("type")} = leave_available.type_id and x.${l("period")} = leave_available.period), 0)
-    - coalesce((select sum(r.${q("amount")}) from ${requests} r
-      left join ${ar} p on p.${a("id")} = r.${q("approval")}
-      where r.${q("tenant")} = leave_available.tenant and r.${q("user")} = leave_available.user_id
-        and r.${q("type")} = leave_available.type_id and ${period("r")} = leave_available.period
-        and ${pendingIn("r", "p")}), 0)
-$$;
-revoke execute on function ${fn("leave_available")}(${idType}, uuid, uuid, integer) from public, anon, authenticated;
 
 -- Creates or updates a leave type by key.
 create or replace function ${fn("save_leave_type")}(tenant ${idType}, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null)
@@ -577,8 +508,7 @@ begin
   if not found then
     return;
   end if;
-  insert into ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("kind")}, ${l("amount")}, ${l("period")}, ${l("request")})
-  select v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', -v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")}
+  perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', -v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")})
   from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};
   ${requestRecord("leave.approved", "v_row", "approved leave")}
 end;
@@ -616,8 +546,7 @@ begin
   update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
     where p.${a("id")} = v_row.${q("approval")} and p.${a("status")} = 'pending';
   if v_row.${q("approvedAt")} is not null then
-    insert into ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("kind")}, ${l("amount")}, ${l("period")}, ${l("request")}, ${l("note")}, ${l("createdBy")})
-    select v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")}, 'cancelled', auth.uid()
+    perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${q("user")}, v_row.${q("type")}, 'taken', v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")}, 'cancelled')
     from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};
   end if;
   update ${requests} x set ${q("cancelledAt")} = now(), ${q("cancelledBy")} = auth.uid(), ${q("updatedAt")} = now()
@@ -672,205 +601,6 @@ end;
 $$;
 ${userGrant(`${fn("list_leave_requests")}(${idType}, uuid, text, date, date, boolean, integer)`)}
 
--- A member's balance of each tracked type for one period (default this
--- year): granted, taken, pending and available.
-create or replace function ${fn("leave_balances")}(tenant ${idType}, user_id uuid default null, period integer default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_balances.user_id, auth.uid());
-  v_period integer := coalesce(leave_balances.period, extract(year from current_date)::integer);
-  v_rows jsonb;
-begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "leave_balances.tenant", read)}
-    or (v_user = auth.uid() and ${ctx.can("tenant", "leave_balances.tenant", request)})) then
-    ${forbidden("not allowed to read this member's leave balance")}
-  end if;
-  if v_user is null then
-    ${invalid("name user_id")}
-  end if;
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'typeId', t.${ty("id")}, 'key', t.${ty("key")}, 'name', t.${ty("name")}, 'unit', t.${ty("unit")},
-      'userId', v_user, 'period', v_period,
-      'granted', coalesce(b.granted, 0)::text,
-      'taken', coalesce(b.taken, 0)::text,
-      'pending', coalesce(w.pending, 0)::text,
-      'available', (coalesce(b.total, 0) - coalesce(w.pending, 0))::text
-    ) order by t.${ty("name")}), '[]'::jsonb) into v_rows
-  from ${types} t
-  left join lateral (
-    select sum(x.${l("amount")}) filter (where x.${l("kind")} <> 'taken') as granted,
-      -sum(x.${l("amount")}) filter (where x.${l("kind")} = 'taken') as taken,
-      sum(x.${l("amount")}) as total
-    from ${ledger} x
-    where x.${l("tenant")} = leave_balances.tenant and x.${l("user")} = v_user
-      and x.${l("type")} = t.${ty("id")} and x.${l("period")} = v_period
-  ) b on true
-  left join lateral (
-    select sum(r.${q("amount")}) as pending
-    from ${requests} r
-    left join ${ar} p on p.${a("id")} = r.${q("approval")}
-    where r.${q("tenant")} = leave_balances.tenant and r.${q("user")} = v_user
-      and r.${q("type")} = t.${ty("id")} and ${period("r")} = v_period and ${pendingIn("r", "p")}
-  ) w on true
-  where t.${ty("tenant")} = leave_balances.tenant and t.${ty("tracked")} and t.${ty("archivedAt")} is null;
-  return v_rows;
-end;
-$$;
-${userGrant(`${fn("leave_balances")}(${idType}, uuid, integer)`)}
-
--- A member's ledger entries of one period, newest first.
-create or replace function ${fn("leave_ledger_entries")}(tenant ${idType}, user_id uuid default null, period integer default null, type_id uuid default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_user uuid := coalesce(leave_ledger_entries.user_id, auth.uid());
-  v_rows jsonb;
-begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "leave_ledger_entries.tenant", read)}
-    or (v_user = auth.uid() and ${ctx.can("tenant", "leave_ledger_entries.tenant", request)})) then
-    ${forbidden("not allowed to read this member's leave balance")}
-  end if;
-  select coalesce(jsonb_agg(${ledgerJson("x")} order by x.${l("createdAt")} desc, x.${l("id")} desc), '[]'::jsonb) into v_rows
-  from ${ledger} x
-  where x.${l("tenant")} = leave_ledger_entries.tenant and x.${l("user")} = v_user
-    and (leave_ledger_entries.period is null or x.${l("period")} = leave_ledger_entries.period)
-    and (leave_ledger_entries.type_id is null or x.${l("type")} = leave_ledger_entries.type_id);
-  return v_rows;
-end;
-$$;
-${userGrant(`${fn("leave_ledger_entries")}(${idType}, uuid, integer, uuid)`)}
-
--- Adds a grant or a manual adjustment (signed) to a member's balance.
-create or replace function ${fn("adjust_leave_balance")}(tenant ${idType}, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${ledger}%rowtype;
-begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "adjust_leave_balance.tenant", manage)}) then
-    ${forbidden("not allowed to adjust leave balances")}
-  end if;
-  if coalesce(adjust_leave_balance.kind, 'adjustment') not in ('grant', 'adjustment') then
-    ${invalid("kind must be grant or adjustment")}
-  end if;
-  if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
-    ${invalid("amount must not be zero")}
-  end if;
-  if not ${isMember("adjust_leave_balance.tenant", "adjust_leave_balance.user_id")} then
-    ${invalid("the user is not a member of this organization")}
-  end if;
-  if not exists (select 1 from ${types} t where t.${ty("id")} = adjust_leave_balance.type_id and t.${ty("tenant")} = adjust_leave_balance.tenant) then
-    ${fail("LEAVE_TYPE_NOT_FOUND", "leave type not found", "P0002")}
-  end if;
-  insert into ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("kind")}, ${l("amount")}, ${l("period")}, ${l("note")}, ${l("createdBy")})
-  values (adjust_leave_balance.tenant, adjust_leave_balance.user_id, adjust_leave_balance.type_id, coalesce(adjust_leave_balance.kind, 'adjustment'),
-    adjust_leave_balance.amount, coalesce(adjust_leave_balance.period, extract(year from current_date)::integer), nullif(trim(adjust_leave_balance.note), ''), auth.uid())
-  returning * into v_row;
-  ${ledgerRecord("v_row")}
-  return ${ledgerJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text)`)}
-
--- Grants every member (or user_ids) an accrual of one type: amount, or the
--- type's allowance. With idempotency_key a member gets it once, so a
--- scheduled job can run it again safely. Returns how many entries it wrote.
-create or replace function ${fn("accrue_leave")}(tenant ${idType}, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_type ${types}%rowtype;
-  v_amount numeric;
-  v_count integer;
-begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "accrue_leave.tenant", manage)}) then
-    ${forbidden("not allowed to accrue leave")}
-  end if;
-  select * into v_type from ${types} t where t.${ty("id")} = accrue_leave.type_id and t.${ty("tenant")} = accrue_leave.tenant;
-  if not found then
-    ${fail("LEAVE_TYPE_NOT_FOUND", "leave type not found", "P0002")}
-  end if;
-  v_amount := coalesce(accrue_leave.amount, v_type.${ty("allowance")});
-  if v_amount is null or v_amount <= 0 then
-    ${invalid("name an amount, or give the type an allowance")}
-  end if;
-  insert into ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("kind")}, ${l("amount")}, ${l("period")}, ${l("key")}, ${l("note")}, ${l("createdBy")})
-  select accrue_leave.tenant, m.${members.col("memberships", "user")}, v_type.${ty("id")}, 'accrual', v_amount,
-    coalesce(accrue_leave.period, extract(year from current_date)::integer), accrue_leave.idempotency_key, nullif(trim(accrue_leave.note), ''), auth.uid()
-  from ${members.table("memberships")} m
-  where m.${members.col("memberships", "tenant")} = accrue_leave.tenant
-    and (accrue_leave.user_ids is null or m.${members.col("memberships", "user")} = any (accrue_leave.user_ids))
-  on conflict (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("key")}) where ${l("key")} is not null do nothing;
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-${userGrant(`${fn("accrue_leave")}(${idType}, uuid, numeric, integer, uuid[], text, text)`)}
-
--- Closes a period: each member's positive balance of each tracked type
--- carries into the next period up to the type's carryover_max, and the rest
--- expires. Run once per period; a second run writes nothing. Returns how
--- many entries it wrote.
-create or replace function ${fn("close_leave_year")}(tenant ${idType}, period integer)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_key text := 'close:' || close_leave_year.period::text;
-  v_written integer;
-begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "close_leave_year.tenant", manage)}) then
-    ${forbidden("not allowed to close leave periods")}
-  end if;
-  if close_leave_year.period is null then
-    ${invalid("name the period to close")}
-  end if;
-  with balances as (
-    select x.${l("user")} as user_id, x.${l("type")} as type_id, sum(x.${l("amount")}) as balance,
-      least(sum(x.${l("amount")}), coalesce(t.${ty("carryoverMax")}, sum(x.${l("amount")}))) as carry
-    from ${ledger} x
-    join ${types} t on t.${ty("id")} = x.${l("type")} and t.${ty("tracked")}
-    where x.${l("tenant")} = close_leave_year.tenant and x.${l("period")} = close_leave_year.period
-    group by x.${l("user")}, x.${l("type")}, t.${ty("carryoverMax")}
-    having sum(x.${l("amount")}) > 0
-  )
-  insert into ${ledger} (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("kind")}, ${l("amount")}, ${l("period")}, ${l("key")}, ${l("createdBy")})
-  select close_leave_year.tenant, b.user_id, b.type_id, e.kind, e.amount, e.period, v_key || ':' || e.kind || ':' || e.period::text, auth.uid()
-  from balances b
-  cross join lateral (values
-    ('carryover', -b.carry, close_leave_year.period),
-    ('carryover', b.carry, close_leave_year.period + 1),
-    ('expiry', -(b.balance - b.carry), close_leave_year.period)
-  ) as e(kind, amount, period)
-  where e.amount <> 0
-  on conflict (${l("tenant")}, ${l("user")}, ${l("type")}, ${l("key")}) where ${l("key")} is not null do nothing;
-  get diagnostics v_written = row_count;
-  return v_written;
-end;
-$$;
-${userGrant(`${fn("close_leave_year")}(${idType}, integer)`)}
 `;
 }
 
@@ -907,17 +637,25 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 }
 
 export const LEAVE: ModuleDefinition = {
-  internal: ["leave_available"],
+  internal: ["leave_available", "leave_post", "leave_posted"],
   name: "leave",
   scopes: ["tenant"],
   title: "Leave",
   description:
     "Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.",
-  requires: ["tenant", "access", "approvals"],
+  requires: ["tenant", "access", "approvals", "ledger"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Leave balances move onto the ledger block: each member gets an account per type and year, every leave_ledger row becomes a ledger transaction, and leave_ledger is dropped.",
+      sql: leaveLedgerUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,
