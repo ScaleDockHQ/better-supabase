@@ -9,6 +9,7 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
@@ -44,6 +45,10 @@ export const blockConfig = {
     options: {},
   },
   ledger: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -127,6 +132,11 @@ export const permissions = {
     manage: "catalog.manage",
     read: "catalog.read",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   inventory: {
     manage: "inventory.manage",
     read: "inventory.read",
@@ -195,13 +205,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -221,6 +231,12 @@ export const blockEvents: Events<BlockEvents> = {
     "billing.subscription_deleted",
     "billing.subscription_updated",
     "catalog.price_changed",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "fulfillment.delivered",
     "fulfillment.shipped",
     "invitation.accepted",
@@ -313,6 +329,12 @@ export const blockEventSchemas = {
   "billing.subscription_deleted": true,
   "billing.subscription_updated": true,
   "catalog.price_changed": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "fulfillment.delivered": true,
   "fulfillment.shipped": true,
   "invitation.accepted": true,

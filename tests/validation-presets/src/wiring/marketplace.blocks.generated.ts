@@ -9,6 +9,7 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { InvoicesEvents } from "better-supabase/blocks/invoices";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
@@ -46,6 +47,10 @@ export const blockConfig = {
     options: {},
   },
   ledger: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -147,6 +152,11 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
@@ -228,13 +238,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -260,6 +270,12 @@ export const blockEvents: Events<BlockEvents> = {
     "company.person_linked",
     "company.person_unlinked",
     "company.updated",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "fulfillment.delivered",
     "fulfillment.shipped",
     "invitation.accepted",
@@ -362,6 +378,12 @@ export const blockEventSchemas = {
   "company.person_linked": true,
   "company.person_unlinked": true,
   "company.updated": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "fulfillment.delivered": true,
   "fulfillment.shipped": true,
   "invitation.accepted": true,

@@ -271,6 +271,8 @@ export default defineConfig({
     profiles: {},
     flags: {},
     announcements: {},
+    // Onboarding checklists run on enrollments (ADR 0074).
+    enrollments: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
     usage: {},

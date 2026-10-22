@@ -19,6 +19,7 @@ import { documentsBlock } from "better-supabase/blocks/documents";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
+import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { importsBlock } from "better-supabase/blocks/imports";
@@ -104,6 +105,7 @@ const blockSet = defineBlocks(blockConfig, {
   ),
   usage: usageBlock,
   workflows: workflowsBlock,
+  enrollments: enrollmentsBlock,
   onboarding: onboardingBlock,
   settings: settingsBlock.using((options) =>
     createSettings({ ...options, settings }),

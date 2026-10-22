@@ -5,6 +5,7 @@ import { assetsBlock } from "better-supabase/blocks/assets";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
+import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { relationsBlock } from "better-supabase/blocks/relations";
@@ -28,6 +29,7 @@ export const productVariantFeature = defineRecordFeature({
     assets: assetsBlock,
     scores: scoresBlock,
     moderation: moderationBlock,
+    enrollments: enrollmentsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,
