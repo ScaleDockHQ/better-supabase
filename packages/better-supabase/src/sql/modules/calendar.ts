@@ -19,6 +19,14 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import {
+  availabilityContract,
+  availabilitySql,
+  EVENT_KINDS,
+  TRANSPARENCIES,
+  WORKING_HOURS_TABLE,
+  workingHoursTable,
+} from "./calendar-availability.ts";
 import { liveShareLink } from "./share-links.ts";
 
 const EVENTS: ModuleEvents<CalendarEvents> = {
@@ -101,6 +109,9 @@ const NAMES: ModuleNames = {
         subjectType: "subject_type",
         subjectId: "subject_id",
         color: "color",
+        kind: "kind",
+        transparency: "transparency",
+        autoDecline: "auto_decline",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -111,6 +122,9 @@ const NAMES: ModuleNames = {
         "subjectType",
         "subjectId",
         "color",
+        "kind",
+        "transparency",
+        "autoDecline",
         "createdBy",
       ],
     },
@@ -129,6 +143,7 @@ const NAMES: ModuleNames = {
         response: "response",
       },
     },
+    workingHours: WORKING_HOURS_TABLE,
   },
 };
 
@@ -162,6 +177,24 @@ function eventFields(
     }
   }
 
+  if (ctx.has("events", "kind")) {
+    fields.push([e("kind"), "coalesce(v_item ->> 'kind', 'event')"]);
+  }
+
+  if (ctx.has("events", "transparency")) {
+    fields.push([
+      e("transparency"),
+      "coalesce(v_item ->> 'transparency', 'opaque')",
+    ]);
+  }
+
+  if (ctx.has("events", "autoDecline")) {
+    fields.push([
+      e("autoDecline"),
+      "coalesce((v_item ->> 'autoDecline')::boolean, false)",
+    ]);
+  }
+
   if (ctx.has("events", "subjectType") && ctx.has("events", "subjectId")) {
     fields.push(
       [e("subjectType"), "v_item ->> 'subjectType'"],
@@ -185,6 +218,9 @@ function updateSet(ctx: ModuleContext): string {
     description: "description",
     location: "location",
     color: "color",
+    kind: "kind",
+    transparency: "transparency",
+    autoDecline: "autoDecline",
     subjectType: "subjectType",
     subjectId: "subjectId",
   };
@@ -230,6 +266,9 @@ const EVENT_KEYS: readonly string[] = [
   "description",
   "location",
   "color",
+  "kind",
+  "transparency",
+  "autoDecline",
   "attendees",
   "created",
   "fields",
@@ -252,7 +291,7 @@ function eventJson(ctx: ModuleContext, attendees: string): string {
     ? `, 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', ${a("email")}, 'name', ${a("name")}, 'userId', ${a("user")}, 'role', ${a("role")}, 'response', ${a("response")}) order by ${a("email")}) from ${attendees} a where ${a("event")} = ${e("id")}), '[]'::jsonb)`
     : "";
 
-  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
+  return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${optional("kind", "kind")}${optional("transparency", "transparency")}${optional("autoDecline", "autoDecline")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
 }
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
@@ -408,6 +447,9 @@ create table if not exists ${events} (
   ${e("subjectType")} text,
   ${e("subjectId")} text,
   ${e("color")} text,
+  ${e("kind")} text not null default 'event',
+  ${e("transparency")} text not null default 'opaque',
+  ${e("autoDecline")} boolean not null default false,
   ${e("createdBy")} uuid,
   ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now(),
@@ -416,7 +458,20 @@ create table if not exists ${events} (
   unique nulls not distinct (${e("calendar")}, ${e("uid")}, ${e("originalStart")})
 );
 create index if not exists ${ctx.naming.rename("calendar_events_recurrence_idx")} on ${events} (${e("recurrence")}) where ${e("recurrence")} is not null;
-create index if not exists ${ctx.naming.rename("calendar_events_range_idx")} on ${events} (${e("calendar")}, ${e("startsAt")});${addExtraColumns(events, eventExtras(ctx))}
+create index if not exists ${ctx.naming.rename("calendar_events_range_idx")} on ${events} (${e("calendar")}, ${e("startsAt")});
+alter table ${events} add column if not exists ${e("kind")} text not null default 'event';
+alter table ${events} add column if not exists ${e("transparency")} text not null default 'opaque';
+alter table ${events} add column if not exists ${e("autoDecline")} boolean not null default false;
+${addCheck({
+  table: events,
+  name: `${ctx.tableName("events").name}_kind_check`,
+  expression: `${e("kind")} in ${EVENT_KINDS}`,
+})}
+${addCheck({
+  table: events,
+  name: `${ctx.tableName("events").name}_transparency_check`,
+  expression: `${e("transparency")} in ${TRANSPARENCIES}`,
+})}${addExtraColumns(events, eventExtras(ctx))}
 ${lockTable(events, { read: true })}
 drop policy if exists ${ctx.tableName("events").name}_read on ${events};
 create policy ${ctx.tableName("events").name}_read on ${events} for select to authenticated
@@ -441,7 +496,7 @@ ${addCheck({
 drop policy if exists ${ctx.tableName("attendees").name}_read on ${attendees};
 create policy ${ctx.tableName("attendees").name}_read on ${attendees} for select to authenticated
 using (${ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
-`
+${workingHoursTable(ctx)}`
     : "";
 
   const attendeeFunctions = ctx.hasTable("attendees")
@@ -610,6 +665,12 @@ begin
   end if;
   if v_item ? 'status' and v_item ->> 'status' not in ${STATUSES} then
     ${fail("CALENDAR_EVENT_INVALID", "status must be confirmed, tentative or cancelled", "22023")}
+  end if;
+  if v_item ? 'kind' and v_item ->> 'kind' not in ${EVENT_KINDS} then
+    ${fail("CALENDAR_EVENT_INVALID", "kind must be event, out_of_office or focus_time", "22023")}
+  end if;
+  if v_item ? 'transparency' and v_item ->> 'transparency' not in ${TRANSPARENCIES} then
+    ${fail("CALENDAR_EVENT_INVALID", "transparency must be opaque or transparent", "22023")}
   end if;
   if v_item ? 'tz' and not exists (select 1 from pg_catalog.pg_timezone_names where name = v_item ->> 'tz') then
     ${fail("CALENDAR_TZ_INVALID", "tz must be an IANA time zone", "22023")}
@@ -857,7 +918,7 @@ as $$
   where k.${k("tenant")} = list_calendars.tenant
 $$;
 ${userGrant(`${fn("list_calendars")}(${ctx.idType})`)}
-${attendeeFunctions}${feed(ctx, events, calendars, attendees)}`;
+${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -905,6 +966,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
           },
         ]
       : []),
+    ...availabilityContract(ctx),
     ...(ctx.installed("share-links")
       ? [{ name: "calendar_feed", args: ["text"], returns: "jsonb" }]
       : []),
@@ -916,9 +978,9 @@ export const CALENDAR: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Calendar",
   description:
-    "Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees. Series expand in TypeScript with the reminders block's expandRule; a share link serves an iCal feed.",
+    "Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.",
   requires: ["tenant", "access"],
-  integrates: ["share-links", "reminders", "outbox"],
+  integrates: ["share-links", "reminders", "outbox", "leave"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

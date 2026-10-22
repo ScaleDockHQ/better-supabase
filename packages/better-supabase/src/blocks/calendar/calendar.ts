@@ -5,6 +5,13 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
+  CalendarEventKind,
+  CalendarTransparency,
+  FreeBusy,
+  WorkingHours,
+  WorkingHoursInput,
+} from "./availability.ts";
+import type {
   AttendeeResponse,
   AttendeeRole,
   CalendarAttendee,
@@ -36,6 +43,12 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import {
+  CALENDAR_EVENT_KINDS,
+  CALENDAR_TRANSPARENCIES,
+  freeBusyOf,
+  workingHoursOf,
+} from "./availability.ts";
 import { parseIcs, toIcs } from "./ics.ts";
 import { expandOccurrences, splitRule } from "./occurrences.ts";
 
@@ -83,6 +96,15 @@ export interface CalendarEventInput {
   readonly subjectType?: string | null;
   readonly subjectId?: string | null;
   readonly color?: string | null;
+  /** Default `event`. */
+  readonly kind?: CalendarEventKind;
+  /** Default `opaque`; `transparent` events don't make anyone busy. */
+  readonly transparency?: CalendarTransparency;
+  /**
+   * On an `out_of_office` or `focus_time` block: decline the owner's open
+   * invitations to single events it covers, and new ones. Default `false`.
+   */
+  readonly autoDecline?: boolean;
   /** Only on insert. Default the new id. */
   readonly uid?: string;
 }
@@ -172,6 +194,27 @@ export interface Calendar<F extends object = Record<never, never>> {
    * "calendar"`), or `null` when the token is unknown, revoked or expired.
    */
   feed(token: string): AsyncResult<string | null>;
+  /** Replaces a member's weekly working hours. Returns how many stretches. */
+  setWorkingHours(
+    organizationId: string,
+    input: WorkingHoursInput,
+  ): AsyncResult<number>;
+  /** The working hours of the members that set them (all when omitted). */
+  workingHours(
+    organizationId: string,
+    userIds?: readonly string[],
+  ): AsyncResult<WorkingHours[]>;
+  /**
+   * When each member is busy in the range (at most 62 days, 100 members):
+   * events on calendars they own, invitations they haven't declined,
+   * out-of-office and focus-time blocks, and approved leave. It returns ranges,
+   * never titles.
+   */
+  freeBusy(
+    organizationId: string,
+    userIds: readonly string[],
+    range: OccurrenceRange,
+  ): AsyncResult<FreeBusy[]>;
 }
 
 const ROLES: readonly AttendeeRole[] = [
@@ -240,6 +283,21 @@ export function calendarEventOf(value: unknown): CalendarEvent {
     ...text("subjectType"),
     ...text("subjectId"),
     ...text("color"),
+    ...(row["kind"] === undefined
+      ? {}
+      : { kind: oneOf(row["kind"], CALENDAR_EVENT_KINDS, "event") }),
+    ...(row["transparency"] === undefined
+      ? {}
+      : {
+          transparency: oneOf(
+            row["transparency"],
+            CALENDAR_TRANSPARENCIES,
+            "opaque",
+          ),
+        }),
+    ...(typeof row["autoDecline"] === "boolean"
+      ? { autoDecline: row["autoDecline"] }
+      : {}),
     attendees: recordsOf(row["attendees"], "attendees").map(attendeeOf),
     ...(updatedAt === undefined ? {} : { updatedAt }),
   };
@@ -293,6 +351,9 @@ function importItem(event: IcsEvent): Record<string, unknown> {
     ...(event.originalStart === undefined
       ? {}
       : { originalStart: event.originalStart }),
+    ...(event.transparency === undefined
+      ? {}
+      : { transparency: event.transparency }),
   });
 }
 
@@ -312,6 +373,13 @@ function copyOf(event: CalendarEvent): CalendarEventInput {
       : { subjectType: event.subjectType }),
     ...(event.subjectId === undefined ? {} : { subjectId: event.subjectId }),
     ...(event.color === undefined ? {} : { color: event.color }),
+    ...(event.kind === undefined ? {} : { kind: event.kind }),
+    ...(event.transparency === undefined
+      ? {}
+      : { transparency: event.transparency }),
+    ...(event.autoDecline === undefined
+      ? {}
+      : { autoDecline: event.autoDecline }),
   };
 }
 
@@ -333,6 +401,9 @@ const EVENT_INPUT: ReadonlySet<string> = new Set([
   "subjectType",
   "subjectId",
   "color",
+  "kind",
+  "transparency",
+  "autoDecline",
   "uid",
   "recurrenceId",
   "originalStart",
@@ -604,6 +675,37 @@ export function createCalendar<
           { name: textOf(info["name"]), tz: optionalText(info["tz"]) ?? "UTC" },
         );
       }),
+    setWorkingHours: (organizationId, input) =>
+      call(
+        "set_calendar_working_hours",
+        {
+          tenant: organizationId,
+          user_id: input.userId ?? null,
+          tz: input.tz,
+          hours: input.hours.map((hour) => ({ ...hour })),
+        },
+        (value) => Number(value ?? 0),
+      ),
+    workingHours: (organizationId, userIds) =>
+      call(
+        "list_calendar_working_hours",
+        {
+          tenant: organizationId,
+          user_ids: userIds === undefined ? null : [...userIds],
+        },
+        workingHoursOf,
+      ),
+    freeBusy: (organizationId, userIds, range) =>
+      call(
+        "calendar_free_busy",
+        {
+          tenant: organizationId,
+          user_ids: [...userIds],
+          range_start: range.from.toString(),
+          range_end: range.until.toString(),
+        },
+        freeBusyOf,
+      ),
   };
 
   return withBlockHooks(client, options.hooks, {

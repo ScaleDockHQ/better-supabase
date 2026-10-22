@@ -33,6 +33,23 @@ export const calendarEventInputSchema: EntitySchema<CalendarEventInput> =
       subjectType: { kind: "string", optional: true, nullable: true },
       subjectId: { kind: "string", optional: true, nullable: true },
       color: { kind: "string", optional: true, nullable: true },
+      kind: {
+        kind: "enum",
+        values: ["event", "out_of_office", "focus_time"],
+        optional: true,
+      },
+      transparency: {
+        kind: "enum",
+        values: ["opaque", "transparent"],
+        optional: true,
+        description: "`transparent` events don't make anyone busy.",
+      },
+      autoDecline: {
+        kind: "boolean",
+        optional: true,
+        description:
+          "On an out-of-office or focus-time block: decline the invitations it covers.",
+      },
       uid: { kind: "string", optional: true, description: "Only on insert." },
     },
   });

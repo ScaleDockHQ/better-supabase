@@ -1189,7 +1189,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "share-links",
         "reminders",
-        "outbox"
+        "outbox",
+        "leave"
       ],
       "manifest": "calendar",
       "scopes": [
@@ -1245,6 +1246,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectType": "subject_type",
               "subjectId": "subject_id",
               "color": "color",
+              "kind": "kind",
+              "transparency": "transparency",
+              "autoDecline": "auto_decline",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -3223,6 +3227,29 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "event",
+                  "out_of_office",
+                  "focus_time"
+                ],
+                "optional": true
+              },
+              "transparency": {
+                "kind": "enum",
+                "values": [
+                  "opaque",
+                  "transparent"
+                ],
+                "optional": true,
+                "description": "`transparent` events don't make anyone busy."
+              },
+              "autoDecline": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -3304,6 +3331,26 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "string",
                     "null"
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "event",
+                    "out_of_office",
+                    "focus_time"
+                  ]
+                },
+                "transparency": {
+                  "type": "string",
+                  "enum": [
+                    "opaque",
+                    "transparent"
+                  ],
+                  "description": "`transparent` events don't make anyone busy."
+                },
+                "autoDecline": {
+                  "type": "boolean",
+                  "description": "On an out-of-office or focus-time block: decline the invitations it covers."
                 },
                 "uid": {
                   "type": "string",
@@ -3383,6 +3430,29 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "event",
+                  "out_of_office",
+                  "focus_time"
+                ],
+                "optional": true
+              },
+              "transparency": {
+                "kind": "enum",
+                "values": [
+                  "opaque",
+                  "transparent"
+                ],
+                "optional": true,
+                "description": "`transparent` events don't make anyone busy."
+              },
+              "autoDecline": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -3464,6 +3534,26 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "string",
                     "null"
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "event",
+                    "out_of_office",
+                    "focus_time"
+                  ]
+                },
+                "transparency": {
+                  "type": "string",
+                  "enum": [
+                    "opaque",
+                    "transparent"
+                  ],
+                  "description": "`transparent` events don't make anyone busy."
+                },
+                "autoDecline": {
+                  "type": "boolean",
+                  "description": "On an out-of-office or focus-time block: decline the invitations it covers."
                 },
                 "uid": {
                   "type": "string",
