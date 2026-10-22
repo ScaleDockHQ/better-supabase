@@ -150,6 +150,10 @@ const SUBJECT_EVENTS = [
   "message.resolved",
   "channel.created",
   "channel.updated",
+  "segment.entered",
+  "segment.left",
+  "subject.assigned",
+  "party.enriched",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

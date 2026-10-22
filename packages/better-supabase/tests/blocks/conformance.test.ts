@@ -51,6 +51,8 @@ const NO_FIELDS: readonly string[] = [
   "ai-providers",
   // Locations and assets carry app data in `metadata`.
   "assets",
+  // Queues and picks route records to members; app data lives on the records.
+  "assignment",
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",
@@ -78,6 +80,12 @@ const NO_FIELDS: readonly string[] = [
   "enrollments",
   // Guests and grants are access rows; who the guest is lives in their party.
   "guests",
+  // Results describe parties; app data lives on the companies and people.
+  "enrichment",
+  // History rows copy a record's columns; app data lives on the record.
+  "field-history",
+  // Snapshots copy deals; app data lives on the deals.
+  "forecasts",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.
@@ -91,6 +99,8 @@ const NO_FIELDS: readonly string[] = [
   // Accounts and entries are double-entry bookkeeping other blocks post to;
   // per-account data goes in `metadata`.
   "ledger",
+  // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
+  "mail-sync",
   // The model writes memories through memory commands, which carry no app columns.
   "memory",
   // Points are metric samples written by the sink.
@@ -116,6 +126,8 @@ const NO_FIELDS: readonly string[] = [
   "scores",
   // A derived index the sink rebuilds from each subject's own row.
   "search",
+  // A segment is a saved filter; app data lives on the records it matches.
+  "segments",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
   // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.

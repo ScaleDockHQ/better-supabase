@@ -194,11 +194,16 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0075: record presence, record mentions and saved items build on the subject registry.
 - 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
 - 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
+- 0078: member mailboxes sync into engagements through a versioned `MailProvider` over `fetch`.
+- 0079: segments materialize rules filter trees; assignment queues pick owners by turn, weight and territory.
 - 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.
+- 0081: enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over `fetch`.
 - 0082: shipments go through a versioned `ShipmentCarrier`; tracking arrives by a signed, idempotent webhook ingest.
+- 0083: forecast snapshots copy the deals behind each number; field history is a trigger per tracked table.
 - 0084: the public status page is one security definer function anon may call, returning only public fields.
 - 0085: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
 - 0086: recurring bookings place each occurrence through `place_booking`; class credits are a ledger refunded on early cancel.
+- 0090: confirmed bookings become meeting engagements through a trigger on the bookings table.
 
 ## Pre-release pins
 

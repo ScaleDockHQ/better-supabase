@@ -1,0 +1,483 @@
+import type { MailSyncEvents } from "../../blocks/mail-sync/events.ts";
+import type {
+  ModuleContext,
+  ModuleContractFunction,
+  ModuleEvents,
+  ModuleNames,
+} from "../context.ts";
+import type { ModuleDefinition } from "../module-types.ts";
+
+import { lockTable, schemaPreamble } from "../shared.ts";
+import { moduleOperations } from "./access-model.ts";
+import { mailSyncFunctions } from "./mail-sync-functions.ts";
+
+const ACCOUNT_PAYLOAD = [
+  "organizationId",
+  "accountId",
+  "userId",
+  "provider",
+  "address",
+] as const;
+
+const MESSAGE_PAYLOAD = [
+  "organizationId",
+  "accountId",
+  "userId",
+  "threadId",
+  "messageId",
+  "direction",
+  "fromAddress",
+  "subjects",
+] as const;
+
+const TRACKING_PAYLOAD = [
+  "organizationId",
+  "accountId",
+  "userId",
+  "threadId",
+  "messageId",
+  "templateVersionId",
+  "url",
+  "subjects",
+] as const;
+
+const EVENTS: ModuleEvents<MailSyncEvents> = {
+  "mail_account.connected": {
+    subject: "mail-accounts",
+    payload: [...ACCOUNT_PAYLOAD],
+  },
+  "mail_account.disconnected": {
+    subject: "mail-accounts",
+    payload: [...ACCOUNT_PAYLOAD],
+  },
+  "mail_message.received": {
+    subject: "mail-messages",
+    payload: [...MESSAGE_PAYLOAD],
+    retries: true,
+  },
+  "mail_message.sent": {
+    subject: "mail-messages",
+    payload: [...MESSAGE_PAYLOAD],
+    retries: true,
+  },
+  "mail_message.opened": {
+    subject: "mail-messages",
+    payload: [...TRACKING_PAYLOAD],
+  },
+  "mail_message.clicked": {
+    subject: "mail-messages",
+    payload: [...TRACKING_PAYLOAD],
+  },
+};
+
+const NAMES: ModuleNames = {
+  entities: {
+    mail_thread: { table: "threads", singular: "mail_thread", primary: true },
+    mail_account: { table: "accounts", singular: "mail_account" },
+    mail_message: { table: "messages", singular: "mail_message" },
+  },
+  events: EVENTS,
+  options: ["engagementType", "matchDomains"],
+  tables: {
+    accounts: {
+      name: "mail_accounts",
+      lifecycle: {
+        tenant: "tenant",
+        user: "user",
+        credentials: ["credentialRef"],
+        credentialSubject: "user",
+      },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        user: "user_id",
+        provider: "provider",
+        address: "address",
+        credentialRef: "credential_ref",
+        share: "share",
+        status: "status",
+        cursor: "sync_cursor",
+        lastSyncedAt: "last_synced_at",
+        lastError: "last_error",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    threads: {
+      name: "mail_threads",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        account: "account_id",
+        externalId: "external_id",
+        subject: "subject",
+        snippet: "snippet",
+        lastMessageAt: "last_message_at",
+        messageCount: "message_count",
+        engagement: "engagement_id",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    messages: {
+      name: "mail_messages",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        account: "account_id",
+        thread: "thread_id",
+        externalId: "external_id",
+        rfcId: "rfc_message_id",
+        direction: "direction",
+        fromAddress: "from_address",
+        fromName: "from_name",
+        to: "to_addresses",
+        cc: "cc_addresses",
+        subject: "subject",
+        snippet: "snippet",
+        bodyText: "body_text",
+        bodyHtml: "body_html",
+        sentAt: "sent_at",
+        templateVersion: "template_version_id",
+        trackingHash: "tracking_hash",
+        openedAt: "opened_at",
+        openCount: "open_count",
+        clickedAt: "clicked_at",
+        clickCount: "click_count",
+        createdAt: "created_at",
+      },
+    },
+    trackedLinks: {
+      name: "mail_tracked_links",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        tenant: "tenant_id",
+        message: "message_id",
+        position: "position",
+        url: "url",
+        clickCount: "click_count",
+        createdAt: "created_at",
+      },
+    },
+    tracking: {
+      name: "mail_tracking_events",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        message: "message_id",
+        kind: "kind",
+        position: "position",
+        userAgent: "user_agent",
+        occurredAt: "occurred_at",
+      },
+    },
+    links: {
+      name: "mail_thread_subjects",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        tenant: "tenant_id",
+        thread: "thread_id",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        source: "source",
+        createdAt: "created_at",
+      },
+    },
+  },
+};
+
+const TYPE = /^[a-z][a-z0-9_]{0,62}$/;
+
+/** The names and keys the module's SQL shares between its files. */
+export interface MailNames {
+  readonly fn: (name: string) => string;
+  readonly t: (table: string) => string;
+  readonly a: (column: string) => string;
+  readonly h: (column: string) => string;
+  readonly m: (column: string) => string;
+  readonly l: (column: string) => string;
+  readonly k: (column: string) => string;
+  readonly e: (column: string) => string;
+  readonly read: string;
+  readonly connect: string;
+  readonly send: string;
+  readonly manage: string;
+  readonly engagementType: string;
+  readonly matchDomains: boolean;
+}
+
+function names(ctx: ModuleContext): MailNames {
+  const keys = moduleOperations("mail-sync");
+  const engagementType = ctx.text("engagementType", "email");
+
+  if (!TYPE.test(engagementType)) {
+    throw new TypeError(
+      "blocks.mail-sync.options.engagementType must be a lowercase engagement type",
+    );
+  }
+
+  return {
+    fn: (name) => ctx.fn(name),
+    t: (table) => ctx.table(table),
+    a: (column) => ctx.col("accounts", column),
+    h: (column) => ctx.col("threads", column),
+    m: (column) => ctx.col("messages", column),
+    l: (column) => ctx.col("links", column),
+    k: (column) => ctx.col("trackedLinks", column),
+    e: (column) => ctx.col("tracking", column),
+    read: ctx.permission("read", keys.read),
+    connect: ctx.permission("connect", keys.connect),
+    send: ctx.permission("send", keys.send),
+    manage: ctx.permission("manage", keys.manage),
+    engagementType,
+    matchDomains: ctx.flag("matchDomains", true),
+  };
+}
+
+function tables(ctx: ModuleContext, n: MailNames): string {
+  const { t, a, h, m, l, k, e } = n;
+
+  const engagement = ctx.installed("engagements")
+    ? ` references ${ctx.of("engagements").table("engagements")} (${ctx.of("engagements").col("engagements", "id")}) on delete set null`
+    : "";
+
+  const visible = n.fn("mail_thread_visible");
+
+  const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
+
+  return `create table if not exists ${t("accounts")} (
+  ${a("id")} uuid primary key default gen_random_uuid(),
+  ${a("tenant")} ${ctx.idType} not null,
+  ${a("user")} uuid not null references auth.users (id) on delete cascade,
+  ${a("provider")} text not null check (${a("provider")} ~ '^[a-z][a-z0-9-]{0,39}$'),
+  ${a("address")} text not null check (${a("address")} = lower(${a("address")}) and ${a("address")} ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  ${a("credentialRef")} jsonb not null check (jsonb_typeof(${a("credentialRef")}) = 'object'),
+  ${a("share")} text not null default 'records' check (${a("share")} in ('records', 'private')),
+  ${a("status")} text not null default 'active' check (${a("status")} in ('active', 'paused', 'error', 'disconnected')),
+  ${a("cursor")} text,
+  ${a("lastSyncedAt")} timestamptz,
+  ${a("lastError")} text,
+  ${a("createdAt")} timestamptz not null default now(),
+  ${a("updatedAt")} timestamptz not null default now(),
+  unique (${a("tenant")}, ${a("user")}, ${a("address")})
+);
+create index if not exists ${ctx.naming.rename("mail_accounts_user_idx")} on ${t("accounts")} (${a("user")});
+create index if not exists ${ctx.naming.rename("mail_accounts_due_idx")} on ${t("accounts")} (${a("lastSyncedAt")} nulls first) where ${a("status")} = 'active';
+${lockTable(t("accounts"), { read: true })}
+create table if not exists ${t("threads")} (
+  ${h("id")} uuid primary key default gen_random_uuid(),
+  ${h("tenant")} ${ctx.idType} not null,
+  ${h("account")} uuid not null references ${t("accounts")} (${a("id")}) on delete cascade,
+  ${h("externalId")} text not null,
+  ${h("subject")} text,
+  ${h("snippet")} text,
+  ${h("lastMessageAt")} timestamptz,
+  ${h("messageCount")} integer not null default 0,
+  ${h("engagement")} uuid${engagement},
+  ${h("createdAt")} timestamptz not null default now(),
+  ${h("updatedAt")} timestamptz not null default now(),
+  unique (${h("account")}, ${h("externalId")})
+);
+create index if not exists ${ctx.naming.rename("mail_threads_tenant_recent_idx")} on ${t("threads")} (${h("tenant")}, ${h("lastMessageAt")} desc);
+create index if not exists ${ctx.naming.rename("mail_threads_engagement_idx")} on ${t("threads")} (${h("engagement")}) where ${h("engagement")} is not null;
+${lockTable(t("threads"), { read: true })}
+create table if not exists ${t("messages")} (
+  ${m("id")} uuid primary key default gen_random_uuid(),
+  ${m("tenant")} ${ctx.idType} not null,
+  ${m("account")} uuid not null references ${t("accounts")} (${a("id")}) on delete cascade,
+  ${m("thread")} uuid not null references ${t("threads")} (${h("id")}) on delete cascade,
+  ${m("externalId")} text not null,
+  ${m("rfcId")} text,
+  ${m("direction")} text not null check (${m("direction")} in ('inbound', 'outbound')),
+  ${m("fromAddress")} text,
+  ${m("fromName")} text,
+  ${m("to")} text[] not null default '{}',
+  ${m("cc")} text[] not null default '{}',
+  ${m("subject")} text,
+  ${m("snippet")} text,
+  ${m("bodyText")} text,
+  ${m("bodyHtml")} text,
+  ${m("sentAt")} timestamptz not null,
+  ${m("templateVersion")} uuid,
+  ${m("trackingHash")} text check (${m("trackingHash")} ~ '^[0-9a-f]{64}$'),
+  ${m("openedAt")} timestamptz,
+  ${m("openCount")} integer not null default 0,
+  ${m("clickedAt")} timestamptz,
+  ${m("clickCount")} integer not null default 0,
+  ${m("createdAt")} timestamptz not null default now(),
+  unique (${m("account")}, ${m("externalId")})
+);
+create index if not exists ${ctx.naming.rename("mail_messages_thread_idx")} on ${t("messages")} (${m("thread")}, ${m("sentAt")});
+create index if not exists ${ctx.naming.rename("mail_messages_rfc_idx")} on ${t("messages")} (${m("account")}, ${m("rfcId")}) where ${m("rfcId")} is not null;
+create unique index if not exists ${ctx.naming.rename("mail_messages_tracking_idx")} on ${t("messages")} (${m("trackingHash")}) where ${m("trackingHash")} is not null;
+create index if not exists ${ctx.naming.rename("mail_messages_template_idx")} on ${t("messages")} (${m("tenant")}, ${m("templateVersion")}) where ${m("templateVersion")} is not null;
+${lockTable(t("messages"), { read: true })}
+create table if not exists ${t("trackedLinks")} (
+  ${k("tenant")} ${ctx.idType} not null,
+  ${k("message")} uuid not null references ${t("messages")} (${m("id")}) on delete cascade,
+  ${k("position")} integer not null check (${k("position")} >= 0),
+  ${k("url")} text not null check (${k("url")} ~* '^https?://' and length(${k("url")}) <= 2048),
+  ${k("clickCount")} integer not null default 0,
+  ${k("createdAt")} timestamptz not null default now(),
+  primary key (${k("message")}, ${k("position")})
+);
+${lockTable(t("trackedLinks"), { read: true })}
+create table if not exists ${t("tracking")} (
+  ${e("id")} uuid primary key default gen_random_uuid(),
+  ${e("tenant")} ${ctx.idType} not null,
+  ${e("message")} uuid not null references ${t("messages")} (${m("id")}) on delete cascade,
+  ${e("kind")} text not null check (${e("kind")} in ('open', 'click')),
+  ${e("position")} integer,
+  ${e("userAgent")} text check (length(${e("userAgent")}) <= 300),
+  ${e("occurredAt")} timestamptz not null default now()
+);
+create index if not exists ${ctx.naming.rename("mail_tracking_events_message_idx")} on ${t("tracking")} (${e("message")}, ${e("occurredAt")});
+${lockTable(t("tracking"), { read: true })}
+create table if not exists ${t("links")} (
+  ${l("tenant")} ${ctx.idType} not null,
+  ${l("thread")} uuid not null references ${t("threads")} (${h("id")}) on delete cascade,
+  ${l("subjectType")} text not null,
+  ${l("subjectId")} text not null,
+  ${l("source")} text not null default 'match' check (${l("source")} in ('match', 'manual')),
+  ${l("createdAt")} timestamptz not null default now(),
+  primary key (${l("thread")}, ${l("subjectType")}, ${l("subjectId")})
+);
+create index if not exists ${ctx.naming.rename("mail_thread_subjects_subject_idx")} on ${t("links")} (${l("subjectType")}, ${l("subjectId")});
+${lockTable(t("links"), { read: true })}
+
+-- Whether the caller may read a thread: its mailbox is theirs, or the mailbox
+-- shares with records and the caller can read one of the thread's records.
+create or replace function ${visible}(thread uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from ${t("threads")} x
+    join ${t("accounts")} k on k.${a("id")} = x.${h("account")}
+    where x.${h("id")} = $1
+      and (k.${a("user")} = auth.uid() or (
+        k.${a("share")} = 'records'
+        and ${ctx.scope.can(`x.${h("tenant")}`, n.read)}
+        and exists (
+          select 1 from ${t("links")} s
+          where s.${l("thread")} = x.${h("id")}
+            and ${ctx.of("subjects").fn("can_subject")}(s.${l("subjectType")}, s.${l("subjectId")}, 'read')
+        )
+      ))
+  )
+$$;
+revoke execute on function ${visible}(uuid) from public, anon;
+grant execute on function ${visible}(uuid) to authenticated, service_role;
+
+drop policy if exists ${policy("accounts")} on ${t("accounts")};
+create policy ${policy("accounts")} on ${t("accounts")} for select to authenticated
+using (${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), n.manage)});
+drop policy if exists ${policy("threads")} on ${t("threads")};
+create policy ${policy("threads")} on ${t("threads")} for select to authenticated
+using (${visible}(${h("id")}));
+drop policy if exists ${policy("messages")} on ${t("messages")};
+create policy ${policy("messages")} on ${t("messages")} for select to authenticated
+using (${visible}(${m("thread")}));
+drop policy if exists ${policy("links")} on ${t("links")};
+create policy ${policy("links")} on ${t("links")} for select to authenticated
+using (${visible}(${l("thread")}));
+drop policy if exists ${policy("trackedLinks")} on ${t("trackedLinks")};
+create policy ${policy("trackedLinks")} on ${t("trackedLinks")} for select to authenticated
+using (exists (select 1 from ${t("messages")} y where y.${m("id")} = ${k("message")} and ${visible}(y.${m("thread")})));
+drop policy if exists ${policy("tracking")} on ${t("tracking")};
+create policy ${policy("tracking")} on ${t("tracking")} for select to authenticated
+using (exists (select 1 from ${t("messages")} y where y.${m("id")} = ${e("message")} and ${visible}(y.${m("thread")})));
+`;
+}
+
+function build(ctx: ModuleContext): string {
+  const n = names(ctx);
+
+  return `${schemaPreamble(ctx)}
+-- Gmail, Outlook and other mailboxes synced per member: threads and messages
+-- linked to the people and companies they involve, logged as engagements.
+${tables(ctx, n)}${mailSyncFunctions(ctx, n)}`;
+}
+
+function contract(): readonly ModuleContractFunction[] {
+  return [
+    {
+      name: "connect_mail_account",
+      args: ["{id}", "text", "text", "jsonb", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "update_mail_account",
+      args: ["uuid", "text", "boolean"],
+      returns: "jsonb",
+    },
+    {
+      name: "disconnect_mail_account",
+      args: ["uuid", "boolean"],
+      returns: "boolean",
+    },
+    { name: "mail_accounts_of", args: ["{id}"], returns: "jsonb" },
+    { name: "get_mail_account", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "due_mail_accounts",
+      args: ["integer", "interval"],
+      returns: "jsonb",
+    },
+    { name: "ingest_mail", args: ["uuid", "jsonb", "text"], returns: "jsonb" },
+    {
+      name: "set_mail_account_status",
+      args: ["uuid", "text", "text"],
+      returns: "boolean",
+    },
+    { name: "record_sent_mail", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "link_mail_thread", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "unlink_mail_thread",
+      args: ["uuid", "text", "text"],
+      returns: "boolean",
+    },
+    {
+      name: "mail_threads_of",
+      args: ["text", "text", "timestamptz", "integer"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_mail_threads",
+      args: ["{id}", "uuid", "timestamptz", "integer"],
+      returns: "jsonb",
+    },
+    { name: "get_mail_thread", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "track_mail",
+      args: ["text", "text", "integer", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "mail_template_stats",
+      args: ["{id}", "timestamptz"],
+      returns: "jsonb",
+    },
+  ];
+}
+
+export const MAIL_SYNC: ModuleDefinition = {
+  name: "mail-sync",
+  scopes: ["tenant"],
+  title: "Mail sync",
+  description:
+    "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.",
+  requires: ["tenant", "access", "subjects"],
+  integrates: ["outbox", "audit", "parties", "engagements", "data-lifecycle"],
+  target: "schema",
+  modes: ["managed"],
+  version: 1,
+  names: NAMES,
+  contract,
+  build,
+};

@@ -80,6 +80,28 @@ await engagements.log(
 );
 ```
 
+## Bookings
+
+With the [bookings](/docs/blocks/bookings) block installed, set `blocks.engagements.options.bookings: true` and every confirmed booking becomes a `meeting` engagement. A trigger on the bookings table keeps it in step, so bookings made through the public link or by a direct write are logged too.
+
+```ts
+export default defineConfig({
+  blocks: {
+    bookings: {},
+    parties: {},
+    engagements: { options: { bookings: true } },
+  },
+});
+```
+
+| Booking                     | Engagement                                                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Confirmed                   | A `meeting` titled with the service and the customer's name, due at the start, with the notes as its body and the length in `durationSeconds` |
+| Rescheduled while confirmed | The same meeting moves to the new time and opens again                                                                                        |
+| Cancelled after confirming  | The meeting is done at the cancel time, with the outcome `cancelled: <reason>`                                                                |
+
+The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/parties) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `engagement.logged`, `engagement.updated` and `engagement.completed`.
+
 ## Read
 
 | Method                                         | Returns                                                                                               |

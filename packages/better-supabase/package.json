@@ -793,6 +793,36 @@
       "types": "./dist/blocks/channels/index.d.ts",
       "default": "./dist/blocks/channels/index.js"
     },
+    "./blocks/mail-sync": {
+      "@better-supabase/source": "./src/blocks/mail-sync/index.ts",
+      "types": "./dist/blocks/mail-sync/index.d.ts",
+      "default": "./dist/blocks/mail-sync/index.js"
+    },
+    "./blocks/segments": {
+      "@better-supabase/source": "./src/blocks/segments/index.ts",
+      "types": "./dist/blocks/segments/index.d.ts",
+      "default": "./dist/blocks/segments/index.js"
+    },
+    "./blocks/assignment": {
+      "@better-supabase/source": "./src/blocks/assignment/index.ts",
+      "types": "./dist/blocks/assignment/index.d.ts",
+      "default": "./dist/blocks/assignment/index.js"
+    },
+    "./blocks/enrichment": {
+      "@better-supabase/source": "./src/blocks/enrichment/index.ts",
+      "types": "./dist/blocks/enrichment/index.d.ts",
+      "default": "./dist/blocks/enrichment/index.js"
+    },
+    "./blocks/field-history": {
+      "@better-supabase/source": "./src/blocks/field-history/index.ts",
+      "types": "./dist/blocks/field-history/index.d.ts",
+      "default": "./dist/blocks/field-history/index.js"
+    },
+    "./blocks/forecasts": {
+      "@better-supabase/source": "./src/blocks/forecasts/index.ts",
+      "types": "./dist/blocks/forecasts/index.d.ts",
+      "default": "./dist/blocks/forecasts/index.js"
+    },
     "./blocks/messaging": {
       "@better-supabase/source": "./src/blocks/messaging/index.ts",
       "types": "./dist/blocks/messaging/index.d.ts",
@@ -2310,6 +2340,30 @@
       "./blocks/channels": {
         "types": "./dist/blocks/channels/index.d.ts",
         "default": "./dist/blocks/channels/index.js"
+      },
+      "./blocks/mail-sync": {
+        "types": "./dist/blocks/mail-sync/index.d.ts",
+        "default": "./dist/blocks/mail-sync/index.js"
+      },
+      "./blocks/segments": {
+        "types": "./dist/blocks/segments/index.d.ts",
+        "default": "./dist/blocks/segments/index.js"
+      },
+      "./blocks/assignment": {
+        "types": "./dist/blocks/assignment/index.d.ts",
+        "default": "./dist/blocks/assignment/index.js"
+      },
+      "./blocks/enrichment": {
+        "types": "./dist/blocks/enrichment/index.d.ts",
+        "default": "./dist/blocks/enrichment/index.js"
+      },
+      "./blocks/field-history": {
+        "types": "./dist/blocks/field-history/index.d.ts",
+        "default": "./dist/blocks/field-history/index.js"
+      },
+      "./blocks/forecasts": {
+        "types": "./dist/blocks/forecasts/index.d.ts",
+        "default": "./dist/blocks/forecasts/index.js"
       },
       "./blocks/messaging": {
         "types": "./dist/blocks/messaging/index.d.ts",

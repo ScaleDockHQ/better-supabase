@@ -26,6 +26,7 @@ import {
   recordingsOn,
   recordingsSql,
 } from "./engagements-recordings.ts";
+import { bookingEngagementsSql, logsBookings } from "./engagements-bookings.ts";
 
 /** The engagement types `options.types` falls back to. */
 const ENGAGEMENT_TYPES = ["call", "email", "meeting", "note", "task"] as const;
@@ -74,7 +75,7 @@ const NAMES: ModuleNames = {
   },
   events: EVENTS,
   hooks: ["before_engagement_log", "after_engagement_log"],
-  options: ["types", "extraColumns", "recordings"],
+  options: ["types", "extraColumns", "recordings", "bookings"],
   tables: {
     engagements: {
       name: "engagements",
@@ -507,7 +508,7 @@ ${
   v_first := v_subjects -> 0;`,
       })
     : ""
-}`;
+}${logsBookings(ctx, types(ctx)) ? bookingEngagementsSql(ctx) : ""}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -556,7 +557,14 @@ export const ENGAGEMENTS: ModuleDefinition = {
     layout.modules?.["engagements"]?.options?.["recordings"] === true
       ? [...REQUIRES, "ai-files"]
       : [...REQUIRES],
-  integrates: ["outbox", "notifications", "ai-files", "jobs"],
+  integrates: [
+    "outbox",
+    "notifications",
+    "ai-files",
+    "jobs",
+    "bookings",
+    "parties",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

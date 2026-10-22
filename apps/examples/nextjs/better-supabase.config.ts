@@ -261,6 +261,27 @@ export default defineConfig({
     channels: {},
     // The record history the customer page shows, moved out of comments.
     activity: {},
+    // Members' Gmail and Outlook mail, linked to parties and logged as
+    // email engagements.
+    "mail-sync": {},
+    // Saved filters over companies and deals, refreshed on a schedule.
+    segments: {},
+    // Round robin and weighted queues that pick an owner for new records.
+    assignment: {},
+    // Company and person data from an enrichment provider, one result each.
+    enrichment: {},
+    // The forecast call by period, snapshotted so a review compares weeks.
+    forecasts: {},
+    // Old and new values of a deal's amount, stage, owner and close date,
+    // and a company's owner and lifecycle stage.
+    "field-history": {
+      options: {
+        subjects: {
+          deal: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
+          company: ["owner_user_id", "lifecycle"],
+        },
+      },
+    },
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.
@@ -374,8 +395,9 @@ export default defineConfig({
     },
     pipelines: {},
     deals: { entities: { deal: { url: "/crm/deals" } } },
-    // Call recordings on ai-files, with transcripts and notes.
-    engagements: { options: { recordings: true } },
+    // Call recordings on ai-files, with transcripts and notes. Confirmed
+    // bookings show up as meetings on the booker's contact.
+    engagements: { options: { recordings: true, bookings: true } },
     quotes: {},
     targets: {},
     "state-machine": {

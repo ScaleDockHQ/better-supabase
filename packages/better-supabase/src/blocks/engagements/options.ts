@@ -11,6 +11,12 @@ export type EngagementsSqlOptions = {
    * notes on each engagement. Needs the ai-files block. Default `false`.
    */
   readonly recordings?: boolean;
+  /**
+   * Log a `meeting` engagement for each confirmed booking, on the person with
+   * the booker's email and their company. Needs the bookings block. Default:
+   * false.
+   */
+  readonly bookings?: boolean;
 };
 
 export const engagementsSqlOptions: BlockOptionsSchema<EngagementsSqlOptions> =
@@ -18,4 +24,5 @@ export const engagementsSqlOptions: BlockOptionsSchema<EngagementsSqlOptions> =
     types: option.strings(),
     extraColumns: option.unknown(),
     recordings: option.boolean({ default: false }),
+    bookings: option.boolean(),
   });

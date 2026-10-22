@@ -172,6 +172,12 @@ expose the module schema itself.
 | [Pipelines](/docs/blocks/pipelines)                         | `better-supabase/blocks/pipelines`                                                                                                 | `pipelines`                            |
 | [Parties](/docs/blocks/parties)                             | `better-supabase/blocks/parties`                                                                                                   | `parties`                              |
 | [Engagements](/docs/blocks/engagements)                     | `better-supabase/blocks/engagements`                                                                                               | `engagements`                          |
+| [Mail sync](/docs/blocks/mail-sync)                         | `better-supabase/blocks/mail-sync`                                                                                                 | `mail-sync`                            |
+| [Segments](/docs/blocks/segments)                           | `better-supabase/blocks/segments`                                                                                                  | `segments`                             |
+| [Assignment](/docs/blocks/assignment)                       | `better-supabase/blocks/assignment`                                                                                                | `assignment`                           |
+| [Enrichment](/docs/blocks/enrichment)                       | `better-supabase/blocks/enrichment`                                                                                                | `enrichment`                           |
+| [Forecasts](/docs/blocks/forecasts)                         | `better-supabase/blocks/forecasts`                                                                                                 | `forecasts`                            |
+| [Field history](/docs/blocks/field-history)                 | `better-supabase/blocks/field-history`                                                                                             | `field-history`                        |
 | [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                                                                     | `deals`                                |
 | [Work items](/docs/blocks/work-items)                       | `better-supabase/blocks/work-items`                                                                                                | `work-items`                           |
 | [Quotes](/docs/blocks/quotes)                               | `better-supabase/blocks/quotes`                                                                                                    | `quotes`                               |
@@ -313,7 +319,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `templates` | `tenant`, `access` | `outbox`, `audit`, `workflow-builder`, `jsonb-schemas` |
 | `pipelines` | `tenant`, `access`, `subjects` | `outbox`, `audit`, `state-machine`, `notifications`, `deals`, `work-items`, `hiring` |
 | `parties` | `tenant`, `access` | `outbox`, `audit`, `notifications`, `inbox` |
-| `engagements` | `tenant`, `access`, `subjects` | `outbox`, `notifications`, `ai-files`, `jobs` |
+| `engagements` | `tenant`, `access`, `subjects` | `outbox`, `notifications`, `ai-files`, `jobs`, `bookings`, `parties` |
 | `deals` | `tenant`, `access`, `subjects`, `pipelines` | `outbox`, `notifications`, `number-sequences`, `engagements` |
 | `work-items` | `tenant`, `access`, `subjects`, `pipelines` | `outbox`, `notifications`, `number-sequences`, `attachments`, `reminders` |
 | `quotes` | `tenant`, `access`, `subjects` | `outbox`, `notifications`, `number-sequences`, `deals`, `relations` |
@@ -335,6 +341,12 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `messaging` | `tenant`, `access`, `subjects` | `notifications`, `jobs`, `profiles`, `attachments`, `reactions`, `data-lifecycle`, `inbox` |
 | `channels` | `tenant`, `access`, `subjects`, `messaging` | `outbox`, `audit`, `data-lifecycle` |
 | `activity` | `tenant`, `access` | `notifications`, `subjects`, `audit`, `workflows` |
+| `mail-sync` | `tenant`, `access`, `subjects` | `outbox`, `audit`, `parties`, `engagements`, `data-lifecycle` |
+| `segments` | `tenant`, `access`, `subjects`, `rules` | `outbox`, `audit`, `data-lifecycle` |
+| `assignment` | `tenant`, `access`, `rules` | `outbox`, `data-lifecycle` |
+| `enrichment` | `tenant`, `access`, `parties` | `outbox`, `data-lifecycle` |
+| `forecasts` | `tenant`, `access`, `deals` | `outbox`, `data-lifecycle` |
+| `field-history` | `tenant`, `access`, `subjects` | `data-lifecycle` |
 | `ledger` | `tenant`, `access` | `outbox`, `audit` |
 | `assets` | `tenant`, `access` | `bookings`, `work-items`, `outbox`, `audit` |
 | `scores` | `tenant`, `access`, `rules` | `reactions`, `outbox`, `audit` |

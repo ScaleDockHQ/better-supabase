@@ -36,6 +36,7 @@ import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EngagementsSqlOptions } from "./engagements/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { ExpensesSqlOptions } from "./expenses/options.ts";
+import type { FieldHistorySqlOptions } from "./field-history/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
@@ -53,6 +54,7 @@ import type {
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
+import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MessagingSqlOptions } from "./messaging/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
@@ -84,6 +86,7 @@ import type { RulesSqlOptions } from "./rules/options.ts";
 import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
 import type { ScoresSqlOptions } from "./scores/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
+import type { SegmentsSqlOptions } from "./segments/options.ts";
 import type { ServicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
@@ -155,6 +158,7 @@ import { employeesSqlOptions } from "./employees/options.ts";
 import { engagementsSqlOptions } from "./engagements/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { expensesSqlOptions } from "./expenses/options.ts";
+import { fieldHistorySqlOptions } from "./field-history/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
@@ -172,6 +176,7 @@ import {
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
+import { mailSyncSqlOptions } from "./mail-sync/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { messagingSqlOptions } from "./messaging/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
@@ -203,6 +208,7 @@ import { rulesSqlOptions } from "./rules/options.ts";
 import { savedViewsSqlOptions } from "./saved-views/options.ts";
 import { scoresSqlOptions } from "./scores/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
+import { segmentsSqlOptions } from "./segments/options.ts";
 import { servicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
@@ -301,6 +307,12 @@ export interface BlockOptionsRegistry {
   readonly memory: MemorySqlOptions;
   readonly messaging: MessagingSqlOptions;
   readonly channels: None;
+  readonly "mail-sync": MailSyncSqlOptions;
+  readonly segments: SegmentsSqlOptions;
+  readonly assignment: None;
+  readonly enrichment: None;
+  readonly "field-history": FieldHistorySqlOptions;
+  readonly forecasts: None;
   readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -440,6 +452,12 @@ export const BLOCK_OPTION_SCHEMAS: {
   guests: NO_OPTIONS,
   memory: memorySqlOptions,
   channels: NO_OPTIONS,
+  "mail-sync": mailSyncSqlOptions,
+  segments: segmentsSqlOptions,
+  assignment: NO_OPTIONS,
+  enrichment: NO_OPTIONS,
+  "field-history": fieldHistorySqlOptions,
+  forecasts: NO_OPTIONS,
   activity: NO_OPTIONS,
   messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,

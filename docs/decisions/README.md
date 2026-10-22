@@ -83,8 +83,13 @@ add one, and link it from the code or config it explains.
 | [0075](0075-record-presence-mentions-and-saved-items.md) | Record presence, record mentions and saved items build on the subject registry |
 | [0076](0076-moderation-items-for-any-subject.md) | One moderation item per subject with reports, decisions and bans; reviews and comments moderate through it |
 | [0077](0077-enrollments-and-onboarding.md) | Enrollments of any subject in programs of steps; onboarding checklists run on them (breaking) |
+| [0078](0078-mail-sync-block.md) | Member mailboxes sync into engagements through a versioned mail provider over fetch |
+| [0079](0079-segments-and-assignment.md) | Segments materialize rules filter trees; assignment queues pick owners by round robin, weight and territory |
 | [0080](0080-recurring-charges-on-the-ledger.md) | Balances live only on the ledger; rent and pledge installments post once per period, keyed by owner and period start |
+| [0081](0081-enrichment-provider.md) | Enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over fetch |
 | [0082](0082-shipment-carriers.md) | Shipments go through a versioned ShipmentCarrier; tracking arrives by a signed webhook and the latest event sets the status |
+| [0083](0083-forecast-snapshots-and-field-history.md) | Forecast snapshots copy the deals behind each number; field history is a trigger per tracked table |
 | [0084](0084-anonymous-status-page.md) | The public status page is one security definer function anon may call; it builds every public field by name |
 | [0085](0085-courses-on-enrollments.md) | Courses enroll learners through enrollments; quizzes are graded by forms in SQL |
 | [0086](0086-booking-series-and-class-credits.md) | Recurring bookings place every occurrence through place_booking; class credits are a ledger with a refund on an early cancellation |
+| [0090](0090-bookings-as-engagements.md) | Confirmed bookings become meeting engagements through a trigger on the bookings table |

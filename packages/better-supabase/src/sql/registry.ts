@@ -23,6 +23,7 @@ import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { APPROVALS } from "./modules/approvals.ts";
 import { ASSETS } from "./modules/assets.ts";
+import { ASSIGNMENT } from "./modules/assignment.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLABLE_TIME } from "./modules/billable-time.ts";
@@ -51,10 +52,13 @@ import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENROLLMENTS } from "./modules/enrollments.ts";
+import { ENRICHMENT } from "./modules/enrichment.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { EXPENSES } from "./modules/expenses.ts";
+import { FIELD_HISTORY } from "./modules/field-history.ts";
 import { FLAGS } from "./modules/flags.ts";
+import { FORECASTS } from "./modules/forecasts.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
 import { GUESTS } from "./modules/guests.ts";
@@ -73,6 +77,7 @@ import { KNOWLEDGE } from "./modules/knowledge.ts";
 import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
+import { MAIL_SYNC } from "./modules/mail-sync.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { MESSAGING } from "./modules/messaging.ts";
 import { METRICS } from "./modules/metrics.ts";
@@ -106,6 +111,7 @@ import { RULES } from "./modules/rules.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
+import { SEGMENTS } from "./modules/segments.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
@@ -347,6 +353,12 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(MESSAGING),
       built(CHANNELS),
       built(ACTIVITY),
+      built(MAIL_SYNC),
+      built(SEGMENTS),
+      built(ASSIGNMENT),
+      built(ENRICHMENT),
+      built(FORECASTS),
+      built(FIELD_HISTORY),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

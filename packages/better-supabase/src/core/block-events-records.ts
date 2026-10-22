@@ -29,6 +29,112 @@ export interface EngagementRecordingEventData extends EngagementEventData {
   readonly recordingId: string;
 }
 
+/** `mail_account.connected` and `mail_account.disconnected`: a synced mailbox. */
+export interface MailAccountEventData {
+  readonly organizationId: string;
+  readonly accountId: string;
+  /** The member whose mailbox it is. */
+  readonly userId: string;
+  /** `gmail`, `outlook` or a custom provider name. */
+  readonly provider: string;
+  readonly address: string;
+}
+
+/**
+ * `mail_message.received` and `mail_message.sent`: a message stored on a
+ * thread. `subjects` lists the records the thread is linked to.
+ */
+export interface MailMessageEventData {
+  readonly organizationId: string;
+  readonly accountId: string;
+  readonly userId: string;
+  readonly threadId: string;
+  readonly messageId: string;
+  readonly direction: "inbound" | "outbound";
+  readonly fromAddress: string | null;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
+/**
+ * `mail_message.opened` (the first open) and `mail_message.clicked` (each
+ * click): a tracked message its recipient opened, or a link in it they followed
+ * (`url`, null for an open).
+ */
+export interface MailTrackingEventData {
+  readonly organizationId: string;
+  readonly accountId: string;
+  readonly userId: string;
+  readonly threadId: string;
+  readonly messageId: string;
+  /** The template version the message was sent from, when it had one. */
+  readonly templateVersionId: string | null;
+  readonly url: string | null;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
+/**
+ * `segment.saved` and `segment.removed`: a tenant's filter over one subject
+ * type.
+ */
+export interface SegmentEventData {
+  readonly organizationId: string;
+  readonly segmentId: string;
+  readonly subjectType: string;
+  readonly name: string;
+}
+
+/**
+ * `segment.entered` and `segment.left`: a record started or stopped matching a
+ * segment's conditions when the segment was refreshed.
+ */
+export interface SegmentMemberEventData {
+  readonly organizationId: string;
+  readonly segmentId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
+/** `subject.assigned`: an assignment queue picked an owner for a record. */
+export interface AssignmentEventData {
+  readonly organizationId: string;
+  readonly queueId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** The member the queue picked. */
+  readonly userId: string;
+  readonly strategy: "round_robin" | "weighted";
+}
+
+/**
+ * `party.enriched`: a provider's result for a company or a person was stored,
+ * with the empty columns the match filled.
+ */
+export interface EnrichmentEventData {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly provider: string;
+  readonly status: "matched" | "not_found";
+  /** The record's columns the match filled, such as `domain` or `title`. */
+  readonly filled: readonly string[];
+}
+
+/**
+ * `forecast.snapshotted`: the forecast call for a period and currency was
+ * stored with the deals it counted.
+ */
+export interface ForecastSnapshotEventData {
+  readonly organizationId: string;
+  readonly snapshotId: string;
+  /** `null` for a snapshot of every pipeline. */
+  readonly pipelineId: string | null;
+  /** ISO dates. */
+  readonly since: string;
+  readonly until: string;
+  readonly currency: string;
+  readonly dealCount: number;
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;

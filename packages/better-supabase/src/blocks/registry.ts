@@ -14,6 +14,7 @@ import { announcementsBlock } from "./announcements/manifest.ts";
 import { apiKeysBlock } from "./api-keys/manifest.ts";
 import { approvalsBlock } from "./approvals/manifest.ts";
 import { assetsBlock } from "./assets/manifest.ts";
+import { assignmentBlock } from "./assignment/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
 import { billableTimeBlock } from "./billable-time/manifest.ts";
@@ -41,10 +42,13 @@ import { driveBlock } from "./drive/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { engagementsBlock } from "./engagements/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
+import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { expensesBlock } from "./expenses/manifest.ts";
+import { fieldHistoryBlock } from "./field-history/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
+import { forecastsBlock } from "./forecasts/manifest.ts";
 import { formsBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
 import { guestsBlock } from "./guests/manifest.ts";
@@ -66,6 +70,7 @@ import { knowledgeBlock } from "./knowledge/manifest.ts";
 import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
+import { mailSyncBlock } from "./mail-sync/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
 import { messagingBlock } from "./messaging/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
@@ -98,6 +103,7 @@ import { rulesBlock } from "./rules/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
 import { scoresBlock } from "./scores/manifest.ts";
 import { searchBlock } from "./search/manifest.ts";
+import { segmentsBlock } from "./segments/manifest.ts";
 import { servicePrincipalsBlock } from "./service-principals/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
@@ -209,6 +215,12 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   messagingBlock,
   channelsBlock,
   activityBlock,
+  mailSyncBlock,
+  segmentsBlock,
+  assignmentBlock,
+  enrichmentBlock,
+  fieldHistoryBlock,
+  forecastsBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

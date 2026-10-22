@@ -5,6 +5,7 @@ import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { assetsBlock } from "better-supabase/blocks/assets";
+import { assignmentBlock } from "better-supabase/blocks/assignment";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
@@ -28,6 +29,9 @@ import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { expensesBlock } from "better-supabase/blocks/expenses";
+import { enrichmentBlock } from "better-supabase/blocks/enrichment";
+import { fieldHistoryBlock } from "better-supabase/blocks/field-history";
+import { forecastsBlock } from "better-supabase/blocks/forecasts";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { hiringBlock } from "better-supabase/blocks/hiring";
@@ -38,6 +42,7 @@ import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { leasesBlock } from "better-supabase/blocks/leases";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
+import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
 import { moderationBlock } from "better-supabase/blocks/moderation";
@@ -62,6 +67,7 @@ import { rulesBlock } from "better-supabase/blocks/rules";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { searchBlock } from "better-supabase/blocks/search";
+import { segmentsBlock } from "better-supabase/blocks/segments";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
 import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
@@ -137,6 +143,12 @@ const blockSet = defineBlocks(blockConfig, {
   deals: dealsBlock,
   pipelines: pipelinesBlock,
   engagements: engagementsBlock,
+  mailSync: mailSyncBlock,
+  segments: segmentsBlock,
+  assignment: assignmentBlock,
+  enrichment: enrichmentBlock,
+  forecasts: forecastsBlock,
+  fieldHistory: fieldHistoryBlock,
   quotes: quotesBlock,
   targets: targetsBlock,
   workItems: workItemsBlock,
