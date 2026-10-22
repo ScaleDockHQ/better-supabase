@@ -22,7 +22,7 @@ select extensions.table_privs_are('public', 'projects_view', 'authenticated', ar
 
 with o as (
   insert into "public"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
@@ -81,23 +81,23 @@ select extensions.ok(not has_function_privilege('anon', '"public"."client_notes_
 
 with o as (
   insert into "public"."organizations" ("name", "slug")
-  values ('bs-app-tables-test', 'bs-app-tables-' || substr(md5(random()::text), 1, 8))
+  values ('bsb-app-tables-test', 'bsb-app-tables-' || substr(md5(random()::text), 1, 8))
   returning "id" as id
 )
 insert into "public"."client_notes" ("organization_id", "client_name") select o.id, repeat('x', 1) from o;
 update "public"."client_notes" set "diagnosis" = (repeat('x', 1))::text, "birth_date" = ('2026-01-01'::date)::text;
-select set_config('bs.app_reveal_ids', (select array_agg(id)::text from "public"."client_notes"), true);
+select set_config('bsb.app_reveal_ids', (select array_agg(id)::text from "public"."client_notes"), true);
 select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
 select extensions.ok((select bool_and(left("diagnosis", 5) = 'bsf1:' and "diagnosis" <> (repeat('x', 1))::text) from "public"."client_notes"), 'public.client_notes.diagnosis is ciphertext at rest');
-select extensions.is((select r."diagnosis"::text from "public"."client_notes_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.client_notes.diagnosis');
+select extensions.is((select r."diagnosis"::text from "public"."client_notes_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), (repeat('x', 1))::text, 'the service role reveals public.client_notes.diagnosis');
 select extensions.ok((select bool_and(left("birth_date", 5) = 'bsf1:' and "birth_date" <> ('2026-01-01'::date)::text) from "public"."client_notes"), 'public.client_notes.birth_date is ciphertext at rest');
-select extensions.is((select r."birth_date"::text from "public"."client_notes_reveal"(current_setting('bs.app_reveal_ids')::uuid[]) r limit 1), ('2026-01-01'::date)::text, 'the service role reveals public.client_notes.birth_date');
+select extensions.is((select r."birth_date"::text from "public"."client_notes_reveal"(current_setting('bsb.app_reveal_ids')::uuid[]) r limit 1), ('2026-01-01'::date)::text, 'the service role reveals public.client_notes.birth_date');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
 select extensions.is((select count(*)::integer from "public"."client_notes"), 0, 'a signed-in user does not read a row of public.client_notes outside their scope');
 select extensions.throws_ok($$insert into "public"."client_notes" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.client_notes outside their scope');
-select extensions.is((select count(*)::integer from "public"."client_notes_reveal"(current_setting('bs.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.client_notes outside their scope');
+select extensions.is((select count(*)::integer from "public"."client_notes_reveal"(current_setting('bsb.app_reveal_ids')::uuid[])), 0, 'a signed-in user does not reveal a row of public.client_notes outside their scope');
 select extensions.throws_ok($$select "diagnosis" from "public"."client_notes"$$, '42501', null, 'a signed-in user cannot read public.client_notes.diagnosis');
 select extensions.throws_ok($$select "birth_date" from "public"."client_notes"$$, '42501', null, 'a signed-in user cannot read public.client_notes.birth_date');
 reset role;
@@ -110,7 +110,7 @@ select extensions.table_privs_are('public', 'saved_views', 'authenticated', arra
 
 with u as (
   insert into auth.users (id, email, aud, role, instance_id)
-  values (gen_random_uuid(), 'bs-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
+  values (gen_random_uuid(), 'bsb-app-tables-' || gen_random_uuid()::text || '@example.test', 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')
   returning id
 )
 insert into "public"."saved_views" ("user_id", "name") select u.id, repeat('x', 1) from u;

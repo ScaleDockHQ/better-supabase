@@ -1,4 +1,4 @@
--- acting_member() reads the x-bs-actor header for a service caller only, so a
+-- acting_member() reads the x-bsb-actor header for a service caller only, so a
 -- signed-in user cannot name another user as the actor of an audited write.
 -- Only service_role may execute it; the audit functions call it as their owner.
 begin;
@@ -19,7 +19,7 @@ select ok(
 
 select set_config(
   'request.headers',
-  '{"x-bs-actor":"00000000-0000-4000-8000-0000000000b1"}',
+  '{"x-bsb-actor":"00000000-0000-4000-8000-0000000000b1"}',
   true
 );
 

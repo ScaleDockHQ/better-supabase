@@ -57,7 +57,7 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
--- The user a service caller acts for, from the x-bs-actor header. Null for
+-- The user a service caller acts for, from the x-bsb-actor header. Null for
 -- every other caller, so the header cannot be spoofed with a user's token.
 -- Only service_role may call it; the security definer functions and triggers
 -- that record an actor call it as their owner.
@@ -73,7 +73,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     return null;
   end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bs-actor';
+  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
   return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
 exception when others then
   return null;

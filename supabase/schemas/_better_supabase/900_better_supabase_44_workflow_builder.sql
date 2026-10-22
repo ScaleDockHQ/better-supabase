@@ -1,4 +1,4 @@
--- better-supabase module: workflow-builder (0.9.0)
+-- better-supabase module: workflow-builder
 -- @bs-module workflow-builder@2 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -1908,7 +1908,7 @@ $$;
 revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
 grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
 
--- Fires the failed alerts of a run's definition (the bs.definition
+-- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
 create or replace function "better_supabase"."workflow_runs_alert"()
 returns trigger
@@ -1926,7 +1926,7 @@ begin
   end if;
   for v_alert in
     select * from "better_supabase"."workflow_alerts" x
-    where x."on_event" = 'failed' and x."definition_id"::text = new."attributes" ->> 'bs.definition'
+    where x."on_event" = 'failed' and x."definition_id"::text = new."attributes" ->> 'bsb.definition'
   loop
     insert into "better_supabase"."workflow_alert_fires" ("alert_id", "run_id") values (v_alert."id", v_run."id")
       on conflict do nothing;
@@ -1960,7 +1960,7 @@ declare
 begin
   for v_pair in
     select x."id" as alert, y."id" as run from "better_supabase"."workflow_alerts" x
-    join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bs.definition' = x."definition_id"::text
+    join "better_supabase"."workflow_runs" y on y."attributes" ->> 'bsb.definition' = x."definition_id"::text
     where x."on_event" = 'slow'
       and y."mode" = 'live'
       and y."status" in ('queued', 'running', 'waiting')
