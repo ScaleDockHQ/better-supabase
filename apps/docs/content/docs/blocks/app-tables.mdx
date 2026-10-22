@@ -195,9 +195,10 @@ appTables: {
 
 The column is `text` in the database, and signed-in users can't select it,
 the same as a `server` column. They read it through
-`public.<table>_reveal(ids)`, a security definer function that returns `id`
-and each encrypted column in its configured type, for the rows of `ids` the
-caller's scope reaches (at most 500 per call):
+`public.<table>_reveal(ids)`, which returns `id` and each encrypted column in
+its configured type, for the rows of `ids` the caller's scope reaches (at most
+500 per call). It is a security invoker wrapper around the security definer
+function `better_supabase.<table>_reveal`, which PostgREST doesn't expose:
 
 ```ts
 const { data } = await supabase.rpc("client_notes_reveal", { ids });

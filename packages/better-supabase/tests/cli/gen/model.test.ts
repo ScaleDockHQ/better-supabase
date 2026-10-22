@@ -118,6 +118,7 @@ describe("buildModel config keys", () => {
     );
     expect(built.warnings).toEqual([
       expect.stringContaining('tables["nope.tags"]: no table by that name'),
+      expect.stringContaining("better_supabase.client_notes_reveal:"),
       expect.stringContaining("better_supabase.my_profile:"),
       expect.stringContaining("better_supabase.update_my_profile:"),
     ]);

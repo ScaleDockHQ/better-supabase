@@ -115,7 +115,7 @@ drop trigger if exists "bs_seal_fields" on "public"."patients";
 create trigger "bs_seal_fields" before insert or update of "organization_id", "ssn", "email", "born_on", "diagnosis" on "public"."patients"
   for each row execute function "better_supabase"."patients_seal"();
 -- Decrypts ssn, email, born_on, diagnosis for the rows the caller reaches, as the table's policies do.
-create or replace function "public"."patients_reveal"(ids uuid[])
+create or replace function "better_supabase"."patients_reveal"(ids uuid[])
 returns table (id uuid, "ssn" text, "email" text, "born_on" date, "diagnosis" text)
 language plpgsql
 security definer
@@ -161,6 +161,17 @@ begin
     select r.id, ("better_supabase"."field_open"(k.bs_key, r."ssn"))::text, ("better_supabase"."field_open"(k.bs_key, r."email"))::text, ("better_supabase"."field_open"(k.bs_key, r."born_on"))::date, case when v_service then ("better_supabase"."field_open"(k.bs_key, r."diagnosis"))::text end
     from r join k on k.bs_owner = r.bs_owner;
 end;
+$$;
+revoke execute on function "better_supabase"."patients_reveal"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."patients_reveal"(uuid[]) to authenticated, service_role;
+-- The API entry point for "better_supabase"."patients_reveal"; the definer function stays out of the exposed schemas.
+create or replace function "public"."patients_reveal"(ids uuid[])
+returns table (id uuid, "ssn" text, "email" text, "born_on" date, "diagnosis" text)
+language sql
+security invoker
+set search_path = ''
+as $$
+  select * from "better_supabase"."patients_reveal"(ids);
 $$;
 revoke execute on function "public"."patients_reveal"(uuid[]) from public, anon;
 grant execute on function "public"."patients_reveal"(uuid[]) to authenticated, service_role;
@@ -215,7 +226,7 @@ drop trigger if exists "bs_seal_fields" on "public"."notes";
 create trigger "bs_seal_fields" before insert or update of "user_id", "body" on "public"."notes"
   for each row execute function "better_supabase"."notes_seal"();
 -- Decrypts body for the rows the caller reaches, as the table's policies do.
-create or replace function "public"."notes_reveal"(ids uuid[])
+create or replace function "better_supabase"."notes_reveal"(ids uuid[])
 returns table (id uuid, "body" text)
 language plpgsql
 security definer
@@ -244,6 +255,17 @@ begin
     select r.id, ("better_supabase"."field_open"(k.bs_key, r."body"))::text
     from r join k on k.bs_owner = r.bs_owner;
 end;
+$$;
+revoke execute on function "better_supabase"."notes_reveal"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."notes_reveal"(uuid[]) to authenticated, service_role;
+-- The API entry point for "better_supabase"."notes_reveal"; the definer function stays out of the exposed schemas.
+create or replace function "public"."notes_reveal"(ids uuid[])
+returns table (id uuid, "body" text)
+language sql
+security invoker
+set search_path = ''
+as $$
+  select * from "better_supabase"."notes_reveal"(ids);
 $$;
 revoke execute on function "public"."notes_reveal"(uuid[]) from public, anon;
 grant execute on function "public"."notes_reveal"(uuid[]) to authenticated, service_role;
@@ -290,7 +312,7 @@ drop trigger if exists "bs_seal_fields" on "public"."keys";
 create trigger "bs_seal_fields" before insert or update of "secret" on "public"."keys"
   for each row execute function "better_supabase"."keys_seal"();
 -- Decrypts secret for the rows the caller reaches, as the table's policies do.
-create or replace function "public"."keys_reveal"(ids bigint[])
+create or replace function "better_supabase"."keys_reveal"(ids bigint[])
 returns table (id bigint, "secret" jsonb)
 language plpgsql
 security definer
@@ -319,6 +341,17 @@ begin
     select r.id, ("better_supabase"."field_open"(k.bs_key, r."secret"))::jsonb
     from r join k on k.bs_owner = r.bs_owner;
 end;
+$$;
+revoke execute on function "better_supabase"."keys_reveal"(bigint[]) from public, anon;
+grant execute on function "better_supabase"."keys_reveal"(bigint[]) to authenticated, service_role;
+-- The API entry point for "better_supabase"."keys_reveal"; the definer function stays out of the exposed schemas.
+create or replace function "public"."keys_reveal"(ids bigint[])
+returns table (id bigint, "secret" jsonb)
+language sql
+security invoker
+set search_path = ''
+as $$
+  select * from "better_supabase"."keys_reveal"(ids);
 $$;
 revoke execute on function "public"."keys_reveal"(bigint[]) from public, anon;
 grant execute on function "public"."keys_reveal"(bigint[]) to authenticated, service_role;

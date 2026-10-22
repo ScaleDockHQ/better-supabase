@@ -410,16 +410,6 @@ export const POLICY_RULES: readonly Rule[] = [
 
           return name.includes(".") ? name : `public.${name}`;
         }),
-        // `<table>_reveal` checks the caller's scope itself, so `sql sync`
-        // grants it to `authenticated` on purpose.
-        ...Object.entries(context.config.appTables).flatMap(
-          ([table, config]) =>
-            Object.values(config.columns ?? {}).some(
-              (column) => column.encrypted === true,
-            )
-              ? [`public.${table}_reveal`]
-              : [],
-        ),
       ]);
 
       const inPolicies = new Set(

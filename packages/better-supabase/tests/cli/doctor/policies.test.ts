@@ -347,37 +347,6 @@ describe("policy security rules", () => {
     );
   });
 
-  it("leaves the reveal function of an encrypted app table alone (BS116)", async () => {
-    const reveal: ExtrasFunction = {
-      schema: "public",
-      name: "notes_reveal",
-      signature: "ids uuid[]",
-      language: "plpgsql",
-      volatility: "volatile",
-      securityDefiner: true,
-      settings: { search_path: '""' },
-      execute: ["authenticated"],
-    };
-
-    const withNotes = (encrypted: boolean): DoctorContext => ({
-      ...context({ ...base, extras: { ...base.extras, functions: [reveal] } }),
-      config: resolveConfig(
-        {
-          plugins: { tenant: true },
-          appTables: {
-            notes: { columns: { secret: { type: "text", encrypted } } },
-          },
-        },
-        "/project",
-      ),
-    });
-
-    expect(await run(withNotes(true), "BS116")).toEqual([]);
-    expect(await run(withNotes(false), "BS116")).toMatchObject([
-      { target: "public.notes_reveal" },
-    ]);
-  });
-
   it("flags storage inserts without the upsert policies (BS113)", async () => {
     const file = (text: string) => ({
       sqlFiles: [{ path: "supabase/schemas/storage.sql", text }],

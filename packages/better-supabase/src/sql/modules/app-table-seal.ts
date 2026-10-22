@@ -177,7 +177,9 @@ create trigger ${trigger} before insert or update of ${watched.join(", ")} on ${
  * each row the caller reaches, at most `APP_REVEAL_LIMIT` per call. It loads
  * each owner's key once. A column with `access: "server"` decrypts for the
  * service role only. With `auditReads`, it writes one audit entry per tenant
- * per call that names the rows it returned.
+ * per call that names the rows it returned. The decrypting `security definer`
+ * function lives in `better_supabase`, which PostgREST doesn't expose, and the
+ * `public` function is a `security invoker` wrapper around it.
  */
 export function revealSql(table: SealTable): string {
   const columns = encryptedColumns(table.config);
@@ -188,10 +190,11 @@ export function revealSql(table: SealTable): string {
 
   const { ctx } = table;
   const encryption = ctx.of("field-encryption");
-  const fn = revealFunction(table.name);
+  const fn = ctx.fn(`${table.name}_reveal`);
+  const wrapper = revealFunction(table.name);
   const id = idType(table.config);
   const target = qualified(table.name);
-  const ids = `${table.name}_reveal.ids`;
+  const ids = `${ctx.fnName(`${table.name}_reveal`)}.ids`;
 
   const reach = [
     table.own,
@@ -249,7 +252,18 @@ begin
 end;
 $$;
 revoke execute on function ${fn}(${id}[]) from public, anon;
-grant execute on function ${fn}(${id}[]) to authenticated, service_role;`;
+grant execute on function ${fn}(${id}[]) to authenticated, service_role;
+-- The API entry point for ${fn}; the definer function stays out of the exposed schemas.
+create or replace function ${wrapper}(ids ${id}[])
+returns table (id ${id}, ${outputs.join(", ")})
+language sql
+security invoker
+set search_path = ''
+as $$
+  select * from ${fn}(ids);
+$$;
+revoke execute on function ${wrapper}(${id}[]) from public, anon;
+grant execute on function ${wrapper}(${id}[]) to authenticated, service_role;`;
 }
 
 /** The audit entries of one reveal call: one per tenant, naming its rows. */

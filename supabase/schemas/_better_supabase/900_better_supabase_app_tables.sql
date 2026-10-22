@@ -195,7 +195,7 @@ drop trigger if exists "bs_seal_fields" on "public"."client_notes";
 create trigger "bs_seal_fields" before insert or update of "organization_id", "diagnosis", "birth_date" on "public"."client_notes"
   for each row execute function "better_supabase"."client_notes_seal"();
 -- Decrypts diagnosis, birth_date for the rows the caller reaches, as the table's policies do.
-create or replace function "public"."client_notes_reveal"(ids uuid[])
+create or replace function "better_supabase"."client_notes_reveal"(ids uuid[])
 returns table (id uuid, "diagnosis" text, "birth_date" date)
 language plpgsql
 security definer
@@ -241,6 +241,17 @@ begin
     select r.id, ("better_supabase"."field_open"(k.bs_key, r."diagnosis"))::text, ("better_supabase"."field_open"(k.bs_key, r."birth_date"))::date
     from r join k on k.bs_owner = r.bs_owner;
 end;
+$$;
+revoke execute on function "better_supabase"."client_notes_reveal"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."client_notes_reveal"(uuid[]) to authenticated, service_role;
+-- The API entry point for "better_supabase"."client_notes_reveal"; the definer function stays out of the exposed schemas.
+create or replace function "public"."client_notes_reveal"(ids uuid[])
+returns table (id uuid, "diagnosis" text, "birth_date" date)
+language sql
+security invoker
+set search_path = ''
+as $$
+  select * from "better_supabase"."client_notes_reveal"(ids);
 $$;
 revoke execute on function "public"."client_notes_reveal"(uuid[]) from public, anon;
 grant execute on function "public"."client_notes_reveal"(uuid[]) to authenticated, service_role;

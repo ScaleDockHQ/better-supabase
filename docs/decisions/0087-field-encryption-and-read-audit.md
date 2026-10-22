@@ -30,9 +30,12 @@ from signed-in users with the column grants of ADR 0051. A `before insert or
 update` definer trigger (`bs_seal_fields`) checks the column's format,
 options and bounds on the plaintext, then seals it with the row's owner key,
 and re-seals when the row moves to another owner. `public.<table>_reveal(ids)`
-is a definer function that returns the encrypted columns in their configured
-types for the ids within the caller's scope, at most 500 per call, and loads
-one key per owner. Custom fields gain an `encrypted` definition column,
+returns the encrypted columns in their configured types for the ids within the
+caller's scope, at most 500 per call, and loads one key per owner. It is a
+`security invoker` wrapper around the definer function
+`better_supabase.<table>_reveal`, so the definer stays out of the schemas
+PostgREST exposes, as the library's other definer functions do, and doctor
+needs no exception for it. Custom fields gain an `encrypted` definition column,
 `encrypt_field_definition(id)` for `text`, `email` and `url` fields, and
 encryption inside `set_field_value` and decryption inside `read_field_values`.
 
