@@ -42,6 +42,8 @@ import type { ContractsEvents } from "better-supabase/blocks/contracts";
 import type { ControlsEvents } from "better-supabase/blocks/controls";
 import type { IncidentsEvents } from "better-supabase/blocks/incidents";
 import type { CoursesEvents } from "better-supabase/blocks/courses";
+import type { SequencesEvents } from "better-supabase/blocks/sequences";
+import type { PostsEvents } from "better-supabase/blocks/posts";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
@@ -1337,7 +1339,7 @@ export type PermissionKey = "access_requests.create" | "access_requests.manage" 
 export type RoleName = "admin" | "member" | "owner";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ControlsEvents & IncidentsEvents & CoursesEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ControlsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1620,6 +1622,13 @@ export const blockEvents: Events<BlockEvents> = {
     "pledge.updated",
     "policy.acknowledged",
     "policy.published",
+    "post.created",
+    "post.deleted",
+    "post.merged",
+    "post.moderated",
+    "post.status_changed",
+    "post.updated",
+    "post_board.saved",
     "postmortem.published",
     "product.created",
     "product.deleted",
@@ -1663,6 +1672,14 @@ export const blockEvents: Events<BlockEvents> = {
     "score_model.deleted",
     "score_model.saved",
     "scorecard.submitted",
+    "sequence.deleted",
+    "sequence.saved",
+    "sequence_enrollment.completed",
+    "sequence_enrollment.created",
+    "sequence_enrollment.exited",
+    "sequence_enrollment.paused",
+    "sequence_enrollment.resumed",
+    "sequence_enrollment.step_completed",
     "service_principal.created",
     "service_principal.disabled",
     "service_principal.role_changed",
@@ -2035,6 +2052,13 @@ export const blockEventSchemas = {
   "pledge.updated": true,
   "policy.acknowledged": true,
   "policy.published": true,
+  "post.created": true,
+  "post.deleted": true,
+  "post.merged": true,
+  "post.moderated": true,
+  "post.status_changed": true,
+  "post.updated": true,
+  "post_board.saved": true,
   "postmortem.published": true,
   "product.created": true,
   "product.deleted": true,
@@ -2078,6 +2102,14 @@ export const blockEventSchemas = {
   "score_model.deleted": true,
   "score_model.saved": true,
   "scorecard.submitted": true,
+  "sequence.deleted": true,
+  "sequence.saved": true,
+  "sequence_enrollment.completed": true,
+  "sequence_enrollment.created": true,
+  "sequence_enrollment.exited": true,
+  "sequence_enrollment.paused": true,
+  "sequence_enrollment.resumed": true,
+  "sequence_enrollment.step_completed": true,
   "service_principal.created": true,
   "service_principal.disabled": true,
   "service_principal.role_changed": true,
