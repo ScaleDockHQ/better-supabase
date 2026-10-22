@@ -38,8 +38,8 @@ export interface ControlsOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the control's extra columns
-   * (`blocks.controls.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `saveControl`.
+   * (`blocks.controls.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `saveControl`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -70,9 +70,9 @@ export interface ControlFrameworkInput {
 }
 
 /**
- * `passing`: current evidence and no overdue task. `failing`: an overdue
- * task, or only lapsed evidence. `not_started`: no evidence yet.
- * `not_applicable`: out of scope.
+ * `passing`: current evidence and no overdue task. `failing`: an overdue task,
+ * or only lapsed evidence. `not_started`: no evidence yet. `not_applicable`:
+ * out of scope.
  */
 export type ControlStatus =
   | "passing"
@@ -98,8 +98,9 @@ export interface Control<F extends object = Record<never, never>> {
 }
 
 /** A control with its evidence (the newest 100) and evidence tasks. */
-export interface ControlDetail<F extends object = Record<never, never>>
-  extends Control<F> {
+export interface ControlDetail<
+  F extends object = Record<never, never>,
+> extends Control<F> {
   readonly evidence: readonly ControlEvidence[];
   readonly tasks: readonly EvidenceTask[];
 }
@@ -309,7 +310,10 @@ export interface Controls<F extends object = Record<never, never>> {
     label?: string,
   ): AsyncResult<Policy>;
   archivePolicy(policyId: string): AsyncResult<Policy>;
-  /** The caller acknowledges the published version. Needs `controls.acknowledge`. */
+  /**
+   * The caller acknowledges the published version. Needs
+   * `controls.acknowledge`.
+   */
   acknowledgePolicy(policyId: string): AsyncResult<Policy>;
   policies(
     organizationId: string,
@@ -430,9 +434,7 @@ function detailOf(value: unknown, fn: string): ControlDetail {
     evidence: recordsOf(row["evidence"] ?? [], fn).map((item) =>
       evidenceOf(item, fn),
     ),
-    tasks: recordsOf(row["tasks"] ?? [], fn).map((item) =>
-      taskOf(item, fn),
-    ),
+    tasks: recordsOf(row["tasks"] ?? [], fn).map((item) => taskOf(item, fn)),
   };
 }
 
@@ -475,7 +477,10 @@ function policyOf(value: unknown, fn: string): Policy {
   };
 }
 
-function acknowledgementsOf(value: unknown, fn: string): PolicyAcknowledgements {
+function acknowledgementsOf(
+  value: unknown,
+  fn: string,
+): PolicyAcknowledgements {
   const row = recordOf(value, fn);
 
   return {
@@ -503,10 +508,7 @@ export function createControls<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
-  const fields: BlockFields<F> = blockFields(
-    options.fields,
-    "control fields",
-  );
+  const fields: BlockFields<F> = blockFields(options.fields, "control fields");
 
   const policy = (fn: string) => (value: unknown) => policyOf(value, fn);
 
@@ -530,22 +532,24 @@ export function createControls<
         many("list_control_frameworks", frameworkOf),
       ),
     saveControl: (input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "save_control",
-          {
-            framework_id: input.frameworkId,
-            code: input.code,
-            title: input.title,
-            description: input.description ?? null,
-            owner_id: input.ownerId ?? null,
-            applicable: input.applicable ?? true,
-            control_id: input.controlId ?? null,
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          (value) => controlOf(value, "save_control"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "save_control",
+            {
+              framework_id: input.frameworkId,
+              code: input.code,
+              title: input.title,
+              description: input.description ?? null,
+              owner_id: input.ownerId ?? null,
+              applicable: input.applicable ?? true,
+              control_id: input.controlId ?? null,
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            (value) => controlOf(value, "save_control"),
+          ).andThen(fields.row),
+        ),
     getControl: (controlId) =>
       call("get_control", { control_id: controlId }, (value) =>
         detailOf(value, "get_control"),
@@ -609,8 +613,7 @@ export function createControls<
         { tenant: organizationId, framework_id: frameworkId ?? null },
         many("control_posture", postureOf),
       ),
-    notifyOverdue: () =>
-      call("notify_overdue_evidence_tasks", {}, numberOf),
+    notifyOverdue: () => call("notify_overdue_evidence_tasks", {}, numberOf),
     savePolicy: (organizationId, input) =>
       call(
         "save_policy",
@@ -631,11 +634,7 @@ export function createControls<
         policy("publish_policy"),
       ),
     archivePolicy: (policyId) =>
-      call(
-        "archive_policy",
-        { policy_id: policyId },
-        policy("archive_policy"),
-      ),
+      call("archive_policy", { policy_id: policyId }, policy("archive_policy")),
     acknowledgePolicy: (policyId) =>
       call(
         "acknowledge_policy",
