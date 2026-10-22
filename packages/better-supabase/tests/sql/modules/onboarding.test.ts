@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineChecklist } from "../../../src/blocks/onboarding/index.ts";
 import { renderModules } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
   names: readonly string[],
@@ -28,9 +29,16 @@ const profile = defineChecklist({
 });
 
 describe("onboarding module", () => {
-  it("writes the progress table, its policy and functions", () => {
+  it("runs its functions on enrollments", () => {
     const sql = sqlOf(["onboarding"]);
-    expect(sql).toMatch(/create table if not exists \S+onboarding_progress/);
+    expect(sql).not.toMatch(
+      /create table if not exists \S+onboarding_progress/,
+    );
+    expect(sql).toContain("enrollment_ensure");
+    expect(sql).toContain("enrollment_mark");
+    expect(sql).toContain(
+      "'onboarding:' || complete_onboarding_step.checklist",
+    );
     expect(sql).toContain("'onboarding.read'");
     expect(sql).toContain("'onboarding.complete'");
     expect(sql).toContain("complete_onboarding_step");
@@ -56,6 +64,46 @@ describe("onboarding module", () => {
     expect(sqlOf(["outbox", "onboarding"], { checklists: { team } })).toContain(
       "('team', 'invite', 'organization')",
     );
+  });
+
+  it("snapshots each checklist's steps in order", () => {
+    const sql = sqlOf(["outbox", "onboarding"], {
+      checklists: [team, profile],
+    });
+
+    expect(sql).toContain(
+      "values ('team', 'organization', array['invite', 'billing']::text[]), ('profile', 'user', array['avatar']::text[])",
+    );
+  });
+
+  it("needs enrollments in managed mode", () => {
+    expect(() =>
+      renderModules(["onboarding"], {
+        modules: { enrollments: { mode: "custom" } },
+      }),
+    ).toThrow("install enrollments in managed mode");
+  });
+
+  it("moves version 1 progress onto enrollments", () => {
+    const [plan] = upgradePlan([{ module: "onboarding", version: 1 }], {
+      modules: { onboarding: { options: { checklists: [team] } } },
+    });
+
+    const sql = plan?.steps[0]?.sql ?? "";
+
+    expect(plan?.to).toBe(2);
+    expect(sql).toMatch(/create table if not exists \S+enrollments/);
+    expect(sql).toMatch(/to_regclass\('\w+\.onboarding_progress'\)/);
+    expect(sql).toContain("array['invite', 'billing']::text[]");
+    expect(sql).toMatch(/drop table \S+\.onboarding_progress;/);
+  });
+
+  it("has no upgrade in custom mode", () => {
+    expect(
+      upgradePlan([{ module: "onboarding", version: 1 }], {
+        modules: { onboarding: { mode: "custom" } },
+      }),
+    ).toStrictEqual([]);
   });
 
   it("needs the outbox for event steps", () => {

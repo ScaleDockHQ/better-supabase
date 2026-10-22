@@ -1788,6 +1788,7 @@
               "drive-files",
               "employees",
               "engagements",
+              "enrollments",
               "ensure-rls",
               "entitlements",
               "flags",
@@ -1978,6 +1979,9 @@
             },
             "engagements": {
               "$ref": "#/$defs/blocks/engagements"
+            },
+            "enrollments": {
+              "$ref": "#/$defs/blocks/enrollments"
             },
             "ensure-rls": {
               "$ref": "#/$defs/blocks/ensure-rls"
@@ -3916,6 +3920,22 @@
                 }
               },
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "enrollments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxSteps": {
+                "type": "number",
+                "default": 100
+              }
             }
           }
         }

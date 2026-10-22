@@ -17,7 +17,6 @@ comments
 attachments
 data-lifecycle
 sso
-onboarding
 waitlist
 announcements
 workflow-builder

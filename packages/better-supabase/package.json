@@ -986,6 +986,11 @@
       "types": "./dist/blocks/moderation/index.d.ts",
       "default": "./dist/blocks/moderation/index.js"
     },
+    "./blocks/enrollments": {
+      "@better-supabase/source": "./src/blocks/enrollments/index.ts",
+      "types": "./dist/blocks/enrollments/index.d.ts",
+      "default": "./dist/blocks/enrollments/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2338,6 +2343,10 @@
       "./blocks/moderation": {
         "types": "./dist/blocks/moderation/index.d.ts",
         "default": "./dist/blocks/moderation/index.js"
+      },
+      "./blocks/enrollments": {
+        "types": "./dist/blocks/enrollments/index.d.ts",
+        "default": "./dist/blocks/enrollments/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

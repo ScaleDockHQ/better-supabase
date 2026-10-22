@@ -42,6 +42,7 @@ import { DOMAINS } from "./modules/domains.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
+import { ENROLLMENTS } from "./modules/enrollments.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -315,6 +316,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(LEDGER),
       built(ASSETS),
       built(SCORES),
+      built(ENROLLMENTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

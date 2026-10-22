@@ -5966,6 +5966,39 @@
       "RpcClient"
     ]
   },
+  "./blocks/enrollments": {
+    "values": [
+      "createEnrollments",
+      "dbTransport",
+      "enrollmentsBlock",
+      "enrollmentsEvents",
+      "enrollmentsSection",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Enrollment",
+      "EnrollmentEventData",
+      "EnrollmentProgram",
+      "EnrollmentProgramEventData",
+      "EnrollmentProgramInput",
+      "EnrollmentProgress",
+      "Enrollments",
+      "EnrollmentsEvents",
+      "EnrollmentsFilter",
+      "EnrollmentsOptions",
+      "EnrollmentsSqlOptions",
+      "EnrollmentStatus",
+      "EnrollmentStep",
+      "RpcClient"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",

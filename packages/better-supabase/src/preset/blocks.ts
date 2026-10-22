@@ -121,4 +121,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "assets",
   "scores",
   "moderation",
+  "enrollments",
 ];

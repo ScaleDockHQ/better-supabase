@@ -437,6 +437,21 @@ export interface BlockNameRegistry {
     };
     readonly primary: "engagement";
   };
+  readonly "enrollments": {
+    readonly tables: {
+      readonly "programs": "id" | "tenant" | "key" | "name" | "description" | "subjectTypes" | "steps" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "enrollments": "id" | "tenant" | "program" | "programVersion" | "subjectType" | "subjectId" | "user" | "steps" | "completedSteps" | "status" | "enrolledBy" | "enrolledAt" | "completedAt" | "cancelledAt" | "updatedAt";
+      readonly "steps": "enrollment" | "tenant" | "step" | "completedBy" | "completedAt";
+    };
+    readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_programs" | "enrollment_step" | "list_enrollments" | "reset_enrollment_step" | "save_enrollment_program";
+    readonly actions: "read" | "enroll" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "enrollment_program": "id" | "tenant_id" | "key" | "name" | "description" | "subject_types" | "steps" | "enabled" | "version" | "created_by" | "created_at" | "updated_at";
+      readonly "enrollment": "id" | "tenant_id" | "program" | "program_version" | "subject_type" | "subject_id" | "user_id" | "steps" | "completed_steps" | "status" | "enrolled_by" | "enrolled_at" | "completed_at" | "cancelled_at" | "updated_at";
+    };
+    readonly primary: "enrollment_program";
+  };
   readonly "ensure-rls": {
     readonly tables: {};
     readonly functions: never;
@@ -730,9 +745,7 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "onboarding": {
-    readonly tables: {
-      readonly "progress": "id" | "checklist" | "step" | "user" | "tenant" | "completedBy" | "completedAt";
-    };
+    readonly tables: {};
     readonly functions: "complete_onboarding_step" | "onboarding_progress" | "reset_onboarding_step";
     readonly actions: "read" | "complete";
     readonly hooks: never;

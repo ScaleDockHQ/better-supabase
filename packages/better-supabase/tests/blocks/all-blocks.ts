@@ -31,6 +31,7 @@ import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
 import type { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts";
+import type { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
@@ -176,6 +177,7 @@ export type AllBlocks = {
   readonly assets: typeof assetsBlock;
   readonly scores: typeof scoresBlock;
   readonly moderation: typeof moderationBlock;
+  readonly enrollments: typeof enrollmentsBlock;
   readonly memory: typeof memoryBlock;
   readonly metrics: typeof metricsBlock;
   readonly mfa: typeof mfaBlock;

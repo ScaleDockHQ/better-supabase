@@ -120,6 +120,7 @@ const entries = [
   "blocks/assets/index",
   "blocks/scores/index",
   "blocks/moderation/index",
+  "blocks/enrollments/index",
   "blocks/shared-signals/index",
   "blocks/identities/index",
   "blocks/service-principals/index",

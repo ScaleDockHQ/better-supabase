@@ -567,7 +567,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "growth",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "enrollments"
       ],
       "integrates": [
         "outbox"
@@ -2864,6 +2865,80 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "enrollments",
+      "title": "Enrollments",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "enrollments",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "enrollment_program": {
+            "table": "programs",
+            "singular": "enrollment_program",
+            "primary": true
+          },
+          "enrollment": {
+            "table": "enrollments",
+            "singular": "enrollment"
+          }
+        },
+        "tables": {
+          "programs": {
+            "name": "enrollment_programs",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "subjectTypes": "subject_types",
+              "steps": "steps",
+              "enabled": "enabled",
+              "version": "version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "enrollments": {
+            "name": "enrollments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "program": "program",
+              "programVersion": "program_version",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "user": "user_id",
+              "steps": "steps",
+              "completedSteps": "completed_steps",
+              "status": "status",
+              "enrolledBy": "enrolled_by",
+              "enrolledAt": "enrolled_at",
+              "completedAt": "completed_at",
+              "cancelledAt": "cancelled_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "enrollments.read",
+          "enroll": "enrollments.enroll",
+          "manage": "enrollments.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -4840,6 +4915,74 @@ export const PRESET_CATALOG: PresetCatalog = {
           "moderation_item.decided",
           "moderation_ban.created",
           "moderation_ban.lifted"
+        ]
+      }
+    },
+    {
+      "name": "enrollments",
+      "sql": [
+        "enrollments"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "enrollmentsBlock",
+        "subpath": "better-supabase/blocks/enrollments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Enrollment"
+        },
+        {
+          "name": "EnrollmentEventData"
+        },
+        {
+          "name": "EnrollmentProgram"
+        },
+        {
+          "name": "EnrollmentProgramEventData"
+        },
+        {
+          "name": "EnrollmentProgramInput"
+        },
+        {
+          "name": "EnrollmentProgress"
+        },
+        {
+          "name": "Enrollments"
+        },
+        {
+          "name": "EnrollmentsEvents"
+        },
+        {
+          "name": "EnrollmentsFilter"
+        },
+        {
+          "name": "EnrollmentsOptions"
+        },
+        {
+          "name": "EnrollmentsSqlOptions"
+        },
+        {
+          "name": "EnrollmentStatus"
+        },
+        {
+          "name": "EnrollmentStep"
+        }
+      ],
+      "sections": {
+        "enrollments": []
+      },
+      "events": {
+        "type": "EnrollmentsEvents",
+        "types": [
+          "enrollment_program.saved",
+          "enrollment_program.deleted",
+          "enrollment.created",
+          "enrollment.step_completed",
+          "enrollment.completed",
+          "enrollment.cancelled"
         ]
       }
     },

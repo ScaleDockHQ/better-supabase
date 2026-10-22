@@ -96,12 +96,12 @@ describe.skipIf(!live)("onboarding", () => {
       await s.asRole(member);
       expect(
         await s.rows(
-          "select step from better_supabase.onboarding_progress order by step",
+          "select step from better_supabase.enrollment_steps order by step",
         ),
       ).toEqual([{ step: "avatar" }, { step: "billing" }, { step: "invite" }]);
       await s.asRole(outsider);
       expect(
-        await s.rows("select step from better_supabase.onboarding_progress"),
+        await s.rows("select step from better_supabase.enrollment_steps"),
       ).toEqual([]);
       await s.as(outsider);
       expect(

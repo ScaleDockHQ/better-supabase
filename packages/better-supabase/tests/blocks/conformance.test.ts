@@ -64,6 +64,9 @@ const NO_FIELDS: readonly string[] = [
   "documents",
   // A hostname row is routing state the proxy reads; the organization holds app data.
   "domains",
+  // Programs and enrollments track steps of a subject the app owns; the
+  // subject's data stays in its own table.
+  "enrollments",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.
@@ -88,8 +91,6 @@ const NO_FIELDS: readonly string[] = [
   "number-sequences",
   // Clients, grants and codes are protocol state; RFC 7591 metadata beyond the columns goes in metadata.
   "oauth-server",
-  // Progress rows per checklist step; the steps live in `defineChecklist`.
-  "onboarding",
   // An event log; the app's data goes in each event's payload.
   "outbox",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.

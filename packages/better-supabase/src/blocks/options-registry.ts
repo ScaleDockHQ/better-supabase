@@ -29,6 +29,7 @@ import type { DomainsSqlOptions } from "./domains/options.ts";
 import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EngagementsSqlOptions } from "./engagements/options.ts";
+import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions, SignaturesSqlOptions } from "./forms/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
@@ -135,6 +136,7 @@ import { domainsSqlOptions } from "./domains/options.ts";
 import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { engagementsSqlOptions } from "./engagements/options.ts";
+import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions, signaturesSqlOptions } from "./forms/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
@@ -299,6 +301,7 @@ export interface BlockOptionsRegistry {
   readonly rules: RulesSqlOptions;
   readonly scores: ScoresSqlOptions;
   readonly moderation: ModerationSqlOptions;
+  readonly enrollments: EnrollmentsSqlOptions;
   readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
@@ -423,6 +426,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   rules: rulesSqlOptions,
   scores: scoresSqlOptions,
   moderation: moderationSqlOptions,
+  enrollments: enrollmentsSqlOptions,
   "vercel-marketplace": vercelMarketplaceSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
