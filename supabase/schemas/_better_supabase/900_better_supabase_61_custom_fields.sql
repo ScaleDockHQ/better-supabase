@@ -239,6 +239,7 @@ as $$
     'type', d."type",
     'required', d."required",
     'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
     'rank', d."rank"
   ) order by d."rank" collate "C", d."key"), '[]'::jsonb)
   from "better_supabase"."field_definitions" d

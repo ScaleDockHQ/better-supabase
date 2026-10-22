@@ -190,6 +190,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
 - 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
 - 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
+- 00XX: encrypted fields use per-owner Vault keys and decrypt through scoped definers; reads there can be audited.
 
 ## Pre-release pins
 

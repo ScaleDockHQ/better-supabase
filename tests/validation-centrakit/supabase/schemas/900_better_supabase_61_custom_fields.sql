@@ -1,5 +1,5 @@
--- better-supabase module: custom-fields (0.8.0)
--- @bs-module custom-fields@2 adopt
+-- better-supabase module: custom-fields
+-- @bs-module custom-fields@3 adopt
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,12 +75,16 @@ grant execute on function "better_supabase"."save_field_definition"(uuid, text, 
 
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_values jsonb;
+begin
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', v."value_text")), '[]'::jsonb)
+  into v_values
   from "centrakit"."field_values" v
   left join "centrakit"."field_definitions" d on d."id" = v."definition_id"
   where v."tenant_id" = read_field_values.tenant
@@ -88,7 +92,9 @@ as $$
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false))
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+  return v_values;
+end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
@@ -161,6 +167,7 @@ as $$
     'type', d."type",
     'required', d."required",
     'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
     'rank', null
   ) order by d."key"), '[]'::jsonb)
   from "centrakit"."field_definitions" d
