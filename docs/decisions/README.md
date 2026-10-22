@@ -69,7 +69,7 @@ add one, and link it from the code or config it explains.
 | [0061](0061-generated-block-helpers.md)                   | gen writes typed block helpers; zod, valibot, nuqs, TanStack Query and oRPC stay optional peers                                           |
 | [0062](0062-messaging-core-and-breaking-moves.md)         | One messaging core; channels first, then comments and the inbox move onto it (breaking)                                                   |
 | [0063](0063-activity-block.md)                            | The activity feed moves out of comments into its own `activity` block                                                                     |
-| [0064](0064-sections-and-three-layers.md)                 | Blocks compose through sections, flows and three layers: library logic, generated bindings, recipes                                       |
+| [0064](0064-sections-and-three-layers.md)                 | Superseded by 0093. Blocks compose through sections, flows and three layers: library logic, generated bindings, recipes                   |
 | [0065](0065-double-entry-ledger.md)                       | Balances live in one double-entry ledger; inventory stock, leave balances and invoice payments move onto it (breaking)                    |
 | [0066](0066-assets-optional-postgis.md)                   | Assets store coordinates as numbers; PostGIS geography points, areas and GiST indexes are an option                                       |
 | [0067](0067-votes-and-score-models.md)                    | Votes are reactions of kind `vote` with a score per subject; scores come from versioned, tenant-editable models                           |
@@ -96,3 +96,4 @@ add one, and link it from the code or config it explains.
 | [0090](0090-bookings-as-engagements.md)                   | Confirmed bookings become meeting engagements through a trigger on the bookings table                                                     |
 | [0091](0091-sequences-on-enrollments-and-mail-sync.md)    | Sequences run on enrollments and send email steps through a `mailer` port that mail-sync provides                                         |
 | [0092](0092-posts-on-shared-primitives.md)                | Posts keep only boards and posts; votes, replies and moderation stay in reactions, comments and moderation                                |
+| [0093](0093-block-instances-and-one-data-contract.md)     | Blocks install as named instances behind one data contract; plugins, sections, preset codes and duplicate layers go (supersedes 0064)     |
