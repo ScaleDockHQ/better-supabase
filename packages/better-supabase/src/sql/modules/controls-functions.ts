@@ -161,7 +161,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_framework ${frameworks}%rowtype;
   v_row ${controls}%rowtype;
@@ -272,7 +272,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_control ${controls}%rowtype;
   v_task ${tasks}%rowtype;
@@ -354,7 +354,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_control ${controls}%rowtype;
   v_row ${tasks}%rowtype;

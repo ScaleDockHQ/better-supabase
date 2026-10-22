@@ -251,6 +251,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."incidents"%rowtype;
   v_before uuid[];
@@ -610,6 +611,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."incidents"%rowtype;
   v_post "better_supabase"."incident_postmortems"%rowtype;

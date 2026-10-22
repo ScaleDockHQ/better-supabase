@@ -156,6 +156,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${incidents}%rowtype;
   v_before uuid[];
@@ -515,6 +516,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${incidents}%rowtype;
   v_post ${postmortems}%rowtype;

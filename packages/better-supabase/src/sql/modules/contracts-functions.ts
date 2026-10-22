@@ -189,7 +189,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row ${contracts}%rowtype;
   v_from text;
@@ -550,7 +550,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_contract ${contracts}%rowtype;
   v_row ${obligations}%rowtype;
@@ -594,7 +594,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row ${obligations}%rowtype;
 begin

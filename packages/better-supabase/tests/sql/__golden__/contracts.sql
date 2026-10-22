@@ -161,7 +161,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."contracts"%rowtype;
   v_from text;
@@ -549,7 +549,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_contract "better_supabase"."contracts"%rowtype;
   v_row "better_supabase"."contract_obligations"%rowtype;
@@ -597,7 +597,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."contract_obligations"%rowtype;
 begin
@@ -864,7 +864,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."contracts"%rowtype;
   v_from text;
@@ -1288,7 +1288,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_contract "better_supabase"."contracts"%rowtype;
   v_row "better_supabase"."contract_obligations"%rowtype;
@@ -1345,7 +1345,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."contract_obligations"%rowtype;
 begin
@@ -1623,7 +1623,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "app_private"."contracts"%rowtype;
   v_from text;
@@ -2011,7 +2011,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_contract "app_private"."contracts"%rowtype;
   v_row "app_private"."contract_obligations"%rowtype;
@@ -2059,7 +2059,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "app_private"."contract_obligations"%rowtype;
 begin
@@ -2326,7 +2326,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."contracts"%rowtype;
   v_from text;
@@ -2714,7 +2714,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_contract "better_supabase"."contracts"%rowtype;
   v_row "better_supabase"."contract_obligations"%rowtype;
@@ -2762,7 +2762,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."contract_obligations"%rowtype;
 begin

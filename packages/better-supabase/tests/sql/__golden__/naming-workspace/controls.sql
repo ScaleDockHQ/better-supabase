@@ -243,7 +243,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_framework "better_supabase"."control_frameworks"%rowtype;
   v_row "better_supabase"."controls"%rowtype;
@@ -373,7 +373,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_control "better_supabase"."controls"%rowtype;
   v_task "better_supabase"."evidence_tasks"%rowtype;
@@ -454,7 +454,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_control "better_supabase"."controls"%rowtype;
   v_row "better_supabase"."evidence_tasks"%rowtype;
@@ -594,7 +594,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
 begin
@@ -710,6 +710,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row "better_supabase"."policies"%rowtype;
   v_me uuid := auth.uid();

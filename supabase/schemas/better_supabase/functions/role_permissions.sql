@@ -65,7 +65,11 @@ as $$
       'assets.read', 'assets.manage', 'assets.assign',
       'scores.read', 'scores.manage', 'scores.compute',
       'moderation.read', 'moderation.report', 'moderation.manage', 'moderation.ban',
-      'enrollments.read', 'enrollments.enroll', 'enrollments.manage'
+      'enrollments.read', 'enrollments.enroll', 'enrollments.manage',
+      'signatures.read', 'signatures.request', 'signatures.manage',
+      'contracts.read', 'contracts.write', 'contracts.manage',
+      'controls.read', 'controls.manage', 'controls.collect', 'controls.acknowledge',
+      'incidents.read', 'incidents.write', 'incidents.manage'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -88,7 +92,9 @@ as $$
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
       'employees.read', 'rules.read', 'assets.read', 'scores.read',
-      'moderation.report', 'enrollments.read'
+      'moderation.report', 'enrollments.read', 'signatures.read',
+      'contracts.read', 'contracts.write', 'controls.read', 'controls.collect',
+      'controls.acknowledge', 'incidents.read', 'incidents.write'
     ]
     else array[]::text[]
   end

@@ -67,7 +67,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row ${policies}%rowtype;
 begin
@@ -175,6 +175,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${policies}%rowtype;
   v_me uuid := auth.uid();
