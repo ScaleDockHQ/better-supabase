@@ -27,6 +27,7 @@
   "blocks",
   "blocks/access",
   "blocks/access-requests",
+  "blocks/activity",
   "blocks/agents",
   "blocks/ai-cache",
   "blocks/ai-chat",
