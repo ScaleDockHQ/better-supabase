@@ -151,6 +151,62 @@ With a `threadId`, the message replies to the thread's latest message, so
 the provider keeps it in the same conversation. `mailDraftSchema` validates
 the draft and `mailAccountInputSchema` what `connect` takes.
 
+## Templates and tracking
+
+A send can come from a [templates](/docs/blocks/templates) version and be
+tracked. `templateVersionId` stores the version on the sent message, and
+with `tracking` set on `createMailSync`, the HTML body's `http(s)` links go
+through your tracking route and a 1x1 pixel records opens. The provider
+sends the rewritten HTML; the database keeps the original, a SHA-256 of the
+message's random token and its links, so the tracking URLs can't be
+guessed from the data.
+
+```ts
+import { composeTemplateEmail } from "better-supabase/blocks/templates";
+
+const mail = createMailSync({
+  transport: rpcTransport(supabase),
+  credentials: vercelConnectCredentials(),
+  providers: [gmailMail(), outlookMail()],
+  tracking: { url: "https://app.acme.com/api/mail/t" },
+});
+
+const { subject, text, html } = composeTemplateEmail(body, { person });
+
+await mail
+  .send(account.id, {
+    to: [{ address: person.email }],
+    subject,
+    ...(text === undefined ? {} : { text }),
+    ...(html === undefined ? {} : { html }),
+    templateVersionId: version.id,
+  })
+  .orThrow();
+```
+
+`track: false` sends one message untracked, and `track: true` without
+`tracking` fails with `MAIL_TRACKING_MISSING`. The route answers each hit
+with `track(request)` as the service role: an open (`/o/<token>`) returns
+the pixel, a click (`/c/<token>/<n>`) redirects to the stored link, and
+an unknown token gets a 404.
+
+```ts title="app/api/mail/t/[...hit]/route.ts"
+export async function GET(request: Request) {
+  const tracked = await mailFor(admin).track(request);
+
+  return tracked.ok ? tracked.data : new Response(null, { status: 503 });
+}
+```
+
+A sent message carries `tracked`, `openCount`, `clickCount`, `openedAt` and
+`clickedAt`. `templateStats(organizationId, { since })` returns, per
+template version, the messages `sent`, `opened`, `clicked` and `replied`
+(an inbound message on the thread after the sent one), over the mailboxes
+the caller can read. Open counts are approximate: mail clients that block
+images never load the pixel, and some (Apple Mail's privacy protection,
+Gmail's image proxy) load it for the reader. Link scanners can click
+links before the recipient does.
+
 ## Options
 
 ```ts title="better-supabase.config.ts"
@@ -167,8 +223,10 @@ blocks: {
 ## Events
 
 The block writes `mail_account.connected`, `mail_account.disconnected`,
-`mail_message.received` and `mail_message.sent` to the
-[outbox](/docs/blocks/outbox). A message event names the thread, the
-direction, the sender and the records the thread is linked to, so a
-workflow can react to a reply from a contact; see
+`mail_message.received`, `mail_message.sent`, `mail_message.opened` and
+`mail_message.clicked` to the [outbox](/docs/blocks/outbox). A message
+event names the thread, the direction, the sender and the records the
+thread is linked to, so a workflow can react to a reply from a contact. An
+open is written once per message, on the first open; a click is written
+every time, with its `url` and the `templateVersionId`. See
 [Events](/docs/extending/events).

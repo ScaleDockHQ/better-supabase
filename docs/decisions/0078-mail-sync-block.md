@@ -37,6 +37,17 @@ service role on a cron, and `send()` records the sent message on its
 thread. Data lifecycle purges a member's mailboxes and revokes their
 credential reference.
 
+Open and click tracking is opt-in through `tracking: { url }`. `send()`
+rewrites the HTML body's links to `<url>/c/<token>/<n>` and adds a pixel at
+`<url>/o/<token>`; the token is 32 random bytes, and the database stores only
+its SHA-256 (`mail_messages.tracking_hash`) next to the original HTML and the
+links (`mail_tracked_links`). The public route calls `track_mail` as the
+service role, which counts the hit in `mail_tracking_events`, on the message
+and on the link, and writes `mail_message.opened` (first open) or
+`mail_message.clicked`. A sent message keeps the `template_version_id` it was
+written from, and `mail_template_stats` counts sent, opened, clicked and
+replied messages per version over the mailboxes the caller can read.
+
 ## Alternatives considered
 
 - Mail as a messaging channel kind. Messaging threads are member
@@ -45,6 +56,10 @@ credential reference.
 - Organization-wide connectors for mailbox access. Gmail and Outlook
   grant one mailbox per user, and an admin-wide grant needs domain-wide
   delegation that most customers won't approve.
+- Tracking URLs signed with an app secret, or the message id in the URL.
+  A signature needs a key in every runtime that serves the route, and a
+  bare id lets anyone count opens for any message; a random token whose
+  hash is stored needs neither.
 - The Gmail and Graph SDKs as optional peers. Two REST endpoints each don't
   justify an SDK, and `fetch` keeps the block on every WinterTC runtime.
 
@@ -54,4 +69,7 @@ Any app that already logs engagements gets mail on its records without a
 new timeline. Another mail host is one more `MailProvider`. The block has no
 UI recipe yet, and it isn't in the `crm` preset because it needs OAuth
 setup; the `everything` preset includes it. Sequences (the next CRM block)
-send through `send()` and stop on a reply that `syncDue()` stores.
+send through `send()` and stop on a reply that `syncDue()` stores. Open
+counts are approximate (blocked images hide opens; image proxies and link
+scanners add some), so tracking reports trends per template rather than
+proof that one person read a message.
