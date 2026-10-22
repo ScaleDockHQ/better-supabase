@@ -2964,6 +2964,72 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "forecasts",
+      "title": "Forecasts",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "deals"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "forecasts",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "snapshot": {
+            "table": "snapshots",
+            "singular": "forecast_snapshot",
+            "primary": true
+          }
+        },
+        "tables": {
+          "snapshots": {
+            "name": "forecast_snapshots",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "pipeline": "pipeline_id",
+              "since": "period_start",
+              "until": "period_end",
+              "currency": "currency",
+              "target": "target",
+              "totals": "totals",
+              "dealCount": "deal_count",
+              "takenBy": "taken_by",
+              "takenAt": "taken_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "forecasts.read",
+          "snapshot": "forecasts.snapshot"
+        }
+      }
+    },
+    {
+      "name": "field-history",
+      "title": "Field history",
+      "category": "database",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "data-lifecycle"
+      ],
+      "manifest": "field-history",
+      "scopes": [
+        "tenant"
+      ]
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -6289,6 +6355,46 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "EnrichmentEvents",
         "types": [
           "party.enriched"
+        ]
+      }
+    },
+    {
+      "name": "field-history",
+      "sql": [
+        "field-history"
+      ],
+      "category": "database",
+      "client": {
+        "export": "fieldHistoryBlock",
+        "subpath": "better-supabase/blocks/field-history"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "forecasts",
+      "sql": [
+        "forecasts"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "forecastsBlock",
+        "subpath": "better-supabase/blocks/forecasts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ForecastSnapshot"
+        },
+        {
+          "name": "ForecastSnapshotDeal"
+        }
+      ],
+      "events": {
+        "type": "ForecastsEvents",
+        "types": [
+          "forecast.snapshotted"
         ]
       }
     },

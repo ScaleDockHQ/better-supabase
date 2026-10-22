@@ -483,6 +483,16 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "field-history": {
+    readonly tables: {
+      readonly "changes": "id" | "tenant" | "subjectType" | "subjectId" | "field" | "before" | "after" | "changedBy" | "changedAt";
+    };
+    readonly functions: "field_history";
+    readonly actions: "read";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "flags": {
     readonly tables: {
       readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
@@ -493,6 +503,19 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "forecasts": {
+    readonly tables: {
+      readonly "snapshots": "id" | "tenant" | "pipeline" | "since" | "until" | "currency" | "target" | "totals" | "dealCount" | "takenBy" | "takenAt";
+      readonly "deals": "snapshot" | "tenant" | "deal" | "name" | "owner" | "stage" | "forecast" | "outcome" | "amount" | "closeOn" | "closedAt";
+    };
+    readonly functions: "forecast_changes" | "forecast_snapshot" | "forecast_snapshots" | "take_forecast_snapshot";
+    readonly actions: "read" | "snapshot";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "snapshot": "id" | "tenant_id" | "pipeline_id" | "period_start" | "period_end" | "currency" | "target" | "totals" | "deal_count" | "taken_by" | "taken_at";
+    };
+    readonly primary: "snapshot";
   };
   readonly "forms": {
     readonly tables: {

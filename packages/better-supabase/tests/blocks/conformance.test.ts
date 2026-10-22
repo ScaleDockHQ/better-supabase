@@ -73,6 +73,10 @@ const NO_FIELDS: readonly string[] = [
   "domains",
   // Results describe parties; app data lives on the companies and people.
   "enrichment",
+  // History rows copy a record's columns; app data lives on the record.
+  "field-history",
+  // Snapshots copy deals; app data lives on the deals.
+  "forecasts",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.

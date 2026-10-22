@@ -73,6 +73,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "segments.*",
     "assignment.*",
     "enrichment.*",
+    "forecasts.*",
+    "history.*",
     "domains.*",
     "rules.*",
     "reviews.*",
@@ -162,6 +164,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "segments.read",
     "assignment.read",
     "enrichment.read",
+    "forecasts.read",
+    "history.read",
   ],
   viewer: ["organization.read"],
 };
@@ -400,6 +404,9 @@ export const OPERATIONS = {
   "assignment.assign": "assignment.assign",
   "enrichment.read": "enrichment.read",
   "enrichment.run": "enrichment.run",
+  "forecasts.read": "forecasts.read",
+  "forecasts.snapshot": "forecasts.snapshot",
+  "field-history.read": "history.read",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -614,6 +621,8 @@ export const MODULE_PERMISSION_SCOPES: {
   segments: { read: "tenant", edit: "tenant" },
   assignment: { read: "tenant", manage: "tenant", assign: "tenant" },
   enrichment: { read: "tenant", run: "tenant" },
+  forecasts: { read: "tenant", snapshot: "tenant" },
+  "field-history": { read: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

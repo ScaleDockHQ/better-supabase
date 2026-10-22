@@ -28,6 +28,7 @@ import type { DomainsSqlOptions } from "./domains/options.ts";
 import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EngagementsSqlOptions } from "./engagements/options.ts";
+import type { FieldHistorySqlOptions } from "./field-history/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
@@ -135,6 +136,7 @@ import { domainsSqlOptions } from "./domains/options.ts";
 import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { engagementsSqlOptions } from "./engagements/options.ts";
+import { fieldHistorySqlOptions } from "./field-history/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
@@ -278,6 +280,8 @@ export interface BlockOptionsRegistry {
   readonly segments: SegmentsSqlOptions;
   readonly assignment: None;
   readonly enrichment: None;
+  readonly "field-history": FieldHistorySqlOptions;
+  readonly forecasts: None;
   readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -404,6 +408,8 @@ export const BLOCK_OPTION_SCHEMAS: {
   segments: segmentsSqlOptions,
   assignment: NO_OPTIONS,
   enrichment: NO_OPTIONS,
+  "field-history": fieldHistorySqlOptions,
+  forecasts: NO_OPTIONS,
   activity: NO_OPTIONS,
   messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,

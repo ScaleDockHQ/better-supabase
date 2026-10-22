@@ -136,6 +136,8 @@ const PURE_BARRELS = [
   "blocks/segments",
   "blocks/assignment",
   "blocks/enrichment",
+  "blocks/field-history",
+  "blocks/forecasts",
   "chat-sdk",
   "eve",
   "flags-sdk",

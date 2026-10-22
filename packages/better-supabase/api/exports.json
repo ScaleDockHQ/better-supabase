@@ -2745,6 +2745,7 @@
       "EventSink",
       "EventSpec",
       "FlagEventData",
+      "ForecastSnapshotEventData",
       "FormEventData",
       "FormSubmissionEventData",
       "ForwardBlockOptions",
@@ -4982,6 +4983,55 @@
       "PeopleDataLabsOptions",
       "PersonLookup",
       "PersonProfile",
+      "RpcClient"
+    ]
+  },
+  "./blocks/field-history": {
+    "values": [
+      "createFieldHistory",
+      "dbTransport",
+      "extendBlock",
+      "fieldHistoryBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "FieldChange",
+      "FieldHistory",
+      "FieldHistoryOptions",
+      "RpcClient"
+    ]
+  },
+  "./blocks/forecasts": {
+    "values": [
+      "createForecasts",
+      "dbTransport",
+      "extendBlock",
+      "forecastsBlock",
+      "forecastsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "DealForecast",
+      "ForecastChangeKind",
+      "ForecastChanges",
+      "ForecastDealChange",
+      "Forecasts",
+      "ForecastsEvents",
+      "ForecastSnapshot",
+      "ForecastSnapshotDeal",
+      "ForecastsOptions",
       "RpcClient"
     ]
   },

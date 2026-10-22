@@ -175,6 +175,8 @@ const entries = [
   "blocks/segments/index",
   "blocks/assignment/index",
   "blocks/enrichment/index",
+  "blocks/field-history/index",
+  "blocks/forecasts/index",
   "blocks/deals/index",
   "blocks/work-items/index",
   "blocks/quotes/index",

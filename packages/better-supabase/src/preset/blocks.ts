@@ -124,4 +124,6 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "segments",
   "assignment",
   "enrichment",
+  "forecasts",
+  "field-history",
 ];

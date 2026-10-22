@@ -363,6 +363,7 @@ export type {
   SegmentMemberEventData,
   AssignmentEventData,
   EnrichmentEventData,
+  ForecastSnapshotEventData,
   PartyEventData,
   PipelineEventData,
   PipelineStageEventData,

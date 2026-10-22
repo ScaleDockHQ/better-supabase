@@ -37,7 +37,9 @@ import { engagementsBlock } from "./engagements/manifest.ts";
 import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
+import { fieldHistoryBlock } from "./field-history/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
+import { forecastsBlock } from "./forecasts/manifest.ts";
 import { formsBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
@@ -183,6 +185,8 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   segmentsBlock,
   assignmentBlock,
   enrichmentBlock,
+  fieldHistoryBlock,
+  forecastsBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

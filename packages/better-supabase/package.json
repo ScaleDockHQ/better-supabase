@@ -787,6 +787,16 @@
       "types": "./dist/blocks/enrichment/index.d.ts",
       "default": "./dist/blocks/enrichment/index.js"
     },
+    "./blocks/field-history": {
+      "@better-supabase/source": "./src/blocks/field-history/index.ts",
+      "types": "./dist/blocks/field-history/index.d.ts",
+      "default": "./dist/blocks/field-history/index.js"
+    },
+    "./blocks/forecasts": {
+      "@better-supabase/source": "./src/blocks/forecasts/index.ts",
+      "types": "./dist/blocks/forecasts/index.d.ts",
+      "default": "./dist/blocks/forecasts/index.js"
+    },
     "./blocks/messaging": {
       "@better-supabase/source": "./src/blocks/messaging/index.ts",
       "types": "./dist/blocks/messaging/index.d.ts",
@@ -2214,6 +2224,14 @@
       "./blocks/enrichment": {
         "types": "./dist/blocks/enrichment/index.d.ts",
         "default": "./dist/blocks/enrichment/index.js"
+      },
+      "./blocks/field-history": {
+        "types": "./dist/blocks/field-history/index.d.ts",
+        "default": "./dist/blocks/field-history/index.js"
+      },
+      "./blocks/forecasts": {
+        "types": "./dist/blocks/forecasts/index.d.ts",
+        "default": "./dist/blocks/forecasts/index.js"
       },
       "./blocks/messaging": {
         "types": "./dist/blocks/messaging/index.d.ts",

@@ -36,7 +36,9 @@ import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts"
 import type { enrichmentBlock } from "../../src/blocks/enrichment/manifest.ts";
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
+import type { fieldHistoryBlock } from "../../src/blocks/field-history/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
+import type { forecastsBlock } from "../../src/blocks/forecasts/manifest.ts";
 import type { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
 import type { hiringBlock } from "../../src/blocks/hiring/manifest.ts";
@@ -160,6 +162,8 @@ export type AllBlocks = {
   readonly segments: typeof segmentsBlock;
   readonly assignment: typeof assignmentBlock;
   readonly enrichment: typeof enrichmentBlock;
+  readonly "field-history": typeof fieldHistoryBlock;
+  readonly forecasts: typeof forecastsBlock;
   readonly ensureRls: typeof ensureRlsBlock;
   readonly entitlements: typeof entitlementsBlock;
   readonly flags: typeof flagsBlock;

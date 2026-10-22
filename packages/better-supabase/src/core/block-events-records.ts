@@ -114,6 +114,22 @@ export interface EnrichmentEventData {
   readonly filled: readonly string[];
 }
 
+/**
+ * `forecast.snapshotted`: the forecast call for a period and currency was
+ * stored with the deals it counted.
+ */
+export interface ForecastSnapshotEventData {
+  readonly organizationId: string;
+  readonly snapshotId: string;
+  /** `null` for a snapshot of every pipeline. */
+  readonly pipelineId: string | null;
+  /** ISO dates. */
+  readonly since: string;
+  readonly until: string;
+  readonly currency: string;
+  readonly dealCount: number;
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;
