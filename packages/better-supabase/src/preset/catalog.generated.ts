@@ -1399,6 +1399,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access-requests",
         "time-tracking",
         "leave",
+        "expenses",
         "ai-chat",
         "support-sessions"
       ],
@@ -3142,6 +3143,572 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "billable_time.read",
           "manage": "billable_time.manage",
           "invoice": "billable_time.invoice"
+        }
+      }
+    },
+    {
+      "name": "leases",
+      "title": "Leases",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "assets",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "leases",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "leases",
+      "entities": {
+        "specs": {
+          "lease": {
+            "table": "leases",
+            "singular": "lease",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "maintenance_request": {
+            "table": "maintenance",
+            "singular": "maintenance_request",
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "maintain"
+              }
+            }
+          }
+        },
+        "tables": {
+          "leases": {
+            "name": "lease_agreements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "unit": "unit_id",
+              "partyType": "party_type",
+              "partyId": "party_id",
+              "title": "title",
+              "status": "status",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "rent": "rent",
+              "currency": "currency",
+              "frequency": "frequency",
+              "deposit": "deposit",
+              "depositHold": "deposit_hold_id",
+              "renewedAt": "renewed_at",
+              "terminatedOn": "terminated_on",
+              "terminationReason": "termination_reason",
+              "metadata": "metadata",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "maintenance": {
+            "name": "maintenance_requests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "unit": "unit_id",
+              "lease": "lease_id",
+              "title": "title",
+              "description": "description",
+              "priority": "priority",
+              "status": "status",
+              "reportedBy": "reported_by",
+              "assignee": "assignee_id",
+              "resolvedAt": "resolved_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "leases.read",
+          "manage": "leases.manage",
+          "maintain": "leases.maintain"
+        }
+      }
+    },
+    {
+      "name": "expenses",
+      "title": "Expenses",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "approvals",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "attachments"
+      ],
+      "manifest": "expenses",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "reports",
+      "entities": {
+        "specs": {
+          "expense_report": {
+            "table": "reports",
+            "singular": "expense_report",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "expense_line": {
+            "table": "lines",
+            "singular": "expense_line",
+            "subject": {
+              "title": "description",
+              "permissions": {
+                "read": "read",
+                "write": "manage",
+                "upload": "submit"
+              }
+            }
+          },
+          "expense_category": {
+            "table": "categories",
+            "singular": "expense_category",
+            "plural": "expense_categories"
+          }
+        },
+        "tables": {
+          "reports": {
+            "name": "expense_reports",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "title": "title",
+              "currency": "currency",
+              "note": "note",
+              "approval": "approval_id",
+              "submittedAt": "submitted_at",
+              "approvedAt": "approved_at",
+              "approvalTransaction": "approval_transaction_id",
+              "reimbursedAt": "reimbursed_at",
+              "reimbursement": "reimbursement_transaction_id",
+              "cancelledAt": "cancelled_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "lines": {
+            "name": "expense_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "report": "report_id",
+              "category": "category_id",
+              "spentOn": "spent_on",
+              "description": "description",
+              "merchant": "merchant",
+              "amount": "amount",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "categories": {
+            "name": "expense_categories",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "currency": "currency",
+              "limitAmount": "limit_amount",
+              "receiptOver": "receipt_over",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "expenses.read",
+          "submit": "expenses.submit",
+          "approve": "expenses.approve",
+          "manage": "expenses.manage"
+        }
+      }
+    },
+    {
+      "name": "donations",
+      "title": "Donations",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "number-sequences"
+      ],
+      "manifest": "donations",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "donations",
+      "entities": {
+        "specs": {
+          "donation": {
+            "table": "donations",
+            "singular": "donation",
+            "primary": true
+          },
+          "pledge": {
+            "table": "pledges",
+            "singular": "pledge"
+          },
+          "donation_fund": {
+            "table": "funds",
+            "singular": "donation_fund",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "donation_receipt": {
+            "table": "receipts",
+            "singular": "donation_receipt"
+          }
+        },
+        "tables": {
+          "donations": {
+            "name": "donations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "donorType": "donor_type",
+              "donorId": "donor_id",
+              "fund": "fund_id",
+              "pledge": "pledge_id",
+              "periodStart": "period_start",
+              "amount": "amount",
+              "currency": "currency",
+              "receivedOn": "received_on",
+              "method": "method",
+              "status": "status",
+              "provider": "provider",
+              "paymentReference": "payment_reference",
+              "transaction": "transaction_id",
+              "refundTransaction": "refund_transaction_id",
+              "receipt": "receipt_id",
+              "note": "note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "pledges": {
+            "name": "pledges",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "donorType": "donor_type",
+              "donorId": "donor_id",
+              "fund": "fund_id",
+              "amount": "amount",
+              "currency": "currency",
+              "frequency": "frequency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "provider": "provider",
+              "providerCustomer": "provider_customer",
+              "note": "note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "funds": {
+            "name": "donation_funds",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "kind": "kind",
+              "goal": "goal",
+              "currency": "currency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "receipts": {
+            "name": "donation_receipts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "donorType": "donor_type",
+              "donorId": "donor_id",
+              "sequence": "sequence",
+              "number": "number",
+              "kind": "kind",
+              "year": "year",
+              "amount": "amount",
+              "currency": "currency",
+              "issuedAt": "issued_at",
+              "voidedAt": "voided_at",
+              "voidReason": "void_reason"
+            }
+          }
+        },
+        "keys": {
+          "read": "donations.read",
+          "manage": "donations.manage"
+        }
+      }
+    },
+    {
+      "name": "dispatch",
+      "title": "Dispatch",
+      "category": "work",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "assets",
+        "bookings",
+        "catalog",
+        "inventory"
+      ],
+      "manifest": "dispatch",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "workOrders",
+      "entities": {
+        "specs": {
+          "work_order": {
+            "table": "workOrders",
+            "singular": "work_order",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "dispatch_route": {
+            "table": "routes",
+            "singular": "dispatch_route"
+          },
+          "work_order_part": {
+            "table": "parts",
+            "singular": "work_order_part"
+          }
+        },
+        "tables": {
+          "workOrders": {
+            "name": "work_orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "priority": "priority",
+              "status": "status",
+              "technician": "technician_id",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "location": "location_id",
+              "asset": "asset_id",
+              "booking": "booking_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "address": "address",
+              "enRouteAt": "en_route_at",
+              "arrivedAt": "arrived_at",
+              "completedAt": "completed_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "completionNote": "completion_note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "routes": {
+            "name": "dispatch_routes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "technician": "technician_id",
+              "routeDate": "route_date",
+              "plannedBy": "planned_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "parts": {
+            "name": "work_order_parts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "workOrder": "work_order_id",
+              "name": "name",
+              "quantity": "quantity",
+              "unit": "unit",
+              "asset": "asset_id",
+              "variant": "variant_id",
+              "location": "location_id",
+              "recordedBy": "recorded_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "dispatch.read",
+          "manage": "dispatch.manage",
+          "work": "dispatch.work"
+        }
+      }
+    },
+    {
+      "name": "shipments",
+      "title": "Shipments",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "assets"
+      ],
+      "manifest": "shipments",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "shipments",
+      "entities": {
+        "specs": {
+          "shipment": {
+            "table": "shipments",
+            "singular": "shipment",
+            "primary": true,
+            "subject": {
+              "title": "reference",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "shipment_package": {
+            "table": "packages",
+            "singular": "shipment_package"
+          },
+          "shipment_tracking_event": {
+            "table": "trackingEvents",
+            "singular": "shipment_tracking_event"
+          }
+        },
+        "tables": {
+          "shipments": {
+            "name": "shipments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "reference": "reference",
+              "status": "status",
+              "fromAddress": "from_address",
+              "toAddress": "to_address",
+              "fromLocation": "from_location_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "carrier": "carrier",
+              "service": "service",
+              "trackingNumber": "tracking_number",
+              "trackingUrl": "tracking_url",
+              "labelId": "label_id",
+              "labelUrl": "label_url",
+              "labelFormat": "label_format",
+              "labelCost": "label_cost",
+              "currency": "currency",
+              "labeledAt": "labeled_at",
+              "deliveredAt": "delivered_at",
+              "cancelledAt": "cancelled_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "packages": {
+            "name": "shipment_packages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "position": "position",
+              "weight": "weight_grams",
+              "length": "length_mm",
+              "width": "width_mm",
+              "height": "height_mm",
+              "reference": "reference"
+            }
+          },
+          "trackingEvents": {
+            "name": "shipment_tracking_events",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "externalId": "external_id",
+              "status": "status",
+              "occurredAt": "occurred_at",
+              "description": "description",
+              "location": "location",
+              "source": "source",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "shipments.read",
+          "manage": "shipments.manage"
         }
       }
     },
@@ -6041,6 +6608,1569 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "BillableTimeEvents",
         "types": [
           "time.invoiced"
+        ]
+      }
+    },
+    {
+      "name": "leases",
+      "sql": [
+        "leases"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "leasesBlock",
+        "subpath": "better-supabase/blocks/leases"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Lease",
+          "fields": true
+        },
+        {
+          "name": "LeaseCharge"
+        },
+        {
+          "name": "LeaseChargedEventData"
+        },
+        {
+          "name": "LeaseEventData"
+        },
+        {
+          "name": "LeaseInput",
+          "fields": true
+        },
+        {
+          "name": "LeaseListOptions"
+        },
+        {
+          "name": "LeasePaidEventData"
+        },
+        {
+          "name": "LeaseRenewal"
+        },
+        {
+          "name": "Leases",
+          "fields": true
+        },
+        {
+          "name": "LeasesEvents"
+        },
+        {
+          "name": "LeasesOptions"
+        },
+        {
+          "name": "LeaseStatus"
+        },
+        {
+          "name": "LeaseTermination"
+        },
+        {
+          "name": "MaintenanceRequest"
+        },
+        {
+          "name": "MaintenanceRequestEventData"
+        },
+        {
+          "name": "MaintenanceRequestInput"
+        }
+      ],
+      "entitySchemas": {
+        "lease": {
+          "input": {
+            "title": "LeaseInput",
+            "fields": {
+              "unitId": {
+                "kind": "uuid",
+                "description": "The asset let."
+              },
+              "party": {
+                "kind": "json",
+                "description": "The party renting the unit: `{ type, id }`."
+              },
+              "startsOn": {
+                "kind": "plainDate"
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "rent": {
+                "kind": "custom"
+              },
+              "frequency": {
+                "kind": "enum",
+                "values": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ],
+                "optional": true
+              },
+              "deposit": {
+                "kind": "custom",
+                "optional": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "metadata": {
+                "kind": "json",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "LeaseInput",
+              "type": "object",
+              "properties": {
+                "unitId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The asset let."
+                },
+                "party": {
+                  "description": "The party renting the unit: `{ type, id }`."
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "rent": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "frequency": {
+                  "type": "string",
+                  "enum": [
+                    "weekly",
+                    "monthly",
+                    "quarterly",
+                    "yearly"
+                  ]
+                },
+                "deposit": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "metadata": {},
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "unitId",
+                "party",
+                "startsOn",
+                "rent"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "maintenance_request": {
+          "input": {
+            "title": "MaintenanceRequestInput",
+            "fields": {
+              "unitId": {
+                "kind": "uuid"
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 5000
+              },
+              "priority": {
+                "kind": "enum",
+                "values": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "optional": true
+              },
+              "leaseId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MaintenanceRequestInput",
+              "type": "object",
+              "properties": {
+                "unitId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "leaseId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "unitId",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "leases": []
+      },
+      "events": {
+        "type": "LeasesEvents",
+        "types": [
+          "lease.created",
+          "lease.activated",
+          "lease.renewed",
+          "lease.terminated",
+          "lease.charged",
+          "lease.paid",
+          "maintenance_request.filed",
+          "maintenance_request.updated"
+        ]
+      }
+    },
+    {
+      "name": "expenses",
+      "sql": [
+        "expenses"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "expensesBlock",
+        "subpath": "better-supabase/blocks/expenses"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ExpenseCategory"
+        },
+        {
+          "name": "ExpenseCategoryInput"
+        },
+        {
+          "name": "ExpenseLine"
+        },
+        {
+          "name": "ExpenseLineInput"
+        },
+        {
+          "name": "ExpenseLineUpdate"
+        },
+        {
+          "name": "ExpenseReport",
+          "fields": true
+        },
+        {
+          "name": "ExpenseReportEventData"
+        },
+        {
+          "name": "ExpenseReportInput",
+          "fields": true
+        },
+        {
+          "name": "ExpenseReportListOptions"
+        },
+        {
+          "name": "ExpenseReportPostedEventData"
+        },
+        {
+          "name": "ExpenseReportStatus"
+        },
+        {
+          "name": "ExpenseReportSubmittedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "expense_report": {
+          "input": {
+            "title": "ExpenseReportInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "currency": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 3,
+                "description": "A three-letter currency code; every line is in it."
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ExpenseReportInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3,
+                  "description": "A three-letter currency code; every line is in it."
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "title",
+                "currency"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "expense_line": {
+          "input": {
+            "title": "ExpenseLineInput",
+            "fields": {
+              "categoryId": {
+                "kind": "uuid"
+              },
+              "spentOn": {
+                "kind": "plainDate"
+              },
+              "amount": {
+                "kind": "custom"
+              },
+              "description": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "merchant": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ExpenseLineInput",
+              "type": "object",
+              "properties": {
+                "categoryId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "spentOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "merchant": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "categoryId",
+                "spentOn",
+                "amount",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "expense_category": {
+          "input": {
+            "title": "ExpenseCategoryInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "Lowercase letters, digits and underscores."
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "limit": {
+                "kind": "custom",
+                "optional": true
+              },
+              "receiptOver": {
+                "kind": "custom",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ExpenseCategoryInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "Lowercase letters, digits and underscores."
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "limit": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "receiptOver": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ExpensesEvents",
+        "types": [
+          "expense_report.created",
+          "expense_report.submitted",
+          "expense_report.approved",
+          "expense_report.reimbursed",
+          "expense_report.cancelled"
+        ]
+      }
+    },
+    {
+      "name": "donations",
+      "sql": [
+        "donations"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "donationsBlock",
+        "subpath": "better-supabase/blocks/donations"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "DonationEventData"
+        },
+        {
+          "name": "DonationFund"
+        },
+        {
+          "name": "DonationFundInput"
+        },
+        {
+          "name": "DonationPaymentOutcome",
+          "fields": true
+        },
+        {
+          "name": "DonationReceipt"
+        },
+        {
+          "name": "DonationReceiptEventData"
+        },
+        {
+          "name": "Donations",
+          "fields": true
+        },
+        {
+          "name": "DonationsEvents"
+        },
+        {
+          "name": "DonationsOptions"
+        },
+        {
+          "name": "Pledge"
+        },
+        {
+          "name": "PledgeChargeOutcome",
+          "fields": true
+        },
+        {
+          "name": "PledgeEventData"
+        },
+        {
+          "name": "PledgeFrequency"
+        },
+        {
+          "name": "PledgeInput"
+        },
+        {
+          "name": "PledgeInstallment"
+        },
+        {
+          "name": "PledgeListOptions"
+        },
+        {
+          "name": "PledgeStatus"
+        },
+        {
+          "name": "PledgeUpdate"
+        }
+      ],
+      "entitySchemas": {
+        "donation": {
+          "input": {
+            "title": "GiftInput",
+            "fields": {
+              "donor": {
+                "kind": "json",
+                "description": "The donor, a registered subject: `{ type, id }`."
+              },
+              "amount": {
+                "kind": "custom"
+              },
+              "fundId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "receivedOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "method": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 40
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "pledgeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "periodStart": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GiftInput",
+              "type": "object",
+              "properties": {
+                "donor": {
+                  "description": "The donor, a registered subject: `{ type, id }`."
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "fundId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "receivedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "method": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "pledgeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "periodStart": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "donor",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "pledge": {
+          "input": {
+            "title": "PledgeInput",
+            "fields": {
+              "donor": {
+                "kind": "json",
+                "description": "The donor, a registered subject: `{ type, id }`."
+              },
+              "amount": {
+                "kind": "custom"
+              },
+              "frequency": {
+                "kind": "enum",
+                "values": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ],
+                "optional": true
+              },
+              "fundId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "provider": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 100
+              },
+              "providerCustomer": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PledgeInput",
+              "type": "object",
+              "properties": {
+                "donor": {
+                  "description": "The donor, a registered subject: `{ type, id }`."
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "frequency": {
+                  "type": "string",
+                  "enum": [
+                    "weekly",
+                    "monthly",
+                    "quarterly",
+                    "yearly"
+                  ]
+                },
+                "fundId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "provider": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "providerCustomer": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "donor",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "donation_fund": {
+          "input": {
+            "title": "DonationFundInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "Lowercase letters, digits and underscores."
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "fund",
+                  "campaign"
+                ],
+                "optional": true
+              },
+              "goal": {
+                "kind": "custom",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DonationFundInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "Lowercase letters, digits and underscores."
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "fund",
+                    "campaign"
+                  ]
+                },
+                "goal": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "giving": []
+      },
+      "events": {
+        "type": "DonationsEvents",
+        "types": [
+          "donation.received",
+          "donation.failed",
+          "donation.refunded",
+          "pledge.created",
+          "pledge.updated",
+          "donation_receipt.issued",
+          "donation_receipt.voided"
+        ]
+      }
+    },
+    {
+      "name": "dispatch",
+      "sql": [
+        "dispatch"
+      ],
+      "category": "work",
+      "client": {
+        "export": "dispatchBlock",
+        "subpath": "better-supabase/blocks/dispatch"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "DispatchRoute"
+        },
+        {
+          "name": "DispatchRoutePlannedEventData"
+        },
+        {
+          "name": "WorkOrder",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderCreatedEventData"
+        },
+        {
+          "name": "WorkOrderInput",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderListOptions"
+        },
+        {
+          "name": "WorkOrderPart"
+        },
+        {
+          "name": "WorkOrderPartInput"
+        },
+        {
+          "name": "WorkOrderPartUsedEventData"
+        },
+        {
+          "name": "WorkOrderPatch",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderPriority"
+        },
+        {
+          "name": "WorkOrderScheduledEventData"
+        },
+        {
+          "name": "WorkOrderSectionInput"
+        },
+        {
+          "name": "WorkOrderSlot"
+        },
+        {
+          "name": "WorkOrderStatus"
+        },
+        {
+          "name": "WorkOrderStatusChangedEventData"
+        },
+        {
+          "name": "WorkOrderTransition"
+        },
+        {
+          "name": "WorkOrderUnscheduledEventData"
+        },
+        {
+          "name": "WorkOrderUpdatedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "work_order": {
+          "input": {
+            "title": "WorkOrderInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "priority": {
+                "kind": "enum",
+                "values": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "optional": true
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "bookingId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the job is for: `{ type, id }`."
+              },
+              "address": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "technicianId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "startsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "endsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkOrderInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "bookingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record the job is for: `{ type, id }`."
+                },
+                "address": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "technicianId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "work_order_part": {
+          "input": {
+            "title": "WorkOrderPartInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "quantity": {
+                "kind": "unknown",
+                "description": "A decimal above zero with at most three places."
+              },
+              "unit": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "variantId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkOrderPartInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "quantity": {
+                  "description": "A decimal above zero with at most three places."
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "dispatch": [
+          "create",
+          "cancel"
+        ]
+      },
+      "events": {
+        "type": "DispatchEvents",
+        "types": [
+          "work_order.created",
+          "work_order.updated",
+          "work_order.scheduled",
+          "work_order.unscheduled",
+          "work_order.status_changed",
+          "work_order.part_used",
+          "dispatch_route.planned"
+        ]
+      }
+    },
+    {
+      "name": "shipments",
+      "sql": [
+        "shipments"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "shipmentsBlock",
+        "subpath": "better-supabase/blocks/shipments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Shipment",
+          "fields": true
+        },
+        {
+          "name": "ShipmentAddress"
+        },
+        {
+          "name": "ShipmentCancelledEventData"
+        },
+        {
+          "name": "ShipmentCarrier"
+        },
+        {
+          "name": "ShipmentCreatedEventData"
+        },
+        {
+          "name": "ShipmentInput",
+          "fields": true
+        },
+        {
+          "name": "ShipmentLabel"
+        },
+        {
+          "name": "ShipmentLabelChoice"
+        },
+        {
+          "name": "ShipmentLabeledEventData"
+        },
+        {
+          "name": "ShipmentLabelRequest"
+        },
+        {
+          "name": "ShipmentListOptions"
+        },
+        {
+          "name": "ShipmentPackage"
+        },
+        {
+          "name": "ShipmentParcel"
+        },
+        {
+          "name": "ShipmentRate"
+        },
+        {
+          "name": "ShipmentRateRequest"
+        },
+        {
+          "name": "Shipments",
+          "fields": true
+        },
+        {
+          "name": "ShipmentSectionInput"
+        },
+        {
+          "name": "ShipmentsEvents"
+        },
+        {
+          "name": "ShipmentsOptions"
+        },
+        {
+          "name": "ShipmentsSqlOptions"
+        },
+        {
+          "name": "ShipmentStatus"
+        },
+        {
+          "name": "ShipmentStatusChangedEventData"
+        },
+        {
+          "name": "ShipmentsWrites"
+        }
+      ],
+      "entitySchemas": {
+        "shipment": {
+          "input": {
+            "title": "ShipmentInput",
+            "fields": {
+              "from": {
+                "kind": "json",
+                "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+              },
+              "to": {
+                "kind": "json",
+                "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+              },
+              "packages": {
+                "kind": "json",
+                "array": true,
+                "description": "1 to 50 `{ weightGrams, lengthMm?, widthMm?, heightMm?, reference? }`, in whole grams and millimeters."
+              },
+              "reference": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "fromLocationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record it ships for: `{ type, id }`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ShipmentInput",
+              "type": "object",
+              "properties": {
+                "from": {
+                  "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+                },
+                "to": {
+                  "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+                },
+                "packages": {
+                  "type": "array",
+                  "items": {},
+                  "description": "1 to 50 `{ weightGrams, lengthMm?, widthMm?, heightMm?, reference? }`, in whole grams and millimeters."
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "fromLocationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record it ships for: `{ type, id }`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "packages"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "shipment_tracking_event": {
+          "input": {
+            "title": "TrackingEventInput",
+            "fields": {
+              "id": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "label_created",
+                  "in_transit",
+                  "out_for_delivery",
+                  "delivered",
+                  "exception",
+                  "returned"
+                ]
+              },
+              "occurredAt": {
+                "kind": "instant"
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 1000
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TrackingEventInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "label_created",
+                    "in_transit",
+                    "out_for_delivery",
+                    "delivered",
+                    "exception",
+                    "returned"
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "location": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "occurredAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "shipments": [
+          "create",
+          "cancel"
+        ]
+      },
+      "events": {
+        "type": "ShipmentsEvents",
+        "types": [
+          "shipment.created",
+          "shipment.labeled",
+          "shipment.status_changed",
+          "shipment.cancelled"
         ]
       }
     },

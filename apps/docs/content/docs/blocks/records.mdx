@@ -15,21 +15,37 @@ section never takes the page down:
 | `error`  | `error` holds a plain `DbError`; show it with a Retry      |
 | `hidden` | The caller can't read the section, and no query ran for it |
 
-| Block           | Section        | Rows                             | Writes                | Optimistic reducer      |
-| --------------- | -------------- | -------------------------------- | --------------------- | ----------------------- |
-| `comments`      | `comments`     | the thread                       | `add`, `remove`       | `commentsOptimistic`    |
-| `attachments`   | `attachments`  | the files, newest first          | `remove`              | `attachmentsOptimistic` |
-| `tags`          | `tags`         | the record's tags                | `apply`, `remove`     | `tagsOptimistic`        |
-| `share-links`   | `shareLinks`   | the record's share links         | `create`, `revoke`    | none                    |
-| `relations`     | `relations`    | links to and from the record     | `link`, `unlink`      | none                    |
-| `versions`      | `versions`     | the versions, newest first       | `snapshot`, `restore` | none                    |
-| `sla`           | `sla`          | the record's clocks              | `start`               | none                    |
-| `ledger`        | `ledger`       | the record's accounts            | none                  | none                    |
-| `assets`        | `assets`       | the assets the record holds      | none                  | none                    |
-| `guests`        | `guests`       | the guests who reach the record  | `grant`, `revoke`     | none                    |
-| `passes`        | `passes`       | the passes issued for the record | `issue`, `revoke`     | none                    |
-| `billable-time` | `billableTime` | the record's unbilled time       | `setRate`, `invoice`  | none                    |
-| `contracts`     | `contracts`    | the contracts with the record    | none                  | none                    |
+| Block           | Section        | Rows                                  | Writes                | Optimistic reducer      |
+| --------------- | -------------- | ------------------------------------- | --------------------- | ----------------------- |
+| `comments`      | `comments`     | the thread                            | `add`, `remove`       | `commentsOptimistic`    |
+| `attachments`   | `attachments`  | the files, newest first               | `remove`              | `attachmentsOptimistic` |
+| `tags`          | `tags`         | the record's tags                     | `apply`, `remove`     | `tagsOptimistic`        |
+| `share-links`   | `shareLinks`   | the record's share links              | `create`, `revoke`    | none                    |
+| `relations`     | `relations`    | links to and from the record          | `link`, `unlink`      | none                    |
+| `versions`      | `versions`     | the versions, newest first            | `snapshot`, `restore` | none                    |
+| `sla`           | `sla`          | the record's clocks                   | `start`               | none                    |
+| `ledger`        | `ledger`       | the record's accounts                 | none                  | none                    |
+| `assets`        | `assets`       | the assets the record holds           | none                  | none                    |
+| `guests`        | `guests`       | the guests who reach the record       | `grant`, `revoke`     | none                    |
+| `passes`        | `passes`       | the passes issued for the record      | `issue`, `revoke`     | none                    |
+| `billable-time` | `billableTime` | the record's unbilled time            | `setRate`, `invoice`  | none                    |
+| `dispatch`      | `dispatch`     | the work orders opened for the record | `create`, `cancel`    | none                    |
+| `shipments`     | `shipments`    | the shipments sent for the record     | `create`, `cancel`    | none                    |
+| Block           | Section        | Rows                                  | Writes                | Optimistic reducer      |
+| --------------- | -------------- | --------------------------------      | --------------------- | ----------------------- |
+| `comments`      | `comments`     | the thread                            | `add`, `remove`       | `commentsOptimistic`    |
+| `attachments`   | `attachments`  | the files, newest first               | `remove`              | `attachmentsOptimistic` |
+| `tags`          | `tags`         | the record's tags                     | `apply`, `remove`     | `tagsOptimistic`        |
+| `share-links`   | `shareLinks`   | the record's share links              | `create`, `revoke`    | none                    |
+| `relations`     | `relations`    | links to and from the record          | `link`, `unlink`      | none                    |
+| `versions`      | `versions`     | the versions, newest first            | `snapshot`, `restore` | none                    |
+| `sla`           | `sla`          | the record's clocks                   | `start`               | none                    |
+| `ledger`        | `ledger`       | the record's accounts                 | none                  | none                    |
+| `assets`        | `assets`       | the assets the record holds           | none                  | none                    |
+| `guests`        | `guests`       | the guests who reach the record       | `grant`, `revoke`     | none                    |
+| `passes`        | `passes`       | the passes issued for the record      | `issue`, `revoke`     | none                    |
+| `billable-time` | `billableTime` | the record's unbilled time            | `setRate`, `invoice`  | none                    |
+| `contracts`     | `contracts`    | the contracts with the record         | none                  | none                    |
 
 A write takes the record's id and the write's input, such as
 `{ id, input: { kind: "relates", target } }` for `relations.link`.

@@ -111,6 +111,11 @@
     "guests",
     "passes",
     "billable-time",
+    "dispatch",
+    "shipments",
+    "leases",
+    "expenses",
+    "donations",
     "contracts",
     "controls",
     "incidents"

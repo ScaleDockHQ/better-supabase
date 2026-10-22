@@ -407,6 +407,11 @@ export default defineConfig({
     guests: {},
     passes: {},
     "billable-time": {},
+    leases: {},
+    expenses: {},
+    donations: {},
+    dispatch: {},
+    shipments: {},
     // Contracts send for signature with signatures and remind owners of the
     // notice deadline with reminders; controls publish policies as versions.
     signatures: {},

@@ -2,6 +2,7 @@ import type {
   ComponentStatus,
   IncidentStatus,
 } from "better-supabase/blocks/incidents";
+import type { ComponentProps } from "react";
 
 import {
   ActivityIcon,
@@ -46,11 +47,7 @@ async function retry() {
   refresh();
 }
 
-type BadgeVariant =
-  | "success-light"
-  | "info-light"
-  | "warning-light"
-  | "destructive-light";
+type BadgeVariant = ComponentProps<typeof Badge>["variant"];
 
 interface StatusLook {
   readonly badge: BadgeVariant;

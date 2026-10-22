@@ -106,6 +106,8 @@ export { testPaymentProvider } from "./kits/payment-provider.ts";
 
 export { testTaxProvider } from "./kits/tax-provider.ts";
 
+export { testShipmentCarrier } from "./kits/shipment-carrier.ts";
+
 export { testIncomingDestination } from "./kits/incoming-destination.ts";
 
 export { testPlugin } from "./kits/plugin.ts";
@@ -169,6 +171,8 @@ export type { TestExecutorOptions } from "./kits/executor.ts";
 export type { TestPaymentProviderOptions } from "./kits/payment-provider.ts";
 
 export type { TestTaxProviderOptions } from "./kits/tax-provider.ts";
+
+export type { TestShipmentCarrierOptions } from "./kits/shipment-carrier.ts";
 
 export type { TestIncomingDestinationOptions } from "./kits/incoming-destination.ts";
 

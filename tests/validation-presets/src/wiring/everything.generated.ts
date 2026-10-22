@@ -39,6 +39,14 @@ import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { passesBlock } from "better-supabase/blocks/passes";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
+import { leasesBlock } from "better-supabase/blocks/leases";
+import { expensesBlock } from "better-supabase/blocks/expenses";
+import { donationsBlock } from "better-supabase/blocks/donations";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
+import { shipmentsBlock } from "better-supabase/blocks/shipments";
+import { contractsBlock } from "better-supabase/blocks/contracts";
+import { controlsBlock } from "better-supabase/blocks/controls";
+import { incidentsBlock } from "better-supabase/blocks/incidents";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
@@ -144,6 +152,14 @@ export const blockSet = defineBlocks(blockConfig, {
   guests: guestsBlock,
   passes: passesBlock,
   billableTime: billableTimeBlock,
+  leases: leasesBlock,
+  expenses: expensesBlock,
+  donations: donationsBlock,
+  dispatch: dispatchBlock,
+  shipments: shipmentsBlock,
+  contracts: contractsBlock,
+  controls: controlsBlock,
+  incidents: incidentsBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,

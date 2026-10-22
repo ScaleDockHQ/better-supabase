@@ -40,14 +40,17 @@ import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
+import { DISPATCH } from "./modules/dispatch.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
+import { DONATIONS } from "./modules/donations.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENROLLMENTS } from "./modules/enrollments.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
+import { EXPENSES } from "./modules/expenses.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
@@ -64,6 +67,7 @@ import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
+import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
 import { MEMORY } from "./modules/memory.ts";
@@ -103,6 +107,7 @@ import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SHARED_SIGNALS } from "./modules/shared-signals.ts";
+import { SHIPMENTS } from "./modules/shipments.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
 import { SIGNING_KEYS } from "./modules/signing-keys.ts";
 import { SLA } from "./modules/sla.ts";
@@ -326,6 +331,11 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(GUESTS),
       built(PASSES),
       built(BILLABLE_TIME),
+      built(LEASES),
+      built(EXPENSES),
+      built(DONATIONS),
+      built(DISPATCH),
+      built(SHIPMENTS),
       built(CONTRACTS),
       built(CONTROLS),
       built(INCIDENTS),

@@ -16,6 +16,10 @@ import {
   revokeApplicationPasses,
   setRateApplicationBillableTime,
   invoiceApplicationBillableTime,
+  createApplicationDispatch,
+  cancelApplicationDispatch,
+  createApplicationShipments,
+  cancelApplicationShipments,
   linkApplicationRelations,
   unlinkApplicationRelations,
   createApplicationShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateApplicationBillableTime,
     invoice: invoiceApplicationBillableTime,
+  },
+  dispatch: {
+    create: createApplicationDispatch,
+    cancel: cancelApplicationDispatch,
+  },
+  shipments: {
+    create: createApplicationShipments,
+    cancel: cancelApplicationShipments,
   },
   relations: {
     link: linkApplicationRelations,

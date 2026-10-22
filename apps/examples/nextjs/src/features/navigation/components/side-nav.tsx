@@ -9,6 +9,7 @@ import {
   ClockIcon,
   CalendarIcon,
   CalendarCheckIcon,
+  CalendarRangeIcon,
   SquareKanbanIcon,
   TableIcon,
   ShieldCheckIcon,
@@ -45,6 +46,8 @@ import {
   WaypointsIcon,
   ListFilterIcon,
   WorkflowIcon,
+  RouteIcon,
+  TruckIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -83,6 +86,9 @@ const ICONS = {
   shop: StoreIcon,
   inventory: BoxesIcon,
   orders: ReceiptIcon,
+  dispatch: CalendarRangeIcon,
+  myDay: RouteIcon,
+  shipments: TruckIcon,
   drive: FolderIcon,
   documents: NotebookTextIcon,
   forms: ClipboardListIcon,
@@ -187,6 +193,18 @@ function useNavLabel() {
 
       case "orders": {
         return t("Orders");
+      }
+
+      case "dispatch": {
+        return t("Dispatch");
+      }
+
+      case "myDay": {
+        return t("My day");
+      }
+
+      case "shipments": {
+        return t("Shipments");
       }
 
       case "drive": {

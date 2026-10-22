@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_121_controls.sql
+-- ==== schema supabase/schemas/900_better_supabase_126_controls.sql
 -- better-supabase module: controls
 -- @bs-module controls@1 managed
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
@@ -816,7 +816,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_121_controls.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_126_controls.sql
 -- better-supabase module: controls
 -- @bs-module-data controls
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

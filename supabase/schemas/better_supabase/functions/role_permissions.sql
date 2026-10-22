@@ -7,7 +7,9 @@
 -- existing tags, keep their own API keys,
 -- read the settings, answer inbox conversations and use the assistant.
 -- Members also read every recipe block and do the everyday writes (react,
--- upload, track time, request approval, report content); managing a block
+-- upload, track time, request approval, report content, file maintenance
+-- requests, submit expense reports, work the dispatch jobs scheduled for
+-- them); managing a block
 -- is for admins.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
@@ -66,6 +68,7 @@ as $$
       'scores.read', 'scores.manage', 'scores.compute',
       'moderation.read', 'moderation.report', 'moderation.manage', 'moderation.ban',
       'enrollments.read', 'enrollments.enroll', 'enrollments.manage',
+      'dispatch.read', 'dispatch.manage', 'dispatch.work', 'shipments.read', 'shipments.manage',
       'signatures.read', 'signatures.request', 'signatures.manage',
       'contracts.read', 'contracts.write', 'contracts.manage',
       'controls.read', 'controls.manage', 'controls.collect', 'controls.acknowledge',
@@ -92,7 +95,8 @@ as $$
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
       'employees.read', 'rules.read', 'assets.read', 'scores.read',
-      'moderation.report', 'enrollments.read', 'signatures.read',
+      'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit',
+      'dispatch.read', 'dispatch.work', 'shipments.read', 'signatures.read',
       'contracts.read', 'contracts.write', 'controls.read', 'controls.collect',
       'controls.acknowledge', 'incidents.read', 'incidents.write'
     ]

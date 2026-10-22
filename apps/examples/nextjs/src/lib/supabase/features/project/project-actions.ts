@@ -22,6 +22,14 @@ export const setRateProjectBillableTime = projectRecord.actions.billableTime.set
 
 export const invoiceProjectBillableTime = projectRecord.actions.billableTime.invoice;
 
+export const createProjectDispatch = projectRecord.actions.dispatch.create;
+
+export const cancelProjectDispatch = projectRecord.actions.dispatch.cancel;
+
+export const createProjectShipments = projectRecord.actions.shipments.create;
+
+export const cancelProjectShipments = projectRecord.actions.shipments.cancel;
+
 export const linkProjectRelations = projectRecord.actions.relations.link;
 
 export const unlinkProjectRelations = projectRecord.actions.relations.unlink;

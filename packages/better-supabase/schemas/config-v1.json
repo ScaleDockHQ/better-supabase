@@ -1791,8 +1791,10 @@
               "custom-fields",
               "data-lifecycle",
               "deals",
+              "dispatch",
               "documents",
               "domains",
+              "donations",
               "drive",
               "drive-files",
               "employees",
@@ -1800,6 +1802,7 @@
               "enrollments",
               "ensure-rls",
               "entitlements",
+              "expenses",
               "flags",
               "forms",
               "grants",
@@ -1816,6 +1819,7 @@
               "jobs",
               "jsonb-schemas",
               "knowledge",
+              "leases",
               "leave",
               "ledger",
               "memory",
@@ -1855,6 +1859,7 @@
               "settings",
               "share-links",
               "shared-signals",
+              "shipments",
               "signatures",
               "signing-keys",
               "sla",
@@ -1983,11 +1988,17 @@
             "deals": {
               "$ref": "#/$defs/blocks/deals"
             },
+            "dispatch": {
+              "$ref": "#/$defs/blocks/dispatch"
+            },
             "documents": {
               "$ref": "#/$defs/blocks/documents"
             },
             "domains": {
               "$ref": "#/$defs/blocks/domains"
+            },
+            "donations": {
+              "$ref": "#/$defs/blocks/donations"
             },
             "drive": {
               "$ref": "#/$defs/blocks/drive"
@@ -2009,6 +2020,9 @@
             },
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
+            },
+            "expenses": {
+              "$ref": "#/$defs/blocks/expenses"
             },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
@@ -2057,6 +2071,9 @@
             },
             "knowledge": {
               "$ref": "#/$defs/blocks/knowledge"
+            },
+            "leases": {
+              "$ref": "#/$defs/blocks/leases"
             },
             "leave": {
               "$ref": "#/$defs/blocks/leave"
@@ -2174,6 +2191,9 @@
             },
             "shared-signals": {
               "$ref": "#/$defs/blocks/shared-signals"
+            },
+            "shipments": {
+              "$ref": "#/$defs/blocks/shipments"
             },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
@@ -3871,6 +3891,27 @@
           }
         }
       },
+      "dispatch": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {},
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              },
+              "defaultDuration": {
+                "type": "string",
+                "default": "1 hour"
+              }
+            }
+          }
+        }
+      },
       "documents": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3911,6 +3952,19 @@
                 "type": "string",
                 "default": "_better-supabase"
               }
+            }
+          }
+        }
+      },
+      "donations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }
@@ -4030,6 +4084,19 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "expenses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4335,6 +4402,19 @@
                 "type": "string",
                 "default": "knowledge_embed"
               }
+            }
+          }
+        }
+      },
+      "leases": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }
@@ -5146,6 +5226,19 @@
                 "type": "string",
                 "default": "7 days"
               }
+            }
+          }
+        }
+      },
+      "shipments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }

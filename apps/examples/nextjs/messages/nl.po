@@ -198,6 +198,37 @@ msgctxt "app.FazwRl"
 msgid "Try again"
 msgstr "Opnieuw proberen"
 
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.XdSd3o"
+msgid "My day"
+msgstr "Mijn dag"
+
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.G24OIU"
+msgid "Your stops for the day and the next step of each."
+msgstr "Je stops van vandaag en de volgende stap van elke stop."
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.g_6veL"
+msgid "Dispatch"
+msgstr "Planning"
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.6OAxn7"
+msgid "Schedule work orders into technicians' days and keep the backlog moving."
+msgstr "Plan werkorders in de dagen van monteurs en houd de achterstand in beweging."
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field._VTdwj"
+msgid "Shipments"
+msgstr "Zendingen"
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+msgctxt "field.7grP0Y"
+msgid "Track packages from label to delivery."
+msgstr "Volg pakketten van label tot bezorging."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -4885,6 +4916,401 @@ msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Toegang"
 
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.s7o6zU"
+msgid "Leave for the stop"
+msgstr "Vertrek naar de stop"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.W_6tSY"
+msgid "Arrived"
+msgstr "Aangekomen"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.tQpQon"
+msgid "Mark done"
+msgstr "Markeer als klaar"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.DgAp1f"
+msgid "Week of {range}"
+msgstr "Week van {range}"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.B1qonS"
+msgid "Scheduled work per technician, in {zone}."
+msgstr "Gepland werk per monteur, in {zone}."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.m74Rqi"
+msgid "Scheduled work per technician."
+msgstr "Gepland werk per monteur."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.GAjQnO"
+msgid "Previous week"
+msgstr "Vorige week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.iMjjOH"
+msgid "Next week"
+msgstr "Volgende week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.oZZk8W"
+msgid "The schedule board didn't load"
+msgstr "Het planbord is niet geladen"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.CXAGzs"
+msgid "Nothing scheduled this week"
+msgstr "Niets gepland deze week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8rezaW"
+msgid "Work orders show here once they have a technician."
+msgstr "Werkorders verschijnen hier zodra ze een monteur hebben."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.LiYMhZ"
+msgid "Show next week"
+msgstr "Toon volgende week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.FoMO5v"
+msgid "Technician"
+msgstr "Monteur"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.mX1AFw"
+msgid "Backlog"
+msgstr "Achterstand"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.a7n80f"
+msgid "Work orders without a slot, most urgent first."
+msgstr "Werkorders zonder tijdslot, de dringendste eerst."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.i7CstZ"
+msgid "The backlog didn't load"
+msgstr "De achterstand is niet geladen"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.KV_tdf"
+msgid "The backlog is empty"
+msgstr "De achterstand is leeg"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.aeOe_6"
+msgid "Every open work order has a slot."
+msgstr "Elke open werkorder heeft een tijdslot."
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.MEvKnW"
+msgid "Job"
+msgstr "Klus"
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.e6Ph5-"
+msgid "Address"
+msgstr "Adres"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8lCjAM"
+msgid "Priority"
+msgstr "Prioriteit"
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.eTrzQC"
+msgid "Shipment created"
+msgstr "Zending aangemaakt"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.HkTa1T"
+msgid "New shipment"
+msgstr "Nieuwe zending"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.UMshQz"
+msgid "One package from the warehouse, saved as a draft."
+msgstr "Eén pakket vanuit het magazijn, opgeslagen als concept."
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.8Rkoyb"
+msgid "Recipient"
+msgstr "Ontvanger"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.LVbG7l"
+msgid "Street and number"
+msgstr "Straat en huisnummer"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.3EnruA"
+msgid "Postal code"
+msgstr "Postcode"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.TE4fIS"
+msgid "City"
+msgstr "Plaats"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.H36vgV"
+msgid "Country code"
+msgstr "Landcode"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.SHl88G"
+msgid "Weight in grams"
+msgstr "Gewicht in grammen"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.VzzYJk"
+msgid "Create"
+msgstr "Aanmaken"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.Wp_i6x"
+msgid "Work order added to the backlog"
+msgstr "Werkorder toegevoegd aan de achterstand"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.WHfMpv"
+msgid "New work order"
+msgstr "Nieuwe werkorder"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.1zY8SM"
+msgid "It waits in the backlog until you schedule it."
+msgstr "Hij wacht in de achterstand tot je hem inplant."
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yNSJTr"
+msgid "Label created"
+msgstr "Label aangemaakt"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLBci1"
+msgid "In transit"
+msgstr "Onderweg"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.UdVzmc"
+msgid "Out for delivery"
+msgstr "Wordt bezorgd"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.DMqnF4"
+msgid "Delivered"
+msgstr "Bezorgd"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.YAnsyA"
+msgid "Exception"
+msgstr "Probleem"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.wm96Jx"
+msgid "Returned"
+msgstr "Geretourneerd"
+
+#: src/features/field/components/shipment-tracking.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.xd9-PX"
+msgid "The status follows the latest tracking event."
+msgstr "De status volgt de laatste trackinggebeurtenis."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.7CeqzL"
+msgid "The shipments didn't load"
+msgstr "De zendingen zijn niet geladen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TsxaHw"
+msgid "No shipments yet"
+msgstr "Nog geen zendingen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.LLrtsC"
+msgid "Create a shipment, then buy its label from a carrier."
+msgstr "Maak een zending aan en koop daarna het label bij een vervoerder."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.mcUhhf"
+msgid "Reference"
+msgstr "Referentie"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.BzQPM-"
+msgid "Destination"
+msgstr "Bestemming"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yT_GAp"
+msgid "Tracking number"
+msgstr "Trackingnummer"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.-jwfm8"
+msgid "Tracking for {reference}"
+msgstr "Tracking voor {reference}"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.aAuZgr"
+msgid "Events from {carrier}, newest first."
+msgstr "Gebeurtenissen van {carrier}, de nieuwste eerst."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TLGw7J"
+msgid "Events show once the shipment has a label."
+msgstr "Gebeurtenissen verschijnen zodra de zending een label heeft."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.hH74PI"
+msgid "No tracking events yet"
+msgstr "Nog geen trackinggebeurtenissen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLP7kH"
+msgid "The carrier's webhook adds events as the package moves."
+msgstr "De webhook van de vervoerder voegt gebeurtenissen toe terwijl het pakket onderweg is."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.1A8Z_l"
+msgid "Check again"
+msgstr "Opnieuw controleren"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.AE_HJl"
+msgid "Your stops in the order of the planned route."
+msgstr "Je stops in de volgorde van de geplande route."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.SGzIa0"
+msgid "Your stops by start time."
+msgstr "Je stops op starttijd."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.RMO5xM"
+msgid "Previous day"
+msgstr "Vorige dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.3XCLrO"
+msgid "Next day"
+msgstr "Volgende dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.D-LF9w"
+msgid "Your day didn't load"
+msgstr "Je dag is niet geladen"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.fWAPAL"
+msgid "No stops on this day"
+msgstr "Geen stops op deze dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.-PlOyW"
+msgid "Work orders scheduled for you show here."
+msgstr "Werkorders die voor jou zijn gepland verschijnen hier."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.g-EdHj"
+msgid "Show the next day"
+msgstr "Toon de volgende dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.tXYVJd"
+msgid "{from} to {to}"
+msgstr "{from} tot {to}"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.4MnrK6"
+msgid "Unscheduled"
+msgstr "Niet gepland"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.cXAlMR"
+msgid "Scheduled"
+msgstr "Gepland"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.UHCOTT"
+msgid "En route"
+msgstr "Onderweg"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.bC-TWQ"
+msgid "On site"
+msgstr "Ter plaatse"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.myq2ZL"
+msgid "Normal"
+msgstr "Normaal"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.yN7aqf"
+msgid "Urgent"
+msgstr "Dringend"
+
 #: src/features/flags/components/beta-content.tsx
 msgctxt "beta.hKwqKr"
 msgid "You're in the beta"
@@ -6022,6 +6448,21 @@ msgstr "Voorraad"
 msgctxt "navigation.X7jl6w"
 msgid "Orders"
 msgstr "Bestellingen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.g_6veL"
+msgid "Dispatch"
+msgstr "Planning"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.XdSd3o"
+msgid "My day"
+msgstr "Mijn dag"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._VTdwj"
+msgid "Shipments"
+msgstr "Zendingen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.1YAWJ3"

@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_120_contracts.sql
+-- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bs-module contracts@1 managed
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
@@ -688,7 +688,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_120_contracts.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bs-module-data contracts
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

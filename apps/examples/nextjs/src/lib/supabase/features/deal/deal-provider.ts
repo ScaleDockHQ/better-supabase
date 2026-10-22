@@ -16,6 +16,10 @@ import {
   revokeDealPasses,
   setRateDealBillableTime,
   invoiceDealBillableTime,
+  createDealDispatch,
+  cancelDealDispatch,
+  createDealShipments,
+  cancelDealShipments,
   linkDealRelations,
   unlinkDealRelations,
   createDealShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateDealBillableTime,
     invoice: invoiceDealBillableTime,
+  },
+  dispatch: {
+    create: createDealDispatch,
+    cancel: cancelDealDispatch,
+  },
+  shipments: {
+    create: createDealShipments,
+    cancel: cancelDealShipments,
   },
   relations: {
     link: linkDealRelations,
